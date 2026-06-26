@@ -1109,7 +1109,6 @@ async function loadAll(){
   // 1. Carregar snapshots — fonte primária
   const snapSnap = await db.ref('snapshots').once('value');
   const snapRaw  = snapSnap.val()||{};
-  console.log('[Admin] snapshots encontrados:', Object.keys(snapRaw).length, Object.keys(snapRaw));
   Object.entries(snapRaw).forEach(([date,snap])=>{
     if(!snap?.rows||typeof snap.rows!=='object')return;
     if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{}};
@@ -1173,7 +1172,6 @@ async function loadAll(){
 
   // Debug
   const dates = Object.keys(_allData);
-  console.log('[Admin] _allData carregado:', dates.length, 'datas:', dates);
   dates.forEach(d => {
     const day = _allData[d];
     console.log(`  ${d}: ${Object.keys(day.rows).length} rows, ${Object.keys(day.prem).length} prem, ${Object.keys(day.fixed).length} fixed`);
@@ -1310,8 +1308,6 @@ async function loadAudit(){
     return (ma>=DAY_START?ma:ma+1440)-(mb>=DAY_START?mb:mb+1440);
   });
 
-  console.log('[Audit] dates:', dates, 'rows total:', rows.length);
-  console.log('[Audit] primeiro row:', rows[0]);
   el.innerHTML=dates.map(date=>{
     const dayRows=byDate[date];
     const groups=[
@@ -1324,8 +1320,6 @@ async function loadAudit(){
     const allPrem=dayRows.filter(r=>r.premiacao!=null).reduce((s,r)=>s+(r.premiacao||0),0);
     const allOv=dayRows.reduce((s,r)=>s+(r.overlay||0),0);
     const closed=dayRows.filter(r=>r.status==='fechado').length;
-
-    console.log('[Audit] date:', date, 'groups:', groups.map(g=>g.cat+':'+g.rows.length));
     const groupsHtml=groups.map(g=>{
       const cc=CAT_COLORS[g.cat];
       let sumGar=0,sumPrem=0,sumOv=0,count=0;

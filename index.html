@@ -2019,6 +2019,42 @@
 
 /* Admin movido para admin.html */
 
+/* ── Overlay Chart ── */
+#overlayChart{background:var(--card);border:1px solid var(--hairline-strong);border-radius:14px;padding:14px 16px}
+.oc-title{display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);margin-bottom:10px}
+.oc-total{font-size:13px;font-weight:800;letter-spacing:-.01em;font-family:var(--mono)}
+.oc-total.neg{color:var(--red)}.oc-total.pos{color:var(--felt-bright)}
+.oc-bars{display:flex;flex-direction:column;gap:4px}
+.oc-bar-wrap{display:flex;align-items:center;gap:8px}
+.oc-bar-track{flex:1;height:6px;background:var(--hairline);border-radius:3px;overflow:hidden}
+.oc-bar-fill{height:100%;border-radius:3px;transition:width .4s cubic-bezier(.4,0,.2,1)}
+.oc-bar-val{font-family:var(--mono);font-size:10px;font-weight:700;min-width:70px;text-align:right;white-space:nowrap}
+.oc-bar-val.neg{color:var(--red)}.oc-bar-val.pos{color:var(--felt-bright)}
+.oc-legend{display:flex;gap:14px;margin-top:8px;font-size:10px}
+.oc-leg{color:var(--ink-soft)}.oc-leg.pos{color:var(--felt-bright)}.oc-leg.neg{color:var(--red)}
+
+/* ── Card editing badge ── */
+.card-editing-badge{
+  position:absolute;bottom:8px;right:8px;
+  display:flex;align-items:center;gap:6px;
+  background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.25);
+  border-radius:99px;padding:3px 10px 3px 3px;
+  font-size:10.5px;color:var(--blue,#60a5fa);font-weight:600;
+  backdrop-filter:blur(4px);
+  animation:ceb-in .2s ease;pointer-events:none;
+  z-index:10;
+}
+@keyframes ceb-in{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+.ceb-avatar{
+  width:18px;height:18px;border-radius:50%;
+  background:linear-gradient(135deg,#3b82f6,#1d4ed8);
+  color:#fff;font-size:9px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;flex:none;
+}
+.ceb-text{letter-spacing:0}
+/* Garantir que tcard tem position relative para badge funcionar */
+.tcard{position:relative}
+
 /* ── Prompt de nova Global (meia-noite) ── */
 #globalUpdatePrompt{
   position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);
@@ -2801,7 +2837,8 @@
     </div>
 
 
-    <div class="hero-stats" id="heroStats" hidden>
+    <div id="overlayChart" hidden style="margin:0 0 16px"></div>
+<div class="hero-stats" id="heroStats" hidden>
       <div class="hstat">
         <div class="num" id="statGarantido">R$ 0</div>
         <div class="lbl">Garantido total do dia</div>
@@ -4952,7 +4989,10 @@ function initFirebaseSync(){
             localStorage.setItem('suprema_prem_v1', JSON.stringify(pm));
           } catch(e){}
           const inp = document.querySelector(`.tcard-prem-input[data-key="${key}"]`);
-          if(inp && document.activeElement !== inp) inp.value = val;
+          if(inp && document.activeElement !== inp){
+            // Formatar como BRL ao receber do Firebase
+            inp.value = val != null ? 'R$ '+Number(val).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '';
+          }
           renderCardOverlayPreview(key, row, val, getField(key));
         }
       });
@@ -5007,7 +5047,7 @@ function initFirebaseSync(){
         const row = RAW_ROWS.find(r => r._key === inp.dataset.key);
         if(row) row.field = v != null ? v : null;
       });
-      if(RAW_ROWS.length) renderResults();
+      if(RAW_ROWS.length){ renderResults(); renderUpcoming(); }
     });
 
     // ── Garantido editado ─────────────────────────────────────────────────
@@ -5135,10 +5175,29 @@ function renderPresence(all){
   const now = Date.now();
   const sessions = Object.entries(all)
     .filter(([id]) => id)
-    .filter(([id, v]) => v && typeof v.at === 'number' && (now - v.at) < PRESENCE_STALE_MS); // ignora sessões fantasma
+    .filter(([id, v]) => v && typeof v.at === 'number' && (now - v.at) < PRESENCE_STALE_MS);
   if (!sessions.length){ wrap.hidden = true; return; }
   wrap.hidden = false;
-  // agrupa por nome (a mesma pessoa pode ter 2 abas abertas — mostra 1 avatar só, não duplica)
+
+  // ── Typing indicators por card ──
+  // Remover badges anteriores
+  document.querySelectorAll('.card-editing-badge').forEach(el => el.remove());
+  // Mostrar quem está editando cada card (exceto eu mesmo)
+  sessions.forEach(([sid, v]) => {
+    if(sid === PRESENCE_SESSION_ID) return; // ignorar minha própria sessão
+    if(!v?.editing?.key || (now - v.editing.at) > 8000) return; // expirado
+    const key  = v.editing.key;
+    const name = (v.name || 'Alguém').split(' ')[0]; // primeiro nome
+    const field = v.editing.field || 'campo';
+    const card  = document.querySelector(`.tcard[data-key="${key}"]`);
+    if(!card) return;
+    const badge = document.createElement('div');
+    badge.className = 'card-editing-badge';
+    badge.innerHTML = `<span class="ceb-avatar">${name.charAt(0).toUpperCase()}</span><span class="ceb-text">${name} está preenchendo...</span>`;
+    card.appendChild(badge);
+  });
+
+  // agrupa por nome para o nav
   const byName = {};
   sessions.forEach(([id, v]) => {
     const name = (v && v.name) || 'Alguém';
@@ -5249,10 +5308,12 @@ function setId(key, val){
   applyIdDuplicateChecks();
   // Debounce: salvar no Firebase só após 500ms sem digitar
   clearTimeout(_debouncedIdSave[key]);
+  if(fbReady) fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).set({key, field:'id', at:Date.now()}).catch(()=>{});
   _debouncedIdSave[key] = setTimeout(() => {
     if(!fbReady) return;
     fbDb.ref(`${FB_BASE_PATH}/ids/${key}`).set(val ? ID_MAP[key] : null)
       .catch(err => console.error('Firebase: falha ao salvar ID', err));
+    fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).remove().catch(()=>{});
   }, 500);
 }
 
@@ -5265,8 +5326,13 @@ function setField(key, val){
   const row = RAW_ROWS.find(r => r._key === key);
   if(row) row.field = (n != null && !isNaN(n)) ? n : null;
   clearTimeout(_debouncedFieldSave[key]);
+  // Publicar que está editando este card
+  if(fbReady) fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).set({key, field:'field', at:Date.now()}).catch(()=>{});
   _debouncedFieldSave[key] = setTimeout(() => {
-    if(fbReady) fbDb.ref(`${FB_BASE_PATH}/field/${key}`).set(n != null && !isNaN(n) ? n : null);
+    if(fbReady){
+      fbDb.ref(`${FB_BASE_PATH}/field/${key}`).set(n != null && !isNaN(n) ? n : null);
+      fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).remove().catch(()=>{});
+    }
   }, 400);
 }
 
@@ -5656,6 +5722,56 @@ function ingest(rows, filename, fromRemote=false){
       io.observe(el);
     });
   });
+}
+
+function renderOverlayChart(){
+  const container = document.getElementById('overlayChart');
+  if(!container) return;
+  const closed = RESULTS.filter(r => r.premiacao != null && r.garantido != null);
+  if(!closed.length){ container.hidden = true; return; }
+
+  const DAY_START = 5*60;
+  const sorted = [...closed].sort((a,b)=>{
+    const ma = timeToMinutes(a.hora)??9999, mb = timeToMinutes(b.hora)??9999;
+    return (ma>=DAY_START?ma:ma+1440) - (mb>=DAY_START?mb:mb+1440);
+  });
+
+  // Calcular overlay acumulado
+  let acum = 0;
+  const bars = sorted.map(r => {
+    const ov = r.premiacao - r.garantido;
+    acum += ov;
+    return { nome: r.nome, hora: r.hora, ov, acum, cat: classify(r) };
+  });
+
+  const maxAbs = Math.max(...bars.map(b => Math.abs(b.acum)), 1);
+  const hasOverlay = bars.some(b => b.acum < 0);
+
+  container.hidden = false;
+  container.innerHTML = `
+    <div class="oc-title">
+      Overlay acumulado no turno
+      <span class="oc-total ${acum < 0 ? 'neg' : 'pos'}">${acum < 0 ? '– R$ '+fmtBRL(Math.abs(acum),0) : '+ R$ '+fmtBRL(acum,0)}</span>
+    </div>
+    <div class="oc-bars">
+      ${bars.map((b,i) => {
+        const pct = Math.round(Math.abs(b.acum) / maxAbs * 100);
+        const isNeg = b.acum < 0;
+        const color = isNeg ? 'var(--red)' : 'var(--felt-bright)';
+        return `<div class="oc-bar-wrap" title="${b.nome} (${b.hora})
+Overlay acum: ${b.acum>=0?'+':''}R$ ${fmtBRL(b.acum,0)}">
+          <div class="oc-bar-track">
+            <div class="oc-bar-fill" style="width:${pct}%;background:${color};opacity:${0.4+0.6*(i+1)/bars.length}"></div>
+          </div>
+          <div class="oc-bar-val ${isNeg?'neg':'pos'}">${b.acum>=0?'+':''}${fmtBRL(b.acum,0)}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="oc-legend">
+      <span class="oc-leg pos">● Acima do GTD</span>
+      <span class="oc-leg neg">● Com overlay</span>
+    </div>
+  `;
 }
 
 function computeStats(){
