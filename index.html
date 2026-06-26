@@ -5017,7 +5017,7 @@ function initFirebaseSync(){
           activeEl.classList.contains('id-input')
         );
         renderResults();
-        if(!isTypingAny) renderUpcoming();
+        if(!isTypingAny && !window._suppressRenderUpcoming) renderUpcoming();
       }
     });
 
@@ -5543,6 +5543,14 @@ function setSharedSheet(rows, filename){
     const savedAt = new Date(data.savedAt).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
     document.getElementById('heroEyebrowText').textContent =
       `Painel restaurado (salvo às ${savedAt})${count > 0 ? ` — ${count} premiações recuperadas` : ''}`;
+    // Resetar filtros para o padrão ao restaurar
+    activeUpcomingCat  = 'all';
+    upcomingPremFilter = 'all';
+    document.querySelectorAll('#upcomingFilters .chip').forEach(c => c.classList.remove('active'));
+    const allCatChip  = document.querySelector('#upcomingFilters .chip[data-cat="all"]');
+    const allPremChip = document.querySelector('#upcomingFilters .chip[data-prem="all"]');
+    if(allCatChip)  allCatChip.classList.add('active');
+    if(allPremChip) allPremChip.classList.add('active');
   } catch(e){ console.error('Erro ao restaurar sheet local:', e); }
 })();
 
@@ -7306,7 +7314,11 @@ function onCardPremiacaoInput(input){
     const premiacaoVal = parsePremInput(input);
     if(premiacaoVal != null && premiacaoVal > 0){
       row.premiacao = premiacaoVal;
-      if(fbReady) fbDb.ref(`${FB_BASE_PATH}/premiacao/${key}`).set(premiacaoVal);
+      if(fbReady){
+        window._suppressRenderUpcoming = true; // ignorar eco do Firebase
+        fbDb.ref(`${FB_BASE_PATH}/premiacao/${key}`).set(premiacaoVal);
+        setTimeout(() => { window._suppressRenderUpcoming = false; }, 1500);
+      }
       // Persistir premiação no localStorage (garantia mesmo sem Firebase)
       try {
         const pm = JSON.parse(localStorage.getItem('suprema_prem_v1') || '{}');
