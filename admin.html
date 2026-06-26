@@ -587,6 +587,32 @@ td.center{text-align:center}
 
 /* Override do <a> .tb-back que ficou pelado */
 a.tb-back{text-decoration:none}
+
+/* ── Auditoria: edição inline ── */
+.audit-edited { background: rgba(201,168,76,.05) !important; }
+.audit-edited td { color: var(--ink) !important; }
+.badge-auditado{
+  display:inline-flex;align-items:center;gap:3px;padding:2px 7px;
+  border-radius:99px;font-size:9px;font-weight:700;letter-spacing:.05em;
+  background:rgba(201,168,76,.12);color:var(--gold);border:1px solid rgba(201,168,76,.2);
+}
+.audit-edit-btn{
+  padding:3px 8px;border-radius:6px;font-size:10px;font-weight:700;
+  background:var(--s3);color:var(--ink2);border:1px solid var(--border);
+  cursor:pointer;transition:all .12s;white-space:nowrap;
+}
+.audit-edit-btn:hover{background:var(--goldf);color:var(--gold);border-color:var(--goldb)}
+.audit-edit-btn.auditado{background:var(--goldf);color:var(--gold);border-color:var(--goldb)}
+
+/* Modal de edição de auditoria */
+.audit-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.audit-val-orig{
+  font-size:11px;color:var(--ink3);background:var(--s2);
+  border:1px solid var(--border2);border-radius:7px;padding:8px 10px;
+  font-family:var(--mono);
+}
+.audit-val-orig span{display:block;font-size:9px;color:var(--ink3);margin-bottom:3px;letter-spacing:.06em;text-transform:uppercase}
+.audit-val-orig strong{font-size:14px;color:var(--ink2)}
 </style>
 </head>
 <body>
@@ -629,6 +655,7 @@ a.tb-back{text-decoration:none}
         <span class="tb-dot"></span>
         <span id="adminName">—</span>
       </div>
+      <button class="btn btn-ghost" onclick="openAuditSummary()">📋 Resumo auditoria</button>
       <button class="btn btn-ghost" onclick="openJustifs()" style="position:relative">
         📩 Justificativas
         <span id="pendingBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--amber);color:#000;font-size:9px;font-weight:800;border-radius:99px;padding:1px 5px;min-width:14px;text-align:center"></span>
@@ -894,6 +921,24 @@ a.tb-back{text-decoration:none}
   </div>
 </div>
 
+<!-- MODAL: Resumo semanal de auditoria -->
+<div class="modal-bg" id="moAuditSummary">
+  <div class="modal" style="max-width:700px">
+    <h2>📋 Resumo de Auditoria</h2>
+    <div class="msub">Dados auditados por período — use para relatório semanal</div>
+    <div class="filters" style="margin:12px 0">
+      <div class="fld"><label>De</label><input type="date" id="sumFrom" style="padding:7px 10px"></div>
+      <div class="fld"><label>Até</label><input type="date" id="sumTo" style="padding:7px 10px"></div>
+      <button class="btn btn-gold" onclick="buildAuditSummary()">Gerar</button>
+      <button class="btn btn-ghost" onclick="exportAuditSummaryXlsx()">⬇ XLSX</button>
+    </div>
+    <div id="auditSummaryResult" style="max-height:420px;overflow-y:auto"></div>
+    <div class="modal-actions" style="margin-top:12px">
+      <button class="btn btn-ghost" onclick="closeMo('moAuditSummary')" style="flex:1;justify-content:center">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: Notificar erro de operador -->
 <div class="modal-bg" id="moNotif">
   <div class="modal" style="max-width:520px">
@@ -953,6 +998,45 @@ a.tb-back{text-decoration:none}
     <div id="justifList" style="max-height:420px;overflow-y:auto;margin-top:12px"></div>
     <div class="modal-actions" style="margin-top:12px">
       <button class="btn btn-ghost" onclick="closeMo('moJustifs')" style="flex:1;justify-content:center">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Editar dado auditado -->
+<div class="modal-bg" id="moAudit">
+  <div class="modal" style="max-width:500px">
+    <h2>✏️ Corrigir dado auditado</h2>
+    <div class="msub" id="auditSubtitle"></div>
+    <div class="merr" id="auditErr"></div>
+
+    <div class="audit-modal-grid">
+      <div class="audit-val-orig"><span>Premiação original</span><strong id="auditOrigPrem">—</strong></div>
+      <div class="audit-val-orig"><span>Field original</span><strong id="auditOrigField">—</strong></div>
+    </div>
+
+    <div class="mf">
+      <label>Premiação corrigida (R$)</label>
+      <input type="number" id="auditPremInput" placeholder="0.00" step="0.01" min="0">
+    </div>
+    <div class="mf">
+      <label>Field corrigido (jogadores)</label>
+      <input type="number" id="auditFieldInput" placeholder="—" step="1" min="0">
+    </div>
+    <div class="mf">
+      <label>Observação</label>
+      <textarea id="auditObs" rows="2" placeholder="Ex: Premiação estava incorreta — correto era R$ 1.500"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink2);cursor:pointer">
+        <input type="checkbox" id="auditApproved" style="accent-color:var(--green);width:14px;height:14px">
+        Marcar como aprovado (sem correção)
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeMo('moAudit')">Cancelar</button>
+      <button class="btn btn-gold" onclick="saveAudit()">
+        <span id="auditBtnLabel">Salvar auditoria</span>
+      </button>
     </div>
   </div>
 </div>
@@ -1280,7 +1364,8 @@ async function loadAudit(){
   const stF =document.getElementById('auStatus')?.value||'';
   const opF =document.getElementById('auOp')?.value||'';
 
-  let rows=flatRows(from,to);
+  await loadAuditData();
+  let rows=enrichWithAudit(flatRows(from,to));
   if(catF)rows=rows.filter(r=>r.cat===catF);
   if(stF) rows=rows.filter(r=>r.status===stF);
   if(opF) rows=rows.filter(r=>r.fixBy===opF||r.idBy===opF);
@@ -1331,7 +1416,8 @@ async function loadAudit(){
         if(r.garantido)sumGar+=r.garantido;
         if(r.premiacao)sumPrem+=r.premiacao;
         if(r.overlay)sumOv+=r.overlay;
-        return `<tr class="${cls}">
+        const trCls = [cls, r._audited ? 'audit-edited' : ''].filter(Boolean).join(' ');
+        return `<tr class="${trCls}">
           <td class="nm" style="max-width:200px">${esc(r.nome)}</td>
           <td class="mono">${esc(r.hora)}</td>
           <td class="mono">${esc(r.late)}</td>
@@ -1344,7 +1430,13 @@ async function loadAudit(){
           <td class="c-ink2">${esc(r.fixBy||r.idBy||'—')}</td>
           <td class="mono c-ink2">${esc(r.id)}</td>
           <td>${r.status==='fechado'?'<span class="badge badge-closed">Fechado</span>':r.status==='nf'?'<span class="badge badge-nf">NF</span>':'<span class="badge badge-open">Aberto</span>'}</td>
-          <td><button class="btn-notif" onclick="openNotif(${JSON.stringify({nome:r.nome,date:r.date,fixBy:r.fixBy||r.idBy||'',key:r.key}).replace(/"/g,'&quot;')})">⚠ Notificar</button></td>
+          <td style="display:flex;gap:5px;align-items:center">
+            <button class="audit-edit-btn ${r._audited?'auditado':''}"
+              onclick="openAuditEdit(${JSON.stringify({key:r.key,date:r.date,nome:r.nome,premiacao:r.premiacao,field:r.field,hora:r.hora}).replace(/"/g,'&quot;')})">
+              ${r._audited ? '✓ Auditado' : '✏ Editar'}
+            </button>
+            <button class="btn-notif" onclick="openNotif(${JSON.stringify({nome:r.nome,date:r.date,fixBy:r.fixBy||r.idBy||'',key:r.key}).replace(/"/g,'&quot;')})">⚠ Notif</button>
+          </td>
         </tr>`;
       }).join('');
 
@@ -1358,7 +1450,7 @@ async function loadAudit(){
             <th>Torneio</th><th>Hora</th><th>Late</th>
             <th class="r">GTD</th><th class="r">Buy-in</th><th class="r">Premiação</th>
             <th class="r">Overlay</th><th class="r">Field</th><th class="r">Perf.</th>
-            <th>Operador</th><th>ID</th><th>Status</th><th></th>
+            <th>Operador</th><th>ID</th><th>Status</th><th>Auditoria</th>
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table>
@@ -1817,6 +1909,158 @@ async function resolveNotif(opKey,nid){
   } catch(e){ toast('Erro: '+e.message,'err'); }
 }
 
+/* ══════════════════════════════════════════════════════════════
+   SISTEMA DE AUDITORIA — nó separado no Firebase
+   auditoria/{YYYY-MM-DD}/{key} = {
+     premiacaoAuditada, fieldAuditado, premiacaoOriginal, fieldOriginal,
+     status: "corrigido"|"aprovado", obs, auditadoEm, auditadoPor
+   }
+══════════════════════════════════════════════════════════════ */
+
+let _auditData = {};     // { date: { key: {...} } }
+let _auditContext = null; // contexto do modal aberto
+
+// Carregar dados de auditoria do Firebase
+async function loadAuditData(){
+  if(!fbOk) return;
+  try{
+    const snap = await db.ref('auditoria').once('value');
+    _auditData = snap.val() || {};
+    console.log('[Audit] dados carregados:', Object.keys(_auditData).length, 'dias');
+  } catch(e){ console.warn('loadAuditData:', e.message); }
+}
+
+// Verificar se um row tem dados auditados
+function getAuditEntry(date, key){
+  return _auditData[date]?.[key] || null;
+}
+
+// Abrir modal de edição
+function openAuditEdit(ctx){
+  _auditContext = typeof ctx === 'string' ? JSON.parse(ctx.replace(/&quot;/g,'"')) : ctx;
+  const audit = getAuditEntry(_auditContext.date, _auditContext.key);
+
+  document.getElementById('auditErr').style.display = 'none';
+  document.getElementById('auditSubtitle').textContent =
+    `${_auditContext.nome} · ${_auditContext.hora} · ${_auditContext.date?fmtDate(_auditContext.date):''}`;
+
+  // Valores originais
+  document.getElementById('auditOrigPrem').textContent =
+    _auditContext.premiacao != null ? 'R$ '+brl(_auditContext.premiacao) : '—';
+  document.getElementById('auditOrigField').textContent =
+    _auditContext.field != null ? _auditContext.field+' jog.' : '—';
+
+  // Preencher com valor já auditado (se existir) ou original
+  document.getElementById('auditPremInput').value =
+    audit?.premiacaoAuditada ?? _auditContext.premiacao ?? '';
+  document.getElementById('auditFieldInput').value =
+    audit?.fieldAuditado ?? _auditContext.field ?? '';
+  document.getElementById('auditObs').value = audit?.obs || '';
+  document.getElementById('auditApproved').checked = audit?.status === 'aprovado';
+
+  document.getElementById('moAudit').classList.add('open');
+  setTimeout(() => document.getElementById('auditPremInput').focus(), 80);
+}
+
+// Salvar auditoria no Firebase
+async function saveAudit(){
+  if(!_auditContext) return;
+  if(!fbOk){ toast('Firebase não conectado','err'); return; }
+
+  const btn   = document.getElementById('auditBtnLabel');
+  const errEl = document.getElementById('auditErr');
+  const premRaw  = document.getElementById('auditPremInput').value.trim();
+  const fieldRaw = document.getElementById('auditFieldInput').value.trim();
+  const obs      = document.getElementById('auditObs').value.trim();
+  const approved = document.getElementById('auditApproved').checked;
+
+  errEl.style.display = 'none';
+  if(!premRaw && !fieldRaw && !approved){
+    errEl.textContent = 'Preencha ao menos um valor ou marque como aprovado.';
+    errEl.style.display = 'block'; return;
+  }
+
+  const prem  = premRaw  ? parseFloat(premRaw)  : null;
+  const field = fieldRaw ? parseInt(fieldRaw,10) : null;
+
+  if(premRaw && isNaN(prem)){
+    errEl.textContent = 'Premiação inválida.'; errEl.style.display='block'; return;
+  }
+
+  btn.textContent = 'Salvando...';
+
+  const entry = {
+    premiacaoOriginal: _auditContext.premiacao ?? null,
+    fieldOriginal:     _auditContext.field ?? null,
+    premiacaoAuditada: approved ? (_auditContext.premiacao ?? null) : (prem ?? null),
+    fieldAuditado:     approved ? (_auditContext.field ?? null) : (field ?? null),
+    status:    approved ? 'aprovado' : 'corrigido',
+    obs:       obs || null,
+    auditadoEm:   Date.now(),
+    auditadoPor:  _email || 'admin',
+    nome:      _auditContext.nome,
+    hora:      _auditContext.hora,
+  };
+
+  try {
+    await db.ref(`auditoria/${_auditContext.date}/${_auditContext.key}`).set(entry);
+
+    // Se corrigido: sobrescrever o dado ao vivo no painel também
+    if(!approved){
+      const basePath = `painel/${_auditContext.date}`;
+      if(prem != null)  await db.ref(`${basePath}/premiacao/${_auditContext.key}`).set(prem);
+      if(field != null) await db.ref(`${basePath}/field/${_auditContext.key}`).set(field);
+    }
+
+    // Atualizar cache local
+    if(!_auditData[_auditContext.date]) _auditData[_auditContext.date] = {};
+    _auditData[_auditContext.date][_auditContext.key] = entry;
+    // Atualizar _auditRows para refletir o novo valor
+    _auditRows.forEach(r => {
+      if(r.date === _auditContext.date && r.key === _auditContext.key){
+        r._audited = true;
+        r._auditEntry = entry;
+        if(!approved){
+          if(prem != null)  r.premiacao = prem;
+          if(field != null) r.field = field;
+          // Recalcular overlay/perf
+          if(r.premiacao != null && r.garantido != null){
+            r.overlay = r.premiacao - r.garantido < 0 ? r.premiacao - r.garantido : null;
+            r.perf    = r.garantido > 0 ? Math.round(((r.premiacao-r.garantido)/r.garantido)*1000)/10 : null;
+          }
+        }
+      }
+    });
+
+    closeMo('moAudit');
+    toast(approved ? '✓ Aprovado sem correção' : '✓ Dado corrigido e salvo no Firebase', 'ok');
+    // Re-renderizar a auditoria para mostrar badge
+    loadAudit();
+  } catch(e){
+    errEl.textContent = 'Erro: '+e.message; errEl.style.display='block';
+  } finally {
+    btn.textContent = 'Salvar auditoria';
+  }
+}
+
+// Enriquecer flatRows com dados de auditoria
+function enrichWithAudit(rows){
+  return rows.map(r => {
+    const a = getAuditEntry(r.date, r.key);
+    if(!a) return r;
+    return {
+      ...r,
+      _audited: true,
+      _auditEntry: a,
+      // Se corrigido, usar valor auditado na exibição
+      premiacao: a.status === 'corrigido' && a.premiacaoAuditada != null
+        ? a.premiacaoAuditada : r.premiacao,
+      field: a.status === 'corrigido' && a.fieldAuditado != null
+        ? a.fieldAuditado : r.field,
+    };
+  });
+}
+
 /* ── EXPORTS ─────────────────────────────────────────────────── */
 function exportAuditXlsx(){
   if(!_auditRows.length){toast('Carregue os dados primeiro','err');return;}
@@ -1933,6 +2177,125 @@ function timeMin(h){
   return m?parseInt(m[1])*60+parseInt(m[2]):null;
 }
 function closeMo(id){document.getElementById(id).classList.remove('open');}
+
+async function openAuditSummary(){
+  await loadAuditData();
+  const to   = nowSP();
+  const from = dago(6);
+  document.getElementById('sumFrom').value = from;
+  document.getElementById('sumTo').value   = to;
+  document.getElementById('moAuditSummary').classList.add('open');
+  buildAuditSummary();
+}
+
+function buildAuditSummary(){
+  const from = document.getElementById('sumFrom').value || dago(6);
+  const to   = document.getElementById('sumTo').value   || nowSP();
+  const el   = document.getElementById('auditSummaryResult');
+
+  // Coletar todos os dados auditados no período
+  const entries = [];
+  Object.entries(_auditData).forEach(([date, keys]) => {
+    if(date < from || date > to) return;
+    Object.entries(keys||{}).forEach(([key, a]) => {
+      entries.push({date, key, ...a});
+    });
+  });
+
+  if(!entries.length){
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📭</div><h3>Nenhuma auditoria no período</h3><p>Edite os dados na aba Acompanhamento para criar registros de auditoria.</p></div>';
+    return;
+  }
+
+  // Agrupar por status
+  const corrigidos = entries.filter(e => e.status === 'corrigido');
+  const aprovados  = entries.filter(e => e.status === 'aprovado');
+
+  const mkRow = e => {
+    const premOk  = e.premiacaoAuditada != null;
+    const fieldOk = e.fieldAuditado != null;
+    const diffPrem = premOk && e.premiacaoOriginal != null
+      ? e.premiacaoAuditada - e.premiacaoOriginal : null;
+    return `<tr>
+      <td class="mono c-ink3">${fmtDate(e.date)}</td>
+      <td class="nm">${esc(e.nome||'')}</td>
+      <td class="mono c-ink2">${esc(e.hora||'')}</td>
+      <td class="r mono c-ink3">${e.premiacaoOriginal!=null?'R$ '+brl(e.premiacaoOriginal):'—'}</td>
+      <td class="r mono ${diffPrem!=null&&diffPrem!==0?'c-gold':''}">${premOk?'R$ '+brl(e.premiacaoAuditada):'—'}</td>
+      <td class="r mono ${diffPrem!=null&&diffPrem<0?'c-red':diffPrem>0?'c-green':''}">${diffPrem!=null&&diffPrem!==0?(diffPrem>0?'+':'')+brl(diffPrem):'—'}</td>
+      <td class="r mono c-ink3">${e.fieldOriginal!=null?e.fieldOriginal:'—'}</td>
+      <td class="r mono ${e.fieldAuditado!=null&&e.fieldAuditado!==e.fieldOriginal?'c-gold':''}">${fieldOk?e.fieldAuditado:'—'}</td>
+      <td class="c-ink2" style="font-size:10px">${esc(e.obs||'')}</td>
+      <td class="c-ink3" style="font-size:10px">${esc(e.auditadoPor||'')}</td>
+    </tr>`;
+  };
+
+  el.innerHTML = `
+    ${corrigidos.length ? `
+    <div style="margin-bottom:16px">
+      <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);margin-bottom:8px">
+        ⚠ Corrigidos (${corrigidos.length})
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Data</th><th>Torneio</th><th>Hora</th>
+            <th class="r">Prem. Original</th><th class="r">Prem. Auditada</th><th class="r">Diferença</th>
+            <th class="r">Field Original</th><th class="r">Field Auditado</th>
+            <th>Obs.</th><th>Por</th>
+          </tr></thead>
+          <tbody>${corrigidos.map(mkRow).join('')}</tbody>
+        </table>
+      </div>
+    </div>` : ''}
+    ${aprovados.length ? `
+    <div>
+      <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--green);margin-bottom:8px">
+        ✓ Aprovados sem correção (${aprovados.length})
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Data</th><th>Torneio</th><th>Hora</th><th class="r">Premiação</th><th class="r">Field</th><th>Por</th></tr></thead>
+          <tbody>${aprovados.map(e=>`<tr>
+            <td class="mono c-ink3">${fmtDate(e.date)}</td>
+            <td class="nm">${esc(e.nome||'')}</td>
+            <td class="mono c-ink2">${esc(e.hora||'')}</td>
+            <td class="r mono">${e.premiacaoAuditada!=null?'R$ '+brl(e.premiacaoAuditada):'—'}</td>
+            <td class="r mono">${e.fieldAuditado!=null?e.fieldAuditado:'—'}</td>
+            <td class="c-ink3" style="font-size:10px">${esc(e.auditadoPor||'')}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>` : ''}
+  `;
+}
+
+function exportAuditSummaryXlsx(){
+  const from = document.getElementById('sumFrom').value || dago(6);
+  const to   = document.getElementById('sumTo').value   || nowSP();
+  const entries = [];
+  Object.entries(_auditData).forEach(([date,keys])=>{
+    if(date<from||date>to) return;
+    Object.entries(keys||{}).forEach(([key,a])=>entries.push({date,key,...a}));
+  });
+  if(!entries.length){ toast('Nenhuma auditoria no período','err'); return; }
+
+  const aoa = [['Data','Torneio','Hora','Status','Prem. Original','Prem. Auditada','Diferença','Field Original','Field Auditado','Observação','Auditado por','Data/Hora auditoria']];
+  entries.sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{
+    const diff = (e.premiacaoAuditada!=null&&e.premiacaoOriginal!=null)?e.premiacaoAuditada-e.premiacaoOriginal:null;
+    aoa.push([fmtDate(e.date),e.nome||'',e.hora||'',e.status==='corrigido'?'Corrigido':'Aprovado',
+      e.premiacaoOriginal??'',e.premiacaoAuditada??'',diff??'',
+      e.fieldOriginal??'',e.fieldAuditado??'',e.obs||'',e.auditadoPor||'',
+      e.auditadoEm?new Date(e.auditadoEm).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}):''
+    ]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [10,30,6,10,13,13,10,12,12,30,12,16].map(w=>({wch:w}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Auditoria');
+  XLSX.writeFile(wb,`Auditoria_${from}_${to}.xlsx`);
+  toast('✓ Exportado','ok');
+}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-bg.open').forEach(m=>m.classList.remove('open'));});
 
 /* ── INIT ────────────────────────────────────────────────────── */
