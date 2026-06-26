@@ -6101,8 +6101,25 @@ function renderUpcoming(){
             oninput="onCardFieldInput(this)">
         </div>
       </div>
-      <!-- Preview calculado: overlay, ações, performance -->
-      <div class="tcard-overlay-preview" id="tcard-ov-${key}"></div>
+      <!-- Preview calculado: overlay, ações, performance — populado inline -->
+      <div class="tcard-overlay-preview" id="tcard-ov-${key}">${(function(){
+        const _prem=t.premiacao, _gar=t.garantido||0, _field=FIELD_MAP[key], _buyin=parseFloat(t.buyin)||0;
+        const _cat=cat, _rake=calcRake(t), _isCamp=hasCampanha(t);
+        // Ações
+        let _acoes=null;
+        if(!isNaN(_prem)&&_prem>0&&_buyin>0){const bl=_buyin*(1-_rake);if(bl>0)_acoes=Math.round((_prem/bl)*(_cat==='main'?0.88:_cat==='sat'?0.95:(_isCamp?0.88:1))*10)/10;}
+        else if(_field>0&&_buyin>0){const bl=_buyin*(1-_rake);if(bl>0){const pe=_field*bl;_acoes=Math.round((pe/bl)*(_cat==='main'?0.88:_cat==='sat'?0.95:(_isCamp?0.88:1))*10)/10;}}
+        // Overlay/Perf
+        const _ov=(!isNaN(_prem)&&_prem>0&&_gar>0)?_prem-_gar:null;
+        const _pf=_ov!=null?((_prem-_gar)/_gar)*100:null;
+        const _m=v=>`<span class="tcard-ov-val muted">—</span>`;
+        const _vc=(v,cls,fmt)=>`<span class="tcard-ov-val ${cls}">${fmt(v)}</span>`;
+        return [
+          `<div class="tcard-ov-cell"><span class="tcard-ov-label">${_ov!=null?(_ov<0?'Overlay':'Excedente'):'Overlay'}</span>${_ov!=null?_vc(_ov,_ov<0?'negative':'positive',v=>(v<0?'-':'+')+'R$'+fmtBRL(Math.abs(v),0)):_m()}</div>`,
+          `<div class="tcard-ov-cell"><span class="tcard-ov-label">Ações</span>${_acoes!=null?_vc(_acoes,'gold',v=>fmtBRL(v,0)):_m()}</div>`,
+          `<div class="tcard-ov-cell"><span class="tcard-ov-label">Perf.</span>${_pf!=null?_vc(_pf,_pf>=0?'positive':'negative',v=>(_pf>=0?'+':'')+v.toFixed(1)+'%'):_m()}</div>`,
+        ].join('');
+      })()}</div>
       <div class="copy-row">
         <input type="text" class="id-input" placeholder="ID do evento" value="${getId(key)}" data-key="${key}">
         <button class="copy-btn" data-key="${key}" type="button">
@@ -6139,11 +6156,6 @@ function renderUpcoming(){
     fragment.appendChild(el);
   });
   grid.appendChild(fragment);
-
-  // Renderizar preview de overlay/ações/perf em todos os cards recém-criados
-  filtered.forEach(t => {
-    renderCardOverlayPreview(t._key, t, t.premiacao, getField(t._key));
-  });
 
   // Transição escalonada só para os primeiros 12 cards visíveis
   // Os demais aparecem direto (sem custo de animation)
@@ -7273,18 +7285,27 @@ function onCardPremiacaoInput(input){
         pm[key] = premiacaoVal;
         localStorage.setItem('suprema_prem_v1', JSON.stringify(pm));
       } catch(e){}
-      // Recalcular RESULTS e UPCOMING a partir do RAW_ROWS atualizado
+      // Recalcular RESULTS e UPCOMING
       RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
       UPCOMING = [...RAW_ROWS];
       UNFIXED  = computeUnfixed();
       document.getElementById('statUnfixed').textContent = UNFIXED.length;
       updateProgress();
       renderUnfixed();
-      renderUpcoming();
+      // Patch no card sem recriar — mantém overlay/ações/perf visíveis
+      patchCardFields(key);
+      renderCardOverlayPreview(key, row, premiacaoVal, getField(key));
+      // Badge de premiação no card
+      const badge = document.querySelector(`.tcard[data-key="${key}"] .tcard-prem-badge`);
+      if(badge) badge.textContent = '✓ R$ ' + fmtBRL(premiacaoVal, premiacaoVal%1===0?0:2);
+      else {
+        const catDiv = document.querySelector(`.tcard[data-key="${key}"] .tcard-cat`);
+        if(catDiv){ const b=document.createElement('span'); b.className='tcard-prem-badge'; b.textContent='✓ R$ '+fmtBRL(premiacaoVal,0); catDiv.appendChild(b); }
+      }
       debouncedRenderResults();
       computeStats();
       appendTodayToHistorico();
-      checkDayComplete(); // verifica se foi o último card
+      checkDayComplete();
     } else if(input.value.trim() === '' && row.premiacao){
       // input apagado — mantém preview com valor salvo, não descarta
       renderCardOverlayPreview(key, row, row.premiacao, getField(key));
@@ -7307,6 +7328,7 @@ function onCardFieldInput(input){
   setField(key, val);
   const row = RAW_ROWS.find(r => r._key === key);
   if(!row) return;
+  // Patch in-place — não recriar o card
   renderCardOverlayPreview(key, row, row.premiacao, val ? parseInt(val,10) : null);
 }
 
