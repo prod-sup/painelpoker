@@ -830,20 +830,62 @@ function doLogout(){
 /* ── LOAD ALL DATA ──────────────────────────────────────────── */
 async function loadAll(){
   if(!fbOk)return;
-  const snap=await db.ref('painel').once('value');
-  const raw=snap.val()||{};
+
+  // Carregar painel (sheet + dados preenchidos)
+  const painelSnap = await db.ref('painel').once('value');
+  const painelRaw  = painelSnap.val()||{};
   _allData={};
-  Object.entries(raw).forEach(([date,day])=>{
+
+  Object.entries(painelRaw).forEach(([date,day])=>{
     if(typeof day!=='object')return;
+    // sheet.rows contém os torneios da planilha
+    const sheetRows = day.sheet?.rows || [];
+    // Converter array de rows para objeto keyed por _key
+    const rowsObj={};
+    (Array.isArray(sheetRows)?sheetRows:[]).forEach((r,i)=>{
+      if(!r)return;
+      const k = rowKey(r) || `r${i}`;
+      rowsObj[k] = {...r, _key:k};
+    });
     _allData[date]={
-      rows:   day.rows||{},
-      fixed:  day.fixed||{},
-      ids:    day.ids||{},
-      field:  day.field||{},
-      prem:   day.premiacao||{},
-      guar:   day.garantido||{},
+      rows:  rowsObj,
+      fixed: day.fixed   || {},
+      ids:   day.ids     || {},
+      field: day.field   || {},
+      prem:  day.premiacao|| {},
+      guar:  day.garantido|| {},
     };
   });
+
+  // Complementar com snapshots (têm os dados mais completos)
+  try {
+    const snapSnap = await db.ref('snapshots').once('value');
+    const snapRaw  = snapSnap.val()||{};
+    Object.entries(snapRaw).forEach(([date,snap])=>{
+      if(!snap?.rows) return;
+      if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{}};
+      // Snapshot tem tudo num só lugar — usar como fonte primária
+      Object.entries(snap.rows).forEach(([k,r])=>{
+        if(!r)return;
+        // Enriquecer com dados do snapshot
+        if(!_allData[date].rows[k]) _allData[date].rows[k]={...r,_key:k};
+        // Dados preenchidos do snapshot
+        if(r.premiacao!=null) _allData[date].prem[k]  = r.premiacao;
+        if(r.field!=null)     _allData[date].field[k] = r.field;
+        if(r.id)              _allData[date].ids[k]   = {val:r.id, by:r.fixadoPor||''};
+        if(r.fixadoPor)       _allData[date].fixed[k] = {by:r.fixadoPor, at:r.fixadoEm||0};
+        if(r.garantido!=null) _allData[date].rows[k].garantido = r.garantido;
+      });
+    });
+  } catch(e){ console.warn('Snapshots não disponíveis:', e.message); }
+}
+
+function rowKey(r){
+  // IDÊNTICO ao painel — hash de nome+hora+buyin+garantido
+  const s=`${r.nome}|${r.hora}|${r.buyin}|${r.garantido}`;
+  let h=0;
+  for(let i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h|=0;}
+  return 'rk_'+Math.abs(h);
 }
 
 /* ── FLAT ROWS (para análise) ───────────────────────────────── */
