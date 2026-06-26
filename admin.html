@@ -879,9 +879,13 @@ const toast = (msg,type='') => {
 };
 
 /* ── FIREBASE INIT ──────────────────────────────────────────── */
-async function hashStr(s){
-  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+function hashStr(s){
+  // Mesmo algoritmo do painel (hashPassword) — compatibilidade total
+  let h = 5381;
+  for(let i=0;i<s.length;i++){ h=((h<<5)+h)^s.charCodeAt(i); h|=0; }
+  const salt='suprema2024'; let h2=h;
+  for(let i=0;i<salt.length;i++){ h2=((h2<<5)+h2)^salt.charCodeAt(i); h2|=0; }
+  return Promise.resolve('h2_'+Math.abs(h).toString(36)+'_'+Math.abs(h2).toString(36));
 }
 
 function initFirebase(){
