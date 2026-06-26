@@ -4129,14 +4129,104 @@ function initUserNotifListener(){
   fbDb.ref(`userNotifs/${emailKey}`).on('value', snap => {
     const notifs = snap.val();
     if(!notifs) return;
+    // Verificar se há notificações não justificadas que bloqueiam o operador
+    const pending = Object.entries(notifs).filter(([id,n]) => n && !n.justified && !n.resolved && n.blocked);
+    if(pending.length > 0){
+      // Bloquear o painel — mostrar modal de justificativa
+      showJustifModal(pending, emailKey);
+      return;
+    }
+    // Notificações normais (sem bloqueio)
     Object.entries(notifs).forEach(([id, n]) => {
-      if(!n || n.seen) return;
-      // Marcar como visto
+      if(!n || n.seen || n.justified || n.resolved) return;
       fbDb.ref(`userNotifs/${emailKey}/${id}/seen`).set(true).catch(()=>{});
-      // Mostrar o aviso
-      showToast(n.msg || 'Nova notificação', !!n.isError);
+      showToast(n.msg || '⚠ Nova notificação do admin: ' + (n.typeLabel||'Verifique o painel admin.'), true);
     });
   });
+}
+
+function showJustifModal(pending, emailKey){
+  // Remover modal anterior se existir
+  const existing = document.getElementById('justifBlockModal');
+  if(existing) existing.remove();
+
+  const notif = pending[0][1]; // primeira notificação pendente
+  const notifId = pending[0][0];
+
+  const modal = document.createElement('div');
+  modal.id = 'justifBlockModal';
+  modal.style.cssText = `
+    position:fixed;inset:0;z-index:9999;
+    background:rgba(7,7,9,.95);backdrop-filter:blur(8px);
+    display:flex;align-items:center;justify-content:center;
+  `;
+  modal.innerHTML = `
+    <div style="background:#0f0f15;border:1px solid rgba(245,158,11,.3);border-radius:16px;
+      padding:36px;max-width:480px;width:90%;box-shadow:0 32px 80px rgba(0,0,0,.7)">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-size:40px;margin-bottom:12px">⚠️</div>
+        <div style="font-size:18px;font-weight:800;color:#f0f0f8;margin-bottom:6px">Notificação pendente</div>
+        <div style="font-size:12px;color:#8888a8">O acesso ao painel está bloqueado até você justificar</div>
+      </div>
+      <div style="background:#0b0b0f;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:14px;margin-bottom:16px">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--amber,#f59e0b);margin-bottom:6px">
+          ${notif.typeLabel||notif.type||'Erro operacional'}
+        </div>
+        <div style="font-size:13px;font-weight:600;color:#f0f0f8;margin-bottom:4px">${escHtml(notif.torneio||'')}</div>
+        <div style="font-size:12px;color:#8888a8;line-height:1.5">${escHtml(notif.desc||'')}</div>
+        ${notif.date?`<div style="font-size:11px;color:#454560;margin-top:6px">Data: ${notif.date}</div>`:''}
+        <div style="font-size:11px;color:#454560;margin-top:2px">Notificado por: ${escHtml(notif.sentBy||'Admin')}</div>
+      </div>
+      <div style="margin-bottom:12px">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#454560;margin-bottom:6px">
+          Sua justificativa *
+        </div>
+        <textarea id="justifText" rows="4" placeholder="Explique o ocorrido e como foi corrigido..."
+          style="width:100%;padding:10px 12px;background:#070709;border:1px solid rgba(255,255,255,.1);
+          border-radius:8px;font-size:13px;color:#f0f0f8;resize:none;line-height:1.5;
+          font-family:-apple-system,sans-serif;transition:border-color .15s"
+          onfocus="this.style.borderColor='rgba(245,158,11,.5)'"
+          onblur="this.style.borderColor='rgba(255,255,255,.1)'"></textarea>
+        <div id="justifErr" style="font-size:11px;color:#ef4444;margin-top:5px;display:none"></div>
+      </div>
+      ${pending.length>1?`<div style="font-size:11px;color:#f59e0b;margin-bottom:12px">⚠ Há mais ${pending.length-1} notificação(ões) pendente(s)</div>`:''}
+      <button onclick="submitJustif('${emailKey}','${notifId}')"
+        style="width:100%;padding:13px;border-radius:10px;border:none;
+        background:linear-gradient(135deg,#c9a84c,#a07830);
+        color:#1a0e00;font-size:14px;font-weight:800;cursor:pointer">
+        Enviar justificativa
+      </button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function submitJustif(emailKey, notifId){
+  const text = document.getElementById('justifText')?.value?.trim();
+  const errEl = document.getElementById('justifErr');
+  if(!text || text.length < 10){
+    if(errEl){errEl.textContent='Justificativa muito curta. Descreva o ocorrido.';errEl.style.display='block';}
+    return;
+  }
+  if(!fbReady){ if(errEl){errEl.textContent='Sem conexão. Tente novamente.';errEl.style.display='block';} return; }
+  const btn = document.querySelector('#justifBlockModal button');
+  if(btn){ btn.disabled=true; btn.textContent='Enviando...'; }
+  try {
+    await fbDb.ref(`userNotifs/${emailKey}/${notifId}`).update({
+      justified:     true,
+      justification: text,
+      justifiedAt:   Date.now(),
+      justifiedBy:   OPERATOR_NAME || _session?.email || '',
+    });
+    await fbDb.ref(`users/${emailKey}/pendingNotif`).remove();
+    document.getElementById('justifBlockModal')?.remove();
+    showToast('✓ Justificativa enviada — aguarde a aprovação do admin');
+  } catch(e){
+    if(errEl){errEl.textContent='Erro ao enviar: '+e.message;errEl.style.display='block';}
+    if(btn){btn.disabled=false;btn.textContent='Enviar justificativa';}
+  }
 }
 
 function finishLogin(email, user, displayName){

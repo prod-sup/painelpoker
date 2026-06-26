@@ -391,6 +391,40 @@ td.center{text-align:center}
 .success-creds .row:not(:last-child){border-bottom:1px solid var(--border2);margin-bottom:3px;padding-bottom:6px}
 .success-creds .k{color:var(--ink3)}
 .success-creds .v{color:var(--ink);font-weight:700}
+
+/* ── MODAL NOTIF ERRO ────────────────────────────────────────── */
+.notif-type-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.notif-type-btn{
+  flex:1;padding:9px 12px;border-radius:8px;font-size:12px;font-weight:600;
+  border:1.5px solid var(--border);background:var(--s2);color:var(--ink2);
+  cursor:pointer;transition:all .12s;text-align:center;
+}
+.notif-type-btn:hover{border-color:var(--gold);color:var(--gold)}
+.notif-type-btn.sel{background:var(--goldf);border-color:var(--gold);color:var(--gold)}
+.notif-preview{
+  background:var(--bg);border:1px solid var(--border);border-radius:8px;
+  padding:12px;font-size:12px;color:var(--ink2);line-height:1.6;
+  margin-bottom:12px;min-height:56px;
+}
+.notif-preview strong{color:var(--amber)}
+/* Badge de notificação na linha da auditoria */
+.btn-notif{
+  padding:3px 9px;border-radius:6px;font-size:10px;font-weight:700;
+  background:var(--amberf);color:var(--amber);border:1px solid rgba(245,158,11,.2);
+  cursor:pointer;white-space:nowrap;
+}
+.btn-notif:hover{background:rgba(245,158,11,.2)}
+/* Status de notificação pendente */
+.notif-pending{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:10px;color:var(--amber);font-weight:600;
+}
+.notif-pending::before{content:'⚠';font-size:9px}
+.notif-justified{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:10px;color:var(--green);font-weight:600;
+}
+.notif-justified::before{content:'✓';font-size:9px}
 </style>
 </head>
 <body>
@@ -433,6 +467,10 @@ td.center{text-align:center}
         <span class="tb-dot"></span>
         <span id="adminName">—</span>
       </div>
+      <button class="btn btn-ghost" onclick="openJustifs()" style="position:relative">
+        📩 Justificativas
+        <span id="pendingBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--amber);color:#000;font-size:9px;font-weight:800;border-radius:99px;padding:1px 5px;min-width:14px;text-align:center"></span>
+      </button>
       <a href="index.html" class="tb-back">← Painel</a>
       <button class="tb-btn" onclick="doLogout()">Sair</button>
     </div>
@@ -694,6 +732,69 @@ td.center{text-align:center}
   </div>
 </div>
 
+<!-- MODAL: Notificar erro de operador -->
+<div class="modal-bg" id="moNotif">
+  <div class="modal" style="max-width:520px">
+    <h2>📋 Notificar erro ao operador</h2>
+    <div class="msub" id="notifSubtitle">Descreva o erro encontrado para que o operador justifique</div>
+    <div class="merr" id="notifErr"></div>
+
+    <div class="mf">
+      <label>Operador</label>
+      <select id="notifOp">
+        <option value="">Selecione o operador...</option>
+      </select>
+    </div>
+
+    <div class="mf">
+      <label>Tipo de erro</label>
+      <div class="notif-type-row">
+        <button class="notif-type-btn" onclick="selNotifType('garantido',this)">Garantido incorreto</button>
+        <button class="notif-type-btn" onclick="selNotifType('field',this)">Field errado</button>
+        <button class="notif-type-btn" onclick="selNotifType('premiacao',this)">Premiação errada</button>
+        <button class="notif-type-btn" onclick="selNotifType('id',this)">ID incorreto</button>
+        <button class="notif-type-btn" onclick="selNotifType('outro',this)">Outro</button>
+      </div>
+    </div>
+
+    <div class="mf">
+      <label>Torneio</label>
+      <input type="text" id="notifTorneio" placeholder="Nome do torneio..." readonly style="color:var(--ink2)">
+    </div>
+
+    <div class="mf">
+      <label>Descrição do erro</label>
+      <textarea id="notifDesc" rows="3" placeholder="Ex: O garantido registrado foi R$ 5.000 mas o correto era R$ 8.000..."></textarea>
+    </div>
+
+    <div class="mf">
+      <label>Pré-visualização da notificação</label>
+      <div class="notif-preview" id="notifPreview">
+        Selecione o tipo de erro para ver a pré-visualização...
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeMo('moNotif')">Cancelar</button>
+      <button class="btn btn-gold" id="notifBtn" onclick="sendNotif()">
+        <span id="notifLabel">Enviar notificação</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Justificativas recebidas -->
+<div class="modal-bg" id="moJustifs">
+  <div class="modal" style="max-width:620px">
+    <h2>📩 Justificativas recebidas</h2>
+    <div class="msub">Respostas dos operadores às notificações de erro</div>
+    <div id="justifList" style="max-height:420px;overflow-y:auto;margin-top:12px"></div>
+    <div class="modal-actions" style="margin-top:12px">
+      <button class="btn btn-ghost" onclick="closeMo('moJustifs')" style="flex:1;justify-content:center">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
@@ -813,6 +914,8 @@ async function doLogin(){
     initDates();
     await loadAudit();
     await loadOps();
+    await loadUsers();
+    loadPendingNotifs();
   }catch(e){err.textContent='Erro: '+e.message;btn.disabled=false;btn.textContent='Entrar';}
 }
 
@@ -1073,6 +1176,7 @@ async function loadAudit(){
           <td class="c-ink2">${esc(r.fixBy||r.idBy||'—')}</td>
           <td class="mono c-ink2">${esc(r.id)}</td>
           <td>${r.status==='fechado'?'<span class="badge badge-closed">Fechado</span>':r.status==='nf'?'<span class="badge badge-nf">NF</span>':'<span class="badge badge-open">Aberto</span>'}</td>
+          <td><button class="btn-notif" onclick="openNotif(${JSON.stringify({nome:r.nome,date:r.date,fixBy:r.fixBy||r.idBy||'',key:r.key}).replace(/"/g,'&quot;')})">⚠ Notificar</button></td>
         </tr>`;
       }).join('');
 
@@ -1086,7 +1190,7 @@ async function loadAudit(){
             <th>Torneio</th><th>Hora</th><th>Late</th>
             <th class="r">GTD</th><th class="r">Buy-in</th><th class="r">Premiação</th>
             <th class="r">Overlay</th><th class="r">Field</th><th class="r">Perf.</th>
-            <th>Operador</th><th>ID</th><th>Status</th>
+            <th>Operador</th><th>ID</th><th>Status</th><th></th>
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table>
@@ -1331,6 +1435,218 @@ function blockOp(key,name){
   db.ref(`users/${key}`).update({blocked:true,blockedAt:Date.now(),blockedBy:_email})
     .then(()=>{toast('Operador bloqueado','ok');loadOps();})
     .catch(e=>toast('Erro: '+e.message,'err'));
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SISTEMA DE NOTIFICAÇÃO DE ERROS
+   Fluxo: Admin notifica → Firebase userNotifs/{email}/{id}
+          Operador vê no painel → justifica → Firebase userJustifs/{id}
+          Admin bloqueia até justificativa chegar
+══════════════════════════════════════════════════════════════ */
+
+let _notifContext = null; // {nome, date, key, fixBy}
+let _notifType = '';
+let _allUsers  = {}; // {emailKey: userData}
+
+async function loadUsers(){
+  const snap = await db.ref('users').once('value');
+  _allUsers = snap.val()||{};
+  // Popular select de operadores
+  ['notifOp'].forEach(selId => {
+    const sel = document.getElementById(selId);
+    if(!sel)return;
+    sel.innerHTML = '<option value="">Selecione o operador...</option>';
+    Object.entries(_allUsers).forEach(([k,u])=>{
+      const name = u.apelido||u.nome||u.email||k;
+      const email = u.email||(k.replace(/_dot_/g,'.').replace(/_at_/g,'@'));
+      sel.innerHTML += `<option value="${k}" data-name="${esc(name)}" data-email="${esc(email)}">${esc(name)} — ${esc(email)}</option>`;
+    });
+  });
+}
+
+function openNotif(ctx){
+  _notifContext = typeof ctx==='string' ? JSON.parse(ctx) : ctx;
+  _notifType = '';
+  const errEl = document.getElementById('notifErr');
+  if(errEl) errEl.style.display='none';
+  // Preencher torneio
+  document.getElementById('notifTorneio').value = _notifContext.nome||'';
+  document.getElementById('notifDesc').value = '';
+  document.getElementById('notifPreview').textContent = 'Selecione o tipo de erro para ver a pré-visualização...';
+  // Remover seleção dos botões de tipo
+  document.querySelectorAll('.notif-type-btn').forEach(b=>b.classList.remove('sel'));
+  // Pré-selecionar operador se soubermos quem foi
+  if(_notifContext.fixBy){
+    const sel = document.getElementById('notifOp');
+    if(sel){
+      [...sel.options].forEach(opt => {
+        if(opt.dataset.name === _notifContext.fixBy || opt.text.startsWith(_notifContext.fixBy)){
+          sel.value = opt.value;
+        }
+      });
+    }
+  }
+  loadUsers().then(()=>{
+    if(_notifContext.fixBy){
+      const sel = document.getElementById('notifOp');
+      if(sel) [...sel.options].forEach(opt => {
+        if(opt.dataset.name===_notifContext.fixBy) sel.value=opt.value;
+      });
+    }
+  });
+  document.getElementById('moNotif').classList.add('open');
+}
+
+const NOTIF_TYPES = {
+  garantido: 'Garantido incorreto',
+  field:     'Field incorreto',
+  premiacao: 'Premiação incorreta',
+  id:        'ID do evento incorreto',
+  outro:     'Erro operacional',
+};
+
+function selNotifType(type, btn){
+  _notifType = type;
+  document.querySelectorAll('.notif-type-btn').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+  updateNotifPreview();
+}
+
+function updateNotifPreview(){
+  const preview = document.getElementById('notifPreview');
+  const desc = document.getElementById('notifDesc').value.trim();
+  const torneio = _notifContext?.nome||'';
+  if(!_notifType){preview.textContent='Selecione o tipo de erro...';return;}
+  preview.innerHTML = `<strong>⚠ ${NOTIF_TYPES[_notifType]}</strong> no torneio <strong>${esc(torneio)}</strong> em <strong>${_notifContext?.date?fmtDate(_notifContext.date):''}</strong>${desc?`<br><span style="color:var(--ink2)">${esc(desc)}</span>`:''}`;
+}
+
+document.getElementById('notifDesc').addEventListener('input', updateNotifPreview);
+
+async function sendNotif(){
+  const opKey   = document.getElementById('notifOp').value;
+  const desc    = document.getElementById('notifDesc').value.trim();
+  const errEl   = document.getElementById('notifErr');
+  const btn     = document.getElementById('notifBtn');
+  const label   = document.getElementById('notifLabel');
+  errEl.style.display='none';
+
+  if(!opKey){errEl.textContent='Selecione o operador.';errEl.style.display='block';return;}
+  if(!_notifType){errEl.textContent='Selecione o tipo de erro.';errEl.style.display='block';return;}
+  if(!desc){errEl.textContent='Descreva o erro encontrado.';errEl.style.display='block';return;}
+  if(!fbOk){errEl.textContent='Firebase não conectado.';errEl.style.display='block';return;}
+
+  btn.disabled=true;label.textContent='Enviando...';
+
+  const opData  = _allUsers[opKey]||{};
+  const opEmail = opData.email||(opKey.replace(/_dot_/g,'.').replace(/_at_/g,'@'));
+  const notifId = 'n_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+
+  const notif = {
+    id:        notifId,
+    type:      _notifType,
+    typeLabel: NOTIF_TYPES[_notifType],
+    torneio:   _notifContext?.nome||'',
+    date:      _notifContext?.date||'',
+    key:       _notifContext?.key||'',
+    desc,
+    sentBy:    _email,
+    sentAt:    Date.now(),
+    seen:      false,
+    justified: false,
+    blocked:   true, // bloqueia o operador até justificar
+  };
+
+  try {
+    // Salvar notificação
+    await db.ref(`userNotifs/${opKey}/${notifId}`).set(notif);
+    // Marcar operador como bloqueado por notificação pendente
+    await db.ref(`users/${opKey}/pendingNotif`).set({notifId, since:Date.now()});
+
+    closeMo('moNotif');
+    toast(`✓ Notificação enviada para ${opData.apelido||opEmail}`,'ok');
+    // Atualizar lista de justificativas
+    loadPendingNotifs();
+  } catch(e){
+    errEl.textContent='Erro ao enviar: '+e.message;
+    errEl.style.display='block';
+  } finally {
+    btn.disabled=false;label.textContent='Enviar notificação';
+  }
+}
+
+// Carregar notificações pendentes (sem justificativa)
+let _pendingNotifs = {};
+async function loadPendingNotifs(){
+  if(!fbOk)return;
+  const snap = await db.ref('userNotifs').once('value');
+  const all  = snap.val()||{};
+  _pendingNotifs = {};
+  Object.entries(all).forEach(([opKey,notifs])=>{
+    if(!notifs||typeof notifs!=='object')return;
+    Object.entries(notifs).forEach(([nid,n])=>{
+      if(n&&!n.justified) _pendingNotifs[nid]={...n,opKey};
+    });
+  });
+  // Atualizar badge no menu
+  const count = Object.keys(_pendingNotifs).length;
+  const badge = document.getElementById('pendingBadge');
+  if(badge){badge.textContent=count||'';badge.style.display=count?'inline':'none';}
+}
+
+async function openJustifs(){
+  if(!fbOk)return;
+  const snap = await db.ref('userNotifs').once('value');
+  const all  = snap.val()||{};
+  const list = document.getElementById('justifList');
+  const rows = [];
+  Object.entries(all).forEach(([opKey,notifs])=>{
+    if(!notifs)return;
+    Object.entries(notifs).forEach(([nid,n])=>{
+      if(n) rows.push({...n,nid,opKey});
+    });
+  });
+  rows.sort((a,b)=>b.sentAt-a.sentAt);
+  if(!rows.length){
+    list.innerHTML='<div class="empty"><div class="empty-icon">📭</div><h3>Nenhuma notificação enviada</h3></div>';
+  } else {
+    list.innerHTML = rows.map(n=>{
+      const op = _allUsers[n.opKey]||{};
+      const opName = op.apelido||op.nome||n.opKey;
+      const sentDate = n.sentAt?new Date(n.sentAt).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}):'—';
+      return `<div style="border:1px solid var(--border);border-radius:9px;padding:14px;margin-bottom:10px;background:var(--s2)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div>
+            <span style="font-size:11px;font-weight:700;color:var(--amber)">${esc(n.typeLabel||n.type||'Erro')}</span>
+            <span style="color:var(--ink3);font-size:11px;margin-left:8px">${esc(n.torneio)} · ${n.date?fmtDate(n.date):''}</span>
+          </div>
+          <span style="font-size:10px;color:var(--ink3)">${sentDate}</span>
+        </div>
+        <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">${esc(n.desc||'')}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:11px;color:var(--ink3)">Operador: <strong style="color:var(--ink)">${esc(opName)}</strong></span>
+          ${n.justified
+            ? `<div>
+                <span class="notif-justified">Justificado</span>
+                <div style="font-size:11px;color:var(--green);margin-top:4px;padding:8px;background:var(--greenf);border-radius:6px">"${esc(n.justification||'')}"</div>
+                <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="resolveNotif('${n.opKey}','${n.nid}')">✓ Resolver</button>
+              </div>`
+            : `<span class="notif-pending">Aguardando justificativa</span>`}
+        </div>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('moJustifs').classList.add('open');
+}
+
+async function resolveNotif(opKey,nid){
+  if(!confirm('Marcar como resolvido e liberar o operador?'))return;
+  try {
+    await db.ref(`userNotifs/${opKey}/${nid}/resolved`).set(true);
+    await db.ref(`users/${opKey}/pendingNotif`).remove();
+    toast('✓ Notificação resolvida — operador liberado','ok');
+    openJustifs();
+    loadPendingNotifs();
+  } catch(e){ toast('Erro: '+e.message,'err'); }
 }
 
 /* ── EXPORTS ─────────────────────────────────────────────────── */
