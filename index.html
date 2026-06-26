@@ -5491,7 +5491,7 @@ function setSharedSheet(rows, filename){
     const saved = localStorage.getItem(storeKey);
     if(!saved) return;
     const data = JSON.parse(saved);
-    if(!data || !data.rows || !data.rows.length) return;
+    if(!data || !data.rows || data.rows.length < 10) return; // sheet corrompida
     // Turno máximo de 22h (cobre o turno que passa da meia-noite)
     if(Date.now() - data.savedAt > 22 * 60 * 60 * 1000) return;
 
@@ -5696,10 +5696,16 @@ function updateResultsProgress(){
 }
 
 function ingest(rows, filename, fromRemote=false){
+  // Proteção: ignorar sheets com menos de 5 torneios (provavelmente corrompida ou parcial)
+  if(!rows || rows.length < 5){
+    console.warn('ingest: sheet ignorada (menos de 5 rows)', rows?.length);
+    return;
+  }
   RAW_ROWS = rows.map(r => ({...r, _key: rowKey(r)}));
   // Persistir sheet + dados dos cards no localStorage (restauração imediata ao recarregar)
   try {
     const storeKey = 'suprema_sheet_v1_' + todayPathSP();
+    if(!rows || rows.length < 5) return; // não salvar sheet corrompida
     localStorage.setItem(storeKey, JSON.stringify({
       rows, filename, savedAt: Date.now(),
       // Snapshot dos dados preenchidos nos cards no momento do save
@@ -6045,7 +6051,7 @@ function renderUpcoming(){
     return orderA - orderB;
   });
 
-    // Limpar grid e recriar cards (simples e confiável)
+  // Limpar grid e recriar cards
   grid.querySelectorAll('.tcard').forEach(el => animVisibilityIO.unobserve(el));
   grid.innerHTML = '';
 
@@ -6185,13 +6191,6 @@ function renderUpcoming(){
     fragment.appendChild(el);
   });
   grid.appendChild(fragment);
-
-  // Restaurar foco se havia card focado antes do render
-  if(_focusedKey && _focusedClass){
-    const cls = _focusedClass.split(' ')[0];
-    const restored = document.querySelector(`.${cls}[data-key="${_focusedKey}"]`);
-    if(restored){ restored.focus(); }
-  }
 
   // Transição escalonada só para os primeiros 12 cards visíveis
   // Os demais aparecem direto (sem custo de animation)
@@ -9056,18 +9055,8 @@ function scheduleRenderAll(){
 function reinitDayListeners(){
   if(!fbReady || !fbDb) return;
 
-  // Sheet
-  fbDb.ref(`${FB_BASE_PATH}/sheet`).on('value', snap => {
-    const data = snap.val();
-    if(!data || !Array.isArray(data.rows) || !data.rows.length) return;
-    const sig = `${data.uploadedAt}|${data.rows.length}`;
-    if(sig === LAST_APPLIED_SHEET_SIGNATURE) return;
-    LAST_APPLIED_SHEET_SIGNATURE = sig;
-    ingest(data.rows, data.filename || '', true);
-    if(!MY_LAST_UPLOAD_AT || Math.abs(data.uploadedAt - MY_LAST_UPLOAD_AT) > 15000){
-      showToast(`Planilha "${data.filename||'Global'}" recebida (${data.rows.length} torneios)`);
-    }
-  });
+  // Sheet — listener já registrado em initFirebaseSync, não duplicar
+  // (reinitDayListeners só re-registra dados do dia, não a sheet que é compartilhada)
 
   // Premiação
   fbDb.ref(`${FB_BASE_PATH}/premiacao`).on('value', snap => {
