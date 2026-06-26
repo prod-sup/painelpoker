@@ -5981,20 +5981,14 @@ function renderUnfixed(){
 
 function renderUpcoming(){
   const grid = document.getElementById('upcomingGrid');
+  grid.querySelectorAll('.tcard').forEach(el => animVisibilityIO.unobserve(el)); // limpa observação antes de destruir os cards antigos
+  grid.innerHTML = '';
   const nowMin = nowMinutesSP(); // usado pelo filtro "Rolando agora" e pra marcar cada card como em andamento (não mais usado na ordenação, que agora é cronológica fixa)
-  // Filtro por categoria
   let filtered = activeUpcomingCat === 'all' ? UPCOMING
     : activeUpcomingCat === 'running' ? UPCOMING.filter(t => isRunningNow(t, nowMin))
-    : activeUpcomingCat === 'late'    ? UPCOMING.filter(t => cardTimeFlag(t) === 'late')
-    : activeUpcomingCat === 'soon'    ? UPCOMING.filter(t => cardTimeFlag(t) === 'soon')
+    : activeUpcomingCat === 'late' ? UPCOMING.filter(t => cardTimeFlag(t) === 'late')
+    : activeUpcomingCat === 'soon' ? UPCOMING.filter(t => cardTimeFlag(t) === 'soon')
     : UPCOMING.filter(t => classify(t) === activeUpcomingCat);
-
-  // Filtro por premiação
-  if(upcomingPremFilter === 'sem'){
-    filtered = filtered.filter(t => t.premiacao === null || t.premiacao === undefined);
-  } else if(upcomingPremFilter === 'com'){
-    filtered = filtered.filter(t => t.premiacao !== null && t.premiacao !== undefined);
-  }
 
   if (nameSearchQuery){
     // busca por nome: contém o termo digitado, sem diferenciar maiúsculas/minúsculas nem acentos
@@ -6048,10 +6042,9 @@ function renderUpcoming(){
     return orderA - orderB;
   });
 
-  // Limpar grid e recriar cards
-  grid.querySelectorAll('.tcard').forEach(el => animVisibilityIO.unobserve(el));
-  grid.innerHTML = '';
-
+  // monta todos os cards num DocumentFragment (fora do DOM ativo) e insere tudo de uma vez no final —
+  // evita um reflow/repaint por card (até ~117 com a planilha cheia), deixando a troca de filtro/busca
+  // visivelmente mais rápida sem mudar nenhum pixel do resultado final
   const fragment = document.createDocumentFragment();
   filtered.forEach((t, idx) => {
     const cat = classify(t);
@@ -6062,12 +6055,13 @@ function renderUpcoming(){
     const isNF = currentId.toUpperCase() === 'NF' || t.explicitNF;
     const flag = cardTimeFlag(t);
     const isRunning = isRunningNow(t, nowMin);
-
     const el = document.createElement('div');
-    el.className = `tcard reveal${fixed ? ' is-fixed' : ''}${isNF ? ' is-nf' : ''}${flag==='soon' ? ' is-soon' : ''}${flag==='late' ? ' is-late' : ''}${isRunning ? ' is-running' : ''}${t.premiacao != null ? ' has-premiacao' : ''}`;
+    el.className = `tcard reveal${fixed ? ' is-fixed' : ''}${isNF ? ' is-nf' : ''}${flag==='soon' ? ' is-soon' : ''}${flag==='late' ? ' is-late' : ''}${isRunning ? ' is-running' : ''}`;
     el.dataset.key = key;
     el.style.setProperty('--cat-bright', `var(--${cat}-bright)`);
-    if(idx < 8) el.style.transitionDelay = `${idx * 20}ms`;
+    // entrada escalonada (cascata), tipo Apple — limitada aos primeiros 18 cards pra não atrasar a lista inteira
+    // quando há muitos torneios; os demais entram juntos logo em seguida
+    el.style.transitionDelay = `${Math.min(idx, 18) * 28}ms`;
     const flagHtml = flag === 'late' || flag === 'soon'
       ? `<span class="time-flag ${flag}">${timeFlagMessage(t.hora, cat, flag)}</span>`
       : '';
@@ -6121,8 +6115,8 @@ function renderUpcoming(){
       <div class="tcard-op-fields">
         <div class="tcard-op-field">
           <label class="tcard-prem-label">Premiação (R$)</label>
-          <input type="text" inputmode="numeric" placeholder="R$ 0,00" class="tcard-prem-input" data-key="${key}"
-            value="${t.premiacao != null ? 'R$ '+t.premiacao.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : ''}"
+          <input type="number" step="0.01" placeholder="—" class="tcard-prem-input" data-key="${key}"
+            value="${t.premiacao != null ? t.premiacao : ''}"
             oninput="onCardPremiacaoInput(this)">
           ${hasCampanha(t) ? `<span class="tcard-campanha-badge">#AS</span>` : ''}
         </div>
@@ -6134,11 +6128,7 @@ function renderUpcoming(){
         </div>
       </div>
       <!-- Preview calculado: overlay, ações, performance -->
-      <div class="tcard-overlay-preview" id="tcard-ov-${key}">
-        <div class="tcard-ov-cell"><span class="tcard-ov-label">Overlay</span><span class="tcard-ov-val muted">—</span></div>
-        <div class="tcard-ov-cell"><span class="tcard-ov-label">Ações</span><span class="tcard-ov-val muted">—</span></div>
-        <div class="tcard-ov-cell"><span class="tcard-ov-label">Perf.</span><span class="tcard-ov-val muted">—</span></div>
-      </div>
+      <div class="tcard-overlay-preview" id="tcard-ov-${key}"></div>
       <div class="copy-row">
         <input type="text" class="id-input" placeholder="ID do evento" value="${getId(key)}" data-key="${key}">
         <button class="copy-btn" data-key="${key}" type="button">
@@ -6147,28 +6137,10 @@ function renderUpcoming(){
         </button>
       </div>
       <span class="id-dup-warning" hidden></span>
-      ${(fixed && fixedBy(key)) || getIdBy(key) ? `
-      <div class="tcard-fixer-row">
-        ${getIdBy(key) && (!fixed || getIdBy(key) !== fixedBy(key)) ? `
-        <div class="tcard-fixer-avatar" style="background:linear-gradient(135deg,#3b82f6,#1d4ed8)" title="Responsável pelo preenchimento">${getIdBy(key).charAt(0).toUpperCase()}</div>
-        <div class="tcard-fixer-info">
-          <span class="tcard-fixer-name" style="color:var(--blue,#60a5fa)">${getIdBy(key)}</span>
-          <span class="tcard-fixer-at">Preencheu o ID</span>
-        </div>
-        ${fixed && fixedBy(key) ? '<span style="color:var(--ink-soft);margin:0 6px">·</span>' : ''}
-        ` : ''}
-        ${fixed && fixedBy(key) ? `
-        <div class="tcard-fixer-avatar" title="Fixou o evento">${fixedBy(key).charAt(0).toUpperCase()}</div>
-        <div class="tcard-fixer-info">
-          <span class="tcard-fixer-name">${fixedBy(key)}</span>
-          ${fixedAt(key) ? `<span class="tcard-fixer-at">Fixou · ${fixedAt(key)}</span>` : '<span class="tcard-fixer-at">Fixou</span>'}
-        </div>
-        ` : ''}
-      </div>` : ''}
       <div class="tcard-status-row">
         <label class="fix-check">
           <input type="checkbox" data-key="${key}" class="fix-toggle" ${fixed ? 'checked' : ''}>
-          <span>${fixed ? 'Fixado' : 'Marcar como fixado'}</span>
+          <span>${fixed ? (fixedBy(key) ? `Fixado por ${fixedBy(key)}${fixedAt(key) ? ` · <span class="fixed-at">${fixedAt(key)}</span>` : ''}` : 'Fixado') : 'Marcar como fixado'}</span>
         </label>
       </div>
     `;
@@ -6176,21 +6148,10 @@ function renderUpcoming(){
   });
   grid.appendChild(fragment);
 
-  // Popular overlay/ações/perf em todos os cards
-  filtered.forEach(t => {
-    renderCardOverlayPreview(t._key, t, t.premiacao, getField(t._key));
-  });
-
-  // Transição escalonada só para os primeiros 12 cards visíveis
-  // Os demais aparecem direto (sem custo de animation)
-  let visIdx = 0;
-  grid.querySelectorAll('.tcard.reveal').forEach(el => {
-    if(visIdx < 12) {
-      requestAnimationFrame(() => el.classList.add('in'));
-    } else {
-      el.classList.add('in'); // sem animação
-    }
-    visIdx++;
+  // dispara a transição de entrada (cascata) só DEPOIS que os cards já estão no DOM no estado "oculto" —
+  // sem isso o navegador aplicaria opacity:1 direto, sem nenhuma transição visível
+  requestAnimationFrame(() => {
+    grid.querySelectorAll('.tcard.reveal').forEach(el => el.classList.add('in'));
   });
 
   observeAnimatedCards(grid); // liga/desliga pulso de atrasado/rolando agora conforme entra/sai da tela
