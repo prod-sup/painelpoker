@@ -986,7 +986,8 @@
   .cat-suit{ font-size:11px; opacity:.75; }
 
   .tcard-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;}
-  .tcard-field .k{font-size:10.5px; text-transform:uppercase; letter-spacing:0.07em; color:var(--ink-soft); margin-bottom:5px;}
+  .tcard-field{ display:flex; flex-direction:column; gap:5px; }
+  .tcard-field .k{font-size:10.5px; text-transform:uppercase; letter-spacing:0.07em; color:var(--ink-soft);}
   .tcard-field .v{font-family:var(--mono); font-size:15.5px; font-weight:600; letter-spacing:-0.01em;}
   .tcard-field .v.gold{color:var(--gold);}
   .tcard-late{ margin-top:16px; padding-top:14px; border-top:1px solid var(--hairline); font-size:12.5px; color:var(--ink-soft); display:flex; align-items:center; gap:6px; }
@@ -1696,7 +1697,7 @@
   }
 
   .tcard-op-fields{
-    display:grid;grid-template-columns:1fr 1fr;gap:8px;
+    display:grid;grid-template-columns:2fr 1fr;gap:8px;
     margin-top:10px;padding-top:10px;border-top:1px solid var(--hairline);
   }
   .tcard-op-field{ display:flex;flex-direction:column;gap:4px; }
