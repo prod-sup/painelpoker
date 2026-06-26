@@ -1408,7 +1408,7 @@ async function loadAudit(){
     return (ma>=DAY_START?ma:ma+1440)-(mb>=DAY_START?mb:mb+1440);
   });
 
-  el.innerHTML=dates.map(date=>{
+  try{ el.innerHTML=dates.map(date=>{
     const dayRows=byDate[date];
     const groups=[
       {cat:'main',rows:sortTime(dayRows.filter(r=>r.cat==='main'))},
@@ -1438,19 +1438,22 @@ async function loadAudit(){
           <td class="mono">${esc(r.late)}</td>
           <td class="r mono">${r.garantido!=null?'R$ '+brl(r.garantido):'—'}</td>
           <td class="r mono">${r.buyin!=null?'R$ '+brl(r.buyin):'—'}</td>
-          <td class="r mono">${r.premiacao!=null?`<span${r._audited&&r._auditEntry?.status==='corrigido'&&r._auditEntry?.premiacaoOriginal!=r.premiacao?' style="color:var(--gold)"':''}>${'R$ '+brl(r.premiacao)}</span>`:'—'}</td>
+          <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.premiacaoOriginal!==r.premiacao?'c-gold':''}">${r.premiacao!=null?'R$ '+brl(r.premiacao):'—'}</td>
           <td class="r mono ov-val">${r.overlay!=null?'R$ '+brl(r.overlay):'—'}</td>
-          <td class="r mono">${r.field!=null?`<span${r._audited&&r._auditEntry?.status==='corrigido'&&r._auditEntry?.fieldOriginal!=r.field?' style="color:var(--gold)"':''}>${r.field}</span>`:'—'}</td>
+          <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.fieldOriginal!==r.field?'c-gold':''}">${r.field!=null?r.field:'—'}</td>
           <td class="r mono">${r.perf!=null?`<span class="perf ${r.perf>=0?'pos':'neg'}">${pct(r.perf)}</span>`:'—'}</td>
           <td class="c-ink2">${esc(r.fixBy||r.idBy||'—')}</td>
           <td class="mono c-ink2">${esc(r.id)}</td>
           <td>${r.status==='fechado'?'<span class="badge badge-closed">Fechado</span>':r.status==='nf'?'<span class="badge badge-nf">NF</span>':'<span class="badge badge-open">Aberto</span>'}</td>
           <td style="display:flex;gap:5px;align-items:center">
             <button class="audit-edit-btn ${r._audited?'auditado':''}"
-              onclick="openAuditEdit(${JSON.stringify({key:r.key,date:r.date,nome:r.nome,premiacao:r.premiacao,field:r.field,hora:r.hora}).replace(/"/g,'&quot;')})">
+              data-key="${r.key}" data-date="${r.date}"
+              onclick="openAuditEditByEl(this)">
               ${r._audited ? '✓ Auditado' : '✏ Editar'}
             </button>
-            <button class="btn-notif" onclick="openNotif(${JSON.stringify({nome:r.nome,date:r.date,fixBy:r.fixBy||r.idBy||'',key:r.key}).replace(/"/g,'&quot;')})">⚠ Notif</button>
+            <button class="btn-notif"
+              data-nome="${esc(r.nome)}" data-date="${r.date}" data-fixby="${esc(r.fixBy||r.idBy||'')}" data-key="${r.key}"
+              onclick="openNotifByEl(this)">⚠ Notif</button>
           </td>
         </tr>`;
       }).join('');
@@ -1493,6 +1496,10 @@ async function loadAudit(){
       ${groupsHtml}
     </div>`;
   }).join('');
+  }catch(renderErr){
+    console.error('[loadAudit] RENDER ERROR:', renderErr);
+    el.innerHTML=`<div style="color:var(--red);padding:20px">Erro ao renderizar: ${renderErr.message}</div>`;
+  }
 }
 
 /* ── FIXAÇÕES ────────────────────────────────────────────────── */
@@ -2040,6 +2047,24 @@ function getAuditEntry(date, key){
 }
 
 // Abrir modal de edição
+function openAuditEditByEl(btn){
+  const key  = btn.dataset.key;
+  const date = btn.dataset.date;
+  // Encontrar o row completo em _auditRows
+  const r = _auditRows.find(r=>r.key===key&&r.date===date);
+  if(!r){ toast('Dado não encontrado','err'); return; }
+  openAuditEdit({key:r.key,date:r.date,nome:r.nome,premiacao:r.premiacao,field:r.field,hora:r.hora});
+}
+
+function openNotifByEl(btn){
+  openNotif({
+    nome:   btn.dataset.nome,
+    date:   btn.dataset.date,
+    fixBy:  btn.dataset.fixby,
+    key:    btn.dataset.key,
+  });
+}
+
 function openAuditEdit(ctx){
   _auditContext = typeof ctx === 'string' ? JSON.parse(ctx.replace(/&quot;/g,'"')) : ctx;
   const audit = getAuditEntry(_auditContext.date, _auditContext.key);
