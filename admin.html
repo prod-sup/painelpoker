@@ -1,0 +1,1605 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Admin — Suprema Poker</title>
+<style>
+/* ── RESET & BASE ───────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:       #08080e;
+  --surface:  #0f0f1a;
+  --card:     #13131f;
+  --card2:    #18182a;
+  --b1:       rgba(255,255,255,.07);
+  --b2:       rgba(255,255,255,.05);
+  --ink:      #f0f0f8;
+  --ink2:     #9090b0;
+  --ink3:     #5a5a78;
+  --gold:     #c9a84c;
+  --gold2:    rgba(201,168,76,.12);
+  --green:    #22c55e;
+  --green2:   rgba(34,197,94,.12);
+  --red:      #ef4444;
+  --red2:     rgba(239,68,68,.12);
+  --amber:    #f59e0b;
+  --amber2:   rgba(245,158,11,.12);
+  --blue:     #60a5fa;
+  --blue2:    rgba(96,165,250,.12);
+  --purple:   #a78bfa;
+  --purple2:  rgba(167,139,250,.12);
+  --mono:     'SF Mono','Fira Code','Cascadia Code',monospace;
+  --text:     -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --sidebar-w: 220px;
+  --topbar-h:  52px;
+}
+html{font-size:14px;-webkit-font-smoothing:antialiased}
+body{font-family:var(--text);background:var(--bg);color:var(--ink);min-height:100vh;overflow-x:hidden}
+button{font-family:var(--text);cursor:pointer;border:none;background:none;color:inherit}
+input,textarea,select{font-family:var(--text);color:var(--ink);background:var(--surface);border:1px solid var(--b1);border-radius:8px;outline:none;transition:border-color .15s}
+input:focus,textarea:focus,select:focus{border-color:var(--gold)}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
+a{color:inherit;text-decoration:none}
+
+/* ── LOGIN SCREEN ────────────────────────────────────────────── */
+#loginScreen{
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;background:var(--bg);
+  background-image:
+    radial-gradient(ellipse 60% 50% at 50% -10%, rgba(201,168,76,.08) 0%, transparent 70%);
+}
+.lc{
+  width:360px;padding:40px;
+  background:var(--card);border:1px solid var(--b1);border-radius:20px;
+  box-shadow:0 32px 80px rgba(0,0,0,.5);
+}
+.lc-logo{text-align:center;margin-bottom:32px}
+.lc-logo .suit{font-size:36px;display:block;margin-bottom:10px;
+  filter:drop-shadow(0 0 16px rgba(201,168,76,.4))}
+.lc-logo h1{font-size:20px;font-weight:700;letter-spacing:-.01em}
+.lc-logo p{font-size:12px;color:var(--ink3);margin-top:4px;letter-spacing:.04em;text-transform:uppercase}
+.lc-divider{height:1px;background:var(--b1);margin:0 0 24px}
+.fg{margin-bottom:14px}
+.fg label{display:block;font-size:10px;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink3);margin-bottom:6px}
+.fg input{width:100%;padding:11px 13px;border-radius:9px;font-size:13px}
+.btnp{
+  width:100%;padding:13px;border-radius:10px;
+  background:linear-gradient(135deg,#c9a84c,#a07830);
+  color:#fff;font-size:13px;font-weight:700;letter-spacing:.02em;
+  transition:opacity .15s,transform .15s;margin-top:4px;
+}
+.btnp:hover{opacity:.9;transform:translateY(-1px)}
+.btnp:disabled{opacity:.4;cursor:not-allowed;transform:none}
+#loginErr{font-size:12px;color:var(--red);margin-top:10px;min-height:16px;text-align:center}
+#loginDenied{display:none;font-size:12px;color:var(--amber);margin-top:10px;text-align:center;
+  background:var(--amber2);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:10px}
+
+/* ── LOADER ──────────────────────────────────────────────────── */
+#lo{
+  display:none;position:fixed;inset:0;z-index:999;
+  background:rgba(8,8,14,.85);backdrop-filter:blur(4px);
+  align-items:center;justify-content:center;flex-direction:column;gap:14px;
+}
+#lo.on{display:flex}
+.sp{
+  width:36px;height:36px;border-radius:50%;
+  border:3px solid rgba(255,255,255,.08);border-top-color:var(--gold);
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+#lo p{font-size:12px;color:var(--ink3)}
+
+/* ── APP SHELL ───────────────────────────────────────────────── */
+#app{display:none;min-height:100vh}
+
+/* ── TOP BAR ─────────────────────────────────────────────────── */
+.topbar{
+  position:fixed;top:0;left:0;right:0;height:var(--topbar-h);z-index:100;
+  background:rgba(8,8,14,.92);backdrop-filter:blur(18px);
+  border-bottom:1px solid var(--b1);
+  display:flex;align-items:center;padding:0 20px;gap:0;
+}
+.tb-brand{
+  display:flex;align-items:center;gap:9px;
+  font-weight:700;font-size:14px;color:var(--ink);
+  width:var(--sidebar-w);flex:none;padding-right:20px;
+}
+.tb-brand .suit{font-size:18px;color:var(--gold)}
+.admin-badge{
+  font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  background:linear-gradient(135deg,rgba(201,168,76,.2),rgba(201,168,76,.08));
+  color:var(--gold);border:1px solid rgba(201,168,76,.25);
+  padding:2px 7px;border-radius:99px;
+}
+.tb-right{
+  margin-left:auto;display:flex;align-items:center;gap:12px;
+}
+.user-chip{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink2)}
+.user-chip .dot{
+  width:7px;height:7px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 6px rgba(34,197,94,.5);
+}
+.btns{
+  padding:5px 13px;border-radius:7px;font-size:12px;font-weight:600;
+  background:rgba(255,255,255,.05);border:1px solid var(--b1);color:var(--ink2);
+  transition:background .15s,color .15s;
+}
+.btns:hover{background:rgba(255,255,255,.1);color:var(--ink)}
+.back-link{
+  font-size:12px;color:var(--ink3);padding:5px 11px;border-radius:7px;
+  background:rgba(255,255,255,.04);border:1px solid var(--b1);
+  transition:background .15s,color .15s;display:flex;align-items:center;gap:5px;
+}
+.back-link:hover{background:rgba(255,255,255,.08);color:var(--ink2)}
+
+/* ── SIDEBAR NAV ──────────────────────────────────────────────── */
+.sidebar{
+  position:fixed;top:var(--topbar-h);left:0;bottom:0;
+  width:var(--sidebar-w);
+  background:var(--surface);border-right:1px solid var(--b1);
+  padding:16px 10px;overflow-y:auto;z-index:80;
+  display:flex;flex-direction:column;gap:2px;
+}
+.nav-section{
+  font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink3);padding:10px 10px 6px;
+}
+.nav-section:first-child{padding-top:4px}
+.ntab{
+  display:flex;align-items:center;gap:9px;
+  width:100%;padding:9px 12px;border-radius:8px;
+  font-size:13px;font-weight:500;color:var(--ink2);
+  transition:background .12s,color .12s;text-align:left;
+}
+.ntab .ni{font-size:15px;width:18px;text-align:center;flex:none}
+.ntab:hover{background:rgba(255,255,255,.05);color:var(--ink)}
+.ntab.active{
+  background:rgba(201,168,76,.1);color:var(--gold);font-weight:600;
+  border:1px solid rgba(201,168,76,.15);
+}
+.ntab.active .ni{filter:drop-shadow(0 0 4px rgba(201,168,76,.4))}
+
+/* ── MAIN CONTENT ────────────────────────────────────────────── */
+.main{
+  margin-left:var(--sidebar-w);padding-top:var(--topbar-h);
+  min-height:100vh;
+}
+.page{display:none;padding:28px 28px 64px}
+.page.active{display:block}
+
+/* ── PAGE HEADER ─────────────────────────────────────────────── */
+.ph{margin-bottom:24px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.ph-left{}
+.ey{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--gold);margin-bottom:6px}
+.ph h1{font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.ph p{font-size:12px;color:var(--ink3);margin-top:5px}
+.ph-actions{display:flex;gap:8px;align-items:center;flex:none}
+
+/* ── PERIOD TABS ─────────────────────────────────────────────── */
+.ptabs{
+  display:flex;gap:3px;background:var(--surface);
+  border:1px solid var(--b1);border-radius:10px;padding:3px;
+  width:fit-content;margin-bottom:24px;
+}
+.ptab{
+  padding:5px 16px;border-radius:7px;font-size:12px;font-weight:600;
+  color:var(--ink3);transition:all .12s;
+}
+.ptab:hover{color:var(--ink2)}
+.ptab.active{background:var(--card);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.3)}
+
+/* ── STAT CARDS ──────────────────────────────────────────────── */
+.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:24px}
+.sc{
+  background:var(--card);border:1px solid var(--b1);border-radius:12px;
+  padding:18px 20px;position:relative;overflow:hidden;
+}
+.sc::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:var(--acc,var(--gold));opacity:.5;
+}
+.sc.acc-green{--acc:var(--green)}
+.sc.acc-red{--acc:var(--red)}
+.sc.acc-blue{--acc:var(--blue)}
+.sc.acc-purple{--acc:var(--purple)}
+.sc .sl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink3);margin-bottom:8px}
+.sc .sv{font-size:22px;font-weight:700;font-family:var(--mono);line-height:1;color:var(--ink)}
+.sc .ss{font-size:11px;color:var(--ink3);margin-top:5px}
+.sc .sd{display:flex;align-items:center;gap:5px;margin-top:8px;font-size:11px}
+.sd-up{color:var(--green)}.sd-dn{color:var(--red)}.sd-neu{color:var(--ink3)}
+
+/* ── BADGES ──────────────────────────────────────────────────── */
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;letter-spacing:.04em}
+.b-main{background:var(--green2);color:#6ee7a0}
+.b-side{background:var(--blue2);color:var(--blue)}
+.b-sat{background:var(--purple2);color:var(--purple)}
+.pb{display:inline-block;padding:3px 8px;border-radius:6px;font-family:var(--mono);font-size:11px;font-weight:700}
+.pb-pos{background:var(--green2);color:var(--green)}
+.pb-neg{background:var(--red2);color:var(--red)}
+.pb-neu{background:rgba(255,255,255,.05);color:var(--ink3)}
+
+/* ── CHART CARDS ─────────────────────────────────────────────── */
+.cc{
+  background:var(--card);border:1px solid var(--b1);border-radius:12px;
+  padding:22px;margin-bottom:18px;
+}
+.ct{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:3px}
+.cs{font-size:11px;color:var(--ink3);margin-bottom:18px}
+.cw{position:relative;height:220px}
+
+/* ── GRID LAYOUTS ────────────────────────────────────────────── */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+@media(max-width:900px){.two,.three{grid-template-columns:1fr}}
+
+/* ── TABLE CARD ──────────────────────────────────────────────── */
+.tc{
+  background:var(--card);border:1px solid var(--b1);border-radius:12px;
+  overflow:hidden;margin-bottom:18px;
+}
+.tt{
+  padding:14px 18px;border-bottom:1px solid var(--b1);
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+}
+.tt-title{font-size:13px;font-weight:700}
+.tt-sub{font-size:11px;color:var(--ink3)}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{
+  padding:9px 14px;text-align:left;font-size:10px;font-weight:700;
+  letter-spacing:.07em;text-transform:uppercase;color:var(--ink3);
+  background:var(--surface);border-bottom:1px solid var(--b1);white-space:nowrap;
+}
+tbody tr{border-bottom:1px solid var(--b2);transition:background .1s}
+tbody tr:hover{background:rgba(255,255,255,.02)}
+tbody tr:last-child{border-bottom:none}
+tbody td{padding:9px 14px;vertical-align:middle}
+td.nm{font-weight:600;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td.mn{font-family:var(--mono)}
+.c-gold{color:var(--gold)}.c-green{color:var(--green)}.c-red{color:var(--red)}
+.c-amber{color:var(--amber)}.c-ink2{color:var(--ink2)}.c-ink3{color:var(--ink3)}
+
+/* ── PROGRESS BAR ────────────────────────────────────────────── */
+.sb{height:5px;border-radius:3px;background:var(--b1);position:relative;overflow:hidden}
+.sbf{position:absolute;left:0;top:0;bottom:0;border-radius:3px;transition:width .5s ease}
+
+/* ── FILTER ROW ──────────────────────────────────────────────── */
+.dr{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.di{
+  padding:7px 11px;background:var(--surface);border:1px solid var(--b1);
+  border-radius:8px;font-size:12px;color:var(--ink);min-width:150px;
+}
+.bta{
+  padding:7px 15px;border-radius:8px;font-size:12px;font-weight:600;
+  background:var(--gold2);border:1px solid rgba(201,168,76,.2);color:var(--gold);
+  transition:background .12s;
+}
+.bta:hover{background:rgba(201,168,76,.2)}
+.btx{
+  display:flex;align-items:center;gap:5px;padding:7px 13px;border-radius:8px;
+  font-size:12px;font-weight:500;color:var(--ink3);
+  background:rgba(255,255,255,.04);border:1px solid var(--b1);
+  transition:background .12s,color .12s;
+}
+.btx:hover{background:rgba(255,255,255,.08);color:var(--ink)}
+.btx svg{width:13px;height:13px;flex:none}
+.si{
+  padding:7px 11px;background:var(--surface);border:1px solid var(--b1);
+  border-radius:8px;font-size:12px;color:var(--ink);
+}
+
+/* ── SECTION HEADER ──────────────────────────────────────────── */
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;margin-top:4px}
+.sh .stl{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3)}
+
+/* ── INSIGHT CARDS ───────────────────────────────────────────── */
+.ig{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-bottom:18px}
+.ic{
+  background:var(--card);border:1px solid var(--b1);border-radius:12px;
+  padding:16px;position:relative;overflow:hidden;
+}
+.it{
+  font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  display:inline-block;padding:2px 8px;border-radius:99px;margin-bottom:10px;
+}
+.ic.rec .it{background:var(--green2);color:var(--green)}
+.ic.warn .it{background:var(--amber2);color:var(--amber)}
+.ic.danger .it{background:var(--red2);color:var(--red)}
+.ic.info .it{background:var(--blue2);color:var(--blue)}
+.ih{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:5px;line-height:1.4}
+.ib{font-size:12px;color:var(--ink2);line-height:1.6}
+.im{
+  font-family:var(--mono);font-size:11px;color:var(--ink3);
+  margin-top:9px;padding-top:9px;border-top:1px solid var(--b1);
+}
+
+/* ── GRADE TABLE ─────────────────────────────────────────────── */
+.gr{
+  display:grid;
+  grid-template-columns:2.5fr 70px 110px 110px 120px 90px 140px;
+  gap:0;align-items:center;
+  border-bottom:1px solid var(--b2);
+}
+.gr:hover{background:rgba(255,255,255,.02)}
+.gr.gh{
+  background:var(--surface);font-size:10px;font-weight:700;
+  letter-spacing:.07em;text-transform:uppercase;color:var(--ink3);
+  border-bottom:1px solid var(--b1);position:sticky;top:0;z-index:2;
+}
+.gr>div{padding:9px 11px}
+
+/* ── MODAL ───────────────────────────────────────────────────── */
+.mo{
+  display:none;position:fixed;inset:0;z-index:500;
+  background:rgba(0,0,0,.72);backdrop-filter:blur(6px);
+  align-items:center;justify-content:center;
+}
+.mo.open{display:flex}
+.mb{
+  background:var(--card);border:1px solid var(--b1);border-radius:18px;
+  padding:28px;max-width:440px;width:90%;
+  box-shadow:0 24px 64px rgba(0,0,0,.5);
+}
+.mt{font-size:15px;font-weight:700;margin-bottom:3px}
+.ms{font-size:12px;color:var(--ink2);margin-bottom:18px}
+.mf{margin-bottom:13px}
+.mf label{
+  display:block;font-size:10px;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--ink3);margin-bottom:5px;
+}
+.mf textarea,.mf select{
+  width:100%;padding:9px 11px;border-radius:8px;font-size:13px;
+}
+.mf textarea{resize:none;line-height:1.5}
+.ma{display:flex;gap:8px;margin-top:4px}
+.btnc{
+  flex:1;padding:10px;border-radius:8px;font-size:13px;font-weight:600;
+  background:rgba(255,255,255,.04);border:1px solid var(--b1);color:var(--ink2);
+  transition:background .12s;
+}
+.btnc:hover{background:rgba(255,255,255,.08)}
+.btnd{
+  flex:2;padding:10px;border-radius:8px;font-size:13px;font-weight:700;
+  background:linear-gradient(135deg,#dc2626,#991b1b);color:#fff;
+  transition:opacity .12s;
+}
+.btnd:hover{opacity:.85}
+
+/* ── CB BUTTON ───────────────────────────────────────────────── */
+.cb{
+  padding:4px 11px;border-radius:7px;font-size:11px;font-weight:600;
+  background:var(--red2);border:1px solid rgba(239,68,68,.2);color:var(--red);
+  transition:background .12s;
+}
+.cb:hover{background:rgba(239,68,68,.2)}
+
+/* ── EMPTY STATE ──────────────────────────────────────────────── */
+.emp{text-align:center;padding:50px 20px;color:var(--ink3);font-size:12px}
+.emp .ei{font-size:32px;margin-bottom:10px}
+.emp h3{font-size:14px;font-weight:600;color:var(--ink2);margin-bottom:5px}
+
+/* ── TOAST ───────────────────────────────────────────────────── */
+#toast{
+  position:fixed;bottom:24px;right:24px;z-index:999;
+  background:var(--card);border:1px solid var(--b1);border-radius:10px;
+  padding:11px 16px;font-size:13px;font-weight:500;
+  transform:translateY(10px);opacity:0;transition:all .22s;pointer-events:none;
+  box-shadow:0 8px 32px rgba(0,0,0,.4);max-width:320px;
+}
+#toast.show{transform:translateY(0);opacity:1}
+#toast.err{border-color:rgba(239,68,68,.3);color:#fca5a5}
+#toast.ok{border-color:rgba(34,197,94,.3);color:#86efac}
+
+/* ── Modal criar conta ── */
+@keyframes spin{ to{ transform:rotate(360deg) } }
+.ao-spin{ animation: spin .7s linear infinite; }
+#moAddOp .mb input{ transition: border-color .15s; }
+#moAddOp .mb input:focus{ border-color: var(--gold); outline: none; }
+#moAddOp .mb input.err-field{ border-color: rgba(239,68,68,.5); }
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN ──────────────────────────────────────────────────── -->
+<div id="loginScreen">
+  <div class="lc">
+    <div class="lc-logo">
+      <span class="suit">♠</span>
+      <h1>Suprema Poker</h1>
+      <p>Área Administrativa</p>
+    </div>
+    <div class="lc-divider"></div>
+    <div class="fg"><label>Email</label>
+      <input type="email" id="lEmail" placeholder="email@suprema.group" autocomplete="email">
+    </div>
+    <div class="fg"><label>Senha</label>
+      <input type="password" id="lPass" placeholder="••••••••" autocomplete="current-password"
+        onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="btnp" id="lBtn" onclick="doLogin()">Entrar</button>
+    <div id="loginErr"></div>
+    <div id="loginDenied">Acesso negado — área exclusiva para administradores.</div>
+  </div>
+</div>
+
+<!-- ── LOADER ─────────────────────────────────────────────────── -->
+<div id="lo"><div class="sp"></div><p>Carregando dados...</p></div>
+
+<!-- ── APP ────────────────────────────────────────────────────── -->
+<div id="app">
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="tb-brand">
+      <span class="suit">♠</span>Admin
+      <span class="admin-badge">ADMIN</span>
+    </div>
+    <div class="tb-right">
+      <div class="user-chip">
+        <span class="dot"></span>
+        <span id="adminName"></span>
+      </div>
+      <a href="index.html" class="back-link">← Painel</a>
+      <button class="btns" onclick="doLogout()">Sair</button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <span class="nav-section">Análise</span>
+    <button class="ntab active" onclick="showPage('dashboard',this)" id="adNavDash">
+      <span class="ni">📊</span>Dashboard
+    </button>
+    <button class="ntab" onclick="showPage('grade',this)" id="adNavGrade">
+      <span class="ni">📈</span>Grade
+    </button>
+    <span class="nav-section">Operações</span>
+    <button class="ntab" onclick="showPage('auditoria',this)" id="adNavAudit">
+      <span class="ni">🔍</span>Auditoria
+    </button>
+    <button class="ntab" onclick="showPage('relatorios',this)" id="adNavRel">
+      <span class="ni">📋</span>Relatórios
+    </button>
+    <span class="nav-section">Sistema</span>
+    <button class="ntab" onclick="showPage('operadores',this)" id="adNavOp">
+      <span class="ni">👤</span>Operadores
+    </button>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="pageDashboard">
+      <div class="ph">
+        <div class="ph-left">
+          <div class="ey">Visão Geral</div>
+          <h1>Dashboard Operacional</h1>
+          <p>Métricas consolidadas, tendências e performance baseadas em dados reais</p>
+        </div>
+        <div class="ph-actions">
+          <div class="ptabs" id="dashPT">
+            <button class="ptab" onclick="setDP(7,this)">7d</button>
+            <button class="ptab active" onclick="setDP(30,this)">30d</button>
+            <button class="ptab" onclick="setDP(90,this)">90d</button>
+          </div>
+        </div>
+      </div>
+      <div class="sg" id="dashStats"></div>
+      <div class="two">
+        <div class="cc"><div class="ct">Performance por dia</div><div class="cs">Overlay vs Garantido ao longo do tempo</div><div class="cw"><canvas id="cPerf"></canvas></div></div>
+        <div class="cc"><div class="ct">Distribuição por categoria</div><div class="cs">Main Event · Side Event · Satélite</div><div class="cw"><canvas id="cCat"></canvas></div></div>
+      </div>
+      <div class="two">
+        <div class="cc"><div class="ct">Receita acumulada</div><div class="cs">Premiação total paga no período</div><div class="cw"><canvas id="cRev"></canvas></div></div>
+        <div class="cc"><div class="ct">Top torneios por overlay</div><div class="cs">Maior exposição negativa no período</div><div class="cw"><canvas id="cTop"></canvas></div></div>
+      </div>
+      <div class="ig" id="dashInsights"></div>
+    </div>
+
+    <!-- AUDITORIA -->
+    <div class="page" id="pageAuditoria">
+      <div class="ph">
+        <div class="ph-left">
+          <div class="ey">Operações</div>
+          <h1>Auditoria de Fixações</h1>
+          <p>Histórico de quem fixou o quê e quando — rastreabilidade completa</p>
+        </div>
+      </div>
+      <div class="dr">
+        <input class="di" type="date" id="auFrom">
+        <input class="di" type="date" id="auTo">
+        <select class="di" id="auOp" style="min-width:160px">
+          <option value="">Todos os operadores</option>
+        </select>
+        <select class="di" id="auCat" style="min-width:140px">
+          <option value="">Todas as categorias</option>
+          <option value="Main Event">Main Event</option>
+          <option value="Side Event">Side Event</option>
+          <option value="Satélite">Satélite</option>
+        </select>
+        <button class="bta" onclick="runAudit()">Filtrar</button>
+        <button class="btx" onclick="exportAudit()">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M8 2v9M4 8l4 4 4-4M2 13h12"/>
+          </svg>Exportar
+        </button>
+      </div>
+      <div class="tc">
+        <div class="tt">
+          <div><div class="tt-title">Log de fixações</div><div class="tt-sub" id="auCount">—</div></div>
+        </div>
+        <div class="tw">
+          <table>
+            <thead><tr>
+              <th>Data / Hora</th><th>Operador</th><th>Torneio</th>
+              <th>Categoria</th><th>Garantido</th><th>Premiação</th><th>Perf.</th><th></th>
+            </tr></thead>
+            <tbody id="auBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- GRADE -->
+    <div class="page" id="pageGrade">
+      <div class="ph">
+        <div class="ph-left">
+          <div class="ey">Analytics</div>
+          <h1>Análise de Grade</h1>
+          <p>Performance por torneio, tendências de overlay e otimização de grade</p>
+        </div>
+        <div class="ph-actions">
+          <div class="ptabs" id="gradePT">
+            <button class="ptab" onclick="setGradeDP(7,this)">7d</button>
+            <button class="ptab active" onclick="setGradeDP(30,this)">30d</button>
+            <button class="ptab" onclick="setGradeDP(90,this)">90d</button>
+          </div>
+        </div>
+      </div>
+      <div class="sg" id="gradeStats"></div>
+      <div class="dr">
+        <select class="di" id="grCat" style="min-width:140px" onchange="renderGrade()">
+          <option value="">Todas as categorias</option>
+          <option value="Main Event">Main Event</option>
+          <option value="Side Event">Side Event</option>
+          <option value="Satélite">Satélite</option>
+        </select>
+        <select class="di" id="grSort" style="min-width:160px" onchange="renderGrade()">
+          <option value="overlay_asc">Maior overlay (negativo)</option>
+          <option value="overlay_desc">Melhor performance</option>
+          <option value="runs">Mais rodadas</option>
+          <option value="name">Nome A→Z</option>
+        </select>
+        <input class="si" type="text" id="grSearch" placeholder="Buscar torneio..." oninput="renderGrade()">
+      </div>
+      <div class="tc">
+        <div class="tt">
+          <div><div class="tt-title">Performance por torneio</div><div class="tt-sub" id="gradeCount">—</div></div>
+          <button class="btx" onclick="exportGrade()">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M8 2v9M4 8l4 4 4-4M2 13h12"/>
+            </svg>Exportar
+          </button>
+        </div>
+        <div>
+          <div class="gr gh">
+            <div>Torneio</div><div>Rodadas</div><div>GTD médio</div>
+            <div>Pool médio</div><div>Perf. média</div><div>Overlay tot.</div><div>Barra</div>
+          </div>
+          <div id="gradeBody"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RELATÓRIOS -->
+    <div class="page" id="pageRelatorios">
+      <div class="ph">
+        <div class="ph-left">
+          <div class="ey">Exportação</div>
+          <h1>Relatórios de Acompanhamento</h1>
+          <p>XLSXs salvos automaticamente pelo painel ao fechar o dia</p>
+        </div>
+        <div class="ph-actions">
+          <div class="ptabs" id="relPT" style="margin:0">
+            <button class="ptab active" onclick="setRelTab('xlsx',this)">Relatórios XLSX</button>
+            <button class="ptab" onclick="setRelTab('turno',this)">Relatórios de turno</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Aba XLSX -->
+      <div id="relTabXlsx">
+        <div class="dr">
+          <div class="mdr-field">
+            <label>De</label>
+            <input type="date" id="xlsxFrom" class="di" style="padding:7px 11px">
+          </div>
+          <div class="mdr-field">
+            <label>Até</label>
+            <input type="date" id="xlsxTo" class="di" style="padding:7px 11px">
+          </div>
+          <button class="bta" onclick="loadXlsxReports()">Buscar</button>
+        </div>
+        <div id="xlsxList" class="tc">
+          <div class="tt"><div class="tt-title">Relatórios disponíveis</div><div class="tt-sub" id="xlsxCount">—</div></div>
+          <div class="tw">
+            <table>
+              <thead><tr>
+                <th>Data</th><th>Torneios</th><th>Fechados</th>
+                <th>GTD Total</th><th>Premiação</th><th>Overlay</th>
+                <th>Salvo por</th><th>Horário</th><th></th>
+              </tr></thead>
+              <tbody id="xlsxBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Aba Turno -->
+      <div id="relTabTurno" style="display:none">
+        <div class="dr">
+          <input class="di" type="date" id="relFrom">
+          <input class="di" type="date" id="relTo">
+          <button class="bta" onclick="loadRel()">Carregar</button>
+          <button class="btx" onclick="exportRel()">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M8 2v9M4 8l4 4 4-4M2 13h12"/>
+            </svg>Exportar CSV
+          </button>
+        </div>
+        <div class="two">
+          <div class="cc" style="margin-bottom:0">
+            <div class="ct">Resumo do período</div>
+            <div class="cs">Dados consolidados dos turnos</div>
+            <div id="relSummary" style="margin-top:8px"></div>
+          </div>
+          <div class="cc" style="margin-bottom:0">
+            <div class="ct">Relatórios de turno</div>
+            <div class="cs">Textos salvos pelos operadores</div>
+            <div id="relList" style="max-height:320px;overflow-y:auto;margin-top:8px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPERADORES -->
+    <div class="page" id="pageOperadores">
+      <div class="ph">
+        <div class="ph-left">
+          <div class="ey">Sistema</div>
+          <h1>Operadores</h1>
+          <p>Contas registradas, histórico de atividade e gerenciamento de acesso</p>
+        </div>
+        <div class="ph-actions">
+          <button class="bta" onclick="openAddOp()">+ Adicionar operador</button>
+        </div>
+      </div>
+      <div class="tc">
+        <div class="tt">
+          <div><div class="tt-title">Operadores cadastrados</div><div class="tt-sub" id="opCount">—</div></div>
+        </div>
+        <div class="tw">
+          <table>
+            <thead><tr>
+              <th>Nome / Apelido</th><th>Email</th><th>Último acesso</th>
+              <th>Torneios fixados</th><th>Admin</th><th></th>
+            </tr></thead>
+            <tbody id="opBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MODAL BROADCAST -->
+<div class="mo" id="moBC">
+  <div class="mb">
+    <div class="mt">Enviar aviso</div>
+    <div class="ms">Aparece no Mural de Avisos de todos os operadores</div>
+    <div class="mf"><label>Mensagem</label>
+      <textarea id="bcMsg" rows="4" placeholder="Digite o aviso aqui..."></textarea>
+    </div>
+    <div class="ma">
+      <button class="btnc" onclick="closeMo('moBC')">Cancelar</button>
+      <button class="btnd" onclick="sendBC()">Enviar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL BLOCK -->
+<div class="mo" id="moBL">
+  <div class="mb">
+    <div class="mt">Bloquear operador</div>
+    <div class="ms">O operador perderá acesso ao painel imediatamente.</div>
+    <div class="mf"><label>Motivo</label>
+      <textarea id="blReason" rows="3" placeholder="Opcional — registrado no log"></textarea>
+    </div>
+    <div class="ma">
+      <button class="btnc" onclick="closeMo('moBL')">Cancelar</button>
+      <button class="btnd" onclick="confirmBlock()">Bloquear</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ADD OP -->
+<div class="mo" id="moAddOp">
+  <div class="mb" style="max-width:480px">
+    <div class="mt">Adicionar operador</div>
+    <div class="ms">Cria uma conta com acesso ao painel operacional.</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="mf" style="margin:0">
+        <label>Nome completo</label>
+        <input type="text" id="aoNome" placeholder="Ex: João Silva" autocomplete="off"
+          style="width:100%;padding:9px 11px;border-radius:8px;font-size:13px">
+      </div>
+      <div class="mf" style="margin:0">
+        <label>Apelido no painel</label>
+        <input type="text" id="aoApelido" placeholder="Ex: João"
+          style="width:100%;padding:9px 11px;border-radius:8px;font-size:13px">
+      </div>
+    </div>
+
+    <div class="mf">
+      <label>Email</label>
+      <input type="email" id="aoEmail" placeholder="email@suprema.group" autocomplete="off"
+        style="width:100%;padding:9px 11px;border-radius:8px;font-size:13px">
+    </div>
+
+    <div class="mf">
+      <label>Senha inicial</label>
+      <div style="position:relative">
+        <input type="password" id="aoPass" placeholder="Mínimo 8 caracteres"
+          style="width:100%;padding:9px 38px 9px 11px;border-radius:8px;font-size:13px"
+          oninput="checkPassStrength(this.value)">
+        <button type="button" onclick="togglePassVis()"
+          style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--ink2);cursor:pointer;font-size:15px;padding:0">
+          👁
+        </button>
+      </div>
+      <div id="aoPassBar" style="height:3px;border-radius:2px;background:var(--b1);margin-top:6px;overflow:hidden">
+        <div id="aoPassFill" style="height:100%;width:0;border-radius:2px;transition:width .3s,background .3s"></div>
+      </div>
+      <div id="aoPassLabel" style="font-size:10px;color:var(--ink3);margin-top:3px"></div>
+    </div>
+
+    <div class="mf" style="margin-bottom:18px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;
+        text-transform:none;letter-spacing:0;font-size:12px;color:var(--ink2)">
+        <input type="checkbox" id="aoAdmin" style="width:14px;height:14px;accent-color:var(--gold)">
+        Conceder acesso administrativo
+      </label>
+    </div>
+
+    <div id="aoError" style="display:none;font-size:12px;color:#fca5a5;
+      background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);
+      border-radius:8px;padding:10px 12px;margin-bottom:12px"></div>
+
+    <div class="ma">
+      <button class="btnc" onclick="closeMo('moAddOp')" id="aoCancelBtn">Cancelar</button>
+      <button id="aoSubmitBtn" class="btnd" style="background:linear-gradient(135deg,#c9a84c,#a07830);display:flex;align-items:center;justify-content:center;gap:8px" onclick="createOp()">
+        <span id="aoSubmitLabel">Criar conta</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Modal de cadastro concluído -->
+<div class="mo" id="moSuccess">
+  <div class="mb" style="text-align:center;padding:40px 36px;max-width:400px">
+    <div style="width:64px;height:64px;border-radius:50%;background:rgba(34,197,94,.12);
+      border:2px solid rgba(34,197,94,.3);display:flex;align-items:center;justify-content:center;
+      font-size:28px;margin:0 auto 20px">✅</div>
+    <div class="mt" style="font-size:19px;margin-bottom:8px">Conta criada!</div>
+    <div id="successMsg" style="font-size:13px;color:var(--ink2);line-height:1.6;margin-bottom:8px"></div>
+    <div id="successCredentials" style="background:var(--surface);border:1px solid var(--b1);
+      border-radius:10px;padding:12px 14px;margin:16px 0;text-align:left;font-size:12px;
+      font-family:var(--mono)"></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <a href="index.html" class="btnp" style="display:block;text-decoration:none;text-align:center">
+        Ir para o painel agora
+      </a>
+      <button class="btnc" onclick="closeMo('moSuccess')">Continuar no admin</button>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<!-- Chart.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   SUPREMA POKER — Admin Intelligence System (standalone)
+   Firebase independente do painel
+═══════════════════════════════════════════════════════════════ */
+
+const ADMIN_EMAILS = [
+  'brian@suprema.group',
+  'admin@suprema.group',
+  'brian.rodrigues@suprema.group',
+];
+
+const FB_CFG = {
+  apiKey:      "AIzaSyAFy1GtRaJE3LHC1Rjtmq0uw2JC8bviXes",
+  authDomain:  "design-1-53c00.firebaseapp.com",
+  databaseURL: "https://design-1-53c00-default-rtdb.firebaseio.com",
+  projectId:   "design-1-53c00"
+};
+
+/* ── STATE ──────────────────────────────────────────────────── */
+let fbDb = null, fbReady = false;
+let HIST=[], AUDIT_ROWS=[], GRADE_ROWS=[], REL_DATA=[];
+let _email='', _name='';
+let _dp=30, _gdp=30, _cTarget=null;
+let _charts={};
+let _toastT;
+
+/* ── UTILS ──────────────────────────────────────────────────── */
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const brl = (v,d=0) => v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const brlk = v => {
+  if(v==null||isNaN(v)) return '—';
+  const a=Math.abs(v), s=v<0?'-':'';
+  if(a>=1e6) return s+'R$'+brl(a/1e6,2)+'M';
+  if(a>=1e3) return s+'R$'+brl(a/1e3,0)+'K';
+  return s+'R$'+brl(a,0);
+};
+const pct = (v,d=1) => v==null?'—':(v>=0?'+':'')+Number(v).toFixed(d)+'%';
+const nowSP = () => { const d=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Sao_Paulo'})); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const dago  = n => { const d=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Sao_Paulo'})); d.setDate(d.getDate()-n); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const perf  = r => r.garantido>0 ? ((r.overlay||0)-r.garantido)/r.garantido*100 : null;
+const ratio = r => r.garantido>0 ? (r.overlay||0)/r.garantido : null;
+const getType = r => {
+  if(r.tipo) return r.tipo;
+  const n=(r.nome||'').toLowerCase();
+  if(n.includes('seat')||n.includes('ticket')||n.includes('sat')||n.includes('satelit')) return 'Satélite';
+  if(n.includes('main')||n.includes('battle')||n.includes('warmup')||n.includes('200k')||n.includes('100k')||n.includes('50k')||n.includes('500k')) return 'Main Event';
+  return 'Side Event';
+};
+const eKey = e => e.toLowerCase().replace(/\./g,'_dot_').replace(/@/g,'_at_');
+
+const toast = (msg,type='') => {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='show'+(type?' '+type:'');
+  clearTimeout(_toastT); _toastT=setTimeout(()=>{t.className=''},3500);
+};
+
+/* ── FIREBASE INIT ──────────────────────────────────────────── */
+async function hashStr(s){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+function initFirebase(){
+  try{
+    firebase.initializeApp(FB_CFG);
+    fbDb=firebase.database();
+    fbReady=true;
+  }catch(e){ console.error('Firebase init error',e); }
+}
+
+/* ── LOGIN / LOGOUT ─────────────────────────────────────────── */
+async function doLogin(){
+  const email=document.getElementById('lEmail').value.trim().toLowerCase();
+  const pass =document.getElementById('lPass').value;
+  const btn  =document.getElementById('lBtn');
+  const errEl=document.getElementById('loginErr');
+  const denEl=document.getElementById('loginDenied');
+  errEl.textContent=''; denEl.style.display='none';
+  if(!email||!pass){errEl.textContent='Preencha email e senha.';return;}
+  if(!fbReady){errEl.textContent='Banco de dados não disponível.';return;}
+  btn.disabled=true; btn.textContent='Verificando...';
+  try{
+    const snap=await fbDb.ref(`users/${eKey(email)}`).once('value');
+    const user=snap.val();
+    if(!user){errEl.textContent='Usuário não encontrado.';btn.disabled=false;btn.textContent='Entrar';return;}
+    const hash=await hashStr(pass);
+    if(user.pwHash&&user.pwHash!==hash){errEl.textContent='Senha incorreta.';btn.disabled=false;btn.textContent='Entrar';return;}
+    if(!ADMIN_EMAILS.includes(email)&&!user.admin){denEl.style.display='block';btn.disabled=false;btn.textContent='Entrar';return;}
+    _email=email; _name=user.apelido||user.nome||email.split('@')[0];
+    document.getElementById('adminName').textContent=_name;
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('app').style.display='block';
+    document.getElementById('lo').classList.add('on');
+    await loadAll();
+    document.getElementById('lo').classList.remove('on');
+    buildDash();
+  }catch(e){errEl.textContent='Erro: '+e.message;btn.disabled=false;btn.textContent='Entrar';}
+}
+
+function doLogout(){
+  _email='';_name='';HIST=[];AUDIT_ROWS=[];
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('app').style.display='none';
+  document.getElementById('lEmail').value='';
+  document.getElementById('lPass').value='';
+}
+
+/* ── LOAD DATA ──────────────────────────────────────────────── */
+async function loadAll(){
+  if(!fbReady) return;
+  try{
+    const snap=await fbDb.ref('painel').once('value');
+    const all=snap.val()||{};
+    HIST=[];
+    Object.entries(all).forEach(([date,dayData])=>{
+      if(typeof dayData!=='object') return;
+      const rows=dayData.rows||{};
+      Object.entries(rows).forEach(([k,r])=>{
+        if(!r||typeof r!=='object') return;
+        HIST.push({
+          date, key:k,
+          nome:r.nome||'—',
+          tipo:r.tipo||getType(r),
+          garantido:Number(r.garantido)||0,
+          overlay:Number(r.overlay)||0,
+          premiacao:Number(r.premiacao)||0,
+          fixedBy:r.fixedBy||null,
+          fixedAt:r.fixedAt||null,
+        });
+      });
+    });
+  }catch(e){ console.error('loadAll error',e); }
+}
+
+/* ── NAVIGATION ─────────────────────────────────────────────── */
+function showPage(id,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.ntab').forEach(b=>b.classList.remove('active'));
+  const pg=document.getElementById('page'+id.charAt(0).toUpperCase()+id.slice(1));
+  if(pg) pg.classList.add('active');
+  if(btn) btn.classList.add('active');
+  if(id==='auditoria') initAudit();
+  if(id==='grade') renderGrade();
+  if(id==='relatorios'){ initXlsxTab(); initRel(); }
+  if(id==='operadores') loadOps();
+}
+
+/* ── DASHBOARD ──────────────────────────────────────────────── */
+function setDP(n,btn){
+  _dp=n;
+  document.querySelectorAll('#dashPT .ptab').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  buildDash();
+}
+
+function buildDash(){
+  const cutoff=dago(_dp);
+  const rows=HIST.filter(r=>r.date>=cutoff&&r.premiacao>0);
+  const totalGTD=rows.reduce((s,r)=>s+r.garantido,0);
+  const totalPool=rows.reduce((s,r)=>s+r.overlay,0);
+  const totalPrem=rows.reduce((s,r)=>s+r.premiacao,0);
+  const totalOverlay=rows.filter(r=>r.overlay<r.garantido).reduce((s,r)=>s+(r.garantido-r.overlay),0);
+  const avgPerf=rows.length?rows.filter(r=>r.garantido>0).reduce((s,r)=>s+perf(r),0)/(rows.filter(r=>r.garantido>0).length||1):0;
+
+  const el=document.getElementById('dashStats');
+  el.innerHTML=`
+    <div class="sc"><div class="sl">Torneios</div><div class="sv">${rows.length}</div><div class="ss">no período</div></div>
+    <div class="sc acc-green"><div class="sl">Total Premiação</div><div class="sv">${brlk(totalPrem)}</div><div class="ss">pago em prizes</div></div>
+    <div class="sc acc-red"><div class="sl">Overlay Total</div><div class="sv">${brlk(totalOverlay)}</div><div class="ss">exposição negativa</div></div>
+    <div class="sc acc-blue"><div class="sl">Perf. Média</div><div class="sv">${pct(avgPerf)}</div><div class="ss">vs garantido</div></div>
+    <div class="sc acc-purple"><div class="sl">GTD Total</div><div class="sv">${brlk(totalGTD)}</div><div class="ss">prometido</div></div>
+  `;
+
+  buildCharts(rows);
+  buildInsights(rows);
+}
+
+function buildCharts(rows){
+  // Performance por dia
+  const byDate={};
+  rows.forEach(r=>{
+    if(!byDate[r.date]) byDate[r.date]={gtd:0,pool:0};
+    byDate[r.date].gtd+=r.garantido;
+    byDate[r.date].pool+=r.overlay;
+  });
+  const dates=Object.keys(byDate).sort().slice(-30);
+  const perfData=dates.map(d=>{
+    const v=byDate[d];
+    return v.gtd>0?(v.pool-v.gtd)/v.gtd*100:0;
+  });
+
+  mkChart('cPerf','line',{
+    labels:dates.map(d=>d.slice(5)),
+    datasets:[{
+      label:'Perf. %',
+      data:perfData,
+      borderColor:'rgba(201,168,76,.8)',
+      backgroundColor:'rgba(201,168,76,.08)',
+      tension:.3,fill:true,pointRadius:2,borderWidth:1.5,
+      pointBackgroundColor:perfData.map(v=>v>=0?'rgba(34,197,94,.8)':'rgba(239,68,68,.8)'),
+    }]
+  },{
+    plugins:{legend:{display:false}},
+    scales:{
+      x:{ticks:{color:'#5a5a78',font:{size:10}},grid:{color:'rgba(255,255,255,.03)'}},
+      y:{ticks:{color:'#5a5a78',font:{size:10},callback:v=>v+'%'},grid:{color:'rgba(255,255,255,.04)'}},
+    }
+  });
+
+  // Distribuição por categoria
+  const cats={};
+  rows.forEach(r=>{const t=r.tipo||getType(r);cats[t]=(cats[t]||0)+1;});
+  mkChart('cCat','doughnut',{
+    labels:Object.keys(cats),
+    datasets:[{
+      data:Object.values(cats),
+      backgroundColor:['rgba(34,197,94,.7)','rgba(96,165,250,.7)','rgba(167,139,250,.7)'],
+      borderColor:['rgba(34,197,94,1)','rgba(96,165,250,1)','rgba(167,139,250,1)'],
+      borderWidth:1,
+    }]
+  },{plugins:{legend:{position:'bottom',labels:{color:'#9090b0',font:{size:11},padding:16}}}});
+
+  // Receita acumulada
+  let acc=0;
+  const revData=dates.map(d=>{acc+=(byDate[d]?.pool||0);return acc;});
+  mkChart('cRev','line',{
+    labels:dates.map(d=>d.slice(5)),
+    datasets:[{
+      label:'Premiação acum.',
+      data:revData,
+      borderColor:'rgba(34,197,94,.8)',
+      backgroundColor:'rgba(34,197,94,.06)',
+      tension:.3,fill:true,pointRadius:0,borderWidth:1.5,
+    }]
+  },{
+    plugins:{legend:{display:false}},
+    scales:{
+      x:{ticks:{color:'#5a5a78',font:{size:10}},grid:{color:'rgba(255,255,255,.03)'}},
+      y:{ticks:{color:'#5a5a78',font:{size:10},callback:v=>brlk(v)},grid:{color:'rgba(255,255,255,.04)'}},
+    }
+  });
+
+  // Top overlay
+  const byName={};
+  rows.forEach(r=>{
+    if(!byName[r.nome]) byName[r.nome]={ov:0,gtd:0};
+    if(r.overlay<r.garantido) byName[r.nome].ov+=r.garantido-r.overlay;
+    byName[r.nome].gtd+=r.garantido;
+  });
+  const top=Object.entries(byName).filter(([,v])=>v.ov>0).sort((a,b)=>b[1].ov-a[1].ov).slice(0,8);
+  mkChart('cTop','bar',{
+    labels:top.map(([n])=>n.length>22?n.slice(0,22)+'…':n),
+    datasets:[{
+      label:'Overlay (R$)',
+      data:top.map(([,v])=>v.ov),
+      backgroundColor:'rgba(239,68,68,.6)',
+      borderColor:'rgba(239,68,68,.9)',
+      borderWidth:1,borderRadius:4,
+    }]
+  },{
+    indexAxis:'y',
+    plugins:{legend:{display:false}},
+    scales:{
+      x:{ticks:{color:'#5a5a78',font:{size:10},callback:v=>brlk(v)},grid:{color:'rgba(255,255,255,.04)'}},
+      y:{ticks:{color:'#9090b0',font:{size:10}},grid:{display:false}},
+    }
+  });
+}
+
+function mkChart(id,type,data,options={}){
+  const ctx=document.getElementById(id);
+  if(!ctx) return;
+  if(_charts[id]) _charts[id].destroy();
+  _charts[id]=new Chart(ctx,{
+    type,data,
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      animation:{duration:400},
+      plugins:{tooltip:{backgroundColor:'rgba(19,19,31,.95)',titleColor:'#f0f0f8',bodyColor:'#9090b0',borderColor:'rgba(255,255,255,.07)',borderWidth:1}},
+      ...options
+    }
+  });
+}
+
+function buildInsights(rows){
+  const ins=[];
+  const ovRows=rows.filter(r=>r.overlay<r.garantido);
+  const pctOv=rows.length?ovRows.length/rows.length*100:0;
+  if(pctOv>30) ins.push({type:'danger',tag:'ALERTA',h:`${pctOv.toFixed(0)}% dos torneios com overlay`,b:'Mais de 30% dos torneios não alcançaram o garantido no período.'});
+  else if(pctOv>15) ins.push({type:'warn',tag:'ATENÇÃO',h:`${pctOv.toFixed(0)}% com overlay`,b:'Taxa de overlay acima do ideal. Monitore os torneios recorrentes.'});
+  else ins.push({type:'rec',tag:'POSITIVO',h:`Apenas ${pctOv.toFixed(0)}% com overlay`,b:'Taxa de overlay controlada no período.'});
+
+  // Pior torneio
+  const worst=rows.filter(r=>r.garantido>0).sort((a,b)=>perf(a)-perf(b))[0];
+  if(worst&&perf(worst)<-15) ins.push({type:'warn',tag:'ATENÇÃO',h:`"${worst.nome.slice(0,40)}" com maior exposição`,b:`Performance de ${pct(perf(worst))} — revisar garantido ou formato.`});
+
+  // Melhor torneio
+  const best=rows.filter(r=>r.garantido>0).sort((a,b)=>perf(b)-perf(a))[0];
+  if(best&&perf(best)>50) ins.push({type:'rec',tag:'DESTAQUE',h:`"${best.nome.slice(0,40)}" superou em ${pct(perf(best))}`,b:'Considere aumentar o GTD para maximizar receita.'});
+
+  const el=document.getElementById('dashInsights');
+  el.innerHTML=ins.map(i=>`
+    <div class="ic ${i.type}">
+      <div class="it">${i.tag}</div>
+      <div class="ih">${esc(i.h)}</div>
+      <div class="ib">${esc(i.b)}</div>
+    </div>
+  `).join('');
+}
+
+/* ── AUDITORIA ──────────────────────────────────────────────── */
+function initAudit(){
+  const to=nowSP();
+  const d=new Date(); d.setDate(d.getDate()-7);
+  const from=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  document.getElementById('auFrom').value=from;
+  document.getElementById('auTo').value=to;
+
+  // Preencher operadores no select
+  const ops=[...new Set(HIST.filter(r=>r.fixedBy).map(r=>r.fixedBy))].sort();
+  const sel=document.getElementById('auOp');
+  sel.innerHTML='<option value="">Todos os operadores</option>'+ops.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('');
+  runAudit();
+}
+
+function runAudit(){
+  const from=document.getElementById('auFrom').value;
+  const to  =document.getElementById('auTo').value;
+  const op  =document.getElementById('auOp').value;
+  const cat =document.getElementById('auCat').value;
+
+  AUDIT_ROWS=HIST.filter(r=>{
+    if(r.date<from||r.date>to) return false;
+    if(op&&r.fixedBy!==op) return false;
+    if(cat&&(r.tipo||getType(r))!==cat) return false;
+    return r.premiacao>0;
+  }).sort((a,b)=>b.date.localeCompare(a.date)||(b.fixedAt||0)-(a.fixedAt||0));
+
+  document.getElementById('auCount').textContent=`${AUDIT_ROWS.length} registros`;
+  const body=document.getElementById('auBody');
+  if(!AUDIT_ROWS.length){
+    body.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--ink3)">Nenhum resultado para este filtro</td></tr>`;
+    return;
+  }
+  body.innerHTML=AUDIT_ROWS.map(r=>{
+    const t=r.tipo||getType(r);
+    const p=perf(r);
+    const dt=r.fixedAt?new Date(r.fixedAt).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+    return `<tr>
+      <td class="mn c-ink2">${r.date} ${dt.split(' ').slice(1).join(' ')}</td>
+      <td>${esc(r.fixedBy||'—')}</td>
+      <td class="nm">${esc(r.nome)}</td>
+      <td><span class="badge ${t==='Main Event'?'b-main':t==='Satélite'?'b-sat':'b-side'}">${esc(t)}</span></td>
+      <td class="mn">R$ ${brl(r.garantido)}</td>
+      <td class="mn">R$ ${brl(r.premiacao)}</td>
+      <td><span class="pb ${p==null?'pb-neu':p>=0?'pb-pos':'pb-neg'}">${pct(p)}</span></td>
+      <td></td>
+    </tr>`;
+  }).join('');
+}
+
+function exportAudit(){
+  const csv=['Data,Operador,Torneio,Tipo,Garantido,Premiação,Perf%']
+    .concat(AUDIT_ROWS.map(r=>[
+      r.date,r.fixedBy||'',`"${(r.nome||'').replace(/"/g,'""')}"`,
+      r.tipo||getType(r),r.garantido,r.premiacao,
+      (perf(r)??'').toString().replace('.',',')
+    ].join(','))).join('\n');
+  dl(csv,'auditoria.csv','text/csv');
+}
+
+/* ── GRADE ──────────────────────────────────────────────────── */
+function setGradeDP(n,btn){
+  _gdp=n;
+  document.querySelectorAll('#gradePT .ptab').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderGrade();
+}
+
+function renderGrade(){
+  const cutoff=dago(_gdp);
+  const cat=document.getElementById('grCat')?.value||'';
+  const sort=document.getElementById('grSort')?.value||'overlay_asc';
+  const q=(document.getElementById('grSearch')?.value||'').toLowerCase();
+
+  const rows=HIST.filter(r=>r.date>=cutoff&&r.premiacao>0);
+  const byName={};
+  rows.forEach(r=>{
+    const t=r.tipo||getType(r);
+    if(cat&&t!==cat) return;
+    if(q&&!(r.nome||'').toLowerCase().includes(q)) return;
+    if(!byName[r.nome]) byName[r.nome]={nome:r.nome,tipo:t,runs:0,gtdSum:0,poolSum:0,ovSum:0};
+    byName[r.nome].runs++;
+    byName[r.nome].gtdSum+=r.garantido;
+    byName[r.nome].poolSum+=r.overlay;
+    if(r.overlay<r.garantido) byName[r.nome].ovSum+=r.garantido-r.overlay;
+  });
+
+  GRADE_ROWS=Object.values(byName).map(v=>({...v,avgGtd:v.gtdSum/v.runs,avgPool:v.poolSum/v.runs,avgPerf:v.gtdSum>0?(v.poolSum-v.gtdSum)/v.gtdSum*100:0}));
+
+  if(sort==='overlay_asc') GRADE_ROWS.sort((a,b)=>b.ovSum-a.ovSum);
+  else if(sort==='overlay_desc') GRADE_ROWS.sort((a,b)=>b.avgPerf-a.avgPerf);
+  else if(sort==='runs') GRADE_ROWS.sort((a,b)=>b.runs-a.runs);
+  else GRADE_ROWS.sort((a,b)=>a.nome.localeCompare(b.nome));
+
+  // Stats
+  const totalOv=GRADE_ROWS.reduce((s,r)=>s+r.ovSum,0);
+  const avgP=GRADE_ROWS.length?GRADE_ROWS.reduce((s,r)=>s+r.avgPerf,0)/GRADE_ROWS.length:0;
+  document.getElementById('gradeStats').innerHTML=`
+    <div class="sc"><div class="sl">Torneios únicos</div><div class="sv">${GRADE_ROWS.length}</div><div class="ss">no período</div></div>
+    <div class="sc acc-red"><div class="sl">Overlay total</div><div class="sv">${brlk(totalOv)}</div><div class="ss">exposição acumulada</div></div>
+    <div class="sc acc-blue"><div class="sl">Perf. média</div><div class="sv">${pct(avgP)}</div><div class="ss">vs garantido</div></div>
+  `;
+  document.getElementById('gradeCount').textContent=`${GRADE_ROWS.length} torneios`;
+
+  const maxOv=Math.max(...GRADE_ROWS.map(r=>r.ovSum),1);
+  document.getElementById('gradeBody').innerHTML=GRADE_ROWS.map(r=>{
+    const barPct=Math.min(r.ovSum/maxOv*100,100);
+    const t=r.tipo;
+    return `<div class="gr">
+      <div><div style="font-weight:600;font-size:12px">${esc(r.nome)}</div>
+        <span class="badge ${t==='Main Event'?'b-main':t==='Satélite'?'b-sat':'b-side'}" style="margin-top:3px">${esc(t)}</span>
+      </div>
+      <div class="mn c-ink2">${r.runs}×</div>
+      <div class="mn">R$ ${brl(r.avgGtd)}</div>
+      <div class="mn">R$ ${brl(r.avgPool)}</div>
+      <div><span class="pb ${r.avgPerf>=0?'pb-pos':'pb-neg'}">${pct(r.avgPerf)}</span></div>
+      <div class="mn ${r.ovSum>0?'c-red':''}">${r.ovSum>0?brlk(r.ovSum):'—'}</div>
+      <div style="padding-right:16px">
+        <div class="sb" style="margin-top:4px">
+          <div class="sbf" style="width:${barPct}%;background:${r.ovSum>0?'var(--red)':'var(--green)'}"></div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function exportGrade(){
+  const csv=['Torneio,Tipo,Rodadas,GTD Médio,Pool Médio,Perf%,Overlay Total']
+    .concat(GRADE_ROWS.map(r=>[
+      `"${(r.nome||'').replace(/"/g,'""')}"`,r.tipo,r.runs,
+      r.avgGtd.toFixed(0),r.avgPool.toFixed(0),
+      r.avgPerf.toFixed(1).replace('.',','),r.ovSum.toFixed(0)
+    ].join(','))).join('\n');
+  dl(csv,'grade.csv','text/csv');
+}
+
+/* ── RELATÓRIOS ─────────────────────────────────────────────── */
+function setRelTab(tab, btn){
+  document.querySelectorAll('#relPT .ptab').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  document.getElementById('relTabXlsx').style.display  = tab==='xlsx'  ? '' : 'none';
+  document.getElementById('relTabTurno').style.display = tab==='turno' ? '' : 'none';
+  if(tab==='xlsx') initXlsxTab();
+}
+
+function initXlsxTab(){
+  const to = nowSP();
+  const d = new Date(); d.setDate(d.getDate()-30);
+  const from = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  document.getElementById('xlsxFrom').value = from;
+  document.getElementById('xlsxTo').value   = to;
+  loadXlsxReports();
+}
+
+async function loadXlsxReports(){
+  if(!fbReady){ toast('Firebase não conectado','err'); return; }
+  const from = document.getElementById('xlsxFrom').value;
+  const to   = document.getElementById('xlsxTo').value;
+  const body = document.getElementById('xlsxBody');
+  const count = document.getElementById('xlsxCount');
+  body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--ink2)">Carregando...</td></tr>';
+
+  try {
+    const snap = await fbDb.ref('relatorios').orderByKey().startAt(from).endAt(to).once('value');
+    const data = snap.val() || {};
+    const dates = Object.keys(data).sort().reverse(); // mais recente primeiro
+
+    count.textContent = `${dates.length} relatório(s)`;
+
+    if(!dates.length){
+      body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--ink3)">Nenhum relatório encontrado no período</td></tr>';
+      return;
+    }
+
+    body.innerHTML = dates.map(date => {
+      const r = data[date].acompanhamento || {};
+      if(!r.b64) return '';
+      const [y,m,d] = date.split('-');
+      const label = `${d}/${m}/${y}`;
+      const savedAt = r.savedAt ? new Date(r.savedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '—';
+      const overlay = r.allOv < 0 ? `<span class="mdr-neg">R$ ${Math.abs(r.allOv).toLocaleString('pt-BR')}</span>` : '<span style="color:var(--green)">OK</span>';
+      return `<tr>
+        <td><strong>${label}</strong></td>
+        <td class="mn">${r.totalCards||'—'}</td>
+        <td class="mn">${r.closedCards||'—'}</td>
+        <td class="mn">R$ ${(r.allGar||0).toLocaleString('pt-BR')}</td>
+        <td class="mn">R$ ${(r.allPrem||0).toLocaleString('pt-BR')}</td>
+        <td>${overlay}</td>
+        <td class="c-ink2">${esc(r.savedBy||'—')}</td>
+        <td class="c-ink3">${savedAt}</td>
+        <td>
+          <button onclick="downloadXlsx('${date}')" style="padding:4px 12px;border-radius:6px;border:none;background:var(--gold2);color:var(--gold);font-size:11px;font-weight:700;cursor:pointer">
+            ⬇ Baixar
+          </button>
+        </td>
+      </tr>`;
+    }).filter(Boolean).join('');
+
+    // Guardar dados para download
+    window._xlsxData = data;
+
+  } catch(e){
+    body.innerHTML = `<tr><td colspan="9" style="color:var(--red);padding:20px">${e.message}</td></tr>`;
+  }
+}
+
+async function downloadXlsx(dateKey){
+  if(!window._xlsxData?.[dateKey]?.acompanhamento?.b64){
+    // Buscar do Firebase se não tiver em memória
+    const snap = await fbDb.ref(`relatorios/${dateKey}/acompanhamento`).once('value');
+    const r = snap.val();
+    if(!r?.b64){ toast('Arquivo não encontrado','err'); return; }
+    window._xlsxData = window._xlsxData || {};
+    window._xlsxData[dateKey] = { acompanhamento: r };
+  }
+  const r = window._xlsxData[dateKey].acompanhamento;
+  // Converter base64 para blob e baixar
+  const bin = atob(r.b64);
+  const arr = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
+  const blob = new Blob([arr], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = r.filename || `Acompanhamento_${dateKey}.xlsx`;
+  a.click(); URL.revokeObjectURL(url);
+  toast(`✓ ${r.filename||dateKey} baixado`,'ok');
+}
+
+function initRel(){
+  const to=nowSP();
+  const d=new Date(); d.setDate(d.getDate()-7);
+  const from=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  document.getElementById('relFrom').value=from;
+  document.getElementById('relTo').value=to;
+}
+
+async function loadRel(){
+  const from=document.getElementById('relFrom').value;
+  const to  =document.getElementById('relTo').value;
+  if(!fbReady){toast('Firebase não disponível','err');return;}
+  document.getElementById('relSummary').innerHTML='<div style="color:var(--ink3);font-size:12px">Carregando...</div>';
+  try{
+    const rows=HIST.filter(r=>r.date>=from&&r.date<=to&&r.premiacao>0);
+    const totalGTD=rows.reduce((s,r)=>s+r.garantido,0);
+    const totalPool=rows.reduce((s,r)=>s+r.overlay,0);
+    const totalPrem=rows.reduce((s,r)=>s+r.premiacao,0);
+    const totalOv=rows.filter(r=>r.overlay<r.garantido).reduce((s,r)=>s+(r.garantido-r.overlay),0);
+    REL_DATA=rows;
+    document.getElementById('relSummary').innerHTML=`
+      <div style="display:grid;gap:10px">
+        ${[['Torneios',rows.length,''],['Premiação total','R$ '+brl(totalPrem),'c-green'],
+          ['GTD total','R$ '+brl(totalGTD),''],['Overlay total','R$ '+brl(totalOv),'c-red']]
+          .map(([l,v,cls])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--b2)">
+            <span style="font-size:12px;color:var(--ink2)">${l}</span>
+            <span style="font-size:13px;font-weight:700;font-family:var(--mono)" class="${cls}">${v}</span>
+          </div>`).join('')}
+      </div>`;
+
+    // Relatórios de turno
+    const snap=await fbDb.ref('relatorioTurno').once('value');
+    const relData=snap.val()||{};
+    const texto=relData.texto||'';
+    document.getElementById('relList').innerHTML=texto
+      ?`<div style="font-size:12px;color:var(--ink2);line-height:1.7;white-space:pre-wrap;padding:4px">${esc(texto)}</div>`
+      :`<div style="color:var(--ink3);font-size:12px;padding:20px 0">Nenhum relatório de turno disponível</div>`;
+  }catch(e){document.getElementById('relSummary').innerHTML=`<div style="color:var(--red);font-size:12px">Erro: ${e.message}</div>`;}
+}
+
+function exportRel(){
+  const csv=['Torneio,Tipo,Data,Garantido,Premiação,Overlay,Perf%']
+    .concat(REL_DATA.map(r=>[
+      `"${(r.nome||'').replace(/"/g,'""')}"`,r.tipo||getType(r),r.date,
+      r.garantido,r.premiacao,r.overlay,
+      (perf(r)??'').toString().replace('.',',')
+    ].join(','))).join('\n');
+  dl(csv,'relatorio.csv','text/csv');
+}
+
+/* ── OPERADORES ─────────────────────────────────────────────── */
+async function loadOps(){
+  if(!fbReady) return;
+  document.getElementById('opBody').innerHTML='<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--ink3)">Carregando...</td></tr>';
+  try{
+    const snap=await fbDb.ref('users').once('value');
+    const users=snap.val()||{};
+    const fixCounts={};
+    HIST.forEach(r=>{if(r.fixedBy) fixCounts[r.fixedBy]=(fixCounts[r.fixedBy]||0)+1;});
+
+    const rows=Object.entries(users).map(([k,u])=>({key:k,...u}));
+    document.getElementById('opCount').textContent=`${rows.length} cadastrados`;
+    document.getElementById('opBody').innerHTML=rows.map(u=>{
+      const email=u.email||(u.key.replace(/_dot_/g,'.').replace(/_at_/g,'@'));
+      const last=u.lastSeen?new Date(u.lastSeen).toLocaleDateString('pt-BR'):'—';
+      return `<tr>
+        <td><div style="font-weight:600;font-size:13px">${esc(u.apelido||u.nome||'—')}</div>
+            <div style="font-size:11px;color:var(--ink3)">${esc(u.nome||'')}</div></td>
+        <td class="c-ink2">${esc(email)}</td>
+        <td class="c-ink3">${last}</td>
+        <td class="mn">${fixCounts[u.apelido||u.nome||email]||0}</td>
+        <td>${u.admin?'<span style="color:var(--gold);font-size:11px;font-weight:700">ADMIN</span>':'<span style="color:var(--ink3);font-size:11px">—</span>'}</td>
+        <td><button class="cb" onclick="blockOp('${esc(u.key)}','${esc(u.apelido||u.nome||email)}')">Bloquear</button></td>
+      </tr>`;
+    }).join('');
+  }catch(e){ document.getElementById('opBody').innerHTML=`<tr><td colspan="6" style="color:var(--red);padding:20px">${e.message}</td></tr>`; }
+}
+
+function openAddOp(){
+  clearCreateError();
+  checkPassStrength('');
+  setCreateLoading(false);
+  document.getElementById('moAddOp').classList.add('open');
+  setTimeout(() => document.getElementById('aoNome')?.focus(), 100);
+}
+function setCreateLoading(loading){
+  const btn   = document.getElementById('aoSubmitBtn');
+  const label = document.getElementById('aoSubmitLabel');
+  const cancel= document.getElementById('aoCancelBtn');
+  if(!btn) return;
+  btn.disabled    = loading;
+  cancel.disabled = loading;
+  label.textContent = loading ? 'Criando...' : 'Criar conta';
+  btn.style.opacity = loading ? '.7' : '1';
+  // Spinner inline
+  const spin = btn.querySelector('.ao-spin');
+  if(loading && !spin){
+    const s = document.createElement('div');
+    s.className = 'ao-spin';
+    s.style.cssText = 'width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex:none';
+    btn.prepend(s);
+  } else if(!loading && spin){ spin.remove(); }
+}
+
+function showCreateError(msg){
+  const el = document.getElementById('aoError');
+  if(!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function clearCreateError(){
+  const el = document.getElementById('aoError');
+  if(el) el.style.display = 'none';
+}
+
+function checkPassStrength(pass){
+  const fill  = document.getElementById('aoPassFill');
+  const label = document.getElementById('aoPassLabel');
+  if(!fill || !label) return;
+  const len = pass.length;
+  const hasUpper = /[A-Z]/.test(pass);
+  const hasNum   = /[0-9]/.test(pass);
+  const hasSpec  = /[^a-zA-Z0-9]/.test(pass);
+  const score = (len >= 8 ? 1 : 0) + (len >= 12 ? 1 : 0) + (hasUpper ? 1 : 0) + (hasNum ? 1 : 0) + (hasSpec ? 1 : 0);
+  const levels = [
+    { pct:'20%', bg:'#ef4444', txt:'Muito fraca'  },
+    { pct:'40%', bg:'#f97316', txt:'Fraca'        },
+    { pct:'60%', bg:'#eab308', txt:'Razoável'     },
+    { pct:'80%', bg:'#22c55e', txt:'Boa'          },
+    { pct:'100%',bg:'#16a34a', txt:'Excelente'    },
+  ];
+  const lvl = levels[Math.min(score, 4)];
+  fill.style.width      = pass.length ? lvl.pct : '0';
+  fill.style.background = lvl.bg;
+  label.textContent     = pass.length ? lvl.txt : '';
+  label.style.color     = lvl.bg;
+}
+
+function togglePassVis(){
+  const inp = document.getElementById('aoPass');
+  if(inp) inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+async function createOp(){
+  clearCreateError();
+  const nome    = document.getElementById('aoNome').value.trim();
+  const apelido = document.getElementById('aoApelido').value.trim();
+  const email   = document.getElementById('aoEmail').value.trim().toLowerCase();
+  const pass    = document.getElementById('aoPass').value;
+  const admin   = document.getElementById('aoAdmin').checked;
+
+  // Validações
+  if(!nome)           { showCreateError('Nome completo é obrigatório.'); return; }
+  if(!email)          { showCreateError('Email é obrigatório.'); return; }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ showCreateError('Email inválido.'); return; }
+  if(!pass)           { showCreateError('Senha é obrigatória.'); return; }
+  if(pass.length < 8) { showCreateError('A senha deve ter pelo menos 8 caracteres.'); return; }
+  if(!fbReady)        { showCreateError('Firebase não está conectado. Aguarde e tente novamente.'); return; }
+
+  setCreateLoading(true);
+  try{
+    // Verificar se email já existe
+    const existing = await fbDb.ref(`users/${eKey(email)}`).once('value');
+    if(existing.val()){ showCreateError('Este email já está cadastrado.'); setCreateLoading(false); return; }
+
+    const hash = await hashStr(pass);
+    await fbDb.ref(`users/${eKey(email)}`).set({
+      nome, apelido, email, pwHash: hash, admin,
+      createdAt: Date.now(), createdBy: _email || 'admin'
+    });
+
+    // Sucesso — limpar e fechar
+    closeMo('moAddOp');
+    ['aoNome','aoApelido','aoEmail','aoPass'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.value = '';
+    });
+    document.getElementById('aoAdmin').checked = false;
+    clearCreateError();
+    checkPassStrength('');
+    loadOps();
+    showCreateSuccess(apelido || nome || email, email, pass);
+
+  }catch(e){
+    showCreateError('Erro ao criar conta: ' + (e.message || 'verifique sua conexão.'));
+  } finally {
+    setCreateLoading(false);
+  }
+}
+
+let _blockTarget=null;
+function blockOp(key,name){ _blockTarget=key; document.getElementById('moBL').classList.add('open'); }
+async function confirmBlock(){
+  if(!_blockTarget) return;
+  const reason=document.getElementById('blReason').value.trim();
+  try{
+    await fbDb.ref(`users/${_blockTarget}`).update({blocked:true,blockReason:reason,blockedAt:Date.now()});
+    closeMo('moBL'); toast('Operador bloqueado','ok'); loadOps(); _blockTarget=null;
+    document.getElementById('blReason').value='';
+  }catch(e){toast('Erro: '+e.message,'err');}
+}
+
+/* ── HELPERS ────────────────────────────────────────────────── */
+function closeMo(id){ document.getElementById(id).classList.remove('open'); }
+function showCreateSuccess(name, email, pass){
+  const msg = document.getElementById('successMsg');
+  if(msg) msg.textContent = `A conta de ${name} foi criada com sucesso.`;
+  const cred = document.getElementById('successCredentials');
+  if(cred && email){
+    cred.innerHTML = `
+      <div style="color:var(--ink3);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Credenciais de acesso</div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0">
+        <span style="color:var(--ink3)">Email</span>
+        <span style="color:var(--ink)">${email}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid var(--b2);margin-top:4px">
+        <span style="color:var(--ink3)">Senha</span>
+        <span style="color:var(--ink)">${pass || '(definida no cadastro)'}</span>
+      </div>
+    `;
+  }
+  document.getElementById('moSuccess').classList.add('open');
+}
+function sendBC(){ closeMo('moBC'); toast('Aviso enviado'); }
+
+function dl(content,filename,mime){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\ufeff'+content],{type:mime+';charset=utf-8'}));
+  a.download=filename; a.click(); URL.revokeObjectURL(a.href);
+}
+
+/* ── KEYBOARD ───────────────────────────────────────────────── */
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') document.querySelectorAll('.mo.open').forEach(m=>m.classList.remove('open'));
+});
+
+/* ── INIT ───────────────────────────────────────────────────── */
+initFirebase();
+</script>
+</body>
+</html>
