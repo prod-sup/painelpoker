@@ -985,7 +985,7 @@
   .cat-tag.sat{background:var(--sat-soft); color:var(--sat);}
   .cat-suit{ font-size:11px; opacity:.75; }
 
-  .tcard-grid{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:2px 8px;align-items:center;margin-bottom:10px;font-size:11.5px;}
+  .tcard-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;}
   .tcard-field .k{font-size:10.5px; text-transform:uppercase; letter-spacing:0.07em; color:var(--ink-soft); margin-bottom:5px;}
   .tcard-field .v{font-family:var(--mono); font-size:15.5px; font-weight:600; letter-spacing:-0.01em;}
   .tcard-field .v.gold{color:var(--gold);}
@@ -5845,18 +5845,28 @@ function renderUpcoming(){
         </div>
       </div>
       <div class="tcard-grid">
-        <span class="k">GTD</span><span class="v gold">${getGarantidoEffective(key) != null ? 'R$ '+fmtBRL(getGarantidoEffective(key)) : (t.garantido!=null ? 'R$ '+fmtBRL(t.garantido) : '—')}</span>
-        <span class="k">Buy-in</span><span class="v">${fmtBuyin(t.buyin)}</span>
+        <div class="tcard-field">
+          <div class="k">Garantido</div>
+          <div class="v gold">${getGarantidoEffective(key) != null ? 'R$ '+fmtBRL(getGarantidoEffective(key)) : (t.garantido!=null ? 'R$ '+fmtBRL(t.garantido) : '—')}</div>
+        </div>
+        <div class="tcard-field"><div class="k">Buy-in</div><div class="v">${fmtBuyin(t.buyin)}</div></div>
       </div>
-      ${t.late ? `<div class="tcard-late">Late até <b>${t.late}</b></div>` : ''}
+      ${t.late ? `<div class="tcard-late">Late registration até <b>${t.late}</b></div>` : ''}
+      <!-- Campos operacionais: Premiação + Field -->
       <div class="tcard-op-fields">
-        <label class="tcard-prem-label">Premiação
+        <div class="tcard-op-field">
+          <label class="tcard-prem-label">Premiação (R$)</label>
           <input type="text" inputmode="numeric" placeholder="R$ 0,00" class="tcard-prem-input" data-key="${key}"
             value="${t.premiacao != null ? 'R$ '+t.premiacao.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : ''}"
-            oninput="onCardPremiacaoInput(this)">${hasCampanha(t) ? '<span class="tcard-campanha-badge">#AS</span>' : ''}</label>
-        <label class="tcard-prem-label">Field
+            oninput="onCardPremiacaoInput(this)">
+          ${hasCampanha(t) ? `<span class="tcard-campanha-badge">#AS</span>` : ''}
+        </div>
+        <div class="tcard-op-field">
+          <label class="tcard-prem-label">Field (jogadores)</label>
           <input type="number" step="1" min="0" placeholder="—" class="tcard-field-input" data-key="${key}"
-            value="${getField(key) || ''}" oninput="onCardFieldInput(this)"></label>
+            value="${getField(key) || ''}"
+            oninput="onCardFieldInput(this)">
+        </div>
       </div>
       <!-- Preview calculado: overlay, ações, performance -->
       <div class="tcard-overlay-preview" id="tcard-ov-${key}"></div>
