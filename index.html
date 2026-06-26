@@ -1724,6 +1724,7 @@
   }
   .tcard-ov-cell:last-child{ border-right:none; }
   .tcard-ov-label{ font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:2px; }
+  .tcard-ov-val.muted{ color:var(--ink-soft); opacity:.35; }
   .tcard-ov-val{ font-family:var(--mono);font-size:13px;font-weight:700;color:var(--ink); }
   .tcard-ov-val.negative{ color:var(--red); }
   .tcard-ov-val.positive{ color:var(--felt); }
@@ -6139,6 +6140,11 @@ function renderUpcoming(){
   });
   grid.appendChild(fragment);
 
+  // Renderizar preview de overlay/ações/perf em todos os cards recém-criados
+  filtered.forEach(t => {
+    renderCardOverlayPreview(t._key, t, t.premiacao, getField(t._key));
+  });
+
   // Transição escalonada só para os primeiros 12 cards visíveis
   // Os demais aparecem direto (sem custo de animation)
   let visIdx = 0;
@@ -7319,11 +7325,7 @@ function renderCardOverlayPreview(key, row, premiacaoVal, fieldVal){
   const rake  = calcRake(row);
   const isCamp = hasCampanha(row);
 
-  // precisa no mínimo de premiação OU field para mostrar algo
-  if((!prem || prem <= 0) && (!field || field <= 0)){
-    el.innerHTML = '';
-    return;
-  }
+  // Sempre exibe os 3 campos — mostra "—" quando sem dados
 
   /* ── Ações (nunca é o field diretamente — é sempre calculado) ── */
   let acoes = null;
@@ -7346,41 +7348,42 @@ function renderCardOverlayPreview(key, row, premiacaoVal, fieldVal){
     }
   }
 
-  /* ── Overlay/Excedente ── */
-  let overlayHtml = '';
-  if(!isNaN(prem) && prem > 0 && gar > 0){
-    const overlay = prem - gar;
-    const ovClass = overlay < 0 ? 'negative' : 'positive';
-    overlayHtml = `<div class="tcard-ov-cell">
-      <span class="tcard-ov-label">${overlay < 0 ? 'Overlay' : 'Excedente'}</span>
-      <span class="tcard-ov-val ${ovClass}">${overlay < 0 ? '-' : '+'}R$${fmtBRL(Math.abs(overlay),0)}</span>
-    </div>`;
-  }
+  // Overlay — sempre visível
+  const overlay = (!isNaN(prem) && prem > 0 && gar > 0) ? prem - gar : null;
+  const ovFinal = overlay != null
+    ? `<div class="tcard-ov-cell">
+        <span class="tcard-ov-label">${overlay < 0 ? 'Overlay' : 'Excedente'}</span>
+        <span class="tcard-ov-val ${overlay < 0 ? 'negative' : 'positive'}">${overlay < 0 ? '-' : '+'}R$${fmtBRL(Math.abs(overlay),0)}</span>
+       </div>`
+    : `<div class="tcard-ov-cell">
+        <span class="tcard-ov-label">Overlay</span>
+        <span class="tcard-ov-val muted">—</span>
+       </div>`;
 
-  /* ── Ações cell ── */
-  const acoesHtml = acoes != null ? `<div class="tcard-ov-cell">
-    <span class="tcard-ov-label">Ações</span>
-    <span class="tcard-ov-val gold">${fmtBRL(acoes,0)}</span>
-  </div>` : '';
+  // Ações — sempre visível
+  const acoesFinal = acoes != null
+    ? `<div class="tcard-ov-cell">
+        <span class="tcard-ov-label">Ações</span>
+        <span class="tcard-ov-val gold">${fmtBRL(acoes,0)}</span>
+       </div>`
+    : `<div class="tcard-ov-cell">
+        <span class="tcard-ov-label">Ações</span>
+        <span class="tcard-ov-val muted">—</span>
+       </div>`;
 
-  /* ── Field cell (quando preenchido) ── */
-  const fieldHtml = !isNaN(field) && field > 0 ? `<div class="tcard-ov-cell">
-    <span class="tcard-ov-label">Field</span>
-    <span class="tcard-ov-val">${field} jog.</span>
-  </div>` : '';
+  // Perf — sempre visível
+  const perf2 = (!isNaN(prem) && prem > 0 && gar > 0) ? ((prem - gar) / gar) * 100 : null;
+  const perfFinal = perf2 != null
+    ? `<div class="tcard-ov-cell">
+        <span class="tcard-ov-label">Perf.</span>
+        <span class="tcard-ov-val ${perf2 >= 0 ? 'positive' : 'negative'}">${perf2 >= 0 ? '+' : ''}${perf2.toFixed(1)}%</span>
+       </div>`
+    : `<div class="tcard-ov-cell">
+        <span class="tcard-ov-label">Perf.</span>
+        <span class="tcard-ov-val muted">—</span>
+       </div>`;
 
-  /* ── Performance ── */
-  let perfHtml = '';
-  if(!isNaN(prem) && prem > 0 && gar > 0){
-    const perf = ((prem - gar) / gar) * 100;
-    const pfClass = perf >= 0 ? 'positive' : 'negative';
-    perfHtml = `<div class="tcard-ov-cell">
-      <span class="tcard-ov-label">Perf.</span>
-      <span class="tcard-ov-val ${pfClass}">${perf >= 0 ? '+' : ''}${perf.toFixed(1)}%</span>
-    </div>`;
-  }
-
-  el.innerHTML = overlayHtml + acoesHtml + fieldHtml + perfHtml;
+  el.innerHTML = ovFinal + acoesFinal + perfFinal;
 }
 
 // carrega premiações salvas do Firebase ao iniciar
