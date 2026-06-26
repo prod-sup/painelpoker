@@ -5007,7 +5007,19 @@ function initFirebaseSync(){
         UNFIXED  = computeUnfixed();
         document.getElementById('statUnfixed').textContent = UNFIXED.length;
         computeStats(); updateProgress();
-        renderUnfixed(); renderUpcoming(); renderResults();
+        renderUnfixed();
+        // Só faz renderUpcoming se nenhum input de premiação está em foco
+        // (evita destruir o card enquanto o operador está digitando)
+        const activeEl = document.activeElement;
+        const isTypingPrem = activeEl && activeEl.classList.contains('tcard-prem-input');
+        const isTypingField = activeEl && activeEl.classList.contains('tcard-field-input');
+        const isTypingId = activeEl && activeEl.classList.contains('id-input');
+        if(!isTypingPrem && !isTypingField && !isTypingId){
+          renderUpcoming(); renderResults();
+        } else {
+          // Só atualiza resultados sem recriar a agenda
+          renderResults();
+        }
       }
     });
 
@@ -5032,10 +5044,17 @@ function initFirebaseSync(){
         if(document.activeElement !== inp) inp.value = v;
       });
       applyIdDuplicateChecks();
-      // Tentar patch in-place antes de re-render completo
-      let allPatched = true;
-      Object.keys(ID_MAP).forEach(key => { if(!patchCardFields(key)) allPatched = false; });
-      if(!allPatched && RAW_ROWS.length){ UNFIXED = computeUnfixed(); updateProgress(); renderUnfixed(); renderResults(); }
+      // Patch in-place se possível — nunca recriar se há input em foco
+      const _aeId = document.activeElement;
+      const _typingNow = _aeId && (_aeId.classList.contains('id-input') || _aeId.classList.contains('tcard-prem-input') || _aeId.classList.contains('tcard-field-input'));
+      if(!_typingNow){
+        let allPatched = true;
+        Object.keys(ID_MAP).forEach(key => { if(!patchCardFields(key)) allPatched = false; });
+        if(!allPatched && RAW_ROWS.length){ UNFIXED = computeUnfixed(); updateProgress(); renderUnfixed(); renderUpcoming(); renderResults(); }
+      } else {
+        // Só patch do card sem recriar
+        Object.keys(ID_MAP).forEach(key => patchCardFields(key));
+      }
     });
 
     // ── Field (jogadores) ─────────────────────────────────────────────────
@@ -5048,7 +5067,14 @@ function initFirebaseSync(){
         const row = RAW_ROWS.find(r => r._key === inp.dataset.key);
         if(row) row.field = v != null ? v : null;
       });
-      if(RAW_ROWS.length){ renderResults(); renderUpcoming(); }
+      if(RAW_ROWS.length){
+        renderResults();
+        // Só renderUpcoming se não há input em foco
+        const _ae = document.activeElement;
+        if(!_ae || (!_ae.classList.contains('tcard-prem-input') && !_ae.classList.contains('tcard-field-input') && !_ae.classList.contains('id-input'))){
+          renderUpcoming();
+        }
+      }
     });
 
     // ── Garantido editado ─────────────────────────────────────────────────
@@ -8997,12 +9023,16 @@ let _renderAllTimer = null;
 function scheduleRenderAll(){
   clearTimeout(_renderAllTimer);
   _renderAllTimer = setTimeout(() => {
-    _lastTickSignature = ''; // forçar re-render no próximo tick
+    _lastTickSignature = '';
     UNFIXED  = computeUnfixed();
     document.getElementById('statUnfixed').textContent = UNFIXED.length;
     computeStats(); updateProgress();
-    renderUnfixed(); renderUpcoming(); renderResults();
-  }, 150); // 150ms de debounce — agrupa múltiplos eventos em sequência
+    renderUnfixed(); renderResults();
+    // Só renderUpcoming se não há campo de card em foco
+    const _aeSch = document.activeElement;
+    const _typingSch = _aeSch && (_aeSch.classList.contains('tcard-prem-input') || _aeSch.classList.contains('tcard-field-input') || _aeSch.classList.contains('id-input'));
+    if(!_typingSch) renderUpcoming();
+  }, 150);
 }
 
 /* Re-registra apenas os listeners que dependem do FB_BASE_PATH (por dia) */
