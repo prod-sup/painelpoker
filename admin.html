@@ -1310,6 +1310,8 @@ async function loadAudit(){
     return (ma>=DAY_START?ma:ma+1440)-(mb>=DAY_START?mb:mb+1440);
   });
 
+  console.log('[Audit] dates:', dates, 'rows total:', rows.length);
+  console.log('[Audit] primeiro row:', rows[0]);
   el.innerHTML=dates.map(date=>{
     const dayRows=byDate[date];
     const groups=[
@@ -1323,6 +1325,7 @@ async function loadAudit(){
     const allOv=dayRows.reduce((s,r)=>s+(r.overlay||0),0);
     const closed=dayRows.filter(r=>r.status==='fechado').length;
 
+    console.log('[Audit] date:', date, 'groups:', groups.map(g=>g.cat+':'+g.rows.length));
     const groupsHtml=groups.map(g=>{
       const cc=CAT_COLORS[g.cat];
       let sumGar=0,sumPrem=0,sumOv=0,count=0;
