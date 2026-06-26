@@ -7495,15 +7495,21 @@ const CONF_WINDOW_END_MIN = 5*60 + 30;    // 05:30 do dia seguinte
 
 function tomorrowWeekdayName(lang){
   const n = nowInSP();
+  // Se ainda é madrugada do turno (00:00–05:30), o "amanhã operacional"
+  // é o mesmo dia do calendário (o turno ainda não virou)
+  const isMadrugada = (n.hour < 5) || (n.hour === 5 && n.minute < 30);
+  const offset = isMadrugada ? 0 : 1;
   const ref = new Date(Date.UTC(n.year, n.month-1, n.day, 12, 0, 0));
-  ref.setUTCDate(ref.getUTCDate() + 1);
+  ref.setUTCDate(ref.getUTCDate() + offset);
   const idx = ref.getUTCDay();
   return lang === 'en' ? WEEKDAYS_EN[idx] : WEEKDAYS_PT[idx];
 }
 function dayAfterTomorrowWeekdayName(lang){
   const n = nowInSP();
+  const isMadrugada = (n.hour < 5) || (n.hour === 5 && n.minute < 30);
+  const offset = isMadrugada ? 1 : 2;
   const ref = new Date(Date.UTC(n.year, n.month-1, n.day, 12, 0, 0));
-  ref.setUTCDate(ref.getUTCDate() + 2);
+  ref.setUTCDate(ref.getUTCDate() + offset);
   const idx = ref.getUTCDay();
   return lang === 'en' ? WEEKDAYS_EN[idx] : WEEKDAYS_PT[idx];
 }
@@ -7533,12 +7539,15 @@ function buildConfAmanhaSections(sectionTomorrow, sectionDayAfter){
     });
   }
 
+  // Excluir torneios do tipo "X Seats" (satélites internos de seat — não entram na conferência)
+  function excludeSeats(list){ return list.filter(it => !/^\d+\s+seats?/i.test(it.nome)); }
+
   const mainAll = chronoSort([...(sectionTomorrow ? inWindow(sectionTomorrow.main) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.main) : [])]);
   const sideAll = chronoSort([...(sectionTomorrow ? inWindow(sectionTomorrow.side) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.side) : [])]);
   // satélite NÃO é reordenado por horário — fica na ordem original de leitura da Global (linha por linha),
   // que é como os grupos aparecem na planilha real de referência (ex: Reentry, depois WarmUp, depois
   // Battle HR...). Cada grupo já vem internamente em ordem de horário crescente por natureza da planilha.
-  const satAll = [...(sectionTomorrow ? inWindow(sectionTomorrow.sat) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.sat) : [])];
+  const satAll = excludeSeats([...(sectionTomorrow ? inWindow(sectionTomorrow.sat) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.sat) : [])]);
 
   // agrupa satélites por groupHeader, preservando a ordem de primeira aparição de cada grupo
   const satGroupsOrder = [];
