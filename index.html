@@ -5341,7 +5341,7 @@ function setId(key, val){
     fbDb.ref(`${FB_BASE_PATH}/ids/${key}`).set(val ? ID_MAP[key] : null)
       .catch(err => console.error('Firebase: falha ao salvar ID', err));
     fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).remove().catch(()=>{});
-  }, 500);
+  }, 250);
 }
 
 function getField(key){ return FIELD_MAP[key] != null ? FIELD_MAP[key] : ''; }
@@ -5360,7 +5360,7 @@ function setField(key, val){
       fbDb.ref(`${FB_BASE_PATH}/field/${key}`).set(n != null && !isNaN(n) ? n : null);
       fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).remove().catch(()=>{});
     }
-  }, 400);
+  }, 200);
 }
 
 /* Garantido: usa o valor da planilha como base, mas permite override manual no card.
@@ -6042,6 +6042,10 @@ function renderUpcoming(){
   // monta todos os cards num DocumentFragment (fora do DOM ativo) e insere tudo de uma vez no final —
   // evita um reflow/repaint por card (até ~117 com a planilha cheia), deixando a troca de filtro/busca
   // visivelmente mais rápida sem mudar nenhum pixel do resultado final
+  // Guardar qual card estava em foco antes de limpar
+  const _focusedKey = document.activeElement?.dataset?.key || null;
+  const _focusedClass = document.activeElement?.className || '';
+
   // Limpar grid e recriar cards
   grid.querySelectorAll('.tcard').forEach(el => animVisibilityIO.unobserve(el));
   grid.innerHTML = '';
@@ -6182,6 +6186,13 @@ function renderUpcoming(){
     fragment.appendChild(el);
   });
   grid.appendChild(fragment);
+
+  // Restaurar foco se havia card focado antes do render
+  if(_focusedKey && _focusedClass){
+    const cls = _focusedClass.split(' ')[0];
+    const restored = document.querySelector(`.${cls}[data-key="${_focusedKey}"]`);
+    if(restored){ restored.focus(); }
+  }
 
   // Transição escalonada só para os primeiros 12 cards visíveis
   // Os demais aparecem direto (sem custo de animation)
@@ -7252,7 +7263,7 @@ function onGarantidoBlur(input){
     const n = parseGarantidoInput(raw);
     if(!isNaN(n) && n > 0) _applyGarantidoValue(input, n);
     closeGarantidoInput(input);
-  }, 150);
+  }, 50);
 }
 
 function cancelEditGarantido(input){
@@ -7301,7 +7312,7 @@ function onCardPremiacaoInput(input){
   renderCardOverlayPreview(key, row, isNaN(premiacaoVal) ? row.premiacao : premiacaoVal, getField(key));
   clearTimeout(input._saveTimer);
   input._saveTimer = setTimeout(() => {
-    const premiacaoVal = parsePremInput(input); // usa o parser BRL
+    const premiacaoVal = parsePremInput(input);
     if(premiacaoVal != null && premiacaoVal > 0){
       row.premiacao = premiacaoVal;
       if(fbReady) fbDb.ref(`${FB_BASE_PATH}/premiacao/${key}`).set(premiacaoVal);
@@ -7345,7 +7356,7 @@ function onCardPremiacaoInput(input){
         localStorage.setItem('suprema_prem_v1', JSON.stringify(pm));
       } catch(e){}
     }
-  }, 600);
+  }, 300);
 }
 
 function onCardFieldInput(input){
