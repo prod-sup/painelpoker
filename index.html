@@ -5011,15 +5011,13 @@ function initFirebaseSync(){
         // Só faz renderUpcoming se nenhum input de premiação está em foco
         // (evita destruir o card enquanto o operador está digitando)
         const activeEl = document.activeElement;
-        const isTypingPrem = activeEl && activeEl.classList.contains('tcard-prem-input');
-        const isTypingField = activeEl && activeEl.classList.contains('tcard-field-input');
-        const isTypingId = activeEl && activeEl.classList.contains('id-input');
-        if(!isTypingPrem && !isTypingField && !isTypingId){
-          renderUpcoming(); renderResults();
-        } else {
-          // Só atualiza resultados sem recriar a agenda
-          renderResults();
-        }
+        const isTypingAny = activeEl && (
+          activeEl.classList.contains('tcard-prem-input') ||
+          activeEl.classList.contains('tcard-field-input') ||
+          activeEl.classList.contains('id-input')
+        );
+        renderResults();
+        if(!isTypingAny) renderUpcoming();
       }
     });
 
@@ -6045,10 +6043,18 @@ function renderUpcoming(){
   grid.querySelectorAll('.tcard[data-key]').forEach(el => existingCards.set(el.dataset.key, el));
   const filteredKeys = new Set(filtered.map(t => t._key));
 
-  // Remover cards que saíram do filtro (mas NUNCA remover o card em foco)
-  const activeKey = document.activeElement?.closest('.tcard')?.dataset?.key || null;
+  // Card em foco nunca é removido — e é adicionado ao filteredKeys para não sumir
+  const activeTcard = document.activeElement?.closest('.tcard');
+  const activeKey   = activeTcard?.dataset?.key || null;
+  if(activeKey && !filteredKeys.has(activeKey)){
+    filteredKeys.add(activeKey);
+    // Garantir que o row está no filtered também
+    const activeRow = UPCOMING.find(r => r._key === activeKey);
+    if(activeRow && !filtered.find(r => r._key === activeKey)) filtered.push(activeRow);
+  }
+
   existingCards.forEach((el, k) => {
-    if(!filteredKeys.has(k) && k !== activeKey){
+    if(!filteredKeys.has(k)){
       animVisibilityIO.unobserve(el);
       el.remove();
     }
@@ -7345,16 +7351,19 @@ function onCardPremiacaoInput(input){
       document.getElementById('statUnfixed').textContent = UNFIXED.length;
       updateProgress();
       renderUnfixed();
-      // Patch no card sem recriar — mantém overlay/ações/perf visíveis
-      patchCardFields(key);
+      // Atualizar card in-place — sem remover do DOM
       renderCardOverlayPreview(key, row, premiacaoVal, getField(key));
-      // Badge de premiação no card
-      const badge = document.querySelector(`.tcard[data-key="${key}"] .tcard-prem-badge`);
-      if(badge) badge.textContent = '✓ R$ ' + fmtBRL(premiacaoVal, premiacaoVal%1===0?0:2);
-      else {
-        const catDiv = document.querySelector(`.tcard[data-key="${key}"] .tcard-cat`);
-        if(catDiv){ const b=document.createElement('span'); b.className='tcard-prem-badge'; b.textContent='✓ R$ '+fmtBRL(premiacaoVal,0); catDiv.appendChild(b); }
+      // Atualizar badge de premiação
+      const _badge = document.querySelector(`.tcard[data-key="${key}"] .tcard-prem-badge`);
+      if(_badge){
+        _badge.textContent = '✓ R$ ' + fmtBRL(premiacaoVal, premiacaoVal%1===0?0:2);
+      } else {
+        const _catDiv = document.querySelector(`.tcard[data-key="${key}"] .tcard-cat`);
+        if(_catDiv){ const _b=document.createElement('span'); _b.className='tcard-prem-badge'; _b.textContent='✓ R$ '+fmtBRL(premiacaoVal,0); _catDiv.appendChild(_b); }
       }
+      // Atualizar classe do card
+      const _card = document.querySelector(`.tcard[data-key="${key}"]`);
+      if(_card) _card.classList.toggle('has-premiacao', true);
       debouncedRenderResults();
       computeStats();
       appendTodayToHistorico();
