@@ -6037,28 +6037,9 @@ function renderUpcoming(){
     return orderA - orderB;
   });
 
-  // ── DIFF: atualizar cards in-place se existirem, sem remover do DOM ──
-  // Isso evita o "buraco" quando um card é preenchido e a agenda re-renderiza.
-  const existingCards = new Map();
-  grid.querySelectorAll('.tcard[data-key]').forEach(el => existingCards.set(el.dataset.key, el));
-  const filteredKeys = new Set(filtered.map(t => t._key));
-
-  // Card em foco nunca é removido — e é adicionado ao filteredKeys para não sumir
-  const activeTcard = document.activeElement?.closest('.tcard');
-  const activeKey   = activeTcard?.dataset?.key || null;
-  if(activeKey && !filteredKeys.has(activeKey)){
-    filteredKeys.add(activeKey);
-    // Garantir que o row está no filtered também
-    const activeRow = UPCOMING.find(r => r._key === activeKey);
-    if(activeRow && !filtered.find(r => r._key === activeKey)) filtered.push(activeRow);
-  }
-
-  existingCards.forEach((el, k) => {
-    if(!filteredKeys.has(k)){
-      animVisibilityIO.unobserve(el);
-      el.remove();
-    }
-  });
+    // Limpar grid e recriar cards (simples e confiável)
+  grid.querySelectorAll('.tcard').forEach(el => animVisibilityIO.unobserve(el));
+  grid.innerHTML = '';
 
   const fragment = document.createDocumentFragment();
   filtered.forEach((t, idx) => {
@@ -6070,18 +6051,6 @@ function renderUpcoming(){
     const isNF = currentId.toUpperCase() === 'NF' || t.explicitNF;
     const flag = cardTimeFlag(t);
     const isRunning = isRunningNow(t, nowMin);
-
-    // Reusar card existente se possível (evita remover/recriar = sem buraco no DOM)
-    const existingEl = existingCards.get(key);
-    if(existingEl){
-      // Atualizar classe e mover para fragment (reordenação)
-      existingEl.className = `tcard reveal in${fixed ? ' is-fixed' : ''}${isNF ? ' is-nf' : ''}${flag==='soon' ? ' is-soon' : ''}${flag==='late' ? ' is-late' : ''}${isRunning ? ' is-running' : ''}${t.premiacao != null ? ' has-premiacao' : ''}`;
-      // Atualizar countdown e status sem recriar tudo
-      const cdEl = existingEl.querySelector('.tcard-countdown');
-      if(cdEl) cdEl.textContent = countdownHtmlStr(t, nowMin);
-      fragment.appendChild(existingEl);
-      return; // não recriar
-    }
 
     const el = document.createElement('div');
     el.className = `tcard reveal${fixed ? ' is-fixed' : ''}${isNF ? ' is-nf' : ''}${flag==='soon' ? ' is-soon' : ''}${flag==='late' ? ' is-late' : ''}${isRunning ? ' is-running' : ''}${t.premiacao != null ? ' has-premiacao' : ''}`;
