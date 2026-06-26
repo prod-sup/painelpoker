@@ -5981,9 +5981,6 @@ function renderUnfixed(){
 
 function renderUpcoming(){
   const grid = document.getElementById('upcomingGrid');
-  // Não renderizar se a seção agenda está oculta (aba diferente ativa)
-  const section = document.getElementById('agenda');
-  if(section && section.hidden) return;
   const nowMin = nowMinutesSP(); // usado pelo filtro "Rolando agora" e pra marcar cada card como em andamento (não mais usado na ordenação, que agora é cronológica fixa)
   // Filtro por categoria
   let filtered = activeUpcomingCat === 'all' ? UPCOMING
