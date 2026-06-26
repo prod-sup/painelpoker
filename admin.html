@@ -773,6 +773,14 @@ a.tb-back{text-decoration:none}
         </div>
       </div>
       <div class="kpi-grid" id="dashKpi"></div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
+          <div><div class="card-title">🧠 Insights do período</div><div class="card-sub">Anomalias e oportunidades detectadas automaticamente</div></div>
+        </div>
+        <div style="padding:14px 18px" id="dashInsights">
+          <div style="font-size:12px;color:var(--ink3)">Carregando dados...</div>
+        </div>
+      </div>
       <div class="card">
         <div class="card-head"><div class="card-title">Top torneios com overlay</div></div>
         <div class="tbl-wrap">
@@ -832,7 +840,8 @@ a.tb-back{text-decoration:none}
             <thead><tr>
               <th>Torneio</th><th>Cat.</th><th class="r">Rodadas</th>
               <th class="r">GTD médio</th><th class="r">Pool médio</th>
-              <th class="r">Perf. média</th><th class="r">Overlay total</th><th>Tendência</th>
+              <th class="r">Perf. média</th><th class="r">Overlay total</th>
+              <th class="r">Taxa OV%</th><th>Risco</th>
             </tr></thead>
             <tbody id="gradeBody"></tbody>
           </table>
@@ -1190,8 +1199,11 @@ async function loadAll(){
   if(!fbOk)return;
   _allData={};
 
-  // 1. Carregar snapshots — fonte primária
-  const snapSnap = await db.ref('snapshots').once('value');
+  // Carregar snapshots e painel em paralelo (mais rápido)
+  const [snapSnap, painelSnapPar] = await Promise.all([
+    db.ref('snapshots').once('value'),
+    db.ref('painel').once('value'),
+  ]);
   const snapRaw  = snapSnap.val()||{};
   Object.entries(snapRaw).forEach(([date,snap])=>{
     if(!snap?.rows||typeof snap.rows!=='object')return;
@@ -1206,9 +1218,8 @@ async function loadAll(){
     });
   });
 
-  // 2. Carregar painel — complementa dias sem snapshot e atualiza dados ao vivo
-  const painelSnap = await db.ref('painel').once('value');
-  const painelRaw  = painelSnap.val()||{};
+  // 2. Complementar com painel — já carregado em paralelo
+  const painelRaw  = painelSnapPar.val()||{};
   Object.entries(painelRaw).forEach(([date,day])=>{
     if(typeof day!=='object')return;
     if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{}};
@@ -1254,12 +1265,7 @@ async function loadAll(){
     });
   });
 
-  // Debug
-  const dates = Object.keys(_allData);
-  dates.forEach(d => {
-    const day = _allData[d];
-    console.log(`  ${d}: ${Object.keys(day.rows).length} rows, ${Object.keys(day.prem).length} prem, ${Object.keys(day.fixed).length} fixed`);
-  });
+
 }
 
 function rowKey(r){
@@ -1305,12 +1311,16 @@ function flatRows(fromDate, toDate){
       // Só incluir se tem dados relevantes (nome existe)
       if(!r.nome)return;
 
+      // Calcular ações (field × buyin com desconto de rake)
+      const buyin = r.buyin ?? null;
+      const rakeEst = buyin ? (buyin <= 10 ? 0 : buyin <= 50 ? 0.1 : buyin <= 200 ? 0.12 : 0.15) : 0;
+      const fieldNet = field != null && buyin ? Math.round(field * buyin * (1 - rakeEst)) : null;
       out.push({
         date, key,
         nome:r.nome||'', hora:r.hora||'', late:r.late||'',
         tipo:r.tipo||'', cat:classify(r),
-        garantido:gar, buyin:r.buyin??null,
-        premiacao:prem, overlay:ov, perf, field,
+        garantido:gar, buyin, rakeEst,
+        premiacao:prem, overlay:ov, perf, field, fieldNet,
         id:idVal, idBy, fixBy, fixAt, status,
       });
     });
@@ -1364,7 +1374,7 @@ async function loadAudit(){
   const stF =document.getElementById('auStatus')?.value||'';
   const opF =document.getElementById('auOp')?.value||'';
 
-  await loadAuditData();
+  await Promise.all([loadAuditData()]);
   let rows=enrichWithAudit(flatRows(from,to));
   if(catF)rows=rows.filter(r=>r.cat===catF);
   if(stF) rows=rows.filter(r=>r.status===stF);
@@ -1381,6 +1391,11 @@ async function loadAudit(){
 
   const dates=Object.keys(byDate).sort().reverse();
   const el=document.getElementById('auditResult');
+
+  // Diagnóstico rápido
+  console.log('[loadAudit] _allData datas:', Object.keys(_allData));
+  console.log('[loadAudit] rows encontrados:', rows.length);
+  if(rows.length > 0) console.log('[loadAudit] exemplo row:', rows[0]);
 
   if(!dates.length){
     el.innerHTML=`<div class="empty"><div class="empty-icon">🔍</div><h3>Nenhum dado encontrado</h3><p>Ajuste o período ou os filtros</p></div>`;
@@ -1423,9 +1438,9 @@ async function loadAudit(){
           <td class="mono">${esc(r.late)}</td>
           <td class="r mono">${r.garantido!=null?'R$ '+brl(r.garantido):'—'}</td>
           <td class="r mono">${r.buyin!=null?'R$ '+brl(r.buyin):'—'}</td>
-          <td class="r mono">${r.premiacao!=null?'R$ '+brl(r.premiacao):'—'}</td>
+          <td class="r mono">${r.premiacao!=null?`<span${r._audited&&r._auditEntry?.status==='corrigido'&&r._auditEntry?.premiacaoOriginal!=r.premiacao?' style="color:var(--gold)"':''}>${'R$ '+brl(r.premiacao)}</span>`:'—'}</td>
           <td class="r mono ov-val">${r.overlay!=null?'R$ '+brl(r.overlay):'—'}</td>
-          <td class="r mono">${r.field!=null?r.field:'—'}</td>
+          <td class="r mono">${r.field!=null?`<span${r._audited&&r._auditEntry?.status==='corrigido'&&r._auditEntry?.fieldOriginal!=r.field?' style="color:var(--gold)"':''}>${r.field}</span>`:'—'}</td>
           <td class="r mono">${r.perf!=null?`<span class="perf ${r.perf>=0?'pos':'neg'}">${pct(r.perf)}</span>`:'—'}</td>
           <td class="c-ink2">${esc(r.fixBy||r.idBy||'—')}</td>
           <td class="mono c-ink2">${esc(r.id)}</td>
@@ -1529,13 +1544,18 @@ function buildDash(){
   const avgPerf=closed.filter(r=>r.perf!=null).length?
     closed.filter(r=>r.perf!=null).reduce((s,r)=>s+r.perf,0)/closed.filter(r=>r.perf!=null).length:null;
 
+  const nfRows   = rows.filter(r=>r.status==='nf');
+  const dias     = [...new Set(rows.map(r=>r.date))].length;
+  const totalGarSum = rows.reduce((s,r)=>s+(r.garantido||0),0);
+  const cobertura = totalGarSum>0?(totalPrem/totalGarSum*100):0;
+
   document.getElementById('dashKpi').innerHTML=`
-    <div class="kpi"><div class="kpi-label">Torneios</div><div class="kpi-val">${rows.length}</div><div class="kpi-sub">${_dp} dias</div></div>
-    <div class="kpi"><div class="kpi-label">Fechados</div><div class="kpi-val">${closed.length}</div><div class="kpi-sub">${rows.length?Math.round(closed.length/rows.length*100):0}%</div></div>
-    <div class="kpi g"><div class="kpi-label">Premiação total</div><div class="kpi-val">${brlk(totalPrem)}</div><div class="kpi-sub">pago em prizes</div></div>
-    <div class="kpi r"><div class="kpi-label">Overlay total</div><div class="kpi-val">${brlk(Math.abs(totalOv))}</div><div class="kpi-sub">déficit acumulado</div></div>
-    <div class="kpi b"><div class="kpi-label">Perf. média</div><div class="kpi-val">${avgPerf!=null?pct(avgPerf):'—'}</div><div class="kpi-sub">vs garantido</div></div>
-    <div class="kpi p"><div class="kpi-label">Com overlay</div><div class="kpi-val">${withOv.length}</div><div class="kpi-sub">${closed.length?Math.round(withOv.length/closed.length*100):0}% dos fechados</div></div>
+    <div class="kpi"><div class="kpi-label">Torneios</div><div class="kpi-val">${rows.length}</div><div class="kpi-sub">${dias} dia${dias>1?'s':''} · ${_dp}d janela</div></div>
+    <div class="kpi"><div class="kpi-label">Fechados</div><div class="kpi-val">${closed.length}</div><div class="kpi-sub">${rows.length?Math.round(closed.length/rows.length*100):0}% do total</div></div>
+    <div class="kpi g"><div class="kpi-label">Premiação total</div><div class="kpi-val">${brlk(totalPrem)}</div><div class="kpi-sub">Cobertura ${cobertura.toFixed(0)}% do GTD</div></div>
+    <div class="kpi r"><div class="kpi-label">Overlay total</div><div class="kpi-val">${brlk(Math.abs(totalOv))}</div><div class="kpi-sub">${closed.length?Math.round(withOv.length/closed.length*100):0}% dos fechados com OV</div></div>
+    <div class="kpi b"><div class="kpi-label">Perf. média</div><div class="kpi-val">${avgPerf!=null?pct(avgPerf):'—'}</div><div class="kpi-sub">vs garantido prometido</div></div>
+    <div class="kpi p"><div class="kpi-label">NF no período</div><div class="kpi-val">${nfRows.length}</div><div class="kpi-sub">${rows.length?Math.round(nfRows.length/rows.length*100):0}% não formaram</div></div>
   `;
 
   // Top overlay
@@ -1562,6 +1582,86 @@ function buildDash(){
       <td style="min-width:80px"><div class="bar"><div class="bar-fill" style="width:${barPct}%;background:var(--red)"></div></div></td>
     </tr>`;
   }).join(''):`<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--ink3)">Sem overlay no período</td></tr>`;
+
+  // ── Insights inteligentes ──
+  buildInsights(rows, closed, _dp);
+}
+
+function buildInsights(rows, closed, days){
+  const el = document.getElementById('dashInsights');
+  if(!el) return;
+  const insights = [];
+
+  // 1. Taxa de fechamento
+  const closeRate = rows.length ? closed.length/rows.length : 0;
+  if(closeRate < 0.5 && rows.length > 10)
+    insights.push({type:'warn', icon:'⚠️', text:`Taxa de fechamento baixa: apenas <b>${Math.round(closeRate*100)}%</b> dos torneios têm premiação registrada nos últimos ${days} dias.`});
+
+  // 2. Pior dia da semana por overlay
+  const byDay = {};
+  closed.forEach(r=>{
+    const d = new Date(r.date+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long'});
+    if(!byDay[d]) byDay[d]={ov:0,n:0};
+    byDay[d].ov += r.overlay||0; byDay[d].n++;
+  });
+  const worstDay = Object.entries(byDay).sort((a,b)=>a[1].ov-b[1].ov)[0];
+  if(worstDay && worstDay[1].ov < -500)
+    insights.push({type:'warn', icon:'📅', text:`<b>${worstDay[0]}</b> é o dia com maior overlay acumulado: R$ ${brl(Math.abs(worstDay[1].ov),0)} em ${worstDay[1].n} torneio${worstDay[1].n>1?'s':''}.`});
+
+  // 3. Torneio com overlay recorrente
+  const byName = {};
+  closed.forEach(r=>{
+    if(!byName[r.nome]) byName[r.nome]={ov:0,n:0,ovCount:0};
+    byName[r.nome].ov += r.overlay||0;
+    byName[r.nome].n++;
+    if(r.overlay<0) byName[r.nome].ovCount++;
+  });
+  const chronic = Object.entries(byName)
+    .filter(([,v])=>v.n>=3&&v.ovCount/v.n>=0.6)
+    .sort((a,b)=>a[1].ov-b[1].ov).slice(0,2);
+  chronic.forEach(([nome,v])=>
+    insights.push({type:'alert', icon:'🔴', text:`<b>${esc(nome)}</b>: overlay em ${Math.round(v.ovCount/v.n*100)}% das rodadas (${v.ovCount}/${v.n}). Revisar GTD.`})
+  );
+
+  // 4. Melhor torneio (maior excedente médio)
+  const best = Object.entries(byName)
+    .filter(([,v])=>v.n>=2&&v.ov>0)
+    .sort((a,b)=>b[1].ov-a[1].ov)[0];
+  if(best)
+    insights.push({type:'ok', icon:'🏆', text:`<b>${esc(best[0])}</b> é o torneio mais rentável: +R$ ${brl(best[1].ov,0)} acumulado em ${best[1].n} rodadas.`});
+
+  // 5. Trend de perf (últimos 7d vs anteriores)
+  if(days >= 14){
+    const mid = dago(Math.floor(days/2));
+    const recent  = closed.filter(r=>r.date>=mid&&r.perf!=null);
+    const earlier = closed.filter(r=>r.date<mid&&r.perf!=null);
+    const avgR = recent.length  ? recent.reduce((s,r)=>s+r.perf,0)/recent.length  : null;
+    const avgE = earlier.length ? earlier.reduce((s,r)=>s+r.perf,0)/earlier.length : null;
+    if(avgR!=null&&avgE!=null){
+      const diff = avgR - avgE;
+      if(Math.abs(diff)>3)
+        insights.push({type: diff>0?'ok':'warn', icon: diff>0?'📈':'📉',
+          text:`Performance ${diff>0?'melhorou':'piorou'} <b>${Math.abs(diff).toFixed(1)}%</b> na segunda metade do período (${avgR.toFixed(1)}% vs ${avgE.toFixed(1)}%).`});
+    }
+  }
+
+  // 6. Alertas de operacional
+  const nfCount = rows.filter(r=>r.status==='nf').length;
+  if(nfCount > 5)
+    insights.push({type:'warn', icon:'🚫', text:`<b>${nfCount}</b> torneios marcados como NF no período. Verificar se GTDs estão calibrados.`});
+
+  if(!insights.length){
+    el.innerHTML='<div style="font-size:12px;color:var(--ink3);padding:12px 0">✅ Nenhuma anomalia detectada no período.</div>';
+    return;
+  }
+
+  const colors = {ok:'var(--green)',warn:'var(--amber)',alert:'var(--red)'};
+  const bgs    = {ok:'var(--greenf)',warn:'var(--amberf)',alert:'var(--redf)'};
+  el.innerHTML = insights.map(ins=>`
+    <div style="display:flex;gap:10px;padding:10px 12px;background:${bgs[ins.type]};border:1px solid ${colors[ins.type]}22;border-radius:8px;margin-bottom:7px;font-size:12px;line-height:1.5">
+      <span style="font-size:16px;flex:none">${ins.icon}</span>
+      <span style="color:var(--ink2)">${ins.text}</span>
+    </div>`).join('');
 }
 
 /* ── GRADE ───────────────────────────────────────────────────── */
@@ -1583,11 +1683,11 @@ function renderGrade(){
     if(cat&&r.cat!==cat)return;
     const normNome=r.nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     if(q&&!normNome.includes(q))return;
-    if(!byName[r.nome])byName[r.nome]={nome:r.nome,cat:r.cat,runs:0,gar:0,prem:0,ov:0};
+    if(!byName[r.nome])byName[r.nome]={nome:r.nome,cat:r.cat,runs:0,gar:0,prem:0,ov:0,ovCount:0};
     byName[r.nome].runs++;
     byName[r.nome].gar+=r.garantido||0;
     byName[r.nome].prem+=r.premiacao||0;
-    if(r.overlay)byName[r.nome].ov+=r.overlay;
+    if(r.overlay){byName[r.nome].ov+=r.overlay;if(r.overlay<0)byName[r.nome].ovCount++;}
   });
 
   _gradeRows=Object.values(byName).map(v=>({
@@ -1595,6 +1695,8 @@ function renderGrade(){
     avgGar:v.gar/v.runs,
     avgPrem:v.prem/v.runs,
     avgPerf:v.gar>0?(v.prem-v.gar)/v.gar*100:null,
+    ovRate: v.runs>0?v.ovCount/v.runs:0,  // taxa de rodadas com overlay
+    risk: v.runs<3?'baixo dados': v.ovCount/v.runs>=0.6?'alto': v.ovCount/v.runs>=0.3?'médio':'baixo',
   }));
 
   if(sort==='ov_desc') _gradeRows.sort((a,b)=>a.ov-b.ov);
@@ -1607,6 +1709,7 @@ function renderGrade(){
 
   document.getElementById('gradeBody').innerHTML=_gradeRows.length?_gradeRows.map(v=>{
     const barPct=v.ov<0?Math.round(Math.abs(v.ov)/maxOv*100):0;
+    const riskColor = v.risk==='alto'?'var(--red)':v.risk==='médio'?'var(--amber)':'var(--green)';
     return `<tr>
       <td class="nm">${esc(v.nome)}</td>
       <td>${catBadge(v.cat)}</td>
@@ -1615,7 +1718,8 @@ function renderGrade(){
       <td class="r mono">${brlk(v.avgPrem)}</td>
       <td class="r">${v.avgPerf!=null?`<span class="perf ${v.avgPerf>=0?'pos':'neg'}">${pct(v.avgPerf)}</span>`:'—'}</td>
       <td class="r mono ${v.ov<0?'c-red':''}">${v.ov!==0?brlk(v.ov):'—'}</td>
-      <td style="min-width:80px"><div class="bar"><div class="bar-fill" style="width:${barPct}%;background:${v.ov<0?'var(--red)':'var(--green)'}"></div></div></td>
+      <td class="r mono" style="color:${riskColor}">${Math.round(v.ovRate*100)}%</td>
+      <td><span style="font-size:10px;font-weight:700;color:${riskColor};background:${riskColor}18;border:1px solid ${riskColor}33;padding:2px 8px;border-radius:99px">${v.risk.toUpperCase()}</span></td>
     </tr>`;
   }).join(''):`<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--ink3)">Nenhum dado</td></tr>`;
 }
