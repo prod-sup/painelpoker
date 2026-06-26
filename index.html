@@ -4147,59 +4147,171 @@ function initUserNotifListener(){
 }
 
 function showJustifModal(pending, emailKey){
-  // Remover modal anterior se existir
   const existing = document.getElementById('justifBlockModal');
   if(existing) existing.remove();
 
-  const notif = pending[0][1]; // primeira notificação pendente
+  const notif   = pending[0][1];
   const notifId = pending[0][0];
+  const extra   = pending.length - 1;
+
+  // Formatar data
+  const dateLabel = notif.date ? notif.date.split('-').reverse().join('/') : '';
+  const sentTime  = notif.sentAt ? new Date(notif.sentAt).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
 
   const modal = document.createElement('div');
   modal.id = 'justifBlockModal';
-  modal.style.cssText = `
-    position:fixed;inset:0;z-index:9999;
-    background:rgba(7,7,9,.95);backdrop-filter:blur(8px);
-    display:flex;align-items:center;justify-content:center;
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+
+  // CSS injetado
+  const styleEl = document.createElement('style');
+  styleEl.textContent = `
+    #justifBlockModal{
+      background: radial-gradient(ellipse 100% 80% at 50% 0%, rgba(239,68,68,.04), transparent 60%),
+                  rgba(4,4,8,.97);
+      backdrop-filter: blur(24px) saturate(140%);
+      animation: jm-fade .3s ease;
+    }
+    @keyframes jm-fade{ from{opacity:0} to{opacity:1} }
+    @keyframes jm-up{ from{opacity:0;transform:translateY(24px) scale(.97)} to{opacity:1;transform:none} }
+    .jm-box{
+      background: linear-gradient(160deg, #111118 0%, #0c0c12 100%);
+      border: 1px solid rgba(239,68,68,.2);
+      border-radius: 20px;
+      max-width: 500px; width: 100%;
+      box-shadow: 0 0 0 1px rgba(255,255,255,.04) inset,
+                  0 40px 80px -20px rgba(0,0,0,.8),
+                  0 0 60px -20px rgba(239,68,68,.12);
+      animation: jm-up .35s cubic-bezier(.16,1,.3,1);
+      overflow: hidden;
+    }
+    .jm-stripe{
+      height: 3px;
+      background: linear-gradient(90deg, #ef4444, #f97316, #ef4444);
+      background-size: 200% 100%;
+      animation: jm-stripe 2.5s linear infinite;
+    }
+    @keyframes jm-stripe{ to{background-position:200% 0} }
+    .jm-body{ padding: 32px 32px 28px; }
+    .jm-seal{
+      width: 56px; height: 56px; border-radius: 14px;
+      background: rgba(239,68,68,.1);
+      border: 1.5px solid rgba(239,68,68,.25);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; margin-bottom: 20px;
+      box-shadow: 0 0 24px -8px rgba(239,68,68,.3);
+    }
+    .jm-title{ font-size: 20px; font-weight: 800; color: #f5f5f8; letter-spacing: -.02em; margin-bottom: 4px; }
+    .jm-sub{ font-size: 12.5px; color: #6b6b85; line-height: 1.5; margin-bottom: 24px; }
+    .jm-card{
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 12px; padding: 16px 18px; margin-bottom: 20px;
+    }
+    .jm-card-type{
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 9.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+      color: #fb923c; background: rgba(251,146,60,.1); border: 1px solid rgba(251,146,60,.2);
+      border-radius: 99px; padding: 3px 10px; margin-bottom: 12px;
+    }
+    .jm-card-type::before{ content:''; width:5px; height:5px; border-radius:50%; background:#fb923c; flex:none; }
+    .jm-card-torneio{ font-size: 15px; font-weight: 700; color: #f0f0f8; margin-bottom: 8px; letter-spacing: -.01em; }
+    .jm-card-desc{ font-size: 13px; color: #8888a8; line-height: 1.6; }
+    .jm-card-meta{
+      display: flex; gap: 16px; margin-top: 12px; padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,.05);
+    }
+    .jm-card-meta span{ font-size: 10.5px; color: #454560; }
+    .jm-card-meta b{ color: #6b6b85; font-weight: 600; }
+    .jm-label{
+      font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+      color: #454560; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .jm-char-count{ font-size: 10px; color: #454560; font-weight: 500; letter-spacing: 0; }
+    .jm-char-count.ok{ color: #22c55e; }
+    .jm-textarea{
+      width: 100%; padding: 13px 14px;
+      background: rgba(0,0,0,.4); border: 1.5px solid rgba(255,255,255,.08);
+      border-radius: 10px; font-size: 13px; color: #f0f0f8;
+      resize: none; line-height: 1.6; font-family: -apple-system, sans-serif;
+      transition: border-color .2s, box-shadow .2s; outline: none;
+      box-shadow: 0 0 0 0 rgba(201,168,76,0);
+    }
+    .jm-textarea:focus{
+      border-color: rgba(201,168,76,.5);
+      box-shadow: 0 0 0 3px rgba(201,168,76,.08);
+    }
+    .jm-textarea::placeholder{ color: #2e2e42; }
+    .jm-err{
+      font-size: 11.5px; color: #fca5a5;
+      background: rgba(239,68,68,.07); border: 1px solid rgba(239,68,68,.15);
+      border-radius: 8px; padding: 9px 12px; margin-top: 8px; display: none;
+    }
+    .jm-footer{ padding: 0 32px 28px; }
+    .jm-btn{
+      width: 100%; padding: 14px;
+      border-radius: 11px; border: none; cursor: pointer;
+      background: linear-gradient(135deg, #c9a84c 0%, #a07830 100%);
+      color: #1a0e00; font-size: 14px; font-weight: 800; letter-spacing: .02em;
+      transition: opacity .15s, transform .1s;
+      box-shadow: 0 4px 20px -8px rgba(201,168,76,.5);
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .jm-btn:hover:not(:disabled){ opacity: .9; transform: translateY(-1px); }
+    .jm-btn:disabled{ opacity: .4; cursor: not-allowed; transform: none; }
+    .jm-extra{
+      font-size: 11px; color: #fb923c;
+      background: rgba(251,146,60,.06); border: 1px solid rgba(251,146,60,.12);
+      border-radius: 7px; padding: 8px 12px; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 7px;
+    }
+    .jm-divider{ height: 1px; background: rgba(255,255,255,.05); margin-bottom: 20px; }
+    @keyframes jm-spin{ to{ transform: rotate(360deg) } }
+    .jm-spin{ width:16px;height:16px;border:2px solid rgba(26,14,0,.3);border-top-color:#1a0e00;border-radius:50%;animation:jm-spin .6s linear infinite;flex:none; }
   `;
+  document.head.appendChild(styleEl);
+
   modal.innerHTML = `
-    <div style="background:#0f0f15;border:1px solid rgba(245,158,11,.3);border-radius:16px;
-      padding:36px;max-width:480px;width:90%;box-shadow:0 32px 80px rgba(0,0,0,.7)">
-      <div style="text-align:center;margin-bottom:24px">
-        <div style="font-size:40px;margin-bottom:12px">⚠️</div>
-        <div style="font-size:18px;font-weight:800;color:#f0f0f8;margin-bottom:6px">Notificação pendente</div>
-        <div style="font-size:12px;color:#8888a8">O acesso ao painel está bloqueado até você justificar</div>
-      </div>
-      <div style="background:#0b0b0f;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:14px;margin-bottom:16px">
-        <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--amber,#f59e0b);margin-bottom:6px">
-          ${notif.typeLabel||notif.type||'Erro operacional'}
+    <div class="jm-box">
+      <div class="jm-stripe"></div>
+      <div class="jm-body">
+        <div class="jm-seal">🔒</div>
+        <div class="jm-title">Justificativa pendente</div>
+        <div class="jm-sub">O acesso ao painel está suspenso pelo administrador.<br>Leia a notificação abaixo e envie sua justificativa.</div>
+
+        <div class="jm-card">
+          <div class="jm-card-type">${escHtml(notif.typeLabel||notif.type||'Erro operacional')}</div>
+          <div class="jm-card-torneio">${escHtml(notif.torneio||'Torneio não especificado')}</div>
+          ${notif.desc ? `<div class="jm-card-desc">${escHtml(notif.desc)}</div>` : ''}
+          <div class="jm-card-meta">
+            ${dateLabel ? `<span><b>Data</b> ${dateLabel}</span>` : ''}
+            ${sentTime  ? `<span><b>Enviado</b> ${sentTime}</span>` : ''}
+            <span><b>Por</b> ${escHtml(notif.sentBy||'Administrador')}</span>
+          </div>
         </div>
-        <div style="font-size:13px;font-weight:600;color:#f0f0f8;margin-bottom:4px">${escHtml(notif.torneio||'')}</div>
-        <div style="font-size:12px;color:#8888a8;line-height:1.5">${escHtml(notif.desc||'')}</div>
-        ${notif.date?`<div style="font-size:11px;color:#454560;margin-top:6px">Data: ${notif.date}</div>`:''}
-        <div style="font-size:11px;color:#454560;margin-top:2px">Notificado por: ${escHtml(notif.sentBy||'Admin')}</div>
-      </div>
-      <div style="margin-bottom:12px">
-        <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#454560;margin-bottom:6px">
-          Sua justificativa *
+
+        ${extra > 0 ? `<div class="jm-extra">⚠️ Há mais ${extra} notificação${extra>1?'ões':''} pendente${extra>1?'s':''} após esta.</div>` : ''}
+
+        <div class="jm-label">
+          <span>Sua justificativa</span>
+          <span class="jm-char-count" id="jCharCount">0 / 10 mín.</span>
         </div>
-        <textarea id="justifText" rows="4" placeholder="Explique o ocorrido e como foi corrigido..."
-          style="width:100%;padding:10px 12px;background:#070709;border:1px solid rgba(255,255,255,.1);
-          border-radius:8px;font-size:13px;color:#f0f0f8;resize:none;line-height:1.5;
-          font-family:-apple-system,sans-serif;transition:border-color .15s"
-          onfocus="this.style.borderColor='rgba(245,158,11,.5)'"
-          onblur="this.style.borderColor='rgba(255,255,255,.1)'"></textarea>
-        <div id="justifErr" style="font-size:11px;color:#ef4444;margin-top:5px;display:none"></div>
+        <textarea class="jm-textarea" id="justifText" rows="4"
+          placeholder="Descreva o que ocorreu, a causa e como foi ou será corrigido..."
+          oninput="(function(v){const c=document.getElementById('jCharCount');if(c){c.textContent=v.length+(v.length>=10?' car.':' / 10 mín.');c.className='jm-char-count'+(v.length>=10?' ok':'');}})(this.value)"></textarea>
+        <div class="jm-err" id="justifErr"></div>
       </div>
-      ${pending.length>1?`<div style="font-size:11px;color:#f59e0b;margin-bottom:12px">⚠ Há mais ${pending.length-1} notificação(ões) pendente(s)</div>`:''}
-      <button onclick="submitJustif('${emailKey}','${notifId}')"
-        style="width:100%;padding:13px;border-radius:10px;border:none;
-        background:linear-gradient(135deg,#c9a84c,#a07830);
-        color:#1a0e00;font-size:14px;font-weight:800;cursor:pointer">
-        Enviar justificativa
-      </button>
+
+      <div class="jm-divider"></div>
+      <div class="jm-footer">
+        <button class="jm-btn" id="justifSubmitBtn" onclick="submitJustif('${emailKey}','${notifId}')">
+          <span id="justifBtnLabel">Enviar justificativa</span>
+        </button>
+      </div>
     </div>
   `;
+
   document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('justifText')?.focus(), 300);
 }
 
 function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -4212,8 +4324,10 @@ async function submitJustif(emailKey, notifId){
     return;
   }
   if(!fbReady){ if(errEl){errEl.textContent='Sem conexão. Tente novamente.';errEl.style.display='block';} return; }
-  const btn = document.querySelector('#justifBlockModal button');
-  if(btn){ btn.disabled=true; btn.textContent='Enviando...'; }
+  const btn = document.getElementById('justifSubmitBtn');
+  const lbl = document.getElementById('justifBtnLabel');
+  if(btn){ btn.disabled=true; }
+  if(lbl){ lbl.innerHTML='<div class="jm-spin"></div> Enviando...'; }
   try {
     await fbDb.ref(`userNotifs/${emailKey}/${notifId}`).update({
       justified:     true,
@@ -4226,7 +4340,8 @@ async function submitJustif(emailKey, notifId){
     showToast('✓ Justificativa enviada — aguarde a aprovação do admin');
   } catch(e){
     if(errEl){errEl.textContent='Erro ao enviar: '+e.message;errEl.style.display='block';}
-    if(btn){btn.disabled=false;btn.textContent='Enviar justificativa';}
+    if(btn){btn.disabled=false;}
+    if(lbl){lbl.textContent='Enviar justificativa';}
   }
 }
 
@@ -7495,9 +7610,10 @@ const CONF_WINDOW_END_MIN = 5*60 + 30;    // 05:30 do dia seguinte
 
 function tomorrowWeekdayName(lang){
   const n = nowInSP();
-  // Se ainda é madrugada do turno (00:00–05:30), o "amanhã operacional"
-  // é o mesmo dia do calendário (o turno ainda não virou)
-  const isMadrugada = (n.hour < 5) || (n.hour === 5 && n.minute < 30);
+  // Turno operacional: 00:00 → 05:30 do dia seguinte
+  // Entre 00:00 e 05:29 ainda é o turno de "hoje" — amanhã = dia atual do calendário
+  // A partir de 05:30 começa novo turno — amanhã = dia seguinte
+  const isMadrugada = n.hour < 5 || (n.hour === 5 && n.minute < 30);
   const offset = isMadrugada ? 0 : 1;
   const ref = new Date(Date.UTC(n.year, n.month-1, n.day, 12, 0, 0));
   ref.setUTCDate(ref.getUTCDate() + offset);
@@ -7506,7 +7622,7 @@ function tomorrowWeekdayName(lang){
 }
 function dayAfterTomorrowWeekdayName(lang){
   const n = nowInSP();
-  const isMadrugada = (n.hour < 5) || (n.hour === 5 && n.minute < 30);
+  const isMadrugada = n.hour < 5 || (n.hour === 5 && n.minute < 30);
   const offset = isMadrugada ? 1 : 2;
   const ref = new Date(Date.UTC(n.year, n.month-1, n.day, 12, 0, 0));
   ref.setUTCDate(ref.getUTCDate() + offset);
