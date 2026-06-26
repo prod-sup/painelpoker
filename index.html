@@ -2545,6 +2545,7 @@
         </div>
         <span id="typingName">Parceiro</span> está digitando...
       </div>
+      <div id="shiftTypingIndicator" style="font-size:11px;color:var(--ink-soft);height:16px;margin-bottom:4px"></div>
       <textarea id="shiftReportText" class="sr-textarea" placeholder="Cole ou escreva o relatório do turno aqui..." spellcheck="false"></textarea>
       <div class="sr-footer">
         <span class="sr-save-status" id="shiftReportSaveStatus"></span>
@@ -5110,7 +5111,7 @@ function initFirebaseSync(){
     fbDb.ref('relatorioTurno/texto').on('value', snap => {
       const remote = snap.val() || '';
       if(SHIFT_REPORT_REMOTE_PENDING !== null) return; // evita piscar durante edição local
-      const ta = document.getElementById('shiftReportTextarea');
+      const ta = document.getElementById('shiftReportText');
       if(ta && document.activeElement !== ta) ta.value = remote;
       SHIFT_REPORT_TEXT = remote;
     });
@@ -8864,7 +8865,7 @@ function resetDay(){
   showGlobalUpdatePrompt();
 
   // Atualizar data no nav
-  const dateEl = document.getElementById('navDate');
+  const dateEl = document.getElementById('navTime');
   if(dateEl) dateEl.textContent = dataPorExtensoSP ? dataPorExtensoSP() : '';
 
   showToast('🌅 Novo dia — fixados e dados resetados. Carregue a planilha Global para hoje.');
@@ -9005,6 +9006,12 @@ function scheduleRenderAll(){
 /* Re-registra apenas os listeners que dependem do FB_BASE_PATH (por dia) */
 function reinitDayListeners(){
   if(!fbReady || !fbDb) return;
+
+  // Remover listeners antigos do dia anterior antes de re-registrar
+  // (evita duplicação de listeners ao virar o dia)
+  ['premiacao','fixed','ids','field','garantido','checklist','confhoje'].forEach(node => {
+    fbDb.ref(`${FB_BASE_PATH}/${node}`).off();
+  });
 
   // Sheet — listener já registrado em initFirebaseSync, não duplicar
   // (reinitDayListeners só re-registra dados do dia, não a sheet que é compartilhada)
