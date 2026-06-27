@@ -126,10 +126,10 @@
   /* ── Elementos com background:#fff hardcoded ── */
   html.dark .welcome-input,
   html.dark .welcome-submit,
-  html.dark input[type="text"],
+  html.dark input[type="text"]:not(.auth-input),
   html.dark input[type="number"],
   html.dark input[type="search"],
-  html.dark input[type="password"],
+  html.dark input[type="password"]:not(.auth-input),
   html.dark textarea,
   html.dark select{
     background: var(--card-elevated);
@@ -138,9 +138,103 @@
   }
   html.dark input::placeholder,
   html.dark textarea::placeholder{ color: var(--ink-soft); }
-  html.dark input:focus,
+  html.dark input:focus:not(.auth-input),
   html.dark textarea:focus,
   html.dark select:focus{ border-color: var(--felt-bright); }
+
+
+  /* ── Dark mode: botões brancos → superfície escura ── */
+  html.dark .chip:not(.active){
+    background: var(--card-elevated);
+    border-color: var(--hairline-strong);
+    color: var(--ink-soft);
+  }
+  html.dark .chip[data-cat="all"].active{
+    background: var(--ink); color: var(--bg); border-color: var(--ink);
+  }
+  html.dark .results .chip[data-cat="all"].active{
+    background: var(--felt-bright); color: var(--bg); border-color: var(--felt-bright);
+  }
+  html.dark .tf-now{
+    background: var(--card-elevated);
+    border-color: var(--hairline-strong);
+    color: var(--ink-soft);
+  }
+  html.dark .tf-now:hover{ background: var(--felt); color: #fff; }
+  html.dark .id-input-submit{
+    background: var(--card-elevated) !important;
+    border-color: var(--hairline-strong) !important;
+    color: var(--ink) !important;
+  }
+  html.dark .id-input-submit:hover{
+    background: var(--felt) !important;
+    color: #fff !important;
+  }
+  html.dark .results-export-btn{
+    background: var(--card-elevated);
+    border-color: var(--hairline-strong);
+    color: var(--ink-soft);
+  }
+  html.dark .results-export-btn:hover{
+    background: var(--felt-soft);
+    color: var(--felt-bright);
+  }
+  html.dark .tcard-time{
+    background: var(--card-elevated);
+    color: var(--ink-soft);
+  }
+  /* Checkboxes no dark mode */
+  html.dark .fix-check input,
+  html.dark .tcard-conf-check,
+  html.dark input[type="checkbox"]:not(.auth-check){
+    background: var(--card-elevated) !important;
+    border-color: var(--hairline-strong) !important;
+  }
+  /* Campos de ID e busca */
+  html.dark .id-input,
+  html.dark .name-search-input,
+  html.dark .tf-input{
+    background: var(--card-elevated);
+    border-color: var(--hairline-strong);
+    color: var(--ink);
+  }
+  /* Overlay calc e drawers */
+  html.dark .ovc-input,
+  html.dark .sr-textarea{
+    background: var(--card-elevated) !important;
+    border-color: var(--hairline-strong) !important;
+    color: var(--ink) !important;
+  }
+  /* Time filter wheel */
+  html.dark .tf-wheel-fade-top{
+    background: linear-gradient(180deg, var(--card) 10%, transparent) !important;
+  }
+  html.dark .tf-wheel-fade-bottom{
+    background: linear-gradient(0deg, var(--card) 10%, transparent) !important;
+  }
+  html.dark .tf-wheel-item{
+    background: var(--card-elevated);
+    border-color: var(--hairline-strong);
+    color: var(--ink-soft);
+  }
+  html.dark .tf-wheel-item.selected{
+    background: var(--felt-soft);
+    color: var(--felt-bright);
+    border-color: var(--felt);
+  }
+  /* ── Proteção dos campos de auth no dark mode ── */
+  html.dark input.auth-input{
+    background: #ffffff !important;
+    color: #1a1a1a !important;
+    border-color: #e0e0e0 !important;
+  }
+  html.dark input.auth-input:focus{
+    border-color: #22c55e !important;
+    background: #ffffff !important;
+  }
+  html.dark input.auth-input::placeholder{
+    color: #9ca3af !important;
+  }
 
   /* ── Checkboxes ── */
   html.dark .fix-check input{
