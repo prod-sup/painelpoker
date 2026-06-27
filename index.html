@@ -3734,6 +3734,78 @@ function timeStatus(hhmm, cat){
 /* status de urgência exibido no card (e usado pelo filtro de status "Atrasado"/"Em breve"): null se o
    torneio já foi fixado ou nem precisa ser fixado (Side Event sem marcação) — mantém o filtro 100%
    consistente com o que o card realmente mostra, reaproveitando a mesma regra em vez de duplicá-la. */
+/* ── Histórico do torneio ── */
+let _historico = {};
+
+function loadHistorico(){
+  if(!fbReady) return;
+  fbDb.ref('historico').once('value').then(snap => {
+    const raw = snap.val()||{};
+    _historico = {};
+    Object.values(raw).forEach(day => {
+      if(!day||typeof day!=='object') return;
+      Object.values(day).forEach(r => {
+        if(!r||!r.nome) return;
+        if(!_historico[r.nome]) _historico[r.nome] = [];
+        _historico[r.nome].push(r);
+      });
+    });
+    Object.keys(_historico).forEach(n => {
+      _historico[n].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    });
+  }).catch(()=>{});
+}
+
+function buildHistTooltip(nome){
+  const hist = _historico[nome];
+  if(!hist||!hist.length) return '';
+  const last5 = hist.slice(0,5);
+  const ovCount = last5.filter(h=>(h.perf??0)<0).length;
+  const alertBadge = ovCount>=3?`<span class="tcard-hist-badge alert">⚠ OV ${ovCount}/${last5.length}x</span>`:'';
+  const rows = last5.map(h=>{
+    const perf=h.perf??null;
+    const cls=perf!=null?(perf>=0?'pos':'neg'):'';
+    const [,m,d]=(h.date||'--').split('-');
+    return `<div class="tcard-hist-row">
+      <span class="tcard-hist-date">${d||'?'}/${m||'?'}</span>
+      <span class="tcard-hist-perf ${cls}">${perf!=null?(perf>=0?'+':'')+perf.toFixed(1)+'%':'—'}</span>
+      ${perf!=null&&perf<0?'<span style="font-size:10px;color:var(--red)">OV</span>':'<span style="font-size:10px;color:var(--felt-bright)">✓</span>'}
+    </div>`;
+  }).join('');
+  return `<div class="tcard-hist-tooltip">
+    <div class="tcard-hist-title">Últimas ${last5.length} rodadas ${alertBadge}</div>${rows}
+  </div>`;
+}
+
+/* ── Log de atividade ── */
+const _activityLog=[];
+
+function logActivity(text){
+  const n=nowInSP();
+  const time=`${String(n.hour).padStart(2,'0')}:${String(n.minute).padStart(2,'0')}`;
+  _activityLog.unshift({time,text});
+  if(_activityLog.length>50) _activityLog.pop();
+  const badge=document.querySelector('#activityBtn .activity-badge');
+  if(badge) badge.textContent=_activityLog.length;
+  const log=document.getElementById('activityLog');
+  if(log?.classList.contains('open')) renderActivityItems();
+}
+
+function renderActivityItems(){
+  const el=document.querySelector('#activityLog .activity-items');
+  if(!el) return;
+  el.innerHTML=_activityLog.map(e=>`<div class="activity-item"><span class="activity-time">${e.time}</span><span class="activity-text">${e.text}</span></div>`).join('')||'<div style="color:var(--ink-soft);font-size:11px;padding:4px 0">Nenhuma atividade ainda.</div>';
+}
+
+function toggleActivityLog(){
+  const log=document.getElementById('activityLog');
+  const btn=document.getElementById('activityBtn');
+  if(!log) return;
+  const open=log.classList.toggle('open');
+  if(btn) btn.style.display=open?'none':'flex';
+  if(open) renderActivityItems();
+}
+
 function cardTimeFlag(t){
   const cat = classify(t);
   const needsFix = mustFix(t, cat);
@@ -5757,6 +5829,7 @@ function setSharedSheet(rows, filename){
 })();
 
 initFirebaseSync();
+setTimeout(loadHistorico, 3000); // carregar histórico para tooltips dos cards
 
 /* gera o texto: Nome <tab> Hora <tab> R$ Buy-in <tab> Data por extenso <tab> ID */
 function buildCopyText(row, key){
@@ -7816,15 +7889,29 @@ function extractGlobalDaySection(matrix, weekdayName, divisor){
   if (!range) return null;
   const main = [], side = [], sat = [];
   let currentGroupHeader = null; // cabeçalho do grupo de satélite atual (coluna A), propagado até a próxima linha em branco
+  let emptyCount = 0;
   for (let i = range.startRow; i < range.endRow; i++){
     const row = matrix[i];
-    if (!row){ currentGroupHeader = null; continue; }
+    if (!row || row.every(v => v === null || v === undefined || v === '' || v === ' ')){
+      currentGroupHeader = null;
+      emptyCount++;
+      // Parar se encontrar bloco grande de linhas vazias (separa a grade dos torneios especiais)
+      if(emptyCount >= 5) break;
+      continue;
+    }
+    emptyCount = 0; // resetar contador de vazias
     const colA = row[0];
     const hora = cellToHHMM(row[1]);
     const nome = row[2];
     const tipo = row[3];
     const garantidoRaw = row[6];
     const buyinRaw = row[7];
+
+    // Pular linhas onde colA é uma data (torneios especiais/futuros — não são da grade regular)
+    // SheetJS representa datas como Date objects ou números seriais Excel (>40000)
+    if (colA instanceof Date || (typeof colA === 'number' && colA > 40000 && colA < 60000)) continue;
+    // Também pular se colA é string no formato de data "YYYY-MM-DD"
+    if (typeof colA === 'string' && /^\d{4}-\d{2}-\d{2}/.test(colA.trim())) continue;
 
     // linha totalmente vazia = separador entre grupos de satélite, fecha o grupo atual
     if (!nome && !hora && (colA === null || colA === undefined)){ currentGroupHeader = null; continue; }
