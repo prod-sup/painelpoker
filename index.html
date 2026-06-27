@@ -5237,7 +5237,8 @@ function initFirebaseSync(){
       if(premChanged){
         RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
         UPCOMING = [...RAW_ROWS];
-        renderResults(); renderUpcoming();
+        renderResults();
+        if(!isTypingInCard()) renderUpcoming();
       }
       // Só avisa se foi outra pessoa que enviou (não a própria sessão)
       if(!MY_LAST_UPLOAD_AT || Math.abs(data.uploadedAt - MY_LAST_UPLOAD_AT) > 15000){
@@ -5285,13 +5286,8 @@ function initFirebaseSync(){
         // Só faz renderUpcoming se nenhum input de premiação está em foco
         // (evita destruir o card enquanto o operador está digitando)
         const activeEl = document.activeElement;
-        const isTypingAny = activeEl && (
-          activeEl.classList.contains('tcard-prem-input') ||
-          activeEl.classList.contains('tcard-field-input') ||
-          activeEl.classList.contains('id-input')
-        );
         renderResults();
-        if(!isTypingAny && !window._suppressRenderUpcoming) renderUpcoming();
+        if(!isTypingInCard() && !window._suppressRenderUpcoming) renderUpcoming();
       }
     });
 
@@ -7727,7 +7723,7 @@ function loadSavedPremiacoes(){
     UPCOMING = [...RAW_ROWS];
     computeStats();
     renderResults();
-    renderUpcoming();
+    if(!isTypingInCard()) renderUpcoming();
   });
   // também carrega field
   fbDb.ref(`${FB_BASE_PATH}/field`).once('value').then(snap => {
@@ -9210,6 +9206,15 @@ function buildFixerRowHTML(key){
   return html;
 }
 
+// Retorna true se o usuário está digitando em qualquer campo de card
+function isTypingInCard(){
+  const ae = document.activeElement;
+  if(!ae) return false;
+  return ae.classList.contains('tcard-prem-input')
+      || ae.classList.contains('tcard-field-input')
+      || ae.classList.contains('id-input');
+}
+
 function formatPremInput(inp){
   // Formata o valor como R$ enquanto digita (ex: "150000" → "R$ 1.500,00")
   let raw = inp.value.replace(/[^0-9]/g,'');
@@ -9318,9 +9323,7 @@ function scheduleRenderAll(){
     computeStats(); updateProgress();
     renderUnfixed(); renderResults();
     // Só renderUpcoming se não há campo de card em foco
-    const _aeSch = document.activeElement;
-    const _typingSch = _aeSch && (_aeSch.classList.contains('tcard-prem-input') || _aeSch.classList.contains('tcard-field-input') || _aeSch.classList.contains('id-input'));
-    if(!_typingSch) renderUpcoming();
+    if(!isTypingInCard()) renderUpcoming();
   }, 150);
 }
 
@@ -9346,7 +9349,9 @@ function reinitDayListeners(){
       if(row && row.premiacao !== val){ row.premiacao = val; changed = true;
         try{ const pm=JSON.parse(localStorage.getItem('suprema_prem_v1')||'{}'); pm[key]=val; localStorage.setItem('suprema_prem_v1',JSON.stringify(pm)); }catch(e){}
         const inp = document.querySelector(`.tcard-prem-input[data-key="${key}"]`);
-        if(inp && document.activeElement !== inp) inp.value = val;
+        if(inp && document.activeElement !== inp){
+          inp.value = val != null ? fmtBRL(val, val % 1 === 0 ? 0 : 2) : '';
+        }
         renderCardOverlayPreview(key, row, val, getField(key));
       }
     });
@@ -9354,7 +9359,7 @@ function reinitDayListeners(){
     if(changed||RAW_ROWS.length){
       RESULTS  = RAW_ROWS.filter(r=>r.premiacao!==null&&r.premiacao!==undefined);
       UPCOMING = [...RAW_ROWS];
-      scheduleRenderAll();
+      if(!isTypingInCard()) scheduleRenderAll();
     }
   });
 
