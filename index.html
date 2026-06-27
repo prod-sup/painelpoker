@@ -5266,7 +5266,7 @@ function initFirebaseSync(){
           const inp = document.querySelector(`.tcard-prem-input[data-key="${key}"]`);
           if(inp && document.activeElement !== inp){
             // Formatar como BRL ao receber do Firebase
-            inp.value = val != null ? 'R$ '+Number(val).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '';
+            inp.value = val != null ? fmtBRL(val, val % 1 === 0 ? 0 : 2) : '';
           }
           renderCardOverlayPreview(key, row, val, getField(key));
         }
@@ -6412,9 +6412,11 @@ function renderUpcoming(){
       <div class="tcard-op-fields">
         <div class="tcard-op-field">
           <label class="tcard-prem-label">Premiação (R$)</label>
-          <input type="number" step="0.01" placeholder="—" class="tcard-prem-input" data-key="${key}"
-            value="${t.premiacao != null ? t.premiacao : ''}"
-            oninput="onCardPremiacaoInput(this)">
+          <input type="text" inputmode="decimal" placeholder="—" class="tcard-prem-input" data-key="${key}"
+            value="${t.premiacao != null ? fmtBRL(t.premiacao, t.premiacao % 1 === 0 ? 0 : 2) : ''}"
+            oninput="onCardPremiacaoInput(this)"
+            onfocus="this.select()"
+            onblur="formatPremInput(this)">
           ${hasCampanha(t) ? `<span class="tcard-campanha-badge">#AS</span>` : ''}
         </div>
         <div class="tcard-op-field">
@@ -7552,9 +7554,10 @@ function onCardPremiacaoInput(input){
   const key = input.dataset.key;
   const row = RAW_ROWS.find(r => r._key === key);
   if(!row) return;
-  const premiacaoVal = parseFloat(input.value);
+  // parsePremInput entende "2543,20", "2.543,20", "2543.20"
+  const premiacaoVal = parsePremInput(input);
   // Renderiza preview imediatamente com o valor atual do input
-  renderCardOverlayPreview(key, row, isNaN(premiacaoVal) ? row.premiacao : premiacaoVal, getField(key));
+  renderCardOverlayPreview(key, row, premiacaoVal != null ? premiacaoVal : row.premiacao, getField(key));
   clearTimeout(input._saveTimer);
   input._saveTimer = setTimeout(() => {
     const premiacaoVal = parsePremInput(input);
@@ -9215,6 +9218,16 @@ function formatPremInput(inp){
   inp.value = 'R$ ' + num.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
   inp._formatted = true; // marca que está no formato BRL
   return num;
+}
+
+function formatPremInput(inp){
+  // Formata o valor ao sair do campo: "2543,20" → "2.543,20"
+  const val = parsePremInput(inp);
+  if(val != null){
+    inp.value = fmtBRL(val, val % 1 === 0 ? 0 : 2);
+  } else if(inp.value.trim()){
+    // Valor inválido — não apaga, deixa o usuário corrigir
+  }
 }
 
 function parsePremInput(inp){
