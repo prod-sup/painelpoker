@@ -5667,9 +5667,12 @@ function setGarantidoOverride(key, val){
 function applyIdDuplicateChecks(){
   // agrupa: valor do ID (normalizado) -> lista de keys de torneio que usam esse valor
   const byValue = {};
-  Object.entries(ID_MAP).forEach(([key, val]) => {
-    const norm = String(val || '').trim();
-    if (!norm) return;
+  Object.entries(ID_MAP).forEach(([key, entry]) => {
+    // ID_MAP pode guardar string ou {val, by, at}
+    const norm = (typeof entry === 'object' && entry !== null)
+      ? String(entry.val || '').trim()
+      : String(entry || '').trim();
+    if (!norm || norm.toUpperCase() === 'NF') return; // NF não é duplicata
     if (!byValue[norm]) byValue[norm] = [];
     byValue[norm].push(key);
   });
@@ -5686,8 +5689,9 @@ function applyIdDuplicateChecks(){
     const warningEl = inp.closest('.copy-row')?.nextElementSibling;
     if (warningEl && warningEl.classList.contains('id-dup-warning')){
       if (isDup){
-        const sameIdKeys = byValue[String(getId(key)).trim()] || [];
-        const otherCount = sameIdKeys.length - 1;
+        const idVal = getId(key); // já retorna string normalizada
+        const sameIdKeys = byValue[idVal.trim()] || [];
+        const otherCount = Math.max(0, sameIdKeys.length - 1); // nunca negativo
         warningEl.hidden = false;
         warningEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9.5"/></svg>ID repetido em ${otherCount} outro${otherCount>1?'s':''} torneio${otherCount>1?'s':''}`;
       } else {
