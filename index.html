@@ -5667,6 +5667,9 @@ function setGarantidoOverride(key, val){
 function applyIdDuplicateChecks(){
   // agrupa: valor do ID (normalizado) -> lista de keys de torneio que usam esse valor
   const byValue = {};
+  // DEBUG — remover após confirmar
+  const sample = Object.entries(ID_MAP).slice(0,3);
+  console.log('[IDDup] ID_MAP sample:', sample);
   Object.entries(ID_MAP).forEach(([key, entry]) => {
     // ID_MAP pode guardar string ou {val, by, at}
     const norm = (typeof entry === 'object' && entry !== null)
@@ -5676,10 +5679,12 @@ function applyIdDuplicateChecks(){
     if (!byValue[norm]) byValue[norm] = [];
     byValue[norm].push(key);
   });
+  console.log('[IDDup] byValue:', byValue);
   const duplicatedKeys = new Set();
   Object.values(byValue).forEach(keys => {
     if (keys.length > 1) keys.forEach(k => duplicatedKeys.add(k));
   });
+  console.log('[IDDup] duplicatedKeys:', [...duplicatedKeys]);
 
   document.querySelectorAll('.id-input[data-key]').forEach(inp => {
     const key = inp.dataset.key;
