@@ -675,6 +675,7 @@ a.tb-back{text-decoration:none}
     <button class="ntab" onclick="nav('grade',this)"><span class="ni">📈</span>Grade</button>
     <span class="nav-group">Sistema</span>
     <button class="ntab" onclick="nav('operadores',this)"><span class="ni">👤</span>Operadores</button>
+    <button class="ntab" onclick="nav('backup',this)"><span class="ni">🗄️</span>Backup & Arquivo</button>
   </nav>
 
   <!-- MAIN -->
@@ -781,6 +782,15 @@ a.tb-back{text-decoration:none}
           <div style="font-size:12px;color:var(--ink3)">Carregando dados...</div>
         </div>
       </div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
+          <div><div class="card-title">📅 Comparativo semana a semana</div>
+               <div class="card-sub">Evolução de performance e overlay nas últimas 4 semanas</div></div>
+        </div>
+        <div style="padding:14px 18px" id="weeklyComparison">
+          <div style="font-size:12px;color:var(--ink3)">Carregando...</div>
+        </div>
+      </div>
       <div class="card">
         <div class="card-head"><div class="card-title">Top torneios com overlay</div></div>
         <div class="tbl-wrap">
@@ -873,6 +883,81 @@ a.tb-back{text-decoration:none}
             </tr></thead>
             <tbody id="opBody"></tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ BACKUP & ARQUIVO ══ -->
+    <div class="page" id="pageBackup">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow">Sistema</div>
+          <h1>Backup & Arquivo</h1>
+          <p>Exportação de dados históricos, limpeza automática e integração com Google Sheets</p>
+        </div>
+      </div>
+
+      <!-- Status do banco -->
+      <div class="kpi-grid" id="backupKpi" style="margin-bottom:22px"></div>
+
+      <!-- Export mensal -->
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
+          <div><div class="card-title">📦 Export mensal completo</div>
+               <div class="card-sub">Baixa todos os dados de um mês em XLSX — uma aba por dia</div></div>
+        </div>
+        <div style="padding:16px 18px">
+          <div class="filters" style="margin-bottom:14px">
+            <div class="fld"><label>Mês</label>
+              <select id="bkMonth" style="padding:7px 10px;min-width:140px">
+                <option value="">Selecione...</option>
+              </select>
+            </div>
+            <button class="btn btn-gold" onclick="exportMonthXlsx()">⬇ Exportar mês completo</button>
+            <button class="btn btn-ghost" onclick="exportAllTimeXlsx()">⬇ Exportar TUDO</button>
+          </div>
+          <div id="bkMonthStatus" style="font-size:12px;color:var(--ink3)"></div>
+        </div>
+      </div>
+
+      <!-- Limpeza automática -->
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
+          <div><div class="card-title">🧹 Limpeza automática</div>
+               <div class="card-sub">Remove dados do Firebase com mais de 90 dias — mantém snapshots e relatórios</div></div>
+          <div class="card-actions">
+            <button class="btn btn-ghost btn-sm" onclick="previewCleanup()">Pré-visualizar</button>
+            <button class="btn btn-red btn-sm" onclick="runCleanup()">Executar limpeza</button>
+          </div>
+        </div>
+        <div style="padding:16px 18px">
+          <div id="cleanupPreview" style="font-size:12px;color:var(--ink3)">
+            Clique em "Pré-visualizar" para ver quais datas serão removidas.
+          </div>
+        </div>
+      </div>
+
+      <!-- Google Sheets -->
+      <div class="card">
+        <div class="card-head">
+          <div><div class="card-title">📊 Google Sheets (backup diário)</div>
+               <div class="card-sub">Exporta os dados do dia atual para uma planilha Google automaticamente</div></div>
+          <div class="card-actions">
+            <button class="btn btn-gold btn-sm" onclick="exportToSheets()">Enviar hoje para Sheets</button>
+          </div>
+        </div>
+        <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+          <div class="mf" style="margin:0">
+            <label>URL da planilha Google (modo Apps Script)</label>
+            <input type="url" id="sheetsUrl" placeholder="https://script.google.com/macros/s/..." 
+              style="padding:8px 11px;font-size:12px"
+              value="${localStorage.getItem('suprema_sheets_url')||'https://script.google.com/macros/s/AKfycbzj9ytqb3Ai7l_yHWz95rMJrBPfrymMHtzU-F2UWALN8DadoYEwTrfdCaj1yZaZLbjl/exec'}">
+          </div>
+          <div style="font-size:11px;color:var(--ink3);line-height:1.6">
+            <b>Como configurar:</b> No Google Sheets, vá em Extensões → Apps Script → cole o script abaixo → Implantar → App da Web → copie a URL e cole acima.
+            <button class="btn btn-ghost btn-sm" style="margin-left:8px" onclick="copyAppsScript()">📋 Copiar script</button>
+          </div>
+          <div id="sheetsStatus" style="font-size:12px;color:var(--ink3)"></div>
         </div>
       </div>
     </div>
@@ -1336,6 +1421,7 @@ function nav(id,btn){
   if(pg)pg.classList.add('active');
   if(btn)btn.classList.add('active');
   if(id==='dashboard')buildDash();
+  if(id==='backup'){loadAll().then(()=>initBackup());}
   if(id==='grade')renderGrade();
   if(id==='audit')loadAudit();
   if(id==='fixados')loadFixados();
@@ -1592,6 +1678,69 @@ function buildDash(){
 
   // ── Insights inteligentes ──
   buildInsights(rows, closed, _dp);
+
+  // ── 11. Comparativo semana a semana ──
+  buildWeeklyComparison();
+}
+
+function buildWeeklyComparison(){
+  const el = document.getElementById('weeklyComparison');
+  if(!el) return;
+
+  // Últimas 4 semanas
+  const weeks = [];
+  for(let w=0;w<4;w++){
+    const from = dago(7*(w+1));
+    const to   = dago(7*w);
+    const rows = flatRows(from, to).filter(r=>r.premiacao!=null);
+    if(!rows.length){ weeks.push(null); continue; }
+    const gar   = rows.reduce((s,r)=>s+(r.garantido||0),0);
+    const prem  = rows.reduce((s,r)=>s+(r.premiacao||0),0);
+    const ov    = rows.reduce((s,r)=>s+(r.overlay||0),0);
+    const perf  = gar>0?(prem-gar)/gar*100:null;
+    const nf    = flatRows(from,to).filter(r=>r.status==='nf').length;
+    const [fy,fm,fd] = from.split('-');
+    const [ty,tm,td] = to.split('-');
+    weeks.push({label:`${fd}/${fm}–${td}/${tm}`, gar, prem, ov, perf, n:rows.length, nf});
+  }
+
+  const valid = weeks.filter(Boolean);
+  if(valid.length < 2){ el.innerHTML='<div style="color:var(--ink3);font-size:12px;padding:12px 0">Dados insuficientes para comparativo (mínimo 2 semanas).</div>'; return; }
+
+  // Trend da perf entre semana atual e anterior
+  const curr = weeks[0], prev = weeks[1];
+  const perfDiff = curr&&prev&&curr.perf!=null&&prev.perf!=null ? curr.perf-prev.perf : null;
+  const ovDiff   = curr&&prev ? curr.ov-prev.ov : null;
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:14px">
+      ${perfDiff!=null?`<div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:9px">
+        <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px">Perf. vs semana anterior</div>
+        <div style="font-size:20px;font-weight:800;font-family:var(--mono);color:${perfDiff>=0?'var(--green)':'var(--red)'}">${perfDiff>=0?'+':''}${perfDiff.toFixed(1)}%</div>
+      </div>`:''}
+      ${ovDiff!=null?`<div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:9px">
+        <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px">Overlay vs semana anterior</div>
+        <div style="font-size:20px;font-weight:800;font-family:var(--mono);color:${ovDiff<=0?'var(--green)':'var(--red)'}">${ovDiff<=0?'':'+'}${brlk(ovDiff)}</div>
+      </div>`:''}
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Semana</th><th class="r">Fechados</th>
+          <th class="r">GTD total</th><th class="r">Premiação</th>
+          <th class="r">Overlay</th><th class="r">Perf.</th><th class="r">NF</th>
+        </tr></thead>
+        <tbody>${weeks.map((w,i)=>w?`<tr style="${i===0?'font-weight:700':''}">
+          <td class="mono c-ink2">${w.label}</td>
+          <td class="r mono">${w.n}</td>
+          <td class="r mono">${brlk(w.gar)}</td>
+          <td class="r mono">${brlk(w.prem)}</td>
+          <td class="r mono ${w.ov<0?'c-red':'c-green'}">${brlk(w.ov)}</td>
+          <td class="r"><span class="perf ${w.perf>=0?'pos':'neg'}">${w.perf!=null?pct(w.perf):'—'}</span></td>
+          <td class="r mono ${w.nf>3?'c-red':'c-ink3'}">${w.nf}</td>
+        </tr>`:'<tr><td colspan="7" style="color:var(--ink3);font-size:11px;padding:6px 10px">Sem dados</td></tr>').join('')}</tbody>
+      </table>
+    </div>`;
 }
 
 function buildInsights(rows, closed, days){
@@ -1656,6 +1805,27 @@ function buildInsights(rows, closed, days){
   const nfCount = rows.filter(r=>r.status==='nf').length;
   if(nfCount > 5)
     insights.push({type:'warn', icon:'🚫', text:`<b>${nfCount}</b> torneios marcados como NF no período. Verificar se GTDs estão calibrados.`});
+
+  // 12. Alertas de calibração de GTD (torneios com overlay crônico)
+  const byName12 = {};
+  rows.filter(r=>r.premiacao!=null).forEach(r=>{
+    if(!byName12[r.nome]) byName12[r.nome]={nome:r.nome,cat:r.cat,n:0,ovN:0,gar:0};
+    byName12[r.nome].n++;
+    byName12[r.nome].gar += r.garantido||0;
+    if(r.overlay!=null&&r.overlay<0) byName12[r.nome].ovN++;
+  });
+  // Torneios com overlay em ≥60% das últimas 5+ rodadas
+  Object.values(byName12)
+    .filter(v=>v.n>=3&&v.ovN/v.n>=0.6)
+    .sort((a,b)=>b.ovN/b.n-a.ovN/a.n)
+    .slice(0,3)
+    .forEach(v=>{
+      const avgGar = v.gar/v.n;
+      insights.push({
+        type:'alert', icon:'🎯',
+        text:`<b>Calibração recomendada:</b> <b>${esc(v.nome)}</b> teve overlay em ${v.ovN}/${v.n} rodadas. GTD médio atual: R$ ${brl(avgGar,0)}. Considere reduzir o garantido.`
+      });
+    });
 
   if(!insights.length){
     el.innerHTML='<div style="font-size:12px;color:var(--ink3);padding:12px 0">✅ Nenhuma anomalia detectada no período.</div>';
@@ -2300,11 +2470,315 @@ function exportGradeXlsx(){
 }
 
 /* ── UTILS ───────────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   BACKUP & ARQUIVO
+══════════════════════════════════════════════════════════════ */
+
+// ── Inicializar página de backup ──
+async function initBackup(){
+  // Garantir URL padrão no campo
+  const urlField = document.getElementById('sheetsUrl');
+  if(urlField && !urlField.value) urlField.value = localStorage.getItem('suprema_sheets_url') || SHEETS_URL_DEFAULT;
+  await loadAll();
+  const dates = Object.keys(_allData).sort();
+  if(!dates.length){ document.getElementById('backupKpi').innerHTML='<div style="color:var(--ink3);font-size:12px">Nenhum dado encontrado.</div>'; return; }
+
+  // KPIs do banco
+  const totalDays  = dates.length;
+  const oldDays    = dates.filter(d => d < dago(90)).length;
+  const months     = [...new Set(dates.map(d=>d.slice(0,7)))];
+  const totalRows  = Object.values(_allData).reduce((s,d)=>s+Object.keys(d.rows||{}).length,0);
+
+  document.getElementById('backupKpi').innerHTML = `
+    <div class="kpi"><div class="kpi-label">Dias no banco</div><div class="kpi-val">${totalDays}</div><div class="kpi-sub">${months.length} meses</div></div>
+    <div class="kpi r"><div class="kpi-label">Dias antigos (>90d)</div><div class="kpi-val">${oldDays}</div><div class="kpi-sub">candidatos à limpeza</div></div>
+    <div class="kpi g"><div class="kpi-label">Total de torneios</div><div class="kpi-val">${totalRows.toLocaleString('pt-BR')}</div><div class="kpi-sub">registros históricos</div></div>
+    <div class="kpi b"><div class="kpi-label">Período</div><div class="kpi-val" style="font-size:13px">${fmtDate(dates[0])}</div><div class="kpi-sub">até ${fmtDate(dates[dates.length-1])}</div></div>
+  `;
+
+  // Popular select de meses
+  const sel = document.getElementById('bkMonth');
+  sel.innerHTML = '<option value="">Selecione o mês...</option>';
+  months.sort().reverse().forEach(m => {
+    const [y,mo] = m.split('-');
+    const label = new Date(y, mo-1, 1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+    sel.innerHTML += `<option value="${m}">${label.charAt(0).toUpperCase()+label.slice(1)}</option>`;
+  });
+}
+
+// ── 1. EXPORT MENSAL ──
+async function exportMonthXlsx(){
+  const month = document.getElementById('bkMonth').value;
+  if(!month){ toast('Selecione um mês','err'); return; }
+  const status = document.getElementById('bkMonthStatus');
+  status.textContent = 'Gerando XLSX...';
+
+  const dates = Object.keys(_allData).filter(d=>d.startsWith(month)).sort();
+  if(!dates.length){ toast('Sem dados neste mês','err'); status.textContent=''; return; }
+
+  const wb = XLSX.utils.book_new();
+  dates.forEach(date => {
+    const ws = buildDaySheet(date);
+    if(ws) XLSX.utils.book_append_sheet(wb, ws, date.slice(5).replace('-','/'));
+  });
+
+  // Aba de resumo do mês
+  const sumWs = buildMonthSummary(dates, month);
+  XLSX.utils.book_append_sheet(wb, sumWs, 'Resumo');
+
+  const [y,m] = month.split('-');
+  const label = new Date(y,m-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  XLSX.writeFile(wb, `Suprema_${month}.xlsx`);
+  toast(`✓ ${dates.length} dias exportados`,'ok');
+  status.textContent = `✓ ${dates.length} dias exportados (${label})`;
+}
+
+// ── EXPORT TUDO ──
+async function exportAllTimeXlsx(){
+  if(!confirm('Isso vai exportar TODOS os dados históricos em um XLSX. Pode demorar alguns segundos. Continuar?')) return;
+  const status = document.getElementById('bkMonthStatus');
+  status.textContent = 'Gerando arquivo completo...';
+
+  const dates = Object.keys(_allData).sort();
+  const wb = XLSX.utils.book_new();
+
+  // Agrupar por mês
+  const byMonth = {};
+  dates.forEach(d => {
+    const m = d.slice(0,7);
+    if(!byMonth[m]) byMonth[m] = [];
+    byMonth[m].push(d);
+  });
+
+  Object.entries(byMonth).sort().forEach(([month, mDates]) => {
+    mDates.forEach(date => {
+      const ws = buildDaySheet(date);
+      if(ws) XLSX.utils.book_append_sheet(wb, ws, date.replace(/-/g,'/').slice(2));
+    });
+    const sumWs = buildMonthSummary(mDates, month);
+    const [y,m] = month.split('-');
+    XLSX.utils.book_append_sheet(wb, sumWs, `${m}/${y.slice(2)} Resumo`);
+  });
+
+  XLSX.writeFile(wb, `Suprema_HistoricoCompleto_${nowSP()}.xlsx`);
+  toast(`✓ ${dates.length} dias exportados`,'ok');
+  status.textContent = `✓ Histórico completo exportado (${dates.length} dias)`;
+}
+
+// ── Construir aba de um dia ──
+function buildDaySheet(date){
+  const day = _allData[date];
+  if(!day) return null;
+  const rows = Object.values(day.rows||{}).filter(r=>r&&r.nome);
+  if(!rows.length) return null;
+
+  const DAY_START = 5*60;
+  const sortTime = arr => [...arr].sort((a,b)=>{
+    const ma=timeMin(a.hora)??9999, mb=timeMin(b.hora)??9999;
+    return (ma>=DAY_START?ma:ma+1440)-(mb>=DAY_START?mb:mb+1440);
+  });
+
+  const dateLabel = fmtDate(date);
+  const aoa = [[`ACOMPANHAMENTO — ${dateLabel}`],[]];
+  const groups = [
+    {cat:'main', rows:sortTime(rows.filter(r=>classify(r)==='main'))},
+    {cat:'side', rows:sortTime(rows.filter(r=>classify(r)==='side'))},
+    {cat:'sat',  rows:sortTime(rows.filter(r=>classify(r)==='sat'))},
+  ].filter(g=>g.rows.length);
+
+  groups.forEach(g=>{
+    const cc = CAT_COLORS[g.cat];
+    aoa.push([cc.label]);
+    aoa.push(['Torneio','Hora','Late Reg.','Garantido','Buy-in','Premiação','Overlay','Field','Perf%','ID','Status']);
+    let sG=0,sP=0,sO=0;
+    g.rows.forEach(r=>{
+      const key  = Object.keys(day.rows).find(k=>day.rows[k]===r)||'';
+      const prem = day.prem?.[key]??r.premiacao??null;
+      const gar  = day.guar?.[key]??r.garantido??null;
+      const field= day.field?.[key]??r.field??null;
+      const idRaw= day.ids?.[key];
+      const id   = typeof idRaw==='object'&&idRaw?idRaw.val||'':idRaw||'';
+      const ov   = prem!=null&&gar!=null?prem-gar:null;
+      const perf = ov!=null&&gar>0?((prem-gar)/gar*100):null;
+      const status = id.toUpperCase()==='NF'?'Não formou':prem!=null?'Fechado':'Aberto';
+      if(gar)sG+=gar; if(prem)sP+=prem; if(ov)sO+=ov;
+      aoa.push([r.nome,r.hora,r.late||'',gar??'',r.buyin??'',prem??'',ov??'',field??'',
+        perf!=null?perf/100:'',id,status]);
+    });
+    aoa.push([`Total`,'','',sG||'','',sP||'',sO||'','','','','']);
+    aoa.push([]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [32,7,10,13,10,13,12,8,8,12,10].map(w=>({wch:w}));
+  return ws;
+}
+
+// ── Construir aba de resumo mensal ──
+function buildMonthSummary(dates, month){
+  const aoa = [['Data','Torneios','Fechados','GTD Total','Premiação','Overlay','Perf%']];
+  let totT=0,totF=0,totG=0,totP=0,totO=0;
+  dates.forEach(date=>{
+    const day = _allData[date];
+    if(!day) return;
+    const rows = Object.values(day.rows||{}).filter(r=>r&&r.nome);
+    const prems = Object.keys(day.rows||{}).map(k=>day.prem?.[k]??null).filter(v=>v!=null);
+    const gars  = Object.keys(day.rows||{}).map(k=>day.guar?.[k]??day.rows[k]?.garantido??0);
+    const sumG  = gars.reduce((s,v)=>s+v,0);
+    const sumP  = prems.reduce((s,v)=>s+v,0);
+    const sumO  = prems.length?prems.reduce((s,v,i)=>s+(v-(gars[i]||0)),0):0;
+    const perf  = sumG>0?(sumP-sumG)/sumG*100:null;
+    totT+=rows.length; totF+=prems.length; totG+=sumG; totP+=sumP; totO+=sumO;
+    aoa.push([fmtDate(date),rows.length,prems.length,sumG||'',sumP||'',sumO||'',
+      perf!=null?perf/100:'']);
+  });
+  aoa.push(['TOTAL',totT,totF,totG,totP,totO,totG>0?(totP-totG)/totG/100:'']);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [12,10,10,14,14,12,8].map(w=>({wch:w}));
+  return ws;
+}
+
+// ── 2. LIMPEZA AUTOMÁTICA (>90 dias) ──
+async function previewCleanup(){
+  const cutoff = dago(90);
+  const old = Object.keys(_allData).filter(d=>d<cutoff).sort();
+  const el  = document.getElementById('cleanupPreview');
+
+  if(!old.length){
+    el.innerHTML = '<span style="color:var(--green)">✅ Nenhum dado com mais de 90 dias. Banco limpo.</span>';
+    return;
+  }
+
+  el.innerHTML = `
+    <div style="margin-bottom:10px;color:var(--amber)">
+      ⚠ <b>${old.length} dia(s)</b> com mais de 90 dias serão removidos do Firebase:
+    </div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--ink3);line-height:1.8">
+      ${old.map(d=>`<span style="margin-right:12px">${fmtDate(d)}</span>`).join('')}
+    </div>
+    <div style="margin-top:10px;font-size:11.5px;color:var(--ink3)">
+      ℹ️ Os snapshots e relatórios XLSX desses dias <b>não serão removidos</b> — apenas os dados ao vivo do painel.
+    </div>`;
+}
+
+async function runCleanup(){
+  const cutoff = dago(90);
+  const old    = Object.keys(_allData).filter(d=>d<cutoff).sort();
+  if(!old.length){ toast('Nada para limpar','ok'); return; }
+
+  if(!confirm(`Remover ${old.length} dia(s) do Firebase (dados anteriores a ${fmtDate(cutoff)})? Snapshots e XLSX serão mantidos.`)) return;
+
+  const el = document.getElementById('cleanupPreview');
+  el.innerHTML = '<span style="color:var(--ink3)">Limpando...</span>';
+
+  let removed = 0;
+  for(const date of old){
+    try{
+      // Remover só o nó painel/ — manter snapshots/ e relatorios/
+      await db.ref(`painel/${date}`).remove();
+      delete _allData[date];
+      removed++;
+    }catch(e){ console.error('Erro ao remover', date, e); }
+  }
+
+  el.innerHTML = `<span style="color:var(--green)">✅ ${removed} dia(s) removidos do Firebase.</span>`;
+  toast(`✓ ${removed} dias removidos`,'ok');
+  initBackup(); // atualizar KPIs
+}
+
+// ── 3. GOOGLE SHEETS ──
+const APPS_SCRIPT = `// Cole este script no Apps Script da sua planilha Google
+// Extensões → Apps Script → cole → Implantar → App da Web (Qualquer pessoa)
+
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheetName = data.date || new Date().toLocaleDateString('pt-BR');
+    let sheet = ss.getSheetByName(sheetName);
+    if (!sheet) sheet = ss.insertSheet(sheetName);
+    sheet.clearContents();
+
+    // Cabeçalho
+    sheet.getRange(1, 1, 1, 9).setValues([['Torneio','Hora','Categoria','Garantido','Buy-in','Premiação','Overlay','Field','Status']]);
+
+    // Dados
+    if (data.rows && data.rows.length) {
+      const values = data.rows.map(r => [
+        r.nome||'', r.hora||'', r.cat||'',
+        r.garantido||'', r.buyin||'', r.premiacao||'',
+        r.overlay||'', r.field||'', r.status||''
+      ]);
+      sheet.getRange(2, 1, values.length, 9).setValues(values);
+    }
+
+    // Formatar
+    sheet.getRange(1, 1, 1, 9).setFontWeight('bold').setBackground('#1a472a').setFontColor('#ffffff');
+    sheet.autoResizeColumns(1, 9);
+
+    return ContentService.createTextOutput(JSON.stringify({ok:true})).setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService.createTextOutput(JSON.stringify({error:err.message})).setMimeType(ContentService.MimeType.JSON);
+  }
+}`;
+
+function copyAppsScript(){
+  navigator.clipboard.writeText(APPS_SCRIPT)
+    .then(()=>toast('✓ Script copiado — cole no Apps Script','ok'))
+    .catch(()=>{ prompt('Copie o script abaixo:', APPS_SCRIPT); });
+}
+
+const SHEETS_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbzj9ytqb3Ai7l_yHWz95rMJrBPfrymMHtzU-F2UWALN8DadoYEwTrfdCaj1yZaZLbjl/exec';
+
+async function exportToSheets(){
+  const url = document.getElementById('sheetsUrl').value.trim() || SHEETS_URL_DEFAULT;
+  if(!url){ toast('Cole a URL do Apps Script primeiro','err'); return; }
+  localStorage.setItem('suprema_sheets_url', url);
+
+  const today = nowSP();
+  const day   = _allData[today];
+  if(!day){ toast('Sem dados de hoje para enviar','err'); return; }
+
+  const rows = Object.entries(day.rows||{}).map(([key,r])=>{
+    if(!r||!r.nome) return null;
+    const prem  = day.prem?.[key]??r.premiacao??null;
+    const gar   = day.guar?.[key]??r.garantido??null;
+    const field = day.field?.[key]??r.field??null;
+    const ov    = prem!=null&&gar!=null?prem-gar:null;
+    const idRaw = day.ids?.[key];
+    const id    = typeof idRaw==='object'&&idRaw?idRaw.val||'':idRaw||'';
+    return {nome:r.nome,hora:r.hora,cat:classify(r),garantido:gar,buyin:r.buyin,
+      premiacao:prem,overlay:ov,field,status:id.toUpperCase()==='NF'?'Não formou':prem!=null?'Fechado':'Aberto'};
+  }).filter(Boolean);
+
+  const status = document.getElementById('sheetsStatus');
+  status.textContent = 'Enviando...';
+
+  try{
+    const res = await fetch(url, {
+      method:'POST',
+      body: JSON.stringify({date:fmtDate(today), rows}),
+    });
+    const json = await res.json();
+    if(json.ok){
+      toast('✓ Dados enviados para Google Sheets','ok');
+      status.textContent = `✓ ${rows.length} torneios enviados em ${new Date().toLocaleTimeString('pt-BR')}`;
+    } else {
+      throw new Error(json.error||'Resposta inválida');
+    }
+  }catch(e){
+    toast('Erro ao enviar: '+e.message,'err');
+    status.textContent = '❌ '+e.message;
+  }
+}
+
 function timeMin(h){
   if(!h)return null;
   const m=h.match(/(\d{1,2}):(\d{2})/);
   return m?parseInt(m[1])*60+parseInt(m[2]):null;
 }
+
+
 function closeMo(id){document.getElementById(id).classList.remove('open');}
 
 async function openAuditSummary(){
