@@ -2336,8 +2336,31 @@
 
 /* ══ 5. Modo compacto ══ */
 /* Linha compacta escondida por padrão — só aparece no modo compacto */
-.tcard-compact-row{ display:none !important; }
-.upcoming-grid.compact-mode .tcard-compact-row{ display:contents !important; }
+/* ── Itens compactos ── */
+.compact-list{ display:flex;flex-direction:column;gap:0; }
+.tcard-compact-item{
+  display:grid;
+  grid-template-columns:minmax(160px,1fr) 55px 90px 90px 90px 30px 90px;
+  align-items:center;gap:0;padding:8px 14px;
+  border-bottom:1px solid var(--hairline);
+  background:var(--card);font-size:12px;
+  transition:background .1s;
+}
+.tcard-compact-item:first-child{ border-top:1px solid var(--hairline);border-radius:10px 10px 0 0; }
+.tcard-compact-item:last-child{ border-radius:0 0 10px 10px; }
+.tcard-compact-item:hover{ background:var(--card-elevated); }
+.tcard-compact-item.is-fixed{ border-left:3px solid var(--felt-bright); }
+.tcard-compact-item.is-nf{ opacity:.45;text-decoration:line-through; }
+.tci-nome{ font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:8px }
+.tci-hora{ color:var(--ink-soft);font-family:var(--mono) }
+.tci-gar{ color:var(--ink-soft);font-family:var(--mono);text-align:right }
+.tci-prem{ font-family:var(--mono);text-align:right;color:var(--ink-soft) }
+.tci-prem.filled{ color:var(--ink);font-weight:600 }
+.tci-ov{ font-family:var(--mono);text-align:right;font-weight:700 }
+.tci-ov.neg{ color:var(--red) }
+.tci-ov.pos{ color:var(--felt-bright) }
+.tci-fix{ color:var(--felt-bright);font-weight:700;text-align:center }
+.tci-id{ color:var(--ink-soft);font-size:10px;font-family:var(--mono);text-align:right;overflow:hidden;text-overflow:ellipsis }
 
 .upcoming-grid.compact-mode{
   display:flex;flex-direction:column;gap:0;
@@ -6610,18 +6633,6 @@ function renderUpcoming(){
             value="${getField(key) || ''}"
             oninput="onCardFieldInput(this)">
         </div>
-      </div>
-      <!-- Modo compacto: linha resumida -->
-      <div class="tcard-compact-row">
-        <div class="tcard-compact-cell tcard-compact-name">${t.nome}</div>
-        <div class="tcard-compact-cell tcard-compact-hora">${t.hora||'—'}</div>
-        <div class="tcard-compact-cell">${t.garantido!=null?'R$'+fmtBRL(t.garantido,0):'—'}</div>
-        <div class="tcard-compact-cell">${t.premiacao!=null?'R$'+fmtBRL(t.premiacao,0):'—'}</div>
-        <div class="tcard-compact-cell tcard-compact-ov ${(t.premiacao!=null&&t.garantido!=null)?(t.premiacao-t.garantido<0?'neg':'pos'):''}">
-          ${(t.premiacao!=null&&t.garantido!=null)?((t.premiacao-t.garantido<0?'-':'+')+'R$'+fmtBRL(Math.abs(t.premiacao-t.garantido),0)):'—'}
-        </div>
-        <div class="tcard-compact-cell">${isFixed(key)?'✓ Fixado':'—'}</div>
-        <div class="tcard-compact-cell">${getId(key)||'—'}</div>
       </div>
       <!-- Preview calculado: overlay, ações, performance -->
       <div class="tcard-overlay-preview" id="tcard-ov-${key}"></div>
