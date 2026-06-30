@@ -2335,6 +2335,10 @@
 }
 
 /* ══ 5. Modo compacto ══ */
+/* Linha compacta escondida por padrão — só aparece no modo compacto */
+.tcard-compact-row{ display:none !important; }
+.upcoming-grid.compact-mode .tcard-compact-row{ display:contents !important; }
+
 .upcoming-grid.compact-mode{
   display:flex;flex-direction:column;gap:0;
 }
