@@ -3779,6 +3779,102 @@ function buildHistTooltip(nome){
   </div>`;
 }
 
+/* ══ 1. Resumo de passagem de turno ══ */
+function generateShiftSummary(){
+  if(!RAW_ROWS.length){ showToast('Nenhum dado no turno.', true); return; }
+
+  const n       = nowInSP();
+  const dateStr = `${String(n.day).padStart(2,'0')}/${String(n.month).padStart(2,'0')}/${n.year}`;
+  const timeStr = `${String(n.hour).padStart(2,'0')}:${String(n.minute).padStart(2,'0')}`;
+  const op      = OPERATOR_NAME || 'Operador';
+
+  const closed   = RESULTS.filter(r => r.premiacao != null);
+  const total    = RAW_ROWS.length;
+  const nfCount  = RAW_ROWS.filter(r => getId(r._key).toUpperCase() === 'NF').length;
+  const ovTotal  = closed.reduce((s,r) => s + ((r.premiacao||0) - (r.garantido||0)), 0);
+  const premTotal= closed.reduce((s,r) => s + (r.premiacao||0), 0);
+
+  // Maior overlay e maior excedente
+  const withOv  = closed.filter(r => r.premiacao < r.garantido).sort((a,b) => (a.premiacao-a.garantido)-(b.premiacao-b.garantido));
+  const withExc = closed.filter(r => r.premiacao > r.garantido).sort((a,b) => (b.premiacao-b.garantido)-(a.premiacao-a.garantido));
+  const piorOv  = withOv[0];
+  const melhorE = withExc[0];
+
+  const lines = [
+    `🎯 *Relatório de Turno — ${dateStr}*`,
+    `⏰ Gerado às ${timeStr} por ${op}`,
+    ``,
+    `📊 *Resumo*`,
+    `• Torneios: ${total} total | ${closed.length} fechados | ${nfCount} NF`,
+    `• Premiação total: R$ ${fmtBRL(premTotal,2)}`,
+    `• Overlay acumulado: ${ovTotal < 0 ? '-' : '+'}R$ ${fmtBRL(Math.abs(ovTotal),2)}`,
+    ``,
+  ];
+
+  if(piorOv){
+    const ov = piorOv.premiacao - piorOv.garantido;
+    lines.push(`🔴 *Maior overlay:* ${piorOv.nome} (${piorOv.hora}) — R$ ${fmtBRL(Math.abs(ov),2)}`);
+  }
+  if(melhorE){
+    const exc = melhorE.premiacao - melhorE.garantido;
+    lines.push(`🟢 *Maior excedente:* ${melhorE.nome} (${melhorE.hora}) — +R$ ${fmtBRL(exc,2)}`);
+  }
+  if(closed.length < total){
+    const abertos = RAW_ROWS.filter(r => r.premiacao == null && getId(r._key).toUpperCase() !== 'NF');
+    if(abertos.length){
+      lines.push(``);
+      lines.push(`⏳ *Pendentes (${abertos.length}):*`);
+      abertos.slice(0,5).forEach(r => lines.push(`• ${r.nome} (${r.hora})`));
+      if(abertos.length > 5) lines.push(`• ...e mais ${abertos.length-5}`);
+    }
+  }
+  lines.push(``);
+  lines.push(`✅ Turno encerrado.`);
+
+  const txt = lines.join(String.fromCharCode(10));
+  // Abrir drawer de relatório e preencher
+  const ta = document.getElementById('shiftReportText');
+  if(ta){
+    ta.value = txt;
+    openDrawer('shiftReportDrawerOverlay');
+  }
+  // Copiar para clipboard
+  navigator.clipboard.writeText(txt).then(()=>{
+    showToast('✓ Resumo de turno copiado para a área de transferência!');
+    logActivity('Resumo de turno gerado e copiado');
+  }).catch(()=> showToast('✓ Resumo gerado no drawer de relatório'));
+}
+
+/* ══ 8. Comparativo dia vs média histórica ══ */
+function updateVsMedia(){
+  const el = document.getElementById('statVsMedia');
+  if(!el) return;
+  if(!Object.keys(_historico).length){ el.textContent=''; return; }
+
+  // Calcular overlay médio por dia dos últimos 30 dias
+  const hoje = nowInSP();
+  const hojeStr = `${hoje.year}-${String(hoje.month).padStart(2,'0')}-${String(hoje.day).padStart(2,'0')}`;
+  let totalOvHist = 0, diasHist = 0;
+
+  fbDb.ref('historico').orderByKey().limitToLast(30).once('value').then(snap=>{
+    const data = snap.val()||{};
+    Object.entries(data).forEach(([dayKey, torneios])=>{
+      if(!torneios||typeof torneios!=='object') return;
+      if(dayKey === `d_${hojeStr.replace(/-/g,'_')}`) return; // pular hoje
+      let ovDia = 0;
+      Object.values(torneios).forEach(t=>{ if(t&&t.perf!=null) ovDia += (t.overlay||0)-(t.garantido||0); });
+      if(ovDia !== 0){ totalOvHist += ovDia; diasHist++; }
+    });
+    if(!diasHist){ el.textContent=''; return; }
+    const mediaOv = totalOvHist / diasHist;
+    const hojeOv = RESULTS.reduce((s,r)=>s+((r.premiacao||0)-(r.garantido||0)),0);
+    const diff = hojeOv - mediaOv;
+    const sign = diff >= 0 ? '+' : '';
+    el.textContent = `vs média: ${sign}R$ ${fmtBRL(Math.abs(diff),0)}`;
+    el.style.color = diff >= 0 ? 'var(--felt-bright)' : 'var(--red)';
+  }).catch(()=>{});
+}
+
 /* ── Log de atividade ── */
 const _activityLog=[];
 
@@ -5884,7 +5980,7 @@ function buildDaySummaryText(){
     });
   }
 
-  return lines.join('\n');
+  return lines.join(String.fromCharCode(10));
 }
 
 async function copyToClipboard(text, btnEl, successMsg){
@@ -8371,11 +8467,24 @@ function getCashTableMatrix(sheetKey){
 /* acha a linha de cabeçalho procurando "NOME MESA" na 2ª coluna — a posição varia entre abas
    (linha 3 em algumas, linha 6 em outras), então não dá pra fixar um número */
 function findCashTableHeaderRow(matrix){
-  for (let i = 0; i < Math.min(matrix.length, 15); i++){
+  for (let i = 0; i < Math.min(matrix.length, 20); i++){
     const row = matrix[i];
-    if (row && normText(row[1]) === 'nome mesa') return i;
+    if(!row) continue;
+    // Verificar qualquer célula da linha que seja "NOME MESA" ou "NOME"
+    for(let c = 0; c < Math.min(row.length, 5); c++){
+      if(row[c] && normText(String(row[c])).includes('nome')) return i;
+    }
   }
   return -1;
+}
+
+function findBlindCol(matrix, headerRow){
+  // Procurar coluna "BLINDS" no header dinamicamente
+  const header = matrix[headerRow] || [];
+  for(let c = 0; c < header.length; c++){
+    if(header[c] && normText(String(header[c])).includes('blind')) return c;
+  }
+  return 8; // fallback: coluna padrão
 }
 
 function searchCashTables(sheetKey, blindSmall, blindBig){
@@ -8383,21 +8492,48 @@ function searchCashTables(sheetKey, blindSmall, blindBig){
   if (!matrix) return null;
   const headerRow = findCashTableHeaderRow(matrix);
   if (headerRow === -1) return [];
+
+  // Detectar colunas dinamicamente a partir do header
+  const header = matrix[headerRow] || [];
+  const colIdx = {};
+  header.forEach((cell, c) => {
+    if(!cell) return;
+    const n = normText(String(cell));
+    if(n.includes('blind'))    colIdx.blinds  = c;
+    if(n.includes('nome'))     colIdx.nome    = c;
+    if(n === 'max' || n.includes('max')) colIdx.max = c;
+    if(n.includes('double') || n.includes('db')) colIdx.db = c;
+    if(n.includes('cucuru'))   colIdx.cucuru  = c;
+    if(n.includes('bomb'))     colIdx.bomb    = c;
+    if(n.includes('buy'))      colIdx.buyin   = c;
+  });
+
+  // Fallback para colunas padrão (NLH/PLO)
+  const C = {
+    nome:   colIdx.nome   ?? 1,
+    db:     colIdx.db     ?? 3,
+    cucuru: colIdx.cucuru ?? 4,
+    bomb:   colIdx.bomb   ?? 5,
+    max:    colIdx.max    ?? 6,
+    blinds: colIdx.blinds ?? 8,
+    buyin:  colIdx.buyin  ?? 10,
+  };
+
   const results = [];
   for (let i = headerRow+1; i < matrix.length; i++){
     const row = matrix[i];
-    if (!row || !row[1]) continue; // sem nome de mesa
-    const nome = String(row[1]).trim();
-    const blinds = parseCashBlinds(row[8], nome);
+    if (!row || !row[C.nome]) continue;
+    const nome = String(row[C.nome]).trim();
+    const blinds = parseCashBlinds(row[C.blinds], nome);
     if (!blinds) continue;
     if (Math.abs(blinds.small - blindSmall) > 0.001 || Math.abs(blinds.big - blindBig) > 0.001) continue;
     results.push({
       nome,
-      maxTable: row[6],
-      doubleBoard: row[3],
-      cucurucho: row[4],
-      bombPot: row[5],
-      buyin: row[10],
+      maxTable: row[C.max],
+      doubleBoard: row[C.db],
+      cucurucho: row[C.cucuru],
+      bombPot: row[C.bomb],
+      buyin: row[C.buyin],
     });
   }
   return results;

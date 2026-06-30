@@ -670,6 +670,8 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
       </div>
       <button class="btn btn-ghost" onclick="openAuditSummary()">📋 Resumo auditoria</button>
       <button class="btn btn-ghost" onclick="openNotifHistory()">📨 Notificações</button>
+      <button class="btn btn-ghost" onclick="openAdminLog()">📋 Log admin</button>
+      <button class="btn btn-ghost" onclick="buildFieldTrend();document.getElementById('moFieldTrend').classList.add('open')">📈 Field trend</button>
       <button class="btn btn-ghost" onclick="openOpRanking()">🏆 Ranking</button>
       <button class="btn btn-ghost" onclick="openOverlayHeatmap()">🔥 Heatmap</button>
       <button class="btn btn-ghost" onclick="openJustifs()" style="position:relative">
@@ -994,6 +996,39 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
             <button class="btn btn-ghost btn-sm" style="margin-left:8px" onclick="copyAppsScript()">📋 Copiar script</button>
           </div>
           <div id="sheetsStatus" style="font-size:12px;color:var(--ink3)"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL: Log de Auditoria ══ -->
+    <div class="modal-bg" id="moAdminLog">
+      <div class="modal" style="max-width:820px">
+        <h2>📋 Log de auditoria</h2>
+        <div class="msub">Registro imutável de todas as ações do admin — últimas 100</div>
+        <div class="tbl-wrap" style="max-height:460px;overflow-y:auto">
+          <table>
+            <thead><tr><th>Data/Hora</th><th>Ação</th><th>Admin</th><th>Detalhes</th></tr></thead>
+            <tbody id="adminLogBody"></tbody>
+          </table>
+        </div>
+        <div class="modal-actions"><button class="btn btn-ghost" onclick="closeMo('moAdminLog')" style="flex:1;justify-content:center">Fechar</button></div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL: Tendência de Field ══ -->
+    <div class="modal-bg" id="moFieldTrend">
+      <div class="modal" style="max-width:620px">
+        <h2>📈 Tendência de field por torneio</h2>
+        <div class="msub">Comparativo dos últimos 30 dias vs 30-60 dias anteriores — mínimo 2 rodadas em cada período</div>
+        <div class="tbl-wrap" style="max-height:440px;overflow-y:auto">
+          <table>
+            <thead><tr><th>Torneio</th><th class="r">Média ant.</th><th class="r">Média rec.</th><th class="r">Variação</th><th>Tendência</th></tr></thead>
+            <tbody id="fieldTrendBody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--ink3)">Clique em Atualizar</td></tr></tbody>
+          </table>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-gold" onclick="buildFieldTrend()">Atualizar</button>
+          <button class="btn btn-ghost" onclick="closeMo('moFieldTrend')" style="flex:1;justify-content:center">Fechar</button>
         </div>
       </div>
     </div>
@@ -2460,6 +2495,13 @@ async function saveAudit(){
 
     closeMo('moAudit');
     toast(approved ? '✓ Aprovado sem correção' : '✓ Dado corrigido e salvo no Firebase', 'ok');
+    // 12. Log de auditoria permanente
+    writeAdminLog(approved ? 'aprovar' : 'corrigir', {
+      torneio: _auditContext.nome, date: _auditContext.date,
+      premOriginal: _auditContext.premiacao, premNova: approved?null:prem,
+      fieldOriginal: _auditContext.field, fieldNovo: approved?null:field,
+      obs,
+    });
     // Re-renderizar a auditoria para mostrar badge
     loadAudit();
   } catch(e){
@@ -2907,6 +2949,142 @@ function timeMin(h){
 
 
 function closeMo(id){document.getElementById(id).classList.remove('open');}
+
+/* ── 10. Filtro só anomalias ── */
+let _soAnomalia = false;
+function toggleSoAnomalia(){
+  _soAnomalia = !_soAnomalia;
+  const btn = document.getElementById('btnSoAnomalia');
+  if(btn){
+    btn.style.background = _soAnomalia ? 'rgba(239,68,68,.1)' : '';
+    btn.style.color = _soAnomalia ? 'var(--red)' : '';
+    btn.style.borderColor = _soAnomalia ? 'rgba(239,68,68,.3)' : '';
+    btn.textContent = _soAnomalia ? '✕ Todas as linhas' : '⚠ Só anomalias';
+  }
+  // Esconder/mostrar linhas
+  document.querySelectorAll('#auditResult tr[data-key]').forEach(tr=>{
+    if(_soAnomalia){
+      tr.style.display = tr.classList.contains('anomalia') ? '' : 'none';
+    } else {
+      tr.style.display = '';
+    }
+  });
+}
+
+/* ── 11. Notificar anomalias em lote ── */
+async function batchNotifyAnomalias(){
+  const anomalas = [...document.querySelectorAll('#auditResult tr.anomalia')];
+  if(!anomalas.length){ toast('Nenhuma anomalia detectada no período.','err'); return; }
+  if(!confirm(`Notificar os operadores responsáveis por ${anomalas.length} anomalia(s)? Isso enviará uma notificação individual para cada um.`)) return;
+
+  let sent = 0;
+  for(const tr of anomalas){
+    const key  = tr.dataset.key;
+    const date = tr.dataset.date;
+    const r    = _auditRows.find(r=>r.key===key&&r.date===date);
+    if(!r||!r.fixBy) continue;
+    // Identificar a anomalia
+    const anomalias = [];
+    if(r.premiacao===0) anomalias.push('Premiação R$0');
+    if(r.premiacao!=null&&r.garantido&&r.premiacao>r.garantido*3) anomalias.push('Premiação muito alta');
+    if(r.overlay!=null&&r.garantido&&Math.abs(r.overlay)>r.garantido*0.5) anomalias.push('Overlay >50% GTD');
+    if(!anomalias.length) anomalias.push('Anomalia detectada');
+
+    try{
+      const emailKey = r.fixBy.replace(/[.#$\[\]]/g,'_').toLowerCase();
+      const notifId = 'notif_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+      await db.ref(`userNotifs/${emailKey}/${notifId}`).set({
+        type:'anomalia', typeLabel:'Anomalia automática',
+        torneio: r.nome, date: r.date,
+        desc: anomalias.join('; '),
+        sentBy: _email, sentAt: Date.now(),
+        resolved: false,
+      });
+      sent++;
+    }catch(e){ console.error('batchNotify error:', e); }
+  }
+  toast(`✓ ${sent} notificação(ões) enviada(s)`,'ok');
+  await writeAdminLog('batchNotifyAnomalias', {count:sent, date:nowSP()});
+}
+
+/* ── 12. Log de auditoria permanente ── */
+async function writeAdminLog(action, meta={}){
+  if(!fbOk) return;
+  try{
+    const logId = Date.now()+'_'+Math.random().toString(36).slice(2,6);
+    await db.ref('adminLog/'+logId).set({
+      action, ...meta,
+      admin: _email,
+      at: Date.now(),
+      atStr: new Date().toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}),
+    });
+  }catch(e){ console.warn('adminLog error:', e); }
+}
+
+async function openAdminLog(){
+  const mo = document.getElementById('moAdminLog');
+  const el = document.getElementById('adminLogBody');
+  if(!mo||!el) return;
+  try{
+    const snap = await db.ref('adminLog').orderByKey().limitToLast(100).once('value');
+    const all  = snap.val()||{};
+    const rows = Object.values(all).sort((a,b)=>(b.at||0)-(a.at||0));
+    el.innerHTML = rows.length ? rows.map(r=>`<tr>
+      <td class="mono c-ink3" style="font-size:10px;white-space:nowrap">${r.atStr||'—'}</td>
+      <td class="c-ink2">${esc(r.action||'—')}</td>
+      <td class="c-ink3" style="font-size:10px">${esc(r.admin||'—')}</td>
+      <td class="c-ink3" style="font-size:10px">${esc(JSON.stringify(r).slice(0,80))}</td>
+    </tr>`).join('') :
+    '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--ink3)">Nenhum registro ainda.</td></tr>';
+  }catch(e){ el.innerHTML='<tr><td colspan="4" style="color:var(--red)">Erro ao carregar.</td></tr>'; }
+  mo.classList.add('open');
+}
+
+/* ── 13. Tendência de field por torneio ── */
+function buildFieldTrend(){
+  const el = document.getElementById('fieldTrendBody');
+  if(!el) return;
+
+  const today = nowSP();
+  const mid   = dago(30);
+  const old   = dago(60);
+
+  const rows60 = flatRows(old, today).filter(r=>r.field!=null&&r.field>0);
+  const byName = {};
+  rows60.forEach(r=>{
+    if(!byName[r.nome]) byName[r.nome]={recent:[],older:[]};
+    if(r.date >= mid) byName[r.nome].recent.push(r.field);
+    else              byName[r.nome].older.push(r.field);
+  });
+
+  const trends = Object.entries(byName)
+    .filter(([,v])=>v.recent.length>=2&&v.older.length>=2)
+    .map(([nome,v])=>{
+      const avgR = v.recent.reduce((s,x)=>s+x,0)/v.recent.length;
+      const avgO = v.older.reduce((s,x)=>s+x,0)/v.older.length;
+      const pct  = avgO>0?((avgR-avgO)/avgO*100):0;
+      return {nome, avgR:Math.round(avgR), avgO:Math.round(avgO), pct:Math.round(pct*10)/10};
+    })
+    .sort((a,b)=>Math.abs(b.pct)-Math.abs(a.pct))
+    .slice(0,20);
+
+  if(!trends.length){
+    el.innerHTML='<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--ink3)">Dados insuficientes (mín. 2 rodadas em cada período).</td></tr>';
+    return;
+  }
+
+  el.innerHTML = trends.map(t=>{
+    const icon = t.pct>=10?'📈':t.pct<=-10?'📉':'➡️';
+    const color = t.pct>=10?'var(--green)':t.pct<=-10?'var(--red)':'var(--ink3)';
+    return `<tr>
+      <td class="nm">${esc(t.nome)}</td>
+      <td class="r mono">${t.avgO}</td>
+      <td class="r mono">${t.avgR}</td>
+      <td class="r mono" style="color:${color};font-weight:700">${t.pct>=0?'+':''}${t.pct}%</td>
+      <td style="font-size:16px;text-align:center">${icon}</td>
+    </tr>`;
+  }).join('');
+}
 
 /* ── 1. Atalhos de período ── */
 function setAuditPeriod(period){
