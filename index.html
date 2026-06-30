@@ -1851,11 +1851,13 @@
 
   /* ── Evento não formou (NF) ── */
   .tcard.is-nf{
-    opacity:.55;filter:grayscale(.4);
+    opacity:.42;filter:grayscale(.7);
     border-left-color:var(--ink-soft) !important;
-    background:repeating-linear-gradient(-45deg,transparent,transparent 8px,rgba(0,0,0,.018) 8px,rgba(0,0,0,.018) 16px);
+    background:repeating-linear-gradient(-45deg,transparent,transparent 8px,rgba(0,0,0,.025) 8px,rgba(0,0,0,.025) 16px);
+    transition:opacity .25s,filter .25s;
   }
-  .tcard.is-nf:hover{ opacity:.8;filter:none; }
+  .tcard.is-nf .tcard-name{ text-decoration:line-through; text-decoration-color:var(--ink-soft); }
+  .tcard.is-nf:hover{ opacity:.7;filter:grayscale(.3); }
   .tcard-nf-banner{
     display:flex;align-items:center;gap:6px;
     background:rgba(110,110,115,.12);border-radius:8px;
@@ -5238,7 +5240,7 @@ function initFirebaseSync(){
         RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
         UPCOMING = [...RAW_ROWS];
         renderResults();
-        if(!isTypingInCard()) renderUpcoming();
+        if(!isTypingInCard() && !window._suppressRenderUpcoming) renderUpcoming();
       }
       // Só avisa se foi outra pessoa que enviou (não a própria sessão)
       if(!MY_LAST_UPLOAD_AT || Math.abs(data.uploadedAt - MY_LAST_UPLOAD_AT) > 15000){
@@ -6311,18 +6313,11 @@ function renderUpcoming(){
     return;
   }
 
-  // ordem cronológica simples, ancorada no início do dia operacional (05:00) — não mais "mais próximo
-  // do agora primeiro". Antes, qualquer torneio que já tivesse começado ia parar no fim da lista, o que
-  // escondia os torneios de início de turno (madrugada/05h-07h) lá embaixo assim que passava das 9h da
-  // manhã. Agora a lista sempre mostra 05:00, 05:30, 06:00... até 23:30 em ordem, do topo pro fim —
-  // só o intervalo 00:00–04:59 (cauda da madrugada, fim do turno anterior) fica no final, depois das 23:30.
-  const DAY_START_MIN = 5 * 60; // 05:00
+  // ordem cronológica simples, do início do dia (00:00) até o fim (23:59) — sem cauda separada
   filtered = [...filtered].sort((a, b) => {
     const ma = timeToMinutes(a.hora) ?? 9999;
     const mb = timeToMinutes(b.hora) ?? 9999;
-    const orderA = ma >= DAY_START_MIN ? ma : ma + 1440; // antes das 5h conta como "depois da meia-noite seguinte"
-    const orderB = mb >= DAY_START_MIN ? mb : mb + 1440;
-    return orderA - orderB;
+    return ma - mb;
   });
 
   // monta todos os cards num DocumentFragment (fora do DOM ativo) e insere tudo de uma vez no final —
@@ -6911,6 +6906,17 @@ function checkDayComplete(){
     _lastDayCompleteCheck = true;
     // Aguardar 3s para garantir que o último save chegou ao Firebase
     setTimeout(async () => {
+      // Trava distribuída: só um operador salva, mesmo se os dois fecharem o último card juntos
+      if(fbReady){
+        const lockRef = fbDb.ref(`${FB_BASE_PATH}/_autoSaveLock`);
+        try{
+          const result = await lockRef.transaction(curr => {
+            if(curr && Date.now() - curr < 10000) return; // já travado nos últimos 10s — aborta
+            return Date.now();
+          });
+          if(!result.committed) return; // outro operador já está salvando
+        }catch(e){ /* segue mesmo se a trava falhar */ }
+      }
       const ok = await saveReportToFirebase(true); // silent
       if(ok){
         showToast('🏁 Último card preenchido — relatório do dia salvo automaticamente no servidor!');
@@ -7562,7 +7568,8 @@ function onCardPremiacaoInput(input){
       if(fbReady){
         window._suppressRenderUpcoming = true; // ignorar eco do Firebase
         fbDb.ref(`${FB_BASE_PATH}/premiacao/${key}`).set(premiacaoVal);
-        setTimeout(() => { window._suppressRenderUpcoming = false; }, 1500);
+        clearTimeout(window._suppressTimer);
+        window._suppressTimer = setTimeout(() => { window._suppressRenderUpcoming = false; }, 4000);
       }
       // Persistir premiação no localStorage (garantia mesmo sem Firebase)
       try {
@@ -7638,25 +7645,24 @@ function renderCardOverlayPreview(key, row, premiacaoVal, fieldVal){
 
   // Sempre exibe os 3 campos — mostra "—" quando sem dados
 
-  /* ── Ações (nunca é o field diretamente — é sempre calculado) ── */
+  /* ── Ações = (premiação ÷ buy-in bruto) × multiplicador por categoria ──
+     Main Event:                  × 0.88
+     Satélite:                    × 0.95
+     Side Event COM campanha:     × 0.88
+     Side Event SEM campanha:     × 0.95
+  ── */
   let acoes = null;
+  const mult = cat === 'main' ? 0.88
+             : cat === 'sat'  ? 0.95
+             : (isCamp ? 0.88 : 0.9); // side com/sem campanha
+
   if(!isNaN(prem) && prem > 0 && buyin > 0){
-    // calcula via premiação ÷ buy-in-líquido, ajustado por categoria
-    const buyinLiq = buyin * (1 - rake);
-    if(buyinLiq > 0){
-      if(cat === 'main')       acoes = Math.round((prem / buyinLiq) * 0.88 * 10) / 10;
-      else if(cat === 'sat')   acoes = Math.round((prem / buyinLiq) * 0.95 * 10) / 10;
-      else                     acoes = Math.round((prem / buyinLiq) * (isCamp ? 0.88 : 1) * 10) / 10;
-    }
+    acoes = Math.round((prem / buyin) * mult * 10) / 10;
   } else if(!isNaN(field) && field > 0 && buyin > 0){
-    // se só tem field e buyin (sem premiação digitada ainda), estima ações
+    // estimativa antes da premiação ser preenchida: pool ≈ field × buyin líquido de rake
     const buyinLiq = buyin * (1 - rake);
-    if(buyinLiq > 0){
-      const poolEstimado = field * buyinLiq;
-      if(cat === 'main')       acoes = Math.round((poolEstimado / buyinLiq) * 0.88 * 10) / 10;
-      else if(cat === 'sat')   acoes = Math.round((poolEstimado / buyinLiq) * 0.95 * 10) / 10;
-      else                     acoes = Math.round((poolEstimado / buyinLiq) * (isCamp ? 0.88 : 1) * 10) / 10;
-    }
+    const poolEstimado = field * buyinLiq;
+    acoes = Math.round((poolEstimado / buyin) * mult * 10) / 10;
   }
 
   // Overlay — sempre visível
@@ -7664,7 +7670,7 @@ function renderCardOverlayPreview(key, row, premiacaoVal, fieldVal){
   const ovFinal = overlay != null
     ? `<div class="tcard-ov-cell">
         <span class="tcard-ov-label">${overlay < 0 ? 'Overlay' : 'Excedente'}</span>
-        <span class="tcard-ov-val ${overlay < 0 ? 'negative' : 'positive'}">${overlay < 0 ? '-' : '+'}R$${fmtBRL(Math.abs(overlay),0)}</span>
+        <span class="tcard-ov-val ${overlay < 0 ? 'negative' : 'positive'}">${overlay < 0 ? '-' : '+'}R$${fmtBRL(Math.abs(overlay), Math.abs(overlay)%1===0?0:2)}</span>
        </div>`
     : `<div class="tcard-ov-cell">
         <span class="tcard-ov-label">Overlay</span>
@@ -9359,7 +9365,7 @@ function reinitDayListeners(){
     if(changed||RAW_ROWS.length){
       RESULTS  = RAW_ROWS.filter(r=>r.premiacao!==null&&r.premiacao!==undefined);
       UPCOMING = [...RAW_ROWS];
-      if(!isTypingInCard()) scheduleRenderAll();
+      if(!isTypingInCard() && !window._suppressRenderUpcoming) scheduleRenderAll();
     }
   });
 
@@ -9602,7 +9608,7 @@ async function loadMultiDayData(){
         <td>${closed.length}</td>
         <td>R$ ${fmtBRL(gtd,0)}</td>
         <td>${prem > 0 ? 'R$ '+fmtBRL(prem,0) : '—'}</td>
-        <td class="${ov < 0 ? 'mdr-neg' : ''}">${ov !== 0 ? 'R$ '+fmtBRL(ov,0) : '—'}</td>
+        <td class="${ov < 0 ? 'mdr-neg' : ''}">${ov !== 0 ? 'R$ '+fmtBRL(ov, ov%1===0?0:2) : '—'}</td>
       </tr>`;
     });
     html += '</tbody></table>';

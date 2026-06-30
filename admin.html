@@ -613,6 +613,19 @@ a.tb-back{text-decoration:none}
 }
 .audit-val-orig span{display:block;font-size:9px;color:var(--ink3);margin-bottom:3px;letter-spacing:.06em;text-transform:uppercase}
 .audit-val-orig strong{font-size:14px;color:var(--ink2)}
+
+/* ── 11. Anomalias na auditoria ── */
+tr.anomalia td:first-child{ border-left:3px solid var(--red); }
+tr.anomalia{ background:rgba(239,68,68,.03) !important; }
+
+/* ── 2. Ações em lote ── */
+#batchActions{
+  display:none;align-items:center;gap:8px;
+  padding:8px 12px;background:var(--goldf);
+  border:1px solid var(--goldb);border-radius:8px;
+  margin-bottom:10px;
+}
+.c-amber{ color:var(--amber,#f59e0b) !important; }
 </style>
 </head>
 <body>
@@ -656,6 +669,9 @@ a.tb-back{text-decoration:none}
         <span id="adminName">—</span>
       </div>
       <button class="btn btn-ghost" onclick="openAuditSummary()">📋 Resumo auditoria</button>
+      <button class="btn btn-ghost" onclick="openNotifHistory()">📨 Notificações</button>
+      <button class="btn btn-ghost" onclick="openOpRanking()">🏆 Ranking</button>
+      <button class="btn btn-ghost" onclick="openOverlayHeatmap()">🔥 Heatmap</button>
       <button class="btn btn-ghost" onclick="openJustifs()" style="position:relative">
         📩 Justificativas
         <span id="pendingBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--amber);color:#000;font-size:9px;font-weight:800;border-radius:99px;padding:1px 5px;min-width:14px;text-align:center"></span>
@@ -694,9 +710,19 @@ a.tb-back{text-decoration:none}
           <button class="btn btn-gold" onclick="loadAudit()">Buscar</button>
         </div>
       </div>
-      <div class="filters">
-        <div class="fld"><label>De</label><input type="date" id="auFrom"></div>
-        <div class="fld"><label>Até</label><input type="date" id="auTo"></div>
+      <div class="filters" style="flex-wrap:wrap;gap:8px">
+        <!-- Atalhos de semana -->
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3)">Período</span>
+          <button class="btn btn-ghost btn-sm" onclick="setAuditPeriod('today')">Hoje</button>
+          <button class="btn btn-ghost btn-sm" onclick="setAuditPeriod('week')">Esta semana</button>
+          <button class="btn btn-ghost btn-sm" onclick="setAuditPeriod('lastweek')">Semana passada</button>
+          <button class="btn btn-ghost btn-sm" onclick="setAuditPeriod('month')">Este mês</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div class="fld"><label>De</label><input type="date" id="auFrom"></div>
+          <div class="fld"><label>Até</label><input type="date" id="auTo"></div>
+        </div>
         <div class="fld"><label>Categoria</label>
           <select id="auCat">
             <option value="">Todas</option>
@@ -780,6 +806,16 @@ a.tb-back{text-decoration:none}
         </div>
         <div style="padding:14px 18px" id="dashInsights">
           <div style="font-size:12px;color:var(--ink3)">Carregando dados...</div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
+          <div><div class="card-title">📈 Projeção do mês</div>
+               <div class="card-sub">Tendência de premiação e overlay com base nos dias rodados</div></div>
+          <div class="card-actions"><button class="btn btn-ghost btn-sm" onclick="buildMonthProjection()">Atualizar</button></div>
+        </div>
+        <div style="padding:14px 18px" id="monthProjection">
+          <div style="font-size:12px;color:var(--ink3)">Carregando...</div>
         </div>
       </div>
       <div class="card" style="margin-bottom:18px">
@@ -959,6 +995,51 @@ a.tb-back{text-decoration:none}
           </div>
           <div id="sheetsStatus" style="font-size:12px;color:var(--ink3)"></div>
         </div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL: Histórico de Notificações ══ -->
+    <div class="modal-bg" id="moNotifHistory">
+      <div class="modal" style="max-width:780px">
+        <h2>📋 Histórico de notificações</h2>
+        <div class="msub">Todas as notificações enviadas aos operadores</div>
+        <div class="tbl-wrap" style="max-height:460px;overflow-y:auto">
+          <table>
+            <thead><tr><th>Enviado em</th><th>Torneio</th><th>Tipo</th><th>Por</th><th>Status</th><th>Operador</th></tr></thead>
+            <tbody id="notifHistoryBody"></tbody>
+          </table>
+        </div>
+        <div class="modal-actions"><button class="btn btn-ghost" onclick="closeMo('moNotifHistory')" style="flex:1;justify-content:center">Fechar</button></div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL: Ranking de Operadores ══ -->
+    <div class="modal-bg" id="moOpRanking">
+      <div class="modal" style="max-width:680px">
+        <h2>🏆 Ranking de operadores</h2>
+        <div class="msub">Performance dos últimos 30 dias</div>
+        <div class="tbl-wrap" style="max-height:420px;overflow-y:auto">
+          <table>
+            <thead><tr><th>#</th><th>Operador</th><th class="r">Torneios</th><th class="r">Fixados</th><th class="r">Com ID</th><th class="r">Sem prem.</th><th class="r">Notif.</th></tr></thead>
+            <tbody id="opRankingBody"></tbody>
+          </table>
+        </div>
+        <div class="modal-actions"><button class="btn btn-ghost" onclick="closeMo('moOpRanking')" style="flex:1;justify-content:center">Fechar</button></div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL: Heatmap de Overlay por Horário ══ -->
+    <div class="modal-bg" id="moHeatmap">
+      <div class="modal" style="max-width:580px">
+        <h2>🔥 Overlay por horário</h2>
+        <div class="msub">Distribuição de overlay por faixa de horário — últimos 30 dias</div>
+        <div class="tbl-wrap" style="max-height:440px;overflow-y:auto">
+          <table>
+            <thead><tr><th>Hora</th><th class="r">Torneios</th><th class="r">Com OV</th><th>Taxa OV</th><th class="r">OV Total</th></tr></thead>
+            <tbody id="heatmapBody"></tbody>
+          </table>
+        </div>
+        <div class="modal-actions"><button class="btn btn-ghost" onclick="closeMo('moHeatmap')" style="flex:1;justify-content:center">Fechar</button></div>
       </div>
     </div>
 
@@ -1310,12 +1391,28 @@ async function loadAll(){
     if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{}};
 
     // sheet.rows é ARRAY — converter para objeto com rk_ keys
+    // Merge por nome+hora (não recalcula hash) para evitar duplicar o mesmo torneio
+    // quando o garantido muda entre o snapshot e o painel ao vivo (hash diferente)
+    const existingByNomeHora = {};
+    Object.entries(_allData[date].rows).forEach(([k,r])=>{
+      if(r?.nome && r?.hora) existingByNomeHora[`${r.nome}|${r.hora}`] = k;
+    });
+
     const arr = Array.isArray(day.sheet?.rows) ? day.sheet.rows : [];
     arr.forEach(r=>{
       if(!r||typeof r!=='object')return;
-      const k=rowKey(r);
-      if(!_allData[date].rows[k]){
-        _allData[date].rows[k]={...r,_key:k};
+      const mergeKey = `${r.nome}|${r.hora}`;
+      const existingK = existingByNomeHora[mergeKey];
+      if(existingK){
+        // Já existe (veio do snapshot) — não duplicar, só garantir que os dados base estão completos
+        if(!_allData[date].rows[existingK].buyin) _allData[date].rows[existingK].buyin = r.buyin;
+        if(!_allData[date].rows[existingK].garantido) _allData[date].rows[existingK].garantido = r.garantido;
+      } else {
+        const k = rowKey(r);
+        if(!_allData[date].rows[k]){
+          _allData[date].rows[k]={...r,_key:k};
+          existingByNomeHora[mergeKey] = k;
+        }
       }
     });
 
@@ -1367,8 +1464,14 @@ function flatRows(fromDate, toDate){
   Object.entries(_allData).forEach(([date,day])=>{
     if(fromDate&&date<fromDate)return;
     if(toDate&&date>toDate)return;
+    // Deduplicar por nome+hora dentro do mesmo dia (proteção contra hash divergente
+    // entre snapshot e painel ao vivo, que gera keys diferentes pro mesmo torneio)
+    const seenInDay = new Set();
     Object.entries(day.rows).forEach(([key,r])=>{
       if(!r||typeof r!=='object')return;
+      const dedupeKey = `${(r.nome||'').trim()}|${(r.hora||'').trim()}`;
+      if(seenInDay.has(dedupeKey)) return; // já processado este torneio neste dia
+      seenInDay.add(dedupeKey);
 
       // Premiação: snapshot já tem r.premiacao, ou vem do nó premiacao
       const prem = day.prem[key]??r.premiacao??null;
@@ -1506,6 +1609,16 @@ async function loadAudit(){
     const allPrem=dayRows.filter(r=>r.premiacao!=null).reduce((s,r)=>s+(r.premiacao||0),0);
     const allOv=dayRows.reduce((s,r)=>s+(r.overlay||0),0);
     const closed=dayRows.filter(r=>r.status==='fechado').length;
+    // Status de auditoria do dia
+    const totalDay = dayRows.length;
+    const auditedDay = dayRows.filter(r=>r._audited).length;
+    const semPrem = dayRows.filter(r=>r.status==='aberto').length;
+    const dayStatusHtml = `
+      <div style="display:flex;gap:10px;font-size:10.5px;color:var(--ink3);margin-left:auto">
+        ${auditedDay>0?`<span style="color:var(--green)">✓ ${auditedDay} auditado${auditedDay>1?'s':''}</span>`:''}
+        ${auditedDay<totalDay?`<span style="color:var(--amber)">⏳ ${totalDay-auditedDay} pendente${totalDay-auditedDay>1?'s':''}</span>`:''}
+        ${semPrem>0?`<span style="color:var(--ink3)">📭 ${semPrem} sem premiação</span>`:''}
+      </div>`;
     const groupsHtml=groups.map(g=>{
       const cc=CAT_COLORS[g.cat];
       let sumGar=0,sumPrem=0,sumOv=0,count=0;
@@ -1517,9 +1630,20 @@ async function loadAudit(){
         if(r.garantido)sumGar+=r.garantido;
         if(r.premiacao)sumPrem+=r.premiacao;
         if(r.overlay)sumOv+=r.overlay;
-        const trCls = [cls, r._audited ? 'audit-edited' : ''].filter(Boolean).join(' ');
-        return `<tr class="${trCls}">
-          <td class="nm" style="max-width:200px">${esc(r.nome)}</td>
+        // 11. Detectar anomalias automaticamente
+        const anomalias = [];
+        if(r.premiacao === 0) anomalias.push('Premiação R$0');
+        if(r.premiacao != null && r.garantido && r.premiacao > r.garantido * 3) anomalias.push('Premiação muito alta');
+        if(r.field != null && r.buyin && r.field > 0 && r.garantido && (r.field * r.buyin) < r.garantido * 0.1) anomalias.push('Field baixo pro GTD');
+        if(r.overlay != null && r.garantido && Math.abs(r.overlay) > r.garantido * 0.5) anomalias.push('Overlay >50% GTD');
+        const hasAnomalia = anomalias.length > 0 && !r._audited;
+        const trCls = [cls, r._audited?'audit-edited':'', hasAnomalia?'anomalia':''].filter(Boolean).join(' ');
+        const anomaliaHtml = hasAnomalia ? `<span title="${anomalias.join(', ')}" style="font-size:9px;background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.2);border-radius:4px;padding:1px 5px;margin-left:4px">⚠ ${anomalias[0]}</span>` : '';
+        return `<tr class="${trCls}" data-key="${r.key}" data-date="${r.date}">
+          <td><input type="checkbox" class="row-check" data-key="${r.key}" data-date="${r.date}"
+            style="accent-color:var(--felt);width:14px;height:14px"
+            onchange="updateBatchActions()"></td>
+          <td class="nm" style="max-width:200px">${esc(r.nome)}${anomaliaHtml}</td>
           <td class="mono">${esc(r.hora)}</td>
           <td class="mono">${esc(r.late)}</td>
           <td class="r mono">${r.garantido!=null?'R$ '+brl(r.garantido):'—'}</td>
@@ -1551,6 +1675,7 @@ async function loadAudit(){
         </div>
         <table class="audit-table">
           <thead><tr>
+            <th style="width:32px"><input type="checkbox" id="checkAll" onchange="toggleCheckAll(this)" style="accent-color:var(--felt);width:14px;height:14px"></th>
             <th>Torneio</th><th>Hora</th><th>Late</th>
             <th class="r">GTD</th><th class="r">Buy-in</th><th class="r">Premiação</th>
             <th class="r">Overlay</th><th class="r">Field</th><th class="r">Perf.</th>
@@ -1678,6 +1803,8 @@ function buildDash(){
 
   // ── Insights inteligentes ──
   buildInsights(rows, closed, _dp);
+  // ── Projeção do mês ──
+  buildMonthProjection();
 
   // ── 11. Comparativo semana a semana ──
   buildWeeklyComparison();
@@ -2780,6 +2907,268 @@ function timeMin(h){
 
 
 function closeMo(id){document.getElementById(id).classList.remove('open');}
+
+/* ── 1. Atalhos de período ── */
+function setAuditPeriod(period){
+  const today = nowSP();
+  let from = today, to = today;
+  if(period === 'today'){
+    from = to = today;
+  } else if(period === 'week'){
+    // Segunda-feira desta semana
+    const d = new Date(today + 'T12:00:00');
+    const day = d.getDay() || 7; // dom=7
+    d.setDate(d.getDate() - day + 1);
+    from = d.toISOString().slice(0,10);
+    to   = today;
+  } else if(period === 'lastweek'){
+    const d = new Date(today + 'T12:00:00');
+    const day = d.getDay() || 7;
+    d.setDate(d.getDate() - day + 1);
+    const endD = new Date(d); endD.setDate(endD.getDate() - 1);
+    d.setDate(d.getDate() - 7);
+    from = d.toISOString().slice(0,10);
+    to   = endD.toISOString().slice(0,10);
+  } else if(period === 'month'){
+    from = today.slice(0,7) + '-01';
+    to   = today;
+  }
+  const auFrom = document.getElementById('auFrom');
+  const auTo   = document.getElementById('auTo');
+  if(auFrom) auFrom.value = from;
+  if(auTo)   auTo.value   = to;
+  loadAudit();
+}
+
+/* ── 2. Lote de aprovação ── */
+function updateBatchActions(){
+  const checks = document.querySelectorAll('.row-check:checked');
+  const bar = document.getElementById('batchActions');
+  const count = document.getElementById('batchCount');
+  if(bar) bar.style.display = checks.length > 0 ? 'flex' : 'none';
+  if(count) count.textContent = `${checks.length} selecionado${checks.length>1?'s':''}`;
+}
+
+function toggleCheckAll(cb){
+  document.querySelectorAll('.row-check').forEach(c => {
+    c.checked = cb.checked;
+  });
+  updateBatchActions();
+}
+
+function batchDeselect(){
+  document.querySelectorAll('.row-check, #checkAll').forEach(c => c.checked = false);
+  updateBatchActions();
+}
+
+async function batchApprove(){
+  const checks = [...document.querySelectorAll('.row-check:checked')];
+  if(!checks.length) return;
+  if(!confirm(`Aprovar ${checks.length} torneio${checks.length>1?'s':''} sem correção?`)) return;
+
+  const bar = document.getElementById('batchActions');
+  if(bar) bar.innerHTML = '<span style="font-size:11px;color:var(--ink3)">Salvando...</span>';
+
+  let done = 0;
+  for(const cb of checks){
+    const key  = cb.dataset.key;
+    const date = cb.dataset.date;
+    const r = _auditRows.find(r=>r.key===key&&r.date===date);
+    if(!r) continue;
+    const entry = {
+      premiacaoOriginal: r.premiacao??null, fieldOriginal: r.field??null,
+      premiacaoAuditada: r.premiacao??null, fieldAuditado: r.field??null,
+      status:'aprovado', obs:null,
+      auditadoEm: Date.now(), auditadoPor: _email||'admin',
+      nome: r.nome, hora: r.hora,
+    };
+    try{
+      await db.ref(`auditoria/${date}/${key}`).set(entry);
+      if(!_auditData[date]) _auditData[date] = {};
+      _auditData[date][key] = entry;
+      r._audited = true; r._auditEntry = entry;
+      done++;
+    }catch(e){ console.error('batchApprove error:', e); }
+  }
+  toast(`✓ ${done} torneio${done>1?'s':''} aprovado${done>1?'s':''}`, 'ok');
+  batchDeselect();
+  loadAudit();
+}
+
+/* ── 4. Histórico de notificações por operador ── */
+async function openNotifHistory(){
+  if(!fbOk) return;
+  const snap = await db.ref('userNotifs').once('value');
+  const all  = snap.val()||{};
+  const mo   = document.getElementById('moNotifHistory');
+  const el   = document.getElementById('notifHistoryBody');
+  if(!mo||!el) return;
+
+  const rows = [];
+  Object.entries(all).forEach(([emailKey, notifs])=>{
+    Object.entries(notifs||{}).forEach(([id, n])=>{
+      rows.push({emailKey, id, ...n});
+    });
+  });
+  rows.sort((a,b)=>(b.sentAt||0)-(a.sentAt||0));
+
+  if(!rows.length){
+    el.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--ink3)">Nenhuma notificação enviada ainda.</td></tr>';
+  } else {
+    el.innerHTML = rows.map(n=>`<tr>
+      <td class="mono c-ink3" style="font-size:10px">${n.sentAt?new Date(n.sentAt).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—'}</td>
+      <td class="nm">${esc(n.torneio||'—')}</td>
+      <td>${esc(n.typeLabel||n.type||'—')}</td>
+      <td class="c-ink2">${esc(n.sentBy||'—')}</td>
+      <td><span class="badge ${n.resolved?'badge-closed':'badge-open'}">${n.resolved?'Resolvido':'Pendente'}</span></td>
+      <td class="c-ink3 mono" style="font-size:10px">${esc(n.emailKey||'')}</td>
+    </tr>`).join('');
+  }
+  mo.classList.add('open');
+}
+
+/* ── 5. Ranking de operadores ── */
+async function openOpRanking(){
+  const mo = document.getElementById('moOpRanking');
+  const el = document.getElementById('opRankingBody');
+  if(!mo||!el) return;
+
+  const rows = flatRows(dago(30), nowSP());
+  const byOp = {};
+
+  rows.forEach(r=>{
+    const op = r.fixBy || r.idBy || '(sem operador)';
+    if(!byOp[op]) byOp[op]={op, total:0, fixados:0, comId:0, overlay:0, semPrem:0, notifs:0};
+    byOp[op].total++;
+    if(r.fixBy) byOp[op].fixados++;
+    if(r.id && r.id.toUpperCase()!=='NF' && r.id.trim()) byOp[op].comId++;
+    if(r.overlay!=null&&r.overlay<0) byOp[op].overlay++;
+    if(r.status==='aberto') byOp[op].semPrem++;
+  });
+
+  // Contar notificações por operador
+  try{
+    const snap = await db.ref('userNotifs').once('value');
+    const all = snap.val()||{};
+    Object.entries(all).forEach(([emailKey, notifs])=>{
+      const count = Object.keys(notifs||{}).length;
+      Object.values(byOp).forEach(op=>{
+        if(emailKey.includes(op.op.replace(/\s/g,'').toLowerCase())) op.notifs += count;
+      });
+    });
+  }catch(e){}
+
+  const sorted = Object.values(byOp).sort((a,b)=>b.total-a.total);
+
+  el.innerHTML = sorted.map((op,i)=>`<tr>
+    <td style="font-weight:700;color:var(--ink3)">${i+1}</td>
+    <td class="nm">${esc(op.op)}</td>
+    <td class="r mono">${op.total}</td>
+    <td class="r mono">${op.fixados}</td>
+    <td class="r mono">${op.comId}</td>
+    <td class="r mono ${op.semPrem>5?'c-red':''}">${op.semPrem}</td>
+    <td class="r mono ${op.notifs>0?'c-amber':''}">${op.notifs}</td>
+  </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--ink3)">Sem dados nos últimos 30 dias.</td></tr>';
+
+  mo.classList.add('open');
+}
+
+/* ── 6. Heatmap de overlay por horário ── */
+async function openOverlayHeatmap(){
+  const mo = document.getElementById('moHeatmap');
+  const el = document.getElementById('heatmapBody');
+  if(!mo||!el) return;
+
+  const rows = flatRows(dago(30), nowSP()).filter(r=>r.premiacao!=null&&r.garantido);
+  const byHour = {};
+  rows.forEach(r=>{
+    const h = r.hora ? r.hora.slice(0,2) : '??';
+    if(!byHour[h]) byHour[h]={h, total:0, ovCount:0, ovTotal:0, gar:0};
+    byHour[h].total++;
+    byHour[h].gar += r.garantido;
+    if(r.overlay!=null&&r.overlay<0){ byHour[h].ovCount++; byHour[h].ovTotal+=Math.abs(r.overlay); }
+  });
+
+  const hours = Object.values(byHour).sort((a,b)=>a.h.localeCompare(b.h));
+  const maxOvPct = Math.max(...hours.map(h=>h.total>0?h.ovCount/h.total:0), 0.01);
+
+  el.innerHTML = hours.map(h=>{
+    const pct_ = h.total>0 ? h.ovCount/h.total : 0;
+    const bar = Math.round(pct_/maxOvPct*100);
+    const color = pct_>=0.6?'var(--red)':pct_>=0.3?'var(--amber)':'var(--green)';
+    return `<tr>
+      <td class="mono c-ink2">${h.h}:xx</td>
+      <td class="r mono">${h.total}</td>
+      <td class="r mono ${pct_>=0.4?'c-red':''}">${h.ovCount}</td>
+      <td class="r" style="min-width:120px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;height:8px;background:var(--s3);border-radius:4px;overflow:hidden">
+            <div style="width:${bar}%;height:100%;background:${color};border-radius:4px"></div>
+          </div>
+          <span style="font-size:10px;font-family:var(--mono);color:${color}">${Math.round(pct_*100)}%</span>
+        </div>
+      </td>
+      <td class="r mono c-red">${h.ovTotal>0?brlk(h.ovTotal):'—'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--ink3)">Sem dados suficientes.</td></tr>';
+
+  mo.classList.add('open');
+}
+
+/* ── 7. Projeção de premiação do mês ── */
+function buildMonthProjection(){
+  const el = document.getElementById('monthProjection');
+  if(!el) return;
+
+  const today   = nowSP();
+  const [y,m]   = today.split('-');
+  const firstDay = `${y}-${m}-01`;
+  const lastDay  = new Date(parseInt(y), parseInt(m), 0).getDate();
+  const daysPast = parseInt(today.slice(8));
+  const daysLeft = lastDay - daysPast;
+
+  const rows    = flatRows(firstDay, today);
+  const closed  = rows.filter(r=>r.premiacao!=null);
+  const totalPrem = closed.reduce((s,r)=>s+(r.premiacao||0),0);
+  const totalGar  = rows.reduce((s,r)=>s+(r.garantido||0),0);
+  const totalOv   = closed.reduce((s,r)=>s+(r.overlay||0),0);
+
+  if(!closed.length || !daysPast){
+    el.innerHTML = '<div style="font-size:12px;color:var(--ink3)">Sem dados suficientes para projeção.</div>';
+    return;
+  }
+
+  // Projeção linear: média/dia × dias restantes
+  const premPerDay  = totalPrem / daysPast;
+  const ovPerDay    = totalOv   / daysPast;
+  const projPrem    = totalPrem + premPerDay * daysLeft;
+  const projOv      = totalOv   + ovPerDay   * daysLeft;
+  const coveragePct = totalGar > 0 ? (totalPrem/totalGar*100) : 0;
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">
+      <div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:9px">
+        <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px">Premiação até hoje</div>
+        <div style="font-size:18px;font-weight:800;font-family:var(--mono)">${brlk(totalPrem)}</div>
+        <div style="font-size:10px;color:var(--ink3)">${daysPast}/${lastDay} dias</div>
+      </div>
+      <div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:9px">
+        <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px">Projeção do mês</div>
+        <div style="font-size:18px;font-weight:800;font-family:var(--mono);color:var(--felt-bright)">${brlk(projPrem)}</div>
+        <div style="font-size:10px;color:var(--ink3)">+${daysLeft} dias restantes</div>
+      </div>
+      <div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:9px">
+        <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px">Overlay projetado</div>
+        <div style="font-size:18px;font-weight:800;font-family:var(--mono);color:${projOv<0?'var(--red)':'var(--green)'}">${projOv<0?'-':'+'}${brlk(Math.abs(projOv))}</div>
+        <div style="font-size:10px;color:var(--ink3)">baseado na média diária</div>
+      </div>
+      <div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:9px">
+        <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px">Cobertura GTD</div>
+        <div style="font-size:18px;font-weight:800;font-family:var(--mono);color:${coveragePct>=100?'var(--green)':'var(--amber)'}">${coveragePct.toFixed(0)}%</div>
+        <div style="font-size:10px;color:var(--ink3)">premiação vs garantido</div>
+      </div>
+    </div>`;
+}
 
 async function openAuditSummary(){
   await loadAuditData();
