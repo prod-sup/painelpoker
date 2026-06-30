@@ -2333,7 +2333,81 @@
   background:var(--felt);color:#fff;border-radius:99px;
   font-size:9px;font-weight:800;padding:1px 5px;min-width:16px;text-align:center;
 }
+
+/* ══ 5. Modo compacto ══ */
+.upcoming-grid.compact-mode{
+  display:flex;flex-direction:column;gap:0;
+}
+.upcoming-grid.compact-mode .tcard{
+  display:grid;
+  grid-template-columns: 180px 60px 90px 90px 90px 90px 1fr;
+  align-items:center;gap:0;
+  border-radius:0;border-left:none;border-right:none;border-top:none;
+  padding:7px 14px;min-height:0;
+  background:var(--card);
+}
+.upcoming-grid.compact-mode .tcard:first-child{ border-top:1px solid var(--hairline); border-radius:10px 10px 0 0; }
+.upcoming-grid.compact-mode .tcard:last-child{ border-radius:0 0 10px 10px; border-bottom:1px solid var(--hairline); }
+.upcoming-grid.compact-mode .tcard.is-fixed{ border-left:3px solid var(--felt-bright); }
+.upcoming-grid.compact-mode .tcard-name{ font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.upcoming-grid.compact-mode .tcard-top,
+.upcoming-grid.compact-mode .tcard-badges,
+.upcoming-grid.compact-mode .tcard-divider,
+.upcoming-grid.compact-mode .tcard-op-fields,
+.upcoming-grid.compact-mode .tcard-id-row,
+.upcoming-grid.compact-mode .tcard-fix-row,
+.upcoming-grid.compact-mode .tcard-late,
+.upcoming-grid.compact-mode .tcard-hist-tooltip,
+.upcoming-grid.compact-mode .tcard-nf-banner,
+.upcoming-grid.compact-mode .nf-warn{ display:none !important; }
+.upcoming-grid.compact-mode .tcard-compact-row{
+  display:contents;
+}
+.upcoming-grid.compact-mode .tcard-compact-cell{
+  font-size:12px;font-family:var(--mono);color:var(--ink2);text-align:right;padding:0 8px;
+}
+.upcoming-grid.compact-mode .tcard-compact-name{ text-align:left;font-family:var(--text); }
+.upcoming-grid.compact-mode .tcard-compact-hora{ color:var(--ink-soft); }
+.upcoming-grid.compact-mode .tcard-compact-ov.neg{ color:var(--red); }
+.upcoming-grid.compact-mode .tcard-compact-ov.pos{ color:var(--felt-bright); }
+.compact-toggle-btn{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:11px;font-weight:600;padding:5px 10px;border-radius:7px;
+  border:1px solid var(--hairline-strong);background:var(--card);
+  color:var(--ink-soft);cursor:pointer;transition:all .15s;
+}
+.compact-toggle-btn:hover{ background:var(--card-elevated);color:var(--ink); }
+.compact-toggle-btn.active{ background:var(--felt-soft);color:var(--felt-bright);border-color:var(--felt); }
+
+/* ══ 7. Filtro por operador ══ */
+.op-filter-btn{
+  display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;
+  padding:5px 11px;border-radius:99px;border:1px solid var(--hairline-strong);
+  background:var(--card);color:var(--ink-soft);cursor:pointer;transition:all .15s;
+}
+.op-filter-btn:hover{ background:var(--card-elevated);color:var(--ink); }
+.op-filter-btn.active-me{ background:var(--felt-soft);color:var(--felt-bright);border-color:var(--felt); }
+.op-filter-btn.active-partner{ background:rgba(96,165,250,.1);color:#60a5fa;border-color:rgba(96,165,250,.3); }
+
+/* ══ 8. Undo stack visual ══ */
+.undo-toast{
+  position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+  background:var(--card);border:1px solid var(--hairline-strong);
+  border-radius:10px;padding:10px 16px;font-size:12px;font-weight:600;
+  color:var(--ink2);box-shadow:0 8px 24px rgba(0,0,0,.15);
+  display:flex;align-items:center;gap:10px;z-index:500;
+  animation:toast-in .2s ease;
+}
+.undo-toast button{
+  font-size:11px;font-weight:700;color:var(--felt-bright);
+  background:none;border:none;cursor:pointer;padding:0;
+}
 </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#22c55e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Painel Suprema">
 </head>
 <body>
 
@@ -5333,7 +5407,9 @@ function initFirebaseSync(){
         }
       });
       if(premChanged){
-        RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
+        // 8. Salvar no undo stack antes de sobrescrever
+    pushUndo(key, row.nome, row.premiacao);
+    RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
         UPCOMING = [...RAW_ROWS];
         renderResults();
         if(!isTypingInCard() && !window._suppressRenderUpcoming) renderUpcoming();
@@ -5932,7 +6008,25 @@ function setSharedSheet(rows, filename){
 })();
 
 initFirebaseSync();
-setTimeout(loadHistorico, 3000); // carregar histórico para tooltips dos cards
+setTimeout(loadHistorico, 3000);
+
+// 13/14. Registrar Service Worker (PWA + modo offline)
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js')
+    .then(reg=>{
+      console.log('[SW] Registrado:', reg.scope);
+      // Verificar se há atualização disponível
+      reg.addEventListener('updatefound', ()=>{
+        const newSW = reg.installing;
+        newSW.addEventListener('statechange', ()=>{
+          if(newSW.state==='installed' && navigator.serviceWorker.controller){
+            showToast('🔄 Atualização disponível — recarregue para aplicar');
+          }
+        });
+      });
+    })
+    .catch(err=> console.warn('[SW] Falha ao registrar:', err));
+} // carregar histórico para tooltips dos cards
 
 /* gera o texto: Nome <tab> Hora <tab> R$ Buy-in <tab> Data por extenso <tab> ID */
 function buildCopyText(row, key){
@@ -6512,6 +6606,18 @@ function renderUpcoming(){
             value="${getField(key) || ''}"
             oninput="onCardFieldInput(this)">
         </div>
+      </div>
+      <!-- Modo compacto: linha resumida -->
+      <div class="tcard-compact-row">
+        <div class="tcard-compact-cell tcard-compact-name">${t.nome}</div>
+        <div class="tcard-compact-cell tcard-compact-hora">${t.hora||'—'}</div>
+        <div class="tcard-compact-cell">${t.garantido!=null?'R$'+fmtBRL(t.garantido,0):'—'}</div>
+        <div class="tcard-compact-cell">${t.premiacao!=null?'R$'+fmtBRL(t.premiacao,0):'—'}</div>
+        <div class="tcard-compact-cell tcard-compact-ov ${(t.premiacao!=null&&t.garantido!=null)?(t.premiacao-t.garantido<0?'neg':'pos'):''}">
+          ${(t.premiacao!=null&&t.garantido!=null)?((t.premiacao-t.garantido<0?'-':'+')+'R$'+fmtBRL(Math.abs(t.premiacao-t.garantido),0)):'—'}
+        </div>
+        <div class="tcard-compact-cell">${isFixed(key)?'✓ Fixado':'—'}</div>
+        <div class="tcard-compact-cell">${getId(key)||'—'}</div>
       </div>
       <!-- Preview calculado: overlay, ações, performance -->
       <div class="tcard-overlay-preview" id="tcard-ov-${key}"></div>
@@ -9349,6 +9455,82 @@ function buildFixerRowHTML(key){
 }
 
 // Retorna true se o usuário está digitando em qualquer campo de card
+/* ══ 5. Modo compacto ══ */
+let _compactMode = false;
+
+function toggleCompactMode(){
+  _compactMode = !_compactMode;
+  const grid = document.getElementById('upcomingGrid');
+  const btn  = document.getElementById('compactToggleBtn');
+  if(grid) grid.classList.toggle('compact-mode', _compactMode);
+  if(btn){
+    btn.classList.toggle('active', _compactMode);
+    btn.textContent = _compactMode ? '⊞ Cards' : '⊟ Compacto';
+  }
+  renderUpcoming();
+}
+
+/* ══ 7. Filtro por operador ══ */
+let _opFilter = 'all'; // 'all' | 'me' | 'partner'
+
+function setOpFilter(mode){
+  _opFilter = (_opFilter === mode) ? 'all' : mode;
+  document.getElementById('opFilterMe')?.classList.toggle('active-me', _opFilter==='me');
+  document.getElementById('opFilterPartner')?.classList.toggle('active-partner', _opFilter==='partner');
+  renderUpcoming();
+}
+
+/* ══ 8. Undo stack (desfazer premiação) ══ */
+const _undoStack = []; // [{key, nome, oldVal, oldFmt}]
+let _undoToastTimer = null;
+
+function pushUndo(key, nome, oldVal){
+  _undoStack.push({key, nome, oldVal});
+  if(_undoStack.length > 20) _undoStack.shift();
+  showUndoToast(nome, oldVal);
+}
+
+function showUndoToast(nome, oldVal){
+  clearTimeout(_undoToastTimer);
+  document.querySelector('.undo-toast')?.remove();
+  const toast = document.createElement('div');
+  toast.className = 'undo-toast';
+  const label = oldVal != null ? `R$ ${fmtBRL(oldVal,2)}` : 'vazio';
+  toast.innerHTML = `<span>Premiação de <b>${escHtml(nome.split(' ').slice(0,3).join(' '))}</b> alterada</span>
+    <button onclick="doUndo()">↩ Desfazer</button>`;
+  document.body.appendChild(toast);
+  _undoToastTimer = setTimeout(()=>toast.remove(), 6000);
+}
+
+function doUndo(){
+  const last = _undoStack.pop();
+  if(!last) return;
+  document.querySelector('.undo-toast')?.remove();
+  clearTimeout(_undoToastTimer);
+  const row = RAW_ROWS.find(r=>r._key===last.key);
+  if(!row) return;
+  // Restaurar valor anterior
+  row.premiacao = last.oldVal;
+  if(fbReady){
+    if(last.oldVal != null) fbDb.ref(`${FB_BASE_PATH}/premiacao/${last.key}`).set(last.oldVal);
+    else fbDb.ref(`${FB_BASE_PATH}/premiacao/${last.key}`).remove();
+  }
+  // Atualizar input
+  const inp = document.querySelector(`.tcard-prem-input[data-key="${last.key}"]`);
+  if(inp) inp.value = last.oldVal != null ? fmtBRL(last.oldVal, last.oldVal%1===0?0:2) : '';
+  renderCardOverlayPreview(last.key, row, last.oldVal, getField(last.key));
+  showToast(`↩ Desfeito: premiação de ${last.nome.split(' ').slice(0,3).join(' ')}`);
+  logActivity(`Desfez premiação de <b>${last.nome}</b>`);
+}
+
+// Ctrl+Z global
+document.addEventListener('keydown', e => {
+  if((e.ctrlKey||e.metaKey) && e.key==='z' && !isTypingInCard()){
+    e.preventDefault();
+    doUndo();
+  }
+});
+
 function isTypingInCard(){
   const ae = document.activeElement;
   if(!ae) return false;

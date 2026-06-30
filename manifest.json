@@ -1,0 +1,22 @@
+{
+  "name": "Suprema Poker — Painel Operacional",
+  "short_name": "Painel Suprema",
+  "description": "Painel operacional de torneios Suprema Poker",
+  "start_url": "/painelpoker/",
+  "display": "standalone",
+  "background_color": "#0a0f0d",
+  "theme_color": "#22c55e",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
