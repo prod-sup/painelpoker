@@ -3536,7 +3536,7 @@ let UPCOMING = [];
 let _compactMode = localStorage.getItem('suprema_compact_mode_v1') === '1';        // open tournaments (no premiação yet)
 let RESULTS = [];         // closed tournaments (premiação filled)
 let UNFIXED = [];         // not-fixed tournaments (any status, no Ações/owner)
-let activeUpcomingCat = 'all';
+let activeUpcomingCat = new Set(['all']); // Set: permite múltiplos filtros ativos ao mesmo tempo (ex.: Main Event + Satélite)
 let nameSearchQuery = '';
 let activeResultsCat = 'all';
 let upcomingPremFilter = 'all'; // 'all' | 'sem' | 'com'
@@ -6131,7 +6131,7 @@ function setSharedSheet(rows, filename){
     document.getElementById('heroEyebrowText').textContent =
       `Painel restaurado (salvo às ${savedAt})${count > 0 ? ` — ${count} premiações recuperadas` : ''}`;
     // Resetar filtros para o padrão ao restaurar
-    activeUpcomingCat  = 'all';
+    activeUpcomingCat  = new Set(['all']);
     upcomingPremFilter = 'all';
     document.querySelectorAll('#upcomingFilters .chip').forEach(c => c.classList.remove('active'));
     const allCatChip  = document.querySelector('#upcomingFilters .chip[data-cat="all"]');
@@ -6242,8 +6242,8 @@ function computeUnfixed(){
 
     // marcador explícito de "não formou" -> sempre alerta, independente da hora
     if (r.explicitNF) return true;
-    // já fechou (tem premiação) -> não é mais "não fixado", é resultado
-    if (r.premiacao !== null && r.premiacao !== undefined) return false;
+    // preencher premiação/field é registrar resultado, não é assumir responsabilidade por fixar —
+    // só o checkbox "Fix" (isFixed, checado acima) tira o torneio do alerta de "não fixados"
 
     // dentro da janela de antecedência (perto da hora) ou já passou do horário sem ações registradas —
     // "responsável definido" não existe mais na planilha (isFixed, checado acima, já cobre esse sinal
@@ -6595,11 +6595,18 @@ function renderUpcoming(){
   grid.querySelectorAll('.tcard').forEach(el => animVisibilityIO.unobserve(el)); // limpa observação antes de destruir os cards antigos
   grid.innerHTML = '';
   const nowMin = nowMinutesSP(); // usado pelo filtro "Rolando agora" e pra marcar cada card como em andamento (não mais usado na ordenação, que agora é cronológica fixa)
-  let filtered = activeUpcomingCat === 'all' ? UPCOMING
-    : activeUpcomingCat === 'running' ? UPCOMING.filter(t => isRunningNow(t, nowMin))
-    : activeUpcomingCat === 'late' ? UPCOMING.filter(t => cardTimeFlag(t) === 'late')
-    : activeUpcomingCat === 'soon' ? UPCOMING.filter(t => cardTimeFlag(t) === 'soon')
-    : UPCOMING.filter(t => classify(t) === activeUpcomingCat);
+  // activeUpcomingCat é um Set — permite múltiplos filtros ativos ao mesmo tempo (ex.: Main Event + Satélite).
+  // Um torneio passa se bater com QUALQUER filtro selecionado (OR entre os chips ativos).
+  let filtered = activeUpcomingCat.has('all') ? UPCOMING : UPCOMING.filter(t => {
+    const cat = classify(t);
+    for (const c of activeUpcomingCat){
+      if (c === 'running' && isRunningNow(t, nowMin)) return true;
+      if (c === 'late' && cardTimeFlag(t) === 'late') return true;
+      if (c === 'soon' && cardTimeFlag(t) === 'soon') return true;
+      if (c === cat) return true;
+    }
+    return false;
+  });
 
   if (nameSearchQuery){
     // busca por nome: contém o termo digitado, sem diferenciar maiúsculas/minúsculas nem acentos
@@ -6629,13 +6636,16 @@ function renderUpcoming(){
   }
 
   if (filtered.length === 0){
-    const catLabels = {running:' rolando agora', late:' atrasado', soon:' em breve'};
-    const catSuffix = catLabels[activeUpcomingCat] || (activeUpcomingCat !== 'all' ? ' nessa categoria' : '');
+    const catLabels = {running:'rolando agora', late:'atrasado', soon:'em breve', main:'Main Event', side:'Side Event', sat:'Satélite'};
+    const isAllActive = activeUpcomingCat.has('all');
+    const activeLabels = [...activeUpcomingCat].map(c => catLabels[c]).filter(Boolean);
+    const catSuffix = isAllActive ? '' : activeLabels.length ? ` (${activeLabels.join(' + ')})` : ' nessa categoria';
+    const hasStatusFilter = !isAllActive && [...activeUpcomingCat].some(c => c === 'running' || c === 'late' || c === 'soon');
     const msg = nameSearchQuery
       ? `Nenhum torneio com "${nameSearchQuery}" no nome${timeFilterMin !== null ? ` às ${minutesToHHMM(timeFilterMin)}` : ''}${catSuffix}.`
       : timeFilterMin !== null
         ? `Nenhum torneio começando às ${minutesToHHMM(timeFilterMin)}${catSuffix}.`
-        : catLabels[activeUpcomingCat]
+        : hasStatusFilter
           ? `Nenhum torneio${catSuffix} agora. 🎉`
           : `Nenhum torneio em aberto${catSuffix}.`;
     grid.innerHTML = `<div class="grid-cards-empty">${msg}</div>`;
@@ -7366,10 +7376,21 @@ resultsNameSearchClear.addEventListener('click', () => {
 /* =========================================================================
    FILTER CHIPS
 ========================================================================= */
+/* Multi-seleção: clicar em "Todos" limpa os outros filtros; clicar em qualquer filtro específico
+   faz toggle (liga/desliga) e mantém os demais ativos — permite combinar, por exemplo,
+   Main Event + Satélite ao mesmo tempo. Se todos forem desligados, volta pra "Todos" sozinho. */
 function setUpcomingCat(cat, btn){
-  document.querySelectorAll('#upcomingFilters .chip').forEach(c=>c.classList.remove('active'));
-  if(btn) btn.classList.add('active');
-  activeUpcomingCat = cat;
+  if(cat === 'all'){
+    activeUpcomingCat = new Set(['all']);
+  } else {
+    activeUpcomingCat.delete('all');
+    if(activeUpcomingCat.has(cat)) activeUpcomingCat.delete(cat);
+    else activeUpcomingCat.add(cat);
+    if(activeUpcomingCat.size === 0) activeUpcomingCat.add('all');
+  }
+  document.querySelectorAll('#upcomingFilters .chip[data-cat]').forEach(c => {
+    c.classList.toggle('active', activeUpcomingCat.has(c.dataset.cat));
+  });
   renderUpcoming();
 }
 function setUpcomingPrem(prem, btn){
@@ -7385,12 +7406,8 @@ function setResultsCat(cat, btn){
   activeResultsCat = cat;
   renderResults();
 }
-// Listener como fallback para event delegation
-document.getElementById('upcomingFilters')?.addEventListener('click', (e)=>{
-  const btn = e.target.closest('.chip');
-  if (!btn || !btn.dataset.cat) return;
-  setUpcomingCat(btn.dataset.cat, btn);
-});
+// (upcomingFilters não usa mais o listener delegado: cada chip já tem onclick próprio,
+// e chamar setUpcomingCat duas vezes por clique desfaria o toggle de multi-seleção)
 document.getElementById('resultsFilters')?.addEventListener('click', (e)=>{
   const btn = e.target.closest('.chip');
   if (!btn || !btn.dataset.cat) return;
