@@ -6825,9 +6825,8 @@ function renderUpcoming(){
       // visualmente, mas esmaecido e desabilitado — não é uma marcação real de responsabilidade,
       // só indica que não há nada pra fazer aqui.
       const fixTd   = needsFix
-        ? '<td style="text-align:center;padding:3px"><input type="checkbox"'+(fixed?' checked':'')
-          + ' data-key="'+key+'" style="width:15px;height:15px;accent-color:var(--felt);cursor:pointer"'
-          + ' onchange="onFixCheckboxChange(this)"></td>'
+        ? '<td style="text-align:center;padding:3px"><input type="checkbox" class="fix-toggle"'+(fixed?' checked':'')
+          + ' data-key="'+key+'" style="width:15px;height:15px;accent-color:var(--felt);cursor:pointer"></td>'
         : '<td style="text-align:center;padding:3px"><input type="checkbox" checked disabled'
           + ' title="Não precisa ser fixado" style="width:15px;height:15px;accent-color:var(--ink-soft);opacity:.4;cursor:default"></td>';
       tr.innerHTML = catTd+nomeTd+horaTd+garTd+premTd+ovTd+fieldTd+idTd+fixTd;
