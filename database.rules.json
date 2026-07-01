@@ -1,0 +1,34 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "users": {
+      "$userKey": {
+        ".read": "auth != null && (auth.uid === $userKey || root.child('users').child(auth.uid).child('admin').val() === true)",
+        ".write": "auth != null && (auth.uid === $userKey || root.child('users').child(auth.uid).child('admin').val() === true)",
+        "pwHash":         { ".validate": "newData.isString()" },
+        "admin":          { ".validate": "auth != null && root.child('users').child(auth.uid).child('admin').val() === true" },
+        "blocked":        { ".validate": "auth != null && root.child('users').child(auth.uid).child('admin').val() === true" },
+        "loginAttempts":  { ".validate": "newData.isNumber()" },
+        "loginLockUntil": { ".validate": "newData.isNumber() || newData.val() === null" }
+      }
+    },
+
+    "painel": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "snapshots":  { ".read": "auth != null", ".write": false },
+    "userNotifs": {
+      "$opKey": {
+        ".read": "auth != null && (auth.uid === $opKey || root.child('users').child(auth.uid).child('admin').val() === true)",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('admin').val() === true"
+      }
+    },
+    "adminLog": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('admin').val() === true",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('admin').val() === true"
+    }
+  }
+}
