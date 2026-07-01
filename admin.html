@@ -710,6 +710,8 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
           <p>Dados preenchidos pelos operadores — mesma visualização do relatório do painel</p>
         </div>
         <div class="ph-actions">
+          <button class="btn btn-ghost" id="btnSoAnomalia" onclick="toggleSoAnomalia()">⚠ Só anomalias</button>
+          <button class="btn btn-ghost" onclick="batchNotifyAnomalias()">📨 Notificar anomalias</button>
           <button class="btn btn-ghost" onclick="exportAuditXlsx()">⬇ Exportar XLSX</button>
           <button class="btn btn-gold" onclick="loadAudit()">Buscar</button>
         </div>
@@ -746,6 +748,11 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
         <div class="fld"><label>Operador</label>
           <select id="auOp"><option value="">Todos</option></select>
         </div>
+      </div>
+      <div id="batchActions">
+        <span id="batchCount" style="font-size:12.5px;font-weight:500;color:var(--gold)"></span>
+        <button class="btn btn-gold btn-sm" onclick="batchApprove()">✓ Aprovar selecionados</button>
+        <button class="btn btn-ghost btn-sm" onclick="batchDeselect()">Cancelar</button>
       </div>
       <div id="auditResult"></div>
     </div>
@@ -1697,11 +1704,6 @@ async function loadAudit(){
 
   const dates=Object.keys(byDate).sort().reverse();
   const el=document.getElementById('auditResult');
-
-  // Diagnóstico rápido
-  console.log('[loadAudit] _allData datas:', Object.keys(_allData));
-  console.log('[loadAudit] rows encontrados:', rows.length);
-  if(rows.length > 0) console.log('[loadAudit] exemplo row:', rows[0]);
 
   if(!dates.length){
     el.innerHTML=`<div class="empty"><div class="empty-icon">🔍</div><h3>Nenhum dado encontrado</h3><p>Ajuste o período ou os filtros</p></div>`;
