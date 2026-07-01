@@ -2340,25 +2340,42 @@
 .compact-table-wrap{
   border:1px solid var(--hairline-strong);
   border-radius:12px;
-  overflow:hidden;
+  overflow-x:auto;          /* scroll horizontal se necessário */
   background:var(--card);
 }
 .compact-table{
   width:100%;
+  min-width:700px;          /* largura mínima — evita colapso */
   border-collapse:collapse;
   font-size:12px;
+  table-layout:fixed;       /* colunas com largura definida */
 }
+
+/* Larguras das colunas */
+.compact-table col.c-cat  { width:4px; }
+.compact-table col.c-nome { width:auto; }   /* ocupa o espaço restante */
+.compact-table col.c-hora { width:58px; }
+.compact-table col.c-gar  { width:82px; }
+.compact-table col.c-prem { width:110px; }
+.compact-table col.c-ov   { width:90px; }
+.compact-table col.c-field{ width:72px; }
+.compact-table col.c-id   { width:90px; }
+.compact-table col.c-fix  { width:36px; }
+
 .compact-table thead th{
-  padding:9px 12px;
+  padding:8px 10px;
   text-align:left;
-  font-size:9.5px;font-weight:800;
+  font-size:9px;font-weight:800;
   letter-spacing:.08em;text-transform:uppercase;
   color:var(--ink-soft);
   background:var(--card-elevated);
   border-bottom:2px solid var(--hairline-strong);
   white-space:nowrap;
+  overflow:hidden;
 }
 .compact-table thead th.r{ text-align:right; }
+.compact-table thead th.c{ text-align:center; }
+
 .compact-table tbody tr{
   border-bottom:1px solid var(--hairline);
   transition:background .1s;
@@ -2368,36 +2385,40 @@
 .compact-table tbody tr.is-fixed{ background:rgba(34,197,94,.05); }
 .compact-table tbody tr.is-fixed:hover{ background:rgba(34,197,94,.09); }
 .compact-table tbody tr.is-nf{ opacity:.4;filter:grayscale(.5); }
+
 .compact-table tbody td{
-  padding:8px 12px;
+  padding:7px 10px;
   vertical-align:middle;
+  overflow:hidden;
 }
-/* Cat pill */
-.ctr-cat{
-  width:3px;padding:0;
-}
-.ctr-cat-bar{
-  width:3px;height:100%;min-height:32px;
-  display:block;border-radius:2px;
-}
-/* Nome — destaque total, nunca trunca */
+
+/* Cat bar */
+.ctr-cat{ width:4px;padding:0 !important; }
+.ctr-cat-bar{ display:block;width:4px;height:32px;border-radius:2px; }
+
+/* Nome — nunca quebra, mostra completo com tooltip */
 .ctr-nome{
   font-weight:700;color:var(--ink);
-  min-width:160px;max-width:240px;
-  word-break:break-word;line-height:1.35;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  padding-right:4px;
 }
+
 /* Hora */
 .ctr-hora{
   font-family:var(--mono);font-size:11px;
   color:var(--ink-soft);white-space:nowrap;
   text-align:center;
 }
+
 /* GTD */
 .ctr-gar{
   font-family:var(--mono);font-size:11px;font-weight:600;
   color:var(--amber);white-space:nowrap;
   text-align:right;
 }
+
 /* Overlay */
 .ctr-ov{
   font-family:var(--mono);font-size:11px;font-weight:700;
@@ -2405,31 +2426,39 @@
 }
 .ctr-ov.neg{ color:var(--red); }
 .ctr-ov.pos{ color:var(--felt-bright); }
-/* Cells com input */
+
+/* Checkbox */
+.ctr-fix{ text-align:center;padding:0 !important; }
+.ctr-fix input{ width:15px;height:15px;accent-color:var(--felt);cursor:pointer; }
+
+/* Inputs inline */
 .ctr-inp-cell{ padding:0 !important; }
 .ctr-inp{
-  display:block;width:100%;
-  padding:8px 10px;
+  display:block;width:100%;height:100%;
+  padding:7px 8px;
   border:none;border-left:1px solid var(--hairline);
   background:transparent;
   color:var(--ink);font-size:11px;font-family:var(--mono);
-  outline:none;min-width:90px;
+  outline:none;
   transition:background .12s,border-color .12s;
+  box-sizing:border-box;
 }
 .ctr-inp:focus{
   background:rgba(34,197,94,.06);
   border-left:2px solid var(--felt-bright);
 }
 .ctr-inp.has-value{ font-weight:600; }
-.ctr-inp::placeholder{ color:var(--ink-soft);font-weight:400;opacity:.6; }
+.ctr-inp::placeholder{ color:var(--ink-soft);opacity:.5;font-weight:400; }
+
 .ctr-inp-id{
-  display:block;width:100%;
-  padding:8px 10px;
+  display:block;width:100%;height:100%;
+  padding:7px 8px;
   border:none;border-left:1px solid var(--hairline);
   background:transparent;
   color:var(--ink-soft);font-size:10px;font-family:var(--mono);
-  outline:none;min-width:90px;
+  outline:none;
   transition:background .12s;
+  box-sizing:border-box;
 }
 .ctr-inp-id:focus{
   background:rgba(34,197,94,.06);
