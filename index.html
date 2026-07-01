@@ -524,11 +524,10 @@
   }
   .brand{display:flex; align-items:center; gap:9px; font-size:14.5px; font-weight:600; letter-spacing:-0.01em; flex:none;}
   .brand-mark{width:20px; height:20px; flex:none;}
-  .brand-chips{ position:relative; width:20px; height:18px; flex:none; margin-left:1px; }
-  .bchip{ position:absolute; top:0; width:15px; height:15px; filter:drop-shadow(0 2px 3px rgba(12,30,22,0.18)); }
-  .bchip-a{ left:0; z-index:2; animation:bchip-spin 9s linear 4; } /* 4 voltas (~36s) e para sozinha — sem custo de CPU/GPU pro resto da sessão */
-  .bchip-b{ left:5px; top:2px; z-index:1; opacity:.82; animation:bchip-spin 12s linear 4 reverse; }
-  @keyframes bchip-spin{ to{ transform:rotate(360deg); } }
+  .brand-chips{ position:relative; width:26px; height:18px; flex:none; margin-left:2px; }
+  .bchip{ position:absolute; top:1px; width:17px; height:17px; filter:drop-shadow(0 1px 2px rgba(12,30,22,0.15)); }
+  .bchip-a{ left:0; z-index:2; }
+  .bchip-b{ left:9px; z-index:1; }
   @media (max-width:680px){ .brand-chips{ display:none; } }
   .nav-links{display:flex; gap:30px; font-size:12.5px; color:var(--ink-soft);}
   .nav-links a{transition:color .25s var(--ease);}
@@ -2457,8 +2456,8 @@
       </svg>
       <span class="brand-text">Suprema Poker</span>
       <span class="brand-chips" aria-hidden="true">
-        <svg class="bchip bchip-a" viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="var(--main-soft)" stroke="var(--main)" stroke-width="5"/><circle cx="50" cy="50" r="44" fill="none" stroke="var(--main)" stroke-width="5" stroke-dasharray="9 11"/><circle cx="50" cy="50" r="30" fill="none" stroke="var(--main)" stroke-width="3" opacity=".55"/></svg>
-        <svg class="bchip bchip-b" viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="var(--felt-soft)" stroke="var(--felt-bright)" stroke-width="5"/><circle cx="50" cy="50" r="44" fill="none" stroke="var(--felt-bright)" stroke-width="5" stroke-dasharray="9 11"/><circle cx="50" cy="50" r="30" fill="none" stroke="var(--felt-bright)" stroke-width="3" opacity=".55"/></svg>
+        <svg class="bchip bchip-a" viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="var(--main-soft)" stroke="var(--main)" stroke-width="6"/><circle cx="50" cy="50" r="30" fill="none" stroke="var(--main)" stroke-width="3" opacity=".55"/></svg>
+        <svg class="bchip bchip-b" viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="var(--felt-soft)" stroke="var(--felt-bright)" stroke-width="6"/><circle cx="50" cy="50" r="30" fill="none" stroke="var(--felt-bright)" stroke-width="3" opacity=".55"/></svg>
       </span>
     </div>
     <div class="nav-links">
@@ -4428,13 +4427,41 @@ function saveSession(data){
 }
 function clearSession(){ try{ localStorage.removeItem(AUTH_STORE_KEY); }catch(e){} }
 
-function hashPassword(pw){
+/* PBKDF2-SHA256 (Web Crypto), salt aleatório por usuário — mesma lógica do admin.html.
+   Mantém o hash legado (DJB2+salt fixo) apenas para verificar/migrar contas antigas. */
+const PBKDF2_ITER = 150000;
+function bufToHex(buf){ return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
+async function hashPassword(pw, saltHex){
+  saltHex = saltHex || bufToHex(crypto.getRandomValues(new Uint8Array(16)));
+  const enc = new TextEncoder();
+  const keyMat = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    {name:'PBKDF2', salt:enc.encode(saltHex), iterations:PBKDF2_ITER, hash:'SHA-256'}, keyMat, 256);
+  return `pbkdf2$${PBKDF2_ITER}$${saltHex}$${bufToHex(bits)}`;
+}
+function legacyHashPassword(pw){
   let h = 5381;
   for(let i=0;i<pw.length;i++){ h = ((h<<5)+h) ^ pw.charCodeAt(i); h |= 0; }
   const salt = 'suprema2024';
   let h2 = h;
   for(let i=0;i<salt.length;i++){ h2 = ((h2<<5)+h2) ^ salt.charCodeAt(i); h2 |= 0; }
   return 'h2_' + Math.abs(h).toString(36) + '_' + Math.abs(h2).toString(36);
+}
+async function verifyPassword(pw, storedHash, onMigrate){
+  if(!storedHash) return true;
+  if(storedHash.startsWith('pbkdf2$')){
+    const [,,saltHex] = storedHash.split('$');
+    return (await hashPassword(pw, saltHex)) === storedHash;
+  }
+  const ok = storedHash === legacyHashPassword(pw);
+  if(ok && onMigrate) onMigrate(await hashPassword(pw));
+  return ok;
+}
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_LOCK_MS = 5*60*1000;
+function loginLockRemaining(user){
+  if(!user?.loginLockUntil) return 0;
+  return Math.max(0, user.loginLockUntil - Date.now());
 }
 function emailToKey(email){
   return email.toLowerCase().trim().replace(/\./g,'_dot_').replace(/@/g,'_at_');
@@ -4556,11 +4583,34 @@ function doLogin(){
   const btnSpan = btn?.querySelector('span');
   if(btn){ btn.disabled = true; if(btnSpan) btnSpan.textContent = 'Entrando...'; }
 
-  fbDb.ref(`users/${emailToKey(email)}`).once('value').then(snap => {
-    if(btn){ btn.disabled = false; if(btnSpan) btnSpan.textContent = 'Entrar'; }
-    if(!snap.exists()){ showAuthError('loginError','Email não cadastrado. Crie sua conta.'); return; }
+  const userRef = fbDb.ref(`users/${emailToKey(email)}`);
+  userRef.once('value').then(async snap => {
+    const reset = () => { if(btn){ btn.disabled = false; if(btnSpan) btnSpan.textContent = 'Entrar'; } };
+    if(!snap.exists()){ reset(); showAuthError('loginError','Email não cadastrado. Crie sua conta.'); return; }
     const user = snap.val();
-    if(user.pwHash !== hashPassword(pw)){ showAuthError('loginError','Senha incorreta.'); return; }
+
+    const remaining = loginLockRemaining(user);
+    if(remaining > 0){
+      reset();
+      showAuthError('loginError', `Muitas tentativas. Tente novamente em ${Math.ceil(remaining/60000)} min.`);
+      return;
+    }
+
+    const ok = await verifyPassword(pw, user.pwHash, newHash => userRef.update({pwHash:newHash}));
+    if(!ok){
+      const attempts = (user.loginAttempts||0) + 1;
+      const patch = {loginAttempts: attempts};
+      if(attempts >= LOGIN_MAX_ATTEMPTS){ patch.loginLockUntil = Date.now()+LOGIN_LOCK_MS; patch.loginAttempts = 0; }
+      await userRef.update(patch);
+      reset();
+      showAuthError('loginError', attempts >= LOGIN_MAX_ATTEMPTS
+        ? `Muitas tentativas. Login bloqueado por ${LOGIN_LOCK_MS/60000} min.`
+        : 'Senha incorreta.');
+      return;
+    }
+    if(user.loginAttempts || user.loginLockUntil) userRef.update({loginAttempts:0, loginLockUntil:null});
+
+    reset();
     const displayName = user.apelido || user.nome || email;
     finishLogin(email, user, displayName);
   }).catch(() => {
@@ -4949,7 +4999,7 @@ async function doRecovery(){
     if(!fbReady){ msgEl.textContent = 'Sem conexão.'; msgEl.hidden = false; return; }
     btn.disabled = true; btnLbl.textContent = 'Salvando...';
     try{
-      await fbDb.ref(`users/${emailToKey(_recoveryEmail)}/pwHash`).set(hashPassword(newPw));
+      await fbDb.ref(`users/${emailToKey(_recoveryEmail)}/pwHash`).set(await hashPassword(newPw));
       // limpa o token do Firebase
       await fbDb.ref(`passwordReset/${emailToKey(_recoveryEmail)}`).remove();
       _recoveryEmail = null; _recoveryCodeExpected = null;
@@ -5019,7 +5069,7 @@ function doCadastro(){
 
   // Verificar se email já existe
   if(btnSpan) btnSpan.textContent = 'Verificando...';
-  fbDb.ref(`users/${key}`).once('value').then(snap => {
+  fbDb.ref(`users/${key}`).once('value').then(async snap => {
     if(snap.exists()){
       if(btn){ btn.disabled = false; if(btnSpan) btnSpan.textContent = 'Criar conta'; }
       showAuthError('cadError','Este email já possui cadastro. Faça login.');
@@ -5031,7 +5081,7 @@ function doCadastro(){
     const displayName = apelido || nome;
     fbDb.ref(`users/${key}`).set({
       nome, sobrenome, apelido: displayName, email,
-      pwHash: hashPassword(pw),
+      pwHash: await hashPassword(pw),
       createdAt: firebase.database.ServerValue.TIMESTAMP,
     }).then(() => {
       // ✅ Sucesso — .set() resolve com undefined (comportamento normal do Firebase)
