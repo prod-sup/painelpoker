@@ -2337,6 +2337,10 @@
 /* ══ 5. Modo compacto ══ */
 /* Linha compacta escondida por padrão — só aparece no modo compacto */
 /* ══ Modo compacto ══ */
+.sr-only{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
+}
 .compact-table-wrap{
   grid-column:1 / -1;
   border-radius:10px;
@@ -2395,41 +2399,6 @@
 .ctr-inp-id:focus{ border-color:var(--felt-bright);color:var(--ink);background:rgba(34,197,94,.04); }
 .ctr-inp-id.has-value{ color:var(--ink); }
 
-.upcoming-grid.compact-mode{
-  display:flex;flex-direction:column;gap:0;
-}
-.upcoming-grid.compact-mode .tcard{
-  display:grid;
-  grid-template-columns: 180px 60px 90px 90px 90px 90px 1fr;
-  align-items:center;gap:0;
-  border-radius:0;border-left:none;border-right:none;border-top:none;
-  padding:7px 14px;min-height:0;
-  background:var(--card);
-}
-.upcoming-grid.compact-mode .tcard:first-child{ border-top:1px solid var(--hairline); border-radius:10px 10px 0 0; }
-.upcoming-grid.compact-mode .tcard:last-child{ border-radius:0 0 10px 10px; border-bottom:1px solid var(--hairline); }
-.upcoming-grid.compact-mode .tcard.is-fixed{ border-left:3px solid var(--felt-bright); }
-.upcoming-grid.compact-mode .tcard-name{ font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-.upcoming-grid.compact-mode .tcard-top,
-.upcoming-grid.compact-mode .tcard-badges,
-.upcoming-grid.compact-mode .tcard-divider,
-.upcoming-grid.compact-mode .tcard-op-fields,
-.upcoming-grid.compact-mode .tcard-id-row,
-.upcoming-grid.compact-mode .tcard-fix-row,
-.upcoming-grid.compact-mode .tcard-late,
-.upcoming-grid.compact-mode .tcard-hist-tooltip,
-.upcoming-grid.compact-mode .tcard-nf-banner,
-.upcoming-grid.compact-mode .nf-warn{ display:none !important; }
-.upcoming-grid.compact-mode .tcard-compact-row{
-  display:contents;
-}
-.upcoming-grid.compact-mode .tcard-compact-cell{
-  font-size:12px;font-family:var(--mono);color:var(--ink2);text-align:right;padding:0 8px;
-}
-.upcoming-grid.compact-mode .tcard-compact-name{ text-align:left;font-family:var(--text); }
-.upcoming-grid.compact-mode .tcard-compact-hora{ color:var(--ink-soft); }
-.upcoming-grid.compact-mode .tcard-compact-ov.neg{ color:var(--red); }
-.upcoming-grid.compact-mode .tcard-compact-ov.pos{ color:var(--felt-bright); }
 .compact-toggle-btn{
   display:inline-flex;align-items:center;gap:5px;
   font-size:11px;font-weight:600;padding:5px 10px;border-radius:7px;
@@ -3518,7 +3487,7 @@
 ========================================================================= */
 let RAW_ROWS = [];        // raw parsed rows from the sheet
 let UPCOMING = [];
-let _compactMode = false;        // open tournaments (no premiação yet)
+let _compactMode = localStorage.getItem('suprema_compact_mode_v1') === '1';        // open tournaments (no premiação yet)
 let RESULTS = [];         // closed tournaments (premiação filled)
 let UNFIXED = [];         // not-fixed tournaments (any status, no Ações/owner)
 let activeUpcomingCat = 'all';
@@ -3666,6 +3635,15 @@ const fmtBRL = (v, decimals=0) => {
 const fmtBuyin = (v) => {
   if (v === null || v === undefined || isNaN(v)) return "—";
   return v === 0 ? "Free" : "R$ " + fmtBRL(v, v % 1 === 0 ? 0 : 2);
+};
+// overlay = premiação - garantido; usado tanto no card normal quanto na linha compacta
+const calcOverlay = (prem, gar) => {
+  if (isNaN(prem) || !(prem > 0) || !(gar > 0)) return null;
+  return prem - gar;
+};
+const fmtOverlay = (overlay) => {
+  const abs = Math.abs(overlay);
+  return (overlay < 0 ? '-R$' : '+R$') + fmtBRL(abs, abs % 1 === 0 ? 0 : 2);
 };
 const fmtCompact = (v) => {
   if (v === null || v === undefined || isNaN(v)) return "R$ 0";
@@ -6594,16 +6572,18 @@ function renderUpcoming(){
         wrap.className = 'compact-table-wrap';
         const tbl = document.createElement('table');
         tbl.className = 'compact-table';
-        tbl.innerHTML = '<thead><tr>'
-          + '<th style="width:4px;padding:0"></th>'
-          + '<th style="min-width:200px">Torneio</th>'
-          + '<th style="width:65px;text-align:center">Hora</th>'
-          + '<th style="width:100px;text-align:right">GTD</th>'
-          + '<th style="width:120px">Premiação</th>'
-          + '<th style="width:100px;text-align:right">Overlay</th>'
-          + '<th style="width:80px">Field</th>'
-          + '<th style="width:100px">ID</th>'
-          + '<th style="width:36px;text-align:center">Fix</th>'
+        tbl.setAttribute('aria-label', 'Torneios em aberto (modo compacto)');
+        tbl.innerHTML = '<caption class="sr-only">Torneios em aberto, modo compacto</caption>'
+          + '<thead><tr>'
+          + '<th scope="col" style="width:4px;padding:0"></th>'
+          + '<th scope="col" style="min-width:200px">Torneio</th>'
+          + '<th scope="col" style="width:65px;text-align:center">Hora</th>'
+          + '<th scope="col" style="width:100px;text-align:right">GTD</th>'
+          + '<th scope="col" style="width:120px">Premiação</th>'
+          + '<th scope="col" style="width:100px;text-align:right">Overlay</th>'
+          + '<th scope="col" style="width:80px">Field</th>'
+          + '<th scope="col" style="width:100px">ID</th>'
+          + '<th scope="col" style="width:36px;text-align:center">Fix</th>'
           + '</tr></thead><tbody id="compactTbody"></tbody>';
         wrap.appendChild(tbl);
         fragment.appendChild(wrap);
@@ -6615,11 +6595,11 @@ function renderUpcoming(){
       const premVal  = t.premiacao;
       const garVal   = t.garantido;
       const fieldVal = getField(key);
-      const ovc      = premVal != null && garVal != null ? premVal - garVal : null;
+      const ovc      = calcOverlay(premVal, garVal);
       const catColor = cat==='main'?'var(--main-bright)':cat==='sat'?'var(--sat-bright)':'var(--side-bright)';
       const premFmt  = premVal != null ? fmtBRL(premVal, premVal%1===0?0:2) : '';
       const ovCls    = ovc!=null?(ovc<0?' neg':' pos'):'';
-      const ovTxt    = ovc!=null?(ovc<0?'-':'+')+('R$'+fmtBRL(Math.abs(ovc),Math.abs(ovc)%1===0?0:2)):'\u2014';
+      const ovTxt    = ovc!=null?fmtOverlay(ovc):'\u2014';
 
       const tr = document.createElement('tr');
       tr.dataset.key = key;
@@ -7982,11 +7962,11 @@ function renderCardOverlayPreview(key, row, premiacaoVal, fieldVal){
   }
 
   // Overlay — sempre visível
-  const overlay = (!isNaN(prem) && prem > 0 && gar > 0) ? prem - gar : null;
+  const overlay = calcOverlay(prem, gar);
   const ovFinal = overlay != null
     ? `<div class="tcard-ov-cell">
         <span class="tcard-ov-label">${overlay < 0 ? 'Overlay' : 'Excedente'}</span>
-        <span class="tcard-ov-val ${overlay < 0 ? 'negative' : 'positive'}">${overlay < 0 ? '-' : '+'}R$${fmtBRL(Math.abs(overlay), Math.abs(overlay)%1===0?0:2)}</span>
+        <span class="tcard-ov-val ${overlay < 0 ? 'negative' : 'positive'}">${fmtOverlay(overlay)}</span>
        </div>`
     : `<div class="tcard-ov-cell">
         <span class="tcard-ov-label">Overlay</span>
@@ -8018,12 +7998,11 @@ function renderCardOverlayPreview(key, row, premiacaoVal, fieldVal){
 
   el.innerHTML = ovFinal + acoesFinal + perfFinal;
 
-  // Atualizar overlay no card compacto se existir
+  // Atualizar overlay na linha compacta se existir
   const tciOv = document.getElementById('tci-ov-' + key);
   if(tciOv){
-    const ovc2 = overlay;
-    tciOv.className = 'tci-ov' + (ovc2!=null?(ovc2<0?' neg':' pos'):'');
-    tciOv.textContent = ovc2!=null ? (ovc2<0?'-':'+')+('R$'+fmtBRL(Math.abs(ovc2),Math.abs(ovc2)%1===0?0:2)) : '—';
+    tciOv.className = 'ctr-ov' + (overlay!=null?(overlay<0?' neg':' pos'):'');
+    tciOv.textContent = overlay!=null ? fmtOverlay(overlay) : '—';
   }
 }
 
@@ -9582,6 +9561,7 @@ function buildFixerRowHTML(key){
 /* ══ 5. Modo compacto ══ */
 function toggleCompactMode(){
   _compactMode = !_compactMode;
+  localStorage.setItem('suprema_compact_mode_v1', _compactMode ? '1' : '0');
   const btn = document.getElementById('compactToggleBtn');
   if(btn){
     btn.classList.toggle('active', _compactMode);
@@ -9589,6 +9569,14 @@ function toggleCompactMode(){
   }
   renderUpcoming(); // redesenhar com modo compacto ativo
 }
+// aplica o estado restaurado do localStorage no botão assim que a página carrega
+(function syncCompactToggleBtn(){
+  const btn = document.getElementById('compactToggleBtn');
+  if(btn){
+    btn.classList.toggle('active', _compactMode);
+    btn.textContent = _compactMode ? '⊞ Cards' : '⊟ Compacto';
+  }
+})();
 
 /* ══ 7. Filtro por operador ══ */
 let _opFilter = 'all'; // 'all' | 'me' | 'partner'
