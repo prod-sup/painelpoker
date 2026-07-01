@@ -4494,8 +4494,23 @@ function clearSession(){ try{ localStorage.removeItem(AUTH_STORE_KEY); }catch(e)
    Mantém o hash legado (DJB2+salt fixo) apenas para verificar/migrar contas antigas. */
 const PBKDF2_ITER = 150000;
 function bufToHex(buf){ return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
+function hexToBytes(hex){
+  const bytes = new Uint8Array(hex.length / 2);
+  for(let i=0;i<bytes.length;i++) bytes[i] = parseInt(hex.substr(i*2,2), 16);
+  return bytes;
+}
 async function hashPassword(pw, saltHex){
   saltHex = saltHex || bufToHex(crypto.getRandomValues(new Uint8Array(16)));
+  const enc = new TextEncoder();
+  const keyMat = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    {name:'PBKDF2', salt:hexToBytes(saltHex), iterations:PBKDF2_ITER, hash:'SHA-256'}, keyMat, 256);
+  return `pbkdf2v2$${PBKDF2_ITER}$${saltHex}$${bufToHex(bits)}`;
+}
+/* formato antigo: o salt era codificado como texto UTF-8 do próprio hex em vez de decodificado
+   pros bytes originais — reduzia a entropia efetiva do salt. Mantido só pra verificar/migrar
+   hashes já salvos no Firebase; nenhuma conta nova volta a usar isso. */
+async function hashPasswordLegacySalt(pw, saltHex){
   const enc = new TextEncoder();
   const keyMat = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
@@ -4512,9 +4527,15 @@ function legacyHashPassword(pw){
 }
 async function verifyPassword(pw, storedHash, onMigrate){
   if(!storedHash) return true;
-  if(storedHash.startsWith('pbkdf2$')){
+  if(storedHash.startsWith('pbkdf2v2$')){
     const [,,saltHex] = storedHash.split('$');
     return (await hashPassword(pw, saltHex)) === storedHash;
+  }
+  if(storedHash.startsWith('pbkdf2$')){
+    const [,,saltHex] = storedHash.split('$');
+    const ok = (await hashPasswordLegacySalt(pw, saltHex)) === storedHash;
+    if(ok && onMigrate) onMigrate(await hashPassword(pw)); // migra pro salt correto no próximo login
+    return ok;
   }
   const ok = storedHash === legacyHashPassword(pw);
   if(ok && onMigrate) onMigrate(await hashPassword(pw));
@@ -10088,12 +10109,14 @@ function patchCardFields(key){
   const chkLabel = card.querySelector('.fix-check span');
   if(chkLabel) chkLabel.textContent = fixed ? 'Fixado' : 'Marcar como fixado';
 
-  // Classe do card
-  card.className = ['tcard reveal',
-    fixed ? 'is-fixed' : '',
-    mustFix(row,cat) && !fixed ? 'must-fix' : '',
-    row.premiacao != null ? 'has-premiacao' : ''
-  ].filter(Boolean).join(' ');
+  // Classe do card — NUNCA reescrever card.className inteiro aqui: isso apagava a classe "in"
+  // da animação de entrada (adicionada só uma vez, no render completo, via requestAnimationFrame),
+  // fazendo o .reveal voltar pro estado oculto (opacity:0) e o card sumir de vista sem nenhuma
+  // reconstrução acontecer — bug raiz de "card sumindo" que sobrevivia mesmo com os cards intactos
+  // no DOM. Só ajusta as classes que esta função realmente controla.
+  card.classList.toggle('is-fixed', fixed);
+  card.classList.toggle('must-fix', mustFix(row,cat) && !fixed);
+  card.classList.toggle('has-premiacao', row.premiacao != null);
 
   return true;
 }
