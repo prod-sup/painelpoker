@@ -6458,15 +6458,8 @@ function renderUnfixed(){
 
   const fragment = document.createDocumentFragment();
 
-  // Header do modo compacto
-  if(_compactMode){
-    const hdr = document.createElement('div');
-    hdr.className = 'compact-list-header';
-    hdr.innerHTML = '<span>Torneio</span><span>Hora</span><span>GTD</span>'
-      + '<span>Premiação</span><span>Overlay</span><span>Field</span>'
-      + '<span>ID</span><span>Fix</span>';
-    fragment.appendChild(hdr);
-  }
+  // No modo compacto, não mostrar os ucards de flag
+  if(!_compactMode){
   withFlag.forEach(({row:r, cat, flag}) => {
     const key = r._key;
     const card = document.createElement('div');
@@ -6500,6 +6493,8 @@ function renderUnfixed(){
     `;
     fragment.appendChild(card);
   });
+  } // fim if(!_compactMode)
+
   grid.appendChild(fragment);
 
   observeAnimatedCards(grid); // liga/desliga pulso de atrasado conforme entra/sai da tela
@@ -6585,6 +6580,15 @@ function renderUpcoming(){
     const isRunning = isRunningNow(t, nowMin);
     // ── Modo compacto ──
     if(_compactMode){
+      // Header na primeira linha
+      if(idx === 0){
+        const hdr = document.createElement('div');
+        hdr.className = 'compact-list-header';
+        hdr.innerHTML = '<span>Torneio</span><span>Hora</span><span>GTD</span>'
+          + '<span>Premiação</span><span>Overlay</span><span>Field</span>'
+          + '<span>ID</span><span>Fix</span>';
+        fragment.appendChild(hdr);
+      }
       const elc = document.createElement('div');
       const premVal = t.premiacao;
       const garVal  = t.garantido;
