@@ -2336,134 +2336,115 @@
 
 /* ══ 5. Modo compacto ══ */
 /* Linha compacta escondida por padrão — só aparece no modo compacto */
-/* ══ Modo compacto — layout planilha ══ */
-.compact-list{
+/* ══ Modo compacto — estilo tabela de auditoria ══ */
+.compact-table-wrap{
   border:1px solid var(--hairline-strong);
   border-radius:12px;
   overflow:hidden;
   background:var(--card);
 }
-
-/* Header da planilha */
-.compact-list-header{
-  display:grid;
-  grid-template-columns: 28px 2.2fr 52px 75px 110px 80px 80px 90px 32px;
-  gap:0;
-  padding:7px 10px;
+.compact-table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:12px;
+}
+.compact-table thead th{
+  padding:9px 12px;
+  text-align:left;
+  font-size:9.5px;font-weight:800;
+  letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-soft);
   background:var(--card-elevated);
   border-bottom:2px solid var(--hairline-strong);
-  font-size:9px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
-  color:var(--ink-soft);
-}
-.compact-list-header span{ padding:0 4px; }
-
-/* Linha da planilha */
-.tcard-compact-item{
-  display:grid;
-  grid-template-columns: 28px 2.2fr 52px 75px 110px 80px 80px 90px 32px;
-  align-items:center;
-  gap:0;
-  padding:0;
-  min-height:36px;height:auto;
-  border-bottom:1px solid var(--hairline);
-  background:var(--card);
-  transition:background .1s;
-}
-.tcard-compact-item:last-child{ border-bottom:none; }
-.tcard-compact-item:hover{ background:var(--card-elevated); }
-
-/* Fixado — linha verde */
-.tcard-compact-item.is-fixed{
-  background: rgba(34,197,94,.05);
-}
-.tcard-compact-item.is-fixed:hover{ background:rgba(34,197,94,.09); }
-
-/* NF — linha apagada */
-.tcard-compact-item.is-nf{
-  opacity:.4;filter:grayscale(.5);
-}
-
-/* Cat indicator */
-.tci-cat{
-  width:4px;height:100%;min-height:36px;
-  border-radius:0;flex:none;
-  background:var(--cat-bright, var(--ink-soft));
-}
-
-/* Nome do torneio — DESTAQUE */
-.tci-nome{
-  font-size:12.5px;font-weight:700;
-  color:var(--ink);
-  white-space:normal;word-break:break-word;
-  padding:4px 8px;cursor:default;line-height:1.3;
-}
-.tcard-compact-item.is-nf .tci-nome{
-  text-decoration:line-through;
-  text-decoration-color:var(--ink-soft);
-}
-
-/* Hora */
-.tci-hora{
-  font-size:11px;font-family:var(--mono);
-  color:var(--ink-soft);padding:0 4px;
   white-space:nowrap;
 }
-
+.compact-table thead th.r{ text-align:right; }
+.compact-table tbody tr{
+  border-bottom:1px solid var(--hairline);
+  transition:background .1s;
+}
+.compact-table tbody tr:last-child{ border-bottom:none; }
+.compact-table tbody tr:hover{ background:var(--card-elevated); }
+.compact-table tbody tr.is-fixed{ background:rgba(34,197,94,.05); }
+.compact-table tbody tr.is-fixed:hover{ background:rgba(34,197,94,.09); }
+.compact-table tbody tr.is-nf{ opacity:.4;filter:grayscale(.5); }
+.compact-table tbody td{
+  padding:8px 12px;
+  vertical-align:middle;
+}
+/* Cat pill */
+.ctr-cat{
+  width:3px;padding:0;
+}
+.ctr-cat-bar{
+  width:3px;height:100%;min-height:32px;
+  display:block;border-radius:2px;
+}
+/* Nome — destaque total, nunca trunca */
+.ctr-nome{
+  font-weight:700;color:var(--ink);
+  min-width:160px;max-width:240px;
+  word-break:break-word;line-height:1.35;
+}
+/* Hora */
+.ctr-hora{
+  font-family:var(--mono);font-size:11px;
+  color:var(--ink-soft);white-space:nowrap;
+  text-align:center;
+}
 /* GTD */
-.tci-gar{
-  font-size:11px;font-family:var(--mono);font-weight:600;
-  color:var(--amber);padding:0 4px;
-  text-align:right;white-space:nowrap;
+.ctr-gar{
+  font-family:var(--mono);font-size:11px;font-weight:600;
+  color:var(--amber);white-space:nowrap;
+  text-align:right;
 }
-
 /* Overlay */
-.tci-ov{
-  font-size:11px;font-family:var(--mono);font-weight:700;
-  text-align:right;padding:0 4px;white-space:nowrap;
+.ctr-ov{
+  font-family:var(--mono);font-size:11px;font-weight:700;
+  white-space:nowrap;text-align:right;
 }
-.tci-ov.neg{ color:var(--red); }
-.tci-ov.pos{ color:var(--felt-bright); }
-
-/* Checkbox fixar */
-.tci-fix-cb{
-  width:15px;height:15px;
-  accent-color:var(--felt);cursor:pointer;
-  margin:0 auto;display:block;
-}
-
-/* Inputs inline */
-.tci-input{
-  width:100%;height:100%;min-height:36px;
-  padding:0 6px;
+.ctr-ov.neg{ color:var(--red); }
+.ctr-ov.pos{ color:var(--felt-bright); }
+/* Cells com input */
+.ctr-inp-cell{ padding:0 !important; }
+.ctr-inp{
+  display:block;width:100%;
+  padding:8px 10px;
   border:none;border-left:1px solid var(--hairline);
   background:transparent;
   color:var(--ink);font-size:11px;font-family:var(--mono);
-  outline:none;transition:background .15s;
-  box-sizing:border-box;
+  outline:none;min-width:90px;
+  transition:background .12s,border-color .12s;
 }
-.tci-input:focus{
-  background:var(--felt-soft);
-  border-left-color:var(--felt-bright);
-  color:var(--ink);
+.ctr-inp:focus{
+  background:rgba(34,197,94,.06);
+  border-left:2px solid var(--felt-bright);
 }
-.tci-input.has-value{ color:var(--ink);font-weight:600; }
-.tci-input::placeholder{ color:var(--ink-soft);font-weight:400; }
-
-.tci-input-id{
-  width:100%;height:100%;min-height:36px;
-  padding:0 6px;
+.ctr-inp.has-value{ font-weight:600; }
+.ctr-inp::placeholder{ color:var(--ink-soft);font-weight:400;opacity:.6; }
+.ctr-inp-id{
+  display:block;width:100%;
+  padding:8px 10px;
   border:none;border-left:1px solid var(--hairline);
   background:transparent;
   color:var(--ink-soft);font-size:10px;font-family:var(--mono);
-  outline:none;transition:background .15s;
-  box-sizing:border-box;
+  outline:none;min-width:90px;
+  transition:background .12s;
 }
-.tci-input-id:focus{
-  background:var(--felt-soft);
-  border-left-color:var(--felt-bright);
+.ctr-inp-id:focus{
+  background:rgba(34,197,94,.06);
+  border-left:2px solid var(--felt-bright);
   color:var(--ink);
 }
-.tci-input-id.has-value{ color:var(--ink); }
+.ctr-inp-id.has-value{ color:var(--ink); }
+/* Checkbox */
+.ctr-fix{
+  text-align:center;
+}
+.ctr-fix input{
+  width:15px;height:15px;
+  accent-color:var(--felt);cursor:pointer;
+}
 
 .upcoming-grid.compact-mode{
   display:flex;flex-direction:column;gap:0;
@@ -3829,7 +3810,8 @@ function calcOverlayCard(row, premiacao){
   const rake = calcRake(row);
   const buyin = parseFloat(row.buyin) || 0;
   // field = acoes = premiacao / buyin_liquido se buyin conhecido, senão 0
-  const buyinLiq = buyin * (1 - rake);
+  const rakeFactor1 = cat === 'main' ? 0.88 : cat === 'sat' ? 0.95 : (isCamp ? 0.88 : 0.9);
+  const buyinLiq = buyin * rakeFactor1;
   const acoes = buyinLiq > 0 ? Math.round((premiacao / buyinLiq) * 10) / 10 : null;
   return { overlay: premiacao - row.garantido, acoes, rake };
 }
@@ -6658,91 +6640,101 @@ function renderUpcoming(){
     const isRunning = isRunningNow(t, nowMin);
     // ── Modo compacto ──
     if(_compactMode){
-      // Header na primeira linha
+      // Cabeçalho na primeira linha — usa <table> real
       if(idx === 0){
-        const hdr = document.createElement('div');
-        hdr.className = 'compact-list-header';
-        hdr.innerHTML =
-          '<span></span>' +
-          '<span>Torneio</span>' +
-          '<span style="text-align:right">Hora</span>' +
-          '<span style="text-align:right">GTD</span>' +
-          '<span style="padding-left:7px">Premiação</span>' +
-          '<span style="text-align:right">Overlay</span>' +
-          '<span style="padding-left:7px">Field</span>' +
-          '<span style="padding-left:7px">ID</span>' +
-          '<span style="text-align:center">Fix</span>';
-        fragment.appendChild(hdr);
+        const tbl = document.createElement('div');
+        tbl.className = 'compact-table-wrap';
+        tbl.innerHTML =
+          '<table class="compact-table">' +
+          '<thead><tr>' +
+          '<th style="width:3px;padding:0"></th>' +
+          '<th>Torneio</th>' +
+          '<th class="r">Hora</th>' +
+          '<th class="r">GTD</th>' +
+          '<th>Premiação</th>' +
+          '<th class="r">Overlay</th>' +
+          '<th>Field</th>' +
+          '<th>ID</th>' +
+          '<th style="text-align:center">Fix</th>' +
+          '</tr></thead>' +
+          '<tbody id="compactTbody"></tbody>' +
+          '</table>';
+        fragment.appendChild(tbl);
       }
 
-      const elc = document.createElement('div');
+      // Adicionar linha à tabela
+      const tbody = fragment.querySelector('#compactTbody') || document.getElementById('compactTbody');
+      if(!tbody){ return; }
+
       const premVal  = t.premiacao;
       const garVal   = t.garantido;
       const fieldVal = getField(key);
       const ovc      = premVal != null && garVal != null ? premVal - garVal : null;
+      const catColor = cat==='main'?'var(--main-bright)':cat==='sat'?'var(--sat-bright)':'var(--side-bright)';
+      const ovCls    = ovc!=null?(ovc<0?' neg':' pos'):'';
+      const ovTxt    = ovc!=null?(ovc<0?'-':'+')+('R$'+fmtBRL(Math.abs(ovc),Math.abs(ovc)%1===0?0:2)):'—';
+      const premFmt  = premVal!=null?fmtBRL(premVal,premVal%1===0?0:2):'';
 
-      // Cor da categoria
-      const catColor = cat === 'main' ? 'var(--main-bright)' : cat === 'sat' ? 'var(--sat-bright)' : 'var(--side-bright)';
+      const tr = document.createElement('tr');
+      tr.dataset.key = key;
+      tr.className   =
+        (fixed ? 'is-fixed ' : '') +
+        (isNF  ? 'is-nf '    : '') +
+        (flag==='late' ? 'is-late ' : '') +
+        (flag==='soon' ? 'is-soon ' : '');
 
-      elc.className = 'tcard-compact-item'
-        + (fixed   ? ' is-fixed' : '')
-        + (isNF    ? ' is-nf'    : '')
-        + (flag==='soon' ? ' is-soon' : '')
-        + (flag==='late' ? ' is-late' : '');
-      elc.dataset.key = key;
+      tr.innerHTML =
+        // Cat bar
+        '<td class="ctr-cat"><span class="ctr-cat-bar" style="background:' + catColor + '"></span></td>' +
 
-      const ovCls = ovc != null ? (ovc < 0 ? ' neg' : ' pos') : '';
-      const ovTxt = ovc != null
-        ? (ovc < 0 ? '-' : '+') + 'R$' + fmtBRL(Math.abs(ovc), Math.abs(ovc)%1===0?0:2)
-        : '—';
-      const premFmt = premVal != null ? fmtBRL(premVal, premVal%1===0?0:2) : '';
-
-      elc.innerHTML =
-        // Indicador categoria
-        '<div class="tci-cat" style="background:' + catColor + '"></div>' +
-
-        // Nome — destaque máximo
-        '<div class="tci-nome" title="' + escHtml(t.nome||'') + '">' + escHtml(t.nome||'—') + '</div>' +
+        // Nome completo — nunca trunca
+        '<td class="ctr-nome">' + escHtml(t.nome||'—') + '</td>' +
 
         // Hora
-        '<div class="tci-hora">' + (t.hora||'—') + '</div>' +
+        '<td class="ctr-hora">' + (t.hora||'—') + '</td>' +
 
         // GTD
-        '<div class="tci-gar">' + (garVal!=null?'R$'+fmtBRL(garVal,0):'—') + '</div>' +
+        '<td class="ctr-gar">' + (garVal!=null?'R$'+fmtBRL(garVal,0):'—') + '</td>' +
 
         // Premiação (input)
-        '<input class="tci-input tcard-prem-input' + (premVal!=null?' has-value':'') + '"' +
-          ' data-key="' + key + '" type="text" inputmode="decimal"' +
-          ' placeholder="R$ —"' +
-          ' value="' + premFmt + '"' +
-          ' oninput="onCardPremiacaoInput(this)"' +
-          ' onblur="formatPremInput(this)" onfocus="this.select()">' +
+        '<td class="ctr-inp-cell">' +
+          '<input class="ctr-inp tcard-prem-input' + (premVal!=null?' has-value':'') + '"' +
+            ' data-key="' + key + '" type="text" inputmode="decimal"' +
+            ' placeholder="R$ —" value="' + premFmt + '"' +
+            ' oninput="onCardPremiacaoInput(this)"' +
+            ' onblur="formatPremInput(this)" onfocus="this.select()">' +
+        '</td>' +
 
-        // Overlay (calculado)
-        '<div class="tci-ov' + ovCls + '" id="tci-ov-' + key + '">' + ovTxt + '</div>' +
+        // Overlay
+        '<td class="ctr-ov' + ovCls + '" id="tci-ov-' + key + '">' + ovTxt + '</td>' +
 
         // Field (input)
-        '<input class="tci-input tcard-field-input"' +
-          ' data-key="' + key + '" type="number" min="0"' +
-          ' placeholder="—"' +
-          ' value="' + (fieldVal!=null?fieldVal:'') + '"' +
-          ' oninput="onCardFieldInput(this)">' +
+        '<td class="ctr-inp-cell">' +
+          '<input class="ctr-inp tcard-field-input"' +
+            ' data-key="' + key + '" type="number" min="0"' +
+            ' placeholder="—" value="' + (fieldVal!=null?fieldVal:'') + '"' +
+            ' oninput="onCardFieldInput(this)">' +
+        '</td>' +
 
         // ID (input)
-        '<input class="tci-input-id id-input' + (currentId?' has-value':'') + '"' +
-          ' data-key="' + key + '" type="text"' +
-          ' placeholder="ID"' +
-          ' value="' + escHtml(currentId) + '"' +
-          ' oninput="onIdInput(this)" onblur="onIdBlur(this)">' +
+        '<td class="ctr-inp-cell">' +
+          '<input class="ctr-inp-id id-input' + (currentId?' has-value':'') + '"' +
+            ' data-key="' + key + '" type="text"' +
+            ' placeholder="ID" value="' + escHtml(currentId) + '"' +
+            ' oninput="onIdInput(this)" onblur="onIdBlur(this)">' +
+        '</td>' +
 
-        // Checkbox fixar
-        '<input class="tci-fix-cb" type="checkbox"' + (fixed?' checked':'') +
-          ' data-key="' + key + '"' +
-          ' onchange="onFixCheckboxChange(this)" title="' + (fixed?'Fixado':'Fixar') + '">';
+        // Fixar (checkbox)
+        '<td class="ctr-fix">' +
+          '<input type="checkbox"' + (fixed?' checked':'') +
+            ' data-key="' + key + '"' +
+            ' onchange="onFixCheckboxChange(this)">' +
+        '</td>';
 
-      fragment.appendChild(elc);
+      tbody.appendChild(tr);
       return;
     }
+
         const el = document.createElement('div');
     el.className = `tcard reveal${fixed ? ' is-fixed' : ''}${isNF ? ' is-nf' : ''}${flag==='soon' ? ' is-soon' : ''}${flag==='late' ? ' is-late' : ''}${isRunning ? ' is-running' : ''}`;
     el.dataset.key = key;
@@ -7038,11 +7030,10 @@ function calcAcoesForRow(row){
   const cat = classify(row);
   const rake = calcRake(row);
   const isCamp = hasCampanha(row);
-  const buyinLiq = parseFloat(row.buyin) * (1 - rake);
+  const rakeFactor2 = cat === 'main' ? 0.88 : cat === 'sat' ? 0.95 : (isCamp ? 0.88 : 0.9);
+  const buyinLiq = parseFloat(row.buyin) * rakeFactor2;
   if(!buyinLiq) return null;
-  if(cat === 'main') return Math.round((prem / buyinLiq) * 0.88 * 10) / 10;
-  if(cat === 'sat')  return Math.round((prem / buyinLiq) * 0.95 * 10) / 10;
-  return Math.round((prem / buyinLiq) * (isCamp ? 0.88 : 1) * 10) / 10;
+  return Math.round((prem / buyinLiq) * 10) / 10;
 }
 
 /* Cores e estilos por categoria */
@@ -8062,17 +8053,16 @@ function renderCardOverlayPreview(key, row, premiacaoVal, fieldVal){
      Side Event SEM campanha:     × 0.95
   ── */
   let acoes = null;
-  const mult = cat === 'main' ? 0.88
-             : cat === 'sat'  ? 0.95
-             : (isCamp ? 0.88 : 0.9); // side com/sem campanha
+  const rakeFactor = cat === 'main' ? 0.88
+                   : cat === 'sat'  ? 0.95
+                   : (isCamp ? 0.88 : 0.9);
+  const buyinLiqCalc = buyin * rakeFactor;
 
-  if(!isNaN(prem) && prem > 0 && buyin > 0){
-    acoes = Math.round((prem / buyin) * mult * 10) / 10;
+  if(!isNaN(prem) && prem > 0 && buyin > 0 && buyinLiqCalc > 0){
+    acoes = Math.round((prem / buyinLiqCalc) * 10) / 10;
   } else if(!isNaN(field) && field > 0 && buyin > 0){
-    // estimativa antes da premiação ser preenchida: pool ≈ field × buyin líquido de rake
-    const buyinLiq = buyin * (1 - rake);
-    const poolEstimado = field * buyinLiq;
-    acoes = Math.round((poolEstimado / buyin) * mult * 10) / 10;
+    // estimativa antes da premiação: field (pool/buyin_liq = field)
+    acoes = field;
   }
 
   // Overlay — sempre visível
