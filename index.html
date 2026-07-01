@@ -2336,136 +2336,58 @@
 
 /* ══ 5. Modo compacto ══ */
 /* Linha compacta escondida por padrão — só aparece no modo compacto */
-/* ══ Modo compacto — estilo tabela de auditoria ══ */
+/* ══ Modo compacto ══ */
 .compact-table-wrap{
+  border-radius:10px;
+  overflow:hidden;
   border:1px solid var(--hairline-strong);
-  border-radius:12px;
-  overflow-x:auto;          /* scroll horizontal se necessário */
-  background:var(--card);
 }
 .compact-table{
   width:100%;
-  min-width:700px;          /* largura mínima — evita colapso */
   border-collapse:collapse;
-  font-size:12px;
-  table-layout:fixed;       /* colunas com largura definida */
 }
-
-/* Larguras das colunas */
-.compact-table col.c-cat  { width:4px; }
-.compact-table col.c-nome { width:auto; }   /* ocupa o espaço restante */
-.compact-table col.c-hora { width:58px; }
-.compact-table col.c-gar  { width:82px; }
-.compact-table col.c-prem { width:110px; }
-.compact-table col.c-ov   { width:90px; }
-.compact-table col.c-field{ width:72px; }
-.compact-table col.c-id   { width:90px; }
-.compact-table col.c-fix  { width:36px; }
-
 .compact-table thead th{
-  padding:8px 10px;
-  text-align:left;
-  font-size:9px;font-weight:800;
-  letter-spacing:.08em;text-transform:uppercase;
+  padding:8px 12px;
+  font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
   color:var(--ink-soft);
   background:var(--card-elevated);
   border-bottom:2px solid var(--hairline-strong);
-  white-space:nowrap;
-  overflow:hidden;
+  text-align:left;white-space:nowrap;
 }
-.compact-table thead th.r{ text-align:right; }
-.compact-table thead th.c{ text-align:center; }
-
-.compact-table tbody tr{
-  border-bottom:1px solid var(--hairline);
-  transition:background .1s;
-}
+.compact-table tbody tr{ border-bottom:1px solid var(--hairline); }
 .compact-table tbody tr:last-child{ border-bottom:none; }
 .compact-table tbody tr:hover{ background:var(--card-elevated); }
-.compact-table tbody tr.is-fixed{ background:rgba(34,197,94,.05); }
-.compact-table tbody tr.is-fixed:hover{ background:rgba(34,197,94,.09); }
-.compact-table tbody tr.is-nf{ opacity:.4;filter:grayscale(.5); }
-
+.compact-table tbody tr.is-fixed{ background:rgba(34,197,94,.06); }
+.compact-table tbody tr.is-nf{ opacity:.4; }
 .compact-table tbody td{
-  padding:7px 10px;
+  padding:7px 12px;
+  font-size:12px;
   vertical-align:middle;
-  overflow:hidden;
 }
-
-/* Cat bar */
-.ctr-cat{ width:4px;padding:0 !important; }
-.ctr-cat-bar{ display:block;width:4px;height:32px;border-radius:2px; }
-
-/* Nome — nunca quebra, mostra completo com tooltip */
-.ctr-nome{
-  font-weight:700;color:var(--ink);
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  padding-right:4px;
-}
-
-/* Hora */
-.ctr-hora{
-  font-family:var(--mono);font-size:11px;
-  color:var(--ink-soft);white-space:nowrap;
-  text-align:center;
-}
-
-/* GTD */
-.ctr-gar{
-  font-family:var(--mono);font-size:11px;font-weight:600;
-  color:var(--amber);white-space:nowrap;
-  text-align:right;
-}
-
-/* Overlay */
-.ctr-ov{
-  font-family:var(--mono);font-size:11px;font-weight:700;
-  white-space:nowrap;text-align:right;
-}
+.ctr-cat-bar{ display:inline-block;width:3px;height:20px;border-radius:2px;vertical-align:middle; }
+.ctr-nome{ font-weight:700;color:var(--ink); }
+.ctr-hora{ color:var(--ink-soft);font-family:var(--mono);font-size:11px;white-space:nowrap; }
+.ctr-gar{ color:var(--amber);font-family:var(--mono);font-size:11px;font-weight:600;white-space:nowrap; }
+.ctr-ov{ font-family:var(--mono);font-size:11px;font-weight:700;white-space:nowrap; }
 .ctr-ov.neg{ color:var(--red); }
 .ctr-ov.pos{ color:var(--felt-bright); }
-
-/* Checkbox */
-.ctr-fix{ text-align:center;padding:0 !important; }
-.ctr-fix input{ width:15px;height:15px;accent-color:var(--felt);cursor:pointer; }
-
-/* Inputs inline */
-.ctr-inp-cell{ padding:0 !important; }
 .ctr-inp{
-  display:block;width:100%;height:100%;
-  padding:7px 8px;
-  border:none;border-left:1px solid var(--hairline);
-  background:transparent;
-  color:var(--ink);font-size:11px;font-family:var(--mono);
-  outline:none;
-  transition:background .12s,border-color .12s;
-  box-sizing:border-box;
+  width:100%;padding:5px 8px;
+  border:1px solid var(--hairline-strong);border-radius:5px;
+  background:var(--bg);color:var(--ink);
+  font-size:11px;font-family:var(--mono);
+  outline:none;box-sizing:border-box;
 }
-.ctr-inp:focus{
-  background:rgba(34,197,94,.06);
-  border-left:2px solid var(--felt-bright);
-}
-.ctr-inp.has-value{ font-weight:600; }
-.ctr-inp::placeholder{ color:var(--ink-soft);opacity:.5;font-weight:400; }
-
+.ctr-inp:focus{ border-color:var(--felt-bright);background:rgba(34,197,94,.04); }
+.ctr-inp::placeholder{ color:var(--ink-soft);opacity:.5; }
 .ctr-inp-id{
-  display:block;width:100%;height:100%;
-  padding:7px 8px;
-  border:none;border-left:1px solid var(--hairline);
-  background:transparent;
-  color:var(--ink-soft);font-size:10px;font-family:var(--mono);
-  outline:none;
-  transition:background .12s;
-  box-sizing:border-box;
+  width:100%;padding:5px 8px;
+  border:1px solid var(--hairline);border-radius:5px;
+  background:transparent;color:var(--ink-soft);
+  font-size:10px;font-family:var(--mono);
+  outline:none;box-sizing:border-box;
 }
-.ctr-inp-id:focus{
-  background:rgba(34,197,94,.06);
-  border-left:2px solid var(--felt-bright);
-  color:var(--ink);
-}
-.ctr-inp-id.has-value{ color:var(--ink); }
+.ctr-inp-id:focus{ border-color:var(--felt-bright);color:var(--ink);background:rgba(34,197,94,.04); }
 /* Checkbox */
 .ctr-fix{
   text-align:center;
@@ -6669,102 +6591,69 @@ function renderUpcoming(){
     const isRunning = isRunningNow(t, nowMin);
     // ── Modo compacto ──
     if(_compactMode){
-      // Cabeçalho na primeira linha — usa <table> real
       if(idx === 0){
-        const tbl = document.createElement('div');
-        tbl.className = 'compact-table-wrap';
-        tbl.innerHTML =
-          '<table class="compact-table">' +
-          '<thead><tr>' +
-          '<th style="width:3px;padding:0"></th>' +
-          '<th>Torneio</th>' +
-          '<th class="r">Hora</th>' +
-          '<th class="r">GTD</th>' +
-          '<th>Premiação</th>' +
-          '<th class="r">Overlay</th>' +
-          '<th>Field</th>' +
-          '<th>ID</th>' +
-          '<th style="text-align:center">Fix</th>' +
-          '</tr></thead>' +
-          '<tbody id="compactTbody"></tbody>' +
-          '</table>';
-        fragment.appendChild(tbl);
+        const wrap = document.createElement('div');
+        wrap.className = 'compact-table-wrap';
+        const tbl = document.createElement('table');
+        tbl.className = 'compact-table';
+        tbl.innerHTML = '<thead><tr>'
+          + '<th style="width:4px;padding:0"></th>'
+          + '<th>Torneio</th>'
+          + '<th style="width:58px">Hora</th>'
+          + '<th style="width:90px">GTD</th>'
+          + '<th style="width:108px">Premiação</th>'
+          + '<th style="width:90px">Overlay</th>'
+          + '<th style="width:68px">Field</th>'
+          + '<th style="width:90px">ID</th>'
+          + '<th style="width:34px;text-align:center">Fix</th>'
+          + '</tr></thead><tbody id="compactTbody"></tbody>';
+        wrap.appendChild(tbl);
+        fragment.appendChild(wrap);
       }
 
-      // Adicionar linha à tabela
       const tbody = fragment.querySelector('#compactTbody') || document.getElementById('compactTbody');
-      if(!tbody){ return; }
+      if(!tbody) return;
 
       const premVal  = t.premiacao;
       const garVal   = t.garantido;
       const fieldVal = getField(key);
       const ovc      = premVal != null && garVal != null ? premVal - garVal : null;
       const catColor = cat==='main'?'var(--main-bright)':cat==='sat'?'var(--sat-bright)':'var(--side-bright)';
+      const premFmt  = premVal != null ? fmtBRL(premVal, premVal%1===0?0:2) : '';
       const ovCls    = ovc!=null?(ovc<0?' neg':' pos'):'';
-      const ovTxt    = ovc!=null?(ovc<0?'-':'+')+('R$'+fmtBRL(Math.abs(ovc),Math.abs(ovc)%1===0?0:2)):'—';
-      const premFmt  = premVal!=null?fmtBRL(premVal,premVal%1===0?0:2):'';
+      const ovTxt    = ovc!=null?(ovc<0?'-':'+')+('R$'+fmtBRL(Math.abs(ovc),Math.abs(ovc)%1===0?0:2)):'\u2014';
 
       const tr = document.createElement('tr');
       tr.dataset.key = key;
-      tr.className   =
-        (fixed ? 'is-fixed ' : '') +
-        (isNF  ? 'is-nf '    : '') +
-        (flag==='late' ? 'is-late ' : '') +
-        (flag==='soon' ? 'is-soon ' : '');
+      if(fixed) tr.classList.add('is-fixed');
+      if(isNF)  tr.classList.add('is-nf');
 
-      tr.innerHTML =
-        // Cat bar
-        '<td class="ctr-cat"><span class="ctr-cat-bar" style="background:' + catColor + '"></span></td>' +
-
-        // Nome completo — nunca trunca
-        '<td class="ctr-nome">' + escHtml(t.nome||'—') + '</td>' +
-
-        // Hora
-        '<td class="ctr-hora">' + (t.hora||'—') + '</td>' +
-
-        // GTD
-        '<td class="ctr-gar">' + (garVal!=null?'R$'+fmtBRL(garVal,0):'—') + '</td>' +
-
-        // Premiação (input)
-        '<td class="ctr-inp-cell">' +
-          '<input class="ctr-inp tcard-prem-input' + (premVal!=null?' has-value':'') + '"' +
-            ' data-key="' + key + '" type="text" inputmode="decimal"' +
-            ' placeholder="R$ —" value="' + premFmt + '"' +
-            ' oninput="onCardPremiacaoInput(this)"' +
-            ' onblur="formatPremInput(this)" onfocus="this.select()">' +
-        '</td>' +
-
-        // Overlay
-        '<td class="ctr-ov' + ovCls + '" id="tci-ov-' + key + '">' + ovTxt + '</td>' +
-
-        // Field (input)
-        '<td class="ctr-inp-cell">' +
-          '<input class="ctr-inp tcard-field-input"' +
-            ' data-key="' + key + '" type="number" min="0"' +
-            ' placeholder="—" value="' + (fieldVal!=null?fieldVal:'') + '"' +
-            ' oninput="onCardFieldInput(this)">' +
-        '</td>' +
-
-        // ID (input)
-        '<td class="ctr-inp-cell">' +
-          '<input class="ctr-inp-id id-input' + (currentId?' has-value':'') + '"' +
-            ' data-key="' + key + '" type="text"' +
-            ' placeholder="ID" value="' + escHtml(currentId) + '"' +
-            ' oninput="onIdInput(this)" onblur="onIdBlur(this)">' +
-        '</td>' +
-
-        // Fixar (checkbox)
-        '<td class="ctr-fix">' +
-          '<input type="checkbox"' + (fixed?' checked':'') +
-            ' data-key="' + key + '"' +
-            ' onchange="onFixCheckboxChange(this)">' +
-        '</td>';
-
+      const catTd   = '<td style="width:4px;padding:0"><span class="ctr-cat-bar" style="background:'+catColor+'"></span></td>';
+      const nomeTd  = '<td class="ctr-nome" title="'+escHtml(t.nome||'')+'">'+escHtml(t.nome||'\u2014')+'</td>';
+      const horaTd  = '<td class="ctr-hora">'+(t.hora||'\u2014')+'</td>';
+      const garTd   = '<td class="ctr-gar">'+(garVal!=null?'R$'+fmtBRL(garVal,0):'\u2014')+'</td>';
+      const premTd  = '<td style="padding:3px 5px"><input class="ctr-inp tcard-prem-input'+(premVal!=null?' has-value':'')+'"'
+                    + ' data-key="'+key+'" type="text" inputmode="decimal"'
+                    + ' placeholder="R$ \u2014" value="'+premFmt+'"'
+                    + ' oninput="onCardPremiacaoInput(this)"'
+                    + ' onblur="formatPremInput(this)" onfocus="this.select()"></td>';
+      const ovTd    = '<td class="ctr-ov'+ovCls+'" id="tci-ov-'+key+'">'+ovTxt+'</td>';
+      const fieldTd = '<td style="padding:3px 5px"><input class="ctr-inp tcard-field-input"'
+                    + ' data-key="'+key+'" type="number" min="0"'
+                    + ' placeholder="\u2014" value="'+(fieldVal!=null?fieldVal:'')+'"></td>';
+      const idTd    = '<td style="padding:3px 5px"><input class="ctr-inp-id id-input'+(currentId?' has-value':'')+'"'
+                    + ' data-key="'+key+'" type="text"'
+                    + ' placeholder="ID" value="'+escHtml(currentId)+'"'
+                    + ' oninput="onIdInput(this)" onblur="onIdBlur(this)"></td>';
+      const fixTd   = '<td style="text-align:center;padding:3px"><input type="checkbox"'+(fixed?' checked':'')
+                    + ' data-key="'+key+'" style="width:15px;height:15px;accent-color:var(--felt);cursor:pointer"'
+                    + ' onchange="onFixCheckboxChange(this)"></td>';
+      tr.innerHTML = catTd+nomeTd+horaTd+garTd+premTd+ovTd+fieldTd+idTd+fixTd;
       tbody.appendChild(tr);
       return;
     }
 
-        const el = document.createElement('div');
+    const el = document.createElement('div');
     el.className = `tcard reveal${fixed ? ' is-fixed' : ''}${isNF ? ' is-nf' : ''}${flag==='soon' ? ' is-soon' : ''}${flag==='late' ? ' is-late' : ''}${isRunning ? ' is-running' : ''}`;
     el.dataset.key = key;
     el.style.setProperty('--cat-bright', `var(--${cat}-bright)`);
