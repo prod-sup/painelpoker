@@ -1727,7 +1727,8 @@
   }
 
   #cashTableChecklist{ margin-top:20px; padding-top:18px; border-top:1px solid var(--hairline); }
-  .ct-checklist-title{ font-family:var(--display); font-weight:650; font-size:14px; margin-bottom:12px; }
+  .ct-checklist-title{ font-family:var(--display); font-weight:650; font-size:14px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .ct-checklist-title .copy-btn{ padding:6px 11px; font-size:11px; }
   .ct-checklist-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
   @media (max-width:520px){ .ct-checklist-grid{ grid-template-columns:1fr; } }
   .ct-checklist-item{
@@ -2746,11 +2747,17 @@
     </div>
     <div class="drawer-body">
       <p class="routine-tool-desc">Suba a planilha de mesas Cash uma vez (fica salva pro resto da sessão). Preencha o formulário do Digisac — o painel divide sempre por 5 e monta a checklist do que ativar no app.</p>
-      <label class="routine-upload" id="cashTablesUploadLabel">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
-        <span id="cashTablesFileLabel">Carregar planilha de Mesas Cash (.xlsx)</span>
-        <input type="file" id="cashTablesFileInput" accept=".xlsx" hidden>
-      </label>
+      <div style="display:flex;gap:10px;align-items:stretch;">
+        <label class="routine-upload" id="cashTablesUploadLabel" style="flex:1;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+          <span id="cashTablesFileLabel">Carregar planilha de Mesas Cash (.xlsx)</span>
+          <input type="file" id="cashTablesFileInput" accept=".xlsx" hidden>
+        </label>
+        <button class="ovc-clear-btn" id="ctClearBtn" type="button" title="Limpar formulário">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14Z"/></svg>
+          Limpar
+        </button>
+      </div>
 
 
       <div class="ovc-row">
@@ -4733,7 +4740,7 @@ function revealAdminNav(){
 function initAdminPage(){ /* admin movido para admin.html */ }
 
 // loadMesasCashFromB64 — carrega planilha de mesas cash a partir de base64 (vinda do Firebase)
-function loadMesasCashFromB64(b64, filename, uploadedAt, fromRemote){
+function loadMesasCashFromB64(b64, filename, uploadedAt, fromRemote, uploadedBy){
   if(!b64) return;
   if(CASH_TABLE_LAST_LOADED_AT && CASH_TABLE_LAST_LOADED_AT === uploadedAt) return; // já carregada
   CASH_TABLE_LAST_LOADED_AT = uploadedAt;
@@ -4742,12 +4749,22 @@ function loadMesasCashFromB64(b64, filename, uploadedAt, fromRemote){
     const wb = XLSX.read(arrayBuffer, {type:'array', cellDates:false});
     CASH_TABLE_WORKBOOK = wb;
     CASH_TABLE_MATRIX_CACHE = {};
+    const when = uploadedAt ? new Date(uploadedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
+    // atualiza o rótulo de forma persistente — antes só um toast passageiro avisava, e ao reabrir
+    // a gaveta depois o rótulo continuava mostrando "Carregar planilha..." como se nada tivesse vindo
+    const label = document.getElementById('cashTablesFileLabel');
+    const labelBox = document.getElementById('cashTablesUploadLabel');
+    if(label && labelBox){
+      label.textContent = fromRemote
+        ? `${filename || 'Mesas Cash'}${uploadedBy ? ' — compartilhada por ' + uploadedBy : ''}${when ? ' às ' + when : ''}`
+        : filename || label.textContent;
+      labelBox.classList.add('is-loaded');
+    }
     if(fromRemote){
-      const uploadedBy = ''; // não disponível no objeto mínimo
-      const when = uploadedAt ? new Date(uploadedAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
-      showToast(`Mesas cash recebidas${when ? ' ('+when+')' : ''} — planilha compartilhada pelo parceiro`);
+      showToast(`Mesas cash recebidas${when ? ' ('+when+')' : ''}${uploadedBy ? ' — enviada por ' + uploadedBy : ' — planilha compartilhada pelo parceiro'}`);
     }
     populateCashServerSelect();
+    if(CASH_TABLE_WORKBOOK) runCashTableSearch(); // se já tinha modalidade/blind preenchidos, busca na hora com a planilha recém-chegada
   } catch(e){
     console.error('Erro ao carregar mesas cash do Firebase:', e);
   }
@@ -5737,7 +5754,7 @@ function initFirebaseSync(){
       const key = `${data.uploadedAt}`;
       if(window._lastMesasCashKey === key) return;
       window._lastMesasCashKey = key;
-      loadMesasCashFromB64(data.data, data.filename || '', data.uploadedAt, /*fromRemote=*/true);
+      loadMesasCashFromB64(data.data, data.filename || '', data.uploadedAt, /*fromRemote=*/true, data.uploadedBy || '');
     });
 
     // ── Presença ─────────────────────────────────────────────────────────
@@ -6816,8 +6833,7 @@ function renderUpcoming(){
       const idTd    = '<td style="padding:3px 5px"><div style="display:flex;gap:4px;align-items:center">'
                     + '<input class="ctr-inp-id id-input'+(currentId?' has-value':'')+'" style="flex:1;min-width:0"'
                     + ' data-key="'+key+'" type="text"'
-                    + ' placeholder="ID" value="'+escHtml(currentId)+'"'
-                    + ' oninput="onIdInput(this)" onblur="onIdBlur(this)">'
+                    + ' placeholder="ID" value="'+escHtml(currentId)+'">'
                     + '<button class="copy-btn ctr-copy-btn" data-key="'+key+'" type="button" title="Copiar dados do torneio">'
                     + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>'
                     + '</button></div></td>';
@@ -6984,6 +7000,13 @@ function wireCardInteractions(container){
         } else if(!isNF && badge){ badge.remove(); }
         // recalcula garantido total excluindo NF
         computeStats();
+      } else {
+        // modo compacto: não tem .tcard, mas a linha da tabela também precisa refletir o NF
+        const tr = inp.closest('tr[data-key]');
+        if(tr){
+          tr.classList.toggle('is-nf', val.toUpperCase() === 'NF');
+          computeStats();
+        }
       }
     });
     inp.addEventListener('keydown', (e) => {
@@ -7007,12 +7030,20 @@ function wireCardInteractions(container){
     chk.addEventListener('change', () => {
       const key = chk.dataset.key;
       setFixed(key, chk.checked);
-      // recomputa lista derivada + re-renderiza tudo que depende do estado de fixado
+      // recomputa a lista de "Não fixados" na hora — é o que precisa voltar rápido quando
+      // o operador desmarca por engano, pra não ficar confuso achando que não funcionou
       UNFIXED = computeUnfixed();
       document.getElementById('statUnfixed').textContent = UNFIXED.length;
       updateProgress();
       renderUnfixed();
-      renderUpcoming();
+      // Atualiza só o card/linha que mudou, sem reconstruir a agenda inteira — um renderUpcoming()
+      // aqui fazia TODOS os cards refazerem o fade de entrada por causa de um único checkbox,
+      // parecendo lento. patchCardFields cobre o card normal; modo compacto é uma linha de tabela.
+      if(!patchCardFields(key)){
+        document.querySelectorAll(`.compact-table tbody tr[data-key="${key}"]`).forEach(tr => {
+          tr.classList.toggle('is-fixed', chk.checked);
+        });
+      }
     });
   });
   applyIdDuplicateChecks(); // marca duplicatas já existentes assim que os cards entram na tela
@@ -9159,7 +9190,13 @@ function renderCashTableChecklist(table){
   if (table.bombPot && normText(table.bombPot) !== 'nao') items.push({label:'Bomb Pot (mesa)', value: table.bombPot, warn:true});
 
   el.innerHTML = `
-    <div class="ct-checklist-title">O que ativar no app</div>
+    <div class="ct-checklist-title">
+      <span>O que ativar no app</span>
+      <button class="copy-btn" id="ctChecklistCopyBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+        <span>Copiar</span>
+      </button>
+    </div>
     <div class="ct-checklist-grid">
       ${items.map(it => `
         <div class="ct-checklist-item${it.warn ? ' warn' : ''}">
@@ -9170,6 +9207,11 @@ function renderCashTableChecklist(table){
   `;
   el.hidden = false;
   el.scrollIntoView({behavior:'smooth', block:'nearest'});
+  // texto simples pra colar em chat/whatsapp — mesmo conteúdo da checklist visual
+  const checklistText = items.map(it => `${it.label}: ${it.value}`).join('\n');
+  document.getElementById('ctChecklistCopyBtn').addEventListener('click', (e) => {
+    copyToClipboard(checklistText, e.currentTarget);
+  });
 }
 
 /* Mapa de divisores por servidor (atualizado conforme regras operacionais confirmadas):
@@ -9246,6 +9288,27 @@ function runCashTableSearch(){
     const selected = document.querySelector('#cashTablesResult .ct-table-row.selected');
     if (selected) renderCashTableChecklist(LAST_CASH_TABLE_RESULTS[parseInt(selected.dataset.idx,10)]);
   });
+});
+
+// Limpar formulário — reseta tudo pra montar o próximo pedido do zero, sem apagar campo por campo
+// (mesma ideia do botão "Limpar" da Calculadora de Overlay). Não apaga a planilha carregada.
+document.getElementById('ctClearBtn').addEventListener('click', () => {
+  document.getElementById('ctModalidade').selectedIndex = 0;
+  document.getElementById('ctPlayers').value = '';
+  document.getElementById('ctBlindSmall').value = '';
+  document.getElementById('ctBlindBig').value = '';
+  document.getElementById('ctAnte').value = '';
+  document.getElementById('ctBuyinBB').selectedIndex = 0;
+  document.getElementById('ctVpipPct').value = '';
+  document.getElementById('ctPassword').checked = false;
+  document.getElementById('ctStraddle').checked = false;
+  document.getElementById('ctCucurucho').selectedIndex = 0;
+  document.getElementById('ctBombPot').selectedIndex = 0;
+  document.getElementById('ctConverted').hidden = true;
+  document.getElementById('cashTablesResult').innerHTML = '';
+  document.getElementById('cashTableChecklist').hidden = true;
+  LAST_CASH_TABLE_RESULTS = [];
+  showToast('Formulário de Mesas Cash limpo.');
 });
 
 document.getElementById('cashTablesToggle').addEventListener('click', () => openDrawer('cashTablesDrawerOverlay'));
@@ -9434,7 +9497,11 @@ setVisibilityAwareInterval(() => {
   document.getElementById('statUnfixed').textContent = UNFIXED.length;
   updateProgress();
   renderUnfixed();
-  renderUpcoming();
+  // esse timer roda a cada 60s independente de qualquer edição — sem essa checagem, ele podia
+  // reconstruir a agenda inteira bem no meio de uma digitação de premiação/field, fazendo os
+  // cards "sumirem" sem nenhuma relação direta com a ação do operador (mesma causa já corrigida
+  // nos listeners do Firebase, só que esse é um timer puro, não eco de escrita)
+  if(!isTypingInCard() && !window._suppressRenderUpcoming) renderUpcoming();
 }, 1000*60);
 
 /* =========================================================================
