@@ -9489,13 +9489,12 @@ function buildFixerRowHTML(key){
 /* ══ 5. Modo compacto ══ */
 function toggleCompactMode(){
   _compactMode = !_compactMode;
-  const grid = document.getElementById('upcomingGrid');
-  const btn  = document.getElementById('compactToggleBtn');
-  if(grid) grid.classList.toggle('compact-mode', _compactMode);
+  const btn = document.getElementById('compactToggleBtn');
   if(btn){
     btn.classList.toggle('active', _compactMode);
     btn.textContent = _compactMode ? '⊞ Cards' : '⊟ Compacto';
   }
+  renderUpcoming(); // redesenhar com modo compacto ativo
 }
 
 /* ══ 7. Filtro por operador ══ */
