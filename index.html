@@ -3549,6 +3549,7 @@ let timeFilterMin = null; // minutos desde meia-noite, ou null = filtro de horá
 ========================================================================= */
 // Storage keys
 const FIXED_STORE_KEY            = 'suprema_fixed_v1';
+const PREM_BY_STORE_KEY          = 'suprema_prem_by_v1';
 const ID_STORE_KEY               = 'suprema_ids_v1';
 const FIELD_STORE_KEY            = 'suprema_field_v1';
 const GARANTIDO_STORE_KEY        = 'suprema_garantido_v1';
@@ -3558,6 +3559,7 @@ const FB_RETENTION_DAYS          = 14;
 const SHIFT_REPORT_STORE_KEY     = 'suprema_shift_report_v1';
 // Maps (inicializados com Object.assign após as funções de storage estarem prontas)
 let FIXED_MAP                    = {};
+let PREM_BY_MAP                  = {}; // quem preencheu premiação/field de cada torneio — { by, at } — usado só pra exibir "responsável" nos Resultados, não conta como "fixado"
 let ID_MAP                       = {};
 let FIELD_MAP                    = {};
 let GARANTIDO_MAP                = {};
@@ -5423,6 +5425,13 @@ function loadFixedMap(){
 function saveFixedMapLocal(map){
   try{ localStorage.setItem(FIXED_STORE_KEY, JSON.stringify(map)); }catch(e){}
 }
+function loadPremByMap(){
+  try{ return JSON.parse(localStorage.getItem(PREM_BY_STORE_KEY) || '{}'); }
+  catch(e){ return {}; }
+}
+function savePremByMapLocal(map){
+  try{ localStorage.setItem(PREM_BY_STORE_KEY, JSON.stringify(map)); }catch(e){}
+}
 function loadIdMap(){
   try{ return JSON.parse(localStorage.getItem(ID_STORE_KEY) || '{}'); }
   catch(e){ return {}; }
@@ -5461,6 +5470,7 @@ function saveConfHojeMapLocal(map){
 
 /* ── Inicializa maps com dados do localStorage (funções já disponíveis aqui) ── */
 Object.assign(FIXED_MAP,     loadFixedMap());
+Object.assign(PREM_BY_MAP,   loadPremByMap());
 Object.assign(ID_MAP,        loadIdMap());
 Object.assign(FIELD_MAP,     loadFieldMap());
 Object.assign(GARANTIDO_MAP, loadGarantidoMap());
@@ -5613,6 +5623,13 @@ function initFirebaseSync(){
         document.getElementById('statUnfixed').textContent = UNFIXED.length;
         updateProgress(); renderUnfixed(); renderUpcoming(); renderResults();
       }
+    });
+
+    // ── Responsável por premiação/field (exibido nos Resultados) ─────────
+    fbDb.ref(`${FB_BASE_PATH}/premBy`).on('value', snap => {
+      PREM_BY_MAP = snap.val() || {};
+      savePremByMapLocal(PREM_BY_MAP);
+      if(RAW_ROWS.length) renderResults();
     });
 
     // ── IDs dos eventos ───────────────────────────────────────────────────
@@ -5898,6 +5915,28 @@ function setFixed(key, val){
       });
   }
 }
+// PREM_BY_MAP[key] guarda quem preencheu premiação/field de cada torneio — { by, at } —
+// usado só pra exibir "responsável" no painel de Resultados. Independente do FIXED_MAP:
+// preencher premiação/field não conta como "fixar" (isso continua exigindo o checkbox Fix).
+function premBy(key){
+  const v = PREM_BY_MAP[key];
+  return (v && typeof v === 'object') ? (v.by || '') : '';
+}
+function premByAt(key){
+  const v = PREM_BY_MAP[key];
+  if(!v || typeof v !== 'object' || !v.at) return '';
+  const d = new Date(v.at);
+  const h = String(d.getHours()).padStart(2,'0');
+  const m = String(d.getMinutes()).padStart(2,'0');
+  return `${h}:${m}`;
+}
+function stampPremBy(key){
+  PREM_BY_MAP[key] = { by: OPERATOR_NAME || 'Alguém', at: Date.now() };
+  savePremByMapLocal(PREM_BY_MAP);
+  if (fbReady){
+    fbDb.ref(`${FB_BASE_PATH}/premBy/${key}`).set(PREM_BY_MAP[key]).catch(() => {}); // falha silenciosa — não é crítico, "responsável" já ficou salvo localmente
+  }
+}
 function getId(key){
   const v = ID_MAP[key];
   return (typeof v === 'object' && v !== null) ? (v.val || '') : (v || '');
@@ -5937,6 +5976,7 @@ function setField(key, val){
   // Publicar que está editando este card
   if(fbReady) fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).set({key, field:'field', at:Date.now()}).catch(()=>{});
   _debouncedFieldSave[key] = setTimeout(() => {
+    if(n != null && !isNaN(n)) stampPremBy(key); // quem preencheu o field vira o responsável exibido nos Resultados — só depois que parou de digitar
     if(fbReady){
       fbDb.ref(`${FB_BASE_PATH}/field/${key}`).set(n != null && !isNaN(n) ? n : null);
       fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).remove().catch(()=>{});
@@ -6985,12 +7025,15 @@ function renderResults(){
     const row = document.createElement('div');
     row.className = 'rrow';
     const crownHtml = cat === 'main' ? CROWN_SVG : '';
-    const fixedByName = fixedBy(r._key);
+    // responsável exibido: prioriza quem preencheu premiação/field (é quem de fato fechou o resultado);
+    // cai pra quem marcou o "Fix" só se por algum motivo não houver premBy registrado (dado legado)
+    const responsibleName = premBy(r._key) || fixedBy(r._key);
+    const responsibleAt   = premBy(r._key) ? premByAt(r._key) : fixedAt(r._key);
     row.innerHTML = `
       <div class="nm">
         <div class="name-line"><span class="cat-suit-dot ${cat}">${CAT_SUIT[cat]}</span>${crownHtml}<span class="name">${r.nome}</span></div>
-        <span class="who">${fixedByName
-          ? `<span class="who-avatar">${fixedByName.charAt(0).toUpperCase()}</span><span class="who-name">${fixedByName}</span>${fixedAt(r._key) ? `<span class="who-sep">·</span><span class="fixed-at">${fixedAt(r._key)}</span>` : ''}`
+        <span class="who">${responsibleName
+          ? `<span class="who-avatar">${responsibleName.charAt(0).toUpperCase()}</span><span class="who-name">${responsibleName}</span>${responsibleAt ? `<span class="who-sep">·</span><span class="fixed-at">${responsibleAt}</span>` : ''}`
           : '<span class="who-anon">Sem responsável</span>'}${r.field != null ? `<span class="who-sep">·</span>${fmtBRL(r.field,0)} jog.` : ''}${r.check ? `<span class="who-sep">·</span>check ${r.check}` : ''}</span>
       </div>
       <div class="cell dim c-buyin">${fmtBuyin(r.buyin)}</div>
@@ -7994,6 +8037,7 @@ function applyPremiacaoValue(key, premiacaoVal, activityMsg){
   const row = RAW_ROWS.find(r => r._key === key);
   if(!row) return;
   row.premiacao = premiacaoVal;
+  stampPremBy(key); // quem preencheu a premiação vira o responsável exibido nos Resultados
   if(fbReady){
     window._suppressRenderUpcoming = true; // ignorar eco do Firebase
     fbDb.ref(`${FB_BASE_PATH}/premiacao/${key}`).set(premiacaoVal);
@@ -9644,6 +9688,7 @@ function resetDay(){
 
   // 1. Limpar todos os maps de estado do dia anterior
   FIXED_MAP     = {};  saveFixedMapLocal({});
+  PREM_BY_MAP   = {};  savePremByMapLocal({});
   ID_MAP        = {};  saveIdMapLocal({});
   FIELD_MAP     = {};  saveFieldMapLocal({});
   GARANTIDO_MAP = {};  saveGarantidoMapLocal({});
@@ -9919,7 +9964,7 @@ function reinitDayListeners(){
 
   // Remover listeners antigos do dia anterior antes de re-registrar
   // (evita duplicação de listeners ao virar o dia)
-  ['premiacao','fixed','ids','field','garantido','checklist','confhoje'].forEach(node => {
+  ['premiacao','fixed','premBy','ids','field','garantido','checklist','confhoje'].forEach(node => {
     fbDb.ref(`${FB_BASE_PATH}/${node}`).off();
   });
 
@@ -9952,6 +9997,12 @@ function reinitDayListeners(){
   // Fixados
   fbDb.ref(`${FB_BASE_PATH}/fixed`).on('value', snap => {
     FIXED_MAP = snap.val() || {}; saveFixedMapLocal(FIXED_MAP);
+    if(RAW_ROWS.length) scheduleRenderAll();
+  });
+
+  // Responsável por premiação/field (exibido nos Resultados)
+  fbDb.ref(`${FB_BASE_PATH}/premBy`).on('value', snap => {
+    PREM_BY_MAP = snap.val() || {}; savePremByMapLocal(PREM_BY_MAP);
     if(RAW_ROWS.length) scheduleRenderAll();
   });
 
