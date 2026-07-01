@@ -5629,9 +5629,9 @@ function initFirebaseSync(){
         UNFIXED = computeUnfixed();
         document.getElementById('statUnfixed').textContent = UNFIXED.length;
         updateProgress(); renderUnfixed(); renderResults();
-        // só reconstrói a agenda se ninguém estiver digitando num card agora
-        // (evita destruir/recriar cards em foco por causa do eco do Firebase)
-        if(!isTypingInCard()) renderUpcoming();
+        // só reconstrói a agenda se ninguém estiver digitando num card agora, e não for eco
+        // da própria escrita (evita destruir/recriar todos os cards à toa)
+        if(!isTypingInCard() && !window._suppressRenderUpcoming) renderUpcoming();
       }
     });
 
@@ -5681,9 +5681,10 @@ function initFirebaseSync(){
       });
       if(RAW_ROWS.length){
         renderResults();
-        // Só renderUpcoming se não há input em foco
+        // Só renderUpcoming se não há input em foco e não for eco da própria escrita
         const _ae = document.activeElement;
-        if(!_ae || (!_ae.classList.contains('tcard-prem-input') && !_ae.classList.contains('tcard-field-input') && !_ae.classList.contains('id-input'))){
+        const _typingNow = _ae && (_ae.classList.contains('tcard-prem-input') || _ae.classList.contains('tcard-field-input') || _ae.classList.contains('id-input'));
+        if(!_typingNow && !window._suppressRenderUpcoming){
           renderUpcoming();
         }
       }
@@ -5917,11 +5918,22 @@ function fixedAt(key){
   const m = String(d.getMinutes()).padStart(2,'0');
   return `${h}:${m}`;
 }
+/* Suprime o próximo eco dos listeners do Firebase por alguns segundos — chamada sempre que
+   ESTE cliente grava algo (premiação, ID, fixado, field). Sem isso, cada escrita volta pelo
+   próprio listener em tempo real e força uma reconstrução completa da agenda, destruindo e
+   recriando todos os cards à toa (é a causa raiz de cards "sumindo" até revelar de novo). */
+function suppressUpcomingEcho(){
+  window._suppressRenderUpcoming = true;
+  clearTimeout(window._suppressTimer);
+  window._suppressTimer = setTimeout(() => { window._suppressRenderUpcoming = false; }, 4000);
+}
+
 function setFixed(key, val){
   if (val) FIXED_MAP[key] = { by: OPERATOR_NAME || 'Alguém', at: Date.now() };
   else delete FIXED_MAP[key];
   saveFixedMapLocal(FIXED_MAP); // grava local na hora (instantâneo, sem esperar rede)
   if (fbReady){
+    suppressUpcomingEcho();
     fbDb.ref(`${FB_BASE_PATH}/fixed/${key}`).set(val ? FIXED_MAP[key] : null)
       .catch(err => {
         console.error('Firebase: falha ao salvar fixado', err);
@@ -5977,9 +5989,7 @@ function setId(key, val){
   if(fbReady) fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).set({key, field:'id', at:Date.now()}).catch(()=>{});
   _debouncedIdSave[key] = setTimeout(() => {
     if(!fbReady) return;
-    window._suppressRenderUpcoming = true; // ignorar eco da própria escrita, mesma lógica da premiação
-    clearTimeout(window._suppressTimer);
-    window._suppressTimer = setTimeout(() => { window._suppressRenderUpcoming = false; }, 4000);
+    suppressUpcomingEcho();
     fbDb.ref(`${FB_BASE_PATH}/ids/${key}`).set(val ? ID_MAP[key] : null)
       .catch(err => console.error('Firebase: falha ao salvar ID', err));
     fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).remove().catch(()=>{});
@@ -6000,6 +6010,7 @@ function setField(key, val){
   _debouncedFieldSave[key] = setTimeout(() => {
     if(n != null && !isNaN(n)) stampPremBy(key); // quem preencheu o field vira o responsável exibido nos Resultados — só depois que parou de digitar
     if(fbReady){
+      suppressUpcomingEcho();
       fbDb.ref(`${FB_BASE_PATH}/field/${key}`).set(n != null && !isNaN(n) ? n : null);
       fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).remove().catch(()=>{});
     }
@@ -8085,10 +8096,8 @@ function applyPremiacaoValue(key, premiacaoVal, activityMsg){
   row.premiacao = premiacaoVal;
   stampPremBy(key); // quem preencheu a premiação vira o responsável exibido nos Resultados
   if(fbReady){
-    window._suppressRenderUpcoming = true; // ignorar eco do Firebase
+    suppressUpcomingEcho();
     fbDb.ref(`${FB_BASE_PATH}/premiacao/${key}`).set(premiacaoVal);
-    clearTimeout(window._suppressTimer);
-    window._suppressTimer = setTimeout(() => { window._suppressRenderUpcoming = false; }, 4000);
   }
   // Persistir premiação no localStorage (garantia mesmo sem Firebase)
   try {
@@ -10077,7 +10086,7 @@ function reinitDayListeners(){
   // Fixados
   fbDb.ref(`${FB_BASE_PATH}/fixed`).on('value', snap => {
     FIXED_MAP = snap.val() || {}; saveFixedMapLocal(FIXED_MAP);
-    if(RAW_ROWS.length) scheduleRenderAll();
+    if(RAW_ROWS.length && !window._suppressRenderUpcoming) scheduleRenderAll();
   });
 
   // Responsável por premiação/field (exibido só nos Resultados — não afeta os cards da
