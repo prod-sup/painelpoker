@@ -8095,6 +8095,32 @@ function applyPremiacaoValue(key, premiacaoVal, activityMsg){
   checkDayComplete();
 }
 
+/* Marca o torneio como "Não formou" — reaproveita o mecanismo já existente do campo ID
+   (getId(key)==='NF' é checado em todo o app pra decidir se um card é NF), só que disparado
+   a partir do campo Premiação, que é onde os operadores realmente costumam digitar "NF". */
+function markExplicitNF(key){
+  setId(key, 'NF');
+  document.querySelectorAll(`.id-input[data-key="${key}"]`).forEach(inp => { inp.value = 'NF'; });
+  document.querySelectorAll(`.tcard[data-key="${key}"]`).forEach(card => {
+    card.classList.add('is-nf');
+    if(!card.querySelector('.tcard-nf-banner')){
+      const b = document.createElement('div');
+      b.className = 'tcard-nf-banner';
+      b.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Não formou`;
+      card.prepend(b);
+    }
+    const nameRow = card.querySelector('.tcard-name-row');
+    if(nameRow && !card.querySelector('.tcard-nf-badge')){
+      const sp = document.createElement('span');
+      sp.className = 'tcard-nf-badge'; sp.textContent = 'NF';
+      nameRow.appendChild(sp);
+    }
+  });
+  document.querySelectorAll(`.compact-table tbody tr[data-key="${key}"]`).forEach(tr => tr.classList.add('is-nf'));
+  computeStats();
+  showToast('Marcado como "Não formou".');
+}
+
 function onCardPremiacaoInput(input){
   const key = input.dataset.key;
   const row = RAW_ROWS.find(r => r._key === key);
@@ -8105,6 +8131,14 @@ function onCardPremiacaoInput(input){
   renderCardOverlayPreview(key, row, premiacaoVal != null ? premiacaoVal : row.premiacao, getField(key));
   clearTimeout(input._saveTimer);
   input._saveTimer = setTimeout(() => {
+    // "NF" digitado na premiação é um atalho comum pra marcar não formou — em vez de tentar
+    // interpretar como número (e não fazer nada, como acontecia antes), aplica o marcador de NF
+    // e limpa o campo (NF não é um valor de premiação, o marcador fica no campo ID)
+    if(input.value.trim().toUpperCase() === 'NF'){
+      markExplicitNF(key);
+      input.value = '';
+      return;
+    }
     const premiacaoVal = parsePremInput(input);
     if(premiacaoVal != null && premiacaoVal > 0){
       applyPremiacaoValue(key, premiacaoVal, `<b>${OPERATOR_NAME||'Você'}</b> preencheu premiação de <b>${row?.nome||key}</b>: R$ ${fmtBRL(premiacaoVal,0)}`);
