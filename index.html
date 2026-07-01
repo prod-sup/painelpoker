@@ -8580,8 +8580,10 @@ function extractGlobalDaySection(matrix, weekdayName, divisor){
     if (['SÁBADO','DOMINGO','SATÉLITE','SATELLITE'].includes(nome.trim().toUpperCase())) continue;
     if (normText(nome) === 'suspenso') continue;
     if (!hora) continue;
-    const garantido = typeof garantidoRaw === 'number' ? garantidoRaw / divisor : null;
-    const buyin = typeof buyinRaw === 'number' ? buyinRaw / divisor : null;
+    // arredondado a 2 casas aqui (não só na exibição) pra não gravar dízima de ponto flutuante
+    // (ex: 199.99999999999997) na planilha exportada
+    const garantido = typeof garantidoRaw === 'number' ? Math.round((garantidoRaw / divisor) * 100) / 100 : null;
+    const buyin = typeof buyinRaw === 'number' ? Math.round((buyinRaw / divisor) * 100) / 100 : null;
     const entry = {nome: nome.trim(), hora, garantido, buyin, groupHeader: currentGroupHeader};
     if (tipo === 'Main Event') main.push(entry);
     else if (tipo === 'Side Event') side.push(entry);
@@ -8700,26 +8702,37 @@ function renderConfHojeList(){
 const CONF_WINDOW_START_MIN = 6*60 + 10;  // 06:10
 const CONF_WINDOW_END_MIN = 5*60 + 30;    // 05:30 do dia seguinte
 
-function tomorrowWeekdayName(lang){
+/* ponto único da regra de turno (00:00→05:30) — usado por tudo que decide "qual é o dia de amanhã":
+   captura o instante UMA vez e devolve tanto o offset quanto a data já calculada, pra nada que dependa
+   disso (nome do dia, seções, nome do arquivo exportado) rodar `new Date()` de novo em outro instante
+   e correr o risco de virar o relógio no meio do cálculo (ex: exatamente às 05:30:00) */
+function confAmanhaTurno(){
   const n = nowInSP();
-  // Turno operacional: 00:00 → 05:30 do dia seguinte
   // Entre 00:00 e 05:29 ainda é o turno de "hoje" — amanhã = dia atual do calendário
   // A partir de 05:30 começa novo turno — amanhã = dia seguinte
   const isMadrugada = n.hour < 5 || (n.hour === 5 && n.minute < 30);
-  const offset = isMadrugada ? 0 : 1;
-  const ref = new Date(Date.UTC(n.year, n.month-1, n.day, 12, 0, 0));
-  ref.setUTCDate(ref.getUTCDate() + offset);
-  const idx = ref.getUTCDay();
+  const tomorrowOffset = isMadrugada ? 0 : 1;
+  const dayAfterOffset = isMadrugada ? 1 : 2;
+  const refTomorrow = new Date(Date.UTC(n.year, n.month-1, n.day, 12, 0, 0));
+  refTomorrow.setUTCDate(refTomorrow.getUTCDate() + tomorrowOffset);
+  const refDayAfter = new Date(Date.UTC(n.year, n.month-1, n.day, 12, 0, 0));
+  refDayAfter.setUTCDate(refDayAfter.getUTCDate() + dayAfterOffset);
+  return { n, isMadrugada, refTomorrow, refDayAfter };
+}
+function tomorrowWeekdayName(lang, turno){
+  const { refTomorrow } = turno || confAmanhaTurno();
+  const idx = refTomorrow.getUTCDay();
   return lang === 'en' ? WEEKDAYS_EN[idx] : WEEKDAYS_PT[idx];
 }
-function dayAfterTomorrowWeekdayName(lang){
-  const n = nowInSP();
-  const isMadrugada = n.hour < 5 || (n.hour === 5 && n.minute < 30);
-  const offset = isMadrugada ? 1 : 2;
-  const ref = new Date(Date.UTC(n.year, n.month-1, n.day, 12, 0, 0));
-  ref.setUTCDate(ref.getUTCDate() + offset);
-  const idx = ref.getUTCDay();
+function dayAfterTomorrowWeekdayName(lang, turno){
+  const { refDayAfter } = turno || confAmanhaTurno();
+  const idx = refDayAfter.getUTCDay();
   return lang === 'en' ? WEEKDAYS_EN[idx] : WEEKDAYS_PT[idx];
+}
+/* dd-mm-aaaa do dia de "amanhã" (mesma regra de turno) — usado no nome do arquivo exportado */
+function tomorrowDateLabel(turno){
+  const { refTomorrow } = turno || confAmanhaTurno();
+  return `${String(refTomorrow.getUTCDate()).padStart(2,'0')}-${String(refTomorrow.getUTCMonth()+1).padStart(2,'0')}-${refTomorrow.getUTCFullYear()}`;
 }
 
 /* monta as 3 seções aplicando a janela 06:10(amanhã) -> 05:30(dia seguinte): cada categoria pega os
@@ -8769,9 +8782,9 @@ function buildConfAmanhaSections(sectionTomorrow, sectionDayAfter){
 
 /* renderiza as 3 seções na tela, no mesmo estilo de tabela já usado na lista da Conferência de hoje
    — sem gerar nenhum arquivo, só mostra direto no painel pra você copiar/conferir visualmente */
-function renderConfAmanha(sections, weekdayLabel){
+function renderConfAmanha(sections, weekdayLabel, dateLabel){
   const resultEl = document.getElementById('confAmanhaResult');
-  LAST_CONF_AMANHA = {sections, weekdayLabel}; // guardado pra o botão de exportar usar sem reler a planilha
+  LAST_CONF_AMANHA = {sections, weekdayLabel, dateLabel}; // guardado pra o botão de exportar usar sem reler a planilha nem recalcular a data
   if (!sections.total){
     resultEl.innerHTML = `<div class="diff-row">Nenhum torneio encontrado na janela 06:10–05:30 pra ${weekdayLabel}.</div>`;
     return;
@@ -8826,7 +8839,7 @@ function exportConfAmanhaXlsx(){
     showToast('Carregue a Global e gere a Conferência de amanhã primeiro.', true);
     return;
   }
-  const { sections, weekdayLabel } = LAST_CONF_AMANHA;
+  const { sections, weekdayLabel, dateLabel } = LAST_CONF_AMANHA;
   const header = ['Torneio', 'Horário', 'Garantido', 'Buy in'];
   const rows = [header];
   const pushRow = (it) => rows.push([it.nome, it.hora, it.garantido, it.buyin]);
@@ -8844,10 +8857,8 @@ function exportConfAmanhaXlsx(){
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = [{wch:30},{wch:10},{wch:14},{wch:12}];
   const wb = XLSX.utils.book_new();
-  const n = nowInSP();
-  const tmrw = new Date(Date.UTC(n.year, n.month-1, n.day, 12,0,0));
-  tmrw.setUTCDate(tmrw.getUTCDate()+1);
-  const dateLabel = `${String(tmrw.getUTCDate()).padStart(2,'0')}-${String(tmrw.getUTCMonth()+1).padStart(2,'0')}-${tmrw.getUTCFullYear()}`;
+  // dateLabel vem de quando a planilha foi lida (renderConfAmanha), não do instante do clique —
+  // assim nome do arquivo e conteúdo nunca podem divergir por causa da hora de exportar
   const sheetName = (weekdayLabel || 'Conferência').slice(0,31);
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
   XLSX.writeFile(wb, `Conferencia_${dateLabel}.xlsx`);
@@ -8864,8 +8875,12 @@ document.getElementById('globalTomorrowFileInput').addEventListener('change', as
   try{
     const arrayBuffer = await file.arrayBuffer();
     const matrix = readSheetMatrix(arrayBuffer, 'MTTS BRAZIL');
-    const weekdayTomorrowPt = tomorrowWeekdayName('pt');
-    const weekdayDayAfterPt = dayAfterTomorrowWeekdayName('pt');
+    // turno calculado UMA vez aqui (leitura da planilha) e reaproveitado no export — assim o nome do
+    // arquivo e o dia usado pra montar as seções nunca podem divergir por causa da hora do clique
+    const turno = confAmanhaTurno();
+    const weekdayTomorrowPt = tomorrowWeekdayName('pt', turno);
+    const weekdayDayAfterPt = dayAfterTomorrowWeekdayName('pt', turno);
+    const dateLabel = tomorrowDateLabel(turno);
     // divisor 5: multiplicador "Brazil" da Global — mesma conta de sempre, sem conversão de câmbio real
     const sectionTomorrow = extractGlobalDaySection(matrix, weekdayTomorrowPt, 5);
     const sectionDayAfter = extractGlobalDaySection(matrix, weekdayDayAfterPt, 5);
@@ -8875,11 +8890,14 @@ document.getElementById('globalTomorrowFileInput').addEventListener('change', as
       label.textContent = 'Carregar planilha Global MTT (.xlsx)';
       return;
     }
+    if (!sectionDayAfter){
+      showToast(`Atenção: não encontrei a seção "${weekdayDayAfterPt}" — a madrugada de fechamento (até 05:30) pode estar faltando no relatório.`, true);
+    }
 
     const sections = buildConfAmanhaSections(sectionTomorrow, sectionDayAfter);
     label.textContent = file.name;
     labelBox.classList.add('is-loaded');
-    renderConfAmanha(sections, weekdayTomorrowPt);
+    renderConfAmanha(sections, weekdayTomorrowPt, dateLabel);
     showToast(`Global lida — ${sections.total} torneios na janela de amanhã.`);
   }catch(err){
     console.error('Erro ao gerar Conferência de amanhã:', err);
