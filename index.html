@@ -2396,6 +2396,11 @@
 .ctr-ov{ font-family:var(--mono);font-size:11px;font-weight:700;white-space:nowrap;text-align:right; }
 .ctr-ov.neg{ color:var(--red); }
 .ctr-ov.pos{ color:var(--felt-bright); }
+.ctr-copy-btn{
+  padding:6px;flex:none;
+}
+.ctr-copy-btn span{ display:none; } /* só o ícone — a coluna do modo compacto não tem espaço pro texto "Copiar" */
+.ctr-copy-btn.copied{ padding:6px; }
 
 .ctr-inp{
   width:100%;padding:5px 8px;
@@ -5653,7 +5658,11 @@ function initFirebaseSync(){
       if(!_typingNow){
         let allPatched = true;
         Object.keys(ID_MAP).forEach(key => { if(!patchCardFields(key)) allPatched = false; });
-        if(!allPatched && RAW_ROWS.length){ UNFIXED = computeUnfixed(); updateProgress(); renderUnfixed(); renderUpcoming(); renderResults(); }
+        // patchCardFields falha pra qualquer id de torneio que não esteja visível agora (filtrado,
+        // modo compacto, etc.) — isso é normal, não significa que precisa reconstruir a agenda.
+        // Só força renderUpcoming se não for eco da própria escrita (senão marcar NF, por exemplo,
+        // reconstruía o grid inteiro à toa e os cards "sumiam" até revelar de novo)
+        if(!allPatched && RAW_ROWS.length && !window._suppressRenderUpcoming){ UNFIXED = computeUnfixed(); updateProgress(); renderUnfixed(); renderUpcoming(); renderResults(); }
       } else {
         // Só patch do card sem recriar
         Object.keys(ID_MAP).forEach(key => patchCardFields(key));
@@ -6756,7 +6765,7 @@ function renderUpcoming(){
           + '<th scope="col" style="width:120px">Premiação</th>'
           + '<th scope="col" style="width:100px;text-align:right">Overlay</th>'
           + '<th scope="col" style="width:80px">Field</th>'
-          + '<th scope="col" style="width:100px">ID</th>'
+          + '<th scope="col" style="width:132px">ID</th>'
           + '<th scope="col" style="width:36px;text-align:center">Fix</th>'
           + '</tr></thead><tbody id="compactTbody"></tbody>';
         wrap.appendChild(tbl);
@@ -6793,10 +6802,14 @@ function renderUpcoming(){
       const fieldTd = '<td style="padding:3px 5px"><input class="ctr-inp tcard-field-input"'
                     + ' data-key="'+key+'" type="number" min="0"'
                     + ' placeholder="\u2014" value="'+(fieldVal!=null?fieldVal:'')+'"></td>';
-      const idTd    = '<td style="padding:3px 5px"><input class="ctr-inp-id id-input'+(currentId?' has-value':'')+'"'
+      const idTd    = '<td style="padding:3px 5px"><div style="display:flex;gap:4px;align-items:center">'
+                    + '<input class="ctr-inp-id id-input'+(currentId?' has-value':'')+'" style="flex:1;min-width:0"'
                     + ' data-key="'+key+'" type="text"'
                     + ' placeholder="ID" value="'+escHtml(currentId)+'"'
-                    + ' oninput="onIdInput(this)" onblur="onIdBlur(this)"></td>';
+                    + ' oninput="onIdInput(this)" onblur="onIdBlur(this)">'
+                    + '<button class="copy-btn ctr-copy-btn" data-key="'+key+'" type="button" title="Copiar dados do torneio">'
+                    + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>'
+                    + '</button></div></td>';
       // Side Event que não precisa ser fixado (needsFix=false): mostra o checkbox já "marcado"
       // visualmente, mas esmaecido e desabilitado — não é uma marcação real de responsabilidade,
       // só indica que não há nada pra fazer aqui.
