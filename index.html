@@ -2380,7 +2380,9 @@
 .compact-table tbody tr:last-child{ border-bottom:none; }
 .compact-table tbody tr:hover{ background:var(--card-elevated); }
 .compact-table tbody tr.is-fixed{ background:rgba(34,197,94,.06); }
-.compact-table tbody tr.is-nf{ opacity:.4; }
+.compact-table tbody tr.is-nf{ opacity:.45;filter:grayscale(.7); }
+.compact-table tbody tr.is-nf .ctr-nome{ text-decoration:line-through; text-decoration-color:var(--ink-soft); }
+.compact-table tbody tr.is-nf:hover{ opacity:.7;filter:grayscale(.3); }
 .compact-table tbody td{ padding:6px 14px;font-size:12px;vertical-align:middle; }
 
 .ctr-cat-bar{ display:inline-block;width:3px;height:22px;border-radius:2px;vertical-align:middle; }
@@ -5621,7 +5623,10 @@ function initFirebaseSync(){
       if(RAW_ROWS.length){
         UNFIXED = computeUnfixed();
         document.getElementById('statUnfixed').textContent = UNFIXED.length;
-        updateProgress(); renderUnfixed(); renderUpcoming(); renderResults();
+        updateProgress(); renderUnfixed(); renderResults();
+        // só reconstrói a agenda se ninguém estiver digitando num card agora
+        // (evita destruir/recriar cards em foco por causa do eco do Firebase)
+        if(!isTypingInCard()) renderUpcoming();
       }
     });
 
@@ -6770,9 +6775,15 @@ function renderUpcoming(){
                     + ' data-key="'+key+'" type="text"'
                     + ' placeholder="ID" value="'+escHtml(currentId)+'"'
                     + ' oninput="onIdInput(this)" onblur="onIdBlur(this)"></td>';
-      const fixTd   = '<td style="text-align:center;padding:3px"><input type="checkbox"'+(fixed?' checked':'')
-                    + ' data-key="'+key+'" style="width:15px;height:15px;accent-color:var(--felt);cursor:pointer"'
-                    + ' onchange="onFixCheckboxChange(this)"></td>';
+      // Side Event que não precisa ser fixado (needsFix=false): mostra o checkbox já "marcado"
+      // visualmente, mas esmaecido e desabilitado — não é uma marcação real de responsabilidade,
+      // só indica que não há nada pra fazer aqui.
+      const fixTd   = needsFix
+        ? '<td style="text-align:center;padding:3px"><input type="checkbox"'+(fixed?' checked':'')
+          + ' data-key="'+key+'" style="width:15px;height:15px;accent-color:var(--felt);cursor:pointer"'
+          + ' onchange="onFixCheckboxChange(this)"></td>'
+        : '<td style="text-align:center;padding:3px"><input type="checkbox" checked disabled'
+          + ' title="Não precisa ser fixado" style="width:15px;height:15px;accent-color:var(--ink-soft);opacity:.4;cursor:default"></td>';
       tr.innerHTML = catTd+nomeTd+horaTd+garTd+premTd+ovTd+fieldTd+idTd+fixTd;
       tbody.appendChild(tr);
       return;
@@ -10000,10 +10011,13 @@ function reinitDayListeners(){
     if(RAW_ROWS.length) scheduleRenderAll();
   });
 
-  // Responsável por premiação/field (exibido nos Resultados)
+  // Responsável por premiação/field (exibido só nos Resultados — não afeta os cards da
+  // agenda, então não precisa de scheduleRenderAll/renderUpcoming aqui. Chamar isso a
+  // cada preenchimento de premiação/field reconstruía a agenda inteira à toa, fazendo
+  // os cards "sumirem" até o IntersectionObserver revelar de novo)
   fbDb.ref(`${FB_BASE_PATH}/premBy`).on('value', snap => {
     PREM_BY_MAP = snap.val() || {}; savePremByMapLocal(PREM_BY_MAP);
-    if(RAW_ROWS.length) scheduleRenderAll();
+    if(RAW_ROWS.length) renderResults();
   });
 
   // IDs
