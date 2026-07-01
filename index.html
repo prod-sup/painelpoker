@@ -2447,6 +2447,17 @@
   <span>Sem conexão — suas marcações estão sendo salvas só neste navegador até a internet voltar.</span>
 </div>
 
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <path id="ic-suit-spade" d="M12 3C7 8 3 12 3 15.5A4 4 0 0 0 11 17.3C10.6 19.4 9.5 20.6 7 21.5H17C14.5 20.6 13.4 19.4 13 17.3A4 4 0 0 0 21 15.5C21 12 17 8 12 3Z"/>
+    <path id="ic-suit-diamond" d="M12 3 20 12 12 21 4 12Z"/>
+    <g id="ic-suit-club">
+      <circle cx="12" cy="7.6" r="4.1"/><circle cx="7.9" cy="13.2" r="4.1"/><circle cx="16.1" cy="13.2" r="4.1"/>
+      <path d="M9.6 15.6 12 21 14.4 15.6Z"/>
+    </g>
+  </defs>
+</svg>
+
 <nav id="nav">
   <div class="nav-inner">
     <div class="brand">
@@ -3114,27 +3125,42 @@
     <div class="hero-cards" aria-hidden="true">
       <svg class="hcard hcard-1" viewBox="0 0 120 168">
         <rect x="3" y="3" width="114" height="162" rx="14" fill="#fff" stroke="var(--main)" stroke-width="2"/>
-        <text x="14" y="30" font-family="ui-serif, Georgia, serif" font-size="20" font-weight="700" fill="var(--main)">K</text>
-        <text x="14" y="48" font-size="16" fill="var(--main)">♠</text>
-        <text x="106" y="148" font-family="ui-serif, Georgia, serif" font-size="20" font-weight="700" fill="var(--main)" text-anchor="end" transform="rotate(180 106 148)">K</text>
-        <text x="106" y="130" font-size="16" fill="var(--main)" text-anchor="end" transform="rotate(180 106 130)">♠</text>
-        <text x="60" y="98" font-size="46" text-anchor="middle" fill="var(--main)" opacity="0.92">♠</text>
+        <rect x="8" y="8" width="104" height="152" rx="10" fill="none" stroke="var(--main)" stroke-width="1" opacity="0.18"/>
+        <g fill="var(--main)">
+          <text x="13" y="29" font-family="ui-serif, Georgia, serif" font-size="19" font-weight="700">K</text>
+          <use href="#ic-suit-spade" x="12.5" y="33" width="13" height="13"/>
+          <g transform="rotate(180 60 84)">
+            <text x="13" y="29" font-family="ui-serif, Georgia, serif" font-size="19" font-weight="700">K</text>
+            <use href="#ic-suit-spade" x="12.5" y="33" width="13" height="13"/>
+          </g>
+          <use href="#ic-suit-spade" x="38" y="62" width="44" height="44" opacity="0.9"/>
+        </g>
       </svg>
       <svg class="hcard hcard-2" viewBox="0 0 120 168">
         <rect x="3" y="3" width="114" height="162" rx="14" fill="#fff" stroke="var(--gold)" stroke-width="2"/>
-        <text x="14" y="30" font-family="ui-serif, Georgia, serif" font-size="20" font-weight="700" fill="var(--gold)">A</text>
-        <text x="14" y="48" font-size="16" fill="var(--gold)">♦</text>
-        <text x="106" y="148" font-family="ui-serif, Georgia, serif" font-size="20" font-weight="700" fill="var(--gold)" text-anchor="end" transform="rotate(180 106 148)">A</text>
-        <text x="106" y="130" font-size="16" fill="var(--gold)" text-anchor="end" transform="rotate(180 106 130)">♦</text>
-        <text x="60" y="98" font-size="46" text-anchor="middle" fill="var(--gold)" opacity="0.92">♦</text>
+        <rect x="8" y="8" width="104" height="152" rx="10" fill="none" stroke="var(--gold)" stroke-width="1" opacity="0.18"/>
+        <g fill="var(--gold)">
+          <text x="13" y="29" font-family="ui-serif, Georgia, serif" font-size="19" font-weight="700">A</text>
+          <use href="#ic-suit-diamond" x="12.5" y="33" width="13" height="13"/>
+          <g transform="rotate(180 60 84)">
+            <text x="13" y="29" font-family="ui-serif, Georgia, serif" font-size="19" font-weight="700">A</text>
+            <use href="#ic-suit-diamond" x="12.5" y="33" width="13" height="13"/>
+          </g>
+          <use href="#ic-suit-diamond" x="38" y="62" width="44" height="44" opacity="0.9"/>
+        </g>
       </svg>
       <svg class="hcard hcard-3" viewBox="0 0 120 168">
         <rect x="3" y="3" width="114" height="162" rx="14" fill="#fff" stroke="var(--sat)" stroke-width="2"/>
-        <text x="14" y="30" font-family="ui-serif, Georgia, serif" font-size="20" font-weight="700" fill="var(--sat)">Q</text>
-        <text x="14" y="48" font-size="16" fill="var(--sat)">♣</text>
-        <text x="106" y="148" font-family="ui-serif, Georgia, serif" font-size="20" font-weight="700" fill="var(--sat)" text-anchor="end" transform="rotate(180 106 148)">Q</text>
-        <text x="106" y="130" font-size="16" fill="var(--sat)" text-anchor="end" transform="rotate(180 106 130)">♣</text>
-        <text x="60" y="98" font-size="46" text-anchor="middle" fill="var(--sat)" opacity="0.92">♣</text>
+        <rect x="8" y="8" width="104" height="152" rx="10" fill="none" stroke="var(--sat)" stroke-width="1" opacity="0.18"/>
+        <g fill="var(--sat)">
+          <text x="13" y="29" font-family="ui-serif, Georgia, serif" font-size="19" font-weight="700">Q</text>
+          <use href="#ic-suit-club" x="12.5" y="33" width="13" height="13"/>
+          <g transform="rotate(180 60 84)">
+            <text x="13" y="29" font-family="ui-serif, Georgia, serif" font-size="19" font-weight="700">Q</text>
+            <use href="#ic-suit-club" x="12.5" y="33" width="13" height="13"/>
+          </g>
+          <use href="#ic-suit-club" x="38" y="62" width="44" height="44" opacity="0.9"/>
+        </g>
       </svg>
     </div>
 
@@ -3743,7 +3769,7 @@ function calcOverlayCard(row, premiacao){
 }
 /* ficha de poker mini, usada no lugar de um emoji genérico no badge "Rolando agora" —
    reforça a identidade do produto em vez de um 🔴 sem relação com o tema */
-const MINI_CHIP_SVG = `<svg class="mini-chip" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="currentColor" opacity="0.18"/><circle cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2.6 3.1"/><circle cx="12" cy="12" r="5.6" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.7"/></svg>`;
+const MINI_CHIP_SVG = `<svg class="mini-chip" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="currentColor" opacity="0.18"/><circle cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="5.6" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.7"/></svg>`;
 
 /* coroa usada para destacar Main Events em qualquer badge/card */
 const CROWN_SVG = `<svg class="crown-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.5 1.5 7l5.4 4L12 4l5.1 7 5.4-4-1.5 10.5a1 1 0 0 1-1 .85H4a1 1 0 0 1-1-.85Z"/><rect x="3.3" y="19" width="17.4" height="2.2" rx="1"/></svg>`;
