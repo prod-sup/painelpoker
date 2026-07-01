@@ -2338,29 +2338,54 @@
 /* Linha compacta escondida por padrão — só aparece no modo compacto */
 /* ── Itens compactos ── */
 .compact-list{ display:flex;flex-direction:column;gap:0; }
+.compact-list-header{
+  display:grid;
+  grid-template-columns: 2fr 52px 80px 105px 85px 90px 85px 28px;
+  gap:4px;padding:4px 10px;
+  font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--ink-soft);border-bottom:2px solid var(--hairline-strong);
+  background:var(--card-elevated);border-radius:10px 10px 0 0;
+}
 .tcard-compact-item{
   display:grid;
-  grid-template-columns:minmax(160px,1fr) 55px 90px 90px 90px 30px 90px;
-  align-items:center;gap:0;padding:8px 14px;
+  grid-template-columns: 2fr 52px 80px 105px 85px 90px 85px 28px;
+  align-items:center;gap:4px;padding:5px 10px;
   border-bottom:1px solid var(--hairline);
-  background:var(--card);font-size:12px;
+  background:var(--card);
   transition:background .1s;
 }
 .tcard-compact-item:first-child{ border-top:1px solid var(--hairline);border-radius:10px 10px 0 0; }
-.tcard-compact-item:last-child{ border-radius:0 0 10px 10px; }
+.tcard-compact-item:last-child{ border-radius:0 0 10px 10px;border-bottom:none; }
 .tcard-compact-item:hover{ background:var(--card-elevated); }
-.tcard-compact-item.is-fixed{ border-left:3px solid var(--felt-bright); }
-.tcard-compact-item.is-nf{ opacity:.45;text-decoration:line-through; }
-.tci-nome{ font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:8px }
-.tci-hora{ color:var(--ink-soft);font-family:var(--mono) }
-.tci-gar{ color:var(--ink-soft);font-family:var(--mono);text-align:right }
-.tci-prem{ font-family:var(--mono);text-align:right;color:var(--ink-soft) }
-.tci-prem.filled{ color:var(--ink);font-weight:600 }
-.tci-ov{ font-family:var(--mono);text-align:right;font-weight:700 }
+.tcard-compact-item.is-fixed{ border-left:3px solid var(--felt-bright);padding-left:7px; }
+.tcard-compact-item.is-nf{ opacity:.42;filter:grayscale(.6); }
+.tci-nome{ font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
+.tci-hora{ font-size:11px;color:var(--ink-soft);font-family:var(--mono);white-space:nowrap }
+.tci-gar{ font-size:11px;color:var(--amber);font-family:var(--mono);font-weight:700;white-space:nowrap }
+.tci-ov{ font-size:11px;font-family:var(--mono);font-weight:700;text-align:right;white-space:nowrap }
 .tci-ov.neg{ color:var(--red) }
 .tci-ov.pos{ color:var(--felt-bright) }
-.tci-fix{ color:var(--felt-bright);font-weight:700;text-align:center }
-.tci-id{ color:var(--ink-soft);font-size:10px;font-family:var(--mono);text-align:right;overflow:hidden;text-overflow:ellipsis }
+.tci-fix-cb{ width:15px;height:15px;accent-color:var(--felt);cursor:pointer;flex:none }
+
+/* Inputs do card compacto */
+.tci-input{
+  width:100%;padding:3px 6px;
+  border:1px solid var(--hairline-strong);border-radius:5px;
+  background:var(--bg);color:var(--ink);
+  font-size:11px;font-family:var(--mono);
+  outline:none;transition:border-color .15s;
+}
+.tci-input:focus{ border-color:var(--felt-bright); }
+.tci-input.has-value{ border-color:var(--felt);background:var(--felt-soft); }
+.tci-input-id{
+  width:100%;padding:3px 6px;
+  border:1px solid var(--hairline);border-radius:5px;
+  background:transparent;color:var(--ink-soft);
+  font-size:10px;font-family:var(--mono);
+  outline:none;transition:border-color .15s;
+}
+.tci-input-id:focus{ border-color:var(--felt-bright);background:var(--bg); }
+.tci-input-id.has-value{ color:var(--ink);border-color:var(--hairline-strong); }
 
 .upcoming-grid.compact-mode{
   display:flex;flex-direction:column;gap:0;
@@ -6432,6 +6457,16 @@ function renderUnfixed(){
   document.getElementById('unfixedCount').textContent = UNFIXED.length;
 
   const fragment = document.createDocumentFragment();
+
+  // Header do modo compacto
+  if(_compactMode){
+    const hdr = document.createElement('div');
+    hdr.className = 'compact-list-header';
+    hdr.innerHTML = '<span>Torneio</span><span>Hora</span><span>GTD</span>'
+      + '<span>Premiação</span><span>Overlay</span><span>Field</span>'
+      + '<span>ID</span><span>Fix</span>';
+    fragment.appendChild(hdr);
+  }
   withFlag.forEach(({row:r, cat, flag}) => {
     const key = r._key;
     const card = document.createElement('div');
@@ -6551,16 +6586,48 @@ function renderUpcoming(){
     // ── Modo compacto ──
     if(_compactMode){
       const elc = document.createElement('div');
-      const ovc = t.premiacao != null && t.garantido != null ? t.premiacao - t.garantido : null;
+      const premVal = t.premiacao;
+      const garVal  = t.garantido;
+      const ovc     = premVal != null && garVal != null ? premVal - garVal : null;
+      const fieldVal = getField(key);
       elc.className = 'tcard-compact-item' + (fixed?' is-fixed':'') + (isNF?' is-nf':'');
       elc.dataset.key = key;
-      elc.innerHTML = '<span class="tci-nome">' + (t.nome||'—') + '</span>'
-        + '<span class="tci-hora">' + (t.hora||'—') + '</span>'
-        + '<span class="tci-gar">' + (t.garantido!=null?'R$'+fmtBRL(t.garantido,0):'—') + '</span>'
-        + '<span class="tci-prem' + (t.premiacao!=null?' filled':'') + '">' + (t.premiacao!=null?'R$'+fmtBRL(t.premiacao,0):'—') + '</span>'
-        + '<span class="tci-ov' + (ovc!=null?(ovc<0?' neg':' pos'):'') + '">' + (ovc!=null?(ovc<0?'-':'+')+('R$'+fmtBRL(Math.abs(ovc),0)):'—') + '</span>'
-        + '<span class="tci-fix">' + (fixed?'✓':'') + '</span>'
-        + '<span class="tci-id">' + (currentId||'—') + '</span>';
+
+      // Nome + hora + GTD
+      const nameSpan  = '<span class="tci-nome">' + escHtml(t.nome||'') + '</span>';
+      const horaSpan  = '<span class="tci-hora">' + (t.hora||'—') + '</span>';
+      const garSpan   = '<span class="tci-gar">'  + (garVal!=null?'R$'+fmtBRL(garVal,0):'—') + '</span>';
+
+      // Overlay
+      const ovCls   = ovc!=null?(ovc<0?' neg':' pos'):'';
+      const ovTxt   = ovc!=null?(ovc<0?'-':'+')+('R$'+fmtBRL(Math.abs(ovc),Math.abs(ovc)%1===0?0:2)):'—';
+      const ovSpan  = '<span class="tci-ov' + ovCls + '" id="tci-ov-' + key + '">' + ovTxt + '</span>';
+
+      // Input premiação
+      const premFmt = premVal!=null ? fmtBRL(premVal, premVal%1===0?0:2) : '';
+      const premInp = '<input class="tci-input tcard-prem-input' + (premVal!=null?' has-value':'') + '"'
+        + ' data-key="' + key + '" type="text" inputmode="decimal"'
+        + ' placeholder="Prem." value="' + premFmt + '"'
+        + ' oninput="onCardPremiacaoInput(this)"'
+        + ' onblur="formatPremInput(this)" onfocus="this.select()">';
+
+      // Input field
+      const fieldInp = '<input class="tci-input tcard-field-input" style="font-size:10px"'
+        + ' data-key="' + key + '" type="number" min="0"'
+        + ' placeholder="Field" value="' + (fieldVal!=null?fieldVal:'') + '"'
+        + ' oninput="onCardFieldInput(this)">';
+
+      // Input ID
+      const idInp = '<input class="tci-input-id id-input' + (currentId?' has-value':'') + '"'
+        + ' data-key="' + key + '" type="text"'
+        + ' placeholder="ID" value="' + escHtml(currentId) + '"'
+        + ' oninput="onIdInput(this)" onblur="onIdBlur(this)">';
+
+      // Checkbox fixado
+      const fixCb = '<input class="tci-fix-cb" type="checkbox"' + (fixed?' checked':'')
+        + ' data-key="' + key + '" onchange="onFixCheckboxChange(this)" title="Fixar">';
+
+      elc.innerHTML = nameSpan + horaSpan + garSpan + premInp + ovSpan + fieldInp + idInp + fixCb;
       fragment.appendChild(elc);
       return;
     }
@@ -7932,6 +7999,14 @@ function renderCardOverlayPreview(key, row, premiacaoVal, fieldVal){
        </div>`;
 
   el.innerHTML = ovFinal + acoesFinal + perfFinal;
+
+  // Atualizar overlay no card compacto se existir
+  const tciOv = document.getElementById('tci-ov-' + key);
+  if(tciOv){
+    const ovc2 = overlay;
+    tciOv.className = 'tci-ov' + (ovc2!=null?(ovc2<0?' neg':' pos'):'');
+    tciOv.textContent = ovc2!=null ? (ovc2<0?'-':'+')+('R$'+fmtBRL(Math.abs(ovc2),Math.abs(ovc2)%1===0?0:2)) : '—';
+  }
 }
 
 // carrega premiações salvas do Firebase ao iniciar
