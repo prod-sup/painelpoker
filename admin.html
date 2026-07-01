@@ -242,7 +242,9 @@ a{color:inherit;text-decoration:none}
   font-size:14px;font-weight:500;color:var(--ink);
   transition:background .1s;text-align:left;letter-spacing:-.01em;
 }
-.ntab .ni{font-size:15px;width:18px;text-align:center;flex:none;opacity:.85}
+.ntab .ni{font-size:15px;width:18px;text-align:center;flex:none;opacity:.85;display:inline-flex;align-items:center;justify-content:center}
+.ni svg,.btn svg,.tb-btn svg{width:16px;height:16px;flex:none;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.btn svg,.tb-btn svg{width:14px;height:14px}
 .ntab:hover{background:rgba(0,0,0,.04)}
 .ntab.active{
   background:var(--gold);color:#fff;font-weight:500;
@@ -668,14 +670,14 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
         <span class="tb-dot"></span>
         <span id="adminName">—</span>
       </div>
-      <button class="btn btn-ghost" onclick="openAuditSummary()">📋 Resumo auditoria</button>
-      <button class="btn btn-ghost" onclick="openNotifHistory()">📨 Notificações</button>
-      <button class="btn btn-ghost" onclick="openAdminLog()">📋 Log admin</button>
-      <button class="btn btn-ghost" onclick="buildFieldTrend();document.getElementById('moFieldTrend').classList.add('open')">📈 Field trend</button>
-      <button class="btn btn-ghost" onclick="openOpRanking()">🏆 Ranking</button>
-      <button class="btn btn-ghost" onclick="openOverlayHeatmap()">🔥 Heatmap</button>
+      <button class="btn btn-ghost" onclick="openAuditSummary()"><svg viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg> Resumo auditoria</button>
+      <button class="btn btn-ghost" onclick="openNotifHistory()"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg> Notificações</button>
+      <button class="btn btn-ghost" onclick="openAdminLog()"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Log admin</button>
+      <button class="btn btn-ghost" onclick="buildFieldTrend();document.getElementById('moFieldTrend').classList.add('open')"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Field trend</button>
+      <button class="btn btn-ghost" onclick="openOpRanking()"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M8.21 13.89 7 23l5-3 5 3-1.21-9.12"/></svg> Ranking</button>
+      <button class="btn btn-ghost" onclick="openOverlayHeatmap()"><svg viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> Heatmap</button>
       <button class="btn btn-ghost" onclick="openJustifs()" style="position:relative">
-        📩 Justificativas
+        <svg viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg> Justificativas
         <span id="pendingBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--amber);color:#000;font-size:9px;font-weight:800;border-radius:99px;padding:1px 5px;min-width:14px;text-align:center"></span>
       </button>
       <a href="index.html" class="tb-back">← Painel</a>
@@ -686,14 +688,14 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
   <!-- SIDEBAR -->
   <nav class="sidebar">
     <span class="nav-group">Auditoria</span>
-    <button class="ntab active" onclick="nav('audit',this)"><span class="ni">🔍</span>Acompanhamento</button>
-    <button class="ntab" onclick="nav('fixados',this)"><span class="ni">📌</span>Fixações</button>
+    <button class="ntab active" onclick="nav('audit',this)"><span class="ni"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>Acompanhamento</button>
+    <button class="ntab" onclick="nav('fixados',this)"><span class="ni"><svg viewBox="0 0 24 24"><path d="M12 22s7-7.05 7-12A7 7 0 1 0 5 10c0 4.95 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg></span>Fixações</button>
     <span class="nav-group">Analytics</span>
-    <button class="ntab" onclick="nav('dashboard',this)"><span class="ni">📊</span>Dashboard</button>
-    <button class="ntab" onclick="nav('grade',this)"><span class="ni">📈</span>Grade</button>
+    <button class="ntab" onclick="nav('dashboard',this)"><span class="ni"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>Dashboard</button>
+    <button class="ntab" onclick="nav('grade',this)"><span class="ni"><svg viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></span>Grade</button>
     <span class="nav-group">Sistema</span>
-    <button class="ntab" onclick="nav('operadores',this)"><span class="ni">👤</span>Operadores</button>
-    <button class="ntab" onclick="nav('backup',this)"><span class="ni">🗄️</span>Backup & Arquivo</button>
+    <button class="ntab" onclick="nav('operadores',this)"><span class="ni"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>Operadores</button>
+    <button class="ntab" onclick="nav('backup',this)"><span class="ni"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg></span>Backup & Arquivo</button>
   </nav>
 
   <!-- MAIN -->
@@ -987,9 +989,13 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
         <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
           <div class="mf" style="margin:0">
             <label>URL da planilha Google (modo Apps Script)</label>
-            <input type="url" id="sheetsUrl" placeholder="https://script.google.com/macros/s/..." 
-              style="padding:8px 11px;font-size:12px"
-              value="${localStorage.getItem('suprema_sheets_url')||'https://script.google.com/macros/s/AKfycbzj9ytqb3Ai7l_yHWz95rMJrBPfrymMHtzU-F2UWALN8DadoYEwTrfdCaj1yZaZLbjl/exec'}">
+            <input type="url" id="sheetsUrl" placeholder="https://script.google.com/macros/s/..."
+              style="padding:8px 11px;font-size:12px">
+          </div>
+          <div class="mf" style="margin:0">
+            <label>Segredo compartilhado (definido em Propriedades do script)</label>
+            <input type="password" id="sheetsSecret" placeholder="Opcional, mas recomendado"
+              style="padding:8px 11px;font-size:12px">
           </div>
           <div style="font-size:11px;color:var(--ink3);line-height:1.6">
             <b>Como configurar:</b> No Google Sheets, vá em Extensões → Apps Script → cole o script abaixo → Implantar → App da Web → copie a URL e cole acima.
@@ -1127,6 +1133,25 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
     <div class="modal-actions" style="flex-direction:column">
       <a href="index.html" class="btn btn-gold" style="justify-content:center;text-decoration:none">Ir para o painel</a>
       <button class="btn btn-ghost" onclick="closeMo('moSuccess')" style="justify-content:center">Continuar no admin</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Confirmação de ação destrutiva (digitar para confirmar) -->
+<div class="modal-bg" id="moDestructiveConfirm">
+  <div class="modal" style="max-width:420px">
+    <h2>⚠️ Remover dados antigos</h2>
+    <div class="msub">
+      Isso vai remover <b><span id="dcCount"></span> dia(s)</b> do Firebase (dados anteriores a <b><span id="dcCutoff"></span></b>).
+      Snapshots e relatórios XLSX serão mantidos, mas os dados ao vivo do painel <b>não podem ser recuperados</b>.
+    </div>
+    <div class="mf">
+      <label>Digite <b>REMOVER</b> para confirmar</label>
+      <input type="text" id="dcInput" autocomplete="off" placeholder="REMOVER">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeMo('moDestructiveConfirm')">Cancelar</button>
+      <button class="btn btn-red" id="dcBtn" disabled>Remover definitivamente</button>
     </div>
   </div>
 </div>
@@ -1325,13 +1350,51 @@ function catBadge(cat){
   return m[cat]||'—';
 }
 
-/* ── HASH (mesmo do painel) ─────────────────────────────────── */
-function hashStr(s){
+/* ── HASH DE SENHA ──────────────────────────────────────────────
+   PBKDF2-SHA256 (Web Crypto), salt aleatório por usuário.
+   Mantém compat com o hash legado (DJB2+salt fixo, "h2_...") apenas
+   para permitir migração transparente no login — nunca para novas contas.
+   IMPORTANTE: a mesma lógica precisa existir em index.html (ver hashPassword). */
+const PBKDF2_ITER = 150000;
+function bufToHex(buf){ return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
+async function pbkdf2Hash(pw, saltHex){
+  saltHex = saltHex || bufToHex(crypto.getRandomValues(new Uint8Array(16)));
+  const enc = new TextEncoder();
+  const keyMat = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    {name:'PBKDF2', salt:enc.encode(saltHex), iterations:PBKDF2_ITER, hash:'SHA-256'}, keyMat, 256);
+  return `pbkdf2$${PBKDF2_ITER}$${saltHex}$${bufToHex(bits)}`;
+}
+function legacyHash(s){
   let h=5381;
   for(let i=0;i<s.length;i++){h=((h<<5)+h)^s.charCodeAt(i);h|=0;}
   const salt='suprema2024';let h2=h;
   for(let i=0;i<salt.length;i++){h2=((h2<<5)+h2)^salt.charCodeAt(i);h2|=0;}
-  return Promise.resolve('h2_'+Math.abs(h).toString(36)+'_'+Math.abs(h2).toString(36));
+  return 'h2_'+Math.abs(h).toString(36)+'_'+Math.abs(h2).toString(36);
+}
+// Compat com chamadas antigas (hashStr) usadas na criação de conta — sempre gera hash novo.
+async function hashStr(s){ return pbkdf2Hash(s); }
+// Verifica senha contra hash salvo, migrando hash legado para pbkdf2 quando aplicável.
+async function verifyPassword(pw, storedHash, onMigrate){
+  if(!storedHash) return true; // conta sem senha definida ainda
+  if(storedHash.startsWith('pbkdf2$')){
+    const [,iterStr,saltHex] = storedHash.split('$');
+    return (await pbkdf2Hash(pw, saltHex)) === storedHash;
+  }
+  const ok = storedHash === legacyHash(pw);
+  if(ok && onMigrate) onMigrate(await pbkdf2Hash(pw));
+  return ok;
+}
+
+/* ── RATE LIMITING DE LOGIN ─────────────────────────────────────
+   Contador de tentativas e bloqueio temporário guardados no próprio
+   registro do usuário no Firebase (não em localStorage), para não ser
+   burlável apenas limpando o navegador. */
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_LOCK_MS = 5*60*1000; // 5 minutos
+function loginLockRemaining(user){
+  if(!user?.loginLockUntil) return 0;
+  return Math.max(0, user.loginLockUntil - Date.now());
 }
 
 /* ── FIREBASE ───────────────────────────────────────────────── */
@@ -1353,12 +1416,31 @@ async function doLogin(){
   if(!email||!pass){err.textContent='Preencha email e senha.';return;}
   if(!fbOk){err.textContent='Firebase não conectado.';return;}
   btn.disabled=true;btn.textContent='Verificando...';
+  const userRef=db.ref(`users/${eKey(email)}`);
   try{
-    const snap=await db.ref(`users/${eKey(email)}`).once('value');
+    const snap=await userRef.once('value');
     const user=snap.val();
     if(!user){err.textContent='Usuário não encontrado.';btn.disabled=false;btn.textContent='Entrar';return;}
-    const hash=await hashStr(pass);
-    if(user.pwHash&&user.pwHash!==hash){err.textContent='Senha incorreta.';btn.disabled=false;btn.textContent='Entrar';return;}
+
+    const remaining=loginLockRemaining(user);
+    if(remaining>0){
+      err.textContent=`Muitas tentativas. Tente novamente em ${Math.ceil(remaining/60000)} min.`;
+      btn.disabled=false;btn.textContent='Entrar';return;
+    }
+
+    const ok = await verifyPassword(pass, user.pwHash, newHash=>userRef.update({pwHash:newHash}));
+    if(!ok){
+      const attempts=(user.loginAttempts||0)+1;
+      const patch={loginAttempts:attempts};
+      if(attempts>=LOGIN_MAX_ATTEMPTS){ patch.loginLockUntil=Date.now()+LOGIN_LOCK_MS; patch.loginAttempts=0; }
+      await userRef.update(patch);
+      err.textContent = attempts>=LOGIN_MAX_ATTEMPTS
+        ? `Muitas tentativas. Login bloqueado por ${LOGIN_LOCK_MS/60000} min.`
+        : 'Senha incorreta.';
+      btn.disabled=false;btn.textContent='Entrar';return;
+    }
+    if(user.loginAttempts||user.loginLockUntil) await userRef.update({loginAttempts:0,loginLockUntil:null});
+
     if(!ADMIN_EMAILS.includes(email)&&!user.admin){err.textContent='Acesso negado — apenas administradores.';btn.disabled=false;btn.textContent='Entrar';return;}
     _email=email;_name=user.apelido||user.nome||email.split('@')[0];
     document.getElementById('adminName').textContent=_name;
@@ -2645,9 +2727,11 @@ function exportGradeXlsx(){
 
 // ── Inicializar página de backup ──
 async function initBackup(){
-  // Garantir URL padrão no campo
+  // Restaurar URL/segredo salvos localmente (nunca hardcoded no código-fonte)
   const urlField = document.getElementById('sheetsUrl');
-  if(urlField && !urlField.value) urlField.value = localStorage.getItem('suprema_sheets_url') || SHEETS_URL_DEFAULT;
+  if(urlField && !urlField.value) urlField.value = localStorage.getItem('suprema_sheets_url') || '';
+  const secretField = document.getElementById('sheetsSecret');
+  if(secretField && !secretField.value) secretField.value = localStorage.getItem('suprema_sheets_secret') || '';
   await loadAll();
   const dates = Object.keys(_allData).sort();
   if(!dates.length){ document.getElementById('backupKpi').innerHTML='<div style="color:var(--ink3);font-size:12px">Nenhum dado encontrado.</div>'; return; }
@@ -2830,13 +2914,25 @@ async function previewCleanup(){
     </div>`;
 }
 
-async function runCleanup(){
+function runCleanup(){
   const cutoff = dago(90);
   const old    = Object.keys(_allData).filter(d=>d<cutoff).sort();
   if(!old.length){ toast('Nada para limpar','ok'); return; }
 
-  if(!confirm(`Remover ${old.length} dia(s) do Firebase (dados anteriores a ${fmtDate(cutoff)})? Snapshots e XLSX serão mantidos.`)) return;
+  document.getElementById('dcCount').textContent = old.length;
+  document.getElementById('dcCutoff').textContent = fmtDate(cutoff);
+  document.getElementById('dcInput').value = '';
+  document.getElementById('dcBtn').disabled = true;
+  document.getElementById('dcInput').oninput = e =>{
+    document.getElementById('dcBtn').disabled = e.target.value.trim().toUpperCase()!=='REMOVER';
+  };
+  document.getElementById('dcBtn').onclick = ()=>executeCleanup(old);
+  document.getElementById('moDestructiveConfirm').classList.add('open');
+  setTimeout(()=>document.getElementById('dcInput')?.focus(),80);
+}
 
+async function executeCleanup(old){
+  closeMo('moDestructiveConfirm');
   const el = document.getElementById('cleanupPreview');
   el.innerHTML = '<span style="color:var(--ink3)">Limpando...</span>';
 
@@ -2852,6 +2948,7 @@ async function runCleanup(){
 
   el.innerHTML = `<span style="color:var(--green)">✅ ${removed} dia(s) removidos do Firebase.</span>`;
   toast(`✓ ${removed} dias removidos`,'ok');
+  writeAdminLog('cleanup', {removed});
   initBackup(); // atualizar KPIs
 }
 
@@ -2862,6 +2959,12 @@ const APPS_SCRIPT = `// Cole este script no Apps Script da sua planilha Google
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
+    // Segredo compartilhado: Extensões → Apps Script → Configurações do projeto →
+    // Propriedades do script → adicione SHARED_SECRET com o mesmo valor colado no admin.
+    const expected = PropertiesService.getScriptProperties().getProperty('SHARED_SECRET');
+    if (expected && data.secret !== expected) {
+      return ContentService.createTextOutput(JSON.stringify({error:'unauthorized'})).setMimeType(ContentService.MimeType.JSON);
+    }
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheetName = data.date || new Date().toLocaleDateString('pt-BR');
     let sheet = ss.getSheetByName(sheetName);
@@ -2897,12 +3000,12 @@ function copyAppsScript(){
     .catch(()=>{ prompt('Copie o script abaixo:', APPS_SCRIPT); });
 }
 
-const SHEETS_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbzj9ytqb3Ai7l_yHWz95rMJrBPfrymMHtzU-F2UWALN8DadoYEwTrfdCaj1yZaZLbjl/exec';
-
 async function exportToSheets(){
-  const url = document.getElementById('sheetsUrl').value.trim() || SHEETS_URL_DEFAULT;
+  const url = document.getElementById('sheetsUrl').value.trim();
   if(!url){ toast('Cole a URL do Apps Script primeiro','err'); return; }
   localStorage.setItem('suprema_sheets_url', url);
+  const secret = document.getElementById('sheetsSecret').value.trim();
+  if(secret) localStorage.setItem('suprema_sheets_secret', secret);
 
   const today = nowSP();
   const day   = _allData[today];
@@ -2926,7 +3029,7 @@ async function exportToSheets(){
   try{
     const res = await fetch(url, {
       method:'POST',
-      body: JSON.stringify({date:fmtDate(today), rows}),
+      body: JSON.stringify({date:fmtDate(today), rows, secret}),
     });
     const json = await res.json();
     if(json.ok){
