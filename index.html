@@ -5439,9 +5439,7 @@ function initFirebaseSync(){
         }
       });
       if(premChanged){
-        // 8. Salvar no undo stack antes de sobrescrever
-    pushUndo(key, row.nome, row.premiacao);
-    RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
+        RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
         UPCOMING = [...RAW_ROWS];
         renderResults();
         if(!isTypingInCard() && !window._suppressRenderUpcoming) renderUpcoming();
@@ -5869,9 +5867,6 @@ function setGarantidoOverride(key, val){
 function applyIdDuplicateChecks(){
   // agrupa: valor do ID (normalizado) -> lista de keys de torneio que usam esse valor
   const byValue = {};
-  // DEBUG — remover após confirmar
-  const sample = Object.entries(ID_MAP).slice(0,3);
-  console.log('[IDDup] ID_MAP sample:', sample);
   Object.entries(ID_MAP).forEach(([key, entry]) => {
     // ID_MAP pode guardar string ou {val, by, at}
     const norm = (typeof entry === 'object' && entry !== null)
@@ -5881,12 +5876,10 @@ function applyIdDuplicateChecks(){
     if (!byValue[norm]) byValue[norm] = [];
     byValue[norm].push(key);
   });
-  console.log('[IDDup] byValue:', byValue);
   const duplicatedKeys = new Set();
   Object.values(byValue).forEach(keys => {
     if (keys.length > 1) keys.forEach(k => duplicatedKeys.add(k));
   });
-  console.log('[IDDup] duplicatedKeys:', [...duplicatedKeys]);
 
   document.querySelectorAll('.id-input[data-key]').forEach(inp => {
     const key = inp.dataset.key;
@@ -6555,7 +6548,23 @@ function renderUpcoming(){
     const isNF = currentId.toUpperCase() === 'NF' || t.explicitNF;
     const flag = cardTimeFlag(t);
     const isRunning = isRunningNow(t, nowMin);
-    const el = document.createElement('div');
+    // ── Modo compacto ──
+    if(_compactMode){
+      const elc = document.createElement('div');
+      const ovc = t.premiacao != null && t.garantido != null ? t.premiacao - t.garantido : null;
+      elc.className = 'tcard-compact-item' + (fixed?' is-fixed':'') + (isNF?' is-nf':'');
+      elc.dataset.key = key;
+      elc.innerHTML = '<span class="tci-nome">' + (t.nome||'—') + '</span>'
+        + '<span class="tci-hora">' + (t.hora||'—') + '</span>'
+        + '<span class="tci-gar">' + (t.garantido!=null?'R$'+fmtBRL(t.garantido,0):'—') + '</span>'
+        + '<span class="tci-prem' + (t.premiacao!=null?' filled':'') + '">' + (t.premiacao!=null?'R$'+fmtBRL(t.premiacao,0):'—') + '</span>'
+        + '<span class="tci-ov' + (ovc!=null?(ovc<0?' neg':' pos'):'') + '">' + (ovc!=null?(ovc<0?'-':'+')+('R$'+fmtBRL(Math.abs(ovc),0)):'—') + '</span>'
+        + '<span class="tci-fix">' + (fixed?'✓':'') + '</span>'
+        + '<span class="tci-id">' + (currentId||'—') + '</span>';
+      fragment.appendChild(elc);
+      return;
+    }
+        const el = document.createElement('div');
     el.className = `tcard reveal${fixed ? ' is-fixed' : ''}${isNF ? ' is-nf' : ''}${flag==='soon' ? ' is-soon' : ''}${flag==='late' ? ' is-late' : ''}${isRunning ? ' is-running' : ''}`;
     el.dataset.key = key;
     el.style.setProperty('--cat-bright', `var(--${cat}-bright)`);
