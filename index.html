@@ -3234,6 +3234,10 @@
         <button class="chip chip-prem active" data-prem="all"   onclick="setUpcomingPrem('all',this)"><span class="d" style="background:var(--ink)"></span>Todos</button>
         <button class="chip chip-prem"        data-prem="sem"   onclick="setUpcomingPrem('sem',this)"><span class="d"></span>Sem premiação</button>
         <button class="chip chip-prem chip-prem-com" data-prem="com" onclick="setUpcomingPrem('com',this)"><span class="d"></span>Com premiação</button>
+        <span class="legend-divider" aria-hidden="true"></span>
+        <button class="compact-toggle-btn" id="compactToggleBtn" onclick="toggleCompactMode()" title="Modo compacto — uma linha por torneio">⊟ Compacto</button>
+        <button class="op-filter-btn" id="opFilterMe" onclick="setOpFilter('me')">👤 Meus</button>
+        <button class="op-filter-btn" id="opFilterPartner" onclick="setOpFilter('partner')">🤝 Parceiro</button>
       </div>
     </div>
 
