@@ -1644,6 +1644,18 @@
   html.dark .ovc-result-premium{ background:var(--card); }
   html.dark .ovc-result-premium .ovc-result-final{ background:var(--card-elevated); }
 
+  .ovc-sync-badge{
+    display:none;align-items:center;gap:8px;margin:-6px 0 14px;
+    padding:8px 12px;border-radius:var(--radius-sm);
+    background:var(--fixed-bg);border:1px solid var(--fixed-border);
+    font-size:12px;font-weight:600;color:var(--felt);
+  }
+  .ovc-sync-badge svg{ width:14px;height:14px;flex:none; }
+  .ovc-sync-badge.show{ display:flex; }
+  .ovc-sync-badge.pulse{ animation:ovc-sync-pulse .6s var(--ease); }
+  @keyframes ovc-sync-pulse{ 0%{ transform:scale(.97); } 40%{ transform:scale(1.015); } 100%{ transform:scale(1); } }
+  @media (prefers-reduced-motion: reduce){ .ovc-sync-badge.pulse{ animation:none; } }
+
   .diff-summary{ display:flex; gap:8px; flex-wrap:wrap; margin:14px 0 10px; }
   .diff-pill{ font-family:var(--mono); font-size:11.5px; font-weight:700; padding:5px 11px; border-radius:99px; }
   .diff-pill.ok{ background:var(--felt-soft); color:var(--felt); }
@@ -2678,6 +2690,11 @@
           <span id="ovcOverlayLabel">Overlay</span>
           <span class="ovc-result-val" id="ovcOverlayOut">—</span>
         </div>
+      </div>
+
+      <div class="ovc-sync-badge" id="ovcSyncBadge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>Pote aplicado à premiação do card</span>
       </div>
 
       <!-- Ações -->
@@ -7758,6 +7775,31 @@ function ovcCalculate(){
     if(labelEl) labelEl.textContent = 'Overlay';
     row.classList.remove('has-overlay','no-overlay');
   }
+
+  ovcAutoApplyToCard(pote);
+}
+
+/* Quando um torneio da agenda está selecionado no seletor da calculadora, o Pote arrecadado
+   é aplicado automaticamente na premiação daquele card — evita ter que copiar o valor à mão.
+   Debounced pra não gravar no Firebase a cada tecla digitada. */
+function ovcAutoApplyToCard(pote){
+  const key = document.getElementById('ovcTorneioSelect')?.value;
+  const badge = document.getElementById('ovcSyncBadge');
+  clearTimeout(window._ovcApplyTimer);
+  if(!key || !(pote > 0)){
+    if(badge) badge.classList.remove('show');
+    return;
+  }
+  const tRow = RAW_ROWS.find(r => r._key === key);
+  if(!tRow) return;
+  window._ovcApplyTimer = setTimeout(() => {
+    applyPremiacaoValue(key, pote, `<b>${OPERATOR_NAME||'Você'}</b> preencheu premiação de <b>${tRow.nome||key}</b> via Calculadora de Overlay: R$ ${fmtBRL(pote,0)}`);
+    if(badge){
+      badge.querySelector('span').textContent = `Pote aplicado à premiação de "${tRow.nome}"`;
+      badge.classList.add('show', 'pulse');
+      setTimeout(() => badge.classList.remove('pulse'), 600);
+    }
+  }, 500);
 }
 
 document.querySelectorAll('#overlayCalcDrawer input, #overlayCalcDrawer select').forEach(el => {
@@ -7925,6 +7967,58 @@ function loadSavedGarantidos(){
 
 // Firebase listener em tempo real para garantido
 
+/* aplica um valor de premiação a um torneio (por _key) e propaga pra tudo que depende dela —
+   usada tanto pela digitação manual no card quanto pelo auto-preenchimento da Calculadora de Overlay */
+function applyPremiacaoValue(key, premiacaoVal, activityMsg){
+  const row = RAW_ROWS.find(r => r._key === key);
+  if(!row) return;
+  row.premiacao = premiacaoVal;
+  if(fbReady){
+    window._suppressRenderUpcoming = true; // ignorar eco do Firebase
+    fbDb.ref(`${FB_BASE_PATH}/premiacao/${key}`).set(premiacaoVal);
+    clearTimeout(window._suppressTimer);
+    window._suppressTimer = setTimeout(() => { window._suppressRenderUpcoming = false; }, 4000);
+  }
+  // Persistir premiação no localStorage (garantia mesmo sem Firebase)
+  try {
+    const pm = JSON.parse(localStorage.getItem('suprema_prem_v1') || '{}');
+    pm[key] = premiacaoVal;
+    localStorage.setItem('suprema_prem_v1', JSON.stringify(pm));
+  } catch(e){}
+  // Recalcular RESULTS e UPCOMING
+  RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
+  UPCOMING = [...RAW_ROWS];
+  UNFIXED  = computeUnfixed();
+  document.getElementById('statUnfixed').textContent = UNFIXED.length;
+  updateProgress();
+  renderUnfixed();
+  // Atualizar card in-place — sem remover do DOM
+  renderCardOverlayPreview(key, row, premiacaoVal, getField(key));
+  // Sincronizar o(s) input(s) de premiação visíveis (card normal + linha compacta)
+  document.querySelectorAll(`.tcard-prem-input[data-key="${key}"]`).forEach(inp => {
+    if(document.activeElement !== inp){
+      inp.value = fmtBRL(premiacaoVal, premiacaoVal%1===0?0:2);
+      inp.classList.add('has-value');
+    }
+  });
+  // Atualizar badge de premiação
+  const _badge = document.querySelector(`.tcard[data-key="${key}"] .tcard-prem-badge`);
+  if(_badge){
+    _badge.textContent = '✓ R$ ' + fmtBRL(premiacaoVal, premiacaoVal%1===0?0:2);
+  } else {
+    const _catDiv = document.querySelector(`.tcard[data-key="${key}"] .tcard-cat`);
+    if(_catDiv){ const _b=document.createElement('span'); _b.className='tcard-prem-badge'; _b.textContent='✓ R$ '+fmtBRL(premiacaoVal,0); _catDiv.appendChild(_b); }
+  }
+  // Atualizar classe do card
+  const _card = document.querySelector(`.tcard[data-key="${key}"]`);
+  if(_card) _card.classList.toggle('has-premiacao', true);
+  debouncedRenderResults();
+  computeStats();
+  appendTodayToHistorico();
+  if(activityMsg) logActivity(activityMsg, '💰');
+  checkDayComplete();
+}
+
 function onCardPremiacaoInput(input){
   const key = input.dataset.key;
   const row = RAW_ROWS.find(r => r._key === key);
@@ -7937,44 +8031,7 @@ function onCardPremiacaoInput(input){
   input._saveTimer = setTimeout(() => {
     const premiacaoVal = parsePremInput(input);
     if(premiacaoVal != null && premiacaoVal > 0){
-      row.premiacao = premiacaoVal;
-      if(fbReady){
-        window._suppressRenderUpcoming = true; // ignorar eco do Firebase
-        fbDb.ref(`${FB_BASE_PATH}/premiacao/${key}`).set(premiacaoVal);
-        clearTimeout(window._suppressTimer);
-        window._suppressTimer = setTimeout(() => { window._suppressRenderUpcoming = false; }, 4000);
-      }
-      // Persistir premiação no localStorage (garantia mesmo sem Firebase)
-      try {
-        const pm = JSON.parse(localStorage.getItem('suprema_prem_v1') || '{}');
-        pm[key] = premiacaoVal;
-        localStorage.setItem('suprema_prem_v1', JSON.stringify(pm));
-      } catch(e){}
-      // Recalcular RESULTS e UPCOMING
-      RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
-      UPCOMING = [...RAW_ROWS];
-      UNFIXED  = computeUnfixed();
-      document.getElementById('statUnfixed').textContent = UNFIXED.length;
-      updateProgress();
-      renderUnfixed();
-      // Atualizar card in-place — sem remover do DOM
-      renderCardOverlayPreview(key, row, premiacaoVal, getField(key));
-      // Atualizar badge de premiação
-      const _badge = document.querySelector(`.tcard[data-key="${key}"] .tcard-prem-badge`);
-      if(_badge){
-        _badge.textContent = '✓ R$ ' + fmtBRL(premiacaoVal, premiacaoVal%1===0?0:2);
-      } else {
-        const _catDiv = document.querySelector(`.tcard[data-key="${key}"] .tcard-cat`);
-        if(_catDiv){ const _b=document.createElement('span'); _b.className='tcard-prem-badge'; _b.textContent='✓ R$ '+fmtBRL(premiacaoVal,0); _catDiv.appendChild(_b); }
-      }
-      // Atualizar classe do card
-      const _card = document.querySelector(`.tcard[data-key="${key}"]`);
-      if(_card) _card.classList.toggle('has-premiacao', true);
-      debouncedRenderResults();
-      computeStats();
-      appendTodayToHistorico();
-      logActivity(`<b>${OPERATOR_NAME||'Você'}</b> preencheu premiação de <b>${row?.nome||key}</b>: R$ ${fmtBRL(premiacaoVal,0)}`, '💰');
-      checkDayComplete();
+      applyPremiacaoValue(key, premiacaoVal, `<b>${OPERATOR_NAME||'Você'}</b> preencheu premiação de <b>${row?.nome||key}</b>: R$ ${fmtBRL(premiacaoVal,0)}`);
     } else if(input.value.trim() === '' && row.premiacao){
       // input apagado — mantém preview com valor salvo, não descarta
       renderCardOverlayPreview(key, row, row.premiacao, getField(key));
