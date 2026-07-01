@@ -2336,56 +2336,134 @@
 
 /* ══ 5. Modo compacto ══ */
 /* Linha compacta escondida por padrão — só aparece no modo compacto */
-/* ── Itens compactos ── */
-.compact-list{ display:flex;flex-direction:column;gap:0; }
+/* ══ Modo compacto — layout planilha ══ */
+.compact-list{
+  border:1px solid var(--hairline-strong);
+  border-radius:12px;
+  overflow:hidden;
+  background:var(--card);
+}
+
+/* Header da planilha */
 .compact-list-header{
   display:grid;
-  grid-template-columns: 2fr 52px 80px 105px 85px 90px 85px 28px;
-  gap:4px;padding:4px 10px;
-  font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
-  color:var(--ink-soft);border-bottom:2px solid var(--hairline-strong);
-  background:var(--card-elevated);border-radius:10px 10px 0 0;
+  grid-template-columns: 28px 1.8fr 52px 75px 110px 80px 80px 90px 32px;
+  gap:0;
+  padding:7px 10px;
+  background:var(--card-elevated);
+  border-bottom:2px solid var(--hairline-strong);
+  font-size:9px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-soft);
 }
+.compact-list-header span{ padding:0 4px; }
+
+/* Linha da planilha */
 .tcard-compact-item{
   display:grid;
-  grid-template-columns: 2fr 52px 80px 105px 85px 90px 85px 28px;
-  align-items:center;gap:4px;padding:5px 10px;
+  grid-template-columns: 28px 1.8fr 52px 75px 110px 80px 80px 90px 32px;
+  align-items:center;
+  gap:0;
+  padding:0;
+  min-height:36px;
   border-bottom:1px solid var(--hairline);
   background:var(--card);
   transition:background .1s;
 }
-.tcard-compact-item:first-child{ border-top:1px solid var(--hairline);border-radius:10px 10px 0 0; }
-.tcard-compact-item:last-child{ border-radius:0 0 10px 10px;border-bottom:none; }
+.tcard-compact-item:last-child{ border-bottom:none; }
 .tcard-compact-item:hover{ background:var(--card-elevated); }
-.tcard-compact-item.is-fixed{ border-left:3px solid var(--felt-bright);padding-left:7px; }
-.tcard-compact-item.is-nf{ opacity:.42;filter:grayscale(.6); }
-.tci-nome{ font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
-.tci-hora{ font-size:11px;color:var(--ink-soft);font-family:var(--mono);white-space:nowrap }
-.tci-gar{ font-size:11px;color:var(--amber);font-family:var(--mono);font-weight:700;white-space:nowrap }
-.tci-ov{ font-size:11px;font-family:var(--mono);font-weight:700;text-align:right;white-space:nowrap }
-.tci-ov.neg{ color:var(--red) }
-.tci-ov.pos{ color:var(--felt-bright) }
-.tci-fix-cb{ width:15px;height:15px;accent-color:var(--felt);cursor:pointer;flex:none }
 
-/* Inputs do card compacto */
-.tci-input{
-  width:100%;padding:3px 6px;
-  border:1px solid var(--hairline-strong);border-radius:5px;
-  background:var(--bg);color:var(--ink);
+/* Fixado — linha verde */
+.tcard-compact-item.is-fixed{
+  background: rgba(34,197,94,.05);
+}
+.tcard-compact-item.is-fixed:hover{ background:rgba(34,197,94,.09); }
+
+/* NF — linha apagada */
+.tcard-compact-item.is-nf{
+  opacity:.4;filter:grayscale(.5);
+}
+
+/* Cat indicator */
+.tci-cat{
+  width:4px;height:100%;min-height:36px;
+  border-radius:0;flex:none;
+  background:var(--cat-bright, var(--ink-soft));
+}
+
+/* Nome do torneio — DESTAQUE */
+.tci-nome{
+  font-size:12.5px;font-weight:700;
+  color:var(--ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  padding:0 8px;cursor:default;
+}
+.tcard-compact-item.is-nf .tci-nome{
+  text-decoration:line-through;
+  text-decoration-color:var(--ink-soft);
+}
+
+/* Hora */
+.tci-hora{
   font-size:11px;font-family:var(--mono);
-  outline:none;transition:border-color .15s;
+  color:var(--ink-soft);padding:0 4px;
+  white-space:nowrap;
 }
-.tci-input:focus{ border-color:var(--felt-bright); }
-.tci-input.has-value{ border-color:var(--felt);background:var(--felt-soft); }
+
+/* GTD */
+.tci-gar{
+  font-size:11px;font-family:var(--mono);font-weight:600;
+  color:var(--amber);padding:0 4px;
+  text-align:right;white-space:nowrap;
+}
+
+/* Overlay */
+.tci-ov{
+  font-size:11px;font-family:var(--mono);font-weight:700;
+  text-align:right;padding:0 4px;white-space:nowrap;
+}
+.tci-ov.neg{ color:var(--red); }
+.tci-ov.pos{ color:var(--felt-bright); }
+
+/* Checkbox fixar */
+.tci-fix-cb{
+  width:15px;height:15px;
+  accent-color:var(--felt);cursor:pointer;
+  margin:0 auto;display:block;
+}
+
+/* Inputs inline */
+.tci-input{
+  width:100%;height:100%;min-height:36px;
+  padding:0 6px;
+  border:none;border-left:1px solid var(--hairline);
+  background:transparent;
+  color:var(--ink);font-size:11px;font-family:var(--mono);
+  outline:none;transition:background .15s;
+  box-sizing:border-box;
+}
+.tci-input:focus{
+  background:var(--felt-soft);
+  border-left-color:var(--felt-bright);
+  color:var(--ink);
+}
+.tci-input.has-value{ color:var(--ink);font-weight:600; }
+.tci-input::placeholder{ color:var(--ink-soft);font-weight:400; }
+
 .tci-input-id{
-  width:100%;padding:3px 6px;
-  border:1px solid var(--hairline);border-radius:5px;
-  background:transparent;color:var(--ink-soft);
-  font-size:10px;font-family:var(--mono);
-  outline:none;transition:border-color .15s;
+  width:100%;height:100%;min-height:36px;
+  padding:0 6px;
+  border:none;border-left:1px solid var(--hairline);
+  background:transparent;
+  color:var(--ink-soft);font-size:10px;font-family:var(--mono);
+  outline:none;transition:background .15s;
+  box-sizing:border-box;
 }
-.tci-input-id:focus{ border-color:var(--felt-bright);background:var(--bg); }
-.tci-input-id.has-value{ color:var(--ink);border-color:var(--hairline-strong); }
+.tci-input-id:focus{
+  background:var(--felt-soft);
+  border-left-color:var(--felt-bright);
+  color:var(--ink);
+}
+.tci-input-id.has-value{ color:var(--ink); }
 
 .upcoming-grid.compact-mode{
   display:flex;flex-direction:column;gap:0;
@@ -6584,54 +6662,84 @@ function renderUpcoming(){
       if(idx === 0){
         const hdr = document.createElement('div');
         hdr.className = 'compact-list-header';
-        hdr.innerHTML = '<span>Torneio</span><span>Hora</span><span>GTD</span>'
-          + '<span>Premiação</span><span>Overlay</span><span>Field</span>'
-          + '<span>ID</span><span>Fix</span>';
+        hdr.innerHTML =
+          '<span></span>' +
+          '<span>Torneio</span>' +
+          '<span style="text-align:right">Hora</span>' +
+          '<span style="text-align:right">GTD</span>' +
+          '<span style="padding-left:7px">Premiação</span>' +
+          '<span style="text-align:right">Overlay</span>' +
+          '<span style="padding-left:7px">Field</span>' +
+          '<span style="padding-left:7px">ID</span>' +
+          '<span style="text-align:center">Fix</span>';
         fragment.appendChild(hdr);
       }
+
       const elc = document.createElement('div');
-      const premVal = t.premiacao;
-      const garVal  = t.garantido;
-      const ovc     = premVal != null && garVal != null ? premVal - garVal : null;
+      const premVal  = t.premiacao;
+      const garVal   = t.garantido;
       const fieldVal = getField(key);
-      elc.className = 'tcard-compact-item' + (fixed?' is-fixed':'') + (isNF?' is-nf':'');
+      const ovc      = premVal != null && garVal != null ? premVal - garVal : null;
+
+      // Cor da categoria
+      const catColor = cat === 'main' ? 'var(--main-bright)' : cat === 'sat' ? 'var(--sat-bright)' : 'var(--side-bright)';
+
+      elc.className = 'tcard-compact-item'
+        + (fixed   ? ' is-fixed' : '')
+        + (isNF    ? ' is-nf'    : '')
+        + (flag==='soon' ? ' is-soon' : '')
+        + (flag==='late' ? ' is-late' : '');
       elc.dataset.key = key;
 
-      // Nome + hora + GTD
-      const nameSpan  = '<span class="tci-nome">' + escHtml(t.nome||'') + '</span>';
-      const horaSpan  = '<span class="tci-hora">' + (t.hora||'—') + '</span>';
-      const garSpan   = '<span class="tci-gar">'  + (garVal!=null?'R$'+fmtBRL(garVal,0):'—') + '</span>';
+      const ovCls = ovc != null ? (ovc < 0 ? ' neg' : ' pos') : '';
+      const ovTxt = ovc != null
+        ? (ovc < 0 ? '-' : '+') + 'R$' + fmtBRL(Math.abs(ovc), Math.abs(ovc)%1===0?0:2)
+        : '—';
+      const premFmt = premVal != null ? fmtBRL(premVal, premVal%1===0?0:2) : '';
 
-      // Overlay
-      const ovCls   = ovc!=null?(ovc<0?' neg':' pos'):'';
-      const ovTxt   = ovc!=null?(ovc<0?'-':'+')+('R$'+fmtBRL(Math.abs(ovc),Math.abs(ovc)%1===0?0:2)):'—';
-      const ovSpan  = '<span class="tci-ov' + ovCls + '" id="tci-ov-' + key + '">' + ovTxt + '</span>';
+      elc.innerHTML =
+        // Indicador categoria
+        '<div class="tci-cat" style="background:' + catColor + '"></div>' +
 
-      // Input premiação
-      const premFmt = premVal!=null ? fmtBRL(premVal, premVal%1===0?0:2) : '';
-      const premInp = '<input class="tci-input tcard-prem-input' + (premVal!=null?' has-value':'') + '"'
-        + ' data-key="' + key + '" type="text" inputmode="decimal"'
-        + ' placeholder="Prem." value="' + premFmt + '"'
-        + ' oninput="onCardPremiacaoInput(this)"'
-        + ' onblur="formatPremInput(this)" onfocus="this.select()">';
+        // Nome — destaque máximo
+        '<div class="tci-nome" title="' + escHtml(t.nome||'') + '">' + escHtml(t.nome||'—') + '</div>' +
 
-      // Input field
-      const fieldInp = '<input class="tci-input tcard-field-input" style="font-size:10px"'
-        + ' data-key="' + key + '" type="number" min="0"'
-        + ' placeholder="Field" value="' + (fieldVal!=null?fieldVal:'') + '"'
-        + ' oninput="onCardFieldInput(this)">';
+        // Hora
+        '<div class="tci-hora">' + (t.hora||'—') + '</div>' +
 
-      // Input ID
-      const idInp = '<input class="tci-input-id id-input' + (currentId?' has-value':'') + '"'
-        + ' data-key="' + key + '" type="text"'
-        + ' placeholder="ID" value="' + escHtml(currentId) + '"'
-        + ' oninput="onIdInput(this)" onblur="onIdBlur(this)">';
+        // GTD
+        '<div class="tci-gar">' + (garVal!=null?'R$'+fmtBRL(garVal,0):'—') + '</div>' +
 
-      // Checkbox fixado
-      const fixCb = '<input class="tci-fix-cb" type="checkbox"' + (fixed?' checked':'')
-        + ' data-key="' + key + '" onchange="onFixCheckboxChange(this)" title="Fixar">';
+        // Premiação (input)
+        '<input class="tci-input tcard-prem-input' + (premVal!=null?' has-value':'') + '"' +
+          ' data-key="' + key + '" type="text" inputmode="decimal"' +
+          ' placeholder="R$ —"' +
+          ' value="' + premFmt + '"' +
+          ' oninput="onCardPremiacaoInput(this)"' +
+          ' onblur="formatPremInput(this)" onfocus="this.select()">' +
 
-      elc.innerHTML = nameSpan + horaSpan + garSpan + premInp + ovSpan + fieldInp + idInp + fixCb;
+        // Overlay (calculado)
+        '<div class="tci-ov' + ovCls + '" id="tci-ov-' + key + '">' + ovTxt + '</div>' +
+
+        // Field (input)
+        '<input class="tci-input tcard-field-input"' +
+          ' data-key="' + key + '" type="number" min="0"' +
+          ' placeholder="—"' +
+          ' value="' + (fieldVal!=null?fieldVal:'') + '"' +
+          ' oninput="onCardFieldInput(this)">' +
+
+        // ID (input)
+        '<input class="tci-input-id id-input' + (currentId?' has-value':'') + '"' +
+          ' data-key="' + key + '" type="text"' +
+          ' placeholder="ID"' +
+          ' value="' + escHtml(currentId) + '"' +
+          ' oninput="onIdInput(this)" onblur="onIdBlur(this)">' +
+
+        // Checkbox fixar
+        '<input class="tci-fix-cb" type="checkbox"' + (fixed?' checked':'') +
+          ' data-key="' + key + '"' +
+          ' onchange="onFixCheckboxChange(this)" title="' + (fixed?'Fixado':'Fixar') + '">';
+
       fragment.appendChild(elc);
       return;
     }
