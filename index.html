@@ -5950,6 +5950,11 @@ function getIdBy(key){
   const v = ID_MAP[key];
   return (typeof v === 'object' && v !== null) ? (v.by || '') : '';
 }
+/* quem "é dono" do torneio pra fins do filtro Meus/Parceiro — prioriza quem fixou,
+   depois quem preencheu premiação/field, depois quem preencheu o ID */
+function cardResponsibleName(key){
+  return fixedBy(key) || premBy(key) || getIdBy(key) || '';
+}
 function setId(key, val){
   if(val){
     ID_MAP[key] = { val, by: OPERATOR_NAME || 'Alguém', at: Date.now() };
@@ -5963,6 +5968,9 @@ function setId(key, val){
   if(fbReady) fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).set({key, field:'id', at:Date.now()}).catch(()=>{});
   _debouncedIdSave[key] = setTimeout(() => {
     if(!fbReady) return;
+    window._suppressRenderUpcoming = true; // ignorar eco da própria escrita, mesma lógica da premiação
+    clearTimeout(window._suppressTimer);
+    window._suppressTimer = setTimeout(() => { window._suppressRenderUpcoming = false; }, 4000);
     fbDb.ref(`${FB_BASE_PATH}/ids/${key}`).set(val ? ID_MAP[key] : null)
       .catch(err => console.error('Firebase: falha ao salvar ID', err));
     fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).remove().catch(()=>{});
@@ -6652,6 +6660,20 @@ function renderUpcoming(){
     }
     return false;
   });
+
+  // Filtro "Meus"/"Parceiro": quem mexeu no torneio (fixou, preencheu premiação/field ou ID).
+  // _opFilter e upcomingPremFilter existiam como variáveis mas nunca eram aplicados no filtro de verdade.
+  if (_opFilter !== 'all'){
+    const me = (OPERATOR_NAME || '').trim().toLowerCase();
+    filtered = filtered.filter(t => {
+      const owner = cardResponsibleName(t._key).trim().toLowerCase();
+      if (!owner) return false;
+      return _opFilter === 'me' ? owner === me : owner !== me;
+    });
+  }
+  if (upcomingPremFilter !== 'all'){
+    filtered = filtered.filter(t => upcomingPremFilter === 'com' ? t.premiacao != null : t.premiacao == null);
+  }
 
   if (nameSearchQuery){
     // busca por nome: contém o termo digitado, sem diferenciar maiúsculas/minúsculas nem acentos
@@ -10062,7 +10084,10 @@ function reinitDayListeners(){
       if(document.activeElement !== inp) inp.value = v;
     });
     applyIdDuplicateChecks();
-    if(RAW_ROWS.length) scheduleRenderAll();
+    // só reconstrói a agenda se não for o eco da própria escrita e ninguém estiver digitando —
+    // sem isso, marcar NF (ou qualquer ID) reconstruía o grid inteiro à toa, fazendo os cards
+    // "sumirem" até o IntersectionObserver revelar de novo (mesma causa já corrigida no premBy)
+    if(RAW_ROWS.length && !isTypingInCard() && !window._suppressRenderUpcoming) scheduleRenderAll();
   });
 
   // Field
