@@ -3480,7 +3480,8 @@
    STATE
 ========================================================================= */
 let RAW_ROWS = [];        // raw parsed rows from the sheet
-let UPCOMING = [];        // open tournaments (no premiação yet)
+let UPCOMING = [];
+let _compactMode = false;        // open tournaments (no premiação yet)
 let RESULTS = [];         // closed tournaments (premiação filled)
 let UNFIXED = [];         // not-fixed tournaments (any status, no Ações/owner)
 let activeUpcomingCat = 'all';
@@ -9470,9 +9471,9 @@ function buildFixerRowHTML(key){
 }
 
 // Retorna true se o usuário está digitando em qualquer campo de card
-/* ══ 5. Modo compacto ══ */
-let _compactMode = false;
 
+
+/* ══ 5. Modo compacto ══ */
 function toggleCompactMode(){
   _compactMode = !_compactMode;
   const grid = document.getElementById('upcomingGrid');
@@ -9482,7 +9483,6 @@ function toggleCompactMode(){
     btn.classList.toggle('active', _compactMode);
     btn.textContent = _compactMode ? '⊞ Cards' : '⊟ Compacto';
   }
-  renderUpcoming();
 }
 
 /* ══ 7. Filtro por operador ══ */
