@@ -3750,6 +3750,13 @@ function nowMinutesSP(){
   const n = nowInSP();
   return n.hour * 60 + n.minute;
 }
+/* PONTO ÚNICO da regra de madrugada: 00:00–05:29 ainda pertence ao dia operacional anterior
+   (a grade de torneios vai de 06:10 a 05:30). Aceita um {hour,minute} opcional pra testes.
+   Toda decisão de "que dia é agora" no painel passa por aqui — não reimplemente a expressão. */
+function isMadrugadaSP(n){
+  n = n || nowInSP();
+  return n.hour < 5 || (n.hour === 5 && n.minute < 30);
+}
 
 /* debounce genérico: atrasa a execução até a pessoa parar de digitar por `wait` ms — usado nas buscas
    por nome (Agenda/Resultados/Servidores), que com a planilha cheia reconstroem até ~150 cards a cada
@@ -5606,9 +5613,8 @@ function todayPathSP(){
   // enquanto o parceiro (com a aba aberta desde a noite) lia painel/<dia velho>: os dados
   // "sumiam" um pro outro. Agora todos os clientes apontam pro mesmo nó durante o turno inteiro.
   const n = nowInSP();
-  const isMadrugada = n.hour < 5 || (n.hour === 5 && n.minute < 30);
   const ref = new Date(Date.UTC(n.year, n.month - 1, n.day, 12, 0, 0));
-  if (isMadrugada) ref.setUTCDate(ref.getUTCDate() - 1);
+  if (isMadrugadaSP(n)) ref.setUTCDate(ref.getUTCDate() - 1);
   return `${ref.getUTCFullYear()}-${String(ref.getUTCMonth() + 1).padStart(2, '0')}-${String(ref.getUTCDate()).padStart(2, '0')}`;
 }
 FB_BASE_PATH    = `painel/${todayPathSP()}`;
@@ -6451,8 +6457,10 @@ initFirebaseSync();
 detectHeldDayOnLoad(); // recarregou a página com o dia anterior ainda incompleto? volta pro quadro segurado
 setTimeout(loadHistorico, 3000);
 
-/* dia operacional ANTERIOR (todayPathSP - 1), pro caso de restaurar um dia segurado após reload */
-function yesterdayPathSP(){
+/* dia OPERACIONAL anterior (todayPathSP - 1), pro caso de restaurar um dia segurado após reload.
+   ATENÇÃO: não confundir com yesterdayPathSP() (mais abaixo), que usa o dia CIVIL e serve às
+   métricas "vs ontem" — os dois divergem durante a madrugada (00:00–05:29) */
+function prevOperationalDaySP(){
   const [y, m, d] = todayPathSP().split('-').map(Number);
   const ref = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
   ref.setUTCDate(ref.getUTCDate() - 1);
@@ -6468,7 +6476,7 @@ function yesterdayPathSP(){
 async function detectHeldDayOnLoad(){
   if (!fbReady || !fbDb) return;
   try{
-    const ontem = yesterdayPathSP();
+    const ontem = prevOperationalDaySP();
     const [sheetSnap, fixedSnap] = await Promise.all([
       fbDb.ref(`painel/${ontem}/sheet`).once('value'),
       fbDb.ref(`painel/${ontem}/fixed`).once('value'),
@@ -6660,15 +6668,13 @@ function updateProgress(){
 }
 
 function maybeNotifyGlobalRefresh(){
-  const n = nowInSP();
-  const isMadrugada = n.hour < 5 || (n.hour === 5 && n.minute < 30); // mesmo corte de turno de sempre
-  if (!isMadrugada) return;
+  if (!isMadrugadaSP()) return; // mesmo corte de sempre — só avisa entre 00:00 e 05:29
   if (document.getElementById('globalRefreshBanner')) return; // já está na tela
-  showToast('🃏 Último card preenchido! Suba a Global do novo dia pra atualizar os cards.');
+  showToast('🃏 Último card preenchido! Suba a Global atualizada pra renovar os cards.');
   const bar = document.createElement('div');
   bar.id = 'globalRefreshBanner';
   bar.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:99999;background:var(--gold,#c08000);color:#000;padding:12px 20px;border-radius:99px;font-size:13px;font-weight:700;box-shadow:0 6px 24px rgba(0,0,0,.35);cursor:pointer;display:flex;gap:10px;align-items:center;max-width:90vw';
-  bar.innerHTML = '🃏 Último card preenchido e já passou das 00:00 — <u>clique aqui para subir a Global do novo dia</u> e atualizar os cards.<span id="globalRefreshDismiss" style="margin-left:6px;padding:2px 8px;border-radius:99px;background:rgba(0,0,0,.15);font-weight:800">✕</span>';
+  bar.innerHTML = '🃏 Último card preenchido e já passou das 00:00 — <u>clique aqui para subir a Global atualizada</u> e renovar os cards.<span id="globalRefreshDismiss" style="margin-left:6px;padding:2px 8px;border-radius:99px;background:rgba(0,0,0,.15);font-weight:800">✕</span>';
   bar.addEventListener('click', () => {
     bar.remove();
     // abre direto o seletor de arquivo da Global — mesmo fluxo do botão "Global MTT" da nav
@@ -7081,6 +7087,7 @@ function renderUpcoming(){
   // evita um reflow/repaint por card (até ~117 com a planilha cheia), deixando a troca de filtro/busca
   // visivelmente mais rápida sem mudar nenhum pixel do resultado final
   const fragment = document.createDocumentFragment();
+  let proxDividerAdded = false; // separador visual antes do primeiro card do PRÓX. CRONOGRAMA
   filtered.forEach((t, idx) => {
     const cat = classify(t);
     const needsFix = mustFix(t, cat);
@@ -7116,6 +7123,13 @@ function renderUpcoming(){
 
       const tbody = fragment.querySelector('#compactTbody') || document.getElementById('compactTbody');
       if(!tbody) return;
+
+      if (t.proxCronograma && !proxDividerAdded){
+        proxDividerAdded = true;
+        const divTr = document.createElement('tr');
+        divTr.innerHTML = '<td colspan="9" style="padding:10px 8px 6px;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#60a5fa;border-top:2px solid rgba(96,165,250,.35)">Próx. cronograma — madrugada de amanhã · somente fixação</td>';
+        tbody.appendChild(divTr);
+      }
 
       const premVal  = t.premiacao;
       const garVal   = t.garantido;
@@ -7171,6 +7185,13 @@ function renderUpcoming(){
       return;
     }
 
+    if (t.proxCronograma && !proxDividerAdded){
+      proxDividerAdded = true;
+      const divider = document.createElement('div');
+      divider.style.cssText = 'grid-column:1/-1;padding:14px 4px 4px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#60a5fa;border-top:2px solid rgba(96,165,250,.35);margin-top:8px';
+      divider.textContent = 'Próx. cronograma — madrugada de amanhã · somente fixação';
+      fragment.appendChild(divider);
+    }
     const el = document.createElement('div');
     el.className = `tcard reveal${fixed ? ' is-fixed' : ''}${isNF ? ' is-nf' : ''}${flag==='soon' ? ' is-soon' : ''}${flag==='late' ? ' is-late' : ''}${isRunning ? ' is-running' : ''}`;
     el.dataset.key = key;
@@ -9055,9 +9076,8 @@ function todayWeekdayName(lang){
   // "hoje" ainda é o dia de ontem — senão o checklist puxava a seção do dia seguinte
   // da Global logo após a meia-noite, no meio do turno
   const n = nowInSP();
-  const isMadrugada = n.hour < 5 || (n.hour === 5 && n.minute < 30);
   const ref = new Date(Date.UTC(n.year, n.month-1, n.day, 12, 0, 0));
-  if (isMadrugada) ref.setUTCDate(ref.getUTCDate() - 1);
+  if (isMadrugadaSP(n)) ref.setUTCDate(ref.getUTCDate() - 1);
   const idx = ref.getUTCDay();
   return lang === 'en' ? WEEKDAYS_EN[idx] : WEEKDAYS_PT[idx];
 }
@@ -9228,7 +9248,7 @@ function confAmanhaTurno(nOverride){
   const n = nOverride || nowInSP(); // nOverride só é usado pelo autoteste, pra simular horários específicos
   // Entre 00:00 e 05:29 ainda é o turno de "hoje" — amanhã = dia atual do calendário
   // A partir de 05:30 começa novo turno — amanhã = dia seguinte
-  const isMadrugada = n.hour < 5 || (n.hour === 5 && n.minute < 30);
+  const isMadrugada = isMadrugadaSP(n);
   const tomorrowOffset = isMadrugada ? 0 : 1;
   const dayAfterOffset = isMadrugada ? 1 : 2;
   const refTomorrow = new Date(Date.UTC(n.year, n.month-1, n.day, 12, 0, 0));
