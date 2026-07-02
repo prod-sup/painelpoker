@@ -2740,6 +2740,26 @@ function exportAuditXlsx(){
   const to=document.getElementById('auTo')?.value||'';
   XLSX.writeFile(wb,`Acompanhamento_${from}_${to}.xlsx`);
   toast(`✓ ${Object.keys(byDate).length} dia(s) exportado(s)`,'ok');
+
+  // Backup permanente do fechamento: grava os mesmos dados (já com correções da auditoria
+  // aplicadas) em relatorios/<de>_<até> — nó que a limpeza automática NUNCA remove. Assim o
+  // relatório da diretoria não depende dos nós ao vivo (painel/<data>) nem do arquivo baixado.
+  if(fbOk && from && to){
+    const backupRows = _auditRows.map(r => ({
+      date: r.date, nome: r.nome ?? null, hora: r.hora ?? null, cat: r.cat ?? null,
+      garantido: r.garantido ?? null, buyin: r.buyin ?? null, premiacao: r.premiacao ?? null,
+      field: r.field ?? null, overlay: r.overlay ?? null, perf: r.perf ?? null,
+      id: r.id ?? null, status: r.status ?? null, auditado: r._audited ? true : null,
+    }));
+    db.ref(`relatorios/${from}_${to}`).set({
+      savedAt: Date.now(),
+      savedBy: _email || 'admin',
+      periodo: {from, to},
+      totalLinhas: backupRows.length,
+      rows: backupRows,
+    }).then(() => toast('✓ Backup permanente do período salvo no Firebase (relatorios/)','ok'))
+      .catch(e => toast('Exportado, mas o backup permanente falhou: '+e.message,'err'));
+  }
 }
 
 function exportFixXlsx(){

@@ -1895,6 +1895,8 @@
     background:var(--bg);color:var(--ink);outline:none;transition:border-color .2s;
   }
   .tcard-prem-input:focus, .tcard-field-input:focus{ border-color:var(--felt-bright); }
+  /* premiação com valor suspeito (muito fora do garantido) — aviso amarelo, não bloqueio */
+  .tcard-prem-input.prem-suspeita{ border-color:#f59e0b !important; background:rgba(245,158,11,.08); }
   .tcard-campanha-badge{
     font-size:9px;font-weight:800;padding:2px 6px;border-radius:4px;
     background:rgba(192,128,0,.12);color:var(--gold);letter-spacing:.06em;white-space:nowrap;flex:none;
@@ -8592,6 +8594,20 @@ function markExplicitNF(key){
   showToast('Marcado como "Não formou".');
 }
 
+/* rede contra erro de digitação: premiação muito fora do garantido (dedo a mais / a menos)
+   ganha borda amarela + toast na hora, em vez de só aparecer errada no fechamento da semana.
+   É AVISO, não bloqueio — valores fora da faixa existem de verdade (overlay pesado, prêmio extra) */
+function warnIfPremSuspeita(input, row, val){
+  const gar = getGarantidoEffective(row._key) ?? row.garantido;
+  if (gar == null || gar <= 0) return;
+  const suspeito = val > gar * 5 || val < gar * 0.2;
+  input.classList.toggle('prem-suspeita', suspeito);
+  if (suspeito && input._lastWarnVal !== val){
+    input._lastWarnVal = val;
+    showToast(`⚠ Premiação de ${row.nome}: R$ ${fmtBRL(val,0)} está muito fora do garantido (R$ ${fmtBRL(gar,0)}) — confira se não foi erro de digitação.`, true);
+  }
+}
+
 function onCardPremiacaoInput(input){
   const key = input.dataset.key;
   const row = RAW_ROWS.find(r => r._key === key);
@@ -8612,6 +8628,7 @@ function onCardPremiacaoInput(input){
     }
     const premiacaoVal = parsePremInput(input);
     if(premiacaoVal != null && premiacaoVal > 0){
+      warnIfPremSuspeita(input, row, premiacaoVal);
       applyPremiacaoValue(key, premiacaoVal, `<b>${OPERATOR_NAME||'Você'}</b> preencheu premiação de <b>${row?.nome||key}</b>: R$ ${fmtBRL(premiacaoVal,0)}`);
     } else if(input.value.trim() === '' && row.premiacao){
       // input apagado — mantém preview com valor salvo, não descarta
@@ -8961,6 +8978,7 @@ function extractGlobalDaySection(matrix, weekdayName, divisor){
     const tipo = row[3];
     const garantidoRaw = row[6];
     const buyinRaw = row[7];
+    const lateHH = cellToHHMM(row[17]); // coluna R da Global = fim do late register (fração de dia)
 
     // Pular linhas onde colA é uma data (torneios especiais/futuros — não são da grade regular)
     // SheetJS representa datas como Date objects ou números seriais Excel (>40000)
@@ -8996,7 +9014,7 @@ function extractGlobalDaySection(matrix, weekdayName, divisor){
     // (ex: 199.99999999999997) na planilha exportada
     const garantido = typeof garantidoRaw === 'number' ? Math.round((garantidoRaw / divisor) * 100) / 100 : null;
     const buyin = typeof buyinRaw === 'number' ? Math.round((buyinRaw / divisor) * 100) / 100 : null;
-    const entry = {nome: nome.trim(), hora, garantido, buyin, groupHeader: currentGroupHeader};
+    const entry = {nome: nome.trim(), hora, garantido, buyin, late: lateHH || null, groupHeader: currentGroupHeader};
     if (tipo === 'Main Event') main.push(entry);
     else if (tipo === 'Side Event') side.push(entry);
     else if (tipo === 'SAT') sat.push(entry);
@@ -10519,12 +10537,50 @@ function isSheetStale(){
 
 /* todos os cards obrigatórios do quadro atual já foram fixados? (quadro vazio conta como "sim",
    não há nada pendente segurando a virada) */
-function allCardsDone(){
-  if (!RAW_ROWS.length) return true;
-  const relevant = RAW_ROWS.filter(r => mustFix(r, classify(r)));
+function allCardsDone(rows, isFixedFn){
+  rows = rows || RAW_ROWS;               // parâmetros opcionais só pro autoteste injetar fixtures
+  isFixedFn = isFixedFn || (k => isFixed(k));
+  if (!rows.length) return true;
+  const relevant = rows.filter(r => mustFix(r, classify(r)));
   if (!relevant.length) return true;
-  return relevant.every(r => isFixed(r._key));
+  return relevant.every(r => isFixedFn(r._key));
 }
+
+/* autoteste da regra que SEGURA a virada de dia: roda uma vez por carregamento com quadros
+   simulados — se alguma edição futura mudar o mustFix, o rowKey (_px) ou o allCardsDone de um
+   jeito que solte a virada com card aberto (ou trave pra sempre), o alerta aparece na hora */
+(function rolloverSelfTest(){
+  const mk = (nome, hora, tipo, garantido, prox) => {
+    const r = {nome, hora, tipo, garantido, buyin: 10, premiacao: null, proxCronograma: !!prox};
+    r._key = rowKey(r);
+    return r;
+  };
+  const main  = mk('T Main', '14:00', 'Main Event', 25000);
+  const sideP = mk('T Side 500', '15:00', 'Side Event', 500);     // pequeno: não exige fixação
+  const sideG = mk('T Side 8K', '16:00', 'Side Event', 8000);     // grande: exige
+  const sat   = mk('T Sat', '17:00', 'SAT', 100);
+  const prox  = mk('T Prox 5K', '01:00', 'Side Event', 5000, true);
+  const board = [main, sideP, sideG, sat, prox];
+  const fixedSet = new Set();
+  const isFx = k => fixedSet.has(k);
+  const failures = [];
+  const check = (cond, msg) => { if (!cond) failures.push(msg); };
+  try{
+    check(allCardsDone([], isFx) === true, 'quadro vazio deveria liberar a virada');
+    check(allCardsDone(board, isFx) === false, 'quadro todo aberto deveria segurar a virada');
+    fixedSet.add(main._key); fixedSet.add(sideG._key); fixedSet.add(sat._key);
+    check(allCardsDone(board, isFx) === false, 'card PRÓX. aberto deveria segurar a virada');
+    fixedSet.add(prox._key);
+    check(allCardsDone(board, isFx) === true, 'side pequeno (<3k) aberto NÃO deveria segurar a virada');
+    // rowKey: o gêmeo prox do mesmo evento precisa ter chave própria
+    const gemeoNormal = mk('T Prox 5K', '01:00', 'Side Event', 5000, false);
+    check(gemeoNormal._key !== prox._key && prox._key.endsWith('_px'), 'chave _px do PRÓX. colidiu com o card normal gêmeo');
+  }catch(e){ failures.push('exceção: ' + e.message); }
+  if (failures.length){
+    console.error('FALHA no autoteste da virada de dia:', failures);
+    setTimeout(() => { try{ showToast('⚠ ERRO INTERNO na regra da virada de dia — revise antes de operar! Veja o console.', true); }catch(e){} }, 1500);
+  }
+})();
 function checkStaleness(){
   const today = todayPathSP();
   if(today !== LAST_KNOWN_DATE){
@@ -10721,16 +10777,8 @@ function isTypingInCard(){
       || ae.classList.contains('id-input');
 }
 
-function formatPremInput(inp){
-  // Formata o valor como R$ enquanto digita (ex: "150000" → "R$ 1.500,00")
-  let raw = inp.value.replace(/[^0-9]/g,'');
-  if(!raw){ inp.value = ''; return null; }
-  const num = parseInt(raw, 10) / 100;
-  inp.value = 'R$ ' + num.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
-  inp._formatted = true; // marca que está no formato BRL
-  return num;
-}
-
+/* (versão antiga de formatPremInput que formatava em centavos foi removida — era código morto,
+   sobrescrito por esta declaração de mesmo nome logo abaixo) */
 function formatPremInput(inp){
   // Formata o valor ao sair do campo: "2543,20" → "2.543,20"
   const val = parsePremInput(inp);
