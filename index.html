@@ -8704,7 +8704,7 @@ function cellToHHMM(v){
 function extractGlobalDaySection(matrix, weekdayName, divisor){
   const range = findWeekdaySectionRange(matrix, weekdayName);
   if (!range) return null;
-  const main = [], side = [], sat = [], unknown = [], semHora = [];
+  const main = [], side = [], sat = [], unknown = [], semHora = [], aposGap = [];
   let currentGroupHeader = null; // cabeçalho do grupo de satélite atual (coluna A), propagado até a próxima linha em branco
   let lastHora = null; // Excel mescla a célula de horário quando várias linhas compartilham o mesmo horário —
                         // SheetJS só devolve o valor na primeira linha da mesclagem, as outras vêm null mesmo
@@ -8716,8 +8716,21 @@ function extractGlobalDaySection(matrix, weekdayName, divisor){
       currentGroupHeader = null;
       lastHora = null;
       emptyCount++;
-      // Parar se encontrar bloco grande de linhas vazias (separa a grade dos torneios especiais)
-      if(emptyCount >= 5) break;
+      // Bloco grande de linhas vazias separa a grade dos "torneios especiais" — a leitura para aqui,
+      // mas NÃO em silêncio: tudo que parece torneio dali pra baixo é registrado em aposGap, pra
+      // avisar o operador que existem linhas depois do vão que ficaram de fora
+      if(emptyCount >= 5){
+        for (let j = i; j < range.endRow; j++){
+          const r = matrix[j];
+          if (!r) continue;
+          const nm = r[2];
+          const hr = cellToHHMM(r[1]);
+          if (typeof nm === 'string' && nm.trim() && hr && !allWeekdayNamesNorm().includes(normText(nm))){
+            aposGap.push({nome: nm.trim(), hora: hr});
+          }
+        }
+        break;
+      }
       continue;
     }
     emptyCount = 0; // resetar contador de vazias
@@ -8772,7 +8785,7 @@ function extractGlobalDaySection(matrix, weekdayName, divisor){
     else unknown.push({...entry, tipo});
   }
   const extractedCount = main.length + side.length + sat.length + unknown.length;
-  return {main, side, sat, unknown, semHora, duplicateSection: range.duplicate, rowsInSection: range.endRow - range.startRow, extractedCount};
+  return {main, side, sat, unknown, semHora, aposGap, duplicateSection: range.duplicate, rowsInSection: range.endRow - range.startRow, extractedCount};
 }
 
 function allWeekdayNamesNorm(){
@@ -8825,6 +8838,9 @@ document.getElementById('globalTodayFileInput').addEventListener('change', async
     }
     if (section.semHora.length){
       showToast(`Atenção: ${section.semHora.length} torneio(s) sem horário reconhecível ficaram de fora da lista.`, true);
+    }
+    if (section.aposGap.length){
+      showToast(`Atenção: ${section.aposGap.length} linha(s) com cara de torneio depois do bloco de linhas vazias ficaram de fora — ${section.aposGap.map(it=>it.nome).slice(0,3).join(', ')}${section.aposGap.length>3?'…':''}`, true);
     }
     CONFHOJE_ITEMS = [];
     section.main.forEach(it => CONFHOJE_ITEMS.push({...it, cat:'main', id: confHojeItemId('main', it.hora, it.nome)}));
@@ -9069,14 +9085,21 @@ function buildConfAmanhaSections(sectionTomorrow, sectionDayAfter){
   });
   const duplicateNames = [...seen.entries()].filter(([,count]) => count > 1).map(([key]) => key.split('|')[0]);
 
-  return { main: mainAll, side: sideAll, satGroups, unknown: unknownAll, duplicateNames, total: mainAll.length + sideAll.length + satAll.length };
+  // buraco entre janelas: torneio começando entre 05:31 e 06:09 não entra em NENHUMA conferência
+  // (a janela é 06:10 → 05:30) — se existir um, precisa aparecer como aviso, não sumir do mapa
+  const inGap = it => { const m = timeToMinutes(it.hora); return m !== null && m > CONF_WINDOW_END_MIN && m < CONF_WINDOW_START_MIN; };
+  const allTom = sectionTomorrow ? [...sectionTomorrow.main, ...sectionTomorrow.side, ...sectionTomorrow.sat, ...sectionTomorrow.unknown] : [];
+  const allAfter = sectionDayAfter ? [...sectionDayAfter.main, ...sectionDayAfter.side, ...sectionDayAfter.sat, ...sectionDayAfter.unknown] : [];
+  const foraJanela = [...allTom.filter(inGap), ...allAfter.filter(inGap)];
+
+  return { main: mainAll, side: sideAll, satGroups, unknown: unknownAll, duplicateNames, foraJanela, total: mainAll.length + sideAll.length + satAll.length };
 }
 
 /* renderiza as 3 seções na tela, no mesmo estilo de tabela já usado na lista da Conferência de hoje
    — sem gerar nenhum arquivo, só mostra direto no painel pra você copiar/conferir visualmente */
 function renderConfAmanha(sections, weekdayLabel, dateLabel, meta){
   const resultEl = document.getElementById('confAmanhaResult');
-  LAST_CONF_AMANHA = {sections, weekdayLabel, dateLabel}; // guardado pra o botão de exportar usar sem reler a planilha nem recalcular a data
+  LAST_CONF_AMANHA = {sections, weekdayLabel, dateLabel, meta}; // guardado pra o botão de exportar usar sem reler a planilha nem recalcular a data
   if (!sections.total){
     resultEl.innerHTML = `<div class="diff-row">Nenhum torneio encontrado na janela 06:10–05:30 pra ${weekdayLabel}.</div>`;
     return;
@@ -9102,6 +9125,14 @@ function renderConfAmanha(sections, weekdayLabel, dateLabel, meta){
     ${meta && meta.semHoraItems && meta.semHoraItems.length ? `
     <div class="diff-row" style="color:#e85d5d">⚠ Sem horário reconhecível — valor bruto da célula entre parênteses:<br>
       ${meta.semHoraItems.map(it => `${escHtml(it.nome)} (tipo: "${escHtml(it.tipo ?? '')}", célula: ${escHtml(JSON.stringify(it.hora))})`).join('<br>')}
+    </div>` : ''}
+    ${meta && meta.aposGapItems && meta.aposGapItems.length ? `
+    <div class="diff-row" style="color:#e85d5d">⚠ Linhas com cara de torneio DEPOIS do bloco de linhas vazias (fora do relatório — se forem torneios reais, feche o vão na Global e recarregue):<br>
+      ${meta.aposGapItems.map(it => `${escHtml(it.hora)} · ${escHtml(it.nome)}`).join('<br>')}
+    </div>` : ''}
+    ${meta && meta.foraJanela && meta.foraJanela.length ? `
+    <div class="diff-row" style="color:#e85d5d">⚠ Começam entre 05:31 e 06:09 — fora da janela de qualquer conferência (adicione manualmente se necessário):<br>
+      ${meta.foraJanela.map(it => `${escHtml(it.hora)} · ${escHtml(it.nome)}`).join('<br>')}
     </div>` : ''}
     <button class="routine-download" id="exportConfAmanhaBtn" type="button">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M12 15l-4-4M12 15l4-4"/><path d="M4 18v1a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1"/></svg>
@@ -9161,12 +9192,18 @@ function exportConfAmanhaXlsx(){
 
   // confirmação final: último olhar humano no dia/data/totais antes de gerar o arquivo
   const satCount = sections.satGroups.reduce((a,g)=>a+g.items.length,0);
+  const metaExp = LAST_CONF_AMANHA.meta || {};
+  const alertas = [];
+  if (sections.unknown.length) alertas.push(`⚠ ${sections.unknown.length} torneio(s) com tipo não reconhecido irão em seção separada!`);
+  if (metaExp.semHoraCount) alertas.push(`⚠ ${metaExp.semHoraCount} torneio(s) SEM horário ficaram DE FORA!`);
+  if (metaExp.aposGapItems && metaExp.aposGapItems.length) alertas.push(`⚠ ${metaExp.aposGapItems.length} linha(s) depois do vão de linhas vazias ficaram DE FORA!`);
+  if (metaExp.foraJanela && metaExp.foraJanela.length) alertas.push(`⚠ ${metaExp.foraJanela.length} torneio(s) entre 05:31-06:09 ficaram DE FORA (fora da janela)!`);
   const ok = window.confirm(
     `Exportar Conferência de amanhã?\n\n` +
     `Dia: ${weekdayLabel} · ${dateLabel}\n` +
     `Main: ${sections.main.length} · Side: ${sections.side.length} · Satélites: ${satCount}\n` +
     `Total: ${sections.total} torneios` +
-    (sections.unknown.length ? `\n\n⚠ ${sections.unknown.length} torneio(s) com tipo não reconhecido irão em seção separada!` : '')
+    (alertas.length ? `\n\n${alertas.join('\n')}` : '')
   );
   if (!ok) return;
 
@@ -9242,16 +9279,25 @@ document.getElementById('globalTomorrowFileInput').addEventListener('change', as
     if (semHoraCount){
       showToast(`Atenção: ${semHoraCount} torneio(s) sem horário reconhecível ficaram de fora do relatório.`, true);
     }
+    const aposGapItems = [...sectionTomorrow.aposGap, ...(sectionDayAfter ? sectionDayAfter.aposGap : [])];
+    if (aposGapItems.length){
+      showToast(`Atenção: ${aposGapItems.length} linha(s) com cara de torneio existem DEPOIS do bloco de linhas vazias e ficaram de fora — confira a lista vermelha.`, true);
+    }
 
     const sections = buildConfAmanhaSections(sectionTomorrow, sectionDayAfter);
     if (sections.duplicateNames.length){
       showToast(`Atenção: torneio(s) repetido(s) na lista — ${sections.duplicateNames.join(', ')}. Confira a Global.`, true);
     }
+    if (sections.foraJanela.length){
+      showToast(`Atenção: ${sections.foraJanela.length} torneio(s) começam entre 05:31 e 06:09 — fora da janela de QUALQUER conferência. Veja a lista vermelha.`, true);
+    }
     const meta = {
       rowsInSection: sectionTomorrow.rowsInSection + (sectionDayAfter ? sectionDayAfter.rowsInSection : 0),
       extractedCount: sectionTomorrow.extractedCount + (sectionDayAfter ? sectionDayAfter.extractedCount : 0),
       semHoraCount,
-      semHoraItems: [...sectionTomorrow.semHora, ...(sectionDayAfter ? sectionDayAfter.semHora : [])]
+      semHoraItems: [...sectionTomorrow.semHora, ...(sectionDayAfter ? sectionDayAfter.semHora : [])],
+      aposGapItems,
+      foraJanela: sections.foraJanela
     };
     label.textContent = file.name;
     labelBox.classList.add('is-loaded');
