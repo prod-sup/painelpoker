@@ -4008,11 +4008,17 @@ function isRunningNow(t, nowMin){
    ex: torneio às 01:00 com antecedência de 60min -> prazo-limite é 00:00. Se já são 00:05, já está
    atrasado (late), mesmo o torneio em si só começando às 01:00 — uma vez atrasado, o aviso permanece
    até o evento ser marcado como fixado, sem expirar sozinho */
+/* relógio OPERACIONAL: a madrugada (00:00–05:30) acontece no FIM do dia da grade, não no começo —
+   sem esse deslocamento, um card de 00:00 às 9h da manhã aparecia como "atrasado há 638min" */
+function opMinutes(min){
+  return (min !== null && min <= 330) ? min + 1440 : min; // <= 05:30 → +24h
+}
 function timeStatus(hhmm, cat){
-  const evMin = timeToMinutes(hhmm);
-  if (evMin === null) return null;
+  const evMinRaw = timeToMinutes(hhmm);
+  if (evMinRaw === null) return null;
+  const evMin = opMinutes(evMinRaw);
   const lead = LEAD_MIN[cat] ?? 30;
-  const nowMin = nowMinutesSP();
+  const nowMin = opMinutes(nowMinutesSP());
   const deadline = evMin - lead;       // horário em que o torneio PRECISA estar fixado
   const diffToDeadline = deadline - nowMin;
   if (diffToDeadline < 0) return 'late';
@@ -4203,18 +4209,18 @@ function cardTimeFlag(t){
    ex: torneio às 01:00, Side (60min antecedência) -> prazo é 00:00. Atrasado -> "Devia ter sido fixado às 00:00".
    Em breve -> "Fixar até 00:00 (faltam 25min)" */
 function timeFlagMessage(hhmm, cat, flag){
-  const evMin = timeToMinutes(hhmm);
+  const evMin = opMinutes(timeToMinutes(hhmm)); // mesmo relógio operacional do timeStatus — madrugada = fim do dia
   const lead = LEAD_MIN[cat] ?? 30;
   const deadline = evMin - lead;
-  const deadlineLabel = minutesToHHMM(deadline);
+  const deadlineLabel = minutesToHHMM(((deadline % 1440) + 1440) % 1440);
   if (flag === 'late'){
-    const nowMin = nowMinutesSP();
+    const nowMin = opMinutes(nowMinutesSP());
     const lateBy = nowMin - deadline; // minutos desde o prazo
     const lateLabel = lateBy > 0 && lateBy <= 720 ? ` (${lateBy}min atrás)` : ''; // esconde o contador além de 12h (provável virada de dia, não atraso real do dia)
     return `⏰ Devia ter sido fixado até ${deadlineLabel}${lateLabel}`;
   }
   if (flag === 'soon'){
-    const nowMin = nowMinutesSP();
+    const nowMin = opMinutes(nowMinutesSP());
     const remaining = deadline - nowMin;
     const remainingLabel = remaining >= 0 && remaining <= 720 ? ` (faltam ${remaining}min)` : '';
     return `⏳ Fixar até ${deadlineLabel}${remainingLabel}`;
@@ -7061,10 +7067,15 @@ function renderUpcoming(){
     return;
   }
 
-  // ordem cronológica simples, do início do dia (00:00) até o fim (23:59) — sem cauda separada
+  // ordem cronológica OPERACIONAL: o dia da grade começa 05:31 e termina 05:30 — a madrugada
+  // (00:00–05:30, incluindo os cards do PRÓX. CRONOGRAMA) acontece DEPOIS dos eventos de 23h,
+  // então vai pro fim da lista, não pro topo
+  const GRID_DAY_START = 5*60 + 31;
   filtered = [...filtered].sort((a, b) => {
-    const ma = timeToMinutes(a.hora) ?? 9999;
-    const mb = timeToMinutes(b.hora) ?? 9999;
+    const rawA = timeToMinutes(a.hora) ?? 9999;
+    const rawB = timeToMinutes(b.hora) ?? 9999;
+    const ma = rawA < GRID_DAY_START ? rawA + 1440 : rawA;
+    const mb = rawB < GRID_DAY_START ? rawB + 1440 : rawB;
     return ma - mb;
   });
 
@@ -7178,10 +7189,10 @@ function renderUpcoming(){
       : '';
     const crownHtml = cat === 'main' ? CROWN_SVG : '';
     const cardNowMin = nowMinutesSP();
-    const evMin = timeToMinutes(t.hora);
+    const evMin = opMinutes(timeToMinutes(t.hora)); // relógio operacional: madrugada = fim do dia da grade
     let countdownHtml = '';
     if(evMin !== null && !fixed){
-      const diff = evMin - cardNowMin;
+      const diff = evMin - opMinutes(cardNowMin);
       const absDiff = Math.abs(diff);
       if(diff > 0 && diff <= 120){
         const h = Math.floor(absDiff/60), m = absDiff%60;
@@ -10149,7 +10160,7 @@ function tick(){
   const mm = String(n.minute).padStart(2,'0');
   document.getElementById('navTime').textContent = `${dd} ${months[n.month - 1]} · ${hh}:${mm}`;
   // atualiza countdowns só se há cards visíveis
-  const nowMin = nowMinutesSP();
+  const nowMin = opMinutes(nowMinutesSP()); // relógio operacional — data-evmin já vem deslocado do render
   const countdownEls = document.querySelectorAll('.tcard-countdown[data-evmin]');
   if(!countdownEls.length) return;
   countdownEls.forEach(el => {
