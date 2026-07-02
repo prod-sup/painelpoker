@@ -4395,18 +4395,21 @@ function globalSectionToRows(section, nextSection){
     proxCronograma: !!proxCronograma,
   });
   const MADRUGADA_END = 5*60 + 30;      // 05:30 — fim da grade do dia (mesma janela da Conferência)
+  const PROX_CUTOFF   = 2*60;           // 02:00 — regra do Brian: só eventos com início até 02:00 entram pra fixar
   const isDayCore  = it => { const m = timeToMinutes(it.hora); return m !== null && m > MADRUGADA_END; };
-  const isProxMadrugada = it => { const m = timeToMinutes(it.hora); return m !== null && m <= MADRUGADA_END; };
+  const isProxMadrugada = it => { const m = timeToMinutes(it.hora); return m !== null && m <= PROX_CUTOFF; };
   // seção de hoje: só o corpo do dia (05:31+); o topo de madrugada dela é do cronograma de ontem
   section.main.filter(isDayCore).forEach(it => rows.push(toRow(it, 'Main Event')));
   section.side.filter(isDayCore).forEach(it => rows.push(toRow(it, 'Side Event')));
   section.sat.filter(isDayCore).forEach(it  => rows.push(toRow(it, 'SAT')));
-  // seção de amanhã: a madrugada COMPLETA de hoje (00:00–05:30) — o pedido era "até as 02:00",
-  // mas cortar ali deixaria os eventos de 02:00–05:30 desta noite sem card em quadro nenhum
-  // (o quadro do dia seguinte cobre só a madrugada seguinte). Todos entram já fixáveis, com badge.
+  // seção de amanhã: madrugada de hoje com início até 02:00 — entram SÓ pra fixação antecipada
+  // (late register), com badge; premiação/field desses eventos ficam pro quadro do próximo dia.
+  // Side events seguem a regra de sempre (só se fixa garantido >= 3000) — os pequenos nem entram,
+  // já que esses cards não servem pra mais nada além de fixar
   if (nextSection){
     nextSection.main.filter(isProxMadrugada).forEach(it => rows.push(toRow(it, 'Main Event', true)));
-    nextSection.side.filter(isProxMadrugada).forEach(it => rows.push(toRow(it, 'Side Event', true)));
+    nextSection.side.filter(it => isProxMadrugada(it) && (it.garantido ?? 0) >= 3000)
+      .forEach(it => rows.push(toRow(it, 'Side Event', true)));
     nextSection.sat.filter(isProxMadrugada).forEach(it  => rows.push(toRow(it, 'SAT', true)));
   }
   // ordena por horário, mesmo critério do painel (05:00 = começo do "dia")
