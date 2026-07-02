@@ -1791,6 +1791,12 @@
 .chip[data-prem="com"].active .d{ background:#4ade80; }
 .chip[data-prem="sem"].active{ background:rgba(239,68,68,.08); color:#f87171; border-color:rgba(239,68,68,.2); }
 .chip[data-prem="sem"].active .d{ background:#f87171; }
+.chip[data-camp].active{ background:rgba(192,128,0,.14); color:var(--gold); border-color:rgba(192,128,0,.35); }
+.chip[data-camp].active .d{ background:var(--gold); }
+.filter-group-label{
+  font-size:10px; font-weight:700; letter-spacing:.04em; color:var(--ink-faint,#6a6a80);
+  align-self:center; margin-right:-4px; flex:none;
+}
 
 .tcard-fixer-row{
   display:flex;align-items:center;gap:8px;
@@ -3284,19 +3290,29 @@
         <p class="section-desc">Torneios do dia que ainda não fecharam — com horário, garantido e late registration.</p>
       </div>
       <div class="legend" id="upcomingFilters">
+        <span class="filter-group-label">Categoria</span>
         <button class="chip active" data-cat="all" onclick="setUpcomingCat('all',this)"><span class="d" style="background:var(--ink)"></span>Todos</button>
         <button class="chip" data-cat="main" onclick="setUpcomingCat('main',this)"><svg class="crown-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.5 1.5 7l5.4 4L12 4l5.1 7 5.4-4-1.5 10.5a1 1 0 0 1-1 .85H4a1 1 0 0 1-1-.85Z"/><rect x="3.3" y="19" width="17.4" height="2.2" rx="1"/></svg>Main Event</button>
         <button class="chip" data-cat="side" onclick="setUpcomingCat('side',this)"><span class="d"></span>Side Event</button>
         <button class="chip" data-cat="sat" onclick="setUpcomingCat('sat',this)"><span class="d"></span>Satélite</button>
         <span class="legend-divider" aria-hidden="true"></span>
+        <span class="filter-group-label">Status</span>
         <button class="chip" data-cat="late" onclick="setUpcomingCat('late',this)"><span class="d late-status-dot"></span>Atrasado</button>
         <button class="chip" data-cat="soon" onclick="setUpcomingCat('soon',this)"><span class="d soon-status-dot"></span>Em breve</button>
         <button class="chip chip-running" data-cat="running" onclick="setUpcomingCat('running',this)"><span class="d running-dot"></span>Rolando agora</button>
         <span class="legend-divider" aria-hidden="true"></span>
+        <span class="filter-group-label">Premiação</span>
         <button class="chip chip-prem active" data-prem="all"   onclick="setUpcomingPrem('all',this)"><span class="d" style="background:var(--ink)"></span>Todos</button>
         <button class="chip chip-prem"        data-prem="sem"   onclick="setUpcomingPrem('sem',this)"><span class="d"></span>Sem premiação</button>
         <button class="chip chip-prem chip-prem-com" data-prem="com" onclick="setUpcomingPrem('com',this)"><span class="d"></span>Com premiação</button>
         <span class="legend-divider" aria-hidden="true"></span>
+        <span class="filter-group-label">Campanha</span>
+        <button class="chip chip-camp active" data-camp="all" onclick="setUpcomingCamp('all',this)"><span class="d" style="background:var(--ink)"></span>Todas</button>
+        <button class="chip chip-camp" data-camp="AS"  onclick="setUpcomingCamp('AS',this)"><span class="d"></span>#AS</button>
+        <button class="chip chip-camp" data-camp="SPS" onclick="setUpcomingCamp('SPS',this)"><span class="d"></span>SPS</button>
+        <button class="chip chip-camp" data-camp="SPT" onclick="setUpcomingCamp('SPT',this)"><span class="d"></span>SPT</button>
+        <span class="legend-divider" aria-hidden="true"></span>
+        <span class="filter-group-label">Visualização</span>
         <button class="chip" id="compactToggleBtn" onclick="toggleCompactMode()" title="Modo compacto">⊟ Compacto</button>
         <button class="chip" id="opFilterMe" onclick="setOpFilter('me')">👤 Meus</button>
         <button class="chip" id="opFilterPartner" onclick="setOpFilter('partner')">🤝 Parceiro</button>
@@ -3554,6 +3570,7 @@ let activeUpcomingCat = new Set(['all']); // Set: permite múltiplos filtros ati
 let nameSearchQuery = '';
 let activeResultsCat = 'all';
 let upcomingPremFilter = 'all'; // 'all' | 'sem' | 'com'
+let upcomingCampFilter = 'all'; // 'all' | 'AS' | 'SPS' | 'SPT' — filtra por tipo específico de campanha, não só "tem ou não"
 let resultsNameSearchQuery = '';
 let timeFilterMin = null; // minutos desde meia-noite, ou null = filtro de horário desativado
 
@@ -3787,6 +3804,16 @@ const CAT_SUIT = {main:'♠', side:'♣', sat:'♦'};
 function hasCampanha(row){
   const n = (row.nome || '').toUpperCase();
   return n.includes('#AS') || n.includes('SPT') || n.includes('SPS') || n.includes('+SPS') || n.includes('+SPT');
+}
+
+/* qual campanha específica bate com o nome do torneio ('AS' | 'SPS' | 'SPT') — usado pelo filtro
+   de campanha, que deixa escolher uma campanha em particular em vez de só "tem ou não tem" */
+function campanhaTipoDe(row){
+  const n = (row.nome || '').toUpperCase();
+  if (n.includes('#AS')) return 'AS';
+  if (n.includes('SPS')) return 'SPS'; // cobre "SPS" e "+SPS"
+  if (n.includes('SPT')) return 'SPT'; // cobre "SPT" e "+SPT"
+  return null;
 }
 
 /* Calcula rake baseado na categoria e campanha */
@@ -6248,11 +6275,14 @@ function setSharedSheet(rows, filename){
     // Resetar filtros para o padrão ao restaurar
     activeUpcomingCat  = new Set(['all']);
     upcomingPremFilter = 'all';
+    upcomingCampFilter = 'all';
     document.querySelectorAll('#upcomingFilters .chip').forEach(c => c.classList.remove('active'));
     const allCatChip  = document.querySelector('#upcomingFilters .chip[data-cat="all"]');
     const allPremChip = document.querySelector('#upcomingFilters .chip[data-prem="all"]');
+    const allCampChip = document.querySelector('#upcomingFilters .chip[data-camp="all"]');
     if(allCatChip)  allCatChip.classList.add('active');
     if(allPremChip) allPremChip.classList.add('active');
+    if(allCampChip) allCampChip.classList.add('active');
   } catch(e){ console.error('Erro ao restaurar sheet local:', e); }
 })();
 
@@ -6735,6 +6765,9 @@ function renderUpcoming(){
   }
   if (upcomingPremFilter !== 'all'){
     filtered = filtered.filter(t => upcomingPremFilter === 'com' ? t.premiacao != null : t.premiacao == null);
+  }
+  if (upcomingCampFilter !== 'all'){
+    filtered = filtered.filter(t => campanhaTipoDe(t) === upcomingCampFilter);
   }
 
   if (nameSearchQuery){
@@ -7552,6 +7585,13 @@ function setUpcomingPrem(prem, btn){
   document.querySelectorAll('#upcomingFilters .chip-prem').forEach(c => c.classList.remove('active'));
   if(btn) btn.classList.add('active');
   upcomingPremFilter = prem;
+  renderUpcoming();
+}
+
+function setUpcomingCamp(tipo, btn){
+  document.querySelectorAll('#upcomingFilters .chip-camp').forEach(c => c.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  upcomingCampFilter = tipo;
   renderUpcoming();
 }
 
@@ -8579,8 +8619,15 @@ function extractGlobalDaySection(matrix, weekdayName, divisor){
     // linha totalmente vazia = separador entre grupos de satélite, fecha o grupo atual
     if (!nome && !hora && (colA === null || colA === undefined)){ currentGroupHeader = null; continue; }
 
-    // coluna A preenchida com texto (não é nome de dia da semana) = início de um novo grupo de satélite
-    if (typeof colA === 'string' && colA.trim() && !allWeekdayNamesNorm().includes(normText(colA))){
+    // linha de cabeçalho do dia (colA = "QUINTA-FEIRA" etc., célula geralmente mesclada até a coluna
+    // do "nome" também) — é a própria linha que delimita a seção, não é um torneio. Pular inteira, e
+    // não só deixar de usá-la como cabeçalho de grupo, senão ela vira um "torneio" chamado
+    // "QUINTA-FEIRA"/"SEXTA-FEIRA" sem horário
+    if (typeof colA === 'string' && allWeekdayNamesNorm().includes(normText(colA))) continue;
+    if (typeof nome === 'string' && allWeekdayNamesNorm().includes(normText(nome))) continue;
+
+    // coluna A preenchida com texto = início de um novo grupo de satélite (já garantido acima que não é nome de dia)
+    if (typeof colA === 'string' && colA.trim()){
       currentGroupHeader = colA.trim();
     }
 
