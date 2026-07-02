@@ -4641,6 +4641,14 @@ async function verifyPassword(pw, storedHash, onMigrate){
     if(ok && onMigrate) onMigrate(await hashPassword(pw)); // migra pro salt correto no próximo login
     return ok;
   }
+  // conta importada manualmente no Firebase com SHA-256 puro (64 hex, sem prefixo) — sem esse
+  // caso o login recusava a senha CERTA pra sempre; migra pro pbkdf2 no primeiro login que passar
+  if(/^[0-9a-f]{64}$/i.test(storedHash)){
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
+    const ok = bufToHex(digest) === storedHash.toLowerCase();
+    if(ok && onMigrate) onMigrate(await hashPassword(pw));
+    return ok;
+  }
   const ok = storedHash === legacyHashPassword(pw);
   if(ok && onMigrate) onMigrate(await hashPassword(pw));
   return ok;
@@ -5532,8 +5540,16 @@ const FIREBASE_CONFIG = {
 };
 // dados de um dia ficam isolados em /painel/AAAA-MM-DD — assim a planilha de um dia não mistura com a de outro
 function todayPathSP(){
+  // Dia OPERACIONAL, não civil: o turno vai até 05:30 da manhã seguinte (mesma regra da
+  // Conferência de amanhã). Entre 00:00 e 05:29 ainda estamos no "dia" de ontem — sem esse
+  // corte, quem preenchia garantido/field/premiação de madrugada gravava em painel/<dia novo>
+  // enquanto o parceiro (com a aba aberta desde a noite) lia painel/<dia velho>: os dados
+  // "sumiam" um pro outro. Agora todos os clientes apontam pro mesmo nó durante o turno inteiro.
   const n = nowInSP();
-  return `${n.year}-${String(n.month).padStart(2,'0')}-${String(n.day).padStart(2,'0')}`;
+  const isMadrugada = n.hour < 5 || (n.hour === 5 && n.minute < 30);
+  const ref = new Date(Date.UTC(n.year, n.month - 1, n.day, 12, 0, 0));
+  if (isMadrugada) ref.setUTCDate(ref.getUTCDate() - 1);
+  return `${ref.getUTCFullYear()}-${String(ref.getUTCMonth() + 1).padStart(2, '0')}-${String(ref.getUTCDate()).padStart(2, '0')}`;
 }
 FB_BASE_PATH    = `painel/${todayPathSP()}`;
 LAST_KNOWN_DATE = todayPathSP();
@@ -8663,12 +8679,19 @@ function readSheetMatrix(arrayBuffer, sheetNameContains){
    mesmo padrão usado nas duas planilhas (Global e Liga Principal), só muda o idioma do nome do dia */
 function findWeekdaySectionRange(matrix, weekdayName){
   const norm = normText(weekdayName);
+  // linha de CABEÇALHO de seção = nome do dia na coluna A e também na coluna do nome (C) ou C vazia.
+  // A coluna A sozinha não basta: a Global repete o dia ("   QUINTA-FEIRA") como rótulo decorativo
+  // em várias linhas de torneio, e isso não pode contar como início de seção nem como duplicata
+  const isHeaderRow = (row) => {
+    const a = row && row[0], c = row && row[2];
+    if (!(typeof a === 'string' && normText(a) === norm)) return false;
+    return c === null || c === undefined || c === '' || (typeof c === 'string' && normText(c) === norm);
+  };
   let startRow = -1, endRow = matrix.length, duplicate = false;
   for (let i = 0; i < matrix.length; i++){
-    const a = matrix[i] && matrix[i][0];
-    if (typeof a === 'string' && normText(a) === norm){
+    if (isHeaderRow(matrix[i])){
       if (startRow === -1) startRow = i;
-      else { duplicate = true; break; } // achou o nome do dia de novo mais abaixo na planilha — ambíguo, avisar
+      else { duplicate = true; break; } // um segundo CABEÇALHO do mesmo dia mais abaixo — ambíguo, avisar
     }
   }
   if (startRow === -1) return null;
@@ -8750,15 +8773,14 @@ function extractGlobalDaySection(matrix, weekdayName, divisor){
     // linha totalmente vazia = separador entre grupos de satélite, fecha o grupo atual
     if (!nome && !hora && (colA === null || colA === undefined)){ currentGroupHeader = null; continue; }
 
-    // linha de cabeçalho do dia (colA = "QUINTA-FEIRA" etc., célula geralmente mesclada até a coluna
-    // do "nome" também) — é a própria linha que delimita a seção, não é um torneio. Pular inteira, e
-    // não só deixar de usá-la como cabeçalho de grupo, senão ela vira um "torneio" chamado
-    // "QUINTA-FEIRA"/"SEXTA-FEIRA" sem horário
-    if (typeof colA === 'string' && allWeekdayNamesNorm().includes(normText(colA))) continue;
+    // Linha de cabeçalho do dia: o nome do dia aparece na coluna do NOME do torneio (col C) —
+    // só essa linha é pulada. IMPORTANTE: a coluna A repete o nome do dia ("   QUINTA-FEIRA")
+    // como rótulo decorativo em VÁRIAS linhas de torneio reais, então colA com nome de dia
+    // NÃO pode derrubar a linha (esse era o bug que fazia dezenas de torneios sumirem do relatório)
     if (typeof nome === 'string' && allWeekdayNamesNorm().includes(normText(nome))) continue;
 
-    // coluna A preenchida com texto = início de um novo grupo de satélite (já garantido acima que não é nome de dia)
-    if (typeof colA === 'string' && colA.trim()){
+    // coluna A preenchida com texto que não é nome de dia = início de um novo grupo de satélite
+    if (typeof colA === 'string' && colA.trim() && !allWeekdayNamesNorm().includes(normText(colA))){
       currentGroupHeader = colA.trim();
     }
 
@@ -8801,8 +8823,13 @@ function allWeekdayNamesNorm(){
 ========================================================================= */
 
 function todayWeekdayName(lang){
+  // mesmo corte de turno das 05:30 usado em todayPathSP/confAmanhaTurno: de madrugada,
+  // "hoje" ainda é o dia de ontem — senão o checklist puxava a seção do dia seguinte
+  // da Global logo após a meia-noite, no meio do turno
   const n = nowInSP();
+  const isMadrugada = n.hour < 5 || (n.hour === 5 && n.minute < 30);
   const ref = new Date(Date.UTC(n.year, n.month-1, n.day, 12, 0, 0));
+  if (isMadrugada) ref.setUTCDate(ref.getUTCDate() - 1);
   const idx = ref.getUTCDay();
   return lang === 'en' ? WEEKDAYS_EN[idx] : WEEKDAYS_PT[idx];
 }

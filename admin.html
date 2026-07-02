@@ -1364,8 +1364,23 @@ function catBadge(cat){
    IMPORTANTE: a mesma lógica precisa existir em index.html (ver hashPassword). */
 const PBKDF2_ITER = 150000;
 function bufToHex(buf){ return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
+function hexToBytes(hex){
+  const bytes = new Uint8Array(hex.length / 2);
+  for(let i=0;i<bytes.length;i++) bytes[i] = parseInt(hex.substr(i*2,2), 16);
+  return bytes;
+}
 async function pbkdf2Hash(pw, saltHex){
   saltHex = saltHex || bufToHex(crypto.getRandomValues(new Uint8Array(16)));
+  const enc = new TextEncoder();
+  const keyMat = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    {name:'PBKDF2', salt:hexToBytes(saltHex), iterations:PBKDF2_ITER, hash:'SHA-256'}, keyMat, 256);
+  return `pbkdf2v2$${PBKDF2_ITER}$${saltHex}$${bufToHex(bits)}`;
+}
+/* formato antigo: o salt era codificado como texto UTF-8 do próprio hex em vez de decodificado
+   pros bytes originais — reduzia a entropia efetiva do salt. Mantido só pra verificar/migrar
+   hashes já salvos no Firebase; nenhuma conta nova volta a usar isso. */
+async function pbkdf2HashLegacySalt(pw, saltHex){
   const enc = new TextEncoder();
   const keyMat = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
@@ -1381,12 +1396,26 @@ function legacyHash(s){
 }
 // Compat com chamadas antigas (hashStr) usadas na criação de conta — sempre gera hash novo.
 async function hashStr(s){ return pbkdf2Hash(s); }
-// Verifica senha contra hash salvo, migrando hash legado para pbkdf2 quando aplicável.
+// Verifica senha contra hash salvo, migrando hash legado (DJB2 ou salt mal-codificado) pro formato atual.
 async function verifyPassword(pw, storedHash, onMigrate){
   if(!storedHash) return true; // conta sem senha definida ainda
-  if(storedHash.startsWith('pbkdf2$')){
-    const [,iterStr,saltHex] = storedHash.split('$');
+  if(storedHash.startsWith('pbkdf2v2$')){
+    const [,,saltHex] = storedHash.split('$');
     return (await pbkdf2Hash(pw, saltHex)) === storedHash;
+  }
+  if(storedHash.startsWith('pbkdf2$')){
+    const [,,saltHex] = storedHash.split('$');
+    const ok = (await pbkdf2HashLegacySalt(pw, saltHex)) === storedHash;
+    if(ok && onMigrate) onMigrate(await pbkdf2Hash(pw));
+    return ok;
+  }
+  // conta importada manualmente no Firebase com SHA-256 puro (64 hex, sem prefixo) — sem esse
+  // caso o login recusava a senha CERTA pra sempre; migra pro pbkdf2 no primeiro login que passar
+  if(/^[0-9a-f]{64}$/i.test(storedHash)){
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
+    const ok = bufToHex(digest) === storedHash.toLowerCase();
+    if(ok && onMigrate) onMigrate(await pbkdf2Hash(pw));
+    return ok;
   }
   const ok = storedHash === legacyHash(pw);
   if(ok && onMigrate) onMigrate(await pbkdf2Hash(pw));
