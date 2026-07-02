@@ -1832,9 +1832,17 @@
 .chip[data-camp].active{ background:rgba(192,128,0,.14); color:var(--gold); border-color:rgba(192,128,0,.35); }
 .chip[data-camp].active .d{ background:var(--gold); }
 .filter-group-label{
-  font-size:10px; font-weight:700; letter-spacing:.04em; color:var(--ink-faint,#6a6a80);
-  align-self:center; margin-right:-4px; flex:none;
+  font-size:9.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--ink-faint,#6a6a80); align-self:center; margin-right:2px; flex:none;
 }
+/* feedback de hover nos chips inativos — sem isso não dá pra saber o que é clicável */
+.chip:not(.active):not(.active-me):not(.active-partner):hover{ border-color:var(--hairline-strong); color:var(--ink); }
+/* estado ativo de Meus/Parceiro: o CSS original mirava .op-filter-btn, classe que esses
+   chips nunca tiveram — clicar não mudava nada visualmente */
+.chip.active-me{ background:var(--felt-soft); color:var(--felt-bright); border-color:var(--felt); }
+.chip.active-partner{ background:rgba(96,165,250,.1); color:#60a5fa; border-color:rgba(96,165,250,.3); }
+#compactToggleBtn.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+.chip .chip-ico{ width:12px; height:12px; flex:none; }
 
 .tcard-fixer-row{
   display:flex;align-items:center;gap:8px;
@@ -3361,9 +3369,18 @@
           </div>
           <div class="filter-group">
             <span class="filter-group-label">Visualização</span>
-            <button class="chip" id="compactToggleBtn" onclick="toggleCompactMode()" title="Modo compacto">⊟ Compacto</button>
-            <button class="chip" id="opFilterMe" onclick="setOpFilter('me')">👤 Meus</button>
-            <button class="chip" id="opFilterPartner" onclick="setOpFilter('partner')">🤝 Parceiro</button>
+            <button class="chip" id="compactToggleBtn" onclick="toggleCompactMode()" title="Modo compacto">
+              <svg class="chip-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+              <span id="compactToggleLabel">Compacto</span>
+            </button>
+            <button class="chip" id="opFilterMe" onclick="setOpFilter('me')">
+              <svg class="chip-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg>
+              Meus
+            </button>
+            <button class="chip" id="opFilterPartner" onclick="setOpFilter('partner')">
+              <svg class="chip-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-5.5 6.5-5.5s6.5 2 6.5 5.5"/><path d="M15.5 5.7a3 3 0 1 1 1.8 5.6"/><path d="M16.5 14.6c3 .4 5 2.3 5 5.4"/></svg>
+              Parceiro
+            </button>
           </div>
         </div>
         <div class="filter-summary" id="filterSummary" hidden>
@@ -10296,21 +10313,20 @@ function buildFixerRowHTML(key){
 function toggleCompactMode(){
   _compactMode = !_compactMode;
   localStorage.setItem('suprema_compact_mode_v1', _compactMode ? '1' : '0');
-  const btn = document.getElementById('compactToggleBtn');
-  if(btn){
-    btn.classList.toggle('active', _compactMode);
-    btn.textContent = _compactMode ? '⊞ Cards' : '⊟ Compacto';
-  }
+  syncCompactToggleBtn();
   renderUpcoming(); // redesenhar com modo compacto ativo
 }
-// aplica o estado restaurado do localStorage no botão assim que a página carrega
-(function syncCompactToggleBtn(){
+// reflete o estado no botão — atualiza só o <span> do rótulo, não o botão inteiro,
+// senão o textContent apagaria o ícone SVG que vive dentro dele
+function syncCompactToggleBtn(){
   const btn = document.getElementById('compactToggleBtn');
   if(btn){
     btn.classList.toggle('active', _compactMode);
-    btn.textContent = _compactMode ? '⊞ Cards' : '⊟ Compacto';
+    const label = document.getElementById('compactToggleLabel');
+    if(label) label.textContent = _compactMode ? 'Cards' : 'Compacto';
   }
-})();
+}
+syncCompactToggleBtn(); // aplica o estado restaurado do localStorage assim que a página carrega
 
 /* ══ 7. Filtro por operador ══ */
 function setOpFilter(mode){
