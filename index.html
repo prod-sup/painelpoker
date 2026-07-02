@@ -3950,7 +3950,10 @@ function rowKey(row){
   const s = `${row.nome}|${row.hora}|${row.buyin}|${row.garantido}`;
   let h = 0;
   for (let i=0; i<s.length; i++){ h = ((h<<5)-h) + s.charCodeAt(i); h |= 0; }
-  return 'rk_' + Math.abs(h);
+  // card do PRÓX. CRONOGRAMA ganha sufixo próprio: o mesmo evento pode existir no quadro como
+  // madrugada de HOJE (card normal) e como madrugada de AMANHÃ (prox) com valores idênticos —
+  // sem o sufixo as chaves colidiriam e fixar um marcaria o outro
+  return 'rk_' + Math.abs(h) + (row.proxCronograma ? '_px' : '');
 }
 
 /* checa quantos torneios JÁ FIXADOS (ou com ID preenchido) na planilha atual deixariam de existir na
@@ -4400,14 +4403,13 @@ function globalSectionToRows(section, nextSection){
     explicitNF: false,
     proxCronograma: !!proxCronograma,
   });
-  const MADRUGADA_END = 5*60 + 30;      // 05:30 — fim da grade do dia (mesma janela da Conferência)
-  const PROX_CUTOFF   = 2*60;           // 02:00 — regra do Brian: só eventos com início até 02:00 entram pra fixar
-  const isDayCore  = it => { const m = timeToMinutes(it.hora); return m !== null && m > MADRUGADA_END; };
+  const PROX_CUTOFF = 2*60; // 02:00 — regra do Brian: só eventos com início até 02:00 entram pra fixar
   const isProxMadrugada = it => { const m = timeToMinutes(it.hora); return m !== null && m <= PROX_CUTOFF; };
-  // seção de hoje: só o corpo do dia (05:31+); o topo de madrugada dela é do cronograma de ontem
-  section.main.filter(isDayCore).forEach(it => rows.push(toRow(it, 'Main Event')));
-  section.side.filter(isDayCore).forEach(it => rows.push(toRow(it, 'Side Event')));
-  section.sat.filter(isDayCore).forEach(it  => rows.push(toRow(it, 'SAT')));
+  // seção de hoje COMPLETA, incluindo a madrugada do topo (00:00–05:30) — a agenda do dia
+  // começa às 00:00, na ordem em que a operação trabalha
+  section.main.forEach(it => rows.push(toRow(it, 'Main Event')));
+  section.side.forEach(it => rows.push(toRow(it, 'Side Event')));
+  section.sat.forEach(it  => rows.push(toRow(it, 'SAT')));
   // seção de amanhã: madrugada de hoje com início até 02:00 — entram SÓ pra fixação antecipada
   // (late register), com badge; premiação/field desses eventos ficam pro quadro do próximo dia.
   // Side events seguem a regra de sempre (só se fixa garantido >= 3000) — os pequenos nem entram,
@@ -4418,12 +4420,12 @@ function globalSectionToRows(section, nextSection){
       .forEach(it => rows.push(toRow(it, 'Side Event', true)));
     nextSection.sat.filter(isProxMadrugada).forEach(it  => rows.push(toRow(it, 'SAT', true)));
   }
-  // ordena por horário, mesmo critério do painel (05:00 = começo do "dia")
-  const DAY_START = 5 * 60;
+  // ordena: dia de hoje em ordem civil (00:00 → 23:59, madrugada no topo), e os cards do
+  // PRÓX. CRONOGRAMA sempre por último (são a madrugada do dia seguinte, vêm depois das 23h)
   rows.sort((a, b) => {
-    const ma = timeToMinutes(a.hora) ?? 9999;
-    const mb = timeToMinutes(b.hora) ?? 9999;
-    return (ma >= DAY_START ? ma : ma + 1440) - (mb >= DAY_START ? mb : mb + 1440);
+    const ma = (timeToMinutes(a.hora) ?? 9999) + (a.proxCronograma ? 1440 : 0);
+    const mb = (timeToMinutes(b.hora) ?? 9999) + (b.proxCronograma ? 1440 : 0);
+    return ma - mb;
   });
   return rows;
 }
@@ -7067,15 +7069,11 @@ function renderUpcoming(){
     return;
   }
 
-  // ordem cronológica OPERACIONAL: o dia da grade começa 05:31 e termina 05:30 — a madrugada
-  // (00:00–05:30, incluindo os cards do PRÓX. CRONOGRAMA) acontece DEPOIS dos eventos de 23h,
-  // então vai pro fim da lista, não pro topo
-  const GRID_DAY_START = 5*60 + 31;
+  // ordem do dia de trabalho: 00:00 → 23:59 (madrugada de hoje no topo), com os cards do
+  // PRÓX. CRONOGRAMA sempre no FIM — eles são a madrugada do dia seguinte, vêm depois das 23h
   filtered = [...filtered].sort((a, b) => {
-    const rawA = timeToMinutes(a.hora) ?? 9999;
-    const rawB = timeToMinutes(b.hora) ?? 9999;
-    const ma = rawA < GRID_DAY_START ? rawA + 1440 : rawA;
-    const mb = rawB < GRID_DAY_START ? rawB + 1440 : rawB;
+    const ma = (timeToMinutes(a.hora) ?? 9999) + (a.proxCronograma ? 1440 : 0);
+    const mb = (timeToMinutes(b.hora) ?? 9999) + (b.proxCronograma ? 1440 : 0);
     return ma - mb;
   });
 
