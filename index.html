@@ -3605,6 +3605,9 @@ let LAST_KNOWN_DATE              = null; // inicializado após todayPathSP()
 let CONFHOJE_ITEMS               = [];
 let CONFHOJE_META                = null; // diagnóstico da última leitura (linhas lidas, sem horário, duplicados) — pra avisar o operador sem depender só do toast
 let LAST_CONF_AMANHA_            = null;
+let _opFilter                    = 'all'; // 'all' | 'me' | 'partner' — movido pra cá (era declarado só perto do fim do arquivo) porque
+                                           // renderUpcoming() usa essa variável e pode rodar durante a restauração do sheet local,
+                                           // antes do script chegar na declaração original — 'let' em TDZ vira ReferenceError nesse caso
 // Observers — declarados antes de renderUnfixed/renderUpcoming
 const io = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
@@ -8545,11 +8548,15 @@ function extractGlobalDaySection(matrix, weekdayName, divisor){
   if (!range) return null;
   const main = [], side = [], sat = [], unknown = [], semHora = [];
   let currentGroupHeader = null; // cabeçalho do grupo de satélite atual (coluna A), propagado até a próxima linha em branco
+  let lastHora = null; // Excel mescla a célula de horário quando várias linhas compartilham o mesmo horário —
+                        // SheetJS só devolve o valor na primeira linha da mesclagem, as outras vêm null mesmo
+                        // a planilha estando correta; herda o último horário visto até o próximo separador em branco
   let emptyCount = 0;
   for (let i = range.startRow; i < range.endRow; i++){
     const row = matrix[i];
     if (!row || row.every(v => v === null || v === undefined || v === '' || v === ' ')){
       currentGroupHeader = null;
+      lastHora = null;
       emptyCount++;
       // Parar se encontrar bloco grande de linhas vazias (separa a grade dos torneios especiais)
       if(emptyCount >= 5) break;
@@ -8557,7 +8564,7 @@ function extractGlobalDaySection(matrix, weekdayName, divisor){
     }
     emptyCount = 0; // resetar contador de vazias
     const colA = row[0];
-    const hora = cellToHHMM(row[1]);
+    let hora = cellToHHMM(row[1]);
     const nome = row[2];
     const tipo = row[3];
     const garantidoRaw = row[6];
@@ -8580,7 +8587,11 @@ function extractGlobalDaySection(matrix, weekdayName, divisor){
     if (!nome || typeof nome !== 'string') continue;
     if (['SÁBADO','DOMINGO','SATÉLITE','SATELLITE'].includes(nome.trim().toUpperCase())) continue;
     if (normText(nome) === 'suspenso') continue;
-    // nome de torneio válido mas sem horário reconhecível (célula vazia, formato estranho) — não descartar
+    // célula de horário mesclada no Excel: herda o último horário visto no bloco atual em vez de
+    // marcar como "sem horário" (a planilha está certa, só a leitura crua da célula vem vazia)
+    if (!hora && lastHora) hora = lastHora;
+    else if (hora) lastHora = hora;
+    // nome de torneio válido mas sem horário reconhecível de forma alguma (nem herdado) — não descartar
     // em silêncio: guarda separado pra avisar que um torneio ficou de fora por falta de horário
     if (!hora){ semHora.push({nome: nome.trim(), hora: row[1], tipo}); continue; }
     // arredondado a 2 casas aqui (não só na exibição) pra não gravar dízima de ponto flutuante
@@ -10064,8 +10075,6 @@ function toggleCompactMode(){
 })();
 
 /* ══ 7. Filtro por operador ══ */
-let _opFilter = 'all'; // 'all' | 'me' | 'partner'
-
 function setOpFilter(mode){
   _opFilter = (_opFilter === mode) ? 'all' : mode;
   document.getElementById('opFilterMe')?.classList.toggle('active-me', _opFilter==='me');
