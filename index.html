@@ -886,6 +886,36 @@
   .reveal{opacity:0; transform:translateY(28px); transition:opacity .8s var(--ease), transform .8s var(--ease);}
   .reveal.in{opacity:1; transform:translateY(0);}
 
+  /* ── Scroll-reveal cinematográfico dos cabeçalhos de seção (Não fixados / Agenda / Resultados / Learn) ──
+     Reaproveita o mesmo IntersectionObserver do .reveal (classe .in). O container sobe com um easing
+     mais "mola", e os elementos internos (tag, título, descrição) entram em cascata (stagger) — dá a
+     sensação de site de motion sem lib externa. Neutralizado pelo bloco global prefers-reduced-motion. */
+  .section-head.reveal, .unfixed-head.reveal{
+    transform:translateY(46px);
+    transition:opacity .85s cubic-bezier(.16,1,.3,1), transform .85s cubic-bezier(.16,1,.3,1);
+  }
+  .section-head.reveal.in, .unfixed-head.reveal.in{ transform:translateY(0); }
+  .section-head.reveal > div > *,
+  .unfixed-head.reveal > div > *{
+    opacity:0; transform:translateY(20px);
+    transition:opacity .6s cubic-bezier(.16,1,.3,1), transform .6s cubic-bezier(.16,1,.3,1);
+  }
+  .section-head.reveal.in > div > *,
+  .unfixed-head.reveal.in > div > *{ opacity:1; transform:translateY(0); }
+  /* cascata: cada linha do cabeçalho entra ~90ms depois da anterior */
+  .section-head.reveal.in > div > :nth-child(1),
+  .unfixed-head.reveal.in > div > :nth-child(1){ transition-delay:.06s; }
+  .section-head.reveal.in > div > :nth-child(2),
+  .unfixed-head.reveal.in > div > :nth-child(2){ transition-delay:.15s; }
+  .section-head.reveal.in > div > :nth-child(3),
+  .unfixed-head.reveal.in > div > :nth-child(3){ transition-delay:.24s; }
+  /* a barra de filtros da Agenda e o contador entram por último, deslizando um pouco */
+  .section-head.reveal .filters-bar, .unfixed-head.reveal .count{
+    opacity:0; transform:translateY(16px);
+    transition:opacity .6s cubic-bezier(.16,1,.3,1) .3s, transform .6s cubic-bezier(.16,1,.3,1) .3s;
+  }
+  .section-head.reveal.in .filters-bar, .unfixed-head.reveal.in .count{ opacity:1; transform:translateY(0); }
+
   /* category legend + filter chips (shared) */
   .legend{display:flex; gap:10px; flex-wrap:wrap;}
   /* barra de filtros da Agenda: duas fileiras — 1) o que mostrar (categoria+status),
