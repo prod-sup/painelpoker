@@ -2003,10 +2003,27 @@
   .auth-logo{
     display:flex;align-items:center;gap:10px;margin-bottom:20px;
   }
+  /* cartão de vidro que agrupa tabs + formulários — separa o formulário do vídeo de fundo
+     e dá profundidade; fallback sólido pra navegador sem backdrop-filter */
+  .auth-card{
+    width:min(440px, calc(100vw - 32px));
+    margin:0 auto;
+    padding:22px 24px 26px;
+    border-radius:22px;
+    background:rgba(10,14,12,.55);
+    border:1px solid rgba(255,255,255,.09);
+    box-shadow:0 24px 64px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
+    backdrop-filter:blur(18px) saturate(140%);
+    -webkit-backdrop-filter:blur(18px) saturate(140%);
+    display:flex; flex-direction:column; align-items:center;
+  }
+  @supports not (backdrop-filter: blur(1px)){
+    .auth-card{ background:rgba(10,14,12,.92); }
+  }
   .auth-tabs-wrap{
     position:relative;display:flex;gap:0;
     background:rgba(255,255,255,0.07);border-radius:12px;
-    padding:4px;margin-bottom:28px;width:fit-content;
+    padding:4px;margin-bottom:22px;width:fit-content;
   }
   .auth-tab{
     position:relative;z-index:1;
@@ -2022,7 +2039,18 @@
     pointer-events:none;
   }
 
-  .auth-panel{ width:100%;max-width:420px;display:flex;flex-direction:column;gap:12px; }
+  .auth-panel{ width:100%;max-width:420px;display:flex;flex-direction:column;gap:12px; animation:auth-panel-in .28s var(--ease); }
+  @keyframes auth-panel-in{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:translateY(0); } }
+  @media (prefers-reduced-motion: reduce){ .auth-panel{ animation:none; } }
+  /* links de texto do fluxo de auth (esqueci a senha / voltar) — com hover, não só sublinhado inerte */
+  .auth-link-btn{
+    margin-top:10px;background:none;border:none;cursor:pointer;
+    color:rgba(255,255,255,0.4);font-size:12px;font-family:var(--text);
+    text-decoration:underline;text-underline-offset:3px;
+    transition:color .2s var(--ease);
+    padding:6px 10px;border-radius:8px; /* área de toque confortável */
+  }
+  .auth-link-btn:hover{ color:rgba(255,255,255,0.75); }
 
   .auth-field{ display:flex;flex-direction:column;gap:5px; }
   .auth-label{
@@ -2083,6 +2111,119 @@
     background:rgba(220,50,40,0.2);border:1px solid rgba(220,50,40,0.35);
     font-size:12.5px;color:#ffaaaa;line-height:1.5;
   }
+  /* erro com shake curto (220ms, dentro da faixa 150-300ms) — feedback físico sem ser irritante */
+  .auth-error.shake{ animation:auth-shake .22s var(--ease); }
+  @keyframes auth-shake{ 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+  @media (prefers-reduced-motion: reduce){ .auth-error.shake{ animation:none; } }
+  /* botão de mostrar/ocultar senha dentro do campo */
+  .auth-pass-toggle{
+    position:absolute; right:10px; top:50%; transform:translateY(-50%);
+    width:32px; height:32px; border:none; background:none; cursor:pointer;
+    color:rgba(245,245,247,.45); display:flex; align-items:center; justify-content:center;
+    border-radius:8px; transition:color .2s var(--ease), background .2s var(--ease);
+  }
+  .auth-pass-toggle:hover{ color:#fff; background:rgba(255,255,255,.08); }
+  .auth-pass-toggle svg{ width:17px; height:17px; }
+  .auth-capslock{
+    display:flex; align-items:center; gap:6px; margin-top:6px;
+    font-size:11.5px; color:var(--gold); font-weight:600;
+  }
+  .auth-submit:active{ transform:scale(.97); transition-duration:.12s; }
+
+  /* ── Perfil do operador (painel premium) ── */
+  .up-hero{
+    position:relative; padding:26px 24px 58px; overflow:hidden;
+    background:
+      radial-gradient(120% 90% at 85% -10%, rgba(212,175,55,.22), transparent 55%),
+      linear-gradient(135deg,#0c5c3f 0%,#083d27 100%);
+  }
+  .up-hero::after{ /* naipes em marca d'água, bem discretos */
+    content:'♠ ♦ ♣ ♥'; position:absolute; right:-6px; bottom:-18px;
+    font-size:64px; letter-spacing:14px; color:rgba(255,255,255,.05);
+    pointer-events:none; user-select:none;
+  }
+  .up-eyebrow{ font-size:10.5px; font-weight:700; letter-spacing:.14em; color:rgba(255,255,255,.45); text-transform:uppercase; margin-bottom:5px; }
+  .up-name{ font-family:var(--display); font-size:25px; font-weight:700; color:#fff; line-height:1.12; }
+  .up-email{ font-size:12px; color:rgba(255,255,255,.5); margin-top:4px; font-family:var(--mono); }
+  .up-close{
+    width:34px; height:34px; border-radius:50%; border:none; cursor:pointer;
+    background:rgba(255,255,255,.1); color:rgba(255,255,255,.72); font-size:15px;
+    display:flex; align-items:center; justify-content:center;
+    transition:background .2s var(--ease), transform .2s var(--ease);
+  }
+  .up-close:hover{ background:rgba(255,255,255,.2); transform:rotate(90deg); }
+  .up-avatar{
+    width:92px; height:92px; border-radius:24px; cursor:pointer; position:relative;
+    background:linear-gradient(135deg,var(--felt) 0%,var(--felt-bright) 100%);
+    border:4px solid var(--card); display:flex; align-items:center; justify-content:center;
+    font-size:38px; box-shadow:0 8px 24px rgba(12,92,63,.3);
+    transition:transform .25s var(--ease), box-shadow .25s var(--ease);
+  }
+  .up-avatar:hover{ transform:scale(1.04); box-shadow:0 10px 28px rgba(212,175,55,.28); }
+  .up-avatar-edit{
+    position:absolute; right:-6px; bottom:-6px; width:30px; height:30px; border-radius:50%;
+    background:var(--gold); color:#000; display:flex; align-items:center; justify-content:center;
+    border:3px solid var(--card); box-shadow:0 3px 8px rgba(0,0,0,.3); pointer-events:none;
+  }
+  .up-avatar-edit svg{ width:13px; height:13px; }
+  .up-picker{ overflow:hidden; max-height:0; opacity:0; transition:max-height .3s var(--ease), opacity .25s var(--ease); padding:0 24px; }
+  .up-picker.open{ max-height:280px; opacity:1; padding:14px 24px 16px; }
+  .up-picker-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(42px,1fr)); gap:7px; }
+  .up-picker-btn{
+    aspect-ratio:1; border-radius:11px; border:1.5px solid var(--hairline);
+    background:var(--card); cursor:pointer; font-size:21px;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .18s var(--ease), border-color .18s var(--ease), box-shadow .18s var(--ease);
+  }
+  .up-picker-btn:hover{ transform:scale(1.12); border-color:var(--gold); box-shadow:0 4px 12px rgba(212,175,55,.2); }
+  .up-picker-btn.selected{ border-color:var(--gold); background:rgba(212,175,55,.12); box-shadow:0 0 0 2px rgba(212,175,55,.25); }
+  .up-stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .up-stat{
+    background:var(--bg); border:1px solid var(--hairline); border-radius:14px;
+    padding:12px 10px; text-align:center;
+    transition:border-color .2s var(--ease), transform .2s var(--ease);
+  }
+  .up-stat:hover{ border-color:var(--hairline-strong); transform:translateY(-1px); }
+  .up-stat b{ display:block; font-family:var(--display); font-size:22px; color:var(--ink); line-height:1.1; }
+  .up-stat span{ font-size:10px; font-weight:700; letter-spacing:.05em; color:var(--ink-soft); text-transform:uppercase; }
+  .up-card{ background:var(--bg); border-radius:14px; border:1px solid var(--hairline); overflow:hidden; }
+  .up-card-title{
+    display:flex; align-items:center; gap:7px;
+    padding:12px 16px; border-bottom:1px solid var(--hairline);
+    font-size:11px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.06em;
+  }
+  .up-card-title svg{ width:13px; height:13px; color:var(--gold); flex:none; }
+  .up-info-row{ display:flex; justify-content:space-between; align-items:center; padding:10px 16px; }
+  .up-info-row + .up-info-row{ border-top:1px solid var(--hairline); }
+  .up-info-row .k{ font-size:12px; color:var(--ink-soft); }
+  .up-info-row .v{ font-size:13px; font-weight:600; color:var(--ink); font-family:var(--mono); text-align:right; max-width:60%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .up-badge-admin{
+    font-size:9.5px; font-weight:800; letter-spacing:.08em; padding:2px 8px; border-radius:99px;
+    background:rgba(212,175,55,.15); color:var(--gold); border:1px solid rgba(212,175,55,.3);
+  }
+  .up-tl{ max-height:250px; overflow-y:auto; }
+  .up-tl-row{ display:flex; align-items:flex-start; gap:10px; padding:10px 16px; }
+  .up-tl-row + .up-tl-row{ border-top:1px solid var(--hairline); }
+  .up-tl-ico{
+    width:26px; height:26px; border-radius:8px; flex:none; margin-top:1px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .up-tl-ico.fix{ background:var(--felt-soft, rgba(12,92,63,.14)); color:var(--felt-bright); }
+  .up-tl-ico.prem{ background:rgba(212,175,55,.13); color:var(--gold); }
+  .up-tl-ico svg{ width:13px; height:13px; }
+  .up-tl-txt{ flex:1; min-width:0; font-size:12.5px; color:var(--ink); line-height:1.4; }
+  .up-tl-txt small{ display:block; font-size:11px; color:var(--ink-soft); font-family:var(--mono); margin-top:1px; }
+  .up-tl-time{ font-size:11px; color:var(--ink-soft); font-family:var(--mono); flex:none; margin-top:2px; }
+  .up-actions{ display:flex; gap:8px; margin-top:4px; }
+  .up-btn{
+    padding:12px; border-radius:12px; cursor:pointer; font-size:13px; font-weight:600; font-family:var(--text);
+    transition:transform .18s var(--ease), background .2s var(--ease), border-color .2s var(--ease);
+  }
+  .up-btn:active{ transform:scale(.97); }
+  .up-btn.ghost{ flex:1; border:1px solid var(--hairline-strong); background:none; color:var(--ink-soft); }
+  .up-btn.ghost:hover{ border-color:var(--gold); color:var(--ink); }
+  .up-btn.danger{ padding:12px 16px; border:none; background:rgba(216,57,43,.1); color:var(--red); font-weight:700; }
+  .up-btn.danger:hover{ background:rgba(216,57,43,.18); }
   .auth-success{
     padding:10px 14px;border-radius:10px;
     background:rgba(24,163,107,0.2);border:1px solid rgba(24,163,107,0.35);
@@ -2993,6 +3134,8 @@
     <h1 class="welcome-title" style="font-size:clamp(26px,4.5vw,44px);margin-bottom:6px;">Bem-vindo ao seu<br><em>turno</em>.</h1>
     <p class="welcome-sub" style="margin-bottom:28px;opacity:.65;">Painel do Dia · Agenda · Resultados · Ferramentas</p>
 
+    <!-- Cartão de vidro: tabs + formulários -->
+    <div class="auth-card">
     <!-- Tabs -->
     <div class="auth-tabs-wrap">
       <button type="button" id="tabLogin" class="auth-tab active" onclick="switchAuthTab('login')">Entrar</button>
@@ -3011,10 +3154,17 @@
       </div>
       <div class="auth-field">
         <label class="auth-label">Senha</label>
-        <div class="auth-input-wrap">
+        <div class="auth-input-wrap" style="position:relative;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          <input type="password" id="loginPassword" class="auth-input" placeholder="••••••••" autocomplete="current-password"
-            onkeydown="if(event.key==='Enter')doLogin()">
+          <input type="password" id="loginPassword" class="auth-input" placeholder="••••••••" autocomplete="current-password" style="padding-right:44px;"
+            onkeydown="if(event.key==='Enter')doLogin()" onkeyup="authCapsHint(event)">
+          <button type="button" class="auth-pass-toggle" onclick="togglePassVisibility('loginPassword', this)" aria-label="Mostrar senha" title="Mostrar/ocultar senha">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        <div id="loginCapsHint" class="auth-capslock" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M12 3 4 11h4v6h8v-6h4L12 3Z"/><path d="M8 21h8"/></svg>
+          Caps Lock está ativado
         </div>
       </div>
       <div id="loginError" class="auth-error" hidden></div>
@@ -3022,7 +3172,7 @@
         <span>Entrar</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </button>
-      <button type="button" onclick="switchAuthTab('recovery')" style="margin-top:10px;background:none;border:none;cursor:pointer;color:rgba(255,255,255,0.4);font-size:12px;font-family:var(--text);text-decoration:underline;">Esqueci minha senha</button>
+      <button type="button" class="auth-link-btn" onclick="switchAuthTab('recovery')">Esqueci minha senha</button>
     </div>
 
     <!-- RECUPERAÇÃO DE SENHA -->
@@ -3052,7 +3202,10 @@
           <label class="auth-label">Nova senha</label>
           <div class="auth-input-wrap">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            <input type="password" id="recoveryNewPw" class="auth-input" placeholder="Mín. 6 · 1 minúscula · 1 especial" maxlength="64">
+            <input type="password" id="recoveryNewPw" class="auth-input" placeholder="Mín. 6 · 1 minúscula · 1 especial" maxlength="64" style="padding-right:44px;">
+            <button type="button" class="auth-pass-toggle" onclick="togglePassVisibility('recoveryNewPw', this)" aria-label="Mostrar senha" title="Mostrar/ocultar senha">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
           </div>
         </div>
       </div>
@@ -3061,7 +3214,7 @@
         <span id="recoveryBtnLabel">Enviar código</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </button>
-      <button type="button" onclick="switchAuthTab('login')" style="margin-top:8px;background:none;border:none;cursor:pointer;color:rgba(255,255,255,0.4);font-size:12px;font-family:var(--text);">← Voltar ao login</button>
+      <button type="button" class="auth-link-btn" onclick="switchAuthTab('login')">← Voltar ao login</button>
     </div>
     <div id="panelCadastro" class="auth-panel" style="display:none;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -3099,7 +3252,14 @@
         <label class="auth-label">Senha</label>
         <div class="auth-input-wrap">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          <input type="password" id="cadPassword" class="auth-input" placeholder="Mín. 6 · 1 minúscula · 1 especial" maxlength="64" autocomplete="new-password" oninput="checkPasswordStrength()">
+          <input type="password" id="cadPassword" class="auth-input" placeholder="Mín. 6 · 1 minúscula · 1 especial" maxlength="64" autocomplete="new-password" style="padding-right:44px;" oninput="checkPasswordStrength();checkPasswordMatch()" onkeyup="authCapsHint(event,'cadCapsHint')">
+          <button type="button" class="auth-pass-toggle" onclick="togglePassVisibility('cadPassword', this)" aria-label="Mostrar senha" title="Mostrar/ocultar senha">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        <div id="cadCapsHint" class="auth-capslock" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M12 3 4 11h4v6h8v-6h4L12 3Z"/><path d="M8 21h8"/></svg>
+          Caps Lock está ativado
         </div>
         <!-- Indicador de força da senha -->
         <div class="pwd-strength" id="pwdStrength" style="display:none;">
@@ -3121,9 +3281,13 @@
         <label class="auth-label">Confirmar senha</label>
         <div class="auth-input-wrap">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          <input type="password" id="cadPassword2" class="auth-input" placeholder="Repita a senha" maxlength="64" autocomplete="new-password"
-            onkeydown="if(event.key==='Enter')doCadastro()">
+          <input type="password" id="cadPassword2" class="auth-input" placeholder="Repita a senha" maxlength="64" autocomplete="new-password" style="padding-right:44px;"
+            oninput="checkPasswordMatch()" onkeydown="if(event.key==='Enter')doCadastro()">
+          <button type="button" class="auth-pass-toggle" onclick="togglePassVisibility('cadPassword2', this)" aria-label="Mostrar senha" title="Mostrar/ocultar senha">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
         </div>
+        <span id="cadPw2Hint" class="auth-hint" hidden></span>
       </div>
       <div id="cadError" class="auth-error" hidden></div>
       <button type="button" class="auth-submit" id="cadastroBtn" onclick="doCadastro()">
@@ -3131,6 +3295,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </button>
     </div>
+    </div><!-- /auth-card -->
   </div>
 
   <!-- Tela de sucesso pós-cadastro -->
@@ -3580,23 +3745,34 @@
 <!-- ═══ PERFIL DO USUÁRIO ════════════════════════════════════════════════ -->
 <div id="userProfileOverlay" style="display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.5);backdrop-filter:blur(8px);align-items:flex-start;justify-content:flex-end;padding:12px;" onclick="if(event.target===this)closeUserProfile()">
   <div id="userProfilePanel" style="width:min(420px,calc(100vw - 24px));background:var(--card);border-radius:24px;border:1px solid var(--hairline-strong);box-shadow:0 32px 80px rgba(0,0,0,.25);overflow:hidden;transform:translateX(20px);opacity:0;transition:transform .35s cubic-bezier(.22,1,.36,1),opacity .3s var(--ease);max-height:calc(100vh - 24px);overflow-y:auto;">
-    <div style="background:linear-gradient(135deg,#0c5c3f 0%,#083d27 100%);padding:28px 24px 60px;position:relative;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div><div style="font-size:11px;font-weight:700;letter-spacing:.1em;color:rgba(255,255,255,0.5);text-transform:uppercase;margin-bottom:4px;">Suprema Poker · Perfil</div><div id="upName" style="font-family:var(--display);font-size:24px;font-weight:700;color:#fff;line-height:1.15;"></div><div id="upEmail" style="font-size:12px;color:rgba(255,255,255,0.5);margin-top:4px;font-family:var(--mono);"></div></div>
-        <button onclick="closeUserProfile()" style="width:32px;height:32px;border-radius:50%;border:none;background:rgba(255,255,255,0.1);cursor:pointer;color:rgba(255,255,255,0.7);font-size:16px;display:flex;align-items:center;justify-content:center;">✕</button>
+    <div class="up-hero">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;position:relative;z-index:1;">
+        <div><div class="up-eyebrow">Suprema Poker · Perfil do operador</div><div id="upName" class="up-name"></div><div id="upEmail" class="up-email"></div></div>
+        <button class="up-close" onclick="closeUserProfile()" aria-label="Fechar perfil">✕</button>
       </div>
     </div>
-    <div style="display:flex;justify-content:center;margin-top:-44px;position:relative;z-index:1;">
-      <div id="upAvatarWrap" onclick="upPickEmoji()" style="width:88px;height:88px;border-radius:22px;background:linear-gradient(135deg,var(--felt) 0%,var(--felt-bright) 100%);border:4px solid var(--card);display:flex;align-items:center;justify-content:center;font-size:36px;cursor:pointer;box-shadow:0 8px 24px rgba(12,92,63,.3);">
+    <div style="display:flex;justify-content:center;margin-top:-46px;position:relative;z-index:1;">
+      <div id="upAvatarWrap" class="up-avatar" onclick="upPickEmoji()" role="button" tabindex="0" aria-label="Trocar ícone do avatar" onkeydown="if(event.key==='Enter'||event.key===' ')upPickEmoji()">
         <span id="upAvatarContent"></span>
+        <span class="up-avatar-edit" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3Z"/></svg></span>
       </div>
     </div>
-    <div id="upEmojiPicker" style="display:none;padding:16px 24px;background:var(--bg);border-bottom:1px solid var(--hairline);"></div>
-    <div style="padding:20px 24px;display:flex;flex-direction:column;gap:12px;">
-      <div style="background:var(--bg);border-radius:14px;border:1px solid var(--hairline);overflow:hidden;"><div style="padding:12px 16px;border-bottom:1px solid var(--hairline);font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;">Dados cadastrais</div><div id="upInfoList"></div></div>
-      <div style="background:var(--bg);border-radius:14px;border:1px solid var(--hairline);overflow:hidden;"><div style="padding:12px 16px;border-bottom:1px solid var(--hairline);font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;">Meus cards fixados hoje</div><div id="upMyCards" style="padding:4px 0;max-height:220px;overflow-y:auto;"></div></div>
+    <div id="upEmojiPicker" class="up-picker" style="background:var(--bg);border-bottom:1px solid var(--hairline);"></div>
+    <div style="padding:18px 24px 20px;display:flex;flex-direction:column;gap:12px;">
+      <div class="up-stats" id="upStats"></div>
+      <div class="up-card">
+        <div class="up-card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg>Dados cadastrais</div>
+        <div id="upInfoList"></div>
+      </div>
+      <div class="up-card">
+        <div class="up-card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Atividade de hoje</div>
+        <div id="upMyCards" class="up-tl"></div>
+      </div>
       <div id="upErrorFeedback" style="display:none;background:rgba(216,57,43,0.06);border:1px solid rgba(216,57,43,0.2);border-radius:14px;padding:16px;"><div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:8px;">⚠️ Erro identificado</div><div id="upErrorDesc" style="font-size:12px;color:var(--ink-soft);margin-bottom:10px;"></div><textarea id="upJustificativa" rows="3" placeholder="Justifique o erro..." style="width:100%;font-family:var(--text);font-size:13px;padding:10px 12px;border:1.5px solid var(--hairline-strong);border-radius:9px;outline:none;resize:none;background:var(--card);color:var(--ink);"></textarea><div style="display:flex;gap:8px;margin-top:8px;"><button onclick="upDenyError()" style="flex:1;padding:10px;border-radius:9px;border:1px solid var(--hairline-strong);background:none;cursor:pointer;font-size:13px;color:var(--ink-soft);font-family:var(--text);">Cancelar</button><button onclick="upAcceptError()" style="flex:2;padding:10px;border-radius:9px;border:none;background:var(--red);color:#fff;cursor:pointer;font-size:13px;font-weight:700;font-family:var(--text);">Aceitar e justificar</button></div></div>
-      <div style="display:flex;gap:8px;margin-top:4px;"><button onclick="upChangeAccount()" style="flex:1;padding:12px;border-radius:12px;border:1px solid var(--hairline-strong);background:none;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-soft);font-family:var(--text);">Trocar conta</button><button onclick="upLogout()" style="padding:12px 16px;border-radius:12px;border:none;background:rgba(216,57,43,0.1);cursor:pointer;font-size:13px;font-weight:700;color:var(--red);font-family:var(--text);">Sair</button></div>
+      <div class="up-actions">
+        <button class="up-btn ghost" onclick="upChangeAccount()">Trocar conta</button>
+        <button class="up-btn danger" onclick="upLogout()">Sair</button>
+      </div>
     </div>
   </div>
 </div>
@@ -4832,6 +5008,41 @@ function showAuthError(panelId, msg){
   el.textContent = msg;
   el.hidden = false;
   el.className = 'auth-error';
+  // shake curto pra dar feedback físico do erro (re-dispara mesmo se já estava na tela)
+  requestAnimationFrame(() => { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); });
+}
+
+/* mostrar/ocultar senha — regra password-toggle: campo de senha sempre com toggle visível */
+function togglePassVisibility(inputId, btn){
+  const inp = document.getElementById(inputId);
+  if(!inp) return;
+  const show = inp.type === 'password';
+  inp.type = show ? 'text' : 'password';
+  btn.setAttribute('aria-label', show ? 'Ocultar senha' : 'Mostrar senha');
+  btn.innerHTML = show
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.5 10.5 0 0 1 12 19c-6.5 0-10-7-10-7a19.8 19.8 0 0 1 5.06-5.94M9.9 4.24A9.9 9.9 0 0 1 12 4c6.5 0 10 7 10 7a19.8 19.8 0 0 1-3.22 4.31"/><path d="m2 2 20 20"/><circle cx="12" cy="12" r="3"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+  inp.focus();
+}
+
+/* aviso de Caps Lock ativo enquanto digita a senha — evita o clássico "senha incorreta" por caixa alta */
+function authCapsHint(event, hintId){
+  const hint = document.getElementById(hintId || 'loginCapsHint');
+  if(!hint || !event.getModifierState) return;
+  hint.hidden = !event.getModifierState('CapsLock');
+}
+
+/* validação em tempo real da confirmação de senha do cadastro — mostra o desencontro
+   enquanto digita, em vez de só estourar erro depois do clique em "Criar conta" */
+function checkPasswordMatch(){
+  const p1 = document.getElementById('cadPassword')?.value || '';
+  const p2 = document.getElementById('cadPassword2')?.value || '';
+  const hint = document.getElementById('cadPw2Hint');
+  if(!hint) return;
+  if(!p2){ hint.hidden = true; return; }
+  hint.hidden = false;
+  if(p1 === p2){ hint.textContent = '✓ Senhas conferem'; hint.className = 'auth-hint ok'; }
+  else { hint.textContent = 'As senhas não coincidem'; hint.className = 'auth-hint err'; }
 }
 
 /* ── Login ── */
@@ -5491,52 +5702,79 @@ function renderUserProfile(){
   const avatarEl = document.getElementById('upAvatarContent');
   if(avatarEl) avatarEl.textContent = avatar;
 
-  // Info list
+  // Info list (com selo de admin e data de cadastro, quando existirem)
   const info = [
     { label: 'Nome completo', val: `${s.nome||''} ${s.sobrenome||''}`.trim() || '—' },
     { label: 'Apelido', val: s.apelido || '—' },
     { label: 'Email', val: s.email || '—' },
   ];
-  document.getElementById('upInfoList').innerHTML = info.map((item, idx) =>
-    `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;${idx < info.length-1 ? 'border-bottom:1px solid var(--hairline);' : ''}">
-      <span style="font-size:12px;color:var(--ink-soft);">${item.label}</span>
-      <span style="font-size:13px;font-weight:600;color:var(--ink);font-family:var(--mono);text-align:right;max-width:60%;overflow:hidden;text-overflow:ellipsis;">${escHtml(item.val)}</span>
+  if (s.createdAt) info.push({ label: 'Conta criada em', val: new Date(s.createdAt).toLocaleDateString('pt-BR') });
+  if (s.admin) info.push({ label: 'Acesso', val: '', badge: 'ADMIN' });
+  document.getElementById('upInfoList').innerHTML = info.map(item =>
+    `<div class="up-info-row">
+      <span class="k">${item.label}</span>
+      ${item.badge ? `<span class="up-badge-admin">${item.badge}</span>` : `<span class="v">${escHtml(item.val)}</span>`}
     </div>`
   ).join('');
 
-  // Meus cards fixados hoje
-  const myCards = RAW_ROWS.filter(r => fixedBy(r._key) === OPERATOR_NAME);
+  // Atividade de hoje: fixações + premiações preenchidas por mim, em ordem cronológica inversa
+  const fixIco  = '<span class="up-tl-ico fix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>';
+  const premIco = '<span class="up-tl-ico prem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h3.75a1.75 1.75 0 0 1 0 3.5H10.75a1.75 1.75 0 0 0 0 3.5H14.5"/></svg></span>';
+  const eventos = [];
+  RAW_ROWS.forEach(r => {
+    const k = r._key;
+    if (fixedBy(k) === OPERATOR_NAME){
+      const v = FIXED_MAP[k];
+      eventos.push({ at: (v && typeof v === 'object' && v.at) || 0, ico: fixIco,
+        txt: `Fixou <b>${escHtml(r.nome)}</b>`, sub: `${r.hora||'—'}${getId(k) ? ' · ID '+escHtml(getId(k)) : ''}` });
+    }
+    const pb = PREM_BY_MAP[k];
+    const pbName = pb && typeof pb === 'object' ? pb.by : pb;
+    if (pbName === OPERATOR_NAME && r.premiacao != null){
+      eventos.push({ at: (pb && typeof pb === 'object' && pb.at) || 0, ico: premIco,
+        txt: `Premiação de <b>${escHtml(r.nome)}</b>`, sub: `R$ ${fmtBRL(r.premiacao, 0)}` });
+    }
+  });
+  eventos.sort((a,b) => (b.at||0) - (a.at||0));
+
+  // Stats do dia
+  const nFix  = eventos.filter(e => e.ico === fixIco).length;
+  const nPrem = eventos.filter(e => e.ico === premIco).length;
+  const nTotal = RAW_ROWS.filter(r => mustFix(r, classify(r))).length;
+  document.getElementById('upStats').innerHTML = `
+    <div class="up-stat"><b>${nFix}</b><span>Fixados</span></div>
+    <div class="up-stat"><b>${nPrem}</b><span>Premiações</span></div>
+    <div class="up-stat"><b>${nTotal}</b><span>Cards do dia</span></div>`;
+
   const myCardsEl = document.getElementById('upMyCards');
-  if(!myCards.length){
-    myCardsEl.innerHTML = '<div style="padding:14px 16px;font-size:13px;color:var(--ink-soft);">Nenhum card fixado ainda.</div>';
+  if(!eventos.length){
+    myCardsEl.innerHTML = '<div style="padding:14px 16px;font-size:13px;color:var(--ink-soft);">Nenhuma atividade sua registrada hoje ainda — fixações e premiações aparecem aqui.</div>';
   } else {
-    myCardsEl.innerHTML = myCards.map(r => {
-      const cat = classify(r);
-      const id = getId(r._key);
-      const isNFcard = id.toUpperCase() === 'NF' || r.explicitNF;
-      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--hairline);">
-        <span style="font-size:14px;">${CAT_SUIT[cat]}</span>
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(r.nome)}</div>
-          <div style="font-size:11px;color:var(--ink-soft);font-family:var(--mono);">${r.hora||'—'} · ID: ${id||'—'}${isNFcard ? ' · <span style="color:var(--ink-soft);font-weight:700">NF</span>' : ''}</div>
-        </div>
-        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--${cat}-soft);color:var(--${cat})">${CAT_LABEL[cat]}</span>
-      </div>`;
+    myCardsEl.innerHTML = eventos.map(e => {
+      const hhmm = e.at ? new Date(e.at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
+      return `<div class="up-tl-row">${e.ico}<div class="up-tl-txt">${e.txt}<small>${e.sub}</small></div><span class="up-tl-time">${hhmm}</span></div>`;
     }).join('');
   }
 }
 
 function upPickEmoji(){
   const picker = document.getElementById('upEmojiPicker');
+  const atual = getUserAvatar();
   const emojis = ['🎯','🃏','♠️','♣️','♦️','♥️','🎲','🏆','⚡','🌟','🦁','🐯','🦊','🐺','🦅','🔥','💎','🥇','🎭','🚀','👑','🌙','⚔️','🛡️','🎱','🎰','🎮','💡','🏅','😎'];
-  picker.innerHTML = `<div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">Escolha seu ícone</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${emojis.map(e=>`<button onclick="upSetEmoji('${e}')" style="width:38px;height:38px;border-radius:8px;border:1px solid var(--hairline);background:var(--card);cursor:pointer;font-size:20px;">${e}</button>`).join('')}</div>`;
-  picker.style.display = picker.style.display === 'none' ? '' : 'none';
+  picker.innerHTML = `
+    <div style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">Escolha seu ícone</div>
+    <div class="up-picker-grid">${emojis.map(e =>
+      `<button class="up-picker-btn${e === atual ? ' selected' : ''}" onclick="upSetEmoji('${e}')" aria-label="Usar ${e} como ícone">${e}</button>`
+    ).join('')}</div>`;
+  picker.classList.toggle('open');
 }
 function upSetEmoji(e){
   setUserAvatar(e);
   const el = document.getElementById('upAvatarContent');
   if(el) el.textContent = e;
-  document.getElementById('upEmojiPicker').style.display = 'none';
+  // marca a seleção no grid antes de fechar — feedback imediato do que foi escolhido
+  document.querySelectorAll('#upEmojiPicker .up-picker-btn').forEach(b => b.classList.toggle('selected', b.textContent === e));
+  setTimeout(() => document.getElementById('upEmojiPicker').classList.remove('open'), 260);
   showToast('Ícone atualizado!');
   // atualiza badge na nav
   document.getElementById('operatorBadge').textContent = OPERATOR_NAME;
