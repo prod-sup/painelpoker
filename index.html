@@ -866,6 +866,37 @@
 
   /* category legend + filter chips (shared) */
   .legend{display:flex; gap:10px; flex-wrap:wrap;}
+  /* barra de filtros da Agenda: duas fileiras — 1) o que mostrar (categoria+status),
+     2) filtros secundários agrupados em caixas próprias (premiação/campanha/visualização),
+     pra não virar uma sopa de chips soltos sem hierarquia visual */
+  .filters-bar{display:flex; flex-direction:column; gap:10px;}
+  .filter-row{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .filter-group{
+    display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+    padding:5px 10px 5px 12px; border-radius:12px;
+    background:var(--panel-soft, rgba(255,255,255,.025)); border:1px solid var(--hairline);
+  }
+  /* resumo de filtros ativos: aparece só quando algum filtro está fora do padrão — mostra quantos
+     torneios estão visíveis do total e dá um clique só pra voltar tudo ao normal */
+  .filter-summary{
+    display:flex; align-items:center; gap:10px;
+    font-size:12px; font-weight:600; color:var(--ink-soft);
+    padding:6px 12px; border-radius:10px;
+    background:rgba(192,128,0,.07); border:1px dashed rgba(192,128,0,.3);
+    width:fit-content;
+  }
+  .filter-clear-btn{
+    display:inline-flex; align-items:center; gap:4px;
+    font-size:11px; font-weight:700; padding:4px 10px; border-radius:99px;
+    border:1px solid var(--hairline-strong); background:var(--bg); color:var(--ink);
+    cursor:pointer; transition:all .2s var(--ease); white-space:nowrap;
+  }
+  .filter-clear-btn:hover{ border-color:var(--gold); color:var(--gold); }
+  .filter-clear-btn:active{ transform:scale(.94); }
+  @media (max-width:700px){
+    .filter-group{ width:100%; }
+    .filter-summary{ width:100%; justify-content:space-between; }
+  }
   .chip{
     display:inline-flex; align-items:center; gap:7px;
     font-size:12px; font-weight:600; padding:7px 13px; border-radius:99px;
@@ -1492,6 +1523,13 @@
 
   .conf-progress{ margin:14px 0; }
   .conf-progress .progress-count{ font-family:var(--mono); font-size:11.5px; color:var(--ink-soft); display:block; margin-bottom:6px; }
+  /* busca + ocultar conferidos do checklist de hoje: com 120+ itens, achar um torneio
+     específico rolando a lista inteira era o maior atrito da ferramenta */
+  .conf-hoje-controls{ display:flex; align-items:center; gap:8px; margin:0 0 10px; }
+  .conf-hoje-search{ flex:1; margin-bottom:0; padding:7px 14px; }
+  #confHojeHideDoneBtn{ border:1px solid var(--hairline-strong); flex:none; }
+  #confHojeHideDoneBtn.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .conf-hoje-hint{ font-size:11.5px; color:var(--ink-soft); font-style:italic; padding:8px 2px; }
   .conf-section-title{
     font-family:var(--display); font-weight:650; font-size:13px; color:var(--ink);
     margin:18px 0 8px; padding-bottom:6px; border-bottom:1px solid var(--hairline);
@@ -2594,6 +2632,13 @@
         <span class="progress-count" id="confHojeProgressCount">0 de 0 conferidos</span>
         <div class="progress-track"><div class="progress-fill" id="confHojeProgressFill" style="width:0%"></div></div>
       </div>
+      <div class="conf-hoje-controls" id="confHojeControls" hidden>
+        <div class="server-search conf-hoje-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="text" id="confHojeSearchInput" placeholder="Buscar torneio ou horário..." autocomplete="off">
+        </div>
+        <button class="chip" id="confHojeHideDoneBtn" type="button">Ocultar conferidos</button>
+      </div>
       <div id="confHojeList"></div>
 
       <div class="drawer-section-divider"></div>
@@ -3289,33 +3334,42 @@
         <h2 class="section-title">O que ainda vem por aí hoje.</h2>
         <p class="section-desc">Torneios do dia que ainda não fecharam — com horário, garantido e late registration.</p>
       </div>
-      <div class="legend" id="upcomingFilters">
-        <span class="filter-group-label">Categoria</span>
-        <button class="chip active" data-cat="all" onclick="setUpcomingCat('all',this)"><span class="d" style="background:var(--ink)"></span>Todos</button>
-        <button class="chip" data-cat="main" onclick="setUpcomingCat('main',this)"><svg class="crown-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.5 1.5 7l5.4 4L12 4l5.1 7 5.4-4-1.5 10.5a1 1 0 0 1-1 .85H4a1 1 0 0 1-1-.85Z"/><rect x="3.3" y="19" width="17.4" height="2.2" rx="1"/></svg>Main Event</button>
-        <button class="chip" data-cat="side" onclick="setUpcomingCat('side',this)"><span class="d"></span>Side Event</button>
-        <button class="chip" data-cat="sat" onclick="setUpcomingCat('sat',this)"><span class="d"></span>Satélite</button>
-        <span class="legend-divider" aria-hidden="true"></span>
-        <span class="filter-group-label">Status</span>
-        <button class="chip" data-cat="late" onclick="setUpcomingCat('late',this)"><span class="d late-status-dot"></span>Atrasado</button>
-        <button class="chip" data-cat="soon" onclick="setUpcomingCat('soon',this)"><span class="d soon-status-dot"></span>Em breve</button>
-        <button class="chip chip-running" data-cat="running" onclick="setUpcomingCat('running',this)"><span class="d running-dot"></span>Rolando agora</button>
-        <span class="legend-divider" aria-hidden="true"></span>
-        <span class="filter-group-label">Premiação</span>
-        <button class="chip chip-prem active" data-prem="all"   onclick="setUpcomingPrem('all',this)"><span class="d" style="background:var(--ink)"></span>Todos</button>
-        <button class="chip chip-prem"        data-prem="sem"   onclick="setUpcomingPrem('sem',this)"><span class="d"></span>Sem premiação</button>
-        <button class="chip chip-prem chip-prem-com" data-prem="com" onclick="setUpcomingPrem('com',this)"><span class="d"></span>Com premiação</button>
-        <span class="legend-divider" aria-hidden="true"></span>
-        <span class="filter-group-label">Campanha</span>
-        <button class="chip chip-camp active" data-camp="all" onclick="setUpcomingCamp('all',this)"><span class="d" style="background:var(--ink)"></span>Todas</button>
-        <button class="chip chip-camp" data-camp="AS"  onclick="setUpcomingCamp('AS',this)"><span class="d"></span>#AS</button>
-        <button class="chip chip-camp" data-camp="SPS" onclick="setUpcomingCamp('SPS',this)"><span class="d"></span>SPS</button>
-        <button class="chip chip-camp" data-camp="SPT" onclick="setUpcomingCamp('SPT',this)"><span class="d"></span>SPT</button>
-        <span class="legend-divider" aria-hidden="true"></span>
-        <span class="filter-group-label">Visualização</span>
-        <button class="chip" id="compactToggleBtn" onclick="toggleCompactMode()" title="Modo compacto">⊟ Compacto</button>
-        <button class="chip" id="opFilterMe" onclick="setOpFilter('me')">👤 Meus</button>
-        <button class="chip" id="opFilterPartner" onclick="setOpFilter('partner')">🤝 Parceiro</button>
+      <div class="filters-bar" id="upcomingFilters">
+        <div class="filter-row legend">
+          <button class="chip active" data-cat="all" onclick="setUpcomingCat('all',this)"><span class="d" style="background:var(--ink)"></span>Todos</button>
+          <button class="chip" data-cat="main" onclick="setUpcomingCat('main',this)"><svg class="crown-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.5 1.5 7l5.4 4L12 4l5.1 7 5.4-4-1.5 10.5a1 1 0 0 1-1 .85H4a1 1 0 0 1-1-.85Z"/><rect x="3.3" y="19" width="17.4" height="2.2" rx="1"/></svg>Main Event</button>
+          <button class="chip" data-cat="side" onclick="setUpcomingCat('side',this)"><span class="d"></span>Side Event</button>
+          <button class="chip" data-cat="sat" onclick="setUpcomingCat('sat',this)"><span class="d"></span>Satélite</button>
+          <span class="legend-divider" aria-hidden="true"></span>
+          <button class="chip" data-cat="late" onclick="setUpcomingCat('late',this)"><span class="d late-status-dot"></span>Atrasado</button>
+          <button class="chip" data-cat="soon" onclick="setUpcomingCat('soon',this)"><span class="d soon-status-dot"></span>Em breve</button>
+          <button class="chip chip-running" data-cat="running" onclick="setUpcomingCat('running',this)"><span class="d running-dot"></span>Rolando agora</button>
+        </div>
+        <div class="filter-row">
+          <div class="filter-group">
+            <span class="filter-group-label">Premiação</span>
+            <button class="chip chip-prem active" data-prem="all"   onclick="setUpcomingPrem('all',this)"><span class="d" style="background:var(--ink)"></span>Todos</button>
+            <button class="chip chip-prem"        data-prem="sem"   onclick="setUpcomingPrem('sem',this)"><span class="d"></span>Sem</button>
+            <button class="chip chip-prem chip-prem-com" data-prem="com" onclick="setUpcomingPrem('com',this)"><span class="d"></span>Com</button>
+          </div>
+          <div class="filter-group">
+            <span class="filter-group-label">Campanha</span>
+            <button class="chip chip-camp active" data-camp="all" onclick="setUpcomingCamp('all',this)"><span class="d" style="background:var(--ink)"></span>Todas</button>
+            <button class="chip chip-camp" data-camp="AS"  onclick="setUpcomingCamp('AS',this)"><span class="d"></span>#AS</button>
+            <button class="chip chip-camp" data-camp="SPS" onclick="setUpcomingCamp('SPS',this)"><span class="d"></span>SPS</button>
+            <button class="chip chip-camp" data-camp="SPT" onclick="setUpcomingCamp('SPT',this)"><span class="d"></span>SPT</button>
+          </div>
+          <div class="filter-group">
+            <span class="filter-group-label">Visualização</span>
+            <button class="chip" id="compactToggleBtn" onclick="toggleCompactMode()" title="Modo compacto">⊟ Compacto</button>
+            <button class="chip" id="opFilterMe" onclick="setOpFilter('me')">👤 Meus</button>
+            <button class="chip" id="opFilterPartner" onclick="setOpFilter('partner')">🤝 Parceiro</button>
+          </div>
+        </div>
+        <div class="filter-summary" id="filterSummary" hidden>
+          <span id="filterSummaryText"></span>
+          <button class="filter-clear-btn" id="filterClearBtn" type="button" onclick="clearAllUpcomingFilters()">✕ Limpar filtros</button>
+        </div>
       </div>
     </div>
 
@@ -3621,6 +3675,8 @@ let HOVERED_CARD_KEY             = null;
 let LAST_KNOWN_DATE              = null; // inicializado após todayPathSP()
 let CONFHOJE_ITEMS               = [];
 let CONFHOJE_META                = null; // diagnóstico da última leitura (linhas lidas, sem horário, duplicados) — pra avisar o operador sem depender só do toast
+let CONFHOJE_SEARCH              = '';   // busca rápida dentro do checklist de hoje
+let CONFHOJE_HIDE_DONE           = false; // true = esconde os já conferidos, sobrando só o que falta
 let LAST_CONF_AMANHA_            = null;
 let _opFilter                    = 'all'; // 'all' | 'me' | 'partner' — movido pra cá (era declarado só perto do fim do arquivo) porque
                                            // renderUpcoming() usa essa variável e pode rodar durante a restauração do sheet local,
@@ -6788,6 +6844,8 @@ function renderUpcoming(){
     filtered = filtered.filter(t => timeToMinutes(t.hora) === timeFilterMin);
   }
 
+  updateFilterSummary(filtered.length);
+
   const tfCount = document.getElementById('tfCount');
   if (timeFilterMin !== null){
     tfCount.hidden = false;
@@ -7592,6 +7650,49 @@ function setUpcomingCamp(tipo, btn){
   document.querySelectorAll('#upcomingFilters .chip-camp').forEach(c => c.classList.remove('active'));
   if(btn) btn.classList.add('active');
   upcomingCampFilter = tipo;
+  renderUpcoming();
+}
+
+/* resumo "X de Y torneios" + botão Limpar: só aparece quando algum filtro está fora do padrão,
+   pra ninguém achar que a lista "sumiu" quando na verdade tem 4 filtros ativos empilhados */
+function anyUpcomingFilterActive(){
+  return !activeUpcomingCat.has('all')
+    || upcomingPremFilter !== 'all'
+    || upcomingCampFilter !== 'all'
+    || _opFilter !== 'all'
+    || !!nameSearchQuery
+    || timeFilterMin !== null;
+}
+function updateFilterSummary(shownCount){
+  const box = document.getElementById('filterSummary');
+  if (!box) return;
+  if (!anyUpcomingFilterActive()){ box.hidden = true; return; }
+  box.hidden = false;
+  document.getElementById('filterSummaryText').textContent =
+    shownCount === 0
+      ? `Nenhum torneio passa nos filtros ativos (${UPCOMING.length} no total)`
+      : `Mostrando ${shownCount} de ${UPCOMING.length} torneios`;
+}
+function clearAllUpcomingFilters(){
+  activeUpcomingCat  = new Set(['all']);
+  upcomingPremFilter = 'all';
+  upcomingCampFilter = 'all';
+  _opFilter          = 'all';
+  nameSearchQuery    = '';
+  timeFilterMin      = null;
+  // reflete o reset na UI de cada filtro
+  document.querySelectorAll('#upcomingFilters .chip').forEach(c => c.classList.remove('active','active-me','active-partner'));
+  document.querySelector('#upcomingFilters .chip[data-cat="all"]')?.classList.add('active');
+  document.querySelector('#upcomingFilters .chip[data-prem="all"]')?.classList.add('active');
+  document.querySelector('#upcomingFilters .chip[data-camp="all"]')?.classList.add('active');
+  // modo compacto é visualização, não filtro — não reseta, só restaura o visual do botão
+  if (_compactMode) document.getElementById('compactToggleBtn')?.classList.add('active');
+  const searchInput = document.getElementById('nameSearchInput');
+  if (searchInput){ searchInput.value = ''; }
+  const searchClear = document.getElementById('nameSearchClear');
+  if (searchClear){ searchClear.hidden = true; }
+  const tfClear = document.getElementById('tfClear');
+  if (tfClear){ tfClear.hidden = true; }
   renderUpcoming();
 }
 
@@ -8746,7 +8847,7 @@ function renderConfHoje(){ renderConfHojeList(); }
 function renderConfHojeList(){
   const listEl = document.getElementById('confHojeList');
   const progressEl = document.getElementById('confHojeProgress');
-  if (!CONFHOJE_ITEMS.length){ listEl.innerHTML = ''; progressEl.hidden = true; return; }
+  if (!CONFHOJE_ITEMS.length){ listEl.innerHTML = ''; progressEl.hidden = true; document.getElementById('confHojeControls').hidden = true; return; }
 
   const total = CONFHOJE_ITEMS.length;
   const done = CONFHOJE_ITEMS.filter(it => isConfHojeDone(it.id)).length;
@@ -8765,9 +8866,20 @@ function renderConfHojeList(){
       ${m.duplicateNames.length ? `<span class="diff-pill" style="background:#e85d5d33;color:#e85d5d">⚠ repetido: ${escHtml(m.duplicateNames.join(', '))}</span>` : ''}
     </div>`;
   }
+  // busca + ocultar conferidos só afetam o que aparece na lista — o progresso acima continua
+  // contando a lista inteira, senão marcaria 100% com metade dos torneios escondidos pela busca
+  document.getElementById('confHojeControls').hidden = false;
+  const q = normText(CONFHOJE_SEARCH);
+  const visible = it => {
+    if (CONFHOJE_HIDE_DONE && isConfHojeDone(it.id)) return false;
+    if (q && !normText(it.nome).includes(q) && !String(it.hora||'').includes(q)) return false;
+    return true;
+  };
+  let shownCount = 0;
   ['main','side','sat','unknown'].forEach(cat => {
-    const items = CONFHOJE_ITEMS.filter(it => it.cat === cat);
+    const items = CONFHOJE_ITEMS.filter(it => it.cat === cat && visible(it));
     if (!items.length) return;
+    shownCount += items.length;
     html += `<div class="conf-section-title"${cat === 'unknown' ? ' style="color:#e85d5d"' : ''}>${catLabel[cat]}</div>`;
     items.forEach(it => {
       const isDone = isConfHojeDone(it.id);
@@ -8782,6 +8894,14 @@ function renderConfHojeList(){
       `;
     });
   });
+  const hiddenCount = total - shownCount;
+  if (hiddenCount > 0){
+    html += `<div class="conf-hoje-hint">${
+      shownCount === 0
+        ? (q ? `Nenhum torneio bate com "${escHtml(CONFHOJE_SEARCH)}".` : 'Todos os torneios já foram conferidos. 🎉')
+        : `${hiddenCount} torneio${hiddenCount>1?'s':''} oculto${hiddenCount>1?'s':''}${CONFHOJE_HIDE_DONE ? ' (já conferidos' + (q ? ' ou fora da busca' : '') + ')' : ' pela busca'}.`
+    }</div>`;
+  }
   listEl.innerHTML = html;
   listEl.querySelectorAll('.conf-item input').forEach(inp => {
     inp.addEventListener('change', () => {
@@ -8790,6 +8910,16 @@ function renderConfHojeList(){
     });
   });
 }
+
+document.getElementById('confHojeSearchInput').addEventListener('input', (e) => {
+  CONFHOJE_SEARCH = e.target.value.trim();
+  renderConfHojeList();
+});
+document.getElementById('confHojeHideDoneBtn').addEventListener('click', (e) => {
+  CONFHOJE_HIDE_DONE = !CONFHOJE_HIDE_DONE;
+  e.currentTarget.classList.toggle('active', CONFHOJE_HIDE_DONE);
+  renderConfHojeList();
+});
 
 /* =========================================================================
    GERAR CONFERÊNCIA DE AMANHÃ
@@ -8806,8 +8936,8 @@ const CONF_WINDOW_END_MIN = 5*60 + 30;    // 05:30 do dia seguinte
    captura o instante UMA vez e devolve tanto o offset quanto a data já calculada, pra nada que dependa
    disso (nome do dia, seções, nome do arquivo exportado) rodar `new Date()` de novo em outro instante
    e correr o risco de virar o relógio no meio do cálculo (ex: exatamente às 05:30:00) */
-function confAmanhaTurno(){
-  const n = nowInSP();
+function confAmanhaTurno(nOverride){
+  const n = nOverride || nowInSP(); // nOverride só é usado pelo autoteste, pra simular horários específicos
   // Entre 00:00 e 05:29 ainda é o turno de "hoje" — amanhã = dia atual do calendário
   // A partir de 05:30 começa novo turno — amanhã = dia seguinte
   const isMadrugada = n.hour < 5 || (n.hour === 5 && n.minute < 30);
@@ -8834,6 +8964,38 @@ function tomorrowDateLabel(turno){
   const { refTomorrow } = turno || confAmanhaTurno();
   return `${String(refTomorrow.getUTCDate()).padStart(2,'0')}-${String(refTomorrow.getUTCMonth()+1).padStart(2,'0')}-${refTomorrow.getUTCFullYear()}`;
 }
+
+/* autoteste da regra de turno: roda uma vez a cada carregamento da página com horários simulados.
+   Se qualquer edição futura quebrar o corte das 05:30, a virada de mês ou o cálculo do dia da semana,
+   um alerta vermelho aparece na hora — em vez de a operação descobrir com uma planilha errada */
+(function confTurnoSelfTest(){
+  // {agora simulado} → {dateLabel esperado pra "amanhã", dia da semana esperado}
+  const cases = [
+    // 30/06 é uma terça em 2026? não importa: o esperado é derivado por Date.UTC, o teste valida o OFFSET e a formatação
+    { n:{year:2026, month:7, day:1, hour:14, minute:0}, label:'02-07-2026', desc:'tarde comum → amanhã = dia seguinte' },
+    { n:{year:2026, month:7, day:1, hour:2,  minute:0}, label:'01-07-2026', desc:'madrugada (02:00) → amanhã = dia atual' },
+    { n:{year:2026, month:7, day:1, hour:5,  minute:29}, label:'01-07-2026', desc:'05:29 ainda é turno de hoje' },
+    { n:{year:2026, month:7, day:1, hour:5,  minute:30}, label:'02-07-2026', desc:'05:30 em ponto vira o turno' },
+    { n:{year:2026, month:7, day:31, hour:20, minute:0}, label:'01-08-2026', desc:'virada de mês' },
+    { n:{year:2026, month:12, day:31, hour:20, minute:0}, label:'01-01-2027', desc:'virada de ano' },
+    { n:{year:2026, month:1, day:1, hour:3, minute:0}, label:'01-01-2026', desc:'madrugada de ano novo ainda é turno de 31/12' },
+  ];
+  const failures = [];
+  cases.forEach(c => {
+    const turno = confAmanhaTurno({...c.n, second:0});
+    const got = tomorrowDateLabel(turno);
+    if (got !== c.label) failures.push(`${c.desc}: esperado ${c.label}, saiu ${got}`);
+    // consistência interna: refDayAfter tem que ser exatamente refTomorrow + 1 dia
+    if (turno.refDayAfter.getTime() - turno.refTomorrow.getTime() !== 86400000){
+      failures.push(`${c.desc}: dia-depois-de-amanhã não é amanhã+1`);
+    }
+  });
+  if (failures.length){
+    console.error('FALHA no autoteste da Conferência de amanhã:', failures);
+    // toast pode ainda não existir tão cedo no carregamento — garante o aviso nos dois canais
+    setTimeout(() => { try{ showToast('⚠ ERRO INTERNO na lógica da Conferência de amanhã — NÃO exporte antes de revisar! Veja o console.', true); }catch(e){} }, 1500);
+  }
+})();
 
 /* monta as 3 seções aplicando a janela 06:10(amanhã) -> 05:30(dia seguinte): cada categoria pega os
    itens de amanhã com horário >= 06:10, mais os itens do dia seguinte com horário <= 05:30 (madrugada
@@ -8914,6 +9076,7 @@ function renderConfAmanha(sections, weekdayLabel, dateLabel, meta){
   let html = `
     <div class="diff-summary">
       <span class="diff-pill ok">${weekdayLabel} · ${sections.total} torneios</span>
+      <span class="diff-pill ok">Main ${sections.main.length} · Side ${sections.side.length} · Sat ${sections.satGroups.reduce((a,g)=>a+g.items.length,0)}</span>
       <span class="diff-pill ok">06:10 → 05:30 · ${dateLabel}</span>
       ${meta ? `<span class="diff-pill ok">${meta.extractedCount} torneios de ${meta.rowsInSection} linhas nas seções</span>` : ''}
       ${meta && meta.semHoraCount ? `<span class="diff-pill" style="background:#e85d5d33;color:#e85d5d">⚠ ${meta.semHoraCount} sem horário</span>` : ''}
@@ -8970,6 +9133,26 @@ function exportConfAmanhaXlsx(){
     return;
   }
   const { sections, weekdayLabel, dateLabel } = LAST_CONF_AMANHA;
+
+  // trava anti-dado-velho: se o turno virou desde que a planilha foi lida (ex: leu às 05:00,
+  // exportou às 06:00), o "amanhã" da tela não é mais o "amanhã" real — bloqueia e pede releitura
+  const dateLabelAgora = tomorrowDateLabel(confAmanhaTurno());
+  if (dateLabelAgora !== dateLabel){
+    showToast(`O turno virou desde que a planilha foi lida (era ${dateLabel}, agora seria ${dateLabelAgora}). Recarregue a Global antes de exportar.`, true);
+    return;
+  }
+
+  // confirmação final: último olhar humano no dia/data/totais antes de gerar o arquivo
+  const satCount = sections.satGroups.reduce((a,g)=>a+g.items.length,0);
+  const ok = window.confirm(
+    `Exportar Conferência de amanhã?\n\n` +
+    `Dia: ${weekdayLabel} · ${dateLabel}\n` +
+    `Main: ${sections.main.length} · Side: ${sections.side.length} · Satélites: ${satCount}\n` +
+    `Total: ${sections.total} torneios` +
+    (sections.unknown.length ? `\n\n⚠ ${sections.unknown.length} torneio(s) com tipo não reconhecido irão em seção separada!` : '')
+  );
+  if (!ok) return;
+
   const header = ['Torneio', 'Horário', 'Garantido', 'Buy in'];
   const rows = [header];
   const pushRow = (it) => rows.push([it.nome, it.hora, it.garantido, it.buyin]);
@@ -8988,6 +9171,9 @@ function exportConfAmanhaXlsx(){
     rows.push(['TIPO NÃO RECONHECIDO — verificar coluna D na Global antes de fechar a conferência']);
     sections.unknown.forEach(it => rows.push([it.nome, it.hora, it.garantido, it.buyin, it.tipo ?? '']));
   }
+  // linha de checagem no rodapé: quem receber a planilha consegue conferir se nada foi cortado
+  blankRow();
+  rows.push([`Total: ${sections.total} torneios (Main ${sections.main.length} · Side ${sections.side.length} · Sat ${sections.satGroups.reduce((a,g)=>a+g.items.length,0)}) — ${weekdayLabel} ${dateLabel}`]);
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = [{wch:30},{wch:10},{wch:14},{wch:12}];
