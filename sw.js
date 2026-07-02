@@ -1,5 +1,8 @@
-// Suprema Poker — Service Worker v2.1.0
-const CACHE_NAME = 'suprema-painel-v2';
+// Suprema Poker — Service Worker
+// IMPORTANTE: incremente SW_VERSION a cada deploy — é isso que faz as abas abertas
+// receberem o aviso de "nova versão disponível" e ninguém operar com código velho
+const SW_VERSION = '3.0.0';
+const CACHE_NAME = `suprema-painel-v${SW_VERSION}`;
 const STATIC_ASSETS = [
   '/painelpoker/',
   '/painelpoker/index.html',
@@ -18,6 +21,10 @@ self.addEventListener('activate', e => {
     caches.keys()
       .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
+      // avisa todas as abas abertas que uma versão nova assumiu — a página mostra o banner
+      // de "recarregue" em vez de continuar rodando o código antigo sem ninguém perceber
+      .then(() => self.clients.matchAll({type:'window'}))
+      .then(clients => clients.forEach(c => c.postMessage({type:'sw-updated', version: SW_VERSION})))
   );
 });
 

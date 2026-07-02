@@ -6382,6 +6382,17 @@ setTimeout(loadHistorico, 3000);
 
 // 13/14. Registrar Service Worker (PWA + modo offline)
 if('serviceWorker' in navigator){
+  // SW novo assumiu (postMessage do activate) — banner fixo com recarga em um clique,
+  // pra nenhuma aba continuar operando com código antigo sem perceber
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'sw-updated'){
+      const bar = document.createElement('div');
+      bar.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:99999;background:var(--ink,#111);color:#fff;padding:10px 18px;border-radius:99px;font-size:13px;font-weight:600;box-shadow:0 6px 24px rgba(0,0,0,.35);cursor:pointer;display:flex;gap:10px;align-items:center';
+      bar.innerHTML = `Nova versão do painel (v${e.data.version}) — <u>clique para atualizar</u>`;
+      bar.addEventListener('click', () => location.reload());
+      document.body.appendChild(bar);
+    }
+  });
   navigator.serviceWorker.register('sw.js')
     .then(reg=>{
       console.log('[SW] Registrado:', reg.scope);
@@ -8816,6 +8827,57 @@ function allWeekdayNamesNorm(){
   return [...WEEKDAYS_PT, ...WEEKDAYS_EN].map(normText);
 }
 
+/* autoteste do parser da Global: roda uma vez por carregamento com uma mini-planilha embutida
+   que reproduz as armadilhas do arquivo real — nome do dia repetido como rótulo decorativo na
+   coluna A (o bug que derrubou dezenas de torneios do relatório), lixo na coluna A ("Total GTD",
+   números), linha "suspenso", horário mesclado, tipo não reconhecido, grupo de satélite e
+   torneio depois do vão de linhas vazias. Se uma edição futura quebrar qualquer regra dessas,
+   o alerta aparece no carregamento — não numa conferência errada em produção */
+(function extractGlobalSelfTest(){
+  const H14 = 14/24, H16 = 16/24, H10 = 10/24, H11 = 11/24, H12 = 12/24, H13 = 13/24;
+  const fx = [
+    ['QUINTA-FEIRA', null, 'QUINTA-FEIRA', null, null, null, null, null],          // cabeçalho real da seção
+    ['QUINTA-FEIRA', H14, '#AS Teste Main', 'Main Event', null, null, 25000, 110], // colA decorativa NÃO pode derrubar a linha
+    ['Total GTD', H16, 'Teste Main 2', 'Main Event', null, null, 40000, 75],       // lixo na colA
+    ['   QUINTA-FEIRA', H16, 'suspenso', null, null, null, null, 800],             // suspenso é pulado
+    [null, H10, 'Teste Side', 'Side Event', null, null, 1000, 10],
+    [null, null, 'Teste Side Mesclado', 'Side Event', null, null, 500, 5],         // herda o horário 10:00 da linha acima
+    [null, H11, 'Teste Tipo Errado', 'Tipo Inexistente', null, null, 100, 1],      // vai pro bucket unknown, não some
+    [null, null, null, null, null, null, null, null],
+    ['#Grupo Sat', H12, 'Teste Sat', 'SAT', null, null, 60, 0.8],                  // colA vira cabeçalho de grupo
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],
+    [null, null, null, null, null, null, null, null],                              // 5º vazia → corta a leitura
+    [null, H13, 'Depois do Vao', 'Side Event', null, null, 100, 1],                // tem que aparecer em aposGap
+    ['SEXTA-FEIRA', null, 'SEXTA-FEIRA', null, null, null, null, null],            // fecha a seção
+  ];
+  const failures = [];
+  const check = (cond, msg) => { if (!cond) failures.push(msg); };
+  try{
+    const s = extractGlobalDaySection(fx, 'QUINTA-FEIRA', 5);
+    check(s !== null, 'seção QUINTA-FEIRA não encontrada');
+    if (s){
+      check(s.main.length === 2, `main: esperado 2, saiu ${s.main.length}`);
+      check(s.side.length === 2, `side: esperado 2, saiu ${s.side.length}`);
+      check(s.sat.length === 1, `sat: esperado 1, saiu ${s.sat.length}`);
+      check(s.unknown.length === 1, `unknown: esperado 1, saiu ${s.unknown.length}`);
+      check(s.semHora.length === 0, `semHora: esperado 0, saiu ${s.semHora.length}`);
+      check(s.aposGap.length === 1, `aposGap: esperado 1, saiu ${s.aposGap.length}`);
+      check(!s.duplicateSection, 'rótulos decorativos contaram como seção duplicada');
+      check(s.main[0] && s.main[0].nome === '#AS Teste Main', 'linha com colA decorativa foi descartada (bug da coluna A voltou!)');
+      check(s.main[0] && s.main[0].garantido === 5000, `divisor 5: esperado 5000, saiu ${s.main[0] && s.main[0].garantido}`);
+      check(s.side[1] && s.side[1].hora === '10:00', `horário mesclado não herdado: ${s.side[1] && s.side[1].hora}`);
+      check(s.sat[0] && s.sat[0].groupHeader === '#Grupo Sat', 'cabeçalho de grupo de satélite não capturado');
+    }
+  }catch(e){ failures.push('exceção no parser: ' + e.message); }
+  if (failures.length){
+    console.error('FALHA no autoteste do parser da Global:', failures);
+    setTimeout(() => { try{ showToast('⚠ ERRO INTERNO no leitor da Global — NÃO confie na Conferência antes de revisar! Veja o console.', true); }catch(e){} }, 1500);
+  }
+})();
+
 /* =========================================================================
    FERRAMENTA 3 — CHECKLIST DE CONFERÊNCIA DE HOJE
    Lê a mesma planilha Global MTT, mas pega a seção do dia da semana de HOJE (não amanhã) —
@@ -10230,24 +10292,8 @@ if(shiftTextarea){
   });
 }
 
-/* =========================================================================
-   6. SERVICE WORKER — cache offline
-   Registra um SW que faz cache do index.html e bg.mp4 na primeira visita.
-   Se a conexão cair, o painel continua funcionando com os arquivos em cache.
-   O SW se atualiza automaticamente quando uma nova versão é publicada.
-========================================================================= */
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js').then(reg => {
-    reg.addEventListener('updatefound', () => {
-      const newWorker = reg.installing;
-      newWorker.addEventListener('statechange', () => {
-        if(newWorker.state === 'installed' && navigator.serviceWorker.controller){
-          showToast('Nova versão do painel disponível — recarregue a página para atualizar.');
-        }
-      });
-    });
-  }).catch(() => {}); // silencioso se SW não disponível
-}
+/* Registro do Service Worker consolidado no bloco 13/14 (mais acima) — este bloco duplicado
+   usava caminho absoluto '/sw.js', que aponta pra fora do escopo /painelpoker/ no GitHub Pages */
 
 /* =========================================================================
    MODO DARK/LIGHT
