@@ -8872,6 +8872,10 @@ function renderConfAmanha(sections, weekdayLabel, dateLabel, meta){
       ${meta && meta.semHoraCount ? `<span class="diff-pill" style="background:#e85d5d33;color:#e85d5d">⚠ ${meta.semHoraCount} sem horário</span>` : ''}
       ${sections.duplicateNames.length ? `<span class="diff-pill" style="background:#e85d5d33;color:#e85d5d">⚠ repetido: ${escHtml(sections.duplicateNames.join(', '))}</span>` : ''}
     </div>
+    ${meta && meta.semHoraItems && meta.semHoraItems.length ? `
+    <div class="diff-row" style="color:#e85d5d">⚠ Sem horário reconhecível — valor bruto da célula entre parênteses:<br>
+      ${meta.semHoraItems.map(it => `${escHtml(it.nome)} (tipo: "${escHtml(it.tipo ?? '')}", célula: ${escHtml(JSON.stringify(it.hora))})`).join('<br>')}
+    </div>` : ''}
     <button class="routine-download" id="exportConfAmanhaBtn" type="button">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M12 15l-4-4M12 15l4-4"/><path d="M4 18v1a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1"/></svg>
       Exportar planilha (.xlsx)
@@ -8996,7 +9000,8 @@ document.getElementById('globalTomorrowFileInput').addEventListener('change', as
     const meta = {
       rowsInSection: sectionTomorrow.rowsInSection + (sectionDayAfter ? sectionDayAfter.rowsInSection : 0),
       extractedCount: sectionTomorrow.extractedCount + (sectionDayAfter ? sectionDayAfter.extractedCount : 0),
-      semHoraCount
+      semHoraCount,
+      semHoraItems: [...sectionTomorrow.semHora, ...(sectionDayAfter ? sectionDayAfter.semHora : [])]
     };
     label.textContent = file.name;
     labelBox.classList.add('is-loaded');
