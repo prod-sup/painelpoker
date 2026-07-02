@@ -1288,6 +1288,35 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
   </div>
 </div>
 
+<!-- MODAL: Confirmação genérica (substitui confirm() nativo) -->
+<div class="modal-bg" id="moConfirm">
+  <div class="modal" style="max-width:420px">
+    <h2 id="cfTitle">Confirmar</h2>
+    <div class="msub" id="cfMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="cfCancel" style="flex:1;justify-content:center">Cancelar</button>
+      <button class="btn btn-gold" id="cfOk" style="flex:1;justify-content:center">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Bloquear operador (envia notificação de justificativa) -->
+<div class="modal-bg" id="moBlockOp">
+  <div class="modal" style="max-width:460px">
+    <h2>🚫 Suspender operador</h2>
+    <div class="msub" id="blkSub">O operador ficará com o painel suspenso até enviar uma justificativa.</div>
+    <div class="merr" id="blkErr"></div>
+    <div class="mf">
+      <label>Motivo da suspensão</label>
+      <textarea id="blkReason" rows="3" placeholder="Ex: Divergências recorrentes nos dados preenchidos — favor justificar."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeMo('moBlockOp')">Cancelar</button>
+      <button class="btn btn-red" id="blkBtn" onclick="confirmBlockOp()"><span id="blkLabel">Suspender e notificar</span></button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
@@ -1325,11 +1354,9 @@ let _gradeRows=[];
 let _auditRows=[];
 let _fixRows=[];
 let _toastTm;
-let _blockTarget=null;
-const _debouncedOp={};
 
 /* ── UTILS ──────────────────────────────────────────────────── */
-const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 const brl = (v,d=0) => v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const brlk = v => { if(v==null||isNaN(v))return'—'; const a=Math.abs(v),s=v<0?'-':''; return a>=1e6?s+'R$'+brl(a/1e6,1)+'M':a>=1e3?s+'R$'+brl(a/1e3,0)+'K':s+'R$'+brl(a,0); };
 const pct  = v => v==null?'—':(v>=0?'+':'')+Number(v).toFixed(1)+'%';
@@ -1361,6 +1388,22 @@ function catBadge(cat){
            sat:'<span class="badge badge-sat">♦ Sat</span>'};
   return m[cat]||'—';
 }
+
+/* ── LABELS / ORDENAÇÃO COMPARTILHADOS ───────────────────────── */
+const CAT_LABEL    = {main:'Main Event', side:'Side Event', sat:'Satélite'};
+const catLabel     = c => CAT_LABEL[c] || c || '';
+const STATUS_LABEL = {fechado:'Fechado', nf:'Não formou', aberto:'Aberto'};
+const statusLabel  = s => STATUS_LABEL[s] || s || '';
+const statusBadge  = s => s==='fechado' ? '<span class="badge badge-closed">Fechado</span>'
+                        : s==='nf'      ? '<span class="badge badge-nf">NF</span>'
+                        :                 '<span class="badge badge-open">Aberto</span>';
+// Ordena torneios pela hora tratando o "dia da grade" (vira às 05:30): horários antes
+// das 05:00 pertencem à madrugada do dia seguinte e vão para o fim da lista.
+const DAY_START  = 5*60;
+const sortByTime = arr => [...arr].sort((a,b)=>{
+  const ma=timeMin(a.hora)??9999, mb=timeMin(b.hora)??9999;
+  return (ma>=DAY_START?ma:ma+1440)-(mb>=DAY_START?mb:mb+1440);
+});
 
 /* ── HASH DE SENHA ──────────────────────────────────────────────
    PBKDF2-SHA256 (Web Crypto), salt aleatório por usuário.
@@ -1682,7 +1725,7 @@ function nav(id,btn){
   if(pg)pg.classList.add('active');
   if(btn)btn.classList.add('active');
   if(id==='dashboard')buildDash();
-  if(id==='backup'){loadAll().then(()=>initBackup());}
+  if(id==='backup')initBackup(); // initBackup já faz loadAll() internamente
   if(id==='grade')renderGrade();
   if(id==='audit')loadAudit();
   if(id==='fixados')loadFixados();
@@ -1744,18 +1787,12 @@ async function loadAudit(){
     return;
   }
 
-  const DAY_START=5*60;
-  const sortTime=arr=>[...arr].sort((a,b)=>{
-    const ma=timeMin(a.hora)??9999,mb=timeMin(b.hora)??9999;
-    return (ma>=DAY_START?ma:ma+1440)-(mb>=DAY_START?mb:mb+1440);
-  });
-
   try{ el.innerHTML=dates.map(date=>{
     const dayRows=byDate[date];
     const groups=[
-      {cat:'main',rows:sortTime(dayRows.filter(r=>r.cat==='main'))},
-      {cat:'side',rows:sortTime(dayRows.filter(r=>r.cat==='side'))},
-      {cat:'sat', rows:sortTime(dayRows.filter(r=>r.cat==='sat'))},
+      {cat:'main',rows:sortByTime(dayRows.filter(r=>r.cat==='main'))},
+      {cat:'side',rows:sortByTime(dayRows.filter(r=>r.cat==='side'))},
+      {cat:'sat', rows:sortByTime(dayRows.filter(r=>r.cat==='sat'))},
     ].filter(g=>g.rows.length);
 
     const allGar=dayRows.reduce((s,r)=>s+(r.garantido||0),0);
@@ -1794,7 +1831,7 @@ async function loadAudit(){
         const anomaliaHtml = hasAnomalia ? `<span title="${anomalias.join(', ')}" style="font-size:9px;background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.2);border-radius:4px;padding:1px 5px;margin-left:4px">⚠ ${anomalias[0]}</span>` : '';
         return `<tr class="${trCls}" data-key="${r.key}" data-date="${r.date}">
           <td><input type="checkbox" class="row-check" data-key="${r.key}" data-date="${r.date}"
-            style="accent-color:var(--felt);width:14px;height:14px"
+            style="accent-color:var(--gold);width:14px;height:14px"
             onchange="updateBatchActions()"></td>
           <td class="nm" style="max-width:200px">${esc(r.nome)}${anomaliaHtml}</td>
           <td class="mono">${esc(r.hora)}</td>
@@ -1807,7 +1844,7 @@ async function loadAudit(){
           <td class="r mono">${r.perf!=null?`<span class="perf ${r.perf>=0?'pos':'neg'}">${pct(r.perf)}</span>`:'—'}</td>
           <td class="c-ink2">${esc(r.fixBy||r.idBy||'—')}</td>
           <td class="mono c-ink2">${esc(r.id)}</td>
-          <td>${r.status==='fechado'?'<span class="badge badge-closed">Fechado</span>':r.status==='nf'?'<span class="badge badge-nf">NF</span>':'<span class="badge badge-open">Aberto</span>'}</td>
+          <td>${statusBadge(r.status)}</td>
           <td style="display:flex;gap:5px;align-items:center">
             <button class="audit-edit-btn ${r._audited?'auditado':''}"
               data-key="${r.key}" data-date="${r.date}"
@@ -1828,7 +1865,7 @@ async function loadAudit(){
         </div>
         <table class="audit-table">
           <thead><tr>
-            <th style="width:32px"><input type="checkbox" id="checkAll" onchange="toggleCheckAll(this)" style="accent-color:var(--felt);width:14px;height:14px"></th>
+            <th style="width:32px"><input type="checkbox" id="checkAll" onchange="toggleCheckAll(this)" style="accent-color:var(--gold);width:14px;height:14px"></th>
             <th>Torneio</th><th>Hora</th><th>Late</th>
             <th class="r">GTD</th><th class="r">Buy-in</th><th class="r">Premiação</th>
             <th class="r">Overlay</th><th class="r">Field</th><th class="r">Perf.</th>
@@ -1893,7 +1930,7 @@ async function loadFixados(){
     <td class="r mono">${r.garantido!=null?'R$ '+brl(r.garantido):'—'}</td>
     <td class="r mono">${r.premiacao!=null?'R$ '+brl(r.premiacao):'—'}</td>
     <td class="r">${r.perf!=null?`<span class="perf ${r.perf>=0?'pos':'neg'}">${pct(r.perf)}</span>`:'—'}</td>
-    <td>${r.status==='fechado'?'<span class="badge badge-closed">Fechado</span>':r.status==='nf'?'<span class="badge badge-nf">NF</span>':'<span class="badge badge-open">Aberto</span>'}</td>
+    <td>${statusBadge(r.status)}</td>
   </tr>`).join('');
 }
 
@@ -2204,7 +2241,7 @@ async function loadOps(){
         <td class="r mono">${fixCount[name]||0}</td>
         <td>${u.admin?'<span class="badge badge-closed">Admin</span>':'<span class="badge badge-open">Operador</span>'}</td>
         <td class="c-ink3">${created}</td>
-        <td><button class="btn btn-ghost btn-sm" onclick="blockOp('${esc(u.key)}','${esc(name)}')">Bloquear</button></td>
+        <td><button class="btn btn-ghost btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" onclick="blockOp(this.dataset.key,this.dataset.name)">Suspender</button></td>
       </tr>`;
     }).join('');
   }catch(e){document.getElementById('opBody').innerHTML=`<tr><td colspan="6" style="color:var(--red);padding:16px">${e.message}</td></tr>`;}
@@ -2251,11 +2288,52 @@ async function createOp(){
   finally{btn.disabled=false;label.textContent='Criar conta';}
 }
 
+let _blockOpTarget=null; // {key, name}
 function blockOp(key,name){
-  if(!confirm(`Bloquear operador "${name}"? Esta ação pode ser revertida manualmente no Firebase.`))return;
-  db.ref(`users/${key}`).update({blocked:true,blockedAt:Date.now(),blockedBy:_email})
-    .then(()=>{toast('Operador bloqueado','ok');loadOps();})
-    .catch(e=>toast('Erro: '+e.message,'err'));
+  _blockOpTarget={key,name};
+  document.getElementById('blkSub').innerHTML=
+    `<b>${esc(name)}</b> ficará com o painel suspenso até enviar uma justificativa. A notificação aparece na hora em que ele estiver logado.`;
+  document.getElementById('blkErr').style.display='none';
+  document.getElementById('blkReason').value='';
+  document.getElementById('moBlockOp').classList.add('open');
+  setTimeout(()=>document.getElementById('blkReason')?.focus(),80);
+}
+
+async function confirmBlockOp(){
+  if(!_blockOpTarget) return;
+  const {key,name}=_blockOpTarget;
+  const reason=document.getElementById('blkReason').value.trim();
+  const errEl=document.getElementById('blkErr');
+  const btn=document.getElementById('blkBtn');
+  const label=document.getElementById('blkLabel');
+  errEl.style.display='none';
+  if(!reason){errEl.textContent='Descreva o motivo da suspensão.';errEl.style.display='block';return;}
+  if(!fbOk){errEl.textContent='Firebase não conectado.';errEl.style.display='block';return;}
+  btn.disabled=true;label.textContent='Enviando...';
+
+  // Cria uma notificação bloqueante — o painel do operador (index.html) tem um listener
+  // em userNotifs/{key} que abre o modal de justificativa assim que houver uma pendente
+  // com blocked:true, justified:false e resolved:false.
+  const notifId='block_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+  const notif={
+    id:notifId, type:'bloqueio', typeLabel:'Acesso suspenso pelo admin',
+    torneio:'', date:nowSP(), desc:reason,
+    sentBy:_email, sentAt:Date.now(),
+    seen:false, justified:false, resolved:false, blocked:true,
+  };
+  try{
+    await db.ref(`userNotifs/${key}/${notifId}`).set(notif);
+    await db.ref(`users/${key}/pendingNotif`).set({notifId, since:Date.now()});
+    closeMo('moBlockOp');
+    toast(`✓ ${name} suspenso — aguardando justificativa`,'ok');
+    writeAdminLog('bloquear', {operador:name, motivo:reason});
+    loadOps();
+    loadPendingNotifs();
+  }catch(e){
+    errEl.textContent='Erro: '+e.message;errEl.style.display='block';
+  }finally{
+    btn.disabled=false;label.textContent='Suspender e notificar';
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -2460,7 +2538,7 @@ async function openJustifs(){
 }
 
 async function resolveNotif(opKey,nid){
-  if(!confirm('Marcar como resolvido e liberar o operador?'))return;
+  if(!await confirmModal({title:'Resolver notificação',message:'Marcar como resolvido e liberar o operador?',confirmLabel:'Resolver'}))return;
   try {
     await db.ref(`userNotifs/${opKey}/${nid}/resolved`).set(true);
     await db.ref(`users/${opKey}/pendingNotif`).remove();
@@ -2664,12 +2742,6 @@ function enrichWithAudit(rows){
 /* ── EXPORTS ─────────────────────────────────────────────────── */
 function exportAuditXlsx(){
   if(!_auditRows.length){toast('Carregue os dados primeiro','err');return;}
-  const DAY_START=5*60;
-  const sortTime=arr=>[...arr].sort((a,b)=>{
-    const ma=timeMin(a.hora)??9999,mb=timeMin(b.hora)??9999;
-    return (ma>=DAY_START?ma:ma+1440)-(mb>=DAY_START?mb:mb+1440);
-  });
-
   const byDate={};
   _auditRows.forEach(r=>{if(!byDate[r.date])byDate[r.date]=[];byDate[r.date].push(r);});
   const wb=XLSX.utils.book_new();
@@ -2683,9 +2755,9 @@ function exportAuditXlsx(){
     aoa.push([]);
 
     const groups=[
-      {cat:'main',rows:sortTime(dayRows.filter(r=>r.cat==='main'))},
-      {cat:'side',rows:sortTime(dayRows.filter(r=>r.cat==='side'))},
-      {cat:'sat', rows:sortTime(dayRows.filter(r=>r.cat==='sat'))},
+      {cat:'main',rows:sortByTime(dayRows.filter(r=>r.cat==='main'))},
+      {cat:'side',rows:sortByTime(dayRows.filter(r=>r.cat==='side'))},
+      {cat:'sat', rows:sortByTime(dayRows.filter(r=>r.cat==='sat'))},
     ].filter(g=>g.rows.length);
 
     const totalsByGroup={};
@@ -2699,9 +2771,9 @@ function exportAuditXlsx(){
       g.rows.forEach(r=>{
         const drRow=aoa.length;
         const ov=r.overlay??'',perf=r.perf??'';
-        aoa.push([r.nome,r.hora,r.late,r.cat==='main'?'Main Event':r.cat==='side'?'Side Event':'Satélite',
+        aoa.push([r.nome,r.hora,r.late,catLabel(r.cat),
           r.garantido??'',r.buyin??'',r.premiacao??'',ov,'',r.field??'',perf,
-          r.fixBy||r.idBy||'',r.id,r.status==='fechado'?'Fechado':r.status==='nf'?'Não formou':'Aberto']);
+          r.fixBy||r.idBy||'',r.id,statusLabel(r.status)]);
         cnt++;if(r.garantido)sg+=r.garantido;if(r.premiacao)sp+=r.premiacao;if(r.overlay)so+=r.overlay;
         if(r.status==='nf')for(let c=0;c<14;c++)styleMap[XLSX.utils.encode_cell({r:drRow,c})]={font:{color:{rgb:'888888'},italic:true},fill:{fgColor:{rgb:'F5F5F5'}}};
         else if(r.overlay<0)styleMap[XLSX.utils.encode_cell({r:drRow,c:7})]={font:{bold:true,color:{rgb:'C62828'}}};
@@ -2766,9 +2838,9 @@ function exportFixXlsx(){
   if(!_fixRows.length){toast('Carregue os dados primeiro','err');return;}
   const aoa=[['Data','Hora Fixação','Operador','Torneio','Categoria','Garantido','Premiação','Perf%','Status']];
   _fixRows.forEach(r=>aoa.push([fmtDate(r.date),r.fixAt||'',r.fixBy||r.idBy||'',r.nome,
-    r.cat==='main'?'Main Event':r.cat==='side'?'Side Event':'Satélite',
+    catLabel(r.cat),
     r.garantido||'',r.premiacao||'',r.perf!=null?r.perf/100:'',
-    r.status==='fechado'?'Fechado':r.status==='nf'?'Não formou':'Aberto']));
+    statusLabel(r.status)]));
   const ws=XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols']=[12,10,16,36,14,12,12,8,10].map(w=>({wch:w}));
   const wb=XLSX.utils.book_new();
@@ -2780,7 +2852,7 @@ function exportFixXlsx(){
 function exportGradeXlsx(){
   if(!_gradeRows.length){toast('Carregue os dados','err');return;}
   const aoa=[['Torneio','Categoria','Rodadas','GTD Médio','Pool Médio','Perf%','Overlay Total']];
-  _gradeRows.forEach(r=>aoa.push([r.nome,r.cat==='main'?'Main Event':r.cat==='side'?'Side Event':'Satélite',
+  _gradeRows.forEach(r=>aoa.push([r.nome,catLabel(r.cat),
     r.runs,r.avgGar,r.avgPrem,r.avgPerf!=null?r.avgPerf/100:'',r.ov||'']));
   const ws=XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols']=[36,14,8,12,12,8,12].map(w=>({wch:w}));
@@ -2858,7 +2930,7 @@ async function exportMonthXlsx(){
 
 // ── EXPORT TUDO ──
 async function exportAllTimeXlsx(){
-  if(!confirm('Isso vai exportar TODOS os dados históricos em um XLSX. Pode demorar alguns segundos. Continuar?')) return;
+  if(!await confirmModal({title:'Exportar tudo',message:'Isso vai exportar <b>TODOS</b> os dados históricos em um XLSX. Pode demorar alguns segundos. Continuar?',confirmLabel:'Exportar'})) return;
   const status = document.getElementById('bkMonthStatus');
   status.textContent = 'Gerando arquivo completo...';
 
@@ -2895,18 +2967,12 @@ function buildDaySheet(date){
   const rows = Object.values(day.rows||{}).filter(r=>r&&r.nome);
   if(!rows.length) return null;
 
-  const DAY_START = 5*60;
-  const sortTime = arr => [...arr].sort((a,b)=>{
-    const ma=timeMin(a.hora)??9999, mb=timeMin(b.hora)??9999;
-    return (ma>=DAY_START?ma:ma+1440)-(mb>=DAY_START?mb:mb+1440);
-  });
-
   const dateLabel = fmtDate(date);
   const aoa = [[`ACOMPANHAMENTO — ${dateLabel}`],[]];
   const groups = [
-    {cat:'main', rows:sortTime(rows.filter(r=>classify(r)==='main'))},
-    {cat:'side', rows:sortTime(rows.filter(r=>classify(r)==='side'))},
-    {cat:'sat',  rows:sortTime(rows.filter(r=>classify(r)==='sat'))},
+    {cat:'main', rows:sortByTime(rows.filter(r=>classify(r)==='main'))},
+    {cat:'side', rows:sortByTime(rows.filter(r=>classify(r)==='side'))},
+    {cat:'sat',  rows:sortByTime(rows.filter(r=>classify(r)==='sat'))},
   ].filter(g=>g.rows.length);
 
   groups.forEach(g=>{
@@ -3123,6 +3189,24 @@ function timeMin(h){
 
 function closeMo(id){document.getElementById(id).classList.remove('open');}
 
+/* Confirmação com a UI do painel (substitui confirm() nativo). Retorna Promise<boolean>. */
+function confirmModal({title='Confirmar', message='', confirmLabel='Confirmar', danger=false}={}){
+  return new Promise(resolve=>{
+    const mo=document.getElementById('moConfirm');
+    document.getElementById('cfTitle').textContent=title;
+    document.getElementById('cfMsg').innerHTML=message;
+    const ok=document.getElementById('cfOk');
+    const cancel=document.getElementById('cfCancel');
+    ok.textContent=confirmLabel;
+    ok.className='btn '+(danger?'btn-red':'btn-gold');
+    ok.style.cssText='flex:1;justify-content:center';
+    const done=val=>{ mo.classList.remove('open'); ok.onclick=null; cancel.onclick=null; resolve(val); };
+    ok.onclick=()=>done(true);
+    cancel.onclick=()=>done(false);
+    mo.classList.add('open');
+  });
+}
+
 /* ── 10. Filtro só anomalias ── */
 let _soAnomalia = false;
 function toggleSoAnomalia(){
@@ -3148,7 +3232,7 @@ function toggleSoAnomalia(){
 async function batchNotifyAnomalias(){
   const anomalas = [...document.querySelectorAll('#auditResult tr.anomalia')];
   if(!anomalas.length){ toast('Nenhuma anomalia detectada no período.','err'); return; }
-  if(!confirm(`Notificar os operadores responsáveis por ${anomalas.length} anomalia(s)? Isso enviará uma notificação individual para cada um.`)) return;
+  if(!await confirmModal({title:'Notificar anomalias',message:`Notificar os operadores responsáveis por <b>${anomalas.length}</b> anomalia(s)? Isso enviará uma notificação individual para cada um.`,confirmLabel:'Notificar'})) return;
 
   let sent = 0;
   for(const tr of anomalas){
@@ -3315,7 +3399,7 @@ function batchDeselect(){
 async function batchApprove(){
   const checks = [...document.querySelectorAll('.row-check:checked')];
   if(!checks.length) return;
-  if(!confirm(`Aprovar ${checks.length} torneio${checks.length>1?'s':''} sem correção?`)) return;
+  if(!await confirmModal({title:'Aprovar em lote',message:`Aprovar <b>${checks.length}</b> torneio${checks.length>1?'s':''} sem correção?`,confirmLabel:'Aprovar'})) return;
 
   const bar = document.getElementById('batchActions');
   if(bar) bar.innerHTML = '<span style="font-size:11px;color:var(--ink3)">Salvando...</span>';
@@ -3397,15 +3481,16 @@ async function openOpRanking(){
     if(r.status==='aberto') byOp[op].semPrem++;
   });
 
-  // Contar notificações por operador
+  // Contar notificações por operador — casa a chave de e-mail com o nome de exibição
+  // via _allUsers (evita o match frágil por substring do nome anterior).
   try{
     const snap = await db.ref('userNotifs').once('value');
     const all = snap.val()||{};
     Object.entries(all).forEach(([emailKey, notifs])=>{
+      const u = _allUsers[emailKey]||{};
+      const name = u.apelido||u.nome||'';
       const count = Object.keys(notifs||{}).length;
-      Object.values(byOp).forEach(op=>{
-        if(emailKey.includes(op.op.replace(/\s/g,'').toLowerCase())) op.notifs += count;
-      });
+      if(name && byOp[name]) byOp[name].notifs += count;
     });
   }catch(e){}
 
@@ -3505,7 +3590,7 @@ function buildMonthProjection(){
       </div>
       <div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:9px">
         <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px">Projeção do mês</div>
-        <div style="font-size:18px;font-weight:800;font-family:var(--mono);color:var(--felt-bright)">${brlk(projPrem)}</div>
+        <div style="font-size:18px;font-weight:800;font-family:var(--mono);color:var(--gold)">${brlk(projPrem)}</div>
         <div style="font-size:10px;color:var(--ink3)">+${daysLeft} dias restantes</div>
       </div>
       <div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:9px">
