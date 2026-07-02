@@ -1254,6 +1254,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
     <div class="audit-modal-grid">
       <div class="audit-val-orig"><span>Premiação original</span><strong id="auditOrigPrem">—</strong></div>
       <div class="audit-val-orig"><span>Field original</span><strong id="auditOrigField">—</strong></div>
+      <div class="audit-val-orig"><span>Garantido original</span><strong id="auditOrigGar">—</strong></div>
     </div>
 
     <div class="mf">
@@ -1263,6 +1264,10 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
     <div class="mf">
       <label>Field corrigido (jogadores)</label>
       <input type="number" id="auditFieldInput" placeholder="—" step="1" min="0">
+    </div>
+    <div class="mf">
+      <label>Garantido corrigido (R$)</label>
+      <input type="number" id="auditGarInput" placeholder="—" step="0.01" min="0">
     </div>
     <div class="mf">
       <label>Observação</label>
@@ -2498,7 +2503,7 @@ function openAuditEditByEl(btn){
   // Encontrar o row completo em _auditRows
   const r = _auditRows.find(r=>r.key===key&&r.date===date);
   if(!r){ toast('Dado não encontrado','err'); return; }
-  openAuditEdit({key:r.key,date:r.date,nome:r.nome,premiacao:r.premiacao,field:r.field,hora:r.hora});
+  openAuditEdit({key:r.key,date:r.date,nome:r.nome,premiacao:r.premiacao,field:r.field,garantido:r.garantido,hora:r.hora});
 }
 
 function openNotifByEl(btn){
@@ -2523,12 +2528,16 @@ function openAuditEdit(ctx){
     _auditContext.premiacao != null ? 'R$ '+brl(_auditContext.premiacao) : '—';
   document.getElementById('auditOrigField').textContent =
     _auditContext.field != null ? _auditContext.field+' jog.' : '—';
+  document.getElementById('auditOrigGar').textContent =
+    _auditContext.garantido != null ? 'R$ '+brl(_auditContext.garantido) : '—';
 
   // Preencher com valor já auditado (se existir) ou original
   document.getElementById('auditPremInput').value =
     audit?.premiacaoAuditada ?? _auditContext.premiacao ?? '';
   document.getElementById('auditFieldInput').value =
     audit?.fieldAuditado ?? _auditContext.field ?? '';
+  document.getElementById('auditGarInput').value =
+    audit?.garantidoAuditado ?? _auditContext.garantido ?? '';
   document.getElementById('auditObs').value = audit?.obs || '';
   document.getElementById('auditApproved').checked = audit?.status === 'aprovado';
 
@@ -2545,20 +2554,25 @@ async function saveAudit(){
   const errEl = document.getElementById('auditErr');
   const premRaw  = document.getElementById('auditPremInput').value.trim();
   const fieldRaw = document.getElementById('auditFieldInput').value.trim();
+  const garRaw   = document.getElementById('auditGarInput').value.trim();
   const obs      = document.getElementById('auditObs').value.trim();
   const approved = document.getElementById('auditApproved').checked;
 
   errEl.style.display = 'none';
-  if(!premRaw && !fieldRaw && !approved){
+  if(!premRaw && !fieldRaw && !garRaw && !approved){
     errEl.textContent = 'Preencha ao menos um valor ou marque como aprovado.';
     errEl.style.display = 'block'; return;
   }
 
   const prem  = premRaw  ? parseFloat(premRaw)  : null;
   const field = fieldRaw ? parseInt(fieldRaw,10) : null;
+  const gar   = garRaw   ? parseFloat(garRaw)   : null;
 
   if(premRaw && isNaN(prem)){
     errEl.textContent = 'Premiação inválida.'; errEl.style.display='block'; return;
+  }
+  if(garRaw && isNaN(gar)){
+    errEl.textContent = 'Garantido inválido.'; errEl.style.display='block'; return;
   }
 
   btn.textContent = 'Salvando...';
@@ -2566,8 +2580,10 @@ async function saveAudit(){
   const entry = {
     premiacaoOriginal: _auditContext.premiacao ?? null,
     fieldOriginal:     _auditContext.field ?? null,
+    garantidoOriginal: _auditContext.garantido ?? null,
     premiacaoAuditada: approved ? (_auditContext.premiacao ?? null) : (prem ?? null),
     fieldAuditado:     approved ? (_auditContext.field ?? null) : (field ?? null),
+    garantidoAuditado: approved ? (_auditContext.garantido ?? null) : (gar ?? null),
     status:    approved ? 'aprovado' : 'corrigido',
     obs:       obs || null,
     auditadoEm:   Date.now(),
@@ -2584,6 +2600,7 @@ async function saveAudit(){
       const basePath = `painel/${_auditContext.date}`;
       if(prem != null)  await db.ref(`${basePath}/premiacao/${_auditContext.key}`).set(prem);
       if(field != null) await db.ref(`${basePath}/field/${_auditContext.key}`).set(field);
+      if(gar != null)   await db.ref(`${basePath}/garantido/${_auditContext.key}`).set(gar);
     }
 
     // Atualizar cache local
@@ -2597,6 +2614,7 @@ async function saveAudit(){
         if(!approved){
           if(prem != null)  r.premiacao = prem;
           if(field != null) r.field = field;
+          if(gar != null)   r.garantido = gar;
           // Recalcular overlay/perf
           if(r.premiacao != null && r.garantido != null){
             r.overlay = r.premiacao - r.garantido < 0 ? r.premiacao - r.garantido : null;
@@ -2613,6 +2631,7 @@ async function saveAudit(){
       torneio: _auditContext.nome, date: _auditContext.date,
       premOriginal: _auditContext.premiacao, premNova: approved?null:prem,
       fieldOriginal: _auditContext.field, fieldNovo: approved?null:field,
+      garOriginal: _auditContext.garantido, garNovo: approved?null:gar,
       obs,
     });
     // Re-renderizar a auditoria para mostrar badge

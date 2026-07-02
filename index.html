@@ -3657,7 +3657,9 @@ const FIELD_STORE_KEY            = 'suprema_field_v1';
 const GARANTIDO_STORE_KEY        = 'suprema_garantido_v1';
 const CHECKLIST_STORE_KEY        = 'suprema_checklist_v1';
 const CONFHOJE_STORE_KEY         = 'suprema_confhoje_v1';
-const FB_RETENTION_DAYS          = 14;
+const FB_RETENTION_DAYS          = 45; // fechamento semanal + auditoria da diretoria acontecem em cima
+                                        // dos nós painel/<data> — 14 dias dava margem apertada se um
+                                        // fechamento atrasasse; 45 cobre folgado um ciclo mensal inteiro
 const SHIFT_REPORT_STORE_KEY     = 'suprema_shift_report_v1';
 // Maps (inicializados com Object.assign após as funções de storage estarem prontas)
 let FIXED_MAP                    = {};
