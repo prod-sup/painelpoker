@@ -756,6 +756,19 @@
     display:none;
   }
   @media (min-width:980px){ .hero-cards{ display:block; } }
+  /* vídeo decorativo do herói: escondido até carregar de fato; quando aparece, as cartas SVG somem */
+  .hero-video{
+    position:absolute; inset:0; width:100%; height:100%;
+    object-fit:contain; border-radius:16px;
+    opacity:0; transition:opacity .6s var(--ease); pointer-events:none; z-index:4;
+  }
+  .hero-cards.has-video .hero-video{ opacity:1; }
+  .hero-cards.has-video .hcard{ opacity:0 !important; animation:none !important; }
+  /* com "reduzir movimento" ativo, as animações são zeradas e a flutuação reverte a opacidade das
+     cartas pra 0 — sem isto elas sumiriam pra quem usa essa acessibilidade. Mantém visíveis. */
+  @media (prefers-reduced-motion: reduce){
+    .hero-cards:not(.has-video) .hcard{ opacity:1 !important; }
+  }
   .hcard{
     position:absolute; top:50%; left:50%; width:128px; height:auto;
     border-radius:14px; filter:drop-shadow(0 18px 34px rgba(12,30,22,0.16));
@@ -3392,7 +3405,10 @@
     <h1 class="hero-title">Um dia inteiro<br>de <em>torneios</em>,<br>em um só lugar.</h1>
     <p class="hero-sub" id="heroSub">Use o botão <b>Global MTT</b> para carregar a agenda do dia.</p>
 
-    <div class="hero-cards" aria-hidden="true">
+    <div class="hero-cards" id="heroCards" aria-hidden="true">
+      <!-- Vídeo decorativo opcional (gerado no DaVinci, salvo como hero.mp4 na mesma pasta).
+           Se o arquivo existir e carregar, substitui as cartas SVG; se não, as cartas continuam. -->
+      <video class="hero-video" id="heroVideo" muted loop playsinline preload="auto" aria-hidden="true"></video>
       <svg class="hcard hcard-1" viewBox="0 0 120 168">
         <rect x="3" y="3" width="114" height="162" rx="14" fill="#fff" stroke="var(--main)" stroke-width="2"/>
         <rect x="8" y="8" width="104" height="152" rx="10" fill="none" stroke="var(--main)" stroke-width="1" opacity="0.18"/>
@@ -4004,6 +4020,21 @@ const fmtCompact = (v) => {
   if (Math.abs(v) >= 1000) return "R$ " + (v/1000).toFixed(0) + "K";
   return "R$ " + fmtBRL(v);
 };
+
+/* vídeo decorativo do herói: tenta carregar hero.mp4 da mesma pasta. Se o arquivo existir e
+   carregar, mostra e esconde as cartas SVG; se não existir (404) ou falhar, as cartas continuam.
+   Robusto offline: erro no vídeo nunca quebra o painel. */
+(function initHeroVideo(){
+  const video = document.getElementById('heroVideo');
+  const wrap  = document.getElementById('heroCards');
+  if(!video || !wrap) return;
+  video.addEventListener('loadeddata', () => {
+    wrap.classList.add('has-video');
+    video.play().catch(() => {}); // autoplay mudo é permitido; se bloquear, sem problema
+  }, {once:true});
+  video.addEventListener('error', () => { wrap.classList.remove('has-video'); }, {once:true});
+  video.src = 'hero.mp4'; // troque a extensão aqui se exportar como .webm
+})();
 
 /* respeita a preferência do sistema por menos movimento — usada pelas animações feitas em JS
    (as feitas em CSS já são neutralizadas pelo bloco global @media prefers-reduced-motion) */
