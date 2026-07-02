@@ -3696,6 +3696,7 @@ let CONFHOJE_ITEMS               = [];
 let CONFHOJE_META                = null; // diagnóstico da última leitura (linhas lidas, sem horário, duplicados) — pra avisar o operador sem depender só do toast
 let CONFHOJE_SEARCH              = '';   // busca rápida dentro do checklist de hoje
 let CONFHOJE_HIDE_DONE           = false; // true = esconde os já conferidos, sobrando só o que falta
+let ROLLOVER_HELD_TOAST          = false; // aviso único de "virada segurada esperando o último card" (declarado aqui em cima pra não cair em TDZ como o _opFilter)
 let LAST_CONF_AMANHA_            = null;
 let _opFilter                    = 'all'; // 'all' | 'me' | 'partner' — movido pra cá (era declarado só perto do fim do arquivo) porque
                                            // renderUpcoming() usa essa variável e pode rodar durante a restauração do sheet local,
@@ -4321,13 +4322,41 @@ document.getElementById('fileInputGlobal').addEventListener('change', async (e) 
       label.textContent = 'Carregar Global MTT'; btnEl.disabled = false;
       e.target.value = ''; return;
     }
-    const rows = globalSectionToRows(section);
+    // próximo dia da grade: a madrugada de HOJE (00:00–02:00) vive na seção de amanhã da Global —
+    // esses eventos entram no quadro atual pra serem fixados com antecedência (late register)
+    const nextWeekdayPt = WEEKDAYS_PT[(WEEKDAYS_PT.indexOf(weekdayPt) + 1) % 7];
+    const nextSection = extractGlobalDaySection(matrix, nextWeekdayPt, 1);
+    const rows = globalSectionToRows(section, nextSection);
     if (!rows.length){
       showToast('Nenhum torneio extraído da Global.', true);
       label.textContent = 'Carregar Global MTT'; btnEl.disabled = false;
       e.target.value = ''; return;
     }
+    // GUARDA DE VIRADA: se a grade já virou (05:30+) e ainda existem cards em aberto do cronograma
+    // atual, subir uma Global nova trocaria o quadro no meio do trabalho — confirmar antes.
+    // Confirmando, o dia vira ANTES da ingestão: a Global nova nasce no nó do dia novo e os dados
+    // do dia antigo ficam intactos no nó deles — cronogramas nunca se misturam.
+    if (todayPathSP() !== LAST_KNOWN_DATE){
+      const relevant = RAW_ROWS.filter(r => mustFix(r, classify(r)));
+      const pendentes = relevant.filter(r => !isFixed(r._key)).length;
+      if (pendentes > 0){
+        const ok = window.confirm(
+          `O dia mudou e a Global deve ser atualizada, mas ainda existem ${pendentes} card(s) EM ABERTO do cronograma atual.\n\n` +
+          `Deseja realmente trocar?\n\n` +
+          `• OK — o painel vira para o novo dia agora. Tudo que já foi preenchido fica salvo no dia dele.\n` +
+          `• Cancelar — continue preenchendo os cards e suba a Global depois que fechar o último.`
+        );
+        if (!ok){
+          label.textContent = 'Carregar Global MTT'; btnEl.disabled = false;
+          e.target.value = ''; return;
+        }
+      }
+      ROLLOVER_HELD_TOAST = false;
+      LAST_KNOWN_DATE = todayPathSP();
+      resetDay(); // salva snapshot do dia antigo, limpa o quadro e aponta o Firebase pro dia novo
+    }
     finishUpload(rows, `Global MTT — ${weekdayPt} (${file.name})`);
+    document.getElementById('globalUpdatePrompt')?.remove(); // prompt de "atualize a Global" cumprido
     markGlobalUploaded();
     setGlobalBtnUploaded();
     showToast(`✓ Global carregada — ${rows.length} torneios de ${weekdayPt}`);
@@ -4346,10 +4375,15 @@ document.getElementById('fileInputGlobal').addEventListener('change', async (e) 
 // Restaurar visual do botão se já foi carregada neste turno
 if(wasGlobalUploadedToday()) setGlobalBtnUploaded();
 
-/* Converte a section {main, side, sat} da Global para o formato de row do painel */
-function globalSectionToRows(section){
+/* Converte a section {main, side, sat} da Global para o formato de row do painel.
+   IMPORTANTE (não misturar cronogramas): na Global, a madrugada de HOJE (00:00–05:30) vive no
+   TOPO da seção de AMANHÃ — as linhas de madrugada da seção de hoje são do cronograma de ontem.
+   Por isso: da seção de hoje entram só os horários 05:31+, e a madrugada até 02:00 vem da seção
+   de amanhã (nextSection), marcada com proxCronograma pra ganhar badge no card. Assim os eventos
+   com late register já aparecem pra fixar enquanto o cronograma atual termina. */
+function globalSectionToRows(section, nextSection){
   const rows = [];
-  const toRow = (it, tipo) => ({
+  const toRow = (it, tipo, proxCronograma) => ({
     nome:      it.nome,
     hora:      it.hora,
     garantido: it.garantido ?? null,
@@ -4358,10 +4392,23 @@ function globalSectionToRows(section){
     premiacao: null,
     tipo:      tipo,
     explicitNF: false,
+    proxCronograma: !!proxCronograma,
   });
-  section.main.forEach(it => rows.push(toRow(it, 'Main Event')));
-  section.side.forEach(it => rows.push(toRow(it, 'Side Event')));
-  section.sat.forEach(it  => rows.push(toRow(it, 'SAT')));
+  const MADRUGADA_END = 5*60 + 30;      // 05:30 — fim da grade do dia (mesma janela da Conferência)
+  const isDayCore  = it => { const m = timeToMinutes(it.hora); return m !== null && m > MADRUGADA_END; };
+  const isProxMadrugada = it => { const m = timeToMinutes(it.hora); return m !== null && m <= MADRUGADA_END; };
+  // seção de hoje: só o corpo do dia (05:31+); o topo de madrugada dela é do cronograma de ontem
+  section.main.filter(isDayCore).forEach(it => rows.push(toRow(it, 'Main Event')));
+  section.side.filter(isDayCore).forEach(it => rows.push(toRow(it, 'Side Event')));
+  section.sat.filter(isDayCore).forEach(it  => rows.push(toRow(it, 'SAT')));
+  // seção de amanhã: a madrugada COMPLETA de hoje (00:00–05:30) — o pedido era "até as 02:00",
+  // mas cortar ali deixaria os eventos de 02:00–05:30 desta noite sem card em quadro nenhum
+  // (o quadro do dia seguinte cobre só a madrugada seguinte). Todos entram já fixáveis, com badge.
+  if (nextSection){
+    nextSection.main.filter(isProxMadrugada).forEach(it => rows.push(toRow(it, 'Main Event', true)));
+    nextSection.side.filter(isProxMadrugada).forEach(it => rows.push(toRow(it, 'Side Event', true)));
+    nextSection.sat.filter(isProxMadrugada).forEach(it  => rows.push(toRow(it, 'SAT', true)));
+  }
   // ordena por horário, mesmo critério do painel (05:00 = começo do "dia")
   const DAY_START = 5 * 60;
   rows.sort((a, b) => {
@@ -5677,6 +5724,47 @@ function setSyncBadge(state){
     banner.classList.remove('show');
   }
 }
+/* listener da planilha compartilhada — extraído pra função porque precisa ser RE-registrado
+   sempre que FB_BASE_PATH muda (virada de dia, restauração de dia segurado): antes ele era
+   registrado uma única vez no carregamento e ficava preso no nó do dia antigo, então depois
+   da virada a aba do parceiro nunca recebia a Global nova sem recarregar a página */
+let SHEET_LISTENER_PATH = null; // path onde o listener está registrado agora, pra poder desligar
+function registerSheetListener(){
+  if(!fbReady || !fbDb) return;
+  if(SHEET_LISTENER_PATH) fbDb.ref(`${SHEET_LISTENER_PATH}/sheet`).off();
+  SHEET_LISTENER_PATH = FB_BASE_PATH;
+  fbDb.ref(`${FB_BASE_PATH}/sheet`).on('value', snap => {
+    const data = snap.val();
+    if(!data || !Array.isArray(data.rows) || !data.rows.length) return;
+    const sig = `${data.uploadedAt}|${data.rows.length}`;
+    if(sig === LAST_APPLIED_SHEET_SIGNATURE) return; // já temos essa versão
+    LAST_APPLIED_SHEET_SIGNATURE = sig;
+    if(data.uploadedAt) window.SHEET_UPLOAD_DATE = new Date(data.uploadedAt)
+      .toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
+    // Backup das premiações antes de recarregar a sheet
+    const premBackup = {};
+    RAW_ROWS.forEach(r => { if(r.premiacao != null) premBackup[r._key] = r.premiacao; });
+    ingest(data.rows, data.filename || '', true);
+    // Restaurar premiações após ingest (não perder dados já preenchidos)
+    let premChanged = false;
+    RAW_ROWS.forEach(r => {
+      if(premBackup[r._key] != null && r.premiacao == null){
+        r.premiacao = premBackup[r._key]; premChanged = true;
+      }
+    });
+    if(premChanged){
+      RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
+      UPCOMING = [...RAW_ROWS];
+      renderResults();
+      if(!isTypingInCard() && !window._suppressRenderUpcoming) renderUpcoming();
+    }
+    // Só avisa se foi outra pessoa que enviou (não a própria sessão)
+    if(!MY_LAST_UPLOAD_AT || Math.abs(data.uploadedAt - MY_LAST_UPLOAD_AT) > 15000){
+      showToast(`Planilha "${data.filename || 'Global'}" recebida (${data.rows.length} torneios)`);
+    }
+  });
+}
+
 function initFirebaseSync(){
   try{
     if(typeof firebase === 'undefined'){ setSyncBadge('offline'); return; }
@@ -5705,36 +5793,7 @@ function initFirebaseSync(){
     setTimeout(() => { if(!_connected) setSyncBadge('offline'); }, 15000);
 
     // ── Sheet (planilha compartilhada) ───────────────────────────────────
-    fbDb.ref(`${FB_BASE_PATH}/sheet`).on('value', snap => {
-      const data = snap.val();
-      if(!data || !Array.isArray(data.rows) || !data.rows.length) return;
-      const sig = `${data.uploadedAt}|${data.rows.length}`;
-      if(sig === LAST_APPLIED_SHEET_SIGNATURE) return; // já temos essa versão
-      LAST_APPLIED_SHEET_SIGNATURE = sig;
-      if(data.uploadedAt) window.SHEET_UPLOAD_DATE = new Date(data.uploadedAt)
-        .toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
-      // Backup das premiações antes de recarregar a sheet
-      const premBackup = {};
-      RAW_ROWS.forEach(r => { if(r.premiacao != null) premBackup[r._key] = r.premiacao; });
-      ingest(data.rows, data.filename || '', true);
-      // Restaurar premiações após ingest (não perder dados já preenchidos)
-      let premChanged = false;
-      RAW_ROWS.forEach(r => {
-        if(premBackup[r._key] != null && r.premiacao == null){
-          r.premiacao = premBackup[r._key]; premChanged = true;
-        }
-      });
-      if(premChanged){
-        RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
-        UPCOMING = [...RAW_ROWS];
-        renderResults();
-        if(!isTypingInCard() && !window._suppressRenderUpcoming) renderUpcoming();
-      }
-      // Só avisa se foi outra pessoa que enviou (não a própria sessão)
-      if(!MY_LAST_UPLOAD_AT || Math.abs(data.uploadedAt - MY_LAST_UPLOAD_AT) > 15000){
-        showToast(`Planilha "${data.filename || 'Global'}" recebida (${data.rows.length} torneios)`);
-      }
-    });
+    registerSheetListener();
 
     // ── Premiação ─────────────────────────────────────────────────────────
     fbDb.ref(`${FB_BASE_PATH}/premiacao`).on('value', snap => {
@@ -6378,7 +6437,52 @@ function setSharedSheet(rows, filename){
 })();
 
 initFirebaseSync();
+detectHeldDayOnLoad(); // recarregou a página com o dia anterior ainda incompleto? volta pro quadro segurado
 setTimeout(loadHistorico, 3000);
+
+/* dia operacional ANTERIOR (todayPathSP - 1), pro caso de restaurar um dia segurado após reload */
+function yesterdayPathSP(){
+  const [y, m, d] = todayPathSP().split('-').map(Number);
+  const ref = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  ref.setUTCDate(ref.getUTCDate() - 1);
+  return `${ref.getUTCFullYear()}-${String(ref.getUTCMonth() + 1).padStart(2, '0')}-${String(ref.getUTCDate()).padStart(2, '0')}`;
+}
+
+/* A "virada segurada" (não trocar de dia enquanto o último card não for preenchido) precisa
+   sobreviver a recarregamento de página: sem isso, um F5 depois das 05:30 iniciava a aba direto
+   no dia novo e o quadro pendente de ontem sumia da tela (os dados ficavam no Firebase, mas
+   invisíveis pra operação). Aqui, no carregamento: se o dia anterior tem planilha com cards
+   obrigatórios ainda não fixados E o dia novo ainda não tem planilha própria, o painel volta
+   a apontar pro dia anterior — e a troca acontece pelo fluxo normal quando o último card fechar. */
+async function detectHeldDayOnLoad(){
+  if (!fbReady || !fbDb) return;
+  try{
+    const ontem = yesterdayPathSP();
+    const [sheetSnap, fixedSnap] = await Promise.all([
+      fbDb.ref(`painel/${ontem}/sheet`).once('value'),
+      fbDb.ref(`painel/${ontem}/fixed`).once('value'),
+    ]);
+    const sheet = sheetSnap.val();
+    if (!sheet || !Array.isArray(sheet.rows) || !sheet.rows.length) return; // ontem não teve quadro
+    const fixed = fixedSnap.val() || {};
+    const pendentes = sheet.rows.filter(r => {
+      try{ return mustFix(r, classify(r)) && !fixed[rowKey(r)]; }catch(e){ return false; }
+    });
+    if (!pendentes.length) return; // ontem fechou completo — dia novo segue normal
+    // se o dia novo JÁ tem planilha própria, alguém já virou e subiu a Global — não voltar atrás
+    const todaySnap = await fbDb.ref(`${FB_BASE_PATH}/sheet`).once('value');
+    const todaySheet = todaySnap.val();
+    if (todaySheet && Array.isArray(todaySheet.rows) && todaySheet.rows.length) return;
+    // restaurar o dia segurado: mesmo mecanismo comprovado do resetDay, na direção oposta
+    FB_BASE_PATH = `painel/${ontem}`;
+    LAST_KNOWN_DATE = ontem;
+    LAST_APPLIED_SHEET_SIGNATURE = null; // força o listener a re-aplicar a sheet de ontem
+    ROLLOVER_HELD_TOAST = true;          // já avisamos aqui, checkStaleness não precisa repetir
+    registerSheetListener();
+    reinitDayListeners();
+    showToast(`🕐 Quadro de ${ontem} restaurado — faltam ${pendentes.length} card(s) pra fechar o dia. O painel vira quando o último for preenchido.`);
+  }catch(e){ console.error('Erro ao detectar dia segurado:', e); }
+}
 
 // 13/14. Registrar Service Worker (PWA + modo offline)
 if('serviceWorker' in navigator){
@@ -6524,10 +6628,46 @@ function updateProgress(){
     void countEl.offsetWidth; // força reflow pra poder reiniciar a animação mesmo se já estava rodando
     countEl.classList.add('pop');
   }
+  const wasIncomplete = LAST_PROGRESS_DONE !== null && LAST_PROGRESS_DONE < total;
   LAST_PROGRESS_DONE = done;
   const fill = document.getElementById('progressFill');
   fill.style.width = `${pct}%`;
   fill.classList.toggle('complete', done === total);
+  // último card acabou de ser fixado (nesta aba ou pelo parceiro, via sync do Firebase):
+  if (done === total && wasIncomplete){
+    if (todayPathSP() !== LAST_KNOWN_DATE){
+      // a grade já virou (05:30+) e a troca de dia estava SEGURADA esperando este card —
+      // agora sim vira o painel pro novo dia (pausa curta pro operador ver o 100%)
+      showToast('✅ Último card preenchido — virando o painel para o novo dia...');
+      ROLLOVER_HELD_TOAST = false;
+      setTimeout(() => checkStaleness(), 1200);
+    } else {
+      // antes das 05:30: só avisa pra subir a Global nova se já passou da meia-noite
+      maybeNotifyGlobalRefresh();
+    }
+  }
+}
+
+function maybeNotifyGlobalRefresh(){
+  const n = nowInSP();
+  const isMadrugada = n.hour < 5 || (n.hour === 5 && n.minute < 30); // mesmo corte de turno de sempre
+  if (!isMadrugada) return;
+  if (document.getElementById('globalRefreshBanner')) return; // já está na tela
+  showToast('🃏 Último card preenchido! Suba a Global do novo dia pra atualizar os cards.');
+  const bar = document.createElement('div');
+  bar.id = 'globalRefreshBanner';
+  bar.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:99999;background:var(--gold,#c08000);color:#000;padding:12px 20px;border-radius:99px;font-size:13px;font-weight:700;box-shadow:0 6px 24px rgba(0,0,0,.35);cursor:pointer;display:flex;gap:10px;align-items:center;max-width:90vw';
+  bar.innerHTML = '🃏 Último card preenchido e já passou das 00:00 — <u>clique aqui para subir a Global do novo dia</u> e atualizar os cards.<span id="globalRefreshDismiss" style="margin-left:6px;padding:2px 8px;border-radius:99px;background:rgba(0,0,0,.15);font-weight:800">✕</span>';
+  bar.addEventListener('click', () => {
+    bar.remove();
+    // abre direto o seletor de arquivo da Global — mesmo fluxo do botão "Global MTT" da nav
+    document.getElementById('fileInputGlobal')?.click();
+  });
+  bar.querySelector('#globalRefreshDismiss').addEventListener('click', (e) => {
+    e.stopPropagation(); // só dispensa, sem abrir o seletor de arquivo
+    bar.remove();
+  });
+  document.body.appendChild(bar);
 }
 
 /* progresso de resultados fechados: quantos dos torneios "relevantes" (mustFix — Main/Satélite/Side marcado)
@@ -6980,16 +7120,23 @@ function renderUpcoming(){
       if(isNF)  tr.classList.add('is-nf');
 
       const catTd   = '<td style="width:4px;padding:0"><span class="ctr-cat-bar" style="background:'+catColor+'"></span></td>';
-      const nomeTd  = '<td class="ctr-nome" title="'+escHtml(t.nome||'')+'">'+escHtml(t.nome||'\u2014')+'</td>';
+      const nomeTd  = '<td class="ctr-nome" title="'+escHtml(t.nome||'')+'">'+escHtml(t.nome||'\u2014')
+                    + (t.proxCronograma ? ' <span style="font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px;background:rgba(96,165,250,.14);color:#60a5fa;letter-spacing:.04em">PR\u00d3X. CRONOGRAMA</span>' : '')
+                    + '</td>';
       const horaTd  = '<td class="ctr-hora">'+(t.hora||'\u2014')+'</td>';
       const garTd   = '<td class="ctr-gar">'+(garVal!=null?'R$'+fmtBRL(garVal,0):'\u2014')+'</td>';
-      const premTd  = '<td style="padding:3px 5px"><input class="ctr-inp tcard-prem-input'+(premVal!=null?' has-value':'')+'"'
+      // card do pr\u00f3ximo cronograma: s\u00f3 fixa\u00e7\u00e3o \u2014 premia\u00e7\u00e3o/field pertencem ao quadro do dia seguinte
+      const soFixar = '<td style="padding:3px 5px;color:var(--ink-soft);font-size:11px;font-style:italic" title="Evento do pr\u00f3ximo cronograma \u2014 premia\u00e7\u00e3o e field entram no quadro do pr\u00f3ximo dia">s\u00f3 fixar</td>';
+      const premTd  = t.proxCronograma ? soFixar
+                    : '<td style="padding:3px 5px"><input class="ctr-inp tcard-prem-input'+(premVal!=null?' has-value':'')+'"'
                     + ' data-key="'+key+'" type="text" inputmode="decimal"'
                     + ' placeholder="R$ \u2014" value="'+premFmt+'"'
                     + ' oninput="onCardPremiacaoInput(this)"'
                     + ' onblur="formatPremInput(this)" onfocus="this.select()"></td>';
-      const ovTd    = '<td class="ctr-ov'+ovCls+'" id="tci-ov-'+key+'">'+ovTxt+'</td>';
-      const fieldTd = '<td style="padding:3px 5px"><input class="ctr-inp tcard-field-input"'
+      const ovTd    = t.proxCronograma ? '<td class="ctr-ov" id="tci-ov-'+key+'">\u2014</td>'
+                    : '<td class="ctr-ov'+ovCls+'" id="tci-ov-'+key+'">'+ovTxt+'</td>';
+      const fieldTd = t.proxCronograma ? '<td style="padding:3px 5px;color:var(--ink-soft)">\u2014</td>'
+                    : '<td style="padding:3px 5px"><input class="ctr-inp tcard-field-input"'
                     + ' data-key="'+key+'" type="number" min="0"'
                     + ' placeholder="\u2014" value="'+(fieldVal!=null?fieldVal:'')+'"></td>';
       const idTd    = '<td style="padding:3px 5px"><div style="display:flex;gap:4px;align-items:center">'
@@ -7051,7 +7198,7 @@ function renderUpcoming(){
       ${nfBannerHtml}
       <div class="tcard-top">
         <div>
-          <div class="tcard-name-row">${crownHtml}<div class="tcard-name">${t.nome}</div>${nfBadgeHtml}${buildHistTooltip(t.nome)}</div>
+          <div class="tcard-name-row">${crownHtml}<div class="tcard-name">${t.nome}</div>${nfBadgeHtml}${t.proxCronograma ? '<span class="tcard-campanha-badge" style="background:rgba(96,165,250,.14);color:#60a5fa" title="Evento da madrugada — pertence à seção do próximo dia na Global, fixar com antecedência (late register)">PRÓX. CRONOGRAMA</span>' : ''}${buildHistTooltip(t.nome)}</div>
           <span class="cat-tag ${cat}"><span class="cat-suit">${CAT_SUIT[cat]}</span>${CAT_LABEL[cat]}</span>
           ${runningHtml}${flagHtml}${notNeededHtml}
         </div>
@@ -7078,6 +7225,11 @@ function renderUpcoming(){
     ${showTimer ? `<span class="late-timer${diff<=5?' urgent':''}" data-latemin="${lateMin}"><span class="late-timer-icon">⏱</span> fecha em ${diff}min</span>` : ''}
   </div>`;
 })()}
+      ${t.proxCronograma ? `
+      <!-- Card do próximo cronograma: SÓ fixação — premiação/field pertencem ao dia seguinte
+           e serão preenchidos no quadro dele, senão os dados cairiam no nó do dia errado -->
+      <div class="tcard-late" style="opacity:.75">Somente fixação — premiação e field entram no quadro do próximo dia.</div>
+      ` : `
       <!-- Campos operacionais: Premiação + Field -->
       <div class="tcard-op-fields">
         <div class="tcard-op-field">
@@ -7097,7 +7249,7 @@ function renderUpcoming(){
         </div>
       </div>
       <!-- Preview calculado: overlay, ações, performance -->
-      <div class="tcard-overlay-preview" id="tcard-ov-${key}"></div>
+      <div class="tcard-overlay-preview" id="tcard-ov-${key}"></div>`}
       <div class="copy-row">
         <input type="text" class="id-input" placeholder="ID do evento" value="${getId(key)}" data-key="${key}">
         <button class="copy-btn" data-key="${key}" type="button">
@@ -10333,11 +10485,32 @@ function isSheetStale(){
   return false;
 }
 
+/* todos os cards obrigatórios do quadro atual já foram fixados? (quadro vazio conta como "sim",
+   não há nada pendente segurando a virada) */
+function allCardsDone(){
+  if (!RAW_ROWS.length) return true;
+  const relevant = RAW_ROWS.filter(r => mustFix(r, classify(r)));
+  if (!relevant.length) return true;
+  return relevant.every(r => isFixed(r._key));
+}
 function checkStaleness(){
   const today = todayPathSP();
   if(today !== LAST_KNOWN_DATE){
-    LAST_KNOWN_DATE = today;
-    resetDay();
+    // A virada da grade (05:30) NÃO derruba o quadro enquanto o último card do dia não for
+    // preenchido — o turno termina o trabalho no dia antigo (dados continuam indo pro nó certo)
+    // e a troca acontece na hora em que o último card for fixado (ver updateProgress)
+    if (!allCardsDone()){
+      if (!ROLLOVER_HELD_TOAST){
+        ROLLOVER_HELD_TOAST = true;
+        const relevant = RAW_ROWS.filter(r => mustFix(r, classify(r)));
+        const pendentes = relevant.filter(r => !isFixed(r._key)).length;
+        showToast(`🕐 Grade virou (05:30), mas ainda faltam ${pendentes} card(s) — o painel troca de dia quando o último for preenchido.`);
+      }
+    } else {
+      ROLLOVER_HELD_TOAST = false;
+      LAST_KNOWN_DATE = today;
+      resetDay();
+    }
   }
   // atualiza banner na calculadora de overlay
   const banner = document.getElementById('ovcStaleBanner');
@@ -10640,8 +10813,9 @@ function reinitDayListeners(){
     fbDb.ref(`${FB_BASE_PATH}/${node}`).off();
   });
 
-  // Sheet — listener já registrado em initFirebaseSync, não duplicar
-  // (reinitDayListeners só re-registra dados do dia, não a sheet que é compartilhada)
+  // Sheet — re-registra no novo path (o listener antigo ficava preso no nó do dia anterior
+  // e a aba nunca recebia a Global nova depois da virada sem recarregar)
+  registerSheetListener();
 
   // Premiação
   fbDb.ref(`${FB_BASE_PATH}/premiacao`).on('value', snap => {
@@ -10743,8 +10917,8 @@ function showGlobalUpdatePrompt(){
     prompt.innerHTML = `
       <div class="gup-icon">🌅</div>
       <div class="gup-text">
-        <strong>Novo turno — atualize a Global</strong>
-        <span>Passou da meia-noite. Carregue a planilha Global MTT para o novo dia.</span>
+        <strong>Virada da grade (05:30) — atualize a Global</strong>
+        <span>A grade de torneios do dia fechou. Turno da noite: carregue a Global MTT do novo dia antes da troca das 07:00.</span>
       </div>
       <button class="gup-btn" onclick="document.getElementById('fileInputGlobal').click();document.getElementById('globalUpdatePrompt').remove()">
         Carregar agora
@@ -10804,7 +10978,10 @@ function buildSnapshotRows(){
 
 async function saveSnapshotToFirebase(trigger='manual'){
   if(!fbReady || !RAW_ROWS.length) return;
-  const date = todayPathSP();
+  // a data do snapshot vem do nó ATIVO (FB_BASE_PATH), não do relógio: com a virada segurada
+  // até o último card, o quadro na tela pode ser do dia anterior — salvar com todayPathSP()
+  // gravaria os dados de ontem embaixo da data de hoje e bagunçaria o fechamento semanal
+  const date = (FB_BASE_PATH.split('/')[1]) || todayPathSP();
   const rows = buildSnapshotRows();
   const snapshot = {
     savedAt: Date.now(),
