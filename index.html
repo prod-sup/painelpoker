@@ -3603,6 +3603,7 @@ let YESTERDAY_LOAD_STARTED       = false;
 let HOVERED_CARD_KEY             = null;
 let LAST_KNOWN_DATE              = null; // inicializado após todayPathSP()
 let CONFHOJE_ITEMS               = [];
+let CONFHOJE_META                = null; // diagnóstico da última leitura (linhas lidas, sem horário, duplicados) — pra avisar o operador sem depender só do toast
 let LAST_CONF_AMANHA_            = null;
 // Observers — declarados antes de renderUnfixed/renderUpcoming
 const io = new IntersectionObserver((entries) => {
@@ -8501,12 +8502,12 @@ function readSheetMatrix(arrayBuffer, sheetNameContains){
    mesmo padrão usado nas duas planilhas (Global e Liga Principal), só muda o idioma do nome do dia */
 function findWeekdaySectionRange(matrix, weekdayName){
   const norm = normText(weekdayName);
-  let startRow = -1, endRow = matrix.length;
+  let startRow = -1, endRow = matrix.length, duplicate = false;
   for (let i = 0; i < matrix.length; i++){
     const a = matrix[i] && matrix[i][0];
     if (typeof a === 'string' && normText(a) === norm){
-      startRow = i;
-      break;
+      if (startRow === -1) startRow = i;
+      else { duplicate = true; break; } // achou o nome do dia de novo mais abaixo na planilha — ambíguo, avisar
     }
   }
   if (startRow === -1) return null;
@@ -8519,7 +8520,7 @@ function findWeekdaySectionRange(matrix, weekdayName){
       break;
     }
   }
-  return {startRow, endRow};
+  return {startRow, endRow, duplicate};
 }
 
 /* converte um valor de hora vindo do SheetJS (fração de dia, Date, ou string) pra "HH:MM" */
@@ -8542,7 +8543,7 @@ function cellToHHMM(v){
 function extractGlobalDaySection(matrix, weekdayName, divisor){
   const range = findWeekdaySectionRange(matrix, weekdayName);
   if (!range) return null;
-  const main = [], side = [], sat = [];
+  const main = [], side = [], sat = [], unknown = [], semHora = [];
   let currentGroupHeader = null; // cabeçalho do grupo de satélite atual (coluna A), propagado até a próxima linha em branco
   let emptyCount = 0;
   for (let i = range.startRow; i < range.endRow; i++){
@@ -8579,7 +8580,9 @@ function extractGlobalDaySection(matrix, weekdayName, divisor){
     if (!nome || typeof nome !== 'string') continue;
     if (['SÁBADO','DOMINGO','SATÉLITE','SATELLITE'].includes(nome.trim().toUpperCase())) continue;
     if (normText(nome) === 'suspenso') continue;
-    if (!hora) continue;
+    // nome de torneio válido mas sem horário reconhecível (célula vazia, formato estranho) — não descartar
+    // em silêncio: guarda separado pra avisar que um torneio ficou de fora por falta de horário
+    if (!hora){ semHora.push({nome: nome.trim(), hora: row[1], tipo}); continue; }
     // arredondado a 2 casas aqui (não só na exibição) pra não gravar dízima de ponto flutuante
     // (ex: 199.99999999999997) na planilha exportada
     const garantido = typeof garantidoRaw === 'number' ? Math.round((garantidoRaw / divisor) * 100) / 100 : null;
@@ -8588,8 +8591,12 @@ function extractGlobalDaySection(matrix, weekdayName, divisor){
     if (tipo === 'Main Event') main.push(entry);
     else if (tipo === 'Side Event') side.push(entry);
     else if (tipo === 'SAT') sat.push(entry);
+    // tipo não bate com nenhuma categoria conhecida (typo na Global, coluna deslocada etc.) — não descartar
+    // em silêncio: guarda como "unknown" pra quem chamou poder avisar que um torneio ficou de fora
+    else unknown.push({...entry, tipo});
   }
-  return {main, side, sat};
+  const extractedCount = main.length + side.length + sat.length + unknown.length;
+  return {main, side, sat, unknown, semHora, duplicateSection: range.duplicate, rowsInSection: range.endRow - range.startRow, extractedCount};
 }
 
 function allWeekdayNamesNorm(){
@@ -8634,11 +8641,37 @@ document.getElementById('globalTodayFileInput').addEventListener('change', async
       label.textContent = 'Carregar planilha Global MTT de hoje (.xlsx)';
       return;
     }
+    if (section.duplicateSection){
+      showToast(`Atenção: "${weekdayPt}" aparece mais de uma vez nessa planilha — confira se pegou a seção certa.`, true);
+    }
+    if (section.unknown.length){
+      showToast(`Atenção: ${section.unknown.length} torneio(s) com tipo não reconhecido na coluna D ficaram de fora da lista.`, true);
+    }
+    if (section.semHora.length){
+      showToast(`Atenção: ${section.semHora.length} torneio(s) sem horário reconhecível ficaram de fora da lista.`, true);
+    }
     CONFHOJE_ITEMS = [];
     section.main.forEach(it => CONFHOJE_ITEMS.push({...it, cat:'main', id: confHojeItemId('main', it.hora, it.nome)}));
     section.side.forEach(it => CONFHOJE_ITEMS.push({...it, cat:'side', id: confHojeItemId('side', it.hora, it.nome)}));
     section.sat.forEach(it => CONFHOJE_ITEMS.push({...it, cat:'sat', id: confHojeItemId('sat', it.hora, it.nome)}));
+    // tipo não reconhecido não fica de fora do checklist — aparece numa seção separada pra não sumir da conferência
+    section.unknown.forEach(it => CONFHOJE_ITEMS.push({...it, cat:'unknown', id: confHojeItemId('unknown', it.hora, it.nome)}));
     CONFHOJE_ITEMS.sort((a,b) => (timeToMinutes(a.hora)??9999) - (timeToMinutes(b.hora)??9999));
+
+    // mesmo nome+horário duas vezes = provável erro de leitura da planilha
+    const seen = new Map();
+    CONFHOJE_ITEMS.forEach(it => {
+      const key = `${normText(it.nome)}|${it.hora}`;
+      seen.set(key, (seen.get(key) || 0) + 1);
+    });
+    const duplicateNames = [...seen.entries()].filter(([,c]) => c > 1).map(([k]) => k.split('|')[0]);
+    if (duplicateNames.length){
+      showToast(`Atenção: torneio(s) repetido(s) na lista — ${duplicateNames.join(', ')}. Confira a Global.`, true);
+    }
+    CONFHOJE_META = {
+      weekdayPt, rowsInSection: section.rowsInSection, extractedCount: section.extractedCount,
+      semHoraCount: section.semHora.length, duplicateNames
+    };
 
     label.textContent = file.name;
     labelBox.classList.add('is-loaded');
@@ -8663,12 +8696,21 @@ function renderConfHojeList(){
   document.getElementById('confHojeProgressCount').textContent = `${done} de ${total} conferidos`;
   document.getElementById('confHojeProgressFill').style.width = `${Math.round((done/total)*100)}%`;
 
-  const catLabel = {main:'Main Events', side:'Side Events', sat:'Satélites'};
+  const catLabel = {main:'Main Events', side:'Side Events', sat:'Satélites', unknown:'⚠ Tipo não reconhecido (verifique a coluna D na Global)'};
   let html = '';
-  ['main','side','sat'].forEach(cat => {
+  if (CONFHOJE_META){
+    const m = CONFHOJE_META;
+    html += `<div class="diff-summary">
+      <span class="diff-pill ok">Dia calculado: ${escHtml(m.weekdayPt)}</span>
+      <span class="diff-pill ok">${m.extractedCount} torneios de ${m.rowsInSection} linhas na seção</span>
+      ${m.semHoraCount ? `<span class="diff-pill" style="background:#e85d5d33;color:#e85d5d">⚠ ${m.semHoraCount} sem horário</span>` : ''}
+      ${m.duplicateNames.length ? `<span class="diff-pill" style="background:#e85d5d33;color:#e85d5d">⚠ repetido: ${escHtml(m.duplicateNames.join(', '))}</span>` : ''}
+    </div>`;
+  }
+  ['main','side','sat','unknown'].forEach(cat => {
     const items = CONFHOJE_ITEMS.filter(it => it.cat === cat);
     if (!items.length) return;
-    html += `<div class="conf-section-title">${catLabel[cat]}</div>`;
+    html += `<div class="conf-section-title"${cat === 'unknown' ? ' style="color:#e85d5d"' : ''}>${catLabel[cat]}</div>`;
     items.forEach(it => {
       const isDone = isConfHojeDone(it.id);
       const by = confHojeDoneBy(it.id);
@@ -8777,12 +8819,25 @@ function buildConfAmanhaSections(sectionTomorrow, sectionDayAfter){
   });
   const satGroups = satGroupsOrder.map(key => ({header: key, items: satGroupsMap[key]}));
 
-  return { main: mainAll, side: sideAll, satGroups, total: mainAll.length + sideAll.length + satAll.length };
+  // torneios com tipo não reconhecido (coluna D) dentro da mesma janela de horário — não some,
+  // fica visível permanentemente na tela/export em vez de só um toast que pode passar despercebido
+  const unknownAll = [...(sectionTomorrow ? inWindow(sectionTomorrow.unknown) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.unknown) : [])];
+
+  // mesmo nome+horário aparecendo 2x geralmente indica erro de leitura da planilha (linha mesclada,
+  // grupo de satélite duplicado etc.) — sinaliza pra o operador desconfiar em vez de exportar sem avisar
+  const seen = new Map();
+  [...mainAll, ...sideAll, ...satAll].forEach(it => {
+    const key = `${normText(it.nome)}|${it.hora}`;
+    seen.set(key, (seen.get(key) || 0) + 1);
+  });
+  const duplicateNames = [...seen.entries()].filter(([,count]) => count > 1).map(([key]) => key.split('|')[0]);
+
+  return { main: mainAll, side: sideAll, satGroups, unknown: unknownAll, duplicateNames, total: mainAll.length + sideAll.length + satAll.length };
 }
 
 /* renderiza as 3 seções na tela, no mesmo estilo de tabela já usado na lista da Conferência de hoje
    — sem gerar nenhum arquivo, só mostra direto no painel pra você copiar/conferir visualmente */
-function renderConfAmanha(sections, weekdayLabel, dateLabel){
+function renderConfAmanha(sections, weekdayLabel, dateLabel, meta){
   const resultEl = document.getElementById('confAmanhaResult');
   LAST_CONF_AMANHA = {sections, weekdayLabel, dateLabel}; // guardado pra o botão de exportar usar sem reler a planilha nem recalcular a data
   if (!sections.total){
@@ -8801,7 +8856,10 @@ function renderConfAmanha(sections, weekdayLabel, dateLabel){
   let html = `
     <div class="diff-summary">
       <span class="diff-pill ok">${weekdayLabel} · ${sections.total} torneios</span>
-      <span class="diff-pill ok">06:10 → 05:30</span>
+      <span class="diff-pill ok">06:10 → 05:30 · ${dateLabel}</span>
+      ${meta ? `<span class="diff-pill ok">${meta.extractedCount} torneios de ${meta.rowsInSection} linhas nas seções</span>` : ''}
+      ${meta && meta.semHoraCount ? `<span class="diff-pill" style="background:#e85d5d33;color:#e85d5d">⚠ ${meta.semHoraCount} sem horário</span>` : ''}
+      ${sections.duplicateNames.length ? `<span class="diff-pill" style="background:#e85d5d33;color:#e85d5d">⚠ repetido: ${escHtml(sections.duplicateNames.join(', '))}</span>` : ''}
     </div>
     <button class="routine-download" id="exportConfAmanhaBtn" type="button">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M12 15l-4-4M12 15l4-4"/><path d="M4 18v1a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1"/></svg>
@@ -8825,6 +8883,16 @@ function renderConfAmanha(sections, weekdayLabel, dateLabel){
       html += g.items.map(row).join('');
       html += `<div class="conf-amanha-spacer"></div>`; // linha em branco separando cada grupo de satélite, igual ao formato original
     });
+  }
+  if (sections.unknown.length){
+    html += `<div class="conf-section-title" style="color:#e85d5d">⚠ Tipo não reconhecido (verifique a coluna D na Global) — não incluídos no total acima</div>`;
+    html += sections.unknown.map(it => `
+      <div class="conf-amanha-row">
+        <span class="ca-nome">${it.nome} <em style="opacity:.6">(tipo: "${it.tipo ?? ''}")</em></span>
+        <span class="ca-hora">${it.hora}</span>
+        <span class="ca-val">$ ${fmtBRL(it.garantido, 2)}</span>
+        <span class="ca-val">$ ${fmtBRL(it.buyin, 2)}</span>
+      </div>`).join('');
   }
   resultEl.innerHTML = html;
   document.getElementById('exportConfAmanhaBtn').addEventListener('click', exportConfAmanhaXlsx);
@@ -8853,6 +8921,11 @@ function exportConfAmanhaXlsx(){
     g.items.forEach(pushRow);
     blankRow();
   });
+  if (sections.unknown.length){
+    blankRow();
+    rows.push(['TIPO NÃO RECONHECIDO — verificar coluna D na Global antes de fechar a conferência']);
+    sections.unknown.forEach(it => rows.push([it.nome, it.hora, it.garantido, it.buyin, it.tipo ?? '']));
+  }
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = [{wch:30},{wch:10},{wch:14},{wch:12}];
@@ -8893,11 +8966,30 @@ document.getElementById('globalTomorrowFileInput').addEventListener('change', as
     if (!sectionDayAfter){
       showToast(`Atenção: não encontrei a seção "${weekdayDayAfterPt}" — a madrugada de fechamento (até 05:30) pode estar faltando no relatório.`, true);
     }
+    if (sectionTomorrow.duplicateSection || (sectionDayAfter && sectionDayAfter.duplicateSection)){
+      showToast(`Atenção: nome de dia da semana duplicado na planilha — confira se as seções "${weekdayTomorrowPt}"/"${weekdayDayAfterPt}" usadas são as certas.`, true);
+    }
+    const unknownCount = sectionTomorrow.unknown.length + (sectionDayAfter ? sectionDayAfter.unknown.length : 0);
+    if (unknownCount){
+      showToast(`Atenção: ${unknownCount} torneio(s) com tipo não reconhecido na coluna D ficaram de fora do relatório.`, true);
+    }
+    const semHoraCount = sectionTomorrow.semHora.length + (sectionDayAfter ? sectionDayAfter.semHora.length : 0);
+    if (semHoraCount){
+      showToast(`Atenção: ${semHoraCount} torneio(s) sem horário reconhecível ficaram de fora do relatório.`, true);
+    }
 
     const sections = buildConfAmanhaSections(sectionTomorrow, sectionDayAfter);
+    if (sections.duplicateNames.length){
+      showToast(`Atenção: torneio(s) repetido(s) na lista — ${sections.duplicateNames.join(', ')}. Confira a Global.`, true);
+    }
+    const meta = {
+      rowsInSection: sectionTomorrow.rowsInSection + (sectionDayAfter ? sectionDayAfter.rowsInSection : 0),
+      extractedCount: sectionTomorrow.extractedCount + (sectionDayAfter ? sectionDayAfter.extractedCount : 0),
+      semHoraCount
+    };
     label.textContent = file.name;
     labelBox.classList.add('is-loaded');
-    renderConfAmanha(sections, weekdayTomorrowPt, dateLabel);
+    renderConfAmanha(sections, weekdayTomorrowPt, dateLabel, meta);
     showToast(`Global lida — ${sections.total} torneios na janela de amanhã.`);
   }catch(err){
     console.error('Erro ao gerar Conferência de amanhã:', err);
