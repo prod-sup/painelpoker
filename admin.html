@@ -1259,7 +1259,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
 
     <div class="mf">
       <label>Premiação corrigida (R$)</label>
-      <input type="number" id="auditPremInput" placeholder="0.00" step="0.01" min="0">
+      <input type="text" inputmode="decimal" id="auditPremInput" placeholder="0,00" oninput="maskBRL(this)" onblur="fmtBRLInput(this)">
     </div>
     <div class="mf">
       <label>Field corrigido (jogadores)</label>
@@ -1267,7 +1267,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
     </div>
     <div class="mf">
       <label>Garantido corrigido (R$)</label>
-      <input type="number" id="auditGarInput" placeholder="—" step="0.01" min="0">
+      <input type="text" inputmode="decimal" id="auditGarInput" placeholder="—" oninput="maskBRL(this)" onblur="fmtBRLInput(this)">
     </div>
     <div class="mf">
       <label>Observação</label>
@@ -1360,6 +1360,16 @@ const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replac
 const brl = (v,d=0) => v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const brlk = v => { if(v==null||isNaN(v))return'—'; const a=Math.abs(v),s=v<0?'-':''; return a>=1e6?s+'R$'+brl(a/1e6,1)+'M':a>=1e3?s+'R$'+brl(a/1e3,0)+'K':s+'R$'+brl(a,0); };
 const pct  = v => v==null?'—':(v>=0?'+':'')+Number(v).toFixed(1)+'%';
+// Parse valor em formato pt-BR ("400.708,00" ou "308500") → número (400708)
+const parseBRL = raw => {
+  const s = String(raw??'').trim().replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.');
+  if(s==='') return NaN;
+  return parseFloat(s);
+};
+// oninput: mantém só dígitos, ponto e vírgula enquanto digita
+const maskBRL = el => { el.value = el.value.replace(/[^\d.,]/g,''); };
+// onblur: normaliza para exibição pt-BR (ex: "400708" → "400.708,00")
+const fmtBRLInput = el => { const v = parseBRL(el.value); el.value = isNaN(v) ? '' : brl(v,2); };
 const nowSP = () => { const d=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Sao_Paulo'})); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const dago  = n => { const d=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Sao_Paulo'})); d.setDate(d.getDate()-n); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const eKey  = e => e.toLowerCase().replace(/\./g,'_dot_').replace(/@/g,'_at_');
@@ -2610,12 +2620,14 @@ function openAuditEdit(ctx){
     _auditContext.garantido != null ? 'R$ '+brl(_auditContext.garantido) : '—';
 
   // Preencher com valor já auditado (se existir) ou original
+  const premVal = audit?.premiacaoAuditada ?? _auditContext.premiacao;
+  const garVal  = audit?.garantidoAuditado ?? _auditContext.garantido;
   document.getElementById('auditPremInput').value =
-    audit?.premiacaoAuditada ?? _auditContext.premiacao ?? '';
+    premVal != null ? brl(premVal,2) : '';
   document.getElementById('auditFieldInput').value =
     audit?.fieldAuditado ?? _auditContext.field ?? '';
   document.getElementById('auditGarInput').value =
-    audit?.garantidoAuditado ?? _auditContext.garantido ?? '';
+    garVal != null ? brl(garVal,2) : '';
   document.getElementById('auditObs').value = audit?.obs || '';
   document.getElementById('auditApproved').checked = audit?.status === 'aprovado';
 
@@ -2642,9 +2654,9 @@ async function saveAudit(){
     errEl.style.display = 'block'; return;
   }
 
-  const prem  = premRaw  ? parseFloat(premRaw)  : null;
+  const prem  = premRaw  ? parseBRL(premRaw)  : null;
   const field = fieldRaw ? parseInt(fieldRaw,10) : null;
-  const gar   = garRaw   ? parseFloat(garRaw)   : null;
+  const gar   = garRaw   ? parseBRL(garRaw)   : null;
 
   if(premRaw && isNaN(prem)){
     errEl.textContent = 'Premiação inválida.'; errEl.style.display='block'; return;
