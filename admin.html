@@ -1357,9 +1357,9 @@ let _toastTm;
 
 /* ── UTILS ──────────────────────────────────────────────────── */
 const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-const brl = (v,d=0) => v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const brl = (v,d=2) => v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const brlk = v => { if(v==null||isNaN(v))return'—'; const a=Math.abs(v),s=v<0?'-':''; return a>=1e6?s+'R$'+brl(a/1e6,1)+'M':a>=1e3?s+'R$'+brl(a/1e3,0)+'K':s+'R$'+brl(a,0); };
-const pct  = (v,d=1) => v==null?'—':(v>=0?'+':'')+Number(v).toFixed(d)+'%';
+const pct  = (v,d=2) => v==null?'—':(v>=0?'+':'')+Number(v).toFixed(d)+'%';
 // Parse valor em formato pt-BR ("400.708,00" ou "308500") → número (400708)
 const parseBRL = raw => {
   const s = String(raw??'').trim().replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.');
@@ -2090,7 +2090,7 @@ function buildInsights(rows, closed, days){
   });
   const worstDay = Object.entries(byDay).sort((a,b)=>a[1].ov-b[1].ov)[0];
   if(worstDay && worstDay[1].ov < -500)
-    insights.push({type:'warn', icon:'📅', text:`<b>${worstDay[0]}</b> é o dia com maior overlay acumulado: R$ ${brl(Math.abs(worstDay[1].ov),0)} em ${worstDay[1].n} torneio${worstDay[1].n>1?'s':''}.`});
+    insights.push({type:'warn', icon:'📅', text:`<b>${worstDay[0]}</b> é o dia com maior overlay acumulado: R$ ${brl(Math.abs(worstDay[1].ov))} em ${worstDay[1].n} torneio${worstDay[1].n>1?'s':''}.`});
 
   // 3. Torneio com overlay recorrente
   const byName = {};
@@ -2112,7 +2112,7 @@ function buildInsights(rows, closed, days){
     .filter(([,v])=>v.n>=2&&v.ov>0)
     .sort((a,b)=>b[1].ov-a[1].ov)[0];
   if(best)
-    insights.push({type:'ok', icon:'🏆', text:`<b>${esc(best[0])}</b> é o torneio mais rentável: +R$ ${brl(best[1].ov,0)} acumulado em ${best[1].n} rodadas.`});
+    insights.push({type:'ok', icon:'🏆', text:`<b>${esc(best[0])}</b> é o torneio mais rentável: +R$ ${brl(best[1].ov)} acumulado em ${best[1].n} rodadas.`});
 
   // 5. Trend de perf (últimos 7d vs anteriores)
   if(days >= 14){
@@ -2151,7 +2151,7 @@ function buildInsights(rows, closed, days){
       const avgGar = v.gar/v.n;
       insights.push({
         type:'alert', icon:'🎯',
-        text:`<b>Calibração recomendada:</b> <b>${esc(v.nome)}</b> teve overlay em ${v.ovN}/${v.n} rodadas. GTD médio atual: R$ ${brl(avgGar,0)}. Considere reduzir o garantido.`
+        text:`<b>Calibração recomendada:</b> <b>${esc(v.nome)}</b> teve overlay em ${v.ovN}/${v.n} rodadas. GTD médio atual: R$ ${brl(avgGar)}. Considere reduzir o garantido.`
       });
     });
 
@@ -2802,7 +2802,7 @@ function exportAuditXlsx(){
         if(r.perf!=null)styleMap[XLSX.utils.encode_cell({r:drRow,c:10})]={font:{bold:true,color:{rgb:r.perf>=0?'1B5E20':'C62828'}}};
       });
       const totRow=aoa.length;
-      aoa.push([`Total (${cnt})`,'','','',sg?'R$ '+brl(sg,0):'','',sp?'R$ '+brl(sp,0):'',so?'R$ '+brl(so,0):'—','','','','','','']);
+      aoa.push([`Total (${cnt})`,'','','',sg?'R$ '+brl(sg):'','',sp?'R$ '+brl(sp):'',so?'R$ '+brl(so):'—','','','','','','']);
       aoa.push([]);
       styleMap[XLSX.utils.encode_cell({r:ghRow,c:0})]={font:{bold:true,color:{rgb:'FFFFFF'},sz:12},fill:{fgColor:{rgb:cc.header}}};
       for(let c=0;c<COL_HEADERS.length;c++)styleMap[XLSX.utils.encode_cell({r:chRow,c})]={font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:cc.sub}},alignment:{horizontal:'center'}};
@@ -2815,9 +2815,9 @@ function exportAuditXlsx(){
     const allO=groups.reduce((s,g)=>s+(totalsByGroup[g.cat]?.so||0),0);
     const sumRow=aoa.length;
     aoa.push(['SUMÁRIO']);
-    aoa.push(['Garantido total','R$ '+brl(allG,0)]);
-    aoa.push(['Premiação total','R$ '+brl(allP,0)]);
-    aoa.push(['Overlay total',allO<0?'R$ '+brl(allO,0)+' (déficit)':'Sem overlay']);
+    aoa.push(['Garantido total','R$ '+brl(allG)]);
+    aoa.push(['Premiação total','R$ '+brl(allP)]);
+    aoa.push(['Overlay total',allO<0?'R$ '+brl(allO)+' (déficit)':'Sem overlay']);
     aoa.push(['Performance geral',allG>0?((allP-allG)/allG*100).toFixed(1)+'%':'—']);
     styleMap[XLSX.utils.encode_cell({r:sumRow,c:0})]={font:{bold:true,color:{rgb:'FFFFFF'},sz:12},fill:{fgColor:{rgb:'1A472A'}}};
     if(aoa[0])styleMap['A1']={font:{bold:true,color:{rgb:'FFFFFF'},sz:14},fill:{fgColor:{rgb:'0A3D27'}},alignment:{horizontal:'center'}};
