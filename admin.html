@@ -2738,15 +2738,24 @@ function enrichWithAudit(rows){
   return rows.map(r => {
     const a = getAuditEntry(r.date, r.key);
     if(!a) return r;
+    const corr = a.status === 'corrigido';
+    // Se corrigido, usar valores auditados
+    const prem = corr && a.premiacaoAuditada != null ? a.premiacaoAuditada : r.premiacao;
+    const gar  = corr && a.garantidoAuditado != null ? a.garantidoAuditado : r.garantido;
+    const field= corr && a.fieldAuditado != null ? a.fieldAuditado : r.field;
+    // Recalcular overlay/perf com base nos valores corrigidos
+    const diff = prem!=null&&gar!=null ? prem-gar : null;
+    const overlay = diff!=null&&diff<0 ? diff : null;
+    const perf = prem!=null&&gar!=null&&gar>0 ? Math.round(((prem-gar)/gar)*1000)/10 : null;
     return {
       ...r,
       _audited: true,
       _auditEntry: a,
-      // Se corrigido, usar valor auditado na exibição
-      premiacao: a.status === 'corrigido' && a.premiacaoAuditada != null
-        ? a.premiacaoAuditada : r.premiacao,
-      field: a.status === 'corrigido' && a.fieldAuditado != null
-        ? a.fieldAuditado : r.field,
+      premiacao: prem,
+      garantido: gar,
+      field,
+      overlay,
+      perf,
     };
   });
 }
