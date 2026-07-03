@@ -1359,7 +1359,7 @@ let _toastTm;
 const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 const brl = (v,d=0) => v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const brlk = v => { if(v==null||isNaN(v))return'—'; const a=Math.abs(v),s=v<0?'-':''; return a>=1e6?s+'R$'+brl(a/1e6,1)+'M':a>=1e3?s+'R$'+brl(a/1e3,0)+'K':s+'R$'+brl(a,0); };
-const pct  = v => v==null?'—':(v>=0?'+':'')+Number(v).toFixed(1)+'%';
+const pct  = (v,d=1) => v==null?'—':(v>=0?'+':'')+Number(v).toFixed(d)+'%';
 // Parse valor em formato pt-BR ("400.708,00" ou "308500") → número (400708)
 const parseBRL = raw => {
   const s = String(raw??'').trim().replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.');
@@ -1618,6 +1618,7 @@ async function loadAll(){
         // Já existe (veio do snapshot) — não duplicar, só garantir que os dados base estão completos
         if(!_allData[date].rows[existingK].buyin) _allData[date].rows[existingK].buyin = r.buyin;
         if(!_allData[date].rows[existingK].garantido) _allData[date].rows[existingK].garantido = r.garantido;
+        if(!_allData[date].rows[existingK].late && r.late) _allData[date].rows[existingK].late = r.late;
       } else {
         const k = rowKey(r);
         if(!_allData[date].rows[k]){
@@ -1703,7 +1704,7 @@ function flatRows(fromDate, toDate){
       // Cálculos
       const diff   = prem!=null&&gar!=null ? prem-gar : null;
       const ov     = diff!=null&&diff<0 ? diff : null;
-      const perf   = prem!=null&&gar!=null&&gar>0 ? Math.round(((prem-gar)/gar)*1000)/10 : null;
+      const perf   = prem!=null&&gar!=null&&gar>0 ? Math.round(((prem-gar)/gar)*10000)/100 : null;
       const isNF   = idVal.toUpperCase()==='NF';
       const status = isNF?'nf':prem!=null?'fechado':'aberto';
 
@@ -1848,10 +1849,10 @@ async function loadAudit(){
           <td class="mono">${esc(r.late)}</td>
           <td class="r mono">${r.garantido!=null?'R$ '+brl(r.garantido):'—'}</td>
           <td class="r mono">${r.buyin!=null?'R$ '+brl(r.buyin):'—'}</td>
-          <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.premiacaoOriginal!==r.premiacao?'c-gold':''}">${r.premiacao!=null?'R$ '+brl(r.premiacao):'—'}</td>
-          <td class="r mono ov-val">${r.overlay!=null?'R$ '+brl(r.overlay):'—'}</td>
+          <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.premiacaoOriginal!==r.premiacao?'c-gold':''}">${r.premiacao!=null?'R$ '+brl(r.premiacao,2):'—'}</td>
+          <td class="r mono ov-val">${r.overlay!=null?'R$ '+brl(r.overlay,2):'—'}</td>
           <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.fieldOriginal!==r.field?'c-gold':''}">${r.field!=null?r.field:'—'}</td>
-          <td class="r mono">${r.perf!=null?`<span class="perf ${r.perf>=0?'pos':'neg'}">${pct(r.perf)}</span>`:'—'}</td>
+          <td class="r mono">${r.perf!=null?`<span class="perf ${r.perf>=0?'pos':'neg'}">${pct(r.perf,2)}</span>`:'—'}</td>
           <td class="c-ink2">${esc(r.fixBy||r.idBy||'—')}</td>
           <td class="mono c-ink2">${esc(r.id)}</td>
           <td>${statusBadge(r.status)}</td>
@@ -2746,7 +2747,7 @@ function enrichWithAudit(rows){
     // Recalcular overlay/perf com base nos valores corrigidos
     const diff = prem!=null&&gar!=null ? prem-gar : null;
     const overlay = diff!=null&&diff<0 ? diff : null;
-    const perf = prem!=null&&gar!=null&&gar>0 ? Math.round(((prem-gar)/gar)*1000)/10 : null;
+    const perf = prem!=null&&gar!=null&&gar>0 ? Math.round(((prem-gar)/gar)*10000)/100 : null;
     return {
       ...r,
       _audited: true,
