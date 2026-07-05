@@ -6849,16 +6849,21 @@ function setId(key, val){
 function getField(key){ return FIELD_MAP[key] != null ? FIELD_MAP[key] : ''; }
 function setField(key, val){
   const n = val === '' || val == null ? null : parseInt(val, 10);
+  // Atualização em memória é imediata (preview instantâneo, sem custo de I/O)…
   if(n != null && !isNaN(n)) FIELD_MAP[key] = n;
   else delete FIELD_MAP[key];
-  saveFieldMapLocal(FIELD_MAP);
   const row = RAW_ROWS.find(r => r._key === key);
   if(row) row.field = (n != null && !isNaN(n)) ? n : null;
+  // …mas o localStorage (síncrono, bate no disco) e o Firebase (rede) NÃO podem rodar
+  // a cada tecla — era isso que travava ao digitar. Publica "editando" 1x por rajada.
+  if(fbReady && !_debouncedFieldSave[key]){
+    fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).set({key, field:'field', at:Date.now()}).catch(()=>{});
+  }
   clearTimeout(_debouncedFieldSave[key]);
-  // Publicar que está editando este card
-  if(fbReady) fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).set({key, field:'field', at:Date.now()}).catch(()=>{});
   _debouncedFieldSave[key] = setTimeout(() => {
-    if(n != null && !isNaN(n)) stampPremBy(key); // quem preencheu o field vira o responsável exibido nos Resultados — só depois que parou de digitar
+    _debouncedFieldSave[key] = null;
+    saveFieldMapLocal(FIELD_MAP); // grava no disco só quando parou de digitar
+    if(n != null && !isNaN(n)) stampPremBy(key); // responsável exibido nos Resultados
     if(fbReady){
       suppressUpcomingEcho();
       fbDb.ref(`${FB_BASE_PATH}/field/${key}`).set(n != null && !isNaN(n) ? n : null);
