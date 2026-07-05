@@ -544,6 +544,14 @@
     *{animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important; scroll-behavior:auto !important;}
   }
 
+  /* Congela TODA animação quando a janela do painel não está em foco. O navegador só
+     freia abas ocultas — não uma janela visível-porém-sem-foco (ex.: painel num monitor
+     enquanto você usa o cliente da Suprema no outro). Sem isso, animações infinite mantêm
+     a GPU/compositor a 60fps pra sempre, roubando recurso dos outros apps do PC. */
+  body.win-blurred *, body.win-blurred *::before, body.win-blurred *::after{
+    animation-play-state: paused !important;
+  }
+
   .wrap{max-width:1180px; margin:0 auto; padding:0 28px;}
   :focus-visible{outline:2px solid var(--felt-bright); outline-offset:3px; border-radius:4px;}
 
@@ -3137,7 +3145,9 @@
 
   .opj-status{ display:flex; align-items:center; gap:9px; padding:11px 15px; border-bottom:1px solid var(--hairline); }
   .opj-status-dot{ width:9px; height:9px; border-radius:50%; flex:none; box-shadow:0 0 0 4px transparent; animation:opjPulse 2.4s ease-in-out infinite; }
-  @keyframes opjPulse{ 0%,100%{ box-shadow:0 0 0 0 transparent; } 50%{ box-shadow:0 0 0 5px currentColor; opacity:.55; } }
+  /* opacity em vez de box-shadow: box-shadow animado repinta o dot a cada frame pra
+     sempre (infinite); opacity roda no compositor sem repaint. */
+  @keyframes opjPulse{ 0%,100%{ opacity:1; } 50%{ opacity:.4; } }
   .opj-status-txt{ font-size:13.5px; font-weight:700; }
   .opj-status-val{ margin-left:auto; font-family:var(--mono); font-size:13px; font-weight:700; }
   .opj-s-batido{ color:var(--felt-bright); } .opj-s-batido .opj-status-dot{ background:var(--felt-bright); color:var(--felt-bright); }
@@ -4143,6 +4153,18 @@
     });
   }, {threshold:0.01}).observe(hero);
   document.addEventListener('visibilitychange', () => { if(document.hidden && !hero.paused) hero.pause(); });
+})();
+
+/* ── PERF: congela animações quando a janela perde o foco ──────────────────
+   Quando o painel está aberto mas você está usando OUTRO app, não há motivo pra
+   manter animações rodando — elas só mantêm a GPU/compositor ativos e deixam o
+   resto do PC lento. Aqui pausamos tudo no blur e retomamos no focus. */
+(function freezeAnimationsWhenBlurred(){
+  const set = frozen => document.body.classList.toggle('win-blurred', frozen);
+  window.addEventListener('blur',  () => set(true));
+  window.addEventListener('focus', () => set(false));
+  document.addEventListener('visibilitychange', () => set(document.hidden));
+  if(!document.hasFocus()) set(true); // já entra congelado se abriu sem foco
 })();
 
 /* =========================================================================
