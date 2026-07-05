@@ -63,6 +63,11 @@
   --sh-2: 0 4px 14px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
   --sh-3: 0 24px 60px rgba(0,0,0,.12), 0 4px 12px rgba(0,0,0,.06);
   --sh-focus: 0 0 0 4px rgba(0,113,227,.18);
+
+  /* Curvas cinematográficas (motion layer) */
+  --ease-expo:  cubic-bezier(.16,1,.3,1);
+  --ease-quart: cubic-bezier(.25,1,.5,1);
+  --ease-inout: cubic-bezier(.65,0,.35,1);
 }
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -240,23 +245,43 @@ a{color:inherit;text-decoration:none}
   display:flex;align-items:center;gap:10px;width:100%;
   padding:8px 12px;border-radius:8px;
   font-size:14px;font-weight:500;color:var(--ink);
-  transition:background .1s;text-align:left;letter-spacing:-.01em;
+  transition:background .18s var(--ease-quart),color .18s var(--ease-quart),box-shadow .25s var(--ease-quart),transform .2s var(--ease-quart);
+  text-align:left;letter-spacing:-.01em;
 }
-.ntab .ni{font-size:15px;width:18px;text-align:center;flex:none;opacity:.85;display:inline-flex;align-items:center;justify-content:center}
+.ntab .ni{font-size:15px;width:18px;text-align:center;flex:none;opacity:.85;display:inline-flex;align-items:center;justify-content:center;transition:transform .25s var(--ease-quart),opacity .2s}
 .ni svg,.btn svg,.tb-btn svg{width:16px;height:16px;flex:none;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .btn svg,.tb-btn svg{width:14px;height:14px}
 .ntab:hover{background:rgba(0,0,0,.04)}
+.ntab:hover .ni{transform:scale(1.08)}
+.ntab:active{transform:scale(.98)}
 .ntab.active{
   background:var(--gold);color:#fff;font-weight:500;
   box-shadow:0 2px 6px rgba(0,113,227,.28);
+  animation:ntab-pop .3s cubic-bezier(.16,1,.3,1);
 }
 .ntab.active .ni{opacity:1}
+@keyframes ntab-pop{0%{transform:scale(.97)}55%{transform:scale(1.02)}100%{transform:scale(1)}}
 
 /* ── MAIN ────────────────────────────────────────────────────── */
 .app-main{margin-left:var(--sidebar);padding-top:var(--topbar);min-height:100vh}
 .page{display:none;padding:36px 40px 80px;max-width:1400px}
-.page.active{display:block;animation:fadeUp .35s ease}
+/* Troca de tela cinematográfica: a página resolve o desfoque enquanto assenta,
+   e seus blocos sobem em sequência (a "tela se montando", pegada AAA). */
+.page.active{display:block;animation:page-in .5s cubic-bezier(.16,1,.3,1) both}
+@keyframes page-in{from{opacity:0;transform:translateY(12px) scale(.994);filter:blur(6px)}to{opacity:1;transform:none;filter:blur(0)}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.page.active>*{animation:page-stagger .55s cubic-bezier(.16,1,.3,1) both}
+@keyframes page-stagger{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.page.active>*:nth-child(1){animation-delay:.06s}
+.page.active>*:nth-child(2){animation-delay:.12s}
+.page.active>*:nth-child(3){animation-delay:.18s}
+.page.active>*:nth-child(4){animation-delay:.24s}
+.page.active>*:nth-child(5){animation-delay:.30s}
+.page.active>*:nth-child(n+6){animation-delay:.34s}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+  .page.active,.page.active>*{filter:none!important;transform:none!important;opacity:1!important}
+}
 
 /* ── PAGE HEADER ─────────────────────────────────────────────── */
 .ph{margin-bottom:28px;display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap}
@@ -474,10 +499,10 @@ td.center{text-align:center}
 /* ── MODAL ───────────────────────────────────────────────────── */
 .modal-bg{
   display:none;position:fixed;inset:0;z-index:500;
-  background:rgba(0,0,0,.28);
-  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  background:rgba(0,0,0,.34);
+  backdrop-filter:saturate(140%) blur(16px);-webkit-backdrop-filter:saturate(140%) blur(16px);
   align-items:center;justify-content:center;
-  animation:fadeIn .2s ease;
+  animation:fadeIn .28s var(--ease-quart);
 }
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .modal-bg.open{display:flex}
@@ -485,9 +510,10 @@ td.center{text-align:center}
   background:#fff;border:1px solid var(--border);border-radius:var(--r3);
   padding:32px;max-width:480px;width:90%;
   box-shadow:var(--sh-3);
-  animation:popIn .25s cubic-bezier(.34,1.56,.64,1);
+  /* entrada decidida (ease-expo, sem bounce) resolvendo um leve desfoque */
+  animation:popIn .42s var(--ease-expo);
 }
-@keyframes popIn{from{opacity:0;transform:scale(.96) translateY(8px)}to{opacity:1;transform:none}}
+@keyframes popIn{from{opacity:0;transform:scale(.95) translateY(14px);filter:blur(6px)}to{opacity:1;transform:none;filter:blur(0)}}
 .modal h2{font-size:20px;font-weight:600;margin-bottom:6px;letter-spacing:-.022em;color:var(--ink)}
 .modal .msub{font-size:13.5px;color:var(--ink2);margin-bottom:22px;letter-spacing:-.005em;line-height:1.45}
 .mf{margin-bottom:14px}

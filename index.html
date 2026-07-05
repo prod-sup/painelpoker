@@ -77,6 +77,10 @@
     --shadow-lg: 0 14px 36px -10px rgba(16,28,22,.16), 0 28px 64px -20px rgba(16,28,22,.20);
     --shadow-glow: 0 0 0 1px rgba(24,163,107,.14), 0 10px 28px -10px rgba(24,163,107,.24);
     --ease: cubic-bezier(.22,1,.36,1);
+    /* ── Curvas cinematográficas (motion layer "AAA") ── */
+    --ease-expo:  cubic-bezier(.16,1,.3,1);    /* entradas decididas, câmera assentando */
+    --ease-quart: cubic-bezier(.25,1,.5,1);    /* suave, propósito geral */
+    --ease-inout: cubic-bezier(.65,0,.35,1);   /* travellings / troca de tela */
     --display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", sans-serif;
     --text: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", sans-serif;
     --mono: "SF Mono", "IBM Plex Mono", ui-monospace, "Roboto Mono", monospace;
@@ -298,6 +302,22 @@
   html.dark .tcard:hover,
   html.dark .ucard:hover{
     background: var(--card-elevated);
+  }
+
+  /* ── Estados de hover que ficavam presos em cinza-claro fixo no escuro (só a superfície
+     base tinha sido adaptada, não os estados interativos) ── */
+  html.dark .hstat:hover,
+  html.dark .checklist-item:hover,
+  html.dark .conf-item:hover,
+  html.dark .server-row:hover,
+  html.dark .conf-amanha-row:hover{
+    background: var(--card-elevated);
+  }
+
+  /* ── NF (não formou): a listra diagonal usava preto a 2.5% — some visualmente sobre um
+     card que já é escuro. No claro fica textura sutil, no escuro precisa ser clara. ── */
+  html.dark .tcard.is-nf{
+    background: repeating-linear-gradient(-45deg, transparent, transparent 8px, rgba(255,255,255,.035) 8px, rgba(255,255,255,.035) 16px);
   }
 
   /* ── Seção "Não fixados" ── tem gradiente hardcoded ── */
@@ -524,17 +544,28 @@
   /* ---------- NAV ---------- */
   nav{
     position:fixed; top:0; left:0; right:0; z-index:200;
-    backdrop-filter:blur(12px);
-    -webkit-backdrop-filter:blur(12px);
-    background:rgba(251,251,253,0.78);
+    backdrop-filter:blur(12px) saturate(120%);
+    -webkit-backdrop-filter:blur(12px) saturate(120%);
+    background:rgba(251,251,253,0.72);
     border-bottom:1px solid transparent;
-    transition:border-color .4s var(--ease);
+    box-shadow:0 0 0 rgba(12,30,22,0);
+    transition:border-color .4s var(--ease), background .4s var(--ease-quart),
+               box-shadow .4s var(--ease-quart), backdrop-filter .4s var(--ease-quart);
   }
-  nav.scrolled{border-bottom-color:var(--hairline);}
+  /* condensa ao rolar: nav mais compacto, vidro mais denso e leve elevação (pegada premium) */
+  nav.scrolled{
+    border-bottom-color:var(--hairline);
+    background:rgba(251,251,253,0.86);
+    backdrop-filter:blur(20px) saturate(150%);
+    -webkit-backdrop-filter:blur(20px) saturate(150%);
+    box-shadow:0 8px 30px -18px rgba(12,30,22,0.5);
+  }
   .nav-inner{
     max-width:1180px; margin:0 auto; padding:0 28px;
     height:56px; display:flex; align-items:center; justify-content:space-between; gap:16px;
+    transition:height .4s var(--ease-expo);
   }
+  nav.scrolled .nav-inner{ height:48px; }
   .brand{display:flex; align-items:center; gap:9px; font-size:14.5px; font-weight:600; letter-spacing:-0.01em; flex:none;}
   .brand-mark{width:20px; height:20px; flex:none;}
   .brand-chips{ position:relative; width:26px; height:18px; flex:none; margin-left:2px; }
@@ -543,8 +574,24 @@
   .bchip-b{ left:9px; z-index:1; }
   @media (max-width:680px){ .brand-chips{ display:none; } }
   .nav-links{display:flex; gap:30px; font-size:12.5px; color:var(--ink-soft);}
-  .nav-links a{transition:color .25s var(--ease);}
+  .nav-links a{
+    position:relative; padding:4px 1px;
+    transition:color .25s var(--ease);
+  }
+  /* sublinhado que cresce do centro no hover e trava no link da seção ativa (scroll-spy) */
+  .nav-links a::after{
+    content:""; position:absolute; left:0; right:0; bottom:-2px; height:2px; border-radius:2px;
+    background:var(--felt-bright); transform:scaleX(0); transform-origin:center;
+    transition:transform .35s var(--ease-expo);
+  }
   .nav-links a:hover{color:var(--ink);}
+  .nav-links a:hover::after{ transform:scaleX(1); }
+  .nav-links a.active{ color:var(--ink); }
+  .nav-links a.active::after{ transform:scaleX(1); }
+  @media (prefers-reduced-motion: reduce){
+    .nav-links a::after{ transition:none; }
+    nav, .nav-inner{ transition:none; }
+  }
   .nav-right{display:flex; align-items:center; gap:14px;}
   .presence-wrap{ display:flex; align-items:center; }
   .presence-avatar{
@@ -1259,7 +1306,7 @@
   .time-flag.soon{ background:rgba(217,165,20,0.16); color:var(--warn-text); }
   .time-flag.late{ background:rgba(216,57,43,0.14); color:var(--late-border); }
   .time-flag.running{ background:rgba(24,163,107,0.14); color:var(--felt); }
-  .time-flag.not-needed{ background:#f1f1f3; color:var(--ink-soft); font-weight:600; }
+  .time-flag.not-needed{ background:var(--hairline-strong); color:var(--ink-soft); font-weight:600; }
   .mini-chip{ width:11px; height:11px; flex:none; }
 
   .copy-row{ display:flex; align-items:center; gap:8px; margin-top:12px; }
@@ -1487,17 +1534,41 @@
     background:var(--felt-soft); padding:1px 6px; border-radius:99px; margin-left:2px;
   }
   .drawer-overlay{
-    position:fixed; inset:0; z-index:550; background:rgba(12,18,15,0.80);
-    opacity:0; pointer-events:none; transition:opacity .35s var(--ease);
+    position:fixed; inset:0; z-index:550; background:rgba(9,14,11,0.62);
+    opacity:0; pointer-events:none;
+    /* backdrop escurece + desfoca o painel atrás ao abrir (foco cinematográfico) */
+    backdrop-filter:blur(0px) saturate(100%); -webkit-backdrop-filter:blur(0px) saturate(100%);
+    transition:opacity .3s var(--ease-quart), backdrop-filter .5s var(--ease-quart), -webkit-backdrop-filter .5s var(--ease-quart);
   }
-  .drawer-overlay.open{ opacity:1; pointer-events:auto; }
+  .drawer-overlay.open{
+    opacity:1; pointer-events:auto;
+    backdrop-filter:blur(16px) saturate(140%); -webkit-backdrop-filter:blur(16px) saturate(140%);
+  }
   .drawer{
     position:fixed; top:0; right:0; bottom:0; width:min(420px, 92vw);
-    background:var(--bg); box-shadow:-30px 0 70px -20px rgba(12,30,22,0.3);
+    background:var(--bg); box-shadow:-40px 0 90px -24px rgba(9,20,14,0.55);
     display:flex; flex-direction:column;
-    transform:translateX(100%); transition:transform .45s var(--ease);
+    transform:translateX(102%); will-change:transform;
+    /* entrada decidida (ease-expo, mais longa); saída ~35% mais curta abaixo */
+    transition:transform .58s var(--ease-expo);
   }
   .drawer-overlay.open .drawer{ transform:translateX(0); }
+  .drawer-overlay:not(.open) .drawer{ transition-duration:.34s; transition-timing-function:var(--ease-inout); }
+  /* stagger do conteúdo: as seções do drawer sobem em sequência quando abre */
+  .drawer-body > *{
+    opacity:0; transform:translateY(14px);
+    transition:opacity .5s var(--ease-quart), transform .5s var(--ease-expo);
+  }
+  .drawer-overlay.open .drawer-body > *{ opacity:1; transform:none; }
+  .drawer-overlay.open .drawer-body > *:nth-child(1){ transition-delay:.14s; }
+  .drawer-overlay.open .drawer-body > *:nth-child(2){ transition-delay:.20s; }
+  .drawer-overlay.open .drawer-body > *:nth-child(3){ transition-delay:.26s; }
+  .drawer-overlay.open .drawer-body > *:nth-child(4){ transition-delay:.32s; }
+  .drawer-overlay.open .drawer-body > *:nth-child(n+5){ transition-delay:.38s; }
+  @media (prefers-reduced-motion: reduce){
+    .drawer-body > *{ opacity:1; transform:none; transition:none; }
+    .drawer-overlay{ backdrop-filter:none; -webkit-backdrop-filter:none; }
+  }
   .drawer-head{
     display:flex; align-items:center; justify-content:space-between; gap:12px;
     padding:20px 22px; border-bottom:1px solid var(--hairline); flex:none;
@@ -5345,16 +5416,19 @@ function showJustifModal(pending, emailKey){
       animation: jm-fade .25s var(--ease);
     }
     @keyframes jm-fade{ from{opacity:0} to{opacity:1} }
-    @keyframes jm-up{ from{opacity:0;transform:translateY(16px) scale(.98)} to{opacity:1;transform:none} }
+    @keyframes jm-up{ from{opacity:0;transform:translateY(22px) scale(.96);filter:blur(6px)} to{opacity:1;transform:none;filter:blur(0)} }
     .jm-box{
       background: var(--card);
       border: 1px solid var(--hairline);
       border-radius: var(--radius-lg);
       max-width: 460px; width: 100%;
       box-shadow: var(--shadow-lg);
-      animation: jm-up .3s var(--ease);
+      animation: jm-up .42s var(--ease-expo);
       overflow: hidden;
       font-family: var(--text);
+    }
+    @media (prefers-reduced-motion: reduce){
+      .jm-box{ animation-duration:.001ms; filter:none; }
     }
     .jm-body{ padding: 30px 30px 26px; }
     .jm-seal{
@@ -10512,9 +10586,27 @@ window.addEventListener('scroll', () => {
     const h = document.documentElement;
     const scrolled = (h.scrollTop) / (h.scrollHeight - h.clientHeight) * 100;
     progressBar.style.width = scrolled + '%';
+    updateScrollSpy();
     scrollTicking = false;
   });
 }, {passive:true});
+
+/* Scroll-spy: destaca no nav o link da seção atualmente em foco.
+   Seções ocultas (ex.: #nao-fixados quando não há torneios) são ignoradas. */
+const spyLinks = [...document.querySelectorAll('.nav-links a[href^="#"]')].map(a => ({
+  a, id: a.getAttribute('href').slice(1)
+}));
+function updateScrollSpy(){
+  const line = window.innerHeight * 0.32;   // linha de foco: ~1/3 do topo da viewport
+  let current = null;
+  for (const {a, id} of spyLinks){
+    const sec = document.getElementById(id);
+    if (!sec || sec.hidden || sec.offsetParent === null) continue;
+    if (sec.getBoundingClientRect().top <= line) current = a;
+  }
+  spyLinks.forEach(({a}) => a.classList.toggle('active', a === current));
+}
+updateScrollSpy();
 
 document.querySelectorAll('.reveal').forEach(el => io.observe(el));
 
