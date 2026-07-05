@@ -152,6 +152,10 @@
     background: rgba(15,17,16,0.82);
     border-bottom-color: rgba(255,255,255,0.07);
   }
+  html.dark nav.scrolled{
+    background: rgba(15,17,16,0.92);
+    box-shadow:0 8px 30px -18px rgba(0,0,0,0.7);
+  }
 
   /* ── Elementos com background:#fff hardcoded ── */
   html.dark .welcome-input,
@@ -544,20 +548,19 @@
   /* ---------- NAV ---------- */
   nav{
     position:fixed; top:0; left:0; right:0; z-index:200;
-    backdrop-filter:blur(12px) saturate(120%);
-    -webkit-backdrop-filter:blur(12px) saturate(120%);
+    /* blur fixo (não entra na transição): animar backdrop-filter custa caro por frame */
+    backdrop-filter:blur(16px) saturate(140%);
+    -webkit-backdrop-filter:blur(16px) saturate(140%);
     background:rgba(251,251,253,0.72);
     border-bottom:1px solid transparent;
     box-shadow:0 0 0 rgba(12,30,22,0);
     transition:border-color .4s var(--ease), background .4s var(--ease-quart),
-               box-shadow .4s var(--ease-quart), backdrop-filter .4s var(--ease-quart);
+               box-shadow .4s var(--ease-quart);
   }
-  /* condensa ao rolar: nav mais compacto, vidro mais denso e leve elevação (pegada premium) */
+  /* condensa ao rolar: vidro mais opaco + leve elevação (só props baratas animam) */
   nav.scrolled{
     border-bottom-color:var(--hairline);
     background:rgba(251,251,253,0.86);
-    backdrop-filter:blur(20px) saturate(150%);
-    -webkit-backdrop-filter:blur(20px) saturate(150%);
     box-shadow:0 8px 30px -18px rgba(12,30,22,0.5);
   }
   .nav-inner{
@@ -1536,23 +1539,22 @@
   .drawer-overlay{
     position:fixed; inset:0; z-index:550; background:rgba(9,14,11,0.62);
     opacity:0; pointer-events:none;
-    /* backdrop escurece + desfoca o painel atrás ao abrir (foco cinematográfico) */
-    backdrop-filter:blur(0px) saturate(100%); -webkit-backdrop-filter:blur(0px) saturate(100%);
-    transition:opacity .3s var(--ease-quart), backdrop-filter .5s var(--ease-quart), -webkit-backdrop-filter .5s var(--ease-quart);
-  }
-  .drawer-overlay.open{
-    opacity:1; pointer-events:auto;
+    /* Blur FIXO (não animado): o desfoque entra junto com a opacidade — mesmo efeito
+       cinematográfico, mas sem re-filtrar o backdrop a cada frame (fluidez). */
     backdrop-filter:blur(16px) saturate(140%); -webkit-backdrop-filter:blur(16px) saturate(140%);
+    transition:opacity .34s var(--ease-quart);
   }
+  .drawer-overlay.open{ opacity:1; pointer-events:auto; }
   .drawer{
     position:fixed; top:0; right:0; bottom:0; width:min(420px, 92vw);
     background:var(--bg); box-shadow:-40px 0 90px -24px rgba(9,20,14,0.55);
     display:flex; flex-direction:column;
-    transform:translateX(102%); will-change:transform;
+    transform:translateX(102%);
     /* entrada decidida (ease-expo, mais longa); saída ~35% mais curta abaixo */
     transition:transform .58s var(--ease-expo);
   }
-  .drawer-overlay.open .drawer{ transform:translateX(0); }
+  /* promove a camada só enquanto o drawer se move (evita 6 layers permanentes) */
+  .drawer-overlay.open .drawer{ transform:translateX(0); will-change:transform; }
   .drawer-overlay:not(.open) .drawer{ transition-duration:.34s; transition-timing-function:var(--ease-inout); }
   /* stagger do conteúdo: as seções do drawer sobem em sequência quando abre */
   .drawer-body > *{
