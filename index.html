@@ -21,7 +21,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Suprema Poker — Painel do Dia</title>
 <meta name="description" content="Acompanhamento dos torneios Suprema Poker. Garantidos, resultados e performance, atualizados a partir da planilha diária.">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- XLSX (~900KB) só é usado em upload/exportar (ação do usuário), nunca no load:
+     defer tira ele do caminho crítico → a página pinta na hora e ele carrega em paralelo. -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <style>
@@ -3409,7 +3411,7 @@
 
 <div class="welcome-screen" id="operatorOverlay">
   <div class="welcome-bg" aria-hidden="true">
-    <video class="welcome-video" id="welcomeVideo" autoplay muted loop playsinline preload="auto"></video>
+    <video class="welcome-video" id="welcomeVideo" muted loop playsinline preload="none"></video>
     <div class="welcome-overlay"></div>
   </div>
   <button type="button" class="welcome-close" id="welcomeCloseBtn" hidden aria-label="Fechar">✕</button>
@@ -3680,7 +3682,7 @@
     <div class="hero-cards" id="heroCards" aria-hidden="true">
       <!-- Vídeo decorativo opcional (gerado no DaVinci, salvo como hero.mp4 na mesma pasta).
            Se o arquivo existir e carregar, substitui as cartas SVG; se não, as cartas continuam. -->
-      <video class="hero-video" id="heroVideo" muted loop playsinline preload="auto" aria-hidden="true"></video>
+      <video class="hero-video" id="heroVideo" muted loop playsinline preload="none" aria-hidden="true"></video>
       <svg class="hcard hcard-1" viewBox="0 0 120 168">
         <rect x="3" y="3" width="114" height="162" rx="14" fill="#fff" stroke="var(--main)" stroke-width="2"/>
         <rect x="8" y="8" width="104" height="152" rx="10" fill="none" stroke="var(--main)" stroke-width="1" opacity="0.18"/>
@@ -4080,60 +4082,68 @@
    (arquivo único auto-contido, sem depender de hospedagem externa). Cortado pra remover
    a marca d'água do material de referência e com crossfade no fim pra dar loop suave.
 ========================================================================= */
-/* vídeo carregado via URL — ver bg.mp4 na mesma pasta */
-(function initWelcomeVideo(){
+/* ── Vídeo de fundo da tela de boas-vindas — LAZY + libera memória ao fechar ──
+   Antes: bg.mp4 era baixado e DECODIFICADO na memória em todo carregamento (mesmo
+   pra quem nem via a tela), com preload="auto", e ficava residente pra sempre.
+   Agora: só carrega quando a tela realmente aparece, PAUSA fora de foco e LIBERA
+   a memória (removeAttribute('src')+load()) ao sair. Em máquinas com pouca RAM,
+   conexão em economia de dados ou movimento reduzido, nem carrega. */
+(function welcomeVideoManager(){
   const video = document.getElementById('welcomeVideo');
-  if (!video) return;
-  try{
-    video.src = 'bg.mp4';;
-    // mostra o vídeo assim que tiver dados suficientes (não espera canplay que pode demorar)
-    const show = () => video.classList.add('ready');
-    video.addEventListener('canplay', show, {once:true});
-    video.addEventListener('loadeddata', show, {once:true});
-    // tenta autoplay — browsers modernos bloqueiam sem interação do usuário
-    // mas a política de autoplay permite vídeos mutados (muted=true está no HTML)
-    const playPromise = video.play();
-    if(playPromise !== undefined){
-      playPromise.catch(() => {
-        // autoplay bloqueado — tenta de novo na primeira interação do usuário
-        const retry = () => { video.play().catch(() => {}); document.removeEventListener('click', retry); document.removeEventListener('keydown', retry); };
+  const overlay = document.getElementById('operatorOverlay');
+  if(!video || !overlay) return;
+
+  const conn = navigator.connection || {};
+  const lowResources =
+    (navigator.deviceMemory && navigator.deviceMemory <= 4) ||
+    conn.saveData === true ||
+    /(^|-)2g$/.test(conn.effectiveType || '') ||
+    (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  let loaded = false;
+  function load(){
+    if(loaded || lowResources) return;
+    loaded = true;
+    try{
+      video.src = 'bg.mp4';
+      const show = () => video.classList.add('ready');
+      video.addEventListener('canplay', show, {once:true});
+      video.addEventListener('loadeddata', show, {once:true});
+      const p = video.play();
+      if(p !== undefined) p.catch(() => {
+        const retry = () => { video.play().catch(()=>{}); document.removeEventListener('click', retry); document.removeEventListener('keydown', retry); };
         document.addEventListener('click', retry, {once:true});
         document.addEventListener('keydown', retry, {once:true});
       });
-    }
-  }catch(e){ console.warn('Vídeo de boas-vindas não carregou.', e); }
+    }catch(e){ console.warn('Vídeo de boas-vindas não carregou.', e); }
+  }
+  function release(){
+    if(!loaded) return;
+    loaded = false;
+    try{ video.pause(); video.removeAttribute('src'); video.load(); video.classList.remove('ready'); }catch(e){}
+  }
+  const sync = () => { overlay.classList.contains('open') ? load() : release(); };
+  new MutationObserver(sync).observe(overlay, {attributes:true, attributeFilter:['class']});
+  sync();
+
+  document.addEventListener('visibilitychange', () => {
+    if(document.hidden){ if(!video.paused) video.pause(); }
+    else if(loaded && overlay.classList.contains('open')){ video.play().catch(()=>{}); }
+  });
 })();
 
-/* ── PERF: pausa vídeos quando não estão visíveis ─────────────────────────
-   <video loop> continua DECODIFICANDO frames mesmo escondido/fora da tela,
-   consumindo GPU/CPU o tempo todo — inclusive enquanto você está na Agenda.
-   Sem isso o vídeo de boas-vindas rodava pra sempre atrás do painel. */
-(function pauseVideosWhenHidden(){
-  const welcome = document.getElementById('welcomeVideo');
-  const overlay = document.getElementById('operatorOverlay');
-  if(welcome && overlay){
-    const syncWelcome = () => {
-      if(overlay.classList.contains('open')) welcome.play?.().catch(()=>{});
-      else if(!welcome.paused) welcome.pause();
-    };
-    new MutationObserver(syncWelcome).observe(overlay, {attributes:true, attributeFilter:['class']});
-    syncWelcome();
-  }
+/* heroVideo: pausa quando sai da tela / aba oculta (o arquivo pode nem existir —
+   nesse caso é inofensivo). Evita decodificar frames fora de vista. */
+(function heroVideoManager(){
   const hero = document.getElementById('heroVideo');
-  if(hero && 'IntersectionObserver' in window){
-    new IntersectionObserver(entries => {
-      entries.forEach(e => {
-        if(e.isIntersecting) hero.play?.().catch(()=>{});
-        else if(!hero.paused) hero.pause();
-      });
-    }, {threshold:0.01}).observe(hero);
-  }
-  // rede de segurança: aba em segundo plano → pausa tudo
-  document.addEventListener('visibilitychange', () => {
-    if(document.hidden){
-      [welcome, hero].forEach(v => { if(v && !v.paused) v.pause(); });
-    }
-  });
+  if(!hero || !('IntersectionObserver' in window)) return;
+  new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if(e.isIntersecting) hero.play?.().catch(()=>{});
+      else if(!hero.paused) hero.pause();
+    });
+  }, {threshold:0.01}).observe(hero);
+  document.addEventListener('visibilitychange', () => { if(document.hidden && !hero.paused) hero.pause(); });
 })();
 
 /* =========================================================================
