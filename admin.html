@@ -312,6 +312,7 @@ a{color:inherit;text-decoration:none}
   display:flex;align-items:center;justify-content:space-between;gap:12px;
 }
 .card-title{font-size:15px;font-weight:600;color:var(--ink);letter-spacing:-.015em}
+.card-title svg{width:15px;height:15px;vertical-align:-3px;margin-right:3px;stroke:var(--gold);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .card-sub{font-size:12px;color:var(--ink3);margin-top:2px;letter-spacing:-.005em}
 .card-actions{display:flex;gap:8px;align-items:center;flex:none}
 
@@ -689,7 +690,6 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
   <nav class="sidebar">
     <span class="nav-group">Auditoria</span>
     <button class="ntab active" onclick="nav('audit',this)"><span class="ni"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>Acompanhamento</button>
-    <button class="ntab" onclick="nav('fixados',this)"><span class="ni"><svg viewBox="0 0 24 24"><path d="M12 22s7-7.05 7-12A7 7 0 1 0 5 10c0 4.95 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg></span>Fixações</button>
     <span class="nav-group">Analytics</span>
     <button class="ntab" onclick="nav('dashboard',this)"><span class="ni"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>Dashboard</button>
     <button class="ntab" onclick="nav('grade',this)"><span class="ni"><svg viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></span>Grade</button>
@@ -748,6 +748,9 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
         <div class="fld"><label>Operador</label>
           <select id="auOp"><option value="">Todos</option></select>
         </div>
+        <div class="fld"><label>Torneio</label>
+          <input type="text" id="auSearch" placeholder="Buscar por nome...">
+        </div>
       </div>
       <div id="batchActions">
         <span id="batchCount" style="font-size:12.5px;font-weight:500;color:var(--gold)"></span>
@@ -755,43 +758,6 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
         <button class="btn btn-ghost btn-sm" onclick="batchDeselect()">Cancelar</button>
       </div>
       <div id="auditResult"></div>
-    </div>
-
-    <!-- ══ FIXAÇÕES ══ -->
-    <div class="page" id="pageFixados">
-      <div class="ph">
-        <div>
-          <div class="ph-eyebrow">Auditoria</div>
-          <h1>Histórico de Fixações</h1>
-          <p>Quem fixou cada torneio e quando</p>
-        </div>
-        <div class="ph-actions">
-          <button class="btn btn-ghost" onclick="exportFixXlsx()">⬇ XLSX</button>
-          <button class="btn btn-gold" onclick="loadFixados()">Buscar</button>
-        </div>
-      </div>
-      <div class="filters">
-        <div class="fld"><label>De</label><input type="date" id="fixFrom"></div>
-        <div class="fld"><label>Até</label><input type="date" id="fixTo"></div>
-        <div class="fld"><label>Operador</label>
-          <select id="fixOp"><option value="">Todos</option></select>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-head">
-          <div><div class="card-title">Log de fixações</div><div class="card-sub" id="fixCount">—</div></div>
-        </div>
-        <div class="tbl-wrap">
-          <table>
-            <thead><tr>
-              <th>Data</th><th>Hora fix.</th><th>Operador</th><th>Torneio</th>
-              <th>Categoria</th><th class="r">Garantido</th><th class="r">Premiação</th>
-              <th class="r">Perf.</th><th>Status</th>
-            </tr></thead>
-            <tbody id="fixBody"></tbody>
-          </table>
-        </div>
-      </div>
     </div>
 
     <!-- ══ DASHBOARD ══ -->
@@ -813,7 +779,8 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
       <div class="kpi-grid" id="dashKpi"></div>
       <div class="card" style="margin-bottom:18px">
         <div class="card-head">
-          <div><div class="card-title">🧠 Insights do período</div><div class="card-sub">Anomalias e oportunidades detectadas automaticamente</div></div>
+          <div><div class="card-title"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Insights do período</div><div class="card-sub">Anomalias e oportunidades detectadas automaticamente</div></div>
+          <div class="card-actions"><button class="btn btn-ghost btn-sm" onclick="openInsightSettings()">⚙ Limiares</button></div>
         </div>
         <div style="padding:14px 18px" id="dashInsights">
           <div style="font-size:12px;color:var(--ink3)">Carregando dados...</div>
@@ -821,7 +788,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
       </div>
       <div class="card" style="margin-bottom:18px">
         <div class="card-head">
-          <div><div class="card-title">📈 Projeção do mês</div>
+          <div><div class="card-title"><svg viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg> Projeção do mês</div>
                <div class="card-sub">Tendência de premiação e overlay com base nos dias rodados</div></div>
           <div class="card-actions"><button class="btn btn-ghost btn-sm" onclick="buildMonthProjection()">Atualizar</button></div>
         </div>
@@ -831,7 +798,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
       </div>
       <div class="card" style="margin-bottom:18px">
         <div class="card-head">
-          <div><div class="card-title">📅 Comparativo semana a semana</div>
+          <div><div class="card-title"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Comparativo semana a semana</div>
                <div class="card-sub">Evolução de performance e overlay nas últimas 4 semanas</div></div>
         </div>
         <div style="padding:14px 18px" id="weeklyComparison">
@@ -844,7 +811,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
           <table>
             <thead><tr>
               <th>Torneio</th><th>Cat.</th><th class="r">GTD</th>
-              <th class="r">Premiação</th><th class="r">Overlay</th><th class="r">Perf.</th><th>Barra</th>
+              <th class="r">Premiação</th><th class="r">Overlay</th><th class="r">Perf.</th><th>Barra</th><th></th>
             </tr></thead>
             <tbody id="dashOverlayTable"></tbody>
           </table>
@@ -898,7 +865,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
               <th>Torneio</th><th>Cat.</th><th class="r">Rodadas</th>
               <th class="r">GTD médio</th><th class="r">Pool médio</th>
               <th class="r">Perf. média</th><th class="r">Overlay total</th>
-              <th class="r">Taxa OV%</th><th>Risco</th>
+              <th class="r">Taxa OV%</th><th>Risco</th><th></th>
             </tr></thead>
             <tbody id="gradeBody"></tbody>
           </table>
@@ -950,7 +917,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
       <!-- Export mensal -->
       <div class="card" style="margin-bottom:18px">
         <div class="card-head">
-          <div><div class="card-title">📦 Export mensal completo</div>
+          <div><div class="card-title"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg> Export mensal completo</div>
                <div class="card-sub">Baixa todos os dados de um mês em XLSX — uma aba por dia</div></div>
         </div>
         <div style="padding:16px 18px">
@@ -970,7 +937,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
       <!-- Limpeza automática -->
       <div class="card" style="margin-bottom:18px">
         <div class="card-head">
-          <div><div class="card-title">🧹 Limpeza automática</div>
+          <div><div class="card-title"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Limpeza automática</div>
                <div class="card-sub">Remove dados do Firebase com mais de 90 dias — mantém snapshots e relatórios</div></div>
           <div class="card-actions">
             <button class="btn btn-ghost btn-sm" onclick="previewCleanup()">Pré-visualizar</button>
@@ -987,7 +954,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
       <!-- Google Sheets -->
       <div class="card">
         <div class="card-head">
-          <div><div class="card-title">📊 Google Sheets (backup diário)</div>
+          <div><div class="card-title"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Google Sheets (backup diário)</div>
                <div class="card-sub">Exporta os dados do dia atual para uma planilha Google automaticamente</div></div>
           <div class="card-actions">
             <button class="btn btn-gold btn-sm" onclick="exportToSheets()">Enviar hoje para Sheets</button>
@@ -1140,6 +1107,30 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
     <div class="modal-actions" style="flex-direction:column">
       <a href="index.html" class="btn btn-gold" style="justify-content:center;text-decoration:none">Ir para o painel</a>
       <button class="btn btn-ghost" onclick="closeMo('moSuccess')" style="justify-content:center">Continuar no admin</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Limiares dos insights automáticos -->
+<div class="modal-bg" id="moInsightSettings">
+  <div class="modal" style="max-width:420px">
+    <h2>⚙ Limiares dos insights</h2>
+    <div class="msub">Ajuste os gatilhos usados para detectar anomalias no Dashboard. Fica salvo neste navegador.</div>
+    <div class="mf"><label>Overlay diário mínimo pra alertar (R$)</label>
+      <input type="number" id="cfgOverlayDia" step="50">
+    </div>
+    <div class="mf"><label>Taxa de overlay crônico (% das rodadas)</label>
+      <input type="number" id="cfgOverlayTaxa" step="5" min="0" max="100">
+    </div>
+    <div class="mf"><label>Mínimo de NF no período pra alertar</label>
+      <input type="number" id="cfgNfMin" step="1" min="1">
+    </div>
+    <div class="mf"><label>Variação mínima de performance pra destacar (pontos %)</label>
+      <input type="number" id="cfgPerfDiff" step="0.5" min="0">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeMo('moInsightSettings')">Cancelar</button>
+      <button class="btn btn-gold" onclick="saveInsightSettings()">Salvar</button>
     </div>
   </div>
 </div>
@@ -1352,7 +1343,6 @@ let _allData={};   // { date: { rows:{}, fixed:{}, ids:{}, field:{} } }
 let _dp=30, _gp=30;
 let _gradeRows=[];
 let _auditRows=[];
-let _fixRows=[];
 let _toastTm;
 
 /* ── UTILS ──────────────────────────────────────────────────── */
@@ -1739,30 +1729,43 @@ function nav(id,btn){
   if(id==='backup')initBackup(); // initBackup já faz loadAll() internamente
   if(id==='grade')renderGrade();
   if(id==='audit')loadAudit();
-  if(id==='fixados')loadFixados();
+}
+
+// Drill-down: pula da Grade/Dashboard direto pra Auditoria já filtrada pelo torneio,
+// fechando o ciclo "detectei problema no gráfico → fui investigar as rodadas".
+function goToAuditFor(nome){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.ntab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('pageAudit')?.classList.add('active');
+  document.querySelector('.ntab[onclick*="\'audit\'"]')?.classList.add('active');
+  const search = document.getElementById('auSearch');
+  if(search) search.value = nome;
+  // Auditoria por padrão olha os últimos 7 dias — abrir um período maior pra achar o torneio
+  const from = document.getElementById('auFrom');
+  if(from && from.value > dago(60)) from.value = dago(60);
+  loadAudit();
 }
 
 /* ── INIT DATES ─────────────────────────────────────────────── */
 function initDates(){
   const to=nowSP();
   const from=dago(6);
-  ['auFrom','auTo','fixFrom','fixTo'].forEach((id,i)=>{
+  ['auFrom','auTo'].forEach((id,i)=>{
     const el=document.getElementById(id);
     if(el)el.value=i%2===0?from:to;
   });
-  // popular operadores nos selects
+  // popular operadores no select
   const ops=new Set();
   Object.values(_allData).forEach(day=>{
     Object.values(day.fixed).forEach(f=>{
       if(typeof f==='object'&&f?.by)ops.add(f.by);
     });
   });
-  ['auOp','fixOp'].forEach(id=>{
-    const sel=document.getElementById(id);
-    if(!sel)return;
+  const sel=document.getElementById('auOp');
+  if(sel){
     sel.innerHTML='<option value="">Todos</option>';
     [...ops].sort().forEach(op=>sel.innerHTML+=`<option value="${esc(op)}">${esc(op)}</option>`);
-  });
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -1774,12 +1777,14 @@ async function loadAudit(){
   const catF=document.getElementById('auCat')?.value||'';
   const stF =document.getElementById('auStatus')?.value||'';
   const opF =document.getElementById('auOp')?.value||'';
+  const qF  =(document.getElementById('auSearch')?.value||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
 
   await Promise.all([loadAuditData()]);
   let rows=enrichWithAudit(flatRows(from,to));
   if(catF)rows=rows.filter(r=>r.cat===catF);
   if(stF) rows=rows.filter(r=>r.status===stF);
   if(opF) rows=rows.filter(r=>r.fixBy===opF||r.idBy===opF);
+  if(qF)  rows=rows.filter(r=>r.nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').includes(qF));
 
   _auditRows=rows;
 
@@ -1914,37 +1919,6 @@ async function loadAudit(){
   }
 }
 
-/* ── FIXAÇÕES ────────────────────────────────────────────────── */
-async function loadFixados(){
-  const from=document.getElementById('fixFrom')?.value||dago(6);
-  const to  =document.getElementById('fixTo')?.value||nowSP();
-  const opF =document.getElementById('fixOp')?.value||'';
-
-  let rows=flatRows(from,to).filter(r=>r.fixBy||r.idBy);
-  if(opF)rows=rows.filter(r=>r.fixBy===opF||r.idBy===opF);
-  rows.sort((a,b)=>b.date.localeCompare(a.date)||b.fixAt.localeCompare(a.fixAt));
-
-  _fixRows=rows;
-  document.getElementById('fixCount').textContent=`${rows.length} registro${rows.length!==1?'s':''}`;
-  const body=document.getElementById('fixBody');
-
-  if(!rows.length){
-    body.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:36px;color:var(--ink3)">Nenhum dado encontrado</td></tr>`;
-    return;
-  }
-  body.innerHTML=rows.map(r=>`<tr>
-    <td class="mono c-ink2">${fmtDate(r.date)}</td>
-    <td class="mono c-ink3">${esc(r.fixAt||'—')}</td>
-    <td class="c-gold">${esc(r.fixBy||r.idBy||'—')}</td>
-    <td class="nm">${esc(r.nome)}</td>
-    <td>${catBadge(r.cat)}</td>
-    <td class="r mono">${r.garantido!=null?'R$ '+brl(r.garantido):'—'}</td>
-    <td class="r mono">${r.premiacao!=null?'R$ '+brl(r.premiacao):'—'}</td>
-    <td class="r">${r.perf!=null?`<span class="perf ${r.perf>=0?'pos':'neg'}">${pct(r.perf)}</span>`:'—'}</td>
-    <td>${statusBadge(r.status)}</td>
-  </tr>`).join('');
-}
-
 /* ── DASHBOARD ───────────────────────────────────────────────── */
 function setDp(n,btn){
   _dp=n;
@@ -1999,8 +1973,9 @@ function buildDash(){
       <td class="r mono c-red">${brlk(v.ov)}</td>
       <td class="r">${perf!=null?`<span class="perf neg">${pct(perf)}</span>`:'—'}</td>
       <td style="min-width:80px"><div class="bar"><div class="bar-fill" style="width:${barPct}%;background:var(--red)"></div></div></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="goToAuditFor('${esc(v.nome).replace(/'/g,"\\'")}')">🔍 Auditar</button></td>
     </tr>`;
-  }).join(''):`<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--ink3)">Sem overlay no período</td></tr>`;
+  }).join(''):`<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--ink3)">Sem overlay no período</td></tr>`;
 
   // ── Insights inteligentes ──
   buildInsights(rows, closed, _dp);
@@ -2071,9 +2046,38 @@ function buildWeeklyComparison(){
     </div>`;
 }
 
+// Limiares configuráveis de detecção de anomalias (⚙ Limiares no card de Insights).
+// Antes eram constantes fixas no código — agora ficam salvas no navegador do admin.
+const INSIGHT_CFG_DEFAULT = { overlayDia:500, overlayTaxa:60, nfMin:5, perfDiff:3 };
+function getInsightCfg(){
+  try{ return {...INSIGHT_CFG_DEFAULT, ...JSON.parse(localStorage.getItem('suprema_insight_cfg')||'{}')}; }
+  catch(e){ return {...INSIGHT_CFG_DEFAULT}; }
+}
+function openInsightSettings(){
+  const cfg = getInsightCfg();
+  document.getElementById('cfgOverlayDia').value = cfg.overlayDia;
+  document.getElementById('cfgOverlayTaxa').value = cfg.overlayTaxa;
+  document.getElementById('cfgNfMin').value = cfg.nfMin;
+  document.getElementById('cfgPerfDiff').value = cfg.perfDiff;
+  document.getElementById('moInsightSettings').classList.add('open');
+}
+function saveInsightSettings(){
+  const cfg = {
+    overlayDia:  parseFloat(document.getElementById('cfgOverlayDia').value)  || INSIGHT_CFG_DEFAULT.overlayDia,
+    overlayTaxa: parseFloat(document.getElementById('cfgOverlayTaxa').value) || INSIGHT_CFG_DEFAULT.overlayTaxa,
+    nfMin:       parseFloat(document.getElementById('cfgNfMin').value)      || INSIGHT_CFG_DEFAULT.nfMin,
+    perfDiff:    parseFloat(document.getElementById('cfgPerfDiff').value)   || INSIGHT_CFG_DEFAULT.perfDiff,
+  };
+  localStorage.setItem('suprema_insight_cfg', JSON.stringify(cfg));
+  closeMo('moInsightSettings');
+  toast('✓ Limiares salvos','ok');
+  buildDash();
+}
+
 function buildInsights(rows, closed, days){
   const el = document.getElementById('dashInsights');
   if(!el) return;
+  const cfg = getInsightCfg();
   const insights = [];
 
   // 1. Taxa de fechamento
@@ -2089,7 +2093,7 @@ function buildInsights(rows, closed, days){
     byDay[d].ov += r.overlay||0; byDay[d].n++;
   });
   const worstDay = Object.entries(byDay).sort((a,b)=>a[1].ov-b[1].ov)[0];
-  if(worstDay && worstDay[1].ov < -500)
+  if(worstDay && worstDay[1].ov < -cfg.overlayDia)
     insights.push({type:'warn', icon:'📅', text:`<b>${worstDay[0]}</b> é o dia com maior overlay acumulado: R$ ${brl(Math.abs(worstDay[1].ov))} em ${worstDay[1].n} torneio${worstDay[1].n>1?'s':''}.`});
 
   // 3. Torneio com overlay recorrente
@@ -2101,7 +2105,7 @@ function buildInsights(rows, closed, days){
     if(r.overlay<0) byName[r.nome].ovCount++;
   });
   const chronic = Object.entries(byName)
-    .filter(([,v])=>v.n>=3&&v.ovCount/v.n>=0.6)
+    .filter(([,v])=>v.n>=3&&v.ovCount/v.n>=cfg.overlayTaxa/100)
     .sort((a,b)=>a[1].ov-b[1].ov).slice(0,2);
   chronic.forEach(([nome,v])=>
     insights.push({type:'alert', icon:'🔴', text:`<b>${esc(nome)}</b>: overlay em ${Math.round(v.ovCount/v.n*100)}% das rodadas (${v.ovCount}/${v.n}). Revisar GTD.`})
@@ -2123,7 +2127,7 @@ function buildInsights(rows, closed, days){
     const avgE = earlier.length ? earlier.reduce((s,r)=>s+r.perf,0)/earlier.length : null;
     if(avgR!=null&&avgE!=null){
       const diff = avgR - avgE;
-      if(Math.abs(diff)>3)
+      if(Math.abs(diff)>cfg.perfDiff)
         insights.push({type: diff>0?'ok':'warn', icon: diff>0?'📈':'📉',
           text:`Performance ${diff>0?'melhorou':'piorou'} <b>${Math.abs(diff).toFixed(1)}%</b> na segunda metade do período (${avgR.toFixed(1)}% vs ${avgE.toFixed(1)}%).`});
     }
@@ -2131,7 +2135,7 @@ function buildInsights(rows, closed, days){
 
   // 6. Alertas de operacional
   const nfCount = rows.filter(r=>r.status==='nf').length;
-  if(nfCount > 5)
+  if(nfCount > cfg.nfMin)
     insights.push({type:'warn', icon:'🚫', text:`<b>${nfCount}</b> torneios marcados como NF no período. Verificar se GTDs estão calibrados.`});
 
   // 12. Alertas de calibração de GTD (torneios com overlay crônico)
@@ -2142,9 +2146,8 @@ function buildInsights(rows, closed, days){
     byName12[r.nome].gar += r.garantido||0;
     if(r.overlay!=null&&r.overlay<0) byName12[r.nome].ovN++;
   });
-  // Torneios com overlay em ≥60% das últimas 5+ rodadas
   Object.values(byName12)
-    .filter(v=>v.n>=3&&v.ovN/v.n>=0.6)
+    .filter(v=>v.n>=3&&v.ovN/v.n>=cfg.overlayTaxa/100)
     .sort((a,b)=>b.ovN/b.n-a.ovN/a.n)
     .slice(0,3)
     .forEach(v=>{
@@ -2156,7 +2159,7 @@ function buildInsights(rows, closed, days){
     });
 
   if(!insights.length){
-    el.innerHTML='<div style="font-size:12px;color:var(--ink3);padding:12px 0">✅ Nenhuma anomalia detectada no período.</div>';
+    el.innerHTML=`<div style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--ink3);padding:12px 0">${typeIcon('ok')}Nenhuma anomalia detectada no período.</div>`;
     return;
   }
 
@@ -2164,9 +2167,18 @@ function buildInsights(rows, closed, days){
   const bgs    = {ok:'var(--greenf)',warn:'var(--amberf)',alert:'var(--redf)'};
   el.innerHTML = insights.map(ins=>`
     <div style="display:flex;gap:10px;padding:10px 12px;background:${bgs[ins.type]};border:1px solid ${colors[ins.type]}22;border-radius:8px;margin-bottom:7px;font-size:12px;line-height:1.5">
-      <span style="font-size:16px;flex:none">${ins.icon}</span>
+      <span style="flex:none;color:${colors[ins.type]}">${typeIcon(ins.type)}</span>
       <span style="color:var(--ink2)">${ins.text}</span>
     </div>`).join('');
+}
+
+// Ícone semântico único por tipo (ok=verde, warn=âmbar, alert=vermelho) — consistência
+// com o sistema de ícones SVG stroke usado na sidebar/topbar, no lugar do emoji por item.
+const _ICON_SVG_ATTRS = 'width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+function typeIcon(type){
+  if(type==='alert') return `<svg viewBox="0 0 24 24" ${_ICON_SVG_ATTRS}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
+  if(type==='warn')  return `<svg viewBox="0 0 24 24" ${_ICON_SVG_ATTRS}><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+  return `<svg viewBox="0 0 24 24" ${_ICON_SVG_ATTRS}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
 }
 
 /* ── GRADE ───────────────────────────────────────────────────── */
@@ -2225,8 +2237,9 @@ function renderGrade(){
       <td class="r mono ${v.ov<0?'c-red':''}">${v.ov!==0?brlk(v.ov):'—'}</td>
       <td class="r mono" style="color:${riskColor}">${Math.round(v.ovRate*100)}%</td>
       <td><span style="font-size:10px;font-weight:700;color:${riskColor};background:${riskColor}18;border:1px solid ${riskColor}33;padding:2px 8px;border-radius:99px">${v.risk.toUpperCase()}</span></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="goToAuditFor('${esc(v.nome).replace(/'/g,"\\'")}')">🔍 Auditar</button></td>
     </tr>`;
-  }).join(''):`<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--ink3)">Nenhum dado</td></tr>`;
+  }).join(''):`<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--ink3)">Nenhum dado</td></tr>`;
 }
 
 /* ── OPERADORES ──────────────────────────────────────────────── */
@@ -2246,13 +2259,19 @@ async function loadOps(){
       const email=u.email||(u.key.replace(/_dot_/g,'.').replace(/_at_/g,'@'));
       const created=u.createdAt?new Date(u.createdAt).toLocaleDateString('pt-BR'):'—';
       const name=u.apelido||u.nome||email;
+      const suspenso = !!u.pendingNotif;
       return `<tr>
         <td><div style="font-weight:700">${esc(name)}</div><div style="font-size:11px;color:var(--ink3)">${esc(u.nome||'')}</div></td>
         <td class="c-ink2">${esc(email)}</td>
         <td class="r mono">${fixCount[name]||0}</td>
-        <td>${u.admin?'<span class="badge badge-closed">Admin</span>':'<span class="badge badge-open">Operador</span>'}</td>
+        <td style="display:flex;gap:5px;flex-wrap:wrap">
+          ${u.admin?'<span class="badge badge-closed">Admin</span>':'<span class="badge badge-open">Operador</span>'}
+          ${suspenso?'<span class="badge badge-nf">Suspenso</span>':''}
+        </td>
         <td class="c-ink3">${created}</td>
-        <td><button class="btn btn-ghost btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" onclick="blockOp(this.dataset.key,this.dataset.name)">Suspender</button></td>
+        <td>${suspenso
+          ? `<button class="btn btn-gold btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" onclick="forceUnblockOp(this.dataset.key,this.dataset.name)">Reativar</button>`
+          : `<button class="btn btn-ghost btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" onclick="blockOp(this.dataset.key,this.dataset.name)">Suspender</button>`}</td>
       </tr>`;
     }).join('');
   }catch(e){document.getElementById('opBody').innerHTML=`<tr><td colspan="6" style="color:var(--red);padding:16px">${e.message}</td></tr>`;}
@@ -2335,6 +2354,7 @@ async function confirmBlockOp(){
   try{
     await db.ref(`userNotifs/${key}/${notifId}`).set(notif);
     await db.ref(`users/${key}/pendingNotif`).set({notifId, since:Date.now()});
+    invalidateNotifsCache();
     closeMo('moBlockOp');
     toast(`✓ ${name} suspenso — aguardando justificativa`,'ok');
     writeAdminLog('bloquear', {operador:name, motivo:reason});
@@ -2471,6 +2491,7 @@ async function sendNotif(){
     await db.ref(`userNotifs/${opKey}/${notifId}`).set(notif);
     // Marcar operador como bloqueado por notificação pendente
     await db.ref(`users/${opKey}/pendingNotif`).set({notifId, since:Date.now()});
+    invalidateNotifsCache();
 
     closeMo('moNotif');
     toast(`✓ Notificação enviada para ${opData.apelido||opEmail}`,'ok');
@@ -2484,12 +2505,25 @@ async function sendNotif(){
   }
 }
 
+// Cache curto de userNotifs — evita reler o nó inteiro do Firebase toda vez que o
+// admin abre Justificativas/Notificações/Ranking em sequência (o nó cresce sem limite
+// e hoje é lido por completo em 4 pontos diferentes do painel).
+let _notifsCache = null, _notifsCacheAt = 0;
+const NOTIFS_CACHE_MS = 15000;
+async function getAllNotifsCached(force){
+  if(!force && _notifsCache && (Date.now()-_notifsCacheAt)<NOTIFS_CACHE_MS) return _notifsCache;
+  const snap = await db.ref('userNotifs').once('value');
+  _notifsCache = snap.val()||{};
+  _notifsCacheAt = Date.now();
+  return _notifsCache;
+}
+function invalidateNotifsCache(){ _notifsCache=null; }
+
 // Carregar notificações pendentes (sem justificativa)
 let _pendingNotifs = {};
-async function loadPendingNotifs(){
+async function loadPendingNotifs(force){
   if(!fbOk)return;
-  const snap = await db.ref('userNotifs').once('value');
-  const all  = snap.val()||{};
+  const all = await getAllNotifsCached(force);
   _pendingNotifs = {};
   Object.entries(all).forEach(([opKey,notifs])=>{
     if(!notifs||typeof notifs!=='object')return;
@@ -2505,8 +2539,7 @@ async function loadPendingNotifs(){
 
 async function openJustifs(){
   if(!fbOk)return;
-  const snap = await db.ref('userNotifs').once('value');
-  const all  = snap.val()||{};
+  const all = await getAllNotifsCached();
   const list = document.getElementById('justifList');
   const rows = [];
   Object.entries(all).forEach(([opKey,notifs])=>{
@@ -2548,11 +2581,29 @@ async function openJustifs(){
   document.getElementById('moJustifs').classList.add('open');
 }
 
+// Reativação forçada pelo admin — não depende do operador enviar justificativa antes.
+// Útil quando o operador não consegue logar ou o bloqueio foi engano.
+async function forceUnblockOp(key,name){
+  if(!confirm(`Reativar "${name}" imediatamente? Isso libera o acesso mesmo sem justificativa.`))return;
+  try{
+    const snap = await db.ref(`users/${key}/pendingNotif`).once('value');
+    const pending = snap.val();
+    if(pending?.notifId) await db.ref(`userNotifs/${key}/${pending.notifId}`).update({resolved:true,forcedByAdmin:true});
+    await db.ref(`users/${key}/pendingNotif`).remove();
+    invalidateNotifsCache();
+    toast(`✓ ${name} reativado`,'ok');
+    writeAdminLog('reativar', {operador:name});
+    loadOps();
+    loadPendingNotifs();
+  }catch(e){ toast('Erro: '+e.message,'err'); }
+}
+
 async function resolveNotif(opKey,nid){
   if(!await confirmModal({title:'Resolver notificação',message:'Marcar como resolvido e liberar o operador?',confirmLabel:'Resolver'}))return;
   try {
     await db.ref(`userNotifs/${opKey}/${nid}/resolved`).set(true);
     await db.ref(`users/${opKey}/pendingNotif`).remove();
+    invalidateNotifsCache();
     toast('✓ Notificação resolvida — operador liberado','ok');
     openJustifs();
     loadPendingNotifs();
@@ -2856,21 +2907,6 @@ function exportAuditXlsx(){
   }
 }
 
-function exportFixXlsx(){
-  if(!_fixRows.length){toast('Carregue os dados primeiro','err');return;}
-  const aoa=[['Data','Hora Fixação','Operador','Torneio','Categoria','Garantido','Premiação','Perf%','Status']];
-  _fixRows.forEach(r=>aoa.push([fmtDate(r.date),r.fixAt||'',r.fixBy||r.idBy||'',r.nome,
-    catLabel(r.cat),
-    r.garantido||'',r.premiacao||'',r.perf!=null?r.perf/100:'',
-    statusLabel(r.status)]));
-  const ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols']=[12,10,16,36,14,12,12,8,10].map(w=>({wch:w}));
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'Fixações');
-  XLSX.writeFile(wb,'Fixacoes.xlsx');
-  toast('✓ Exportado','ok');
-}
-
 function exportGradeXlsx(){
   if(!_gradeRows.length){toast('Carregue os dados','err');return;}
   const aoa=[['Torneio','Categoria','Rodadas','GTD Médio','Pool Médio','Perf%','Overlay Total']];
@@ -2952,11 +2988,16 @@ async function exportMonthXlsx(){
 
 // ── EXPORT TUDO ──
 async function exportAllTimeXlsx(){
-  if(!await confirmModal({title:'Exportar tudo',message:'Isso vai exportar <b>TODOS</b> os dados históricos em um XLSX. Pode demorar alguns segundos. Continuar?',confirmLabel:'Exportar'})) return;
+  const dates = Object.keys(_allData).sort();
+  const BIG_EXPORT_THRESHOLD = 90; // ~3 meses — acima disso o XLSX fica pesado pro navegador gerar
+  const big = dates.length > BIG_EXPORT_THRESHOLD;
+  const msg = big
+    ? `Isso vai exportar <b>${dates.length} dias</b> (${Object.keys(dates.reduce((s,d)=>{s[d.slice(0,7)]=1;return s;},{})).length} meses) num único XLSX. Com esse volume o navegador pode travar por um tempo — considere exportar por mês (acima) em vez de tudo de uma vez. Continuar mesmo assim?`
+    : `Isso vai exportar <b>TODOS</b> os dados históricos (${dates.length} dias) em um XLSX. Pode demorar alguns segundos. Continuar?`;
+  if(!await confirmModal({title:'Exportar tudo',message:msg,confirmLabel:'Exportar'})) return;
   const status = document.getElementById('bkMonthStatus');
   status.textContent = 'Gerando arquivo completo...';
 
-  const dates = Object.keys(_allData).sort();
   const wb = XLSX.utils.book_new();
 
   // Agrupar por mês
@@ -3104,9 +3145,27 @@ async function executeCleanup(old){
     }catch(e){ console.error('Erro ao remover', date, e); }
   }
 
-  el.innerHTML = `<span style="color:var(--green)">✅ ${removed} dia(s) removidos do Firebase.</span>`;
+  // Podar notificações antigas já resolvidas/justificadas — evita que userNotifs
+  // cresça sem limite, já que é lido por inteiro em vários pontos do admin.
+  let notifsRemoved = 0;
+  try{
+    const cutoffMs = Date.now() - 90*24*60*60*1000;
+    const all = await getAllNotifsCached(true);
+    for(const [opKey,notifs] of Object.entries(all)){
+      if(!notifs||typeof notifs!=='object')continue;
+      for(const [nid,n] of Object.entries(notifs)){
+        if(n && n.resolved && (n.sentAt||0) < cutoffMs){
+          await db.ref(`userNotifs/${opKey}/${nid}`).remove();
+          notifsRemoved++;
+        }
+      }
+    }
+    invalidateNotifsCache();
+  }catch(e){ console.error('Erro ao podar notificações', e); }
+
+  el.innerHTML = `<span style="color:var(--green)">✅ ${removed} dia(s) removidos do Firebase${notifsRemoved?` · ${notifsRemoved} notificação(ões) antiga(s) resolvida(s) podada(s)`:''}.</span>`;
   toast(`✓ ${removed} dias removidos`,'ok');
-  writeAdminLog('cleanup', {removed});
+  writeAdminLog('cleanup', {removed, notifsRemoved});
   initBackup(); // atualizar KPIs
 }
 
@@ -3282,6 +3341,7 @@ async function batchNotifyAnomalias(){
       sent++;
     }catch(e){ console.error('batchNotify error:', e); }
   }
+  invalidateNotifsCache();
   toast(`✓ ${sent} notificação(ões) enviada(s)`,'ok');
   await writeAdminLog('batchNotifyAnomalias', {count:sent, date:nowSP()});
 }
@@ -3455,8 +3515,7 @@ async function batchApprove(){
 /* ── 4. Histórico de notificações por operador ── */
 async function openNotifHistory(){
   if(!fbOk) return;
-  const snap = await db.ref('userNotifs').once('value');
-  const all  = snap.val()||{};
+  const all = await getAllNotifsCached();
   const mo   = document.getElementById('moNotifHistory');
   const el   = document.getElementById('notifHistoryBody');
   if(!mo||!el) return;
@@ -3506,8 +3565,7 @@ async function openOpRanking(){
   // Contar notificações por operador — casa a chave de e-mail com o nome de exibição
   // via _allUsers (evita o match frágil por substring do nome anterior).
   try{
-    const snap = await db.ref('userNotifs').once('value');
-    const all = snap.val()||{};
+    const all = await getAllNotifsCached();
     Object.entries(all).forEach(([emailKey, notifs])=>{
       const u = _allUsers[emailKey]||{};
       const name = u.apelido||u.nome||'';
