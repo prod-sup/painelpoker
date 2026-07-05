@@ -5333,121 +5333,112 @@ function showJustifModal(pending, emailKey){
   modal.id = 'justifBlockModal';
   modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
 
-  // CSS injetado
+  // CSS injetado — usa os tokens reais do app (--card, --ink, --felt, --radius-*,
+  // --shadow-*) em vez de cores hardcoded, então acompanha automaticamente o tema
+  // claro/escuro do painel. Visual calmo e direto, sem stripe animada nem glow vermelho.
   const styleEl = document.createElement('style');
   styleEl.textContent = `
     #justifBlockModal{
-      background: radial-gradient(ellipse 100% 80% at 50% 0%, rgba(239,68,68,.04), transparent 60%),
-                  rgba(4,4,8,.97);
-      backdrop-filter: blur(24px) saturate(140%);
-      animation: jm-fade .3s ease;
+      background: rgba(20,22,20,.32);
+      backdrop-filter: blur(20px) saturate(160%);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      animation: jm-fade .25s var(--ease);
     }
     @keyframes jm-fade{ from{opacity:0} to{opacity:1} }
-    @keyframes jm-up{ from{opacity:0;transform:translateY(24px) scale(.97)} to{opacity:1;transform:none} }
+    @keyframes jm-up{ from{opacity:0;transform:translateY(16px) scale(.98)} to{opacity:1;transform:none} }
     .jm-box{
-      background: linear-gradient(160deg, #111118 0%, #0c0c12 100%);
-      border: 1px solid rgba(239,68,68,.2);
-      border-radius: 20px;
-      max-width: 500px; width: 100%;
-      box-shadow: 0 0 0 1px rgba(255,255,255,.04) inset,
-                  0 40px 80px -20px rgba(0,0,0,.8),
-                  0 0 60px -20px rgba(239,68,68,.12);
-      animation: jm-up .35s cubic-bezier(.16,1,.3,1);
+      background: var(--card);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius-lg);
+      max-width: 460px; width: 100%;
+      box-shadow: var(--shadow-lg);
+      animation: jm-up .3s var(--ease);
       overflow: hidden;
+      font-family: var(--text);
     }
-    .jm-stripe{
-      height: 3px;
-      background: linear-gradient(90deg, #ef4444, #f97316, #ef4444);
-      background-size: 200% 100%;
-      animation: jm-stripe 2.5s linear infinite;
-    }
-    @keyframes jm-stripe{ to{background-position:200% 0} }
-    .jm-body{ padding: 32px 32px 28px; }
+    .jm-body{ padding: 30px 30px 26px; }
     .jm-seal{
-      width: 56px; height: 56px; border-radius: 14px;
-      background: rgba(239,68,68,.1);
-      border: 1.5px solid rgba(239,68,68,.25);
+      width: 44px; height: 44px; border-radius: 12px;
+      background: var(--warn-bg);
       display: flex; align-items: center; justify-content: center;
-      font-size: 24px; margin-bottom: 20px;
-      box-shadow: 0 0 24px -8px rgba(239,68,68,.3);
+      margin-bottom: 18px;
     }
-    .jm-title{ font-size: 20px; font-weight: 800; color: #f5f5f8; letter-spacing: -.02em; margin-bottom: 4px; }
-    .jm-sub{ font-size: 12.5px; color: #6b6b85; line-height: 1.5; margin-bottom: 24px; }
+    .jm-seal svg{ width: 22px; height: 22px; color: var(--warn-text); }
+    .jm-title{ font-family:var(--display); font-size: 19px; font-weight: 700; color: var(--ink); letter-spacing: -.02em; margin-bottom: 5px; }
+    .jm-sub{ font-size: 13px; color: var(--ink-soft); line-height: 1.5; margin-bottom: 22px; }
     .jm-card{
-      background: rgba(255,255,255,.03);
-      border: 1px solid rgba(255,255,255,.07);
-      border-radius: 12px; padding: 16px 18px; margin-bottom: 20px;
+      background: var(--card-elevated);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius-md); padding: 16px 18px; margin-bottom: 18px;
     }
     .jm-card-type{
-      display: inline-flex; align-items: center; gap: 6px;
-      font-size: 9.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
-      color: #fb923c; background: rgba(251,146,60,.1); border: 1px solid rgba(251,146,60,.2);
-      border-radius: 99px; padding: 3px 10px; margin-bottom: 12px;
+      display: inline-flex; align-items: center;
+      font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+      color: var(--warn-text); background: var(--warn-bg);
+      border-radius: 99px; padding: 3px 10px; margin-bottom: 10px;
     }
-    .jm-card-type::before{ content:''; width:5px; height:5px; border-radius:50%; background:#fb923c; flex:none; }
-    .jm-card-torneio{ font-size: 15px; font-weight: 700; color: #f0f0f8; margin-bottom: 8px; letter-spacing: -.01em; }
-    .jm-card-desc{ font-size: 13px; color: #8888a8; line-height: 1.6; }
+    .jm-card-torneio{ font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 6px; letter-spacing: -.01em; }
+    .jm-card-desc{ font-size: 13px; color: var(--ink-soft); line-height: 1.55; }
     .jm-card-meta{
-      display: flex; gap: 16px; margin-top: 12px; padding-top: 12px;
-      border-top: 1px solid rgba(255,255,255,.05);
+      display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px;
+      border-top: 1px solid var(--hairline);
     }
-    .jm-card-meta span{ font-size: 10.5px; color: #454560; }
-    .jm-card-meta b{ color: #6b6b85; font-weight: 600; }
+    .jm-card-meta span{ font-size: 11px; color: var(--ink-soft); }
+    .jm-card-meta b{ color: var(--ink); font-weight: 600; }
     .jm-label{
-      font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
-      color: #454560; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; font-weight: 600; color: var(--ink-soft);
+      margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
     }
-    .jm-char-count{ font-size: 10px; color: #454560; font-weight: 500; letter-spacing: 0; }
-    .jm-char-count.ok{ color: #22c55e; }
+    .jm-char-count{ font-size: 11px; color: var(--ink-soft); font-weight: 500; }
+    .jm-char-count.ok{ color: var(--felt-bright); }
     .jm-textarea{
-      width: 100%; padding: 13px 14px;
-      background: rgba(0,0,0,.4); border: 1.5px solid rgba(255,255,255,.08);
-      border-radius: 10px; font-size: 13px; color: #f0f0f8;
-      resize: none; line-height: 1.6; font-family: -apple-system, sans-serif;
+      width: 100%; padding: 12px 14px;
+      background: var(--card-elevated); border: 1px solid var(--hairline-strong);
+      border-radius: var(--radius-sm); font-size: 13.5px; color: var(--ink);
+      resize: none; line-height: 1.55; font-family: var(--text);
       transition: border-color .2s, box-shadow .2s; outline: none;
-      box-shadow: 0 0 0 0 rgba(201,168,76,0);
     }
-    .jm-textarea:focus{
-      border-color: rgba(201,168,76,.5);
-      box-shadow: 0 0 0 3px rgba(201,168,76,.08);
-    }
-    .jm-textarea::placeholder{ color: #2e2e42; }
+    .jm-textarea:focus{ border-color: var(--felt-bright); box-shadow: 0 0 0 3px var(--felt-soft); }
+    .jm-textarea::placeholder{ color: var(--ink-soft); opacity: .7; }
     .jm-err{
-      font-size: 11.5px; color: #fca5a5;
-      background: rgba(239,68,68,.07); border: 1px solid rgba(239,68,68,.15);
+      font-size: 12px; color: var(--red);
+      background: var(--red-soft); border: 1px solid transparent;
       border-radius: 8px; padding: 9px 12px; margin-top: 8px; display: none;
     }
-    .jm-footer{ padding: 0 32px 28px; }
+    .jm-footer{ padding: 0 30px 28px; }
     .jm-btn{
-      width: 100%; padding: 14px;
-      border-radius: 11px; border: none; cursor: pointer;
-      background: linear-gradient(135deg, #c9a84c 0%, #a07830 100%);
-      color: #1a0e00; font-size: 14px; font-weight: 800; letter-spacing: .02em;
-      transition: opacity .15s, transform .1s;
-      box-shadow: 0 4px 20px -8px rgba(201,168,76,.5);
+      width: 100%; padding: 13px;
+      border-radius: var(--radius-sm); border: none; cursor: pointer;
+      background: linear-gradient(135deg, var(--felt) 0%, var(--felt-bright) 100%);
+      color: #fff; font-family: var(--text); font-size: 14px; font-weight: 700; letter-spacing: -.005em;
+      transition: transform .15s var(--ease), box-shadow .15s var(--ease), opacity .15s;
+      box-shadow: 0 4px 16px -6px rgba(24,163,107,.4);
       display: flex; align-items: center; justify-content: center; gap: 8px;
     }
-    .jm-btn:hover:not(:disabled){ opacity: .9; transform: translateY(-1px); }
-    .jm-btn:disabled{ opacity: .4; cursor: not-allowed; transform: none; }
+    .jm-btn:hover:not(:disabled){ transform: translateY(-1px); box-shadow: 0 6px 22px -6px rgba(24,163,107,.5); }
+    .jm-btn:active:not(:disabled){ transform: translateY(0); }
+    .jm-btn:disabled{ opacity: .5; cursor: not-allowed; transform: none; }
+    .jm-btn svg{ width:16px; height:16px; flex:none; }
     .jm-extra{
-      font-size: 11px; color: #fb923c;
-      background: rgba(251,146,60,.06); border: 1px solid rgba(251,146,60,.12);
-      border-radius: 7px; padding: 8px 12px; margin-bottom: 16px;
+      font-size: 12px; color: var(--ink-soft);
+      background: var(--card-elevated); border: 1px solid var(--hairline);
+      border-radius: 8px; padding: 8px 12px; margin-bottom: 16px;
       display: flex; align-items: center; gap: 7px;
     }
-    .jm-divider{ height: 1px; background: rgba(255,255,255,.05); margin-bottom: 20px; }
+    .jm-extra svg{ width:14px; height:14px; flex:none; color: var(--ink-soft); }
     @keyframes jm-spin{ to{ transform: rotate(360deg) } }
-    .jm-spin{ width:16px;height:16px;border:2px solid rgba(26,14,0,.3);border-top-color:#1a0e00;border-radius:50%;animation:jm-spin .6s linear infinite;flex:none; }
+    .jm-spin{ width:15px;height:15px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:jm-spin .6s linear infinite;flex:none; }
   `;
   document.head.appendChild(styleEl);
 
   modal.innerHTML = `
     <div class="jm-box">
-      <div class="jm-stripe"></div>
       <div class="jm-body">
-        <div class="jm-seal">🔒</div>
-        <div class="jm-title">Justificativa pendente</div>
-        <div class="jm-sub">O acesso ao painel está suspenso pelo administrador.<br>Leia a notificação abaixo e envie sua justificativa.</div>
+        <div class="jm-seal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div class="jm-title">Justificativa necessária</div>
+        <div class="jm-sub">O admin sinalizou uma pendência no seu acesso. Leia abaixo e explique o que aconteceu para liberar o painel novamente.</div>
 
         <div class="jm-card">
           <div class="jm-card-type">${escHtml(notif.typeLabel||notif.type||'Erro operacional')}</div>
@@ -5460,22 +5451,22 @@ function showJustifModal(pending, emailKey){
           </div>
         </div>
 
-        ${extra > 0 ? `<div class="jm-extra">⚠️ Há mais ${extra} notificação${extra>1?'ões':''} pendente${extra>1?'s':''} após esta.</div>` : ''}
+        ${extra > 0 ? `<div class="jm-extra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Há mais ${extra} notificação${extra>1?'ões':''} pendente${extra>1?'s':''} após esta.</div>` : ''}
 
         <div class="jm-label">
           <span>Sua justificativa</span>
-          <span class="jm-char-count" id="jCharCount">0 / 10 mín.</span>
+          <span class="jm-char-count" id="jCharCount">mínimo 10 caracteres</span>
         </div>
         <textarea class="jm-textarea" id="justifText" rows="4"
           placeholder="Descreva o que ocorreu, a causa e como foi ou será corrigido..."
-          oninput="(function(v){const c=document.getElementById('jCharCount');if(c){c.textContent=v.length+(v.length>=10?' car.':' / 10 mín.');c.className='jm-char-count'+(v.length>=10?' ok':'');}})(this.value)"></textarea>
+          oninput="(function(v){const c=document.getElementById('jCharCount');if(c){c.textContent=v.length>=10?v.length+' caracteres':'mínimo 10 caracteres';c.className='jm-char-count'+(v.length>=10?' ok':'');}})(this.value)"></textarea>
         <div class="jm-err" id="justifErr"></div>
       </div>
 
-      <div class="jm-divider"></div>
       <div class="jm-footer">
         <button class="jm-btn" id="justifSubmitBtn" onclick="submitJustif('${emailKey}','${notifId}')">
           <span id="justifBtnLabel">Enviar justificativa</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </button>
       </div>
     </div>
