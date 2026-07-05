@@ -548,10 +548,11 @@
   /* ---------- NAV ---------- */
   nav{
     position:fixed; top:0; left:0; right:0; z-index:200;
-    /* blur fixo (não entra na transição): animar backdrop-filter custa caro por frame */
-    backdrop-filter:blur(16px) saturate(140%);
-    -webkit-backdrop-filter:blur(16px) saturate(140%);
-    background:rgba(251,251,253,0.72);
+    /* blur leve e SEM saturate (saturate sobre a viewport inteira era o custo maior);
+       fundo mais opaco compensa a legibilidade. Recompõe só no scroll, não em idle. */
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    background:rgba(251,251,253,0.86);
     border-bottom:1px solid transparent;
     box-shadow:0 0 0 rgba(12,30,22,0);
     transition:border-color .4s var(--ease), background .4s var(--ease-quart),
@@ -560,7 +561,7 @@
   /* condensa ao rolar: vidro mais opaco + leve elevação (só props baratas animam) */
   nav.scrolled{
     border-bottom-color:var(--hairline);
-    background:rgba(251,251,253,0.86);
+    background:rgba(251,251,253,0.95);
     box-shadow:0 8px 30px -18px rgba(12,30,22,0.5);
   }
   .nav-inner{
@@ -1076,7 +1077,10 @@
   }
   .ucard.is-fixed{ background:var(--fixed-bg); border-color:var(--fixed-border); border-left-color:var(--fixed-border); }
   .ucard.is-fixed::before{ content:"Fixado"; position:absolute; top:14px; right:14px; font-size:10px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:#1c7a48; background:rgba(52,184,118,0.16); padding:3px 9px; border-radius:99px; }
-  .ucard.is-late-pulse{will-change:box-shadow; animation:pulse-late-ring 1.8s ease-in-out 30; }
+  .ucard.is-late-pulse::after{
+    content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:1;
+    box-shadow:inset 0 0 0 2px var(--red); animation:ring-glow 1.8s ease-in-out 30;
+  }
   .ucard .nm{font-family:var(--display); font-weight:610; font-size:14.5px; letter-spacing:-0.005em; line-height:1.3; max-width:80%;}
   .ucard .meta{display:flex; justify-content:space-between; align-items:center; font-family:var(--mono); font-size:12px; color:var(--ink-soft);}
   .ucard .cat-pill{font-size:10px; font-weight:700; padding:2px 8px; border-radius:99px; text-transform:uppercase; letter-spacing:0.03em; width:fit-content;}
@@ -1265,9 +1269,21 @@
   .tcard.is-fixed{ background:var(--fixed-bg); border-color:var(--fixed-border); border-top-color:var(--fixed-border) !important; }
   .tcard.is-fixed::after{ content:"Fixado"; position:absolute; top:14px; right:14px; font-size:10px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:#1c7a48; background:rgba(52,184,118,0.16); padding:3px 9px; border-radius:99px; }
   .tcard.is-soon:not(.is-fixed){ background:var(--warn-bg); border-color:var(--warn-border); }
-  .tcard.is-late:not(.is-fixed){ background:var(--late-bg); border-color:var(--late-border); animation:pulse-late 1.8s ease-in-out 30; }
+  .tcard.is-late:not(.is-fixed){ background:var(--late-bg); border-color:var(--late-border); }
   .tcard.is-running:not(.is-fixed):not(.is-late):not(.is-soon){ border-color:var(--felt-bright); box-shadow:0 0 0 1px var(--felt-bright); }
-  .tcard.is-running:not(.is-fixed){ animation:pulse-running 2.2s ease-in-out 25; }
+  /* PULSO DE ATENÇÃO — anel interno estático cuja OPACIDADE pulsa.
+     Só opacity anima (100% compositor/GPU) → zero repaint, ao contrário de animar
+     box-shadow (que repintava cada card a cada frame e travava a Agenda). */
+  .tcard.is-late:not(.is-fixed)::after,
+  .tcard.is-running:not(.is-fixed):not(.is-late)::after{
+    content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:1;
+    box-shadow:inset 0 0 0 2px var(--late-border);
+    animation:ring-glow 1.8s ease-in-out 30;
+  }
+  .tcard.is-running:not(.is-fixed):not(.is-late)::after{
+    box-shadow:inset 0 0 0 2px var(--felt-bright); animation-duration:2.2s; animation-iteration-count:25;
+  }
+  @keyframes ring-glow{ 0%,100%{opacity:.85} 50%{opacity:.12} }
   @keyframes pulse-running{
     0%, 100% { box-shadow:0 0 0 0 rgba(24,163,107,0.28); }
     50% { box-shadow:0 0 0 6px rgba(24,163,107,0); }
@@ -1282,10 +1298,11 @@
     50% { box-shadow:0 0 0 6px rgba(216,57,43,0); }
   }
   @media (prefers-reduced-motion: reduce){
-    .tcard.is-late:not(.is-fixed), .ucard.is-late-pulse, .tcard.is-running:not(.is-fixed){ animation:none !important; }
+    .tcard.is-late:not(.is-fixed)::after, .ucard.is-late-pulse::after, .tcard.is-running:not(.is-fixed)::after{ animation:none !important; opacity:.5 !important; }
   }
-  
-  .tcard.is-late.anim-offscreen, .tcard.is-running.anim-offscreen, .ucard.is-late-pulse.anim-offscreen{
+
+  /* pausa o pulso quando o card sai da viewport — agora o anel está no ::after */
+  .tcard.is-late.anim-offscreen::after, .tcard.is-running.anim-offscreen::after, .ucard.is-late-pulse.anim-offscreen::after{
     animation-play-state:paused !important;
   }
 
@@ -2859,6 +2876,9 @@
       <button class="clear-btn" id="overlayCalcToggle" title="Calculadora de Overlay">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2.2"/><path d="M8 2.5v3M16 2.5v3M3 9.5h18"/><circle cx="8" cy="14" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="14" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="14" r="1.1" fill="currentColor" stroke="none"/><circle cx="8" cy="17.6" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="17.6" r="1.1" fill="currentColor" stroke="none"/></svg>
       </button>
+      <button class="clear-btn" id="overlayProjToggle" title="Projeção de Overlay (ao vivo)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 3.5-3.5 3 3L21 7"/><path d="M21 11V7h-4"/></svg>
+      </button>
       <button class="clear-btn" id="cashTablesToggle" title="Buscador de Mesas Cash">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="13" height="17" rx="2"/><circle cx="17.5" cy="17.5" r="4.5"/><path d="m21 21 2 2"/></svg>
       </button>
@@ -3076,6 +3096,141 @@
           <div style="font-size:13px;color:var(--ink-soft);text-align:center;padding:16px 0;">Nenhum cálculo salvo ainda.</div>
         </div>
       </div>
+    </div>
+  </aside>
+</div>
+
+<style id="opj-styles">
+  /* ── Projeção de Overlay ─────────────────────────────────────────── */
+  .opj-intro{ font-size:13px; line-height:1.5; color:var(--ink-soft); margin:0 0 14px; }
+  .opj-add{ display:flex; gap:8px; align-items:stretch; margin-bottom:14px; flex-wrap:wrap; }
+  .opj-add select{ flex:1 1 200px; min-width:0; font-family:var(--text); font-size:13px; color:var(--ink);
+    padding:9px 11px; border:1.5px solid var(--hairline-strong); border-radius:11px; background:var(--card); outline:none; transition:border-color .2s; }
+  .opj-add select:focus{ border-color:var(--felt); }
+  .opj-btn{ display:inline-flex; align-items:center; gap:6px; font-family:var(--text); font-size:12.5px; font-weight:700;
+    padding:9px 14px; border-radius:11px; border:1.5px solid transparent; cursor:pointer; white-space:nowrap; transition:transform .12s cubic-bezier(.34,1.56,.64,1), filter .18s, background .18s; }
+  .opj-btn:active{ transform:scale(.96); }
+  .opj-btn-primary{ background:var(--felt); color:#fff; }
+  .opj-btn-primary:hover{ filter:brightness(1.08); }
+  .opj-btn-ghost{ background:transparent; border-color:var(--hairline-strong); color:var(--ink-soft); }
+  .opj-btn-ghost:hover{ border-color:var(--felt); color:var(--felt); }
+
+  .opj-empty{ text-align:center; padding:44px 20px; color:var(--ink-soft); }
+  .opj-empty svg{ width:46px; height:46px; opacity:.35; margin-bottom:12px; }
+  .opj-empty p{ margin:0; font-size:13.5px; line-height:1.5; }
+
+  .opj-list{ display:flex; flex-direction:column; gap:16px; }
+
+  .opj-card{ border:1px solid var(--hairline-strong); border-radius:18px; background:var(--card); overflow:hidden;
+    box-shadow:0 1px 2px rgba(0,0,0,.04); animation:opjCardIn .38s cubic-bezier(.16,1,.3,1) both; }
+  @keyframes opjCardIn{ from{ opacity:0; transform:translateY(10px) scale(.99); } to{ opacity:1; transform:none; } }
+
+  .opj-card-head{ display:flex; align-items:center; gap:10px; padding:13px 15px;
+    background:linear-gradient(135deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.28) 100%), var(--felt); color:#fff; }
+  .opj-card-crown{ width:17px; height:17px; flex:none; color:var(--gold); }
+  .opj-card-titles{ flex:1; min-width:0; }
+  .opj-card-name{ font-size:14px; font-weight:700; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .opj-card-sub{ font-family:var(--mono); font-size:10.5px; color:rgba(255,255,255,.6); margin-top:2px; }
+  .opj-card-x{ background:none; border:none; color:rgba(255,255,255,.55); cursor:pointer; font-size:16px; line-height:1; padding:4px; border-radius:8px; transition:color .18s, background .18s; }
+  .opj-card-x:hover{ color:#fff; background:rgba(255,255,255,.12); }
+
+  .opj-status{ display:flex; align-items:center; gap:9px; padding:11px 15px; border-bottom:1px solid var(--hairline); }
+  .opj-status-dot{ width:9px; height:9px; border-radius:50%; flex:none; box-shadow:0 0 0 4px transparent; animation:opjPulse 2.4s ease-in-out infinite; }
+  @keyframes opjPulse{ 0%,100%{ box-shadow:0 0 0 0 transparent; } 50%{ box-shadow:0 0 0 5px currentColor; opacity:.55; } }
+  .opj-status-txt{ font-size:13.5px; font-weight:700; }
+  .opj-status-val{ margin-left:auto; font-family:var(--mono); font-size:13px; font-weight:700; }
+  .opj-s-batido{ color:var(--felt-bright); } .opj-s-batido .opj-status-dot{ background:var(--felt-bright); color:var(--felt-bright); }
+  .opj-s-ok{ color:var(--felt-bright); } .opj-s-ok .opj-status-dot{ background:var(--felt-bright); color:var(--felt-bright); }
+  .opj-s-risco{ color:var(--gold); } .opj-s-risco .opj-status-dot{ background:var(--gold); color:var(--gold); }
+  .opj-s-overlay{ color:var(--red); } .opj-s-overlay .opj-status-dot{ background:var(--red); color:var(--red); }
+  .opj-s-idle{ color:var(--ink-soft); } .opj-s-idle .opj-status-dot{ background:var(--ink-soft); color:var(--ink-soft); animation:none; }
+
+  .opj-metrics{ display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--hairline); }
+  .opj-metric{ background:var(--card); padding:10px 8px; text-align:center; }
+  .opj-metric-label{ font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); }
+  .opj-metric-val{ font-family:var(--mono); font-size:15px; font-weight:700; color:var(--ink); margin-top:3px; }
+  .opj-metric-val.pos{ color:var(--felt-bright); } .opj-metric-val.neg{ color:var(--red); } .opj-metric-val.gold{ color:var(--gold); }
+  .opj-metric-sub{ font-size:9px; color:var(--ink-soft); margin-top:1px; }
+
+  .opj-chart-wrap{ padding:12px 12px 4px; }
+  .opj-chart{ width:100%; height:auto; display:block; overflow:visible; }
+  .opj-chart .opj-actual-line{ fill:none; stroke:var(--felt-bright); stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round;
+    stroke-dasharray:var(--len); stroke-dashoffset:var(--len); animation:opjDraw .9s cubic-bezier(.16,1,.3,1) forwards; }
+  @keyframes opjDraw{ to{ stroke-dashoffset:0; } }
+  .opj-chart .opj-proj-line{ fill:none; stroke:var(--ink-soft); stroke-width:2; stroke-dasharray:5 5; opacity:0; animation:opjFade .5s .55s forwards; }
+  .opj-chart .opj-meta-line{ stroke:var(--gold); stroke-width:1.4; stroke-dasharray:4 4; opacity:.85; }
+  .opj-chart .opj-band{ fill:var(--ink-soft); opacity:0; animation:opjBand .5s .55s forwards; }
+  @keyframes opjBand{ to{ opacity:.09; } }
+  @keyframes opjFade{ to{ opacity:.75; } }
+  .opj-chart .opj-dot{ fill:var(--felt-bright); stroke:var(--card); stroke-width:1.6; opacity:0; animation:opjPop .3s cubic-bezier(.34,1.56,.64,1) forwards; }
+  @keyframes opjPop{ from{ opacity:0; transform:scale(0); } to{ opacity:1; transform:scale(1); } }
+  .opj-chart .opj-proj-dot{ fill:var(--card); stroke:var(--ink-soft); stroke-width:2; }
+  .opj-chart-axis{ font-family:var(--mono); font-size:8.5px; fill:var(--ink-soft); }
+  .opj-chart-lbl{ font-family:var(--mono); font-size:8.5px; font-weight:700; }
+
+  .opj-log-input{ display:flex; gap:8px; padding:12px 15px; align-items:center; }
+  .opj-log-input input{ flex:1; min-width:0; font-family:var(--mono); font-size:15px; font-weight:700; text-align:center; color:var(--ink);
+    padding:10px; border:1.5px solid var(--hairline-strong); border-radius:11px; background:var(--bg); outline:none; transition:border-color .2s; }
+  .opj-log-input input:focus{ border-color:var(--felt); }
+  .opj-note{ font-size:11px; color:var(--ink-soft); padding:0 15px 10px; line-height:1.45; }
+  .opj-note b{ color:var(--gold); }
+
+  .opj-timeline{ padding:2px 15px 14px; }
+  .opj-tl-title{ display:flex; align-items:center; justify-content:space-between; margin:6px 0 8px; }
+  .opj-tl-title span{ font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); }
+  .opj-tl-clear{ font-size:10.5px; color:var(--ink-soft); background:none; border:none; cursor:pointer; font-family:var(--text); }
+  .opj-tl-clear:hover{ color:var(--red); }
+  .opj-tl-row{ display:grid; grid-template-columns:52px 1fr auto auto; gap:8px; align-items:center; padding:7px 0; border-top:1px solid var(--hairline); font-size:12.5px; animation:opjRowIn .3s ease both; }
+  @keyframes opjRowIn{ from{ opacity:0; transform:translateX(-6px); } to{ opacity:1; transform:none; } }
+  .opj-tl-clock{ font-family:var(--mono); font-size:11px; color:var(--ink-soft); }
+  .opj-tl-entries{ font-family:var(--mono); font-weight:700; color:var(--ink); }
+  .opj-tl-delta{ font-family:var(--mono); font-size:11px; color:var(--felt-bright); }
+  .opj-tl-delta.zero{ color:var(--ink-soft); }
+  .opj-tl-ov{ font-family:var(--mono); font-size:11px; font-weight:700; text-align:right; }
+  .opj-tl-ov.pos{ color:var(--felt-bright); } .opj-tl-ov.neg{ color:var(--red); }
+  .opj-tl-empty{ font-size:12px; color:var(--ink-soft); text-align:center; padding:12px 0; }
+
+  .opj-settings{ border-top:1px solid var(--hairline); }
+  .opj-settings > summary{ list-style:none; cursor:pointer; padding:11px 15px; font-size:11.5px; font-weight:700; color:var(--ink-soft);
+    display:flex; align-items:center; gap:7px; user-select:none; }
+  .opj-settings > summary::-webkit-details-marker{ display:none; }
+  .opj-settings > summary svg{ width:13px; height:13px; transition:transform .25s; }
+  .opj-settings[open] > summary svg{ transform:rotate(90deg); }
+  .opj-set-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:4px 15px 16px; }
+  .opj-set-field{ display:flex; flex-direction:column; gap:4px; }
+  .opj-set-field.full{ grid-column:1 / -1; }
+  .opj-set-field > span{ font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); }
+  .opj-set-field input, .opj-set-field select{ font-family:var(--text); font-size:13px; color:var(--ink);
+    padding:8px 10px; border:1.5px solid var(--hairline-strong); border-radius:9px; background:var(--card); outline:none; transition:border-color .2s; }
+  .opj-set-field input:focus, .opj-set-field select:focus{ border-color:var(--felt); }
+  .opj-set-check{ grid-column:1 / -1; display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink); cursor:pointer; }
+  .opj-set-check input{ width:16px; height:16px; accent-color:var(--felt); }
+  .opj-slow-val{ font-family:var(--mono); color:var(--gold); font-weight:700; }
+</style>
+
+<div class="drawer-overlay" id="overlayProjDrawerOverlay">
+  <aside class="drawer drawer-wide" id="overlayProjDrawer" role="dialog" aria-modal="true" aria-label="Projeção de Overlay">
+    <div class="drawer-head" style="background:linear-gradient(135deg,rgba(0,0,0,0) 0%,rgba(0,0,0,0.38) 100%),var(--felt);border-bottom:none;padding:18px 20px;">
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <div class="drawer-title" style="color:#fff;font-size:16px;">Projeção de Overlay</div>
+        <span id="opjDateDisplay" style="font-family:var(--mono);font-size:11px;color:rgba(255,255,255,0.5);"></span>
+      </div>
+      <button class="drawer-close" id="overlayProjDrawerClose" type="button" aria-label="Fechar" style="color:rgba(255,255,255,0.7);">✕</button>
+    </div>
+
+    <div class="drawer-body">
+      <p class="opj-intro">Acompanhe os <b>Main Events</b> ao vivo. Informe as <b>pré-inscritas</b> e vá atualizando as entradas de 30 em 30 min — o painel projeta o campo final, calcula o <b>ponto de equilíbrio</b> (entradas pra zerar o garantido) e avisa se o torneio caminha pra <b>overlay</b>.</p>
+
+      <div class="opj-add">
+        <select id="opjPickSelect"><option value="">— Puxar Main Event da planilha —</option></select>
+        <button class="opj-btn opj-btn-primary" id="opjAddPickBtn" type="button">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          Adicionar
+        </button>
+        <button class="opj-btn opj-btn-ghost" id="opjAddManualBtn" type="button">Novo manual</button>
+      </div>
+
+      <div id="opjList" class="opj-list"></div>
     </div>
   </aside>
 </div>
@@ -3947,6 +4102,38 @@
       });
     }
   }catch(e){ console.warn('Vídeo de boas-vindas não carregou.', e); }
+})();
+
+/* ── PERF: pausa vídeos quando não estão visíveis ─────────────────────────
+   <video loop> continua DECODIFICANDO frames mesmo escondido/fora da tela,
+   consumindo GPU/CPU o tempo todo — inclusive enquanto você está na Agenda.
+   Sem isso o vídeo de boas-vindas rodava pra sempre atrás do painel. */
+(function pauseVideosWhenHidden(){
+  const welcome = document.getElementById('welcomeVideo');
+  const overlay = document.getElementById('operatorOverlay');
+  if(welcome && overlay){
+    const syncWelcome = () => {
+      if(overlay.classList.contains('open')) welcome.play?.().catch(()=>{});
+      else if(!welcome.paused) welcome.pause();
+    };
+    new MutationObserver(syncWelcome).observe(overlay, {attributes:true, attributeFilter:['class']});
+    syncWelcome();
+  }
+  const hero = document.getElementById('heroVideo');
+  if(hero && 'IntersectionObserver' in window){
+    new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if(e.isIntersecting) hero.play?.().catch(()=>{});
+        else if(!hero.paused) hero.pause();
+      });
+    }, {threshold:0.01}).observe(hero);
+  }
+  // rede de segurança: aba em segundo plano → pausa tudo
+  document.addEventListener('visibilitychange', () => {
+    if(document.hidden){
+      [welcome, hero].forEach(v => { if(v && !v.paused) v.pause(); });
+    }
+  });
 })();
 
 /* =========================================================================
@@ -10476,7 +10663,7 @@ document.getElementById('cashTablesDrawerOverlay').addEventListener('click', (e)
    tudo de uma vez se houver mais de um aberto). Ctrl/Cmd+F foca a busca por nome da Agenda
    em vez de abrir a busca nativa do navegador — mais útil nesse contexto de uso o turno inteiro.
 ========================================================================= */
-const ALL_DRAWER_OVERLAY_IDS = ['checklistDrawerOverlay', 'serversDrawerOverlay', 'routineDrawerOverlay', 'overlayCalcDrawerOverlay', 'cashTablesDrawerOverlay', 'shiftReportDrawerOverlay'];
+const ALL_DRAWER_OVERLAY_IDS = ['checklistDrawerOverlay', 'serversDrawerOverlay', 'routineDrawerOverlay', 'overlayCalcDrawerOverlay', 'overlayProjDrawerOverlay', 'cashTablesDrawerOverlay', 'shiftReportDrawerOverlay'];
 
 /* =========================================================================
    HISTÓRICO DE TORNEIOS
@@ -11815,6 +12002,520 @@ const _origOvcClear = typeof ovcClear === 'function' ? ovcClear : null;
    Quem pode ver: todos os operadores
    Imagens: enviadas pro Firebase Storage, URL salva no Firebase DB
 ========================================================================= */
+
+/* =========================================================================
+   PROJEÇÃO DE OVERLAY — ferramenta ao vivo
+   Fluxo: informa as pré-inscritas de um Main Event e vai atualizando as
+   entradas de 30 em 30 min. O painel projeta o campo final, calcula o
+   ponto de equilíbrio (entradas pra zerar o garantido) e sinaliza overlay.
+
+   Modelo de premiação (alinhado ao card de overlay existente):
+     pool por entrada = buyin × fator de premiação
+       Main:                 × 0,88
+       Satélite:             × 0,95
+       Side COM campanha:    × 0,88
+       Side SEM campanha:    × 0,90
+   ponto de equilíbrio = teto(garantido ÷ pool por entrada)
+
+   Persiste em localStorage por dia (reseta sozinho no dia seguinte, no fuso SP).
+========================================================================= */
+(function(){
+  const LS_KEY = 'index_overlay_proj_v1';
+  const DAY_START = 5 * 60; // grade do dia começa 05:00 (igual ao resto do painel)
+
+  let OPJ = { date: '', events: [] };
+
+  // ── helpers de tempo (sempre no fuso de Brasília) ──
+  function opjTodayKey(){ const n = nowInSP(); return `${n.year}-${String(n.month).padStart(2,'0')}-${String(n.day).padStart(2,'0')}`; }
+  function opjNowMin(){ const n = nowInSP(); return n.hour * 60 + n.minute; }
+  function opjNowClock(){ const n = nowInSP(); return `${String(n.hour).padStart(2,'0')}:${String(n.minute).padStart(2,'0')}`; }
+  // minutos decorridos desde o início do torneio, tolerando a virada de meia-noite
+  function opjElapsed(startTime){
+    const s = timeToMinutes(startTime); if(s == null) return null;
+    let d = opjNowMin() - s;
+    if(d < -720) d += 1440;   // já passou da meia-noite
+    if(d >  720) d -= 1440;
+    return d;
+  }
+
+  // ── fator de premiação por categoria (espelha renderCardOverlayPreview) ──
+  function opjPoolFactor(ev){
+    if(ev.poolOverride != null && ev.poolOverride > 0) return ev.poolOverride;
+    if(ev.cat === 'main') return 0.88;
+    if(ev.cat === 'sat')  return 0.95;
+    return ev.campanha ? 0.88 : 0.90; // side
+  }
+
+  // ── núcleo do cálculo/projeção de um evento ──
+  function opjCompute(ev){
+    const buyin = parseFloat(ev.buyin) || 0;
+    const gtd   = parseFloat(ev.gtd)   || 0;
+    const preReg = Math.max(0, parseInt(ev.preReg, 10) || 0);
+    const lateReg = Math.max(0, parseInt(ev.lateRegMin, 10) || 0);
+    const slowdown = (ev.slowdown != null ? ev.slowdown : 0.62);
+    const factor = opjPoolFactor(ev);
+    const poolPer = buyin * factor;                       // R$ por entrada no pote
+    const breakEven = poolPer > 0 ? Math.ceil(gtd / poolPer) : null;
+
+    // pontos: t=0 (pré-inscritas) + snapshots (mins desde o início)
+    const snaps = (ev.snapshots || []).slice().sort((a,b)=>a.mins-b.mins);
+    const points = [{ mins:0, entries:preReg }].concat(snaps.map(s=>({mins:s.mins, entries:s.entries})));
+    const last = points[points.length - 1];
+    const current = last.entries;
+    const elapsed = last.mins;
+    const remaining = Math.max(0, lateReg - elapsed);
+    const started = opjElapsed(ev.startTime) != null && opjElapsed(ev.startTime) >= 0;
+
+    // ── estimativa de ritmo (entradas por minuto) ──
+    let rate = null, rateSrc = null;
+    if(points.length >= 2 && elapsed > 0){
+      const prev = points[points.length - 2];
+      const dt = last.mins - prev.mins;
+      if(dt > 0){ rate = (last.entries - prev.entries) / dt; rateSrc = 'recente'; }
+      if(rate == null || rate < 0){ rate = (current - preReg) / elapsed; rateSrc = 'média'; } // fallback geral
+    }
+
+    // ── projeção do campo final ──
+    let projLikely, projOpt, projPess, projMode;
+    if(rate != null){
+      const base = current;
+      projOpt    = Math.round(base + rate * remaining * 1.0);
+      projLikely = Math.round(base + rate * remaining * slowdown);
+      projPess   = Math.round(base + rate * remaining * slowdown * 0.6);
+      projMode = 'ritmo';
+    } else {
+      // sem histórico de ritmo: usa multiplicador sobre as pré-inscritas
+      const mult = ev.preRegMult || 2.4;
+      projLikely = Math.round(preReg * mult);
+      projOpt    = Math.round(preReg * mult * 1.25);
+      projPess   = Math.round(preReg * mult * 0.75);
+      projMode = 'estimativa';
+    }
+    projLikely = Math.max(projLikely, current);
+    projOpt    = Math.max(projOpt, projLikely);
+    projPess   = Math.max(projPess, current);
+
+    const poolNow    = current    * poolPer;
+    const poolProj   = projLikely * poolPer;
+    const overlayNow  = poolNow  - gtd;
+    const overlayProj = poolProj - gtd;
+    const missing = breakEven != null ? Math.max(0, breakEven - current) : null;
+
+    // ETA até o ponto de equilíbrio no ritmo atual, comparado ao fechamento
+    let etaMin = null, willMakeInTime = null;
+    if(rate != null && rate > 0 && missing != null && missing > 0){
+      etaMin = missing / rate;
+      willMakeInTime = etaMin <= remaining;
+    }
+
+    // ── status ──
+    let status;
+    if(breakEven == null || (buyin <= 0 && gtd <= 0)){
+      status = { key:'idle', label:'Preencha buy-in e garantido' };
+    } else if(current >= breakEven){
+      status = { key:'batido', label:'Garantido batido' };
+    } else if(projLikely >= breakEven && (willMakeInTime !== false)){
+      status = { key:'ok', label:'No caminho' };
+    } else if(projOpt >= breakEven){
+      status = { key:'risco', label:'Limítrofe — risco de overlay' };
+    } else {
+      status = { key:'overlay', label:'Overlay provável' };
+    }
+
+    return { buyin, gtd, preReg, lateReg, factor, poolPer, breakEven, points, current, elapsed,
+      remaining, started, rate, rateSrc, projLikely, projOpt, projPess, projMode,
+      poolNow, poolProj, overlayNow, overlayProj, missing, etaMin, willMakeInTime, status };
+  }
+
+  // ── mini-gráfico SVG (entradas × tempo, com meta e projeção) ──
+  function opjChart(c){
+    const W = 520, H = 172, padL = 34, padR = 46, padT = 12, padB = 22;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const xMaxMin = Math.max(c.lateReg, c.elapsed, 30);
+    const yMax = Math.max(c.breakEven || 0, c.projOpt || 0, c.current || 0, 10) * 1.12;
+    const X = m => padL + (Math.min(m, xMaxMin) / xMaxMin) * plotW;
+    const Y = e => padT + plotH - (Math.min(e, yMax) / yMax) * plotH;
+
+    // linha real
+    const pts = c.points.map(p => [X(p.mins), Y(p.entries)]);
+    const linePath = pts.map((p,i)=> (i?'L':'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    // comprimento aproximado pra animar o traçado
+    let len = 0; for(let i=1;i<pts.length;i++){ len += Math.hypot(pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]); }
+    len = Math.max(len, 1);
+
+    // projeção: do ponto atual até (lateReg, projLikely)
+    const cur = pts[pts.length - 1];
+    const projX = X(xMaxMin), projLY = Y(c.projLikely), projOY = Y(c.projOpt), projPY = Y(c.projPess);
+    const projLine = `M ${cur[0].toFixed(1)} ${cur[1].toFixed(1)} L ${projX.toFixed(1)} ${projLY.toFixed(1)}`;
+    const band = `M ${cur[0].toFixed(1)} ${cur[1].toFixed(1)} L ${projX.toFixed(1)} ${projOY.toFixed(1)} L ${projX.toFixed(1)} ${projPY.toFixed(1)} Z`;
+
+    // meta (break-even)
+    const metaY = c.breakEven != null ? Y(c.breakEven) : null;
+    const metaLine = metaY != null ? `<line class="opj-meta-line" x1="${padL}" y1="${metaY.toFixed(1)}" x2="${(W-padR).toFixed(1)}" y2="${metaY.toFixed(1)}"/>
+        <text class="opj-chart-lbl" fill="var(--gold)" x="${(W-padR+3).toFixed(1)}" y="${(metaY+3).toFixed(1)}">meta ${fmtBRL(c.breakEven,0)}</text>` : '';
+
+    const dots = pts.map((p,i)=> `<circle class="opj-dot" cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.4" style="animation-delay:${(0.35+i*0.08).toFixed(2)}s;transform-origin:${p[0].toFixed(1)}px ${p[1].toFixed(1)}px"/>`).join('');
+
+    // eixos guia
+    const closeX = X(c.lateReg);
+    const axisX = `<line x1="${padL}" y1="${(padT+plotH).toFixed(1)}" x2="${(W-padR).toFixed(1)}" y2="${(padT+plotH).toFixed(1)}" stroke="var(--hairline-strong)" stroke-width="1"/>`;
+    const closeMark = `<line x1="${closeX.toFixed(1)}" y1="${padT}" x2="${closeX.toFixed(1)}" y2="${(padT+plotH).toFixed(1)}" stroke="var(--hairline-strong)" stroke-width="1" stroke-dasharray="2 3"/>
+        <text class="opj-chart-axis" text-anchor="middle" x="${closeX.toFixed(1)}" y="${(H-6)}">fecha reg.</text>`;
+    const originLbl = `<text class="opj-chart-axis" text-anchor="start" x="${padL}" y="${(H-6)}">início</text>`;
+    const yTop = `<text class="opj-chart-axis" text-anchor="end" x="${(padL-4)}" y="${(padT+8)}">${fmtBRL(Math.round(yMax),0)}</text>`;
+
+    return `<svg class="opj-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Gráfico de entradas ao longo do tempo">
+      ${axisX}${closeMark}${originLbl}${yTop}${metaLine}
+      <path class="opj-band" d="${band}"/>
+      <path class="opj-proj-line" d="${projLine}"/>
+      <circle class="opj-proj-dot" cx="${projX.toFixed(1)}" cy="${projLY.toFixed(1)}" r="3.2"/>
+      <path class="opj-actual-line" d="${linePath}" style="--len:${len.toFixed(0)}"/>
+      ${dots}
+    </svg>`;
+  }
+
+  // ── render de um card ──
+  function opjRenderCard(ev){
+    const c = opjCompute(ev);
+    const catLabel = { main:'Main Event', side:'Side Event', sat:'Satélite' }[ev.cat] || 'Evento';
+    const catSym = { main:'♠', side:'♣', sat:'♦' }[ev.cat] || '';
+    const sub = `${catSym} ${ev.startTime || '--:--'} · buy-in R$ ${fmtBRL(c.buyin,0)} · GTD R$ ${fmtBRL(c.gtd,0)}`;
+
+    const ovProjCls = c.overlayProj >= 0 ? 'pos' : 'neg';
+    const ovProjTxt = (c.overlayProj >= 0 ? '+R$ ' : '−R$ ') + fmtBRL(Math.abs(Math.round(c.overlayProj)),0);
+    const statusVal = c.status.key === 'overlay'
+        ? '−R$ ' + fmtBRL(Math.abs(Math.round(c.overlayProj)),0)
+      : c.status.key === 'batido'
+        ? '+R$ ' + fmtBRL(Math.abs(Math.round(c.overlayNow)),0)
+        : '';
+
+    // texto de ritmo/eta
+    let paceNote = '';
+    if(c.rate != null){
+      const per30 = Math.round(c.rate * 30);
+      paceNote = `Ritmo ${c.rateSrc}: <b>${per30}</b> entradas/30min · projeção por <b>${c.projMode}</b> (fecha em ${Math.max(0,Math.round(c.remaining))} min).`;
+      if(c.missing > 0 && c.etaMin != null){
+        paceNote += c.willMakeInTime
+          ? ` No ritmo atual bate a meta em ~${Math.round(c.etaMin)} min.`
+          : ` No ritmo atual <b>não</b> bate a meta antes de fechar.`;
+      }
+    } else if(!c.started){
+      paceNote = `Antes do início — projeção por estimativa sobre as pré-inscritas. Atualize as entradas quando a late reg abrir.`;
+    } else {
+      paceNote = `Registre a 1ª atualização de entradas pra calcular o ritmo.`;
+    }
+
+    // timeline
+    let tl = '';
+    const snaps = (ev.snapshots||[]).slice().sort((a,b)=>a.mins-b.mins);
+    if(!snaps.length){
+      tl = `<div class="opj-tl-empty">Sem atualizações ainda. Registre as entradas atuais acima.</div>`;
+    } else {
+      let prevE = c.preReg;
+      tl = snaps.map(s => {
+        const d = s.entries - prevE; prevE = s.entries;
+        const pool = s.entries * c.poolPer; const ov = pool - c.gtd;
+        const ovCls = ov >= 0 ? 'pos' : 'neg';
+        const ovTxt = (ov >= 0 ? '+' : '−') + fmtBRL(Math.abs(Math.round(ov)),0);
+        const deltaTxt = d === 0 ? '±0' : (d > 0 ? '+'+d : String(d));
+        return `<div class="opj-tl-row">
+          <span class="opj-tl-clock">${s.clock || ''}</span>
+          <span class="opj-tl-entries">${fmtBRL(s.entries,0)} <span style="font-weight:400;color:var(--ink-soft);font-size:10px">entradas</span></span>
+          <span class="opj-tl-delta ${d===0?'zero':''}">${deltaTxt}</span>
+          <span class="opj-tl-ov ${ovCls}">R$ ${ovTxt}</span>
+        </div>`;
+      }).join('');
+    }
+
+    const chart = (c.buyin > 0 && c.gtd > 0)
+      ? `<div class="opj-chart-wrap">${opjChart(c)}</div>`
+      : '';
+
+    return `<div class="opj-card" data-id="${ev.id}">
+      <div class="opj-card-head">
+        <svg class="opj-card-crown" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.5 1.5 7l5.4 4L12 4l5.1 7 5.4-4-1.5 10.5a1 1 0 0 1-1 .85H4a1 1 0 0 1-1-.85Z"/><rect x="3.3" y="19" width="17.4" height="2.2" rx="1"/></svg>
+        <div class="opj-card-titles">
+          <div class="opj-card-name" title="${escHtml(ev.nome)}">${escHtml(ev.nome || 'Sem nome')}</div>
+          <div class="opj-card-sub">${escHtml(sub)}</div>
+        </div>
+        <button class="opj-card-x" type="button" data-act="remove" title="Remover">✕</button>
+      </div>
+
+      <div class="opj-status opj-s-${c.status.key}">
+        <span class="opj-status-dot"></span>
+        <span class="opj-status-txt">${c.status.label}</span>
+        ${statusVal ? `<span class="opj-status-val">${statusVal}</span>` : ''}
+      </div>
+
+      <div class="opj-metrics">
+        <div class="opj-metric">
+          <div class="opj-metric-label">Ponto equil.</div>
+          <div class="opj-metric-val gold">${c.breakEven != null ? fmtBRL(c.breakEven,0) : '—'}</div>
+          <div class="opj-metric-sub">entradas p/ zerar</div>
+        </div>
+        <div class="opj-metric">
+          <div class="opj-metric-label">Entradas</div>
+          <div class="opj-metric-val">${fmtBRL(c.current,0)}</div>
+          <div class="opj-metric-sub">${c.missing != null && c.missing > 0 ? 'faltam '+fmtBRL(c.missing,0) : (c.breakEven!=null?'meta batida':'—')}</div>
+        </div>
+        <div class="opj-metric">
+          <div class="opj-metric-label">Projeção</div>
+          <div class="opj-metric-val">${fmtBRL(c.projLikely,0)}</div>
+          <div class="opj-metric-sub">${fmtBRL(c.projPess,0)}–${fmtBRL(c.projOpt,0)}</div>
+        </div>
+        <div class="opj-metric">
+          <div class="opj-metric-label">Overlay proj.</div>
+          <div class="opj-metric-val ${ovProjCls}">${ovProjTxt}</div>
+          <div class="opj-metric-sub">${c.overlayProj >= 0 ? 'excedente' : 'a cobrir'}</div>
+        </div>
+      </div>
+
+      ${chart}
+
+      <div class="opj-log-input">
+        <input type="number" inputmode="numeric" min="0" step="1" placeholder="entradas agora" data-inp="entries" aria-label="Entradas atuais">
+        <button class="opj-btn opj-btn-primary" type="button" data-act="log">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          Registrar
+        </button>
+      </div>
+      <div class="opj-note">${paceNote}</div>
+
+      <div class="opj-timeline">
+        <div class="opj-tl-title"><span>Linha do tempo</span>${snaps.length?`<button class="opj-tl-clear" type="button" data-act="clearlog">limpar</button>`:''}</div>
+        ${tl}
+      </div>
+
+      <details class="opj-settings">
+        <summary><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>Ajustes do torneio</summary>
+        <div class="opj-set-grid">
+          <label class="opj-set-field full"><span>Nome</span><input type="text" data-set="nome" value="${escHtml(ev.nome||'')}"></label>
+          <label class="opj-set-field"><span>Buy-in (R$)</span><input type="number" step="0.01" data-set="buyin" value="${ev.buyin ?? ''}"></label>
+          <label class="opj-set-field"><span>Garantido (R$)</span><input type="number" step="0.01" data-set="gtd" value="${ev.gtd ?? ''}"></label>
+          <label class="opj-set-field"><span>Categoria</span>
+            <select data-set="cat">
+              <option value="main" ${ev.cat==='main'?'selected':''}>♠ Main Event</option>
+              <option value="side" ${ev.cat==='side'?'selected':''}>♣ Side Event</option>
+              <option value="sat"  ${ev.cat==='sat'?'selected':''}>♦ Satélite</option>
+            </select>
+          </label>
+          <label class="opj-set-field"><span>Início (HH:MM)</span><input type="text" placeholder="20:00" data-set="startTime" value="${escHtml(ev.startTime||'')}"></label>
+          <label class="opj-set-field"><span>Pré-inscritas</span><input type="number" step="1" min="0" data-set="preReg" value="${ev.preReg ?? ''}"></label>
+          <label class="opj-set-field"><span>Late reg (min)</span><input type="number" step="5" min="0" data-set="lateRegMin" value="${ev.lateRegMin ?? ''}"></label>
+          <label class="opj-set-check"><input type="checkbox" data-set="campanha" ${ev.campanha?'checked':''}> Campanha (#AS / +SPS / +SPT)</label>
+          <label class="opj-set-field full"><span>Desaceleração da projeção — <span class="opj-slow-val">${Math.round((ev.slowdown!=null?ev.slowdown:0.62)*100)}%</span> do ritmo atual até o fim</span>
+            <input type="range" min="30" max="100" step="5" data-set="slowdown" value="${Math.round((ev.slowdown!=null?ev.slowdown:0.62)*100)}">
+          </label>
+          <label class="opj-set-field full"><span>Fator de premiação (opcional — sobrepõe o padrão da categoria)</span>
+            <input type="number" step="0.01" min="0" max="1" placeholder="auto (${opjPoolFactor(ev).toFixed(2)})" data-set="poolOverride" value="${ev.poolOverride ?? ''}"></label>
+        </div>
+      </details>
+    </div>`;
+  }
+
+  function opjRender(){
+    const list = document.getElementById('opjList');
+    if(!list) return;
+    if(!OPJ.events.length){
+      list.innerHTML = `<div class="opj-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 3.5-3.5 3 3L21 7"/></svg>
+        <p>Nenhum Main Event em acompanhamento.<br>Puxe um da planilha ou crie um manual pra começar.</p>
+      </div>`;
+      return;
+    }
+    list.innerHTML = OPJ.events.map(opjRenderCard).join('');
+  }
+
+  // ── persistência (reseta por dia, fuso SP) ──
+  function opjSave(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(OPJ)); }catch(e){} }
+  function opjLoad(){
+    let saved = null;
+    try{ saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); }catch(e){}
+    const today = opjTodayKey();
+    if(saved && saved.date === today && Array.isArray(saved.events)){
+      OPJ = saved;
+    } else {
+      OPJ = { date: today, events: [] };
+      opjSave();
+    }
+  }
+
+  function opjFindEv(id){ return OPJ.events.find(e => e.id === id); }
+
+  // ── ações ──
+  function opjAddManual(seed){
+    const ev = Object.assign({
+      id: 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+      nome: 'Novo Main Event', buyin: null, gtd: null, cat: 'main', campanha: false,
+      startTime: '', lateRegMin: 120, preReg: 0, slowdown: 0.62, poolOverride: null,
+      snapshots: []
+    }, seed || {});
+    OPJ.events.unshift(ev);
+    opjSave(); opjRender();
+  }
+
+  function opjLogEntries(id, val){
+    const ev = opjFindEv(id); if(!ev) return;
+    const n = parseInt(val, 10);
+    if(isNaN(n) || n < 0){ showToast('Informe um número de entradas válido.', true); return; }
+    const elapsed = opjElapsed(ev.startTime);
+    // antes do início (ou sem horário) → atualiza as pré-inscritas
+    if(elapsed == null || elapsed < 0){
+      ev.preReg = n;
+      opjSave(); opjRender();
+      showToast(elapsed == null ? 'Pré-inscritas atualizadas (defina o horário de início).' : 'Antes do início — pré-inscritas atualizadas.');
+      return;
+    }
+    const mins = Math.max(0, Math.round(elapsed));
+    const clock = opjNowClock();
+    ev.snapshots = ev.snapshots || [];
+    // se já houver snapshot nos últimos 5 min, substitui em vez de duplicar
+    const near = ev.snapshots.find(s => Math.abs(s.mins - mins) <= 5);
+    if(near){ near.entries = n; near.mins = mins; near.clock = clock; }
+    else ev.snapshots.push({ mins, entries: n, clock });
+    opjSave(); opjRender();
+    showToast('Entradas registradas às ' + clock + '.');
+  }
+
+  function opjSetField(id, field, value){
+    const ev = opjFindEv(id); if(!ev) return;
+    if(field === 'campanha'){ ev.campanha = !!value; }
+    else if(field === 'cat'){ ev.cat = value; }
+    else if(field === 'nome' || field === 'startTime'){ ev[field] = value; }
+    else if(field === 'slowdown'){ ev.slowdown = Math.max(0.3, Math.min(1, (parseInt(value,10)||62)/100)); }
+    else if(field === 'poolOverride'){ ev.poolOverride = value === '' ? null : parseFloat(value); }
+    else { ev[field] = value === '' ? (field==='preReg'||field==='lateRegMin'?0:null) : parseFloat(value); }
+    opjSave();
+  }
+
+  // ── select de Main Events da planilha ──
+  function opjPopulatePick(){
+    const sel = document.getElementById('opjPickSelect');
+    if(!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">— Puxar Main Event da planilha —</option>';
+    if(typeof RAW_ROWS === 'undefined' || !RAW_ROWS.length) return;
+    const rows = RAW_ROWS
+      .filter(r => r.nome && r.garantido > 0 && classify(r) === 'main')
+      .slice()
+      .sort((a,b)=>{
+        const ma = timeToMinutes(a.hora) || 0, mb = timeToMinutes(b.hora) || 0;
+        return (ma>=DAY_START?ma:ma+1440) - (mb>=DAY_START?mb:mb+1440);
+      });
+    if(!rows.length){
+      const o = document.createElement('option'); o.value=''; o.disabled=true;
+      o.textContent = 'Nenhum Main Event na planilha carregada'; sel.appendChild(o);
+      return;
+    }
+    rows.forEach(r => {
+      const o = document.createElement('option');
+      o.value = r._key;
+      o.textContent = `♠ ${r.hora||'--:--'}  ${r.nome}  —  R$ ${fmtBRL(r.garantido,0)}`;
+      sel.appendChild(o);
+    });
+    if(prev) sel.value = prev;
+  }
+
+  function opjAddFromPick(){
+    const sel = document.getElementById('opjPickSelect');
+    const key = sel && sel.value;
+    if(!key){ showToast('Selecione um Main Event da planilha.', true); return; }
+    if(OPJ.events.some(e => e.srcKey === key)){ showToast('Esse torneio já está em acompanhamento.', true); return; }
+    const row = RAW_ROWS.find(r => r._key === key);
+    if(!row){ showToast('Torneio não encontrado.', true); return; }
+    opjAddManual({
+      nome: row.nome, buyin: row.buyin ?? null, gtd: row.garantido ?? null,
+      cat: classify(row), campanha: hasCampanha(row), startTime: row.hora || '',
+      srcKey: key
+    });
+    sel.value = '';
+  }
+
+  // ── delegação de eventos no container ──
+  function opjBindList(){
+    const list = document.getElementById('opjList');
+    if(!list) return;
+
+    list.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-act]');
+      if(!btn) return;
+      const card = e.target.closest('.opj-card'); if(!card) return;
+      const id = card.dataset.id;
+      const act = btn.dataset.act;
+      if(act === 'remove'){
+        const ev = opjFindEv(id);
+        OPJ.events = OPJ.events.filter(x => x.id !== id);
+        opjSave(); opjRender();
+        showToast('Torneio removido.');
+      } else if(act === 'log'){
+        const inp = card.querySelector('[data-inp="entries"]');
+        opjLogEntries(id, inp && inp.value);
+      } else if(act === 'clearlog'){
+        const ev = opjFindEv(id); if(ev){ ev.snapshots = []; opjSave(); opjRender(); }
+      }
+    });
+
+    // Enter no campo de entradas registra
+    list.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter' && e.target.matches('[data-inp="entries"]')){
+        const card = e.target.closest('.opj-card');
+        if(card) opjLogEntries(card.dataset.id, e.target.value);
+      }
+    });
+
+    // ajustes (change ao sair do campo) — re-render só quando afeta o cálculo
+    list.addEventListener('change', (e) => {
+      const el = e.target.closest('[data-set]'); if(!el) return;
+      const card = e.target.closest('.opj-card'); if(!card) return;
+      const field = el.dataset.set;
+      const val = el.type === 'checkbox' ? el.checked : el.value;
+      opjSetField(card.dataset.id, field, val);
+      opjRender();
+    });
+
+    // feedback ao vivo no slider de desaceleração (sem re-render pesado)
+    list.addEventListener('input', (e) => {
+      const el = e.target.closest('[data-set="slowdown"]'); if(!el) return;
+      const lbl = el.closest('.opj-set-field').querySelector('.opj-slow-val');
+      if(lbl) lbl.textContent = el.value + '%';
+    });
+  }
+
+  // ── wiring de abertura/fechamento ──
+  function opjInit(){
+    opjLoad();
+    opjBindList();
+    opjRender();
+
+    const dateEl = document.getElementById('opjDateDisplay');
+    if(dateEl && typeof dataPorExtensoSP === 'function') dateEl.textContent = dataPorExtensoSP();
+
+    const toggle = document.getElementById('overlayProjToggle');
+    if(toggle) toggle.addEventListener('click', () => {
+      // vira o dia? recarrega/limpa
+      if(OPJ.date !== opjTodayKey()) opjLoad();
+      opjPopulatePick();
+      opjRender();
+      openDrawer('overlayProjDrawerOverlay');
+    });
+    document.getElementById('overlayProjDrawerClose')?.addEventListener('click', () => closeDrawer('overlayProjDrawerOverlay'));
+    document.getElementById('overlayProjDrawerOverlay')?.addEventListener('click', (e) => {
+      if(e.target.id === 'overlayProjDrawerOverlay') closeDrawer('overlayProjDrawerOverlay');
+    });
+    document.getElementById('opjAddPickBtn')?.addEventListener('click', opjAddFromPick);
+    document.getElementById('opjAddManualBtn')?.addEventListener('click', () => opjAddManual());
+
+    // repopula o select sempre que a planilha for (re)carregada
+    if(typeof window.renderUpcoming === 'function'){
+      const _prev = window.renderUpcoming;
+      window.renderUpcoming = function(){ _prev.apply(this, arguments); opjPopulatePick(); };
+    }
+    opjPopulatePick();
+  }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', opjInit);
+  else opjInit();
+})();
 </script>
 
 </body>
