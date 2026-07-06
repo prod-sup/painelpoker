@@ -1431,6 +1431,10 @@ const sortByTime = arr => [...arr].sort((a,b)=>{
   const ma=timeMin(a.hora)??9999, mb=timeMin(b.hora)??9999;
   return (ma>=DAY_START?ma:ma+1440)-(mb>=DAY_START?mb:mb+1440);
 });
+// Side Events: ordem de relógio pura (00:00→23:59), igual à agenda do painel —
+// sem a rotação do "dia da grade" (que empurrava a madrugada pro fim e fazia a
+// lista parecer que começava às 05:00)
+const sortByClock = arr => [...arr].sort((a,b)=>(timeMin(a.hora)??9999)-(timeMin(b.hora)??9999));
 
 /* ── HASH DE SENHA ──────────────────────────────────────────────
    PBKDF2-SHA256 (Web Crypto), salt aleatório por usuário.
@@ -1636,6 +1640,14 @@ async function loadAll(){
         if(!_allData[date].rows[existingK].buyin) _allData[date].rows[existingK].buyin = r.buyin;
         if(!_allData[date].rows[existingK].garantido) _allData[date].rows[existingK].garantido = r.garantido;
         if(!_allData[date].rows[existingK].late && r.late) _allData[date].rows[existingK].late = r.late;
+        // A chave rk_ do painel ao vivo pode divergir da do snapshot (o hash inclui o garantido,
+        // que muda entre os dois) — o ID/premiação/field digitados no card ficam gravados sob a
+        // chave ao vivo. Guardar como alias pra busca achar os dados do evento em qualquer chave.
+        const kAlt = rowKey(r);
+        if(kAlt !== existingK){
+          const row = _allData[date].rows[existingK];
+          (row._altKeys || (row._altKeys = [])).push(kAlt);
+        }
       } else {
         const k = rowKey(r);
         if(!_allData[date].rows[k]){
@@ -1702,22 +1714,29 @@ function flatRows(fromDate, toDate){
       if(seenInDay.has(dedupeKey)) return; // já processado este torneio neste dia
       seenInDay.add(dedupeKey);
 
+      // Busca com alias: os dados digitados no card podem estar sob a chave ao vivo
+      // (r._altKeys) em vez da chave do snapshot — sem isso o ID do card não aparecia
+      const pick = map => {
+        if(map && map[key]!=null) return map[key];
+        for(const ak of (r._altKeys||[])) if(map && map[ak]!=null) return map[ak];
+        return null;
+      };
       // Premiação: snapshot já tem r.premiacao, ou vem do nó premiacao
-      const prem = day.prem[key]??r.premiacao??null;
+      const prem = pick(day.prem)??r.premiacao??null;
       // Garantido: sobrescrito ou da planilha
-      const gar  = day.guar[key]??r.garantido??null;
+      const gar  = pick(day.guar)??r.garantido??null;
       // ID
-      const idRaw = day.ids[key];
+      const idRaw = pick(day.ids);
       const idVal = typeof idRaw==='object'&&idRaw ? (idRaw.val||'') : (idRaw||'');
       const idBy  = typeof idRaw==='object'&&idRaw ? (idRaw.by||'') : '';
       // Fixado
-      const fixRaw = day.fixed[key];
+      const fixRaw = pick(day.fixed);
       const fixBy  = typeof fixRaw==='object'&&fixRaw ? (fixRaw.by||'') :
                      fixRaw===true ? 'Sim' : '';
       const fixAt  = typeof fixRaw==='object'&&fixRaw?.at ?
                      new Date(fixRaw.at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}) : '';
       // Field
-      const field  = day.field[key]??r.field??null;
+      const field  = pick(day.field)??r.field??null;
       // Cálculos
       const diff   = prem!=null&&gar!=null ? prem-gar : null;
       const ov     = diff!=null&&diff<0 ? diff : null;
@@ -1834,7 +1853,7 @@ async function loadAudit(){
     const dayRows=byDate[date];
     const groups=[
       {cat:'main',rows:sortByTime(dayRows.filter(r=>r.cat==='main'))},
-      {cat:'side',rows:sortByTime(dayRows.filter(r=>r.cat==='side'))},
+      {cat:'side',rows:sortByClock(dayRows.filter(r=>r.cat==='side'))},
       {cat:'sat', rows:sortByTime(dayRows.filter(r=>r.cat==='sat'))},
     ].filter(g=>g.rows.length);
 
@@ -2856,7 +2875,7 @@ function exportAuditXlsx(){
 
     const groups=[
       {cat:'main',rows:sortByTime(dayRows.filter(r=>r.cat==='main'))},
-      {cat:'side',rows:sortByTime(dayRows.filter(r=>r.cat==='side'))},
+      {cat:'side',rows:sortByClock(dayRows.filter(r=>r.cat==='side'))},
       {cat:'sat', rows:sortByTime(dayRows.filter(r=>r.cat==='sat'))},
     ].filter(g=>g.rows.length);
 
@@ -3061,7 +3080,7 @@ function buildDaySheet(date){
   const aoa = [[`ACOMPANHAMENTO — ${dateLabel}`],[]];
   const groups = [
     {cat:'main', rows:sortByTime(rows.filter(r=>classify(r)==='main'))},
-    {cat:'side', rows:sortByTime(rows.filter(r=>classify(r)==='side'))},
+    {cat:'side', rows:sortByClock(rows.filter(r=>classify(r)==='side'))},
     {cat:'sat',  rows:sortByTime(rows.filter(r=>classify(r)==='sat'))},
   ].filter(g=>g.rows.length);
 
@@ -3072,10 +3091,16 @@ function buildDaySheet(date){
     let sG=0,sP=0,sO=0;
     g.rows.forEach(r=>{
       const key  = Object.keys(day.rows).find(k=>day.rows[k]===r)||'';
-      const prem = day.prem?.[key]??r.premiacao??null;
-      const gar  = day.guar?.[key]??r.garantido??null;
-      const field= day.field?.[key]??r.field??null;
-      const idRaw= day.ids?.[key];
+      // mesmo fallback de alias do flatRows: dados do card podem estar sob a chave ao vivo
+      const pick = map => {
+        if(map && map[key]!=null) return map[key];
+        for(const ak of (r._altKeys||[])) if(map && map[ak]!=null) return map[ak];
+        return null;
+      };
+      const prem = pick(day.prem)??r.premiacao??null;
+      const gar  = pick(day.guar)??r.garantido??null;
+      const field= pick(day.field)??r.field??null;
+      const idRaw= pick(day.ids);
       const id   = typeof idRaw==='object'&&idRaw?idRaw.val||'':idRaw||'';
       const ov   = prem!=null&&gar!=null?prem-gar:null;
       const perf = ov!=null&&gar>0?((prem-gar)/gar*100):null;

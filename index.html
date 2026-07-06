@@ -4852,6 +4852,19 @@ function nextCheckpoint(baseMin, direction){
 const WEEKDAYS_PT = ['DOMINGO','SEGUNDA-FEIRA','TERÇA-FEIRA','QUARTA-FEIRA','QUINTA-FEIRA','SEXTA-FEIRA','SÁBADO'];
 const WEEKDAYS_EN = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
 
+/* soma n dias a uma data ISO (AAAA-MM-DD). Meio-dia UTC evita borda de fuso. */
+function addDaysISO(iso, n){
+  const [y,m,d] = iso.split('-').map(Number);
+  const ref = new Date(Date.UTC(y, m-1, d, 12, 0, 0));
+  ref.setUTCDate(ref.getUTCDate() + n);
+  return `${ref.getUTCFullYear()}-${String(ref.getUTCMonth()+1).padStart(2,'0')}-${String(ref.getUTCDate()).padStart(2,'0')}`;
+}
+/* nome do dia da semana (pt) de uma data ISO — base do parsing da Global por data (não por relógio) */
+function weekdayPtFromISO(iso){
+  const [y,m,d] = iso.split('-').map(Number);
+  return WEEKDAYS_PT[new Date(Date.UTC(y, m-1, d, 12, 0, 0)).getUTCDay()];
+}
+
 /* =========================================================================
    FILE PARSING
 ========================================================================= */
@@ -4911,7 +4924,20 @@ document.getElementById('fileInputGlobal').addEventListener('change', async (e) 
     const arrayBuffer = await file.arrayBuffer();
     const matrix = readSheetMatrix(arrayBuffer, 'MTTS BRAZIL');
     if (!matrix) throw new Error('Aba "MTTS BRAZIL" não encontrada.');
-    const weekdayPt = todayWeekdayName('pt');
+    // ── QUAL DIA DA GRADE ESTA GLOBAL DEVE ALIMENTAR? ─────────────────────
+    // Regra à prova de loop: o dia é decidido pela DATA que o painel mostra
+    // (LAST_KNOWN_DATE), NÃO pelo relógio. Se o cronograma atual está 100% fixado,
+    // a Global SEMPRE avança para o próximo dia — assim "preenchi tudo e subi a
+    // Global" nunca repete o mesmo dia (era o bug: todayWeekdayName devolvia o mesmo
+    // dia da semana até as 05:30). Se ainda há card aberto, recarrega o MESMO dia.
+    const gradeFlipped = todayPathSP() > LAST_KNOWN_DATE; // 05:30 passou e o dia civil já virou
+    const relevantNow  = RAW_ROWS.filter(r => mustFix(r, classify(r)));
+    const dayComplete  = relevantNow.length > 0 && relevantNow.every(r => isFixed(r._key));
+    let baseDate;
+    if (gradeFlipped)     baseDate = todayPathSP();                 // grade virou por relógio → dia novo
+    else if (dayComplete) baseDate = addDaysISO(LAST_KNOWN_DATE, 1);// terminou o dia → PRÓXIMO dia
+    else                  baseDate = LAST_KNOWN_DATE;              // em andamento → recarrega o mesmo
+    const weekdayPt = weekdayPtFromISO(baseDate);
     const section   = extractGlobalDaySection(matrix, weekdayPt, 1);
     if (!section || (!section.main.length && !section.side.length && !section.sat.length)){
       showToast(`Nenhum torneio para "${weekdayPt}" nessa planilha.`, true);
@@ -4920,21 +4946,20 @@ document.getElementById('fileInputGlobal').addEventListener('change', async (e) 
     }
     // próximo dia da grade: a madrugada de HOJE (00:00–02:00) vive na seção de amanhã da Global —
     // esses eventos entram no quadro atual pra serem fixados com antecedência (late register)
-    const nextWeekdayPt = WEEKDAYS_PT[(WEEKDAYS_PT.indexOf(weekdayPt) + 1) % 7];
-    const nextSection = extractGlobalDaySection(matrix, nextWeekdayPt, 1);
+    const nextSection = extractGlobalDaySection(matrix, weekdayPtFromISO(addDaysISO(baseDate, 1)), 1);
     const rows = globalSectionToRows(section, nextSection);
     if (!rows.length){
       showToast('Nenhum torneio extraído da Global.', true);
       label.textContent = 'Carregar Global MTT'; btnEl.disabled = false;
       e.target.value = ''; return;
     }
-    // GUARDA DE VIRADA: se a grade já virou (05:30+) e ainda existem cards em aberto do cronograma
-    // atual, subir uma Global nova trocaria o quadro no meio do trabalho — confirmar antes.
-    // Confirmando, o dia vira ANTES da ingestão: a Global nova nasce no nó do dia novo e os dados
-    // do dia antigo ficam intactos no nó deles — cronogramas nunca se misturam.
-    if (todayPathSP() !== LAST_KNOWN_DATE){
-      const relevant = RAW_ROWS.filter(r => mustFix(r, classify(r)));
-      const pendentes = relevant.filter(r => !isFixed(r._key)).length;
+    // ── TROCAR O NÓ DO DIA CONFORME O CASO ────────────────────────────────
+    // Em todos os casos que trocam de dia, a virada acontece ANTES da ingestão: a
+    // Global nova nasce no nó do dia novo e os dados do dia antigo ficam intactos no
+    // nó deles — cronogramas nunca se misturam.
+    if (gradeFlipped){
+      // grade virou (05:30+) e ainda pode haver card aberto do cronograma atual — confirmar
+      const pendentes = relevantNow.filter(r => !isFixed(r._key)).length;
       if (pendentes > 0){
         const ok = window.confirm(
           `O dia mudou e a Global deve ser atualizada, mas ainda existem ${pendentes} card(s) EM ABERTO do cronograma atual.\n\n` +
@@ -4948,8 +4973,16 @@ document.getElementById('fileInputGlobal').addEventListener('change', async (e) 
         }
       }
       ROLLOVER_HELD_TOAST = false;
-      LAST_KNOWN_DATE = todayPathSP();
-      resetDay(); // salva snapshot do dia antigo, limpa o quadro e aponta o Firebase pro dia novo
+      LAST_KNOWN_DATE = baseDate;
+      resetDay(baseDate); // salva snapshot do dia antigo, limpa o quadro e aponta o Firebase pro dia novo
+    } else if (dayComplete && baseDate !== LAST_KNOWN_DATE){
+      // cronograma atual 100% fixado e ainda no mesmo dia civil (madrugada ou não): avançamos
+      // pro próximo dia da grade AGORA. O nó antigo ganha o marcador rolledTo pra aba do parceiro
+      // seguir junto sem recarregar a página.
+      ROLLOVER_HELD_TOAST = false;
+      LAST_KNOWN_DATE = baseDate;
+      if (fbReady && fbDb){ try{ fbDb.ref(`${FB_BASE_PATH}/rolledTo`).set(baseDate); }catch(err2){} }
+      resetDay(baseDate);
     }
     finishUpload(rows, `Global MTT — ${weekdayPt} (${file.name})`);
     document.getElementById('globalUpdatePrompt')?.remove(); // prompt de "atualize a Global" cumprido
@@ -6593,6 +6626,20 @@ function initFirebaseSync(){
       renderConfHoje();
     });
 
+    // ── Virada antecipada (madrugada) ─────────────────────────────────────
+    // Espelha o listener de reinitDayListeners: uma aba aberta desde a noite precisa
+    // ouvir o rolledTo já no carregamento, senão nunca segue a virada antecipada feita
+    // por outra aba (o parceiro ficaria preso no quadro do dia que já fechou).
+    fbDb.ref(`${FB_BASE_PATH}/rolledTo`).on('value', snap => {
+      const novo = snap.val();
+      if (typeof novo === 'string' && novo > LAST_KNOWN_DATE){
+        showToast(`📅 Painel virou para ${novo} — Global nova carregada.`);
+        ROLLOVER_HELD_TOAST = false;
+        LAST_KNOWN_DATE = novo;
+        resetDay(novo);
+      }
+    });
+
     // ── Relatório de turno ────────────────────────────────────────────────
     fbDb.ref('relatorioTurno/texto').on('value', snap => {
       const remote = snap.val() || '';
@@ -7295,7 +7342,7 @@ function updateProgress(){
   fill.classList.toggle('complete', done === total);
   // último card acabou de ser fixado (nesta aba ou pelo parceiro, via sync do Firebase):
   if (done === total && wasIncomplete){
-    if (todayPathSP() !== LAST_KNOWN_DATE){
+    if (todayPathSP() > LAST_KNOWN_DATE){
       // a grade já virou (05:30+) e a troca de dia estava SEGURADA esperando este card —
       // agora sim vira o painel pro novo dia (pausa curta pro operador ver o 100%)
       showToast('✅ Último card preenchido — virando o painel para o novo dia...');
@@ -11189,10 +11236,10 @@ document.getElementById('darkToggle')?.addEventListener('click', () => {
 
 function isSheetStale(){
   if(!RAW_ROWS.length) return false; // sem planilha carregada, não há o que validar
-  const today = todayPathSP();
-  // verifica se a data do upload da planilha é diferente de hoje
-  // LAST_UPLOAD_DATE é setado quando a planilha é carregada (local ou Firebase)
-  if(window.SHEET_UPLOAD_DATE && window.SHEET_UPLOAD_DATE !== today) return true;
+  // compara com o dia que o PAINEL está mostrando (LAST_KNOWN_DATE), não com todayPathSP():
+  // após a virada antecipada da madrugada os dois divergem até as 05:30 e a planilha nova
+  // seria marcada como velha por engano
+  if(window.SHEET_UPLOAD_DATE && window.SHEET_UPLOAD_DATE !== LAST_KNOWN_DATE) return true;
   return false;
 }
 
@@ -11244,7 +11291,9 @@ function allCardsDone(rows, isFixedFn){
 })();
 function checkStaleness(){
   const today = todayPathSP();
-  if(today !== LAST_KNOWN_DATE){
+  // ">" (não "!==") — depois de uma virada antecipada de madrugada, LAST_KNOWN_DATE fica à
+  // FRENTE de todayPathSP() até as 05:30; nesse caso não há nada a virar (e nunca voltar atrás)
+  if(today > LAST_KNOWN_DATE){
     // A virada da grade (05:30) NÃO derruba o quadro enquanto o último card do dia não for
     // preenchido — o turno termina o trabalho no dia antigo (dados continuam indo pro nó certo)
     // e a troca acontece na hora em que o último card for fixado (ver updateProgress)
@@ -11272,8 +11321,10 @@ setVisibilityAwareInterval(checkStaleness, 5 * 60 * 1000);
    Reseta: fixados, IDs, field, premiações, garantidos, RAW_ROWS.
    Atualiza FB_BASE_PATH para o novo dia e re-registra todos os listeners.
 ──────────────────────────────────────────────────────────────────────────── */
-function resetDay(){
-  const newPath = `painel/${todayPathSP()}`;
+function resetDay(forcedDate){
+  // forcedDate: usado pela virada antecipada da madrugada, quando o dia novo é o dia CIVIL
+  // de hoje e todayPathSP() (corte das 05:30) ainda devolveria o dia antigo
+  const newPath = `painel/${forcedDate || todayPathSP()}`;
   const pathChanged = newPath !== FB_BASE_PATH;
 
   // 0. Salvar snapshot do dia anterior antes de limpar
@@ -11550,13 +11601,26 @@ function reinitDayListeners(){
 
   // Remover listeners antigos do dia anterior antes de re-registrar
   // (evita duplicação de listeners ao virar o dia)
-  ['premiacao','fixed','premBy','ids','field','garantido','checklist','confhoje'].forEach(node => {
+  ['premiacao','fixed','premBy','ids','field','garantido','checklist','confhoje','rolledTo'].forEach(node => {
     fbDb.ref(`${FB_BASE_PATH}/${node}`).off();
   });
 
   // Sheet — re-registra no novo path (o listener antigo ficava preso no nó do dia anterior
   // e a aba nunca recebia a Global nova depois da virada sem recarregar)
   registerSheetListener();
+
+  // Virada antecipada (madrugada): quando alguém fecha o dia 100% e sobe a Global do próximo
+  // dia antes das 05:30, o nó antigo ganha o marcador rolledTo — esta aba segue junto pro dia
+  // novo sem recarregar. Cobre também F5 durante a madrugada (o load começa no nó antigo).
+  fbDb.ref(`${FB_BASE_PATH}/rolledTo`).on('value', snap => {
+    const novo = snap.val();
+    if (typeof novo === 'string' && novo > LAST_KNOWN_DATE){
+      showToast(`📅 Painel virou para ${novo} — Global nova carregada.`);
+      ROLLOVER_HELD_TOAST = false;
+      LAST_KNOWN_DATE = novo;
+      resetDay(novo);
+    }
+  });
 
   // Premiação
   fbDb.ref(`${FB_BASE_PATH}/premiacao`).on('value', snap => {
@@ -11676,7 +11740,8 @@ function showGlobalUpdatePrompt(){
 const _origIngest = typeof ingest === 'function' ? ingest : null;
 if(_origIngest){
   window.ingest = function(rows, filename, fromRemote){
-    window.SHEET_UPLOAD_DATE = todayPathSP();
+    // LAST_KNOWN_DATE = dia que o painel aponta (após virada antecipada difere de todayPathSP)
+    window.SHEET_UPLOAD_DATE = LAST_KNOWN_DATE || todayPathSP();
     return _origIngest(rows, filename, fromRemote);
   };
 }
