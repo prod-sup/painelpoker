@@ -10,8 +10,9 @@ Painel de gerenciamento de torneios em tempo real para operadores do Grupo Supre
 
 ```
 suprema-poker/
-├── index.html      # Painel operacional principal
-├── admin.html      # Área administrativa
+├── index.html            # Painel operacional principal
+├── admin.html            # Área administrativa
+├── criacao-noturna.html  # Criação de torneios do turno noturno (GU, dia seguinte)
 ├── bg.mp4          # Vídeo de fundo (não versionado — manter local)
 ├── .nojekyll       # GitHub Pages serve HTML puro
 └── README.md
@@ -46,6 +47,7 @@ A cada novo commit o site atualiza automaticamente.
   garantido/      → garantidos sobrescritos
   checklist/      → checklist do turno
   confhoje/       → conferência de hoje
+  criacaoNoturna/ → criação noturna GU {sheet, ops, done, ids, presence}
 
 /relatorios/{YYYY-MM-DD}/
   acompanhamento/ → XLSX do dia em base64 (salvo automático)

@@ -6,6 +6,7 @@ const CACHE_NAME = `suprema-painel-v${SW_VERSION}`;
 const STATIC_ASSETS = [
   '/painelpoker/',
   '/painelpoker/index.html',
+  '/painelpoker/criacao-noturna.html',
 ];
 
 self.addEventListener('install', e => {

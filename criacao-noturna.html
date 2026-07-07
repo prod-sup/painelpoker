@@ -1,0 +1,1878 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Criação Noturna — GU · Suprema Poker</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌙</text></svg>">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<style>
+  /* ══════════════════════════════════════════════════════════════════
+     DESIGN TOKENS — mesmos do painel (index.html), pra página conversar
+     visualmente com o resto da operação. Página do turno NOTURNO:
+     dark é o modo padrão aqui (invertido em relação ao painel do dia).
+  ══════════════════════════════════════════════════════════════════ */
+  :root{
+    --bg: #fbfbfd;
+    --bg-deep: #0b0d0c;
+    --ink: #1d1d1f;
+    --ink-soft: #6e6e73;
+    --hairline: rgba(0,0,0,0.08);
+    --hairline-strong: rgba(0,0,0,0.13);
+
+    --felt: #0c5c3f;
+    --felt-bright: #18a36b;
+    --felt-soft: #e7f5ee;
+
+    --gold: #ad8a4e;
+    --gold-soft: #f6efe1;
+
+    --red: #c0392b;
+    --red-soft: #fbeae8;
+
+    --main: #9a2d1f;
+    --main-bright: #d8492f;
+    --main-soft: #fbece7;
+
+    --side: #1d5fa3;
+    --side-bright: #2f7fd6;
+    --side-soft: #e9f1fb;
+
+    --sat: #6b3fa0;
+    --sat-bright: #8c5cc6;
+    --sat-soft: #f1eaf9;
+
+    --card: #ffffff;
+    --card-elevated: #f5f5f7;
+
+    --radius-lg: 28px;
+    --radius-md: 18px;
+    --radius-sm: 12px;
+    --shadow-sm: 0 1px 2px rgba(16,28,22,.05), 0 3px 10px -2px rgba(16,28,22,.06);
+    --shadow-md: 0 4px 14px -3px rgba(16,28,22,.09), 0 10px 30px -8px rgba(16,28,22,.11);
+    --shadow-lg: 0 14px 36px -10px rgba(16,28,22,.16), 0 28px 64px -20px rgba(16,28,22,.20);
+    --shadow-glow: 0 0 0 1px rgba(24,163,107,.14), 0 10px 28px -10px rgba(24,163,107,.24);
+    --ease: cubic-bezier(.22,1,.36,1);
+    --ease-expo: cubic-bezier(.16,1,.3,1);
+    --display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", sans-serif;
+    --text: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", sans-serif;
+    --mono: "SF Mono", "IBM Plex Mono", ui-monospace, "Roboto Mono", monospace;
+  }
+  html.dark{
+    --bg:        #0f1110;
+    --bg-deep:   #000000;
+    --card:      #181b19;
+    --card-elevated: #1f2420;
+    --ink:       #e8ede9;
+    --ink-soft:  #7a8a7d;
+    --hairline:        rgba(255,255,255,0.06);
+    --hairline-strong: rgba(255,255,255,0.11);
+    --felt:        #0e6b40;
+    --felt-bright: #22d47e;
+    --felt-soft:   rgba(14,107,64,0.18);
+    --gold:      #c9a84c;
+    --gold-soft: rgba(201,168,76,0.14);
+    --red:       #e85555;
+    --red-soft:  rgba(232,85,85,0.14);
+    --main:       #d94f3d;
+    --main-bright:#f06050;
+    --main-soft:  rgba(217,79,61,0.14);
+    --side:       #3585e0;
+    --side-bright:#5aa8ff;
+    --side-soft:  rgba(53,133,224,0.14);
+    --sat:        #9b61d6;
+    --sat-bright: #b888f0;
+    --sat-soft:   rgba(155,97,214,0.14);
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.45), 0 3px 12px -2px rgba(0,0,0,.4);
+    --shadow-md: 0 6px 20px -4px rgba(0,0,0,.55), 0 14px 38px -10px rgba(0,0,0,.5);
+    --shadow-lg: 0 18px 44px -12px rgba(0,0,0,.65), 0 34px 76px -22px rgba(0,0,0,.6);
+    --shadow-glow: 0 0 0 1px rgba(34,212,126,.2), 0 12px 32px -10px rgba(34,212,126,.16);
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box}
+  [hidden]{display:none !important}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:var(--text);
+    background:var(--bg);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    transition:background .4s var(--ease), color .4s var(--ease);
+  }
+  button,input,select{font-family:inherit;color:inherit}
+  ::selection{background:var(--felt-bright);color:#fff}
+
+  /* ── NAV — glass, mesmo desenho do painel ── */
+  nav{
+    position:sticky;top:0;z-index:60;
+    background:rgba(251,251,253,0.9);
+    backdrop-filter:blur(18px) saturate(1.4);
+    -webkit-backdrop-filter:blur(18px) saturate(1.4);
+    border-bottom:1px solid var(--hairline);
+    transition:background .4s var(--ease);
+  }
+  html.dark nav{ background:rgba(15,17,16,0.92); border-bottom-color:rgba(255,255,255,0.07); }
+  .nav-inner{
+    max-width:1240px;margin:0 auto;padding:0 28px;height:58px;
+    display:flex;align-items:center;gap:22px;
+  }
+  .brand{display:flex;align-items:center;gap:10px;flex:none}
+  .brand-mark{width:22px;height:22px}
+  .brand-text{font-family:var(--display);font-weight:700;font-size:14.5px;letter-spacing:-.01em}
+  .brand-sub{
+    font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--sat-bright);background:var(--sat-soft);
+    padding:3px 9px;border-radius:99px;
+  }
+  .nav-links{display:flex;gap:26px;font-size:12.5px;color:var(--ink-soft);margin-left:6px}
+  .nav-links a{color:inherit;text-decoration:none;position:relative;padding:4px 0;transition:color .25s}
+  .nav-links a::after{
+    content:'';position:absolute;left:0;right:0;bottom:0;height:1.5px;
+    background:var(--felt-bright);transform:scaleX(0);transform-origin:left;transition:transform .3s var(--ease);
+  }
+  .nav-links a:hover{color:var(--ink)}
+  .nav-links a:hover::after{transform:scaleX(1)}
+  .nav-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+  .sync-status{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-soft)}
+  .sync-dot{width:7px;height:7px;border-radius:99px;background:#d9a514;flex:none;transition:background .3s}
+  .sync-status.on .sync-dot{background:var(--felt-bright);box-shadow:0 0 0 3px rgba(34,212,126,.18)}
+  .sync-status.off .sync-dot{background:var(--red)}
+  .nav-time{font-family:var(--mono);font-size:12px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+  .op-badge{
+    display:flex;align-items:center;gap:7px;
+    background:var(--card-elevated);border:1px solid var(--hairline-strong);
+    border-radius:99px;padding:4px 12px 4px 5px;font-size:12px;font-weight:600;
+    cursor:pointer;transition:border-color .25s;
+  }
+  .op-badge:hover{border-color:var(--felt-bright)}
+  .op-badge .avatar{
+    width:22px;height:22px;border-radius:99px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--sat-bright),var(--side-bright));
+    color:#fff;font-size:10.5px;font-weight:800;
+  }
+  .icon-btn{
+    width:32px;height:32px;border-radius:99px;border:1px solid var(--hairline-strong);
+    background:var(--card);display:grid;place-items:center;cursor:pointer;font-size:14px;
+    transition:transform .25s var(--ease), border-color .25s;
+  }
+  .icon-btn:hover{transform:translateY(-1px);border-color:var(--felt-bright)}
+  @media (max-width:760px){ .nav-links{display:none} .nav-time{display:none} }
+
+  /* ── HERO — céu noturno ── */
+  .hero{
+    position:relative;overflow:hidden;
+    background:
+      radial-gradient(1200px 420px at 78% -60%, rgba(155,97,214,.22), transparent 62%),
+      radial-gradient(900px 380px at 12% -40%, rgba(14,107,64,.30), transparent 60%),
+      linear-gradient(180deg,#0b0d14 0%, #0d1112 78%, var(--bg) 100%);
+    color:#e8ede9;
+    padding:58px 28px 42px;
+  }
+  html:not(.dark) .hero{
+    background:
+      radial-gradient(1200px 420px at 78% -60%, rgba(155,97,214,.30), transparent 62%),
+      radial-gradient(900px 380px at 12% -40%, rgba(24,163,107,.35), transparent 60%),
+      linear-gradient(180deg,#0b0d14 0%, #10151a 82%, var(--bg) 100%);
+  }
+  .hero::before{ /* estrelas */
+    content:'';position:absolute;inset:0;pointer-events:none;opacity:.5;
+    background-image:
+      radial-gradient(1.2px 1.2px at 12% 24%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 32% 12%, #fff 50%, transparent 51%),
+      radial-gradient(1.4px 1.4px at 54% 30%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 68% 16%, #fff 50%, transparent 51%),
+      radial-gradient(1.1px 1.1px at 84% 34%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 92% 10%, #fff 50%, transparent 51%),
+      radial-gradient(1.3px 1.3px at 44% 8%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 22% 44%, #fff 50%, transparent 51%);
+  }
+  .hero-inner{max-width:1240px;margin:0 auto;position:relative}
+  .hero-eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    color:#b888f0;background:rgba(155,97,214,.16);border:1px solid rgba(155,97,214,.3);
+    padding:6px 14px;border-radius:99px;margin-bottom:18px;
+  }
+  .hero h1{
+    font-family:var(--display);font-size:clamp(28px,4.4vw,44px);
+    font-weight:800;letter-spacing:-.03em;line-height:1.06;
+  }
+  .hero h1 em{font-style:normal;background:linear-gradient(92deg,#22d47e,#5aa8ff 55%,#b888f0);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero p.sub{margin-top:12px;font-size:14.5px;color:rgba(232,237,233,.62);max-width:620px;line-height:1.6}
+  .hero-stats{display:flex;gap:14px;margin-top:28px;flex-wrap:wrap}
+  .hstat{
+    min-width:132px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+    backdrop-filter:blur(8px);border-radius:var(--radius-md);padding:14px 18px;
+  }
+  .hstat .n{font-family:var(--mono);font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+  .hstat .l{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(232,237,233,.5);margin-top:4px}
+  .hstat.c-main .n{color:#f06050}
+  .hstat.c-side .n{color:#5aa8ff}
+  .hstat.c-sat .n{color:#b888f0}
+  .hstat.c-prog .n{color:#22d47e}
+  .hero-progress{margin-top:22px;max-width:520px}
+  .hero-progress .bar{
+    height:8px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden;
+  }
+  .hero-progress .fill{
+    height:100%;width:0%;border-radius:99px;
+    background:linear-gradient(90deg,#22d47e,#5aa8ff);
+    transition:width .8s var(--ease-expo);
+  }
+  .hero-progress .cap{font-size:11.5px;color:rgba(232,237,233,.55);margin-top:8px;font-family:var(--mono)}
+
+  /* ── LAYOUT ── */
+  .wrap{max-width:1240px;margin:0 auto;padding:30px 28px 90px}
+  .card{
+    background:var(--card);border:1px solid var(--hairline);
+    border-radius:var(--radius-lg);box-shadow:var(--shadow-md);
+    padding:26px 28px;margin-bottom:22px;
+    transition:background .4s var(--ease), border-color .4s;
+  }
+  .card-title{
+    font-family:var(--display);font-size:16px;font-weight:750;letter-spacing:-.01em;
+    display:flex;align-items:center;gap:9px;margin-bottom:6px;
+  }
+  .card-title svg{width:16px;height:16px;stroke:var(--felt-bright);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  .card-desc{font-size:12.5px;color:var(--ink-soft);line-height:1.6;margin-bottom:16px}
+
+  /* upload */
+  .upload-zone{
+    border:1.5px dashed var(--hairline-strong);border-radius:var(--radius-md);
+    padding:34px 20px;text-align:center;cursor:pointer;
+    transition:border-color .3s, background .3s;
+  }
+  .upload-zone:hover, .upload-zone.drag{border-color:var(--felt-bright);background:var(--felt-soft)}
+  .upload-zone .big{font-size:14px;font-weight:650;margin-top:10px}
+  .upload-zone .small{font-size:12px;color:var(--ink-soft);margin-top:5px}
+  .upload-zone svg{width:30px;height:30px;stroke:var(--felt-bright);stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .upload-meta{
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;
+    font-size:12px;color:var(--ink-soft);
+  }
+  .pill{
+    display:inline-flex;align-items:center;gap:6px;
+    background:var(--card-elevated);border:1px solid var(--hairline);
+    border-radius:99px;padding:5px 12px;font-size:11.5px;font-weight:600;
+  }
+  .pill.ok{background:var(--felt-soft);color:var(--felt-bright);border-color:transparent}
+  .pill.warn{background:var(--red-soft);color:var(--red);border-color:transparent}
+  .pill.gold{background:var(--gold-soft);color:var(--gold);border-color:transparent}
+
+  /* ── controles: segmented ── */
+  .controls{
+    display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start;
+  }
+  .ctrl-group{display:flex;flex-direction:column;gap:8px}
+  .ctrl-label{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
+  .seg{
+    display:inline-flex;background:var(--card-elevated);border:1px solid var(--hairline);
+    border-radius:99px;padding:3px;gap:2px;
+  }
+  .seg button{
+    border:none;background:transparent;border-radius:99px;
+    padding:7px 18px;font-size:12.5px;font-weight:650;color:var(--ink-soft);
+    cursor:pointer;transition:all .3s var(--ease);display:flex;align-items:center;gap:7px;
+  }
+  .seg button svg{width:13px;height:13px;stroke:currentColor;stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .seg button.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow-sm)}
+  html.dark .seg button.on{background:#2a312c}
+  .seg button.on.money{color:var(--felt-bright)}
+  .seg#currencySeg button.on[data-cur="brl"]{color:var(--gold)}
+  .seg#currencySeg button.on[data-cur="usd"]{color:var(--felt-bright)}
+
+  /* ── operadores ── */
+  .ops-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .op-chip{
+    display:inline-flex;align-items:center;gap:8px;
+    border-radius:99px;padding:5px 7px 5px 5px;font-size:12.5px;font-weight:650;
+    background:var(--card-elevated);border:1px solid var(--hairline-strong);
+    transition:border-color .25s;
+  }
+  .op-chip .avatar{
+    width:22px;height:22px;border-radius:99px;display:grid;place-items:center;
+    color:#fff;font-size:10px;font-weight:800;flex:none;
+  }
+  .op-chip .rm{
+    border:none;background:transparent;color:var(--ink-soft);cursor:pointer;
+    font-size:13px;line-height:1;padding:2px 5px;border-radius:99px;
+  }
+  .op-chip .rm:hover{color:var(--red)}
+  .op-add{display:inline-flex;gap:6px}
+  .op-add input{
+    background:var(--card-elevated);border:1px solid var(--hairline-strong);
+    border-radius:99px;padding:7px 14px;font-size:12.5px;width:150px;outline:none;
+    transition:border-color .25s;
+  }
+  .op-add input:focus{border-color:var(--felt-bright)}
+  .op-add button{
+    border:none;border-radius:99px;padding:7px 15px;font-size:12.5px;font-weight:700;
+    background:var(--felt);color:#fff;cursor:pointer;transition:background .25s;
+  }
+  .op-add button:hover{background:var(--felt-bright)}
+
+  /* filtro por operador */
+  .filter-chips{display:flex;gap:8px;flex-wrap:wrap}
+  .fchip{
+    border:1px solid var(--hairline-strong);background:var(--card-elevated);
+    border-radius:99px;padding:6px 16px;font-size:12px;font-weight:650;color:var(--ink-soft);
+    cursor:pointer;transition:all .25s var(--ease);display:flex;align-items:center;gap:7px;
+  }
+  .fchip .cnt{font-family:var(--mono);font-size:10.5px;opacity:.75}
+  .fchip:hover{border-color:var(--felt-bright);color:var(--ink)}
+  .fchip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+  html.dark .fchip.on{background:var(--felt-bright);color:#08130c;border-color:var(--felt-bright)}
+
+  /* ── seções de torneio ── */
+  .section-head{
+    display:flex;align-items:center;gap:12px;margin:34px 0 14px;
+  }
+  .section-head .tag{
+    font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+    padding:5px 13px;border-radius:99px;
+  }
+  .section-head.main .tag{background:var(--main-soft);color:var(--main-bright)}
+  .section-head.side .tag{background:var(--side-soft);color:var(--side-bright)}
+  .section-head.sat  .tag{background:var(--sat-soft);color:var(--sat-bright)}
+  .section-head h2{font-family:var(--display);font-size:19px;font-weight:750;letter-spacing:-.02em}
+  .section-head .cnt{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+  .section-head .line{flex:1;height:1px;background:var(--hairline)}
+
+  /* horizontal (tabela) */
+  .ttable{
+    width:100%;border-collapse:collapse;
+    background:var(--card);border:1px solid var(--hairline);
+    border-radius:var(--radius-md);overflow:hidden;box-shadow:var(--shadow-sm);
+    display:block;overflow-x:auto;
+  }
+  .ttable table{width:100%;border-collapse:collapse;min-width:760px}
+  .ttable th{
+    text-align:left;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-soft);padding:11px 14px;border-bottom:1px solid var(--hairline-strong);
+    background:var(--card-elevated);white-space:nowrap;
+  }
+  .ttable td{
+    padding:10px 14px;font-size:13px;border-bottom:1px solid var(--hairline);
+    white-space:nowrap;vertical-align:middle;
+  }
+  .ttable tr:last-child td{border-bottom:none}
+  .ttable tr{transition:background .2s}
+  .ttable tbody tr:hover{background:var(--card-elevated)}
+  .ttable tr.done td{opacity:.45}
+  .ttable tr.done .tname{text-decoration:line-through}
+  .tname{font-weight:650}
+  td.mono, .mono{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12.5px}
+  .thora{font-family:var(--mono);font-weight:700;font-size:12.5px;color:var(--felt-bright)}
+  .tval{font-family:var(--mono);font-size:12.5px}
+  .tval .cur{opacity:.55;font-size:10.5px;margin-right:3px}
+  .sat-group-row td{
+    background:var(--sat-soft) !important;color:var(--sat-bright);
+    font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+  }
+  .op-tag{
+    display:inline-flex;align-items:center;gap:6px;border-radius:99px;
+    padding:3px 11px 3px 4px;font-size:11.5px;font-weight:700;color:#fff;
+  }
+  .op-tag .dot{width:16px;height:16px;border-radius:99px;background:rgba(255,255,255,.25);display:grid;place-items:center;font-size:8.5px;font-weight:800}
+  .op-tag.none{background:var(--card-elevated);color:var(--ink-soft);border:1px dashed var(--hairline-strong);padding:3px 11px}
+
+  .chk{
+    width:19px;height:19px;border-radius:6px;border:1.5px solid var(--hairline-strong);
+    background:var(--card);cursor:pointer;display:grid;place-items:center;
+    transition:all .25s var(--ease);flex:none;
+  }
+  .chk svg{width:11px;height:11px;stroke:#fff;stroke-width:3;fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:0;transform:scale(.5);transition:all .25s var(--ease)}
+  .chk.on{background:var(--felt-bright);border-color:var(--felt-bright)}
+  .chk.on svg{opacity:1;transform:scale(1)}
+
+  .copy-btn{
+    border:1px solid var(--hairline-strong);background:var(--card);
+    border-radius:8px;width:27px;height:27px;display:grid;place-items:center;
+    cursor:pointer;transition:all .25s;
+  }
+  .exp-btn{
+    border:1px solid var(--hairline-strong);background:var(--card);
+    border-radius:8px;height:27px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;
+    cursor:pointer;font-size:11px;font-weight:700;color:var(--ink-soft);transition:all .25s;
+  }
+  .exp-btn svg{width:11px;height:11px;stroke:currentColor;stroke-width:2.4;fill:none;stroke-linecap:round;stroke-linejoin:round;transition:transform .3s var(--ease)}
+  .exp-btn:hover{border-color:var(--felt-bright);color:var(--felt-bright)}
+  tr.expanded .exp-btn svg{transform:rotate(180deg)}
+  tr.expanded .exp-btn{border-color:var(--felt-bright);color:var(--felt-bright)}
+  .detail-row td{
+    background:var(--card-elevated) !important;padding:16px 18px !important;
+    white-space:normal !important;border-bottom:1px solid var(--hairline-strong) !important;
+  }
+  .recipe-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px 22px;
+  }
+  .recipe-grid .rf{min-width:0}
+  .recipe-grid .rf .k{
+    font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .recipe-grid .rf .v{
+    font-family:var(--mono);font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums;
+    word-break:break-word;line-height:1.35;
+  }
+  .recipe-grid .rf .v.empty{color:var(--ink-soft);opacity:.5;font-weight:400}
+  .recipe-note{font-size:10.5px;color:var(--ink-soft);margin-top:12px}
+  .copy-btn svg{width:12px;height:12px;stroke:var(--ink-soft);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .copy-btn:hover{border-color:var(--felt-bright)}
+  .copy-btn:hover svg{stroke:var(--felt-bright)}
+
+  /* vertical (transposta) */
+  .vwrap{
+    background:var(--card);border:1px solid var(--hairline);
+    border-radius:var(--radius-md);box-shadow:var(--shadow-sm);
+    overflow-x:auto;
+  }
+  .vtable{border-collapse:collapse}
+  .vtable th, .vtable td{
+    padding:10px 16px;font-size:12.5px;border-bottom:1px solid var(--hairline);
+    border-right:1px solid var(--hairline);white-space:nowrap;text-align:left;
+    vertical-align:middle;
+  }
+  .vtable tr:last-child th, .vtable tr:last-child td{border-bottom:none}
+  .vtable .rowlab{
+    position:sticky;left:0;z-index:2;
+    background:var(--card-elevated);
+    font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-soft);min-width:110px;
+  }
+  .vtable td.vname{font-weight:650;font-size:12.5px;max-width:190px;white-space:normal;line-height:1.35}
+  .vtable td.done-col{opacity:.45}
+  .vtable td.done-col.vname{text-decoration:line-through}
+
+  /* alertas */
+  .alerts{display:flex;flex-direction:column;gap:8px;margin:14px 0}
+  .alert{
+    background:var(--red-soft);border:1px solid rgba(232,85,85,.25);color:var(--red);
+    border-radius:var(--radius-sm);padding:11px 15px;font-size:12.5px;line-height:1.55;
+  }
+  .alert.gold{background:var(--gold-soft);border-color:rgba(201,168,76,.3);color:var(--gold)}
+
+  /* export + resumo */
+  .actions-bar{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
+  .btn{
+    display:inline-flex;align-items:center;gap:9px;border:none;cursor:pointer;
+    border-radius:99px;padding:11px 22px;font-size:13px;font-weight:700;
+    transition:all .3s var(--ease);
+  }
+  .btn svg{width:15px;height:15px;stroke:currentColor;stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .btn.primary{background:var(--felt);color:#fff;box-shadow:var(--shadow-glow)}
+  .btn.primary:hover{background:var(--felt-bright);transform:translateY(-1px)}
+  .btn.ghost{background:var(--card);border:1px solid var(--hairline-strong);color:var(--ink)}
+  .btn.ghost:hover{border-color:var(--felt-bright)}
+
+  /* ── urgência de prazo ── */
+  tr.urg-warn td:nth-child(3){color:var(--warn-text, #c9a840) !important;font-weight:800}
+  tr.urg-late td:nth-child(3){color:var(--red) !important;font-weight:800}
+  .urg-pill{
+    display:inline-flex;align-items:center;gap:5px;margin-left:8px;
+    font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+    padding:2px 8px;border-radius:99px;
+  }
+  .urg-pill.warn{background:var(--gold-soft);color:var(--gold)}
+  .urg-pill.late{background:var(--red-soft);color:var(--red)}
+
+  /* ── campo de ID (Pokerbyte) ── */
+  .id-inp{
+    width:96px;background:var(--card-elevated);border:1px solid var(--hairline-strong);
+    border-radius:8px;padding:5px 9px;font-size:12px;font-family:var(--mono);
+    font-variant-numeric:tabular-nums;outline:none;transition:border-color .25s;
+  }
+  .id-inp:focus{border-color:var(--felt-bright)}
+  .id-inp.has-id{border-color:var(--felt-bright);color:var(--felt-bright);font-weight:700}
+
+  /* ── presença ── */
+  .presence-wrap{display:flex;align-items:center}
+  .presence-wrap .pv{
+    width:24px;height:24px;border-radius:99px;display:grid;place-items:center;
+    color:#fff;font-size:10px;font-weight:800;border:2px solid var(--bg);
+    margin-left:-7px;
+  }
+  .presence-wrap .pv:first-child{margin-left:0}
+
+  /* ── busca ── */
+  .search-inp{
+    background:var(--card-elevated);border:1px solid var(--hairline-strong);
+    border-radius:99px;padding:8px 16px 8px 34px;font-size:12.5px;width:220px;outline:none;
+    transition:border-color .25s, width .3s var(--ease);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237a8a7d' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-size:13px;background-position:13px center;
+  }
+  .search-inp:focus{border-color:var(--felt-bright);width:260px}
+
+  /* ── badge de alteração (diff da Global) ── */
+  .chg-pill{
+    display:inline-flex;align-items:center;gap:4px;margin-left:8px;
+    font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+    padding:2px 8px;border-radius:99px;background:var(--side-soft);color:var(--side-bright);
+  }
+  .chg-pill.review{background:var(--red-soft);color:var(--red)}
+
+  /* ── modo foco ── */
+  #focusOverlay{
+    position:fixed;inset:0;background:rgba(8,10,9,.82);backdrop-filter:blur(14px);
+    display:none;place-items:center;z-index:80;padding:20px;
+  }
+  #focusOverlay.open{display:grid}
+  .focus-card{
+    background:var(--card);border:1px solid var(--hairline-strong);
+    border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);
+    width:min(860px,96vw);max-height:92vh;overflow-y:auto;padding:30px 34px;
+    position:relative;
+  }
+  .focus-top{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+  .focus-top .tag{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;padding:5px 13px;border-radius:99px}
+  .focus-top .queue-pos{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+  .focus-close{
+    margin-left:auto;border:1px solid var(--hairline-strong);background:var(--card);
+    border-radius:99px;width:32px;height:32px;cursor:pointer;font-size:15px;color:var(--ink-soft);
+  }
+  .focus-close:hover{color:var(--red);border-color:var(--red)}
+  .focus-name{font-family:var(--display);font-size:clamp(20px,3vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1.15;margin-bottom:6px}
+  .focus-sub{display:flex;gap:18px;flex-wrap:wrap;margin:14px 0 20px}
+  .focus-sub .fs{min-width:90px}
+  .focus-sub .fs .k{font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+  .focus-sub .fs .v{font-family:var(--mono);font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
+  .focus-sub .fs .v.hora{color:var(--felt-bright)}
+  .focus-recipe{border-top:1px solid var(--hairline);padding-top:18px;margin-bottom:20px}
+  .focus-id-row{
+    display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+    background:var(--card-elevated);border:1px solid var(--hairline);
+    border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:18px;
+  }
+  .focus-id-row label{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+  .focus-id-row input{
+    flex:1;min-width:140px;background:var(--card);border:1px solid var(--hairline-strong);
+    border-radius:8px;padding:9px 13px;font-size:14px;font-family:var(--mono);outline:none;
+  }
+  .focus-id-row input:focus{border-color:var(--felt-bright)}
+  .focus-actions{display:flex;gap:10px;flex-wrap:wrap}
+  .focus-empty{text-align:center;padding:40px 10px;color:var(--ink-soft);font-size:14px;line-height:1.7}
+
+  /* toast */
+  #toast{
+    position:fixed;bottom:26px;left:50%;transform:translate(-50%,20px);
+    background:var(--ink);color:var(--bg);padding:12px 22px;border-radius:99px;
+    font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);
+    opacity:0;pointer-events:none;transition:all .4s var(--ease);z-index:100;max-width:88vw;
+  }
+  #toast.show{opacity:1;transform:translate(-50%,0)}
+  #toast.err{background:var(--red);color:#fff}
+
+  .empty-state{
+    text-align:center;padding:60px 20px;color:var(--ink-soft);font-size:13.5px;line-height:1.7;
+  }
+  .empty-state .moon{font-size:40px;display:block;margin-bottom:14px;filter:grayscale(.3)}
+
+  @media (max-width:760px){
+    .wrap{padding:22px 16px 70px}
+    .card{padding:20px 18px;border-radius:var(--radius-md)}
+    .hero{padding:42px 16px 32px}
+  }
+  @media (prefers-reduced-motion:reduce){ *{transition:none !important;animation:none !important} }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="10.5" stroke="#8c5cc6" stroke-width="1.6"/>
+        <path d="M15.5 12a5 5 0 1 1-4.2-7.4 6 6 0 1 0 4.2 7.4z" fill="#b888f0"/>
+      </svg>
+      <span class="brand-text">Suprema Poker</span>
+      <span class="brand-sub">Criação Noturna · GU</span>
+    </div>
+    <div class="nav-links">
+      <a href="index.html">← Painel</a>
+      <a href="admin.html">Admin</a>
+    </div>
+    <div class="nav-right">
+      <span class="presence-wrap" id="presenceWrap" title="Operadores online agora" hidden></span>
+      <span class="sync-status" id="syncStatus"><span class="sync-dot"></span><span class="sync-label">Conectando…</span></span>
+      <span class="nav-time" id="navTime"></span>
+      <button class="op-badge" id="opBadge" title="Trocar nome"><span class="avatar" id="opAvatar">?</span><span id="opName">—</span></button>
+      <button class="icon-btn" id="darkToggle" title="Alternar modo claro/escuro">☀️</button>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-inner">
+    <span class="hero-eyebrow"><span>🌙</span> Turno noturno · 19:00 → 07:00 · eventos do dia seguinte</span>
+    <h1>Criação de torneios <em id="heroDay">—</em></h1>
+    <p class="sub">A <b>receita da GU</b> pro próximo dia da grade (janela 06:10 → 05:30): Main Events, Side Events e Satélites já divididos igualmente entre a equipe. Marque cada torneio conforme for criando — sincroniza ao vivo com os parceiros.</p>
+    <div class="hero-stats">
+      <div class="hstat c-prog"><div class="n" id="stProg">0%</div><div class="l">Criados</div></div>
+      <div class="hstat"><div class="n" id="stTotal">—</div><div class="l">Torneios</div></div>
+      <div class="hstat c-main"><div class="n" id="stMain">—</div><div class="l">Main Events</div></div>
+      <div class="hstat c-side"><div class="n" id="stSide">—</div><div class="l">Side Events</div></div>
+      <div class="hstat c-sat"><div class="n" id="stSat">—</div><div class="l">Satélites</div></div>
+      <div class="hstat" id="stUrgWrap" hidden><div class="n" id="stUrg" style="color:#e8c860">—</div><div class="l">Estourando prazo</div></div>
+    </div>
+    <div class="hero-progress">
+      <div class="bar"><div class="fill" id="progFill"></div></div>
+      <div class="cap" id="progCap">Carregue a Global MTT pra começar</div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- UPLOAD -->
+  <section class="card" id="uploadCard">
+    <div class="card-title">
+      <svg viewBox="0 0 24 24"><path d="M12 3v12M12 3l-4 4M12 3l4 4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      Planilha Global MTT
+    </div>
+    <p class="card-desc">Suba a <b>Global MTT</b> — a página lê a aba <b>G MTTS</b> (a da GU, valores em dólar) e extrai a receita completa dos torneios de <b id="uploadDayLabel">amanhã</b> na janela 06:10 → 05:30. Compartilha com todos do turno — só uma pessoa precisa subir.</p>
+    <div class="upload-zone" id="dropZone">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
+      <div class="big" id="dzTitle">Arraste a planilha aqui ou clique pra escolher</div>
+      <div class="small">.xlsx · Global MTT · aba G MTTS (GU, dólar)</div>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" hidden>
+    <div class="upload-meta" id="uploadMeta" hidden></div>
+    <div class="alerts" id="alerts"></div>
+  </section>
+
+  <!-- CONTROLES -->
+  <section class="card" id="controlsCard" hidden>
+    <div class="controls">
+      <div class="ctrl-group">
+        <span class="ctrl-label">Moeda</span>
+        <div class="seg" id="currencySeg">
+          <button data-cur="usd" class="on">$ Dólar</button>
+          <button data-cur="brl">R$ Real</button>
+        </div>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Visualização</span>
+        <div class="seg" id="orientSeg">
+          <button data-or="h" class="on">
+            <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg> Horizontal
+          </button>
+          <button data-or="v">
+            <svg viewBox="0 0 24 24"><path d="M6 3v18M12 3v18M18 3v18"/></svg> Vertical
+          </button>
+        </div>
+      </div>
+      <div class="ctrl-group" style="flex:1;min-width:280px">
+        <span class="ctrl-label">Equipe do turno — divisão igual por categoria</span>
+        <div class="ops-row" id="opsRow"></div>
+      </div>
+    </div>
+    <div style="margin-top:20px;display:flex;gap:22px;flex-wrap:wrap;align-items:flex-end">
+      <div class="ctrl-group">
+        <span class="ctrl-label">Filtrar por operador</span>
+        <div class="filter-chips" id="filterChips"></div>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Busca</span>
+        <input type="search" class="search-inp" id="searchInp" placeholder="Nome ou horário…">
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">&nbsp;</span>
+        <button class="btn primary" id="focusBtn" style="padding:9px 20px">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg>
+          Modo foco — criar próximo
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- LISTA -->
+  <section id="listArea">
+    <div class="empty-state" id="emptyState">
+      <span class="moon">🌙</span>
+      Nenhuma planilha carregada ainda pra este dia da grade.<br>
+      Suba a Global MTT acima — ou aguarde: se um parceiro subir, aparece aqui sozinho.
+    </div>
+  </section>
+
+  <div class="actions-bar" id="actionsBar" hidden>
+    <button class="btn primary" id="exportBtn">
+      <svg viewBox="0 0 24 24"><path d="M12 3v12M12 15l-4-4M12 15l4-4"/><path d="M4 18v1a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1"/></svg>
+      Exportar divisão (.xlsx)
+    </button>
+    <button class="btn ghost" id="summaryBtn">
+      <svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 13h6M9 17h4"/></svg>
+      Copiar resumo da divisão
+    </button>
+  </div>
+
+</main>
+
+<div id="focusOverlay"><div class="focus-card" id="focusCard"></div></div>
+
+<div id="toast"></div>
+
+
+<script>
+/* =========================================================================
+   CRIAÇÃO NOTURNA — GU
+   Página exclusiva do turno da noite (19→07): recebe a Global MTT, extrai a
+   "receita" dos torneios do PRÓXIMO dia da grade (janela 06:10→05:30) e
+   divide a criação de Main/Side/Satélite igualmente entre os operadores.
+   Parsing idêntico ao da Conferência de amanhã do painel (index.html) —
+   se mudar lá, espelhar aqui.
+========================================================================= */
+
+/* ── PORTÃO DE ACESSO: esta página é uma extensão do Painel — só entra quem
+   está logado lá (mesma sessão 'suprema_session_v1'). Sem sessão válida,
+   redireciona pro Painel ANTES de qualquer coisa renderizar. ── */
+(function(){
+  try{
+    const s = JSON.parse(localStorage.getItem('suprema_session_v1') || 'null');
+    if (!s || !s.email || !s.expiresAt || Date.now() > s.expiresAt){
+      location.replace('index.html');
+      throw new Error('sem sessão'); // interrompe o resto do script inline até o redirect
+    }
+  }catch(e){
+    if (e.message !== 'sem sessão') location.replace('index.html');
+    throw e;
+  }
+})();
+
+/* ── modo escuro: padrão DARK (página noturna), mas respeita a escolha salva do painel ── */
+(function(){
+  const saved = localStorage.getItem('suprema_dark_mode');
+  const dark = saved === null ? true : saved === '1';
+  if (dark) document.documentElement.classList.add('dark');
+})();
+
+const $ = id => document.getElementById(id);
+
+function escHtml(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function normText(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim(); }
+function showToast(msg, isErr){
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = isErr ? 'show err' : 'show';
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.className = '', 3200);
+}
+
+/* ── relógio de Brasília (mesma regra do painel: nunca confiar no fuso do dispositivo) ── */
+function nowInSP(){
+  const fmt = new Intl.DateTimeFormat('en-US', {timeZone:'America/Sao_Paulo', year:'numeric', month:'numeric', day:'numeric', hour:'numeric', minute:'numeric', second:'numeric', hour12:false});
+  const parts = fmt.formatToParts(new Date());
+  const get = t => parts.find(p => p.type === t).value;
+  return { year:+get('year'), month:+get('month'), day:+get('day'), hour:parseInt(get('hour'),10)%24, minute:+get('minute'), second:+get('second') };
+}
+function tickClock(){
+  const n = nowInSP();
+  $('navTime').textContent = `${String(n.hour).padStart(2,'0')}:${String(n.minute).padStart(2,'0')} BRT`;
+}
+setInterval(tickClock, 15000); tickClock();
+
+/* ── regra de turno: até 05:29 "amanhã" ainda é o dia civil de hoje (grade não virou) ── */
+const WEEKDAYS_PT = ['DOMINGO','SEGUNDA-FEIRA','TERÇA-FEIRA','QUARTA-FEIRA','QUINTA-FEIRA','SEXTA-FEIRA','SÁBADO'];
+const WEEKDAYS_EN = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+const CONF_WINDOW_START_MIN = 6*60 + 10;
+const CONF_WINDOW_END_MIN = 5*60 + 30;
+function allWeekdayNamesNorm(){ return [...WEEKDAYS_PT, ...WEEKDAYS_EN].map(normText); }
+
+function turnoAmanha(){
+  const n = nowInSP();
+  const isMadrugada = (n.hour*60 + n.minute) < CONF_WINDOW_END_MIN;
+  const tomorrowOffset = isMadrugada ? 0 : 1;
+  const refTomorrow = new Date(Date.UTC(n.year, n.month-1, n.day, 12, 0, 0));
+  refTomorrow.setUTCDate(refTomorrow.getUTCDate() + tomorrowOffset);
+  const refDayAfter = new Date(refTomorrow.getTime() + 86400000);
+  return { n, refTomorrow, refDayAfter };
+}
+function refToISO(ref){ return `${ref.getUTCFullYear()}-${String(ref.getUTCMonth()+1).padStart(2,'0')}-${String(ref.getUTCDate()).padStart(2,'0')}`; }
+function refToLabel(ref){ return `${String(ref.getUTCDate()).padStart(2,'0')}/${String(ref.getUTCMonth()+1).padStart(2,'0')}`; }
+
+const TURNO = turnoAmanha();
+const TOMORROW_ISO = refToISO(TURNO.refTomorrow);
+const WEEKDAY_TOMORROW = WEEKDAYS_PT[TURNO.refTomorrow.getUTCDay()];      // exibição
+const WEEKDAY_DAYAFTER = WEEKDAYS_PT[TURNO.refDayAfter.getUTCDay()];
+const WEEKDAY_TOMORROW_EN = WEEKDAYS_EN[TURNO.refTomorrow.getUTCDay()];   // a G MTTS usa dias em inglês
+const WEEKDAY_DAYAFTER_EN = WEEKDAYS_EN[TURNO.refDayAfter.getUTCDay()];
+const DAY_LABEL = `${WEEKDAY_TOMORROW.split('-')[0].toLowerCase()} · ${refToLabel(TURNO.refTomorrow)}`;
+
+$('heroDay').textContent = `de ${WEEKDAY_TOMORROW.toLowerCase()} · ${refToLabel(TURNO.refTomorrow)}`;
+$('uploadDayLabel').textContent = `${WEEKDAY_TOMORROW.toLowerCase()} (${refToLabel(TURNO.refTomorrow)})`;
+
+/* =========================================================================
+   PARSER DA GU — aba "G MTTS" da Global: é a planilha que a GU usa pra criar
+   os eventos, com a receita completa (~33 colunas) e valores JÁ EM DÓLAR.
+   Nada de índice fixo de coluna: tudo é mapeado pela linha de cabeçalho
+   (MTT MARKETING, TYPE, PRIZE POOL USD, BUY-IN, FEE, STRUCTURE, CHIPS...),
+   então a página sobrevive se a GU adicionar ou mover colunas.
+   Real = dólar × 5 (multiplicador Brazil da operação).
+========================================================================= */
+const BRL_RATE = 5;
+
+function cellToHHMM(v){
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v === 'number'){
+    const totalMin = Math.round(v * 24 * 60);
+    return `${String(Math.floor(totalMin/60)%24).padStart(2,'0')}:${String(totalMin%60).padStart(2,'0')}`;
+  }
+  if (typeof v === 'string'){
+    const m = v.match(/^(\d{1,2}):(\d{2})/);
+    if (m) return `${m[1].padStart(2,'0')}:${m[2]}`;
+  }
+  return null;
+}
+function timeToMinutes(hhmm){
+  if (typeof hhmm !== 'string') return null;
+  const m = hhmm.match(/^(\d{1,2}):(\d{2})$/);
+  return m ? (+m[1])*60 + (+m[2]) : null;
+}
+function readSheetMatrix(arrayBuffer, sheetNameContains){
+  const wb = XLSX.read(arrayBuffer, {type:'array', cellDates:false});
+  let sheetName = wb.SheetNames.find(n => normText(n).includes(normText(sheetNameContains)));
+  if (!sheetName) sheetName = wb.SheetNames[0];
+  return XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {header:1, raw:true, defval:null});
+}
+/* seção do dia na G MTTS: a linha de CABEÇALHO do dia é a que tem o nome do dia
+   ("MONDAY") na PRÓPRIA coluna do nome do torneio (MTT MARKETING). A coluna A
+   não serve de critério: ela repete o dia como rótulo decorativo em linhas de
+   torneio reais e fica VAZIA em alguns cabeçalhos reais (WEDNESDAY/SUNDAY na
+   planilha de produção). A checagem precisa ser estrita (célula igual ao dia),
+   porque satélite com célula mesclada vem null e não pode contar como cabeçalho. */
+function findWeekdaySectionRange(matrix, weekdayName, nameIdx){
+  const norm = normText(weekdayName);
+  const allNames = allWeekdayNamesNorm();
+  const dayAt = (row) => {
+    const c = row && row[nameIdx];
+    return typeof c === 'string' && allNames.includes(normText(c)) ? normText(c) : null;
+  };
+  let startRow = -1, endRow = matrix.length, duplicate = false;
+  for (let i = 0; i < matrix.length; i++){
+    if (dayAt(matrix[i]) === norm){
+      if (startRow === -1) startRow = i;
+      else { duplicate = true; break; }
+    }
+  }
+  if (startRow === -1) return null;
+  for (let i = startRow+1; i < matrix.length; i++){
+    const d = dayAt(matrix[i]);
+    if (d && d !== norm){ endRow = i; break; }
+  }
+  return {startRow, endRow, duplicate};
+}
+/* ── RECEITA COMPLETA ──
+   A Global tem ~30 colunas (MTT, TYPE, Game Type, K.O, Max Table, Prize Pool,
+   Buy-in, Reentry, Stack, Add-on, Fee, Structure, Chips, Late Reg...) — tudo
+   que a pessoa digita no app pra criar a mesa. Em vez de fixar 30 índices,
+   achamos a LINHA DE CABEÇALHO na planilha e mapeamos as colunas pelo nome:
+   se a GU adicionar/mover coluna, continua funcionando. */
+function findHeaderCols(matrix){
+  const clean = v => typeof v === 'string' && v.trim() ? v.replace(/\s+/g,' ').trim() : '';
+  for (let i = 0; i < Math.min(matrix.length, 80); i++){
+    const row = matrix[i];
+    if (!row) continue;
+    const norm = row.map(c => typeof c === 'string' ? normText(c) : '');
+    const mttIdx = norm.findIndex(x => x === 'mtt');
+    if (mttIdx >= 0 && norm.some(x => x === 'tipo' || x === 'type') && norm.some(x => x.includes('buy'))){
+      // na Global real o cabeçalho ocupa DUAS linhas ("BLINDS UP (min)" em cima,
+      // "Early game / Pós Late Reg. / Final Table..." embaixo) — mescla as duas,
+      // mas só se a linha de baixo não for já uma linha de torneio (coluna MTT vazia)
+      const next = matrix[i+1] || [];
+      const merge = !clean(next[mttIdx]);
+      const width = Math.max(row.length, merge ? next.length : 0);
+      const cols = [];
+      for (let c = 0; c < width; c++){
+        const label = [clean(row[c]), merge ? clean(next[c]) : ''].filter(Boolean).join(' — ');
+        if (label) cols.push({idx: c, label});
+      }
+      return cols;
+    }
+  }
+  return null;
+}
+/* campos que já têm coluna própria na visão resumida — não repetir no detalhe.
+   O "MTT" curto (nome interno, sem o garantido) FICA na receita: é diferente do
+   MTT MARKETING que usamos como nome do torneio. Fusos de outros países saem. */
+function isCoreLabel(label){
+  const n = normText(label);
+  return n.includes('mtt marketing') || n === 'tipo' || n === 'type' || n === 'day' || n === 'hora' || n === 'horario' || n === 'time' || n.includes('(utc');
+}
+/* localiza as colunas-chave pelo nome no cabeçalho da G MTTS */
+function guIdx(headerCols){
+  const find = pred => { const c = headerCols.find(c => pred(normText(c.label))); return c ? c.idx : -1; };
+  const name = find(n => n.includes('mtt marketing'));
+  const shortName = find(n => n === 'mtt');
+  return {
+    hora: find(n => n === 'hora' || n === 'horario'),
+    name: name >= 0 ? name : shortName,
+    shortName,
+    tipo: find(n => n === 'type' || n === 'tipo'),
+    prize: find(n => n.includes('prize pool') || n.includes('guaranteed')),
+    buyin: find(n => n === 'buy-in' || n === 'buy in' || n === 'buyin'),
+    hourLate: find(n => n.includes('hour late') || n.includes('hora late'))
+  };
+}
+/* formata um valor de célula da receita pelo TIPO do cabeçalho:
+   frações de dia viram HH:MM só em colunas de horário; frações em colunas de
+   fee/payout viram %; o resto fica como está na planilha (é o que se digita no app) */
+function fmtExtraVal(label, v){
+  if (v === null || v === undefined || v === '') return '—';
+  const n = normText(label);
+  if (typeof v === 'number'){
+    const isPct = /fee|payout|early bird/.test(n);
+    const isTime = /late reg|hour|break|horari|early game|pos late|final table/.test(n);
+    if (v > 0 && v < 1){
+      if (isPct) return (Math.round(v*10000)/100).toLocaleString('pt-BR') + '%';
+      if (isTime) return cellToHHMM(v);
+      return (Math.round(v*100)/100).toLocaleString('pt-BR');
+    }
+    return v.toLocaleString('pt-BR', {maximumFractionDigits:2});
+  }
+  return String(v).trim();
+}
+
+function extractGuDaySection(matrix, weekdayEn, headerCols){
+  const gi = guIdx(headerCols);
+  const range = findWeekdaySectionRange(matrix, weekdayEn, gi.name);
+  if (!range) return null;
+  const main = [], side = [], sat = [], unknown = [], semHora = [], aposGap = [];
+  // na G MTTS o nome de marketing (MTT MARKETING) vem mesclado quando um grupo de
+  // satélites tem vários horários — herda o último visto até a próxima linha vazia
+  let lastGroupName = null, lastHora = null, emptyCount = 0;
+  const num = v => typeof v === 'number' ? Math.round(v*100)/100 : null;
+  const str = v => typeof v === 'string' && v.trim() ? v.replace(/\s+/g,' ').trim() : null;
+  for (let i = range.startRow; i < range.endRow; i++){
+    const row = matrix[i];
+    if (!row || row.every(v => v === null || v === undefined || v === '' || v === ' ')){
+      lastGroupName = null; lastHora = null; emptyCount++;
+      if (emptyCount >= 5){
+        for (let j = i; j < range.endRow; j++){
+          const r = matrix[j];
+          if (!r) continue;
+          const nm = str(r[gi.name]) || str(r[gi.shortName]);
+          const hr = cellToHHMM(r[gi.hora]);
+          if (nm && hr && !allWeekdayNamesNorm().includes(normText(nm))) aposGap.push({nome:nm, hora:hr});
+        }
+        break;
+      }
+      continue;
+    }
+    emptyCount = 0;
+    let hora = cellToHHMM(row[gi.hora]);
+    const nomeMkt = str(row[gi.name]);
+    const nomeCurto = str(row[gi.shortName]);
+    const tipo = str(row[gi.tipo]);
+    if (nomeMkt && allWeekdayNamesNorm().includes(normText(nomeMkt))) continue; // cabeçalho do dia
+    if (nomeMkt) lastGroupName = nomeMkt;
+    // linha separadora "MTT / SATELLITE" que abre o bloco de satélites — não é torneio
+    if (['mtt','satellite','satelite'].includes(normText(nomeMkt || '')) || ['satellite','satelite'].includes(normText(nomeCurto || ''))) continue;
+    const nome = (tipo === 'SAT' ? (nomeCurto || nomeMkt) : (nomeMkt || nomeCurto));
+    if (!nome) continue;
+    if (normText(nome) === 'suspenso') continue;
+    if (!hora && lastHora) hora = lastHora;
+    else if (hora) lastHora = hora;
+    if (!hora){ semHora.push({nome, hora:row[gi.hora], tipo}); continue; }
+    // G MTTS: PRIZE POOL USD e BUY-IN já são em dólar — sem divisão nenhuma
+    const garantido = num(row[gi.prize]);
+    const buyin = num(row[gi.buyin]);
+    const lateHH = gi.hourLate >= 0 ? cellToHHMM(row[gi.hourLate]) : null;
+    // receita completa: TODAS as colunas do cabeçalho, valor cru da célula
+    const extra = {};
+    headerCols.forEach(({idx, label}) => {
+      if (isCoreLabel(label)) return;
+      let v = row[idx];
+      if (v instanceof Date) v = cellToHHMM((v.getHours()*60 + v.getMinutes())/1440);
+      if (typeof v === 'string') v = v.trim();
+      if (v !== null && v !== undefined && v !== '') extra[label] = v;
+    });
+    const entry = {nome, hora, garantido, buyin, late:lateHH, groupHeader: tipo === 'SAT' ? lastGroupName : null, extra};
+    if (tipo === 'Main Event') main.push(entry);
+    else if (tipo === 'Side Event') side.push(entry);
+    else if (tipo === 'SAT') sat.push(entry);
+    else if (tipo) unknown.push({...entry, tipo});
+    // tipo vazio + nome presente: linha decorativa/rótulo — ignorada em silêncio só se não tiver valores
+    else if (garantido !== null || buyin !== null) unknown.push({...entry, tipo: tipo ?? ''});
+  }
+  return {main, side, sat, unknown, semHora, aposGap, duplicateSection: range.duplicate};
+}
+
+/* janela 06:10(amanhã) → 05:30(dia seguinte): mesma montagem da Conferência de amanhã */
+function buildSections(sectionTomorrow, sectionDayAfter){
+  const inWindow = list => list.filter(it => (timeToMinutes(it.hora) ?? -1) >= CONF_WINDOW_START_MIN);
+  const inWindowNextDay = list => list.filter(it => { const m = timeToMinutes(it.hora); return m !== null && m <= CONF_WINDOW_END_MIN; });
+  const chronoSort = list => [...list].sort((a,b) => {
+    const ma = timeToMinutes(a.hora) ?? 9999, mb = timeToMinutes(b.hora) ?? 9999;
+    return (ma >= CONF_WINDOW_START_MIN ? ma : ma+1440) - (mb >= CONF_WINDOW_START_MIN ? mb : mb+1440);
+  });
+  const main = chronoSort([...(sectionTomorrow ? inWindow(sectionTomorrow.main) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.main) : [])]);
+  const side = chronoSort([...(sectionTomorrow ? inWindow(sectionTomorrow.side) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.side) : [])]);
+  const sat = [...(sectionTomorrow ? inWindow(sectionTomorrow.sat) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.sat) : [])];
+  const unknown = [...(sectionTomorrow ? inWindow(sectionTomorrow.unknown) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.unknown) : [])];
+  return { main, side, sat, unknown };
+}
+
+/* =========================================================================
+   ESTADO + FIREBASE — tudo do dia vive em /painel/{amanhã}/criacaoNoturna:
+   sheet (dados extraídos, JSON), ops (equipe), done/{key} (progresso).
+========================================================================= */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAFy1GtRaJE3LHC1Rjtmq0uw2JC8bviXes",
+  authDomain: "design-1-53c00.firebaseapp.com",
+  databaseURL: "https://design-1-53c00-default-rtdb.firebaseio.com",
+  projectId: "design-1-53c00",
+  storageBucket: "design-1-53c00.firebasestorage.app",
+  messagingSenderId: "140511032441",
+  appId: "1:140511032441:web:dcf970125bbf5eec53d0a8"
+};
+const FB_PATH = `painel/${TOMORROW_ISO}/criacaoNoturna`;
+
+let fbDb = null;
+let DATA = null;          // {main, side, sat[], unknown, warnings, by, at}
+let OPS = [];             // nomes da equipe
+let DONE = {};            // key -> {by, at}
+let IDS = {};             // key -> {val, by, at} — ID do evento no Pokerbyte
+let PRESENCE = {};        // sessionId -> {name, at}
+let SEARCH = '';
+let CURRENCY = localStorage.getItem('cn_currency') || 'usd';
+let ORIENT = localStorage.getItem('cn_orient') || 'h';
+let FILTER = 'all';
+
+function setSync(state, label){
+  const el = $('syncStatus');
+  el.className = 'sync-status ' + state;
+  el.querySelector('.sync-label').textContent = label;
+}
+try{
+  firebase.initializeApp(FIREBASE_CONFIG);
+  fbDb = firebase.database();
+  fbDb.ref('.info/connected').on('value', s => {
+    if (s.val() === true) setSync('on','Sincronizado');
+    else setSync('','Conectando…');
+  });
+  fbDb.ref(`${FB_PATH}/sheet`).on('value', s => {
+    const v = s.val();
+    if (v && v.json){
+      try{
+        DATA = JSON.parse(v.json);
+        DATA.by = v.by; DATA.at = v.at;
+        onDataReady(true);
+      }catch(e){ console.error('sheet corrompida no Firebase', e); }
+    }
+  });
+  fbDb.ref(`${FB_PATH}/ops`).on('value', s => {
+    const v = s.val();
+    OPS = Array.isArray(v) ? v.filter(Boolean) : (v ? Object.values(v).filter(Boolean) : []);
+    renderAll();
+  });
+  fbDb.ref(`${FB_PATH}/done`).on('value', s => {
+    DONE = s.val() || {};
+    renderAll();
+    renderFocus(); // se o modo foco estiver aberto, o parceiro marcando também avança a fila
+  });
+  fbDb.ref(`${FB_PATH}/ids`).on('value', s => {
+    IDS = s.val() || {};
+    // não re-renderizar a lista enquanto alguém digita um ID — só atualiza os inputs parados
+    if (document.activeElement && document.activeElement.classList.contains('id-inp')){
+      document.querySelectorAll('.id-inp').forEach(inp => {
+        if (inp === document.activeElement) return;
+        const v = IDS[inp.dataset.idkey] ? IDS[inp.dataset.idkey].val : '';
+        inp.value = v; inp.classList.toggle('has-id', !!v);
+      });
+    } else renderAll();
+  });
+  fbDb.ref(`${FB_PATH}/presence`).on('value', s => {
+    PRESENCE = s.val() || {};
+    renderPresence();
+  });
+}catch(e){
+  console.error('Firebase indisponível — modo local', e);
+  setSync('off','Offline (só local)');
+}
+
+/* =========================================================================
+   CONTA — a MESMA do Painel/Admin, e SÓ ela: não existe login próprio aqui.
+   O portão no <script> inicial redireciona pro Painel quem chega sem a
+   sessão 'suprema_session_v1'; o login/cadastro acontecem exclusivamente lá.
+========================================================================= */
+const AUTH_STORE_KEY = 'suprema_session_v1';
+function getSession(){
+  try{
+    const s = JSON.parse(localStorage.getItem(AUTH_STORE_KEY) || 'null');
+    if(!s || !s.email || !s.expiresAt) return null;
+    if(Date.now() > s.expiresAt){ localStorage.removeItem(AUTH_STORE_KEY); return null; }
+    return s;
+  }catch(e){ return null; }
+}
+function clearSession(){ try{ localStorage.removeItem(AUTH_STORE_KEY); }catch(e){} }
+
+/* o portão no topo da página já barrou quem não tem sessão — aqui ela sempre existe */
+let SESSION = getSession();
+let ME = SESSION ? (SESSION.apelido || SESSION.nome || SESSION.displayName || SESSION.email) : '';
+
+/* se a sessão sumir no meio do turno (logout em outra aba, expiração), volta pro Painel */
+function ensureSession(){
+  if (!getSession()) location.replace('index.html');
+}
+window.addEventListener('focus', ensureSession);
+setInterval(ensureSession, 5*60*1000);
+function paintOperator(){
+  $('opName').textContent = ME || 'Entrar';
+  $('opAvatar').textContent = ME ? ME.trim()[0].toUpperCase() : '?';
+  $('opBadge').title = SESSION ? `${SESSION.email} — clique para sair` : 'Entrar com a conta do Painel';
+}
+paintOperator();
+
+/* ── presença ao vivo: heartbeat por sessão, some sozinho ao fechar a aba ── */
+const SESSION_ID = 's' + Math.random().toString(36).slice(2, 10);
+function presenceBeat(){
+  if (!fbDb || !ME) return;
+  const ref = fbDb.ref(`${FB_PATH}/presence/${SESSION_ID}`);
+  ref.set({name: ME, at: firebase.database.ServerValue.TIMESTAMP});
+  ref.onDisconnect().remove();
+}
+setInterval(presenceBeat, 60000);
+presenceBeat();
+function renderPresence(){
+  const wrap = $('presenceWrap');
+  const cutoff = Date.now() - 3*60*1000; // sem heartbeat há 3 min = saiu
+  const online = Object.values(PRESENCE).filter(p => p && p.at > cutoff);
+  const uniq = [...new Map(online.map(p => [normText(p.name), p])).values()];
+  wrap.hidden = uniq.length === 0;
+  wrap.innerHTML = uniq.slice(0, 6).map(p =>
+    `<span class="pv" style="background:${opColor(p.name)}" title="${escHtml(p.name)} online">${escHtml(p.name.trim()[0].toUpperCase())}</span>`
+  ).join('');
+  wrap.title = 'Online agora: ' + uniq.map(p => p.name).join(', ');
+}
+
+$('opBadge').addEventListener('click', () => {
+  if (confirm(`Sair da conta ${SESSION.email}?\n(Também desloga do Painel e do Admin — é a mesma sessão.)`)){
+    clearSession();
+    if (fbDb) fbDb.ref(`${FB_PATH}/presence/${SESSION_ID}`).remove();
+    location.replace('index.html'); // sem sessão não se fica aqui — volta pro Painel logar
+  }
+});
+
+/* ── modo escuro ── */
+function paintDarkBtn(){ $('darkToggle').textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙'; }
+paintDarkBtn();
+$('darkToggle').addEventListener('click', () => {
+  const isDark = document.documentElement.classList.toggle('dark');
+  localStorage.setItem('suprema_dark_mode', isDark ? '1' : '0');
+  paintDarkBtn();
+});
+
+/* =========================================================================
+   UPLOAD
+========================================================================= */
+const dz = $('dropZone');
+dz.addEventListener('click', () => $('fileInput').click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+$('fileInput').addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+async function handleFile(file){
+  $('dzTitle').textContent = 'Lendo planilha…';
+  try{
+    // a criação é baseada SÓ na aba da GU (G MTTS) — valores em dólar, receita completa
+    const matrix = readSheetMatrix(await file.arrayBuffer(), 'G MTTS');
+    const headerCols = findHeaderCols(matrix);
+    if (!headerCols){
+      showToast('Não encontrei o cabeçalho da aba G MTTS (MTT MARKETING / TYPE / BUY-IN…) — é a Global MTT certa?', true);
+      $('dzTitle').textContent = 'Arraste a planilha aqui ou clique pra escolher';
+      return;
+    }
+    const secTom = extractGuDaySection(matrix, WEEKDAY_TOMORROW_EN, headerCols);
+    const secAfter = extractGuDaySection(matrix, WEEKDAY_DAYAFTER_EN, headerCols);
+    if (!secTom){
+      showToast(`Não encontrei a seção "${WEEKDAY_TOMORROW_EN}" na aba G MTTS — é a Global MTT certa?`, true);
+      $('dzTitle').textContent = 'Arraste a planilha aqui ou clique pra escolher';
+      return;
+    }
+    const sections = buildSections(secTom, secAfter);
+    const warnings = [];
+    if (!secAfter) warnings.push(`Seção "${WEEKDAY_DAYAFTER}" não encontrada — a madrugada de fechamento (até 05:30) pode estar faltando.`);
+    if (secTom.duplicateSection || (secAfter && secAfter.duplicateSection)) warnings.push('Nome de dia duplicado na planilha — confira se as seções usadas são as certas.');
+    const semHora = [...secTom.semHora, ...(secAfter ? secAfter.semHora : [])];
+    if (semHora.length) warnings.push(`${semHora.length} torneio(s) sem horário reconhecível ficaram de fora: ${semHora.map(x=>x.nome).join(', ')}`);
+    const aposGap = [...secTom.aposGap, ...(secAfter ? secAfter.aposGap : [])];
+    if (aposGap.length) warnings.push(`${aposGap.length} linha(s) depois do vão de linhas vazias ficaram de fora: ${aposGap.map(x=>`${x.hora} ${x.nome}`).join(', ')}`);
+    if (sections.unknown.length) warnings.push(`${sections.unknown.length} torneio(s) com tipo não reconhecido na coluna TYPE (listados em seção própria).`);
+
+    const fields = headerCols.filter(c => !isCoreLabel(c.label)).map(c => c.label);
+    // diff contra a versão que já estava carregada (a GU corrige a Global durante a noite):
+    // o que mudou fica marcado — e o que JÁ FOI CRIADO com a receita antiga pede revisão
+    const changes = computeChanges(DATA, sections);
+    if (DATA && changes.length) showToast(`⚠ ${changes.length} alteração(ões) em relação à Global anterior — veja os avisos.`, true);
+    DATA = {...sections, fields, warnings, changes, by: ME || 'Alguém', at: Date.now(), fileName: file.name};
+    onDataReady(false);
+
+    if (fbDb){
+      fbDb.ref(`${FB_PATH}/sheet`).set({
+        json: JSON.stringify({main:sections.main, side:sections.side, sat:sections.sat, unknown:sections.unknown, fields, warnings, changes, fileName:file.name}),
+        by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP
+      });
+    }
+    showToast(`Global carregada — ${sections.main.length + sections.side.length + sections.sat.length} torneios de ${WEEKDAY_TOMORROW.toLowerCase()}.`);
+  }catch(e){
+    console.error(e);
+    showToast('Erro ao ler a planilha — confira se é a Global MTT (.xlsx).', true);
+  }
+  $('dzTitle').textContent = 'Arraste a planilha aqui ou clique pra escolher';
+  $('fileInput').value = '';
+}
+
+/* =========================================================================
+   DIVISÃO IGUAL — determinística: mesma ordem de equipe + mesma planilha
+   ⇒ mesma divisão em qualquer navegador (sem sorteio, sem gravação extra).
+   Main e Side: round-robin cronológico. Satélite: grupos inteiros (a receita
+   de um grupo é encadeada), sempre pro operador com menos satélites até ali.
+========================================================================= */
+function itemKey(it){
+  return `${normText(it.nome)}|${it.hora}`.replace(/[.#$\[\]\/]/g,'_');
+}
+function computeAssignments(){
+  const asg = {}; // key -> opName
+  if (!DATA || !OPS.length) return asg;
+  // round-robin CONTÍNUO entre categorias (o side começa de onde o main parou),
+  // senão o primeiro da lista acumula sempre a sobra de cada categoria
+  let cursor = 0;
+  const totalLoad = Object.fromEntries(OPS.map(o => [o,0]));
+  const take = () => { const op = OPS[cursor % OPS.length]; cursor++; totalLoad[op]++; return op; };
+  DATA.main.forEach(it => asg[itemKey(it)] = take());
+  DATA.side.forEach(it => asg[itemKey(it)] = take());
+  // satélites: grupos inteiros (a receita de um grupo é encadeada), sempre pro
+  // operador com menos torneios NO TOTAL até ali — equilibra a carga geral
+  const order = [], map = {};
+  DATA.sat.forEach(it => {
+    const k = it.groupHeader || it.nome;
+    if (!map[k]){ map[k] = []; order.push(k); }
+    map[k].push(it);
+  });
+  order.forEach(k => {
+    const op = OPS.reduce((best,o) => totalLoad[o] < totalLoad[best] ? o : best, OPS[0]);
+    map[k].forEach(it => asg[itemKey(it)] = op);
+    totalLoad[op] += map[k].length;
+  });
+  return asg;
+}
+
+/* =========================================================================
+   RENDER
+========================================================================= */
+const OP_COLORS = ['#22d47e','#5aa8ff','#b888f0','#f0a050','#f06050','#4dd0c4','#e8c860','#f078b8'];
+function opColor(name){
+  const i = OPS.indexOf(name);
+  return OP_COLORS[(i >= 0 ? i : 0) % OP_COLORS.length];
+}
+function fmtMoney(vUsd){
+  if (vUsd === null || vUsd === undefined) return '—';
+  const v = CURRENCY === 'usd' ? vUsd : vUsd * BRL_RATE;
+  const s = v.toLocaleString('pt-BR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2});
+  return `<span class="cur">${CURRENCY === 'usd' ? '$' : 'R$'}</span>${s}`;
+}
+function fmtMoneyPlain(vUsd){
+  if (vUsd === null || vUsd === undefined) return '—';
+  const v = CURRENCY === 'usd' ? vUsd : vUsd * BRL_RATE;
+  return (CURRENCY === 'usd' ? '$ ' : 'R$ ') + v.toLocaleString('pt-BR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2});
+}
+
+function onDataReady(fromRemote){
+  $('controlsCard').hidden = false;
+  $('actionsBar').hidden = false;
+  const meta = $('uploadMeta');
+  meta.hidden = false;
+  const when = DATA.at ? new Date(DATA.at).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', timeZone:'America/Sao_Paulo'}) : '';
+  meta.innerHTML = `
+    <span class="pill ok">✓ ${escHtml(DATA.fileName || 'Global MTT')}</span>
+    <span class="pill">por ${escHtml(DATA.by || '—')}${when ? ' às ' + when : ''}</span>
+    <span class="pill gold">${WEEKDAY_TOMORROW.toLowerCase()} · janela 06:10 → 05:30</span>`;
+  renderAll();
+}
+
+function renderAll(){
+  renderOps();
+  renderFilters();
+  renderAlerts();
+  renderStats();
+  renderList();
+}
+
+function renderOps(){
+  const row = $('opsRow');
+  if (!row) return;
+  let html = OPS.map(o => `
+    <span class="op-chip">
+      <span class="avatar" style="background:${opColor(o)}">${escHtml(o.trim()[0].toUpperCase())}</span>
+      ${escHtml(o)}
+      <button class="rm" data-op="${escHtml(o)}" title="Remover do turno">×</button>
+    </span>`).join('');
+  html += `
+    <span class="op-add">
+      <input type="text" id="opAddInput" placeholder="Nome do operador" maxlength="30">
+      <button id="opAddBtn">+ Adicionar</button>
+    </span>`;
+  if (ME && !OPS.some(o => normText(o) === normText(ME))){
+    html += `<button class="fchip" id="opAddMe">+ Me incluir (${escHtml(ME.split(' ')[0])})</button>`;
+  }
+  row.innerHTML = html;
+  row.querySelectorAll('.rm').forEach(b => b.addEventListener('click', () => saveOps(OPS.filter(o => o !== b.dataset.op))));
+  const addOp = () => {
+    const v = $('opAddInput').value.trim();
+    if (!v) return;
+    if (OPS.some(o => normText(o) === normText(v))){ showToast('Esse nome já está na equipe.', true); return; }
+    saveOps([...OPS, v]);
+  };
+  $('opAddBtn').addEventListener('click', addOp);
+  $('opAddInput').addEventListener('keydown', e => { if (e.key === 'Enter') addOp(); });
+  const me = $('opAddMe');
+  if (me) me.addEventListener('click', () => saveOps([...OPS, ME]));
+}
+function saveOps(list){
+  OPS = list;
+  if (FILTER !== 'all' && !OPS.includes(FILTER)) FILTER = 'all';
+  if (fbDb) fbDb.ref(`${FB_PATH}/ops`).set(list);
+  else renderAll();
+}
+
+function renderFilters(){
+  const asg = computeAssignments();
+  const counts = {};
+  OPS.forEach(o => counts[o] = 0);
+  Object.values(asg).forEach(o => { if (o in counts) counts[o]++; });
+  const total = DATA ? DATA.main.length + DATA.side.length + DATA.sat.length : 0;
+  let html = `<button class="fchip ${FILTER==='all'?'on':''}" data-f="all">Todos <span class="cnt">${total}</span></button>`;
+  html += OPS.map(o => `
+    <button class="fchip ${FILTER===o?'on':''}" data-f="${escHtml(o)}">
+      ${escHtml(o)}${normText(o)===normText(ME) ? ' (você)' : ''} <span class="cnt">${counts[o] || 0}</span>
+    </button>`).join('');
+  $('filterChips').innerHTML = html;
+  $('filterChips').querySelectorAll('.fchip').forEach(b => b.addEventListener('click', () => { FILTER = b.dataset.f; renderAll(); }));
+}
+
+function renderAlerts(){
+  const el = $('alerts');
+  let html = (DATA && DATA.warnings || []).map(w => `<div class="alert">⚠ ${escHtml(w)}</div>`).join('');
+  const chg = DATA && DATA.changes || [];
+  if (chg.length){
+    const lines = chg.slice(0, 14).map(c => `<b>${escHtml(c.nome)}</b> — ${escHtml(c.campo)}: ${escHtml(fmtChangeVal(c.de))} → ${escHtml(fmtChangeVal(c.para))}`);
+    html += `<div class="alert gold">🔄 <b>Global atualizada</b> — ${chg.length} alteração(ões) em relação à versão anterior. Torneios já criados com receita antiga estão marcados com <b>⚠ revisar</b>.<br>${lines.join('<br>')}${chg.length > 14 ? `<br>… e mais ${chg.length - 14}.` : ''}</div>`;
+  }
+  el.innerHTML = html;
+}
+
+function renderStats(){
+  if (!DATA){ return; }
+  const total = DATA.main.length + DATA.side.length + DATA.sat.length;
+  const doneCount = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => DONE[itemKey(it)]).length;
+  const pct = total ? Math.round(doneCount/total*100) : 0;
+  $('stTotal').textContent = total;
+  $('stMain').textContent = DATA.main.length;
+  $('stSide').textContent = DATA.side.length;
+  $('stSat').textContent = DATA.sat.length;
+  $('stProg').textContent = pct + '%';
+  $('progFill').style.width = pct + '%';
+  // torneios estourando prazo (começam em <6h e ainda não criados)
+  const urgAll = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => urgency(it));
+  const lateCount = urgAll.filter(it => urgency(it) === 'late').length;
+  $('stUrgWrap').hidden = urgAll.length === 0;
+  $('stUrg').textContent = urgAll.length;
+  $('stUrg').style.color = lateCount ? '#f06050' : '#e8c860';
+  const perOp = OPS.map(o => {
+    const asg = computeAssignments();
+    const mine = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => asg[itemKey(it)] === o);
+    const d = mine.filter(it => DONE[itemKey(it)]).length;
+    return `${o.split(' ')[0]} ${d}/${mine.length}`;
+  }).join(' · ');
+  $('progCap').textContent = total
+    ? `${doneCount} de ${total} torneios criados${perOp ? ' — ' + perOp : ''}`
+    : 'Carregue a Global MTT pra começar';
+}
+
+/* ── prazo: instante de início do evento vs agora (tudo em relógio de Brasília).
+   Madrugada (até 05:30) pertence ao dia SEGUINTE ao da grade. ── */
+function eventStartUTC(it){
+  const m = timeToMinutes(it.hora);
+  if (m === null) return null;
+  const ref = m <= CONF_WINDOW_END_MIN ? TURNO.refDayAfter : TURNO.refTomorrow;
+  return Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), ref.getUTCDate(), Math.floor(m/60), m%60);
+}
+function hoursToStart(it){
+  const start = eventStartUTC(it);
+  if (start === null) return null;
+  const n = nowInSP();
+  const nowU = Date.UTC(n.year, n.month-1, n.day, n.hour, n.minute);
+  return (start - nowU) / 3600000;
+}
+/* 'late' = começa em <3h (ou já começou) e não foi criado; 'warn' = <6h */
+function urgency(it){
+  if (DONE[itemKey(it)]) return null;
+  const h = hoursToStart(it);
+  if (h === null) return null;
+  if (h < 3) return 'late';
+  if (h < 6) return 'warn';
+  return null;
+}
+function urgLabel(it){
+  const h = hoursToStart(it);
+  if (h === null) return '';
+  if (h < 0) return 'já começou!';
+  if (h < 1) return `em ${Math.round(h*60)}min`;
+  return `em ${Math.floor(h)}h${String(Math.round((h%1)*60)).padStart(2,'0')}`;
+}
+
+/* ── ID do evento (Pokerbyte) — compartilhado com o turno via Firebase ── */
+function setId(key, val){
+  val = String(val || '').trim();
+  if (fbDb){
+    if (val) fbDb.ref(`${FB_PATH}/ids/${key}`).set({val, by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP});
+    else fbDb.ref(`${FB_PATH}/ids/${key}`).remove();
+  } else {
+    if (val) IDS[key] = {val, by: ME}; else delete IDS[key];
+    renderAll();
+  }
+}
+function idVal(key){ return IDS[key] ? IDS[key].val : ''; }
+function idInputHtml(key, extraStyle){
+  const v = idVal(key);
+  return `<input type="text" class="id-inp ${v ? 'has-id' : ''}" data-idkey="${key}" value="${escHtml(v)}" placeholder="ID Pokerbyte" maxlength="20" style="${extraStyle || ''}" title="${IDS[key] && IDS[key].by ? 'ID por ' + escHtml(IDS[key].by) : 'ID do evento cadastrado no Pokerbyte'}">`;
+}
+
+function toggleDone(key){
+  const cur = DONE[key];
+  if (fbDb){
+    if (cur) fbDb.ref(`${FB_PATH}/done/${key}`).remove();
+    else fbDb.ref(`${FB_PATH}/done/${key}`).set({by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP});
+  } else {
+    if (cur) delete DONE[key]; else DONE[key] = {by: ME, at: Date.now()};
+    renderAll();
+  }
+}
+
+function recipeFields(){ return (DATA && DATA.fields) || []; }
+function recipeText(it, cat){
+  const parts = [
+    `${cat} — ${it.nome}`,
+    `Horário: ${it.hora}`,
+    `Garantido: ${fmtMoneyPlain(it.garantido)}`,
+    `Buy-in: ${fmtMoneyPlain(it.buyin)}`
+  ];
+  if (it.groupHeader) parts.push(`Grupo: ${it.groupHeader}`);
+  // receita completa da GU — todos os campos que vão no app, na ordem da planilha
+  recipeFields().forEach(label => {
+    const v = it.extra ? it.extra[label] : undefined;
+    if (v !== undefined && v !== null && v !== '') parts.push(`${label}: ${fmtExtraVal(label, v)}`);
+  });
+  if (!recipeFields().length && it.late) parts.push(`Fim do late reg: ${it.late}`);
+  return parts.join('\n');
+}
+/* grid com TODOS os campos da receita (mostra também os vazios — quem cria a
+   mesa precisa saber que aquele campo fica em branco no app) */
+function recipeGridHtml(it){
+  const fields = recipeFields();
+  if (!fields.length) return `<div class="recipe-note">Receita completa indisponível nesta planilha (cabeçalho da Global não foi lido). Recarregue a Global MTT original.</div>`;
+  return `<div class="recipe-grid">${fields.map(label => {
+    const v = it.extra ? it.extra[label] : undefined;
+    const has = v !== undefined && v !== null && v !== '';
+    return `<div class="rf"><div class="k" title="${escHtml(label)}">${escHtml(label)}</div><div class="v ${has ? '' : 'empty'}">${has ? escHtml(fmtExtraVal(label, v)) : 'em branco'}</div></div>`;
+  }).join('')}</div>`;
+}
+
+/* ── diff de versão da Global: quando alguém sobe uma planilha nova por cima,
+   compara com a anterior e marca o que mudou — pra revisar no app o que já
+   tinha sido criado com a receita antiga ── */
+function computeChanges(oldData, sections){
+  if (!oldData) return [];
+  const flat = d => [...d.main, ...d.side, ...d.sat];
+  const byName = list => new Map(list.map(it => [normText(it.nome), it]));
+  const oldMap = byName(flat(oldData)), newMap = byName(flat(sections));
+  const changes = [];
+  const cmp = (nome, campo, a, b) => { if (JSON.stringify(a ?? null) !== JSON.stringify(b ?? null)) changes.push({nome, campo, de: a ?? '—', para: b ?? '—'}); };
+  newMap.forEach((n, k) => {
+    const o = oldMap.get(k);
+    if (!o){ changes.push({nome: n.nome, campo: 'NOVO', de: '', para: `${n.hora} · $${n.garantido ?? '—'}`}); return; }
+    cmp(n.nome, 'Horário', o.hora, n.hora);
+    cmp(n.nome, 'Garantido', o.garantido, n.garantido);
+    cmp(n.nome, 'Buy-in', o.buyin, n.buyin);
+    // receita: qualquer campo extra diferente conta como alteração (um só aviso por torneio)
+    if (o.extra && n.extra){
+      const labels = new Set([...Object.keys(o.extra), ...Object.keys(n.extra)]);
+      for (const l of labels){
+        if (JSON.stringify(o.extra[l] ?? null) !== JSON.stringify(n.extra[l] ?? null)){
+          changes.push({nome: n.nome, campo: l, de: o.extra[l] ?? '—', para: n.extra[l] ?? '—'});
+        }
+      }
+    }
+  });
+  oldMap.forEach((o, k) => { if (!newMap.has(k)) changes.push({nome: o.nome, campo: 'REMOVIDO', de: `${o.hora} · $${o.garantido ?? '—'}`, para: ''}); });
+  return changes;
+}
+function changedNames(){
+  return new Set((DATA && DATA.changes || []).map(c => normText(c.nome)));
+}
+function changeBadge(it){
+  if (!DATA || !DATA.changes || !DATA.changes.length) return '';
+  if (!changedNames().has(normText(it.nome))) return '';
+  const wasDone = !!DONE[itemKey(it)];
+  const my = DATA.changes.filter(c => normText(c.nome) === normText(it.nome));
+  const tip = my.map(c => `${c.campo}: ${fmtChangeVal(c.de)} → ${fmtChangeVal(c.para)}`).join('\n');
+  return `<span class="chg-pill ${wasDone ? 'review' : ''}" title="${escHtml(tip)}">${wasDone ? '⚠ revisar' : 'alterado'}</span>`;
+}
+function fmtChangeVal(v){ return typeof v === 'number' ? v.toLocaleString('pt-BR', {maximumFractionDigits:2}) : String(v); }
+
+const EXPANDED = new Set();
+function applyExpanded(){
+  document.querySelectorAll('[data-detail]').forEach(tr => { tr.hidden = !EXPANDED.has(tr.dataset.detail); });
+  document.querySelectorAll('[data-rowkey]').forEach(tr => tr.classList.toggle('expanded', EXPANDED.has(tr.dataset.rowkey)));
+}
+
+function visibleItems(list, asg){
+  let out = FILTER === 'all' ? list : list.filter(it => asg[itemKey(it)] === FILTER);
+  if (SEARCH){
+    const q = normText(SEARCH);
+    out = out.filter(it => normText(it.nome).includes(q) || it.hora.startsWith(SEARCH.trim()) || (it.groupHeader && normText(it.groupHeader).includes(q)));
+  }
+  return out;
+}
+
+const CATS = [
+  {key:'main', cls:'main', label:'Main Events'},
+  {key:'side', cls:'side', label:'Side Events'},
+  {key:'sat',  cls:'sat',  label:'Satélites'}
+];
+
+function opTagHtml(op){
+  if (!op) return `<span class="op-tag none">sem equipe</span>`;
+  return `<span class="op-tag" style="background:${opColor(op)}"><span class="dot">${escHtml(op.trim()[0].toUpperCase())}</span>${escHtml(op.split(' ')[0])}</span>`;
+}
+
+function renderList(){
+  const area = $('listArea');
+  if (!DATA){
+    area.innerHTML = `<div class="empty-state"><span class="moon">🌙</span>Nenhuma planilha carregada ainda pra este dia da grade.<br>Suba a Global MTT acima — ou aguarde: se um parceiro subir, aparece aqui sozinho.</div>`;
+    return;
+  }
+  const asg = computeAssignments();
+  let html = '';
+
+  CATS.forEach(cat => {
+    const items = visibleItems(DATA[cat.key], asg);
+    if (!items.length) return;
+    const doneCount = items.filter(it => DONE[itemKey(it)]).length;
+    html += `
+      <div class="section-head ${cat.cls}">
+        <span class="tag">${cat.label}</span>
+        <span class="cnt">${doneCount}/${items.length} criados</span>
+        <span class="line"></span>
+      </div>`;
+    html += ORIENT === 'h' ? renderHorizontal(items, cat, asg) : renderVertical(items, cat, asg);
+  });
+
+  if (DATA.unknown && DATA.unknown.length && FILTER === 'all'){
+    html += `
+      <div class="section-head">
+        <span class="tag" style="background:var(--red-soft);color:var(--red)">⚠ Tipo não reconhecido</span>
+        <span class="cnt">confira a coluna D na Global — não entram na divisão</span>
+        <span class="line"></span>
+      </div>
+      <div class="ttable"><table><tbody>
+        ${DATA.unknown.map(it => `<tr><td class="tname">${escHtml(it.nome)} <em style="opacity:.55;font-weight:400">(tipo: "${escHtml(it.tipo ?? '')}")</em></td><td class="thora">${escHtml(it.hora)}</td><td class="tval">${fmtMoney(it.garantido)}</td><td class="tval">${fmtMoney(it.buyin)}</td></tr>`).join('')}
+      </tbody></table></div>`;
+  }
+
+  if (!html) html = `<div class="empty-state"><span class="moon">🃏</span>Nada nesse filtro.</div>`;
+  area.innerHTML = html;
+
+  area.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
+  // ID Pokerbyte: grava ao sair do campo ou no Enter (não a cada tecla, pra não ecoar no parceiro)
+  area.querySelectorAll('.id-inp').forEach(inp => {
+    inp.addEventListener('change', () => setId(inp.dataset.idkey, inp.value));
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
+  });
+  // receita expandida sobrevive aos re-renders (sync do Firebase re-renderiza a lista toda)
+  area.querySelectorAll('[data-expand]').forEach(el => el.addEventListener('click', () => {
+    const k = el.dataset.expand;
+    if (EXPANDED.has(k)) EXPANDED.delete(k); else EXPANDED.add(k);
+    applyExpanded();
+  }));
+  applyExpanded();
+  area.querySelectorAll('[data-copy]').forEach(el => el.addEventListener('click', async () => {
+    try{
+      await navigator.clipboard.writeText(el.dataset.copy);
+      showToast('Receita copiada 📋');
+    }catch(e){ showToast('Não consegui copiar — copie manualmente.', true); }
+  }));
+}
+
+/* horizontal: linhas = torneios (formato clássico da GU); o botão "Receita"
+   expande uma linha de detalhe com TODOS os campos que a pessoa digita no app */
+function renderHorizontal(items, cat, asg){
+  let rows = '';
+  let lastGroup = null;
+  items.forEach(it => {
+    const key = itemKey(it);
+    const done = DONE[key];
+    if (cat.key === 'sat'){
+      const g = it.groupHeader || it.nome;
+      if (g !== lastGroup){
+        rows += `<tr class="sat-group-row"><td colspan="10">${escHtml(g)}</td></tr>`;
+        lastGroup = g;
+      }
+    }
+    const urg = urgency(it);
+    const chg = changeBadge(it);
+    rows += `
+      <tr class="${done ? 'done' : ''} ${urg ? 'urg-' + urg : ''}" data-rowkey="${key}">
+        <td><button class="chk ${done ? 'on' : ''}" data-done="${key}" title="${done ? `Criado por ${escHtml(done.by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button></td>
+        <td class="tname">${escHtml(it.nome)}${urg ? `<span class="urg-pill ${urg}">⏰ ${urgLabel(it)}</span>` : ''}${chg}</td>
+        <td class="thora">${escHtml(it.hora)}</td>
+        <td class="tval">${fmtMoney(it.garantido)}</td>
+        <td class="tval">${fmtMoney(it.buyin)}</td>
+        <td class="mono" style="color:var(--ink-soft)">${it.late ? escHtml(it.late) : '—'}</td>
+        <td>${opTagHtml(asg[key])}</td>
+        <td>${idInputHtml(key)}</td>
+        <td><button class="exp-btn" data-expand="${key}" title="Ver a receita completa do torneio">Receita <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></td>
+        <td><button class="copy-btn" data-copy="${escHtml(recipeText(it, cat.label))}" title="Copiar receita completa do torneio"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></td>
+      </tr>
+      <tr class="detail-row" data-detail="${key}" hidden><td colspan="10">${recipeGridHtml(it)}</td></tr>`;
+  });
+  return `
+    <div class="ttable"><table>
+      <thead><tr>
+        <th></th><th>Torneio</th><th>Horário</th><th>Garantido</th><th>Buy-in</th><th>Late reg</th><th>Operador</th><th>ID Pokerbyte</th><th>Receita</th><th></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+}
+
+/* vertical: planilha transposta — campos nas linhas, torneios nas colunas */
+function renderVertical(items, cat, asg){
+  const cols = items.map(it => {
+    const key = itemKey(it);
+    return {it, key, done: !!DONE[key], op: asg[key]};
+  });
+  const cell = (fn, cls) => cols.map(c => `<td class="${c.done ? 'done-col' : ''} ${cls || ''}">${fn(c)}</td>`).join('');
+  return `
+    <div class="vwrap"><table class="vtable">
+      <tr><th class="rowlab">Torneio</th>${cell(c => escHtml(c.it.nome), 'vname')}</tr>
+      <tr><th class="rowlab">Horário</th>${cell(c => `<span class="thora">${escHtml(c.it.hora)}</span>`)}</tr>
+      <tr><th class="rowlab">Garantido</th>${cell(c => `<span class="tval">${fmtMoney(c.it.garantido)}</span>`)}</tr>
+      <tr><th class="rowlab">Buy-in</th>${cell(c => `<span class="tval">${fmtMoney(c.it.buyin)}</span>`)}</tr>
+      ${cat.key === 'sat' ? `<tr><th class="rowlab">Grupo</th>${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : ''}
+      ${recipeFields().length
+        ? recipeFields().map(label => `<tr><th class="rowlab" title="${escHtml(label)}">${escHtml(label)}</th>${cell(c => {
+            const v = c.it.extra ? c.it.extra[label] : undefined;
+            const has = v !== undefined && v !== null && v !== '';
+            return `<span class="mono" style="${has ? '' : 'color:var(--ink-soft);opacity:.5'}">${has ? escHtml(fmtExtraVal(label, v)) : '—'}</span>`;
+          })}</tr>`).join('')
+        : `<tr><th class="rowlab">Late reg</th>${cell(c => `<span class="mono" style="color:var(--ink-soft)">${c.it.late ? escHtml(c.it.late) : '—'}</span>`)}</tr>`}
+      <tr><th class="rowlab">Operador</th>${cell(c => opTagHtml(c.op))}</tr>
+      <tr><th class="rowlab">ID Pokerbyte</th>${cell(c => idInputHtml(c.key, 'width:110px'))}</tr>
+      <tr><th class="rowlab">Criado</th>${cell(c => `
+        <button class="chk ${c.done ? 'on' : ''}" data-done="${c.key}" title="${c.done ? `Criado por ${escHtml((DONE[c.key]||{}).by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
+        <button class="copy-btn" data-copy="${escHtml(recipeText(c.it, cat.label))}" title="Copiar receita" style="margin-left:6px"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>`)}</tr>
+    </table></div>`;
+}
+
+/* =========================================================================
+   MODO FOCO — criar o próximo: um torneio por vez, receita gigante, campo de
+   ID e avanço automático ao marcar como criado. A fila prioriza quem está
+   mais perto de estourar o prazo e, se você está na equipe, mostra só os seus.
+========================================================================= */
+const FOCUS_SKIP = new Set();
+let FOCUS_OPEN = false;
+
+function markDone(key){
+  DONE[key] = {by: ME || 'Alguém', at: Date.now()}; // otimista — o eco do Firebase confirma
+  if (fbDb) fbDb.ref(`${FB_PATH}/done/${key}`).set({by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP});
+  renderAll();
+}
+
+function focusQueue(){
+  if (!DATA) return [];
+  const asg = computeAssignments();
+  let all = [
+    ...DATA.main.map(it => ({it, cat: CATS[0]})),
+    ...DATA.side.map(it => ({it, cat: CATS[1]})),
+    ...DATA.sat.map(it => ({it, cat: CATS[2]}))
+  ].filter(x => !DONE[itemKey(x.it)]);
+  // meus torneios primeiro: se meu nome está na equipe, a fila é só minha;
+  // senão respeita o filtro de operador escolhido na tela
+  const mineOp = OPS.find(o => normText(o) === normText(ME)) || (FILTER !== 'all' ? FILTER : null);
+  if (mineOp) all = all.filter(x => asg[itemKey(x.it)] === mineOp);
+  // prioridade: menos horas até o início (prazo estourando primeiro)
+  all.sort((a,b) => (hoursToStart(a.it) ?? 999) - (hoursToStart(b.it) ?? 999));
+  const notSkipped = all.filter(x => !FOCUS_SKIP.has(itemKey(x.it)));
+  if (!notSkipped.length && all.length) FOCUS_SKIP.clear(); // pulou tudo: recomeça a fila
+  return notSkipped.length ? notSkipped : all;
+}
+
+function openFocus(){
+  if (!DATA){ showToast('Carregue a Global primeiro.', true); return; }
+  FOCUS_OPEN = true;
+  $('focusOverlay').classList.add('open');
+  renderFocus();
+}
+function closeFocus(){
+  FOCUS_OPEN = false;
+  $('focusOverlay').classList.remove('open');
+}
+
+function renderFocus(){
+  if (!FOCUS_OPEN) return;
+  const card = $('focusCard');
+  const queue = focusQueue();
+  if (!queue.length){
+    card.innerHTML = `
+      <button class="focus-close" id="focusClose" title="Fechar">✕</button>
+      <div class="focus-empty">🎉 <b>Tudo criado!</b><br>Nenhum torneio pendente na sua fila — bom descanso ou ajude um parceiro trocando o filtro.</div>`;
+    $('focusClose').addEventListener('click', closeFocus);
+    return;
+  }
+  const {it, cat} = queue[0];
+  const key = itemKey(it);
+  const urg = urgency(it);
+  const total = queue.length;
+  card.innerHTML = `
+    <div class="focus-top">
+      <span class="tag" style="background:var(--${cat.cls}-soft);color:var(--${cat.cls}-bright)">${cat.label}</span>
+      ${urg ? `<span class="urg-pill ${urg}">⏰ começa ${urgLabel(it)}</span>` : ''}
+      ${it.groupHeader ? `<span class="pill" style="color:var(--sat-bright)">${escHtml(it.groupHeader)}</span>` : ''}
+      <span class="queue-pos">${total} na fila</span>
+      <button class="focus-close" id="focusClose" title="Fechar (Esc)">✕</button>
+    </div>
+    <div class="focus-name">${escHtml(it.nome)}</div>
+    <div class="focus-sub">
+      <div class="fs"><div class="k">Horário</div><div class="v hora">${escHtml(it.hora)}</div></div>
+      <div class="fs"><div class="k">Garantido</div><div class="v">${fmtMoney(it.garantido)}</div></div>
+      <div class="fs"><div class="k">Buy-in</div><div class="v">${fmtMoney(it.buyin)}</div></div>
+      <div class="fs"><div class="k">Fim late reg</div><div class="v">${it.late ? escHtml(it.late) : '—'}</div></div>
+    </div>
+    <div class="focus-recipe">${recipeGridHtml(it)}</div>
+    <div class="focus-id-row">
+      <label>ID Pokerbyte</label>
+      <input type="text" id="focusIdInp" maxlength="20" placeholder="Cole o ID do evento cadastrado" value="${escHtml(idVal(key))}">
+    </div>
+    <div class="focus-actions">
+      <button class="btn primary" id="focusDone">
+        <svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg>
+        Criado — próximo
+      </button>
+      <button class="btn ghost" id="focusSkip">Pular por agora</button>
+      <button class="btn ghost" id="focusCopy">
+        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+        Copiar receita
+      </button>
+    </div>`;
+  $('focusClose').addEventListener('click', closeFocus);
+  $('focusDone').addEventListener('click', () => {
+    const idv = $('focusIdInp').value.trim();
+    if (idv && idv !== idVal(key)) setId(key, idv);
+    markDone(key);
+    renderFocus();
+  });
+  $('focusSkip').addEventListener('click', () => { FOCUS_SKIP.add(key); renderFocus(); });
+  $('focusCopy').addEventListener('click', async () => {
+    try{ await navigator.clipboard.writeText(recipeText(it, cat.label)); showToast('Receita copiada 📋'); }
+    catch(e){ showToast('Não consegui copiar.', true); }
+  });
+  $('focusIdInp').addEventListener('change', () => setId(key, $('focusIdInp').value));
+  $('focusIdInp').addEventListener('keydown', e => { if (e.key === 'Enter') $('focusDone').click(); });
+}
+$('focusBtn').addEventListener('click', openFocus);
+$('focusOverlay').addEventListener('click', e => { if (e.target === $('focusOverlay')) closeFocus(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && FOCUS_OPEN) closeFocus(); });
+
+/* ── busca ── */
+$('searchInp').addEventListener('input', () => { SEARCH = $('searchInp').value; renderList(); });
+
+/* relógio de urgência: re-renderiza a cada minuto pros contadores de prazo andarem
+   (pula se alguém está digitando um ID pra não roubar o foco) */
+setInterval(() => {
+  if (!DATA) return;
+  renderStats();
+  if (!(document.activeElement && document.activeElement.classList.contains('id-inp'))) renderList();
+  renderFocus();
+}, 60000);
+
+/* ── segmented: moeda + orientação ── */
+$('currencySeg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+  CURRENCY = b.dataset.cur;
+  localStorage.setItem('cn_currency', CURRENCY);
+  $('currencySeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  renderList();
+}));
+$('orientSeg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+  ORIENT = b.dataset.or;
+  localStorage.setItem('cn_orient', ORIENT);
+  $('orientSeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  renderList();
+}));
+(function restoreSegs(){
+  $('currencySeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.cur === CURRENCY));
+  $('orientSeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.or === ORIENT));
+})();
+
+/* ── export xlsx com a coluna Operador ── */
+$('exportBtn').addEventListener('click', () => {
+  if (!DATA){ showToast('Carregue a Global primeiro.', true); return; }
+  const asg = computeAssignments();
+  const cur = CURRENCY === 'usd' ? '$' : 'R$';
+  const conv = v => v === null || v === undefined ? null : (CURRENCY === 'usd' ? v : Math.round(v * BRL_RATE * 100) / 100);
+  const fields = recipeFields();
+  const rows = [[`Criação Noturna — ${WEEKDAY_TOMORROW} ${refToLabel(TURNO.refTomorrow)} — valores em ${cur}`],[],
+    ['Categoria','Torneio','Horário',`Garantido (${cur})`,`Buy-in (${cur})`,'Late reg','Operador','ID Pokerbyte','Criado', ...fields]];
+  CATS.forEach(cat => {
+    DATA[cat.key].forEach(it => {
+      const key = itemKey(it);
+      const extras = fields.map(label => {
+        const v = it.extra ? it.extra[label] : undefined;
+        return v === undefined || v === null || v === '' ? '' : fmtExtraVal(label, v);
+      });
+      rows.push([cat.label, it.nome, it.hora, conv(it.garantido), conv(it.buyin), it.late || '', asg[key] || '', idVal(key), DONE[key] ? `✓ ${DONE[key].by || ''}` : '', ...extras]);
+    });
+    rows.push([]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:12},{wch:34},{wch:9},{wch:14},{wch:12},{wch:9},{wch:14},{wch:14},{wch:12}, ...fields.map(() => ({wch:14}))];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Criação Noturna');
+  XLSX.writeFile(wb, `CriacaoNoturna_${TOMORROW_ISO}.xlsx`);
+  showToast('Divisão exportada.');
+});
+
+/* ── resumo pra colar no grupo ── */
+$('summaryBtn').addEventListener('click', async () => {
+  if (!DATA){ showToast('Carregue a Global primeiro.', true); return; }
+  const asg = computeAssignments();
+  const lines = [`🌙 Criação Noturna — ${WEEKDAY_TOMORROW.toLowerCase()} ${refToLabel(TURNO.refTomorrow)}`];
+  if (OPS.length){
+    OPS.forEach(o => {
+      lines.push(`\n👤 ${o}`);
+      CATS.forEach(cat => {
+        const mine = DATA[cat.key].filter(it => asg[itemKey(it)] === o);
+        if (mine.length) lines.push(`  ${cat.label}: ${mine.length} (${mine.map(it => it.hora).join(', ')})`);
+      });
+    });
+  } else {
+    CATS.forEach(cat => lines.push(`${cat.label}: ${DATA[cat.key].length}`));
+  }
+  const total = DATA.main.length + DATA.side.length + DATA.sat.length;
+  const doneCount = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => DONE[itemKey(it)]).length;
+  lines.push(`\nTotal: ${total} torneios · ${doneCount} criados`);
+  try{
+    await navigator.clipboard.writeText(lines.join('\n'));
+    showToast('Resumo copiado — pronto pra colar no grupo 📋');
+  }catch(e){ showToast('Não consegui copiar.', true); }
+});
+</script>
+</body>
+</html>
