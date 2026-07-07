@@ -44,6 +44,10 @@
     --sat-bright: #8c5cc6;
     --sat-soft: #f1eaf9;
 
+    --sidefree: #1f9e90;
+    --sidefree-bright: #17998a;
+    --sidefree-soft: #e4f6f3;
+
     --card: #ffffff;
     --card-elevated: #f5f5f7;
 
@@ -85,6 +89,9 @@
     --sat:        #9b61d6;
     --sat-bright: #b888f0;
     --sat-soft:   rgba(155,97,214,0.14);
+    --sidefree:       #2bb5a4;
+    --sidefree-bright:#4dd0c4;
+    --sidefree-soft:  rgba(77,208,196,0.14);
     --shadow-sm: 0 1px 2px rgba(0,0,0,.45), 0 3px 12px -2px rgba(0,0,0,.4);
     --shadow-md: 0 6px 20px -4px rgba(0,0,0,.55), 0 14px 38px -10px rgba(0,0,0,.5);
     --shadow-lg: 0 18px 44px -12px rgba(0,0,0,.65), 0 34px 76px -22px rgba(0,0,0,.6);
@@ -212,7 +219,10 @@
   .hstat.c-main .n{color:#f06050}
   .hstat.c-side .n{color:#5aa8ff}
   .hstat.c-sat .n{color:#b888f0}
+  .hstat.c-sidefree .n{color:#4dd0c4}
   .hstat.c-prog .n{color:#22d47e}
+  .hstat.c-camp .n{color:#c9a84c}
+  .hstat.c-camp{background:rgba(201,168,76,.08);border-color:rgba(201,168,76,.28)}
   .hero-progress{margin-top:22px;max-width:520px}
   .hero-progress .bar{
     height:8px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden;
@@ -337,9 +347,20 @@
   .section-head.main .tag{background:var(--main-soft);color:var(--main-bright)}
   .section-head.side .tag{background:var(--side-soft);color:var(--side-bright)}
   .section-head.sat  .tag{background:var(--sat-soft);color:var(--sat-bright)}
+  .section-head.sidefree .tag{background:var(--sidefree-soft);color:var(--sidefree-bright)}
   .section-head h2{font-family:var(--display);font-size:19px;font-weight:750;letter-spacing:-.02em}
   .section-head .cnt{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
   .section-head .line{flex:1;height:1px;background:var(--hairline)}
+  .section-note{
+    display:flex;align-items:center;gap:7px;flex-wrap:wrap;
+    font-size:11.5px;color:var(--ink-soft);line-height:1.5;margin:-6px 0 13px;
+  }
+  .section-note b{color:var(--ink);font-weight:700}
+  .section-note .lk{
+    display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:99px;
+    background:var(--card-elevated);border:1px solid var(--hairline);font-weight:650;
+  }
+  .section-note .lk .d{width:7px;height:7px;border-radius:99px;flex:none}
 
   /* horizontal (tabela) */
   .ttable{
@@ -515,6 +536,66 @@
   }
   .chg-pill.review{background:var(--red-soft);color:var(--red)}
 
+  /* ══ CÁLCULO — rake / admin fee / early bird, destacado na linha ══ */
+  .calc-chips{display:flex;gap:5px;flex-wrap:wrap}
+  .calc-chip{
+    display:inline-flex;align-items:baseline;gap:5px;white-space:nowrap;
+    font-family:var(--mono);font-size:11.5px;font-weight:750;font-variant-numeric:tabular-nums;
+    padding:2px 9px;border-radius:8px;line-height:1.6;
+  }
+  .calc-chip .lab{font-family:var(--text);font-size:8.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;opacity:.7}
+  .calc-chip.rake {background:var(--gold-soft);color:var(--gold)}
+  .calc-chip.admin{background:var(--side-soft);color:var(--side-bright)}
+  .calc-chip.early{background:var(--sat-soft);color:var(--sat-bright)}
+
+  /* ── campanha: destaque forte (fundo tintado na linha + selo) ── */
+  .camp-badge{
+    display:inline-flex;align-items:center;gap:5px;margin-left:8px;vertical-align:middle;
+    font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+    padding:2px 10px 2px 8px;border-radius:99px;
+    background:var(--gold);color:#1a1206;
+    box-shadow:0 0 0 1px rgba(173,138,78,.35), 0 5px 16px -5px rgba(201,168,76,.7);
+  }
+  html.dark .camp-badge{color:#100b02}
+  .camp-badge .spark{font-size:10px;display:inline-block;animation:campPulse 2.6s var(--ease) infinite}
+  @keyframes campPulse{0%,100%{opacity:.55;transform:scale(.85)}50%{opacity:1;transform:scale(1.15)}}
+  tr.has-camp td{background:var(--gold-soft)}
+  .ttable tbody tr.has-camp:hover td{background:var(--gold-soft);filter:brightness(1.04)}
+
+  /* ── painel de cálculo (detalhe expandido + modo foco) ── */
+  .calc-panel{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(122px,1fr));gap:10px;margin-bottom:16px;
+  }
+  .calc-tile{
+    background:var(--card);border:1px solid var(--hairline);border-radius:var(--radius-sm);
+    padding:12px 14px;
+  }
+  .calc-tile .k{font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:5px}
+  .calc-tile .v{font-family:var(--mono);font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+  .calc-tile .sub{font-size:9.5px;color:var(--ink-soft);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .calc-tile.rake  .v{color:var(--gold)}
+  .calc-tile.admin .v{color:var(--side-bright)}
+  .calc-tile.early .v{color:var(--sat-bright)}
+  .calc-tile.total .v{color:var(--felt-bright)}
+  .calc-tile .v.empty{color:var(--ink-soft);opacity:.42;font-size:15px;font-weight:600}
+  .calc-tile.camp{background:var(--gold-soft);border-color:rgba(201,168,76,.35)}
+  .calc-tile.camp .k{color:var(--gold)}
+  .calc-tile.camp .v{font-family:var(--display);font-size:15px;color:var(--gold)}
+
+  /* ── seletor de função no chip do operador ── */
+  .op-chip .role-sel{
+    border:none;background:transparent;font-family:var(--text);
+    font-size:11px;font-weight:750;color:var(--ink-soft);cursor:pointer;outline:none;
+    border-radius:99px;padding:2px 2px 2px 4px;max-width:118px;
+  }
+  .op-chip .role-sel:hover{color:var(--ink)}
+  .op-chip[data-role="mainSat"]{border-color:var(--main-bright)}
+  .op-chip[data-role="mainSat"] .role-sel{color:var(--main-bright)}
+  .op-chip[data-role="sideAdmin"]{border-color:var(--side-bright)}
+  .op-chip[data-role="sideAdmin"] .role-sel{color:var(--side-bright)}
+  .op-chip[data-role="sideNoAdmin"]{border-color:var(--sidefree-bright)}
+  .op-chip[data-role="sideNoAdmin"] .role-sel{color:var(--sidefree-bright)}
+
   /* ── modo foco ── */
   #focusOverlay{
     position:fixed;inset:0;background:rgba(8,10,9,.82);backdrop-filter:blur(14px);
@@ -524,37 +605,169 @@
   .focus-card{
     background:var(--card);border:1px solid var(--hairline-strong);
     border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);
-    width:min(860px,96vw);max-height:92vh;overflow-y:auto;padding:30px 34px;
-    position:relative;
+    width:min(780px,96vw);max-height:92vh;
+    display:flex;flex-direction:column;overflow:hidden;position:relative;
   }
-  .focus-top{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
-  .focus-top .tag{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;padding:5px 13px;border-radius:99px}
-  .focus-top .queue-pos{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+  #focusOverlay.open .focus-card{animation:focusIn .5s var(--ease-expo)}
+  @keyframes focusIn{from{opacity:0;transform:translateY(18px) scale(.985)}to{opacity:1;transform:none}}
+
+  /* cabeçalho fixo — contexto sempre visível */
+  .focus-head{padding:20px 28px 15px;border-bottom:1px solid var(--hairline);flex:none}
+  .focus-top{display:flex;align-items:center;gap:9px;margin-bottom:12px;flex-wrap:wrap}
+  .focus-top .tag{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:5px 12px;border-radius:99px}
+  .focus-top .queue-pos{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-left:auto}
   .focus-close{
-    margin-left:auto;border:1px solid var(--hairline-strong);background:var(--card);
-    border-radius:99px;width:32px;height:32px;cursor:pointer;font-size:15px;color:var(--ink-soft);
+    border:1px solid var(--hairline-strong);background:var(--card);
+    border-radius:99px;width:30px;height:30px;cursor:pointer;font-size:14px;color:var(--ink-soft);flex:none;
+    transition:all .25s var(--ease);
   }
-  .focus-close:hover{color:var(--red);border-color:var(--red)}
-  .focus-name{font-family:var(--display);font-size:clamp(20px,3vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1.15;margin-bottom:6px}
-  .focus-sub{display:flex;gap:18px;flex-wrap:wrap;margin:14px 0 20px}
-  .focus-sub .fs{min-width:90px}
-  .focus-sub .fs .k{font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
-  .focus-sub .fs .v{font-family:var(--mono);font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
-  .focus-sub .fs .v.hora{color:var(--felt-bright)}
-  .focus-recipe{border-top:1px solid var(--hairline);padding-top:18px;margin-bottom:20px}
+  .focus-close:hover{color:var(--red);border-color:var(--red);transform:rotate(90deg)}
+  .focus-name{font-family:var(--display);font-size:clamp(19px,2.6vw,26px);font-weight:800;letter-spacing:-.02em;line-height:1.12;text-wrap:balance}
+  /* faixa de conferência — os 3 números que você checa primeiro */
+  .focus-check{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
+  .focus-check .fc{
+    display:flex;flex-direction:column;gap:2px;
+    background:var(--card-elevated);border:1px solid var(--hairline);border-radius:var(--radius-sm);
+    padding:8px 14px;min-width:92px;
+  }
+  .focus-check .fc .k{font-size:9px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft)}
+  .focus-check .fc .v{font-family:var(--mono);font-size:19px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+  .focus-check .fc.hora .v{color:var(--felt-bright)}
+  .focus-night{display:flex;align-items:center;gap:10px;margin-top:13px}
+  .focus-night .bar{flex:1;height:5px;border-radius:99px;background:var(--card-elevated);overflow:hidden}
+  .focus-night .fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--felt-bright),var(--side-bright));transition:width .5s var(--ease-expo)}
+  .focus-night .cap{font-family:var(--mono);font-size:11px;color:var(--ink-soft);white-space:nowrap}
+
+  /* corpo rolável — a receita de cima para baixo, na ordem do app */
+  .focus-body{overflow-y:auto;padding:14px 28px 8px;flex:1;overscroll-behavior:contain}
+  .focus-body.swap{animation:focusSwap .4s var(--ease-expo)}
+  @keyframes focusSwap{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+  .flow-head{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    position:sticky;top:0;background:var(--card);padding:6px 0 9px;z-index:2;
+  }
+  .flow-head .t{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);display:flex;align-items:center;gap:7px}
+  .flow-head .t svg{width:13px;height:13px;stroke:var(--felt-bright);stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .flow-prog{font-family:var(--mono);font-size:11px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+  .frow{
+    display:grid;grid-template-columns:22px minmax(96px,34%) 1fr 30px;align-items:center;gap:10px;
+    width:100%;text-align:left;border:none;border-bottom:1px solid var(--hairline);
+    background:transparent;padding:10px 4px;cursor:pointer;color:inherit;
+    transition:background .18s var(--ease), opacity .25s var(--ease);
+  }
+  .frow:hover{background:var(--card-elevated)}
+  .frow .fnum{font-family:var(--mono);font-size:11px;color:var(--ink-soft);opacity:.55;text-align:center}
+  .frow .fk{font-size:10.5px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:var(--ink-soft);
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .frow .fv{font-family:var(--mono);font-size:16px;font-weight:750;font-variant-numeric:tabular-nums;
+            text-align:right;color:var(--ink);word-break:break-word}
+  .frow.blank .fv{font-family:var(--text);font-size:12px;font-weight:600;color:var(--ink-soft);opacity:.6;font-style:italic}
+  .frow .fcopy{
+    border:1px solid transparent;background:transparent;border-radius:7px;width:28px;height:28px;
+    display:grid;place-items:center;cursor:pointer;color:var(--ink-soft);opacity:0;transition:all .2s var(--ease);
+  }
+  .frow:hover .fcopy{opacity:1}
+  .frow .fcopy svg{width:13px;height:13px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .frow .fcopy:hover{border-color:var(--felt-bright);color:var(--felt-bright)}
+  /* destaques na própria linha, sem duplicar em painel */
+  .frow.buyin .fv{color:var(--felt-bright);font-size:18px;font-weight:800}
+  .frow.prize .fv{font-size:18px;font-weight:800}
+  .frow.rake  .fv{color:var(--gold)}
+  .frow.admin .fv{color:var(--side-bright)}
+  .frow.early .fv{color:var(--sat-bright)}
+  .frow.camp{background:var(--gold-soft)}
+  .frow.camp .fk,.frow.camp .fv{color:var(--gold);font-weight:800}
+  /* já digitado — apaga pra não perder o lugar na descida */
+  .frow.entered{opacity:.38}
+  .frow.entered .fv{text-decoration:line-through}
+  .frow.entered .fnum{color:var(--felt-bright);opacity:1}
+  .frow.key-line{border-bottom-color:var(--hairline-strong)}
+
+  /* rodapé fixo — ID + ação, sempre alcançável */
+  .focus-foot{padding:14px 28px 16px;border-top:1px solid var(--hairline);background:var(--card);flex:none}
   .focus-id-row{
-    display:flex;gap:10px;align-items:center;flex-wrap:wrap;
-    background:var(--card-elevated);border:1px solid var(--hairline);
-    border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:18px;
+    display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;
   }
-  .focus-id-row label{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+  .focus-id-row label{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);flex:none}
   .focus-id-row input{
-    flex:1;min-width:140px;background:var(--card);border:1px solid var(--hairline-strong);
-    border-radius:8px;padding:9px 13px;font-size:14px;font-family:var(--mono);outline:none;
+    flex:1;min-width:150px;background:var(--card-elevated);border:1px solid var(--hairline-strong);
+    border-radius:9px;padding:9px 13px;font-size:14px;font-family:var(--mono);outline:none;transition:border-color .25s;
   }
   .focus-id-row input:focus{border-color:var(--felt-bright)}
-  .focus-actions{display:flex;gap:10px;flex-wrap:wrap}
-  .focus-empty{text-align:center;padding:40px 10px;color:var(--ink-soft);font-size:14px;line-height:1.7}
+  .focus-actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+  .focus-actions .btn{padding:10px 18px}
+  .focus-next{font-size:11.5px;color:var(--ink-soft);margin-left:auto;text-align:right;line-height:1.4}
+  .focus-next b{color:var(--ink);font-weight:700}
+  .focus-next .h{font-family:var(--mono);color:var(--felt-bright)}
+  .focus-empty{text-align:center;padding:52px 24px;color:var(--ink-soft);font-size:14px;line-height:1.7}
+  @media (prefers-reduced-motion:reduce){
+    #focusOverlay.open .focus-card,.focus-body.swap{animation:none}
+    .focus-close:hover{transform:none}
+  }
+  @media (max-width:560px){
+    .focus-head,.focus-body,.focus-foot{padding-left:18px;padding-right:18px}
+    .frow{grid-template-columns:20px 1fr auto 28px}
+    .frow .fcopy{opacity:1}
+  }
+
+  /* ── #2 campo ATUAL (auto-avanço, tipo teleprompter) ── */
+  .frow.current{
+    background:var(--felt-soft);border-radius:9px;border-bottom-color:transparent;
+    box-shadow:inset 0 0 0 1.5px var(--felt-bright);
+  }
+  .frow.current .fk{color:var(--felt-bright)}
+  .frow.current .fcopy{opacity:1}
+  .flow-hint{font-size:11px;color:var(--ink-soft);margin:8px 2px 0;opacity:.8}
+  .flow-hint kbd{
+    font-family:var(--mono);font-size:10px;background:var(--card-elevated);
+    border:1px solid var(--hairline-strong);border-radius:5px;padding:1px 5px;color:var(--ink);
+  }
+
+  /* ── #3 validação da receita ── */
+  .val-pill{
+    display:inline-flex;align-items:center;gap:5px;margin-left:8px;vertical-align:middle;
+    font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+    padding:2px 8px;border-radius:99px;background:var(--gold-soft);color:var(--gold);cursor:help;
+  }
+  .focus-alerts{display:flex;flex-direction:column;gap:6px;margin:2px 0 12px}
+  .focus-alert{
+    display:flex;gap:7px;align-items:flex-start;
+    background:var(--gold-soft);border:1px solid rgba(201,168,76,.32);color:var(--gold);
+    border-radius:var(--radius-sm);padding:9px 12px;font-size:12px;line-height:1.5;font-weight:600;
+  }
+
+  /* ── #5 menu popover (handoff) ── */
+  .pop-menu{
+    position:fixed;z-index:110;background:var(--card);border:1px solid var(--hairline-strong);
+    border-radius:var(--radius-md);box-shadow:var(--shadow-lg);padding:8px;min-width:210px;max-width:min(320px,92vw);
+    animation:popIn .2s var(--ease-expo);
+  }
+  @keyframes popIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+  .pop-menu .ph{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft);padding:6px 8px 8px;line-height:1.4}
+  .pop-menu button.pm{
+    display:flex;align-items:center;gap:9px;width:100%;text-align:left;border:none;background:transparent;
+    border-radius:9px;padding:9px 10px;font-size:13px;font-weight:650;color:var(--ink);cursor:pointer;transition:background .18s;
+  }
+  .pop-menu button.pm:hover{background:var(--card-elevated)}
+  .pop-menu button.pm .avatar{width:23px;height:23px;border-radius:99px;display:grid;place-items:center;color:#fff;font-size:10px;font-weight:800;flex:none}
+
+  /* ── #6 conferência pós-criação (folha que sobe dentro do card) ── */
+  .focus-confirm{position:absolute;inset:0;background:rgba(8,10,9,.5);display:grid;align-items:end;z-index:6}
+  .focus-confirm .cc{
+    background:var(--card);border-top:1px solid var(--hairline-strong);
+    border-radius:var(--radius-lg) var(--radius-lg) 0 0;box-shadow:var(--shadow-lg);
+    width:100%;max-height:90%;overflow-y:auto;padding:20px 26px 22px;animation:sheetUp .34s var(--ease-expo);
+  }
+  @keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
+  .focus-confirm h4{font-family:var(--display);font-size:16px;font-weight:800;letter-spacing:-.01em;margin-bottom:3px}
+  .focus-confirm .sub{font-size:12px;color:var(--ink-soft);margin-bottom:15px;line-height:1.5}
+  .cc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px;margin-bottom:15px}
+  .cc-grid .cci{background:var(--card-elevated);border:1px solid var(--hairline);border-radius:var(--radius-sm);padding:9px 12px}
+  .cc-grid .cci .k{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+  .cc-grid .cci .v{font-family:var(--mono);font-size:15px;font-weight:750;margin-top:3px;font-variant-numeric:tabular-nums}
+  .cc-grid .cci.warn{background:var(--gold-soft);border-color:rgba(201,168,76,.35)}
+  .cc-grid .cci.warn .v{color:var(--gold)}
+  @media (prefers-reduced-motion:reduce){ .pop-menu,.focus-confirm .cc{animation:none} }
 
   /* toast */
   #toast{
@@ -609,13 +822,14 @@
   <div class="hero-inner">
     <span class="hero-eyebrow"><span>🌙</span> Turno noturno · 19:00 → 07:00 · eventos do dia seguinte</span>
     <h1>Criação de torneios <em id="heroDay">—</em></h1>
-    <p class="sub">A <b>receita da GU</b> pro próximo dia da grade (janela 06:10 → 05:30): Main Events, Side Events e Satélites já divididos igualmente entre a equipe. Marque cada torneio conforme for criando — sincroniza ao vivo com os parceiros.</p>
+    <p class="sub">A <b>receita da GU</b> pro próximo dia da grade (janela 06:10 → 05:30), dividida pelas <b>funções do turno</b>: quem faz o <b>Main Event</b> faz os <b>Satélites</b>; os <b>Side Events</b> se dividem entre <b>com</b> e <b>sem Admin Fee</b>. Rake, admin fee, early bird e campanhas em destaque. Marque cada torneio conforme criar — sincroniza ao vivo.</p>
     <div class="hero-stats">
       <div class="hstat c-prog"><div class="n" id="stProg">0%</div><div class="l">Criados</div></div>
       <div class="hstat"><div class="n" id="stTotal">—</div><div class="l">Torneios</div></div>
-      <div class="hstat c-main"><div class="n" id="stMain">—</div><div class="l">Main Events</div></div>
-      <div class="hstat c-side"><div class="n" id="stSide">—</div><div class="l">Side Events</div></div>
-      <div class="hstat c-sat"><div class="n" id="stSat">—</div><div class="l">Satélites</div></div>
+      <div class="hstat c-main"><div class="n" id="stMain">—</div><div class="l">Main + Satélites</div></div>
+      <div class="hstat c-side"><div class="n" id="stSideA">—</div><div class="l">Side · c/ Admin</div></div>
+      <div class="hstat c-sidefree"><div class="n" id="stSideB">—</div><div class="l">Side · s/ Admin</div></div>
+      <div class="hstat c-camp" id="stCampWrap" hidden><div class="n" id="stCamp">—</div><div class="l">✦ Com campanha</div></div>
       <div class="hstat" id="stUrgWrap" hidden><div class="n" id="stUrg" style="color:#e8c860">—</div><div class="l">Estourando prazo</div></div>
     </div>
     <div class="hero-progress">
@@ -666,8 +880,14 @@
         </div>
       </div>
       <div class="ctrl-group" style="flex:1;min-width:280px">
-        <span class="ctrl-label">Equipe do turno — divisão igual por categoria</span>
+        <span class="ctrl-label">Equipe do turno — atribua a função de cada um</span>
         <div class="ops-row" id="opsRow"></div>
+        <p class="section-note" style="margin:4px 0 0">
+          <span class="lk"><span class="d" style="background:var(--main-bright)"></span>Main + Satélites</span>
+          <span class="lk"><span class="d" style="background:var(--side-bright)"></span>Side c/ Admin Fee</span>
+          <span class="lk"><span class="d" style="background:var(--sidefree-bright)"></span>Side s/ Admin Fee</span>
+          <span style="opacity:.8">Sem função marcada, todos dividem aquele bloco.</span>
+        </p>
       </div>
     </div>
     <div style="margin-top:20px;display:flex;gap:22px;flex-wrap:wrap;align-items:flex-end">
@@ -687,6 +907,7 @@
         </button>
       </div>
     </div>
+    <div id="fieldDiag" class="section-note" style="margin:16px 0 0" hidden></div>
   </section>
 
   <!-- LISTA -->
@@ -706,6 +927,10 @@
     <button class="btn ghost" id="summaryBtn">
       <svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 13h6M9 17h4"/></svg>
       Copiar resumo da divisão
+    </button>
+    <button class="btn ghost" id="handoffBtn" title="Passar seus torneios pendentes para um parceiro">
+      <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/><path d="M3 5v14"/></svg>
+      Passar meus pendentes
     </button>
   </div>
 
@@ -935,6 +1160,100 @@ function fmtExtraVal(label, v){
   return String(v).trim();
 }
 
+/* =========================================================================
+   DETECÇÃO DE CAMPOS-CHAVE — a divisão do turno e os destaques dependem de
+   ler, pela receita, colunas que a Global pode nomear de formas diferentes:
+   FEE/RAKE, ADMIN FEE, EARLY BIRD e CAMPANHA. Nada de índice fixo — casamos
+   pelo nome (normalizado) da coluna, com exclusões pra não confundir
+   "ADMIN FEE" com "FEE". Se a GU renomear, é só ajustar os padrões aqui.
+========================================================================= */
+function detectField(it, patterns, exclude){
+  if (!it || !it.extra) return null;
+  for (const label of Object.keys(it.extra)){
+    const n = normText(label);
+    if (exclude && exclude.test(n)) continue;
+    if (patterns.some(re => re.test(n))){
+      const v = it.extra[label];
+      if (v !== undefined && v !== null && v !== '')
+        return {label, raw: v, disp: fmtExtraVal(label, v)};
+    }
+  }
+  return null;
+}
+function adminInfo(it){ return detectField(it, [/admin\s*fee/, /taxa\s*administ/, /adm\.?\s*fee/], /early/); }
+function feeInfo(it){   return detectField(it, [/\brake\b/, /^fee$/, /(^|[^a-z])fee([^a-z]|$)/, /taxa\s*do\s*torneio/], /admin|early|adm\.?\s*fee/); }
+function earlyInfo(it){ return detectField(it, [/early\s*bird/, /\bearly\b/, /bird/]); }
+function campInfo(it){  return detectField(it, [/campanh/, /campaign/, /\bpromo/, /\bcampanha/]); }
+
+/* "tem valor de fato" — número > 0, ou texto que não seja um "vazio disfarçado" */
+function fieldActive(info){
+  if (!info) return false;
+  if (typeof info.raw === 'number') return info.raw > 0;
+  const s = normText(info.raw);
+  return !['','0','0%','-','—','nao','no','sem','n/a','na','false','none','nenhum'].includes(s);
+}
+function hasAdminFee(it){ return fieldActive(adminInfo(it)); }
+function hasCampaign(it){ return fieldActive(campInfo(it)); }
+/* versões que só retornam o campo quando ele tem valor de fato (ignora 0/vazio) */
+function feeActive(it){   const i = feeInfo(it);   return fieldActive(i) ? i : null; }
+function adminActive(it){ const i = adminInfo(it); return fieldActive(i) ? i : null; }
+function earlyActive(it){ const i = earlyInfo(it); return fieldActive(i) ? i : null; }
+
+/* separa os Side Events em dois blocos: com e sem Admin Fee */
+function sideSplit(){
+  const admin = [], noadmin = [];
+  ((DATA && DATA.side) || []).forEach(it => (hasAdminFee(it) ? admin : noadmin).push(it));
+  return {admin, noadmin};
+}
+
+/* =========================================================================
+   FUNÇÕES DO TURNO — quatro blocos de trabalho. A cor de cada um casa com os
+   tokens (--main / --sat / --side / --sidefree). O 'role' liga o bloco ao
+   operador: quem faz Main faz Satélite (mesmo role 'mainSat').
+========================================================================= */
+const CAT_MAIN   = {key:'main',        cls:'main',     label:'Main Events',              role:'mainSat'};
+const CAT_SAT    = {key:'sat',         cls:'sat',      label:'Satélites',                role:'mainSat'};
+const CAT_SIDE_A = {key:'sideAdmin',   cls:'side',     label:'Side Events · com Admin Fee', role:'sideAdmin'};
+const CAT_SIDE_B = {key:'sideNoAdmin', cls:'sidefree', label:'Side Events · sem Admin Fee', role:'sideNoAdmin'};
+const SECTIONS = [CAT_MAIN, CAT_SAT, CAT_SIDE_A, CAT_SIDE_B];
+function catItems(cat){
+  if (!DATA) return [];
+  if (cat.key === 'main') return DATA.main;
+  if (cat.key === 'sat')  return DATA.sat;
+  const s = sideSplit();
+  return cat.key === 'sideAdmin' ? s.admin : s.noadmin;
+}
+function allWithCat(){
+  const s = sideSplit();
+  return [
+    ...DATA.main.map(it => ({it, cat: CAT_MAIN})),
+    ...s.admin.map(it => ({it, cat: CAT_SIDE_A})),
+    ...s.noadmin.map(it => ({it, cat: CAT_SIDE_B})),
+    ...DATA.sat.map(it => ({it, cat: CAT_SAT}))
+  ];
+}
+
+/* papéis (função) por operador — chave saneada pro Firebase */
+const ROLE_OPTS = [
+  {key:'mainSat',     label:'Main + Satélites'},
+  {key:'sideAdmin',   label:'Side c/ Admin Fee'},
+  {key:'sideNoAdmin', label:'Side s/ Admin Fee'}
+];
+function roleKey(op){ return normText(op).replace(/[.#$\[\]\/]/g,'_'); }
+function roleOf(op){ return ROLES[roleKey(op)] || ''; }
+function setRole(op, role){
+  const k = roleKey(op);
+  if (role) ROLES[k] = role; else delete ROLES[k];
+  if (fbDb) fbDb.ref(`${FB_PATH}/roles`).set(ROLES);
+  else renderAll();
+}
+/* operadores de um bloco: os marcados com aquela função; se ninguém marcou,
+   todos dividem (fallback pra funcionar antes de atribuírem as funções) */
+function opsForRole(role){
+  const assigned = OPS.filter(o => roleOf(o) === role);
+  return assigned.length ? assigned : OPS;
+}
+
 function extractGuDaySection(matrix, weekdayEn, headerCols){
   const gi = guIdx(headerCols);
   const range = findWeekdaySectionRange(matrix, weekdayEn, gi.name);
@@ -1035,6 +1354,8 @@ let DATA = null;          // {main, side, sat[], unknown, warnings, by, at}
 let OPS = [];             // nomes da equipe
 let DONE = {};            // key -> {by, at}
 let IDS = {};             // key -> {val, by, at} — ID do evento no Pokerbyte
+let ROLES = {};           // roleKey(op) -> 'mainSat' | 'sideAdmin' | 'sideNoAdmin'
+let OVERRIDES = {};       // itemKey -> opName — reatribuições manuais (handoff) vencem a divisão
 let PRESENCE = {};        // sessionId -> {name, at}
 let SEARCH = '';
 let CURRENCY = localStorage.getItem('cn_currency') || 'usd';
@@ -1083,6 +1404,15 @@ try{
         inp.value = v; inp.classList.toggle('has-id', !!v);
       });
     } else renderAll();
+  });
+  fbDb.ref(`${FB_PATH}/roles`).on('value', s => {
+    ROLES = s.val() || {};
+    renderAll();
+  });
+  fbDb.ref(`${FB_PATH}/overrides`).on('value', s => {
+    OVERRIDES = s.val() || {};
+    renderAll();
+    renderFocus();
   });
   fbDb.ref(`${FB_PATH}/presence`).on('value', s => {
     PRESENCE = s.val() || {};
@@ -1242,26 +1572,46 @@ function itemKey(it){
 function computeAssignments(){
   const asg = {}; // key -> opName
   if (!DATA || !OPS.length) return asg;
-  // round-robin CONTÍNUO entre categorias (o side começa de onde o main parou),
-  // senão o primeiro da lista acumula sempre a sobra de cada categoria
-  let cursor = 0;
-  const totalLoad = Object.fromEntries(OPS.map(o => [o,0]));
-  const take = () => { const op = OPS[cursor % OPS.length]; cursor++; totalLoad[op]++; return op; };
-  DATA.main.forEach(it => asg[itemKey(it)] = take());
-  DATA.side.forEach(it => asg[itemKey(it)] = take());
-  // satélites: grupos inteiros (a receita de um grupo é encadeada), sempre pro
-  // operador com menos torneios NO TOTAL até ali — equilibra a carga geral
-  const order = [], map = {};
+
+  // round-robin simples de uma lista dentro de um pool de operadores
+  const roundRobin = (list, pool) => {
+    if (!pool.length) return;
+    let cursor = 0;
+    list.forEach(it => { asg[itemKey(it)] = pool[cursor++ % pool.length]; });
+  };
+
+  /* ── FUNÇÃO 1 · Main + Satélites — mesmo pool: quem cria o Main cria os
+     Satélites. Os Main Events vão em round-robin cronológico; cada GRUPO de
+     satélites (receita encadeada) vai inteiro pro operador do pool com menos
+     carga até ali, equilibrando dentro da própria função. ── */
+  const poolMS = opsForRole('mainSat');
+  const loadMS = Object.fromEntries(poolMS.map(o => [o,0]));
+  let msCursor = 0;
+  DATA.main.forEach(it => {
+    const op = poolMS[msCursor++ % poolMS.length];
+    asg[itemKey(it)] = op; loadMS[op]++;
+  });
+  const order = [], groups = {};
   DATA.sat.forEach(it => {
     const k = it.groupHeader || it.nome;
-    if (!map[k]){ map[k] = []; order.push(k); }
-    map[k].push(it);
+    if (!groups[k]){ groups[k] = []; order.push(k); }
+    groups[k].push(it);
   });
   order.forEach(k => {
-    const op = OPS.reduce((best,o) => totalLoad[o] < totalLoad[best] ? o : best, OPS[0]);
-    map[k].forEach(it => asg[itemKey(it)] = op);
-    totalLoad[op] += map[k].length;
+    const op = poolMS.reduce((best,o) => loadMS[o] < loadMS[best] ? o : best, poolMS[0]);
+    groups[k].forEach(it => asg[itemKey(it)] = op);
+    loadMS[op] += groups[k].length;
   });
+
+  /* ── FUNÇÕES 2 e 3 · Side com / sem Admin Fee — pools próprios, cada bloco
+     dividido igualmente entre quem está naquela função. ── */
+  const {admin, noadmin} = sideSplit();
+  roundRobin(admin,   opsForRole('sideAdmin'));
+  roundRobin(noadmin, opsForRole('sideNoAdmin'));
+
+  /* reatribuições manuais (handoff de turno) vencem a divisão automática,
+     desde que o destino ainda esteja na equipe */
+  Object.keys(OVERRIDES).forEach(k => { if (OPS.includes(OVERRIDES[k])) asg[k] = OVERRIDES[k]; });
   return asg;
 }
 
@@ -1303,18 +1653,49 @@ function renderAll(){
   renderFilters();
   renderAlerts();
   renderStats();
+  renderFieldDiag();
   renderList();
+}
+
+/* mostra QUAIS colunas da Global foram reconhecidas como Admin Fee / Rake /
+   Early Bird / Campanha — reaproveita a MESMA lógica de detecção (probe com
+   todos os rótulos). Se uma não é achada, o time vê na hora e ajusta o padrão
+   em vez de achar que "não tem". */
+function renderFieldDiag(){
+  const el = $('fieldDiag');
+  if (!DATA){ el.hidden = true; return; }
+  const labels = recipeFields();
+  const probe = {extra: Object.fromEntries(labels.map(l => [l, 1]))};
+  const seek = getter => { const i = getter(probe); return i ? i.label : null; };
+  const items = [
+    ['Admin Fee', seek(adminInfo)],
+    ['Rake / Fee', seek(feeInfo)],
+    ['Early Bird', seek(earlyInfo)],
+    ['Campanha', seek(campInfo)]
+  ];
+  const chips = items.map(([k, lab]) => lab
+    ? `<span class="lk" title="coluna reconhecida: ${escHtml(lab)}"><span class="d" style="background:var(--felt-bright)"></span>${k}</span>`
+    : `<span class="lk" style="opacity:.6" title="Nenhuma coluna da Global bateu com ${k} — o destaque/divisão desse item não aparece até a coluna existir ou o padrão ser ajustado"><span class="d" style="background:var(--ink-soft)"></span>${k}: não achada</span>`
+  ).join('');
+  el.hidden = false;
+  el.innerHTML = `<b>Colunas lidas da Global:</b> ${chips}`;
 }
 
 function renderOps(){
   const row = $('opsRow');
   if (!row) return;
-  let html = OPS.map(o => `
-    <span class="op-chip">
+  let html = OPS.map(o => {
+    const r = roleOf(o);
+    const opts = `<option value="">Função…</option>` + ROLE_OPTS.map(ro =>
+      `<option value="${ro.key}" ${r === ro.key ? 'selected' : ''}>${ro.label}</option>`).join('');
+    return `
+    <span class="op-chip" ${r ? `data-role="${r}"` : ''}>
       <span class="avatar" style="background:${opColor(o)}">${escHtml(o.trim()[0].toUpperCase())}</span>
       ${escHtml(o)}
+      <select class="role-sel" data-op="${escHtml(o)}" title="Função de ${escHtml(o)} no turno">${opts}</select>
       <button class="rm" data-op="${escHtml(o)}" title="Remover do turno">×</button>
-    </span>`).join('');
+    </span>`;
+  }).join('');
   html += `
     <span class="op-add">
       <input type="text" id="opAddInput" placeholder="Nome do operador" maxlength="30">
@@ -1325,6 +1706,7 @@ function renderOps(){
   }
   row.innerHTML = html;
   row.querySelectorAll('.rm').forEach(b => b.addEventListener('click', () => saveOps(OPS.filter(o => o !== b.dataset.op))));
+  row.querySelectorAll('.role-sel').forEach(sel => sel.addEventListener('change', () => setRole(sel.dataset.op, sel.value)));
   const addOp = () => {
     const v = $('opAddInput').value.trim();
     if (!v) return;
@@ -1374,10 +1756,14 @@ function renderStats(){
   const total = DATA.main.length + DATA.side.length + DATA.sat.length;
   const doneCount = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => DONE[itemKey(it)]).length;
   const pct = total ? Math.round(doneCount/total*100) : 0;
+  const side = sideSplit();
+  const campCount = [...DATA.main, ...DATA.side, ...DATA.sat].filter(hasCampaign).length;
   $('stTotal').textContent = total;
-  $('stMain').textContent = DATA.main.length;
-  $('stSide').textContent = DATA.side.length;
-  $('stSat').textContent = DATA.sat.length;
+  $('stMain').textContent = DATA.main.length + DATA.sat.length;
+  $('stSideA').textContent = side.admin.length;
+  $('stSideB').textContent = side.noadmin.length;
+  $('stCampWrap').hidden = campCount === 0;
+  $('stCamp').textContent = campCount;
   $('stProg').textContent = pct + '%';
   $('progFill').style.width = pct + '%';
   // torneios estourando prazo (começam em <6h e ainda não criados)
@@ -1392,8 +1778,10 @@ function renderStats(){
     const d = mine.filter(it => DONE[itemKey(it)]).length;
     return `${o.split(' ')[0]} ${d}/${mine.length}`;
   }).join(' · ');
+  const avg = avgDurMin();
+  const avgTxt = avg ? ` · ⏱ ${avg < 1 ? Math.round(avg*60) + 's' : avg.toFixed(1) + 'm'}/torneio` : '';
   $('progCap').textContent = total
-    ? `${doneCount} de ${total} torneios criados${perOp ? ' — ' + perOp : ''}`
+    ? `${doneCount} de ${total} torneios criados${avgTxt}${perOp ? ' — ' + perOp : ''}`
     : 'Carregue a Global MTT pra começar';
 }
 
@@ -1466,6 +1854,12 @@ function recipeText(it, cat){
     `Buy-in: ${fmtMoneyPlain(it.buyin)}`
   ];
   if (it.groupHeader) parts.push(`Grupo: ${it.groupHeader}`);
+  // destaques do turno: cálculo e campanha em cima, antes da receita crua
+  const f = feeActive(it), a = adminActive(it), e = earlyActive(it);
+  if (f) parts.push(`Rake/Fee: ${f.disp}`);
+  if (a) parts.push(`Admin Fee: ${a.disp}`);
+  if (e) parts.push(`Early Bird: ${e.disp}`);
+  if (hasCampaign(it)){ const c = campInfo(it); parts.push(`✦ CAMPANHA${c ? ': ' + c.disp : ''}`); }
   // receita completa da GU — todos os campos que vão no app, na ordem da planilha
   recipeFields().forEach(label => {
     const v = it.extra ? it.extra[label] : undefined;
@@ -1484,6 +1878,35 @@ function recipeGridHtml(it){
     const has = v !== undefined && v !== null && v !== '';
     return `<div class="rf"><div class="k" title="${escHtml(label)}">${escHtml(label)}</div><div class="v ${has ? '' : 'empty'}">${has ? escHtml(fmtExtraVal(label, v)) : 'em branco'}</div></div>`;
   }).join('')}</div>`;
+}
+
+/* ── CÁLCULO em destaque: rake / admin fee / early bird ──
+   chips compactos pra ver na linha sem abrir a receita */
+function calcChipsHtml(it){
+  const f = feeActive(it), a = adminActive(it), e = earlyActive(it);
+  const chips = [];
+  if (f) chips.push(`<span class="calc-chip rake" title="Rake / Fee — ${escHtml(f.label)}"><span class="lab">Rake</span>${escHtml(f.disp)}</span>`);
+  if (a) chips.push(`<span class="calc-chip admin" title="Admin Fee — ${escHtml(a.label)}"><span class="lab">Adm</span>${escHtml(a.disp)}</span>`);
+  if (e) chips.push(`<span class="calc-chip early" title="Early Bird — ${escHtml(e.label)}"><span class="lab">EB</span>${escHtml(e.disp)}</span>`);
+  return chips.length ? `<div class="calc-chips">${chips.join('')}</div>` : `<span class="tval" style="opacity:.35">—</span>`;
+}
+function campBadgeHtml(it){
+  if (!hasCampaign(it)) return '';
+  const c = campInfo(it);
+  return `<span class="camp-badge" title="Torneio com campanha${c ? ' — ' + escHtml(c.disp) : ''}"><span class="spark">✦</span>Campanha</span>`;
+}
+/* painel de cálculo grande — detalhe expandido e modo foco */
+function calcPanelHtml(it){
+  const f = feeActive(it), a = adminActive(it), e = earlyActive(it), c = campInfo(it);
+  const tile = (cls, k, info) =>
+    `<div class="calc-tile ${cls}"><div class="k">${k}</div><div class="v ${info ? '' : 'empty'}">${info ? escHtml(info.disp) : '—'}</div>${info ? `<div class="sub" title="${escHtml(info.label)}">${escHtml(info.label)}</div>` : ''}</div>`;
+  let html = `<div class="calc-panel">
+    ${tile('rake','Rake / Fee', f)}
+    ${tile('admin','Admin Fee', a)}
+    ${tile('early','Early Bird', e)}`;
+  if (hasCampaign(it))
+    html += `<div class="calc-tile camp"><div class="k">✦ Campanha</div><div class="v">${c ? escHtml(c.disp) : 'Ativa'}</div>${c ? `<div class="sub" title="${escHtml(c.label)}">${escHtml(c.label)}</div>` : ''}</div>`;
+  return html + `</div>`;
 }
 
 /* ── diff de versão da Global: quando alguém sobe uma planilha nova por cima,
@@ -1543,15 +1966,23 @@ function visibleItems(list, asg){
   return out;
 }
 
-const CATS = [
-  {key:'main', cls:'main', label:'Main Events'},
-  {key:'side', cls:'side', label:'Side Events'},
-  {key:'sat',  cls:'sat',  label:'Satélites'}
-];
-
 function opTagHtml(op){
   if (!op) return `<span class="op-tag none">sem equipe</span>`;
   return `<span class="op-tag" style="background:${opColor(op)}"><span class="dot">${escHtml(op.trim()[0].toUpperCase())}</span>${escHtml(op.split(' ')[0])}</span>`;
+}
+
+/* nota abaixo do cabeçalho da seção: explica a função e quem está nela */
+function sectionNoteHtml(cat){
+  const explicit = OPS.filter(o => roleOf(o) === cat.role);
+  const chips = explicit.map(o =>
+    `<span class="lk"><span class="d" style="background:${opColor(o)}"></span>${escHtml(o.split(' ')[0])}</span>`).join('');
+  let msg;
+  if (cat.key === 'sat')            msg = '<b>Quem cria o Main cria os Satélites</b> — mesma função.';
+  else if (cat.key === 'main')      msg = 'Base da grade — vai junto com os Satélites.';
+  else if (cat.key === 'sideAdmin') msg = 'Side Events que <b>cobram Admin Fee</b>.';
+  else                              msg = 'Side Events <b>sem Admin Fee</b>.';
+  const who = explicit.length ? chips : '<span style="opacity:.7">sem função marcada — todos dividem</span>';
+  return `<p class="section-note">${msg} ${who}</p>`;
 }
 
 function renderList(){
@@ -1563,8 +1994,8 @@ function renderList(){
   const asg = computeAssignments();
   let html = '';
 
-  CATS.forEach(cat => {
-    const items = visibleItems(DATA[cat.key], asg);
+  SECTIONS.forEach(cat => {
+    const items = visibleItems(catItems(cat), asg);
     if (!items.length) return;
     const doneCount = items.filter(it => DONE[itemKey(it)]).length;
     html += `
@@ -1572,7 +2003,8 @@ function renderList(){
         <span class="tag">${cat.label}</span>
         <span class="cnt">${doneCount}/${items.length} criados</span>
         <span class="line"></span>
-      </div>`;
+      </div>
+      ${sectionNoteHtml(cat)}`;
     html += ORIENT === 'h' ? renderHorizontal(items, cat, asg) : renderVertical(items, cat, asg);
   });
 
@@ -1623,31 +2055,32 @@ function renderHorizontal(items, cat, asg){
     if (cat.key === 'sat'){
       const g = it.groupHeader || it.nome;
       if (g !== lastGroup){
-        rows += `<tr class="sat-group-row"><td colspan="10">${escHtml(g)}</td></tr>`;
+        rows += `<tr class="sat-group-row"><td colspan="11">${escHtml(g)}</td></tr>`;
         lastGroup = g;
       }
     }
     const urg = urgency(it);
     const chg = changeBadge(it);
     rows += `
-      <tr class="${done ? 'done' : ''} ${urg ? 'urg-' + urg : ''}" data-rowkey="${key}">
+      <tr class="${done ? 'done' : ''} ${urg ? 'urg-' + urg : ''} ${hasCampaign(it) ? 'has-camp' : ''}" data-rowkey="${key}">
         <td><button class="chk ${done ? 'on' : ''}" data-done="${key}" title="${done ? `Criado por ${escHtml(done.by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button></td>
-        <td class="tname">${escHtml(it.nome)}${urg ? `<span class="urg-pill ${urg}">⏰ ${urgLabel(it)}</span>` : ''}${chg}</td>
+        <td class="tname">${escHtml(it.nome)}${campBadgeHtml(it)}${valBadge(it, cat)}${urg ? `<span class="urg-pill ${urg}">⏰ ${urgLabel(it)}</span>` : ''}${chg}</td>
         <td class="thora">${escHtml(it.hora)}</td>
         <td class="tval">${fmtMoney(it.garantido)}</td>
         <td class="tval">${fmtMoney(it.buyin)}</td>
+        <td>${calcChipsHtml(it)}</td>
         <td class="mono" style="color:var(--ink-soft)">${it.late ? escHtml(it.late) : '—'}</td>
         <td>${opTagHtml(asg[key])}</td>
         <td>${idInputHtml(key)}</td>
         <td><button class="exp-btn" data-expand="${key}" title="Ver a receita completa do torneio">Receita <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></td>
         <td><button class="copy-btn" data-copy="${escHtml(recipeText(it, cat.label))}" title="Copiar receita completa do torneio"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></td>
       </tr>
-      <tr class="detail-row" data-detail="${key}" hidden><td colspan="10">${recipeGridHtml(it)}</td></tr>`;
+      <tr class="detail-row" data-detail="${key}" hidden><td colspan="11">${calcPanelHtml(it)}${recipeGridHtml(it)}</td></tr>`;
   });
   return `
     <div class="ttable"><table>
       <thead><tr>
-        <th></th><th>Torneio</th><th>Horário</th><th>Garantido</th><th>Buy-in</th><th>Late reg</th><th>Operador</th><th>ID Pokerbyte</th><th>Receita</th><th></th>
+        <th></th><th>Torneio</th><th>Horário</th><th>Garantido</th><th>Buy-in</th><th>Rake · Adm · EB</th><th>Late reg</th><th>Operador</th><th>ID Pokerbyte</th><th>Receita</th><th></th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table></div>`;
@@ -1666,7 +2099,12 @@ function renderVertical(items, cat, asg){
       <tr><th class="rowlab">Horário</th>${cell(c => `<span class="thora">${escHtml(c.it.hora)}</span>`)}</tr>
       <tr><th class="rowlab">Garantido</th>${cell(c => `<span class="tval">${fmtMoney(c.it.garantido)}</span>`)}</tr>
       <tr><th class="rowlab">Buy-in</th>${cell(c => `<span class="tval">${fmtMoney(c.it.buyin)}</span>`)}</tr>
+      <tr><th class="rowlab">Rake / Fee</th>${cell(c => { const f = feeActive(c.it); return f ? `<span class="calc-chip rake">${escHtml(f.disp)}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
+      <tr><th class="rowlab">Admin Fee</th>${cell(c => { const a = adminActive(c.it); return a ? `<span class="calc-chip admin">${escHtml(a.disp)}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
+      <tr><th class="rowlab">Early Bird</th>${cell(c => { const e = earlyActive(c.it); return e ? `<span class="calc-chip early">${escHtml(e.disp)}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
+      <tr><th class="rowlab">Campanha</th>${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>
       ${cat.key === 'sat' ? `<tr><th class="rowlab">Grupo</th>${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : ''}
+      ${items.some(it => validateItem(it, cat).length) ? `<tr><th class="rowlab">Conferir</th>${cell(c => valBadge(c.it, cat) || `<span style="opacity:.4">—</span>`)}</tr>` : ''}
       ${recipeFields().length
         ? recipeFields().map(label => `<tr><th class="rowlab" title="${escHtml(label)}">${escHtml(label)}</th>${cell(c => {
             const v = c.it.extra ? c.it.extra[label] : undefined;
@@ -1689,21 +2127,97 @@ function renderVertical(items, cat, asg){
 ========================================================================= */
 const FOCUS_SKIP = new Set();
 let FOCUS_OPEN = false;
+let FOCUS_ENTERED = new Set();   // campos já digitados do torneio atual (efêmero)
+let FOCUS_ENTERED_KEY = null;    // de qual torneio esse progresso é
+let FOCUS_ANIMATE = false;       // dispara a transição só ao avançar, não no tick de 1min
+let FOCUS_CURSOR = null;         // #2 rótulo do campo "atual" (auto-avanço)
+let FOCUS_FIELDS = [];           // ordem dos campos do torneio atual
+const FOCUS_SEEN_AT = {};        // #4 itemKey -> quando o torneio apareceu no foco (início da criação)
+
+/* #4 duração: formata ms e calcula a média dos torneios já criados com tempo */
+function fmtDur(ms){
+  const s = Math.max(0, Math.round(ms/1000));
+  return s < 60 ? `${s}s` : `${Math.floor(s/60)}m${String(s%60).padStart(2,'0')}s`;
+}
+function avgDurMin(){
+  const ds = Object.values(DONE).map(d => d && d.dur).filter(x => typeof x === 'number' && x > 0);
+  return ds.length ? ds.reduce((a,b) => a+b, 0) / ds.length / 60000 : null;
+}
+
+/* #3 validação da receita — só regras conservadoras (sem falso alarme) */
+function validateItem(it, cat){
+  const out = [];
+  if (it.buyin === null || it.buyin === undefined) out.push('Buy-in ausente na receita');
+  if (it.garantido === null || it.garantido === undefined) out.push('Garantido (prize pool) ausente');
+  if (!feeActive(it) && cat.key !== 'sat') out.push('Sem Rake/Fee reconhecido na receita');
+  return out;
+}
+function valBadge(it, cat){
+  const v = validateItem(it, cat);
+  return v.length ? `<span class="val-pill" title="${escHtml(v.join(' · '))}">⚠ conferir</span>` : '';
+}
 
 function markDone(key){
-  DONE[key] = {by: ME || 'Alguém', at: Date.now()}; // otimista — o eco do Firebase confirma
-  if (fbDb) fbDb.ref(`${FB_PATH}/done/${key}`).set({by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP});
+  // #4 duração: do 1º instante que o torneio apareceu no foco até marcar criado
+  const start = FOCUS_SEEN_AT[key];
+  const dur = start ? Date.now() - start : null;
+  DONE[key] = {by: ME || 'Alguém', at: Date.now(), ...(dur ? {dur} : {})}; // otimista — o eco do Firebase confirma
+  if (fbDb) fbDb.ref(`${FB_PATH}/done/${key}`).set({by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP, ...(dur ? {dur} : {})});
   renderAll();
+}
+
+/* =========================================================================
+   #5 HANDOFF DE TURNO + menu popover reaproveitável
+========================================================================= */
+function closePickMenu(){ const m = $('popMenu'); if (m) m.remove(); document.removeEventListener('mousedown', pickMenuOutside, true); }
+function pickMenuOutside(e){ const m = $('popMenu'); if (m && !m.contains(e.target)) closePickMenu(); }
+function openPickMenu(anchor, title, options){
+  closePickMenu();
+  const m = document.createElement('div');
+  m.className = 'pop-menu'; m.id = 'popMenu';
+  m.innerHTML = `<div class="ph">${escHtml(title)}</div>` + options.map((o,i) =>
+    `<button class="pm" data-i="${i}"><span class="avatar" style="background:${o.color || 'var(--felt)'}">${escHtml(o.initial || '')}</span>${escHtml(o.label)}</button>`).join('');
+  document.body.appendChild(m);
+  const r = anchor.getBoundingClientRect();
+  m.style.left = Math.max(12, Math.min(r.left, window.innerWidth - m.offsetWidth - 12)) + 'px';
+  m.style.top = Math.min(r.bottom + 6, window.innerHeight - m.offsetHeight - 12) + 'px';
+  m.querySelectorAll('.pm').forEach(b => b.addEventListener('click', () => { const o = options[+b.dataset.i]; closePickMenu(); o.onPick(); }));
+  setTimeout(() => document.addEventListener('mousedown', pickMenuOutside, true), 0);
+}
+function myOp(){ return OPS.find(o => normText(o) === normText(ME)) || (FILTER !== 'all' ? FILTER : null); }
+function myPending(){
+  const asg = computeAssignments();
+  const op = myOp();
+  if (!op) return {op:null, items:[]};
+  const items = allWithCat().map(x => x.it).filter(it => asg[itemKey(it)] === op && !DONE[itemKey(it)]);
+  return {op, items};
+}
+function saveOverrides(){ if (fbDb) fbDb.ref(`${FB_PATH}/overrides`).set(OVERRIDES); else { renderAll(); renderFocus(); } }
+function handoffTo(items, toOp){
+  items.forEach(it => OVERRIDES[itemKey(it)] = toOp);
+  saveOverrides();
+  showToast(`${items.length} torneio(s) passados para ${toOp.split(' ')[0]}.`);
+}
+function resetOverrides(){ OVERRIDES = {}; saveOverrides(); showToast('Divisão automática restaurada.'); }
+function openHandoff(anchor){
+  const {op, items} = myPending();
+  if (!op){ showToast('Entre na equipe (ou filtre por você) pra passar torneios.', true); return; }
+  const others = OPS.filter(o => o !== op);
+  const opts = others.map(o => ({
+    label: `${o.split(' ')[0]} — assumir ${items.length}`, color: opColor(o), initial: o.trim()[0].toUpperCase(),
+    onPick: () => handoffTo(items, o)
+  }));
+  if (!items.length && !Object.keys(OVERRIDES).length){ showToast('Você não tem pendentes pra passar.'); return; }
+  if (Object.keys(OVERRIDES).length) opts.push({label:'↺ Restaurar divisão automática', color:'var(--ink-soft)', initial:'↺', onPick: resetOverrides});
+  if (!opts.length){ showToast('Sem parceiros na equipe pra receber.', true); return; }
+  const title = items.length ? `Passar ${items.length} pendente(s) de ${op.split(' ')[0]} para:` : 'Divisão manual ativa:';
+  openPickMenu(anchor, title, opts);
 }
 
 function focusQueue(){
   if (!DATA) return [];
   const asg = computeAssignments();
-  let all = [
-    ...DATA.main.map(it => ({it, cat: CATS[0]})),
-    ...DATA.side.map(it => ({it, cat: CATS[1]})),
-    ...DATA.sat.map(it => ({it, cat: CATS[2]}))
-  ].filter(x => !DONE[itemKey(x.it)]);
+  let all = allWithCat().filter(x => !DONE[itemKey(x.it)]);
   // meus torneios primeiro: se meu nome está na equipe, a fila é só minha;
   // senão respeita o filtro de operador escolhido na tela
   const mineOp = OPS.find(o => normText(o) === normText(ME)) || (FILTER !== 'all' ? FILTER : null);
@@ -1718,12 +2232,123 @@ function focusQueue(){
 function openFocus(){
   if (!DATA){ showToast('Carregue a Global primeiro.', true); return; }
   FOCUS_OPEN = true;
+  FOCUS_ENTERED = new Set(); FOCUS_ENTERED_KEY = null; FOCUS_ANIMATE = true;
   $('focusOverlay').classList.add('open');
   renderFocus();
 }
 function closeFocus(){
   FOCUS_OPEN = false;
   $('focusOverlay').classList.remove('open');
+  const cf = $('focusConfirm'); if (cf) cf.remove();
+  closePickMenu();
+}
+
+/* avança na fila com transição — usado por "Criado" e "Pular" */
+function focusAdvance(){ FOCUS_ANIMATE = true; renderFocus(); }
+
+/* a RECEITA de cima para baixo: uma coluna, na ORDEM da planilha (= ordem que
+   se digita no app). Cada campo tem valor, botão de copiar só aquele valor e
+   um toque pra marcar "digitei" (apaga a linha) — assim não se perde o lugar
+   na descida. Os campos-chave (buy-in, garantido, rake, admin, early, campanha)
+   ganham cor na própria linha. */
+function focusFlowHtml(it){
+  const fields = recipeFields();
+  if (!fields.length)
+    return `<div class="recipe-note">Receita completa indisponível nesta planilha (cabeçalho da Global não foi lido). Recarregue a Global MTT original.</div>`;
+  const feeL = (feeInfo(it) || {}).label, admL = (adminInfo(it) || {}).label,
+        earL = (earlyInfo(it) || {}).label, campL = (campInfo(it) || {}).label;
+  const copySvg = `<svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`;
+  return fields.map((label, i) => {
+    const v = it.extra ? it.extra[label] : undefined;
+    const has = v !== undefined && v !== null && v !== '';
+    const disp = has ? fmtExtraVal(label, v) : '';
+    const nl = normText(label);
+    let accent = '';
+    if (label === feeL && feeActive(it)) accent = 'rake';
+    else if (label === admL && adminActive(it)) accent = 'admin';
+    else if (label === earL && earlyActive(it)) accent = 'early';
+    else if (label === campL && hasCampaign(it)) accent = 'camp';
+    else if (nl.includes('buy')) accent = 'buyin';
+    else if (nl.includes('prize') || nl.includes('guarant')) accent = 'prize';
+    const done = FOCUS_ENTERED.has(label);
+    return `<div class="frow ${accent} ${has ? '' : 'blank'} ${done ? 'entered' : ''} ${accent ? 'key-line' : ''}" data-field="${escHtml(label)}">
+      <span class="fnum">${done ? '✓' : (i + 1)}</span>
+      <span class="fk" title="${escHtml(label)}">${escHtml(label)}</span>
+      <span class="fv">${has ? escHtml(disp) : 'deixar em branco'}</span>
+      ${has ? `<button class="fcopy" data-fcopy="${escHtml(disp)}" title="Copiar valor">${copySvg}</button>` : `<span></span>`}
+    </div>`;
+  }).join('');
+}
+
+/* #2 auto-avanço do campo "atual" */
+function focusRowByField(card, f){ return [...card.querySelectorAll('.frow')].find(r => r.dataset.field === f) || null; }
+function focusNextField(after){
+  const start = after != null ? FOCUS_FIELDS.indexOf(after) + 1 : 0;
+  for (let i = start; i < FOCUS_FIELDS.length; i++) if (!FOCUS_ENTERED.has(FOCUS_FIELDS[i])) return FOCUS_FIELDS[i];
+  for (let i = 0; i < FOCUS_FIELDS.length; i++) if (!FOCUS_ENTERED.has(FOCUS_FIELDS[i])) return FOCUS_FIELDS[i];
+  return null;
+}
+function focusApplyCurrent(card, scroll){
+  card.querySelectorAll('.frow.current').forEach(r => r.classList.remove('current'));
+  if (!FOCUS_CURSOR) return;
+  const row = focusRowByField(card, FOCUS_CURSOR);
+  if (!row) return;
+  row.classList.add('current');
+  if (scroll){
+    const reduce = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    row.scrollIntoView({block:'center', behavior: reduce ? 'auto' : 'smooth'});
+  }
+}
+function updateFlowProg(card){
+  const p = card.querySelector('#flowProg');
+  if (p) p.textContent = `${FOCUS_ENTERED.size}/${FOCUS_FIELDS.length} campos`;
+}
+function focusMarkField(card, label, entered){
+  if (entered) FOCUS_ENTERED.add(label); else FOCUS_ENTERED.delete(label);
+  const row = focusRowByField(card, label);
+  if (row){
+    row.classList.toggle('entered', entered);
+    const num = row.querySelector('.fnum');
+    if (num) num.textContent = entered ? '✓' : (FOCUS_FIELDS.indexOf(label) + 1);
+  }
+  updateFlowProg(card);
+}
+
+/* #6 conferência pós-criação — folha que sobe com o recap dos números-chave */
+function openCreateConfirm(it, cat, key, onConfirm){
+  const card = $('focusCard');
+  if ($('focusConfirm')) return;
+  const f = feeActive(it), a = adminActive(it), e = earlyActive(it);
+  const idv = $('focusIdInp') ? $('focusIdInp').value.trim() : idVal(key);
+  const issues = validateItem(it, cat);
+  const cci = (k, v, warn) => `<div class="cci ${warn ? 'warn' : ''}"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+  const ov = document.createElement('div');
+  ov.className = 'focus-confirm'; ov.id = 'focusConfirm';
+  ov.dataset.openedAt = Date.now();
+  ov.innerHTML = `<div class="cc">
+    <h4>Conferir antes de criar</h4>
+    <div class="sub"><b>${escHtml(it.nome)}</b> · ${escHtml(cat.label)} — bata os números com o que você cadastrou no Pokerbyte.</div>
+    <div class="cc-grid">
+      ${cci('Horário', escHtml(it.hora))}
+      ${cci('Buy-in', fmtMoney(it.buyin), it.buyin == null)}
+      ${cci('Garantido', fmtMoney(it.garantido), it.garantido == null)}
+      ${cci('Rake / Fee', f ? escHtml(f.disp) : '—', !f && cat.key !== 'sat')}
+      ${a ? cci('Admin Fee', escHtml(a.disp)) : ''}
+      ${e ? cci('Early Bird', escHtml(e.disp)) : ''}
+      ${hasCampaign(it) ? cci('✦ Campanha', escHtml((campInfo(it) || {}).disp || 'ativa'), false) : ''}
+      ${cci('ID Pokerbyte', idv ? escHtml(idv) : 'em branco', !idv)}
+    </div>
+    ${issues.length ? `<div class="focus-alerts">${issues.map(m => `<div class="focus-alert">⚠ ${escHtml(m)}</div>`).join('')}</div>` : ''}
+    <div class="focus-actions">
+      <button class="btn primary" id="ccConfirm"><svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg> Confere — criar</button>
+      <button class="btn ghost" id="ccBack">Voltar e revisar</button>
+    </div>
+  </div>`;
+  card.appendChild(ov);
+  const close = () => ov.remove();
+  ov.addEventListener('click', ev => { if (ev.target === ov) close(); });
+  $('ccBack').addEventListener('click', close);
+  $('ccConfirm').addEventListener('click', () => { close(); onConfirm(); });
 }
 
 function renderFocus(){
@@ -1732,64 +2357,180 @@ function renderFocus(){
   const queue = focusQueue();
   if (!queue.length){
     card.innerHTML = `
-      <button class="focus-close" id="focusClose" title="Fechar">✕</button>
-      <div class="focus-empty">🎉 <b>Tudo criado!</b><br>Nenhum torneio pendente na sua fila — bom descanso ou ajude um parceiro trocando o filtro.</div>`;
+      <div class="focus-head" style="border:none"><div class="focus-top"><span class="queue-pos">fila vazia</span><button class="focus-close" id="focusClose" title="Fechar">✕</button></div></div>
+      <div class="focus-empty">🎉 <b>Tudo criado!</b><br>Nenhum torneio pendente na sua fila — bom descanso, ou ajude um parceiro trocando o filtro de operador.</div>`;
     $('focusClose').addEventListener('click', closeFocus);
     return;
   }
   const {it, cat} = queue[0];
   const key = itemKey(it);
+  // progresso "digitei" é por torneio — zera ao trocar de torneio
+  if (FOCUS_ENTERED_KEY !== key){ FOCUS_ENTERED = new Set(); FOCUS_ENTERED_KEY = key; FOCUS_CURSOR = null; }
+  if (!FOCUS_SEEN_AT[key]) FOCUS_SEEN_AT[key] = Date.now();   // #4 início da criação
+  FOCUS_FIELDS = recipeFields().slice();                     // #2 ordem dos campos
+  if (!FOCUS_CURSOR || !FOCUS_FIELDS.includes(FOCUS_CURSOR) || FOCUS_ENTERED.has(FOCUS_CURSOR))
+    FOCUS_CURSOR = focusNextField(null);
   const urg = urgency(it);
-  const total = queue.length;
+  const issues = validateItem(it, cat);
+
+  // progresso da MINHA fila da noite (pra saber o ritmo)
+  const asg = computeAssignments();
+  const mineOp = OPS.find(o => normText(o) === normText(ME)) || (FILTER !== 'all' ? FILTER : null);
+  const mineAll = mineOp ? allWithCat().filter(x => asg[itemKey(x.it)] === mineOp) : allWithCat();
+  const mineDone = mineAll.filter(x => DONE[itemKey(x.it)]).length;
+  const mineTotal = mineAll.length || 1;
+  const nightPct = Math.round(mineDone / mineTotal * 100);
+  const next = queue[1] ? queue[1].it : null;
+  const fieldsN = recipeFields().length;
+
   card.innerHTML = `
-    <div class="focus-top">
-      <span class="tag" style="background:var(--${cat.cls}-soft);color:var(--${cat.cls}-bright)">${cat.label}</span>
-      ${urg ? `<span class="urg-pill ${urg}">⏰ começa ${urgLabel(it)}</span>` : ''}
-      ${it.groupHeader ? `<span class="pill" style="color:var(--sat-bright)">${escHtml(it.groupHeader)}</span>` : ''}
-      <span class="queue-pos">${total} na fila</span>
-      <button class="focus-close" id="focusClose" title="Fechar (Esc)">✕</button>
+    <div class="focus-head">
+      <div class="focus-top">
+        <span class="tag" style="background:var(--${cat.cls}-soft);color:var(--${cat.cls}-bright)">${cat.label}</span>
+        ${urg ? `<span class="urg-pill ${urg}">⏰ começa ${urgLabel(it)}</span>` : ''}
+        ${campBadgeHtml(it)}
+        ${it.groupHeader ? `<span class="pill" style="color:var(--sat-bright)">${escHtml(it.groupHeader)}</span>` : ''}
+        <span class="queue-pos">${mineDone + 1} de ${mineTotal} · ${queue.length} na fila</span>
+        <button class="focus-close" id="focusClose" title="Fechar (Esc)">✕</button>
+      </div>
+      <div class="focus-name">${escHtml(it.nome)}</div>
+      <div class="focus-check">
+        <div class="fc hora"><span class="k">Horário</span><span class="v">${escHtml(it.hora)}</span></div>
+        <div class="fc"><span class="k">Buy-in</span><span class="v">${fmtMoney(it.buyin)}</span></div>
+        <div class="fc"><span class="k">Garantido</span><span class="v">${fmtMoney(it.garantido)}</span></div>
+        ${it.late ? `<div class="fc"><span class="k">Fim late reg</span><span class="v">${escHtml(it.late)}</span></div>` : ''}
+      </div>
+      <div class="focus-night">
+        <div class="bar"><div class="fill" style="width:${nightPct}%"></div></div>
+        <span class="cap">${mineDone}/${mineTotal} da sua noite</span>
+        <span class="cap" id="focusElapsed"></span>
+      </div>
     </div>
-    <div class="focus-name">${escHtml(it.nome)}</div>
-    <div class="focus-sub">
-      <div class="fs"><div class="k">Horário</div><div class="v hora">${escHtml(it.hora)}</div></div>
-      <div class="fs"><div class="k">Garantido</div><div class="v">${fmtMoney(it.garantido)}</div></div>
-      <div class="fs"><div class="k">Buy-in</div><div class="v">${fmtMoney(it.buyin)}</div></div>
-      <div class="fs"><div class="k">Fim late reg</div><div class="v">${it.late ? escHtml(it.late) : '—'}</div></div>
+
+    <div class="focus-body">
+      ${issues.length ? `<div class="focus-alerts">${issues.map(m => `<div class="focus-alert">⚠ ${escHtml(m)}</div>`).join('')}</div>` : ''}
+      <div class="flow-head">
+        <span class="t"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h12"/></svg> Receita — de cima para baixo</span>
+        <span class="flow-prog" id="flowProg">${FOCUS_ENTERED.size}/${fieldsN} campos</span>
+      </div>
+      ${focusFlowHtml(it)}
+      <div class="flow-hint"><kbd>↓</kbd><kbd>↑</kbd> muda o campo · <kbd>Enter</kbd> marca e desce · toque na linha marca "digitei"</div>
     </div>
-    <div class="focus-recipe">${recipeGridHtml(it)}</div>
-    <div class="focus-id-row">
-      <label>ID Pokerbyte</label>
-      <input type="text" id="focusIdInp" maxlength="20" placeholder="Cole o ID do evento cadastrado" value="${escHtml(idVal(key))}">
-    </div>
-    <div class="focus-actions">
-      <button class="btn primary" id="focusDone">
-        <svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg>
-        Criado — próximo
-      </button>
-      <button class="btn ghost" id="focusSkip">Pular por agora</button>
-      <button class="btn ghost" id="focusCopy">
-        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
-        Copiar receita
-      </button>
+
+    <div class="focus-foot">
+      <div class="focus-id-row">
+        <label>ID Pokerbyte</label>
+        <input type="text" id="focusIdInp" maxlength="20" placeholder="Cole o ID do evento criado no Pokerbyte" value="${escHtml(idVal(key))}">
+      </div>
+      <div class="focus-actions">
+        <button class="btn primary" id="focusDone">
+          <svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg>
+          Criado — próximo
+        </button>
+        <button class="btn ghost" id="focusSkip">Pular</button>
+        <button class="btn ghost" id="focusCopy">
+          <svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+          Copiar tudo
+        </button>
+        ${next ? `<span class="focus-next">próximo<br><span class="h">${escHtml(next.hora)}</span> <b>${escHtml(next.nome.length > 30 ? next.nome.slice(0,30) + '…' : next.nome)}</b></span>` : ''}
+      </div>
     </div>`;
+
+  // transição só ao avançar de torneio (não no tick de 1 min)
+  if (FOCUS_ANIMATE){
+    const body = card.querySelector('.focus-body');
+    if (body){
+      body.scrollTop = 0;
+      body.classList.add('swap');
+      body.addEventListener('animationend', () => body.classList.remove('swap'), {once:true});
+    }
+    FOCUS_ANIMATE = false;
+  }
+  focusApplyCurrent(card, false); // #2 marca o campo atual sem rolar de repente
+
   $('focusClose').addEventListener('click', closeFocus);
+  // #6 "Criado" abre a conferência antes de confirmar
   $('focusDone').addEventListener('click', () => {
     const idv = $('focusIdInp').value.trim();
     if (idv && idv !== idVal(key)) setId(key, idv);
-    markDone(key);
-    renderFocus();
+    openCreateConfirm(it, cat, key, () => { markDone(key); focusAdvance(); });
   });
-  $('focusSkip').addEventListener('click', () => { FOCUS_SKIP.add(key); renderFocus(); });
+  $('focusSkip').addEventListener('click', () => { FOCUS_SKIP.add(key); focusAdvance(); });
   $('focusCopy').addEventListener('click', async () => {
-    try{ await navigator.clipboard.writeText(recipeText(it, cat.label)); showToast('Receita copiada 📋'); }
+    try{ await navigator.clipboard.writeText(recipeText(it, cat.label)); showToast('Receita completa copiada 📋'); }
     catch(e){ showToast('Não consegui copiar.', true); }
   });
   $('focusIdInp').addEventListener('change', () => setId(key, $('focusIdInp').value));
   $('focusIdInp').addEventListener('keydown', e => { if (e.key === 'Enter') $('focusDone').click(); });
+
+  // por-campo: toque marca "digitei" e AVANÇA o campo atual; botão copia só o valor
+  card.querySelectorAll('.frow').forEach(row => {
+    row.addEventListener('click', e => {
+      if (e.target.closest('.fcopy')) return;
+      const f = row.dataset.field;
+      const willEnter = !FOCUS_ENTERED.has(f);
+      focusMarkField(card, f, willEnter);
+      if (willEnter){ FOCUS_CURSOR = focusNextField(f); focusApplyCurrent(card, true); }
+      else { FOCUS_CURSOR = f; focusApplyCurrent(card, true); }
+    });
+  });
+  card.querySelectorAll('.fcopy').forEach(btn => btn.addEventListener('click', async e => {
+    e.stopPropagation();
+    try{
+      await navigator.clipboard.writeText(btn.dataset.fcopy || '');
+      showToast('Valor copiado 📋');
+      const row = btn.closest('.frow');
+      const f = row && row.dataset.field;
+      if (f && !FOCUS_ENTERED.has(f)){ focusMarkField(card, f, true); FOCUS_CURSOR = focusNextField(f); focusApplyCurrent(card, true); }
+    }catch(err){ showToast('Não consegui copiar.', true); }
+  }));
 }
 $('focusBtn').addEventListener('click', openFocus);
+$('handoffBtn').addEventListener('click', e => openHandoff(e.currentTarget));
 $('focusOverlay').addEventListener('click', e => { if (e.target === $('focusOverlay')) closeFocus(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && FOCUS_OPEN) closeFocus(); });
+
+/* #2 teclado no foco: setas movem o campo atual, Enter marca e desce */
+document.addEventListener('keydown', e => {
+  if ($('popMenu') && e.key === 'Escape'){ closePickMenu(); return; }
+  const confirmEl = $('focusConfirm');
+  if (confirmEl){
+    if (e.key === 'Escape'){ confirmEl.remove(); e.preventDefault(); }
+    else if (e.key === 'Enter'){
+      if (Date.now() - (+confirmEl.dataset.openedAt || 0) < 350) return; // ignora o Enter que abriu a conferência
+      const b = $('ccConfirm'); if (b){ b.click(); e.preventDefault(); }
+    }
+    return;
+  }
+  if (!FOCUS_OPEN) return;
+  if (e.key === 'Escape'){ closeFocus(); return; }
+  const ae = document.activeElement;
+  if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return; // digitando o ID: não sequestra teclas
+  const card = $('focusCard');
+  if (!FOCUS_FIELDS.length) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+    e.preventDefault();
+    let i = FOCUS_CURSOR ? FOCUS_FIELDS.indexOf(FOCUS_CURSOR) : -1;
+    i = Math.max(0, Math.min(FOCUS_FIELDS.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)));
+    FOCUS_CURSOR = FOCUS_FIELDS[i];
+    focusApplyCurrent(card, true);
+  } else if (e.key === 'Enter' || e.key === ' '){
+    if (!FOCUS_CURSOR) return;
+    e.preventDefault();
+    const f = FOCUS_CURSOR;
+    focusMarkField(card, f, true);
+    FOCUS_CURSOR = focusNextField(f);
+    focusApplyCurrent(card, true);
+  }
+});
+
+/* #4 cronômetro ao vivo do torneio em criação (só enquanto o foco está aberto) */
+setInterval(() => {
+  if (!FOCUS_OPEN) return;
+  const el = $('focusElapsed');
+  if (!el) return;
+  const t = FOCUS_SEEN_AT[FOCUS_ENTERED_KEY];
+  el.textContent = t ? '· ⏱ ' + fmtDur(Date.now() - t) : '';
+}, 1000);
 
 /* ── busca ── */
 $('searchInp').addEventListener('input', () => { SEARCH = $('searchInp').value; renderList(); });
@@ -1799,8 +2540,10 @@ $('searchInp').addEventListener('input', () => { SEARCH = $('searchInp').value; 
 setInterval(() => {
   if (!DATA) return;
   renderStats();
-  if (!(document.activeElement && document.activeElement.classList.contains('id-inp'))) renderList();
-  renderFocus();
+  const ae = document.activeElement;
+  if (!(ae && ae.classList.contains('id-inp'))) renderList();
+  // não re-renderizar o foco enquanto a pessoa digita o ID ou marca campos
+  if (!(FOCUS_OPEN && ae && ae.id === 'focusIdInp')) renderFocus();
 }, 60000);
 
 /* ── segmented: moeda + orientação ── */
@@ -1829,20 +2572,24 @@ $('exportBtn').addEventListener('click', () => {
   const conv = v => v === null || v === undefined ? null : (CURRENCY === 'usd' ? v : Math.round(v * BRL_RATE * 100) / 100);
   const fields = recipeFields();
   const rows = [[`Criação Noturna — ${WEEKDAY_TOMORROW} ${refToLabel(TURNO.refTomorrow)} — valores em ${cur}`],[],
-    ['Categoria','Torneio','Horário',`Garantido (${cur})`,`Buy-in (${cur})`,'Late reg','Operador','ID Pokerbyte','Criado', ...fields]];
-  CATS.forEach(cat => {
-    DATA[cat.key].forEach(it => {
+    ['Função','Torneio','Horário',`Garantido (${cur})`,`Buy-in (${cur})`,'Rake / Fee','Admin Fee','Early Bird','Campanha','Conferir','Late reg','Operador','ID Pokerbyte','Criado','Tempo (min)', ...fields]];
+  SECTIONS.forEach(cat => {
+    catItems(cat).forEach(it => {
       const key = itemKey(it);
+      const f = feeActive(it), a = adminActive(it), e = earlyActive(it), c = campInfo(it);
       const extras = fields.map(label => {
         const v = it.extra ? it.extra[label] : undefined;
         return v === undefined || v === null || v === '' ? '' : fmtExtraVal(label, v);
       });
-      rows.push([cat.label, it.nome, it.hora, conv(it.garantido), conv(it.buyin), it.late || '', asg[key] || '', idVal(key), DONE[key] ? `✓ ${DONE[key].by || ''}` : '', ...extras]);
+      const dur = DONE[key] && typeof DONE[key].dur === 'number' ? Math.round(DONE[key].dur / 60000 * 10) / 10 : '';
+      rows.push([cat.label, it.nome, it.hora, conv(it.garantido), conv(it.buyin),
+        f ? f.disp : '', a ? a.disp : '', e ? e.disp : '', hasCampaign(it) ? (c ? c.disp : 'sim') : '',
+        validateItem(it, cat).join(' · '), it.late || '', asg[key] || '', idVal(key), DONE[key] ? `✓ ${DONE[key].by || ''}` : '', dur, ...extras]);
     });
     rows.push([]);
   });
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{wch:12},{wch:34},{wch:9},{wch:14},{wch:12},{wch:9},{wch:14},{wch:14},{wch:12}, ...fields.map(() => ({wch:14}))];
+  ws['!cols'] = [{wch:22},{wch:34},{wch:9},{wch:14},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:22},{wch:9},{wch:14},{wch:14},{wch:12},{wch:11}, ...fields.map(() => ({wch:14}))];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Criação Noturna');
   XLSX.writeFile(wb, `CriacaoNoturna_${TOMORROW_ISO}.xlsx`);
@@ -1856,18 +2603,24 @@ $('summaryBtn').addEventListener('click', async () => {
   const lines = [`🌙 Criação Noturna — ${WEEKDAY_TOMORROW.toLowerCase()} ${refToLabel(TURNO.refTomorrow)}`];
   if (OPS.length){
     OPS.forEach(o => {
-      lines.push(`\n👤 ${o}`);
-      CATS.forEach(cat => {
-        const mine = DATA[cat.key].filter(it => asg[itemKey(it)] === o);
-        if (mine.length) lines.push(`  ${cat.label}: ${mine.length} (${mine.map(it => it.hora).join(', ')})`);
+      const r = roleOf(o);
+      const rlabel = r ? ' · ' + (ROLE_OPTS.find(x => x.key === r) || {}).label : '';
+      lines.push(`\n👤 ${o}${rlabel}`);
+      SECTIONS.forEach(cat => {
+        const mine = catItems(cat).filter(it => asg[itemKey(it)] === o);
+        if (mine.length){
+          const camp = mine.filter(hasCampaign).length;
+          lines.push(`  ${cat.label}: ${mine.length}${camp ? ` (✦${camp} campanha)` : ''} — ${mine.map(it => it.hora).join(', ')}`);
+        }
       });
     });
   } else {
-    CATS.forEach(cat => lines.push(`${cat.label}: ${DATA[cat.key].length}`));
+    SECTIONS.forEach(cat => lines.push(`${cat.label}: ${catItems(cat).length}`));
   }
   const total = DATA.main.length + DATA.side.length + DATA.sat.length;
   const doneCount = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => DONE[itemKey(it)]).length;
-  lines.push(`\nTotal: ${total} torneios · ${doneCount} criados`);
+  const avg = avgDurMin();
+  lines.push(`\nTotal: ${total} torneios · ${doneCount} criados${avg ? ` · ⏱ ${avg < 1 ? Math.round(avg*60) + 's' : avg.toFixed(1) + 'm'}/torneio` : ''}`);
   try{
     await navigator.clipboard.writeText(lines.join('\n'));
     showToast('Resumo copiado — pronto pra colar no grupo 📋');
