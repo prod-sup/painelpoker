@@ -1168,10 +1168,11 @@ function detectField(it, patterns, exclude){
 const FIELD_DEFS = {
   fee:       {label:'Rake / Fee',    res:[/\brake\b/, /^fee$/, /(^|[^a-z])fee([^a-z]|$)/, /taxa\s*do\s*torneio/], excl:/admin|early|adm\.?\s*fee/},
   admin:     {label:'Admin Fee',     res:[/admin\s*fee/, /taxa\s*administ/, /adm\.?\s*fee/], excl:/early/},
-  early:     {label:'Early Bird',    res:[/early\s*bird/, /\bearly\b/, /bird/]},
+  early:     {label:'Early Bird',    res:[/early\s*bird/], excl:/early\s*game/}, // SÓ a coluna EARLY BIRD — "Early game" é blinds, não é isso
   camp:      {label:'Campanha',      res:[/campanh/, /campaign/, /\bpromo/, /\bcampanha/]},
   mtt:       {label:'MTT',           res:[/^mtt$/, /^mtt\s*id/, /nome\s*interno/], excl:/marketing/},
-  gametype:  {label:'Game Type',     res:[/game\s*type/, /variante/, /modalidade/, /^game$/]},
+  gametype:  {label:'Game Type',     res:[/game\s*type/, /variante/, /modalidade/, /^game$/], excl:/early\s*game/},
+  ko:        {label:'K.O',           res:[/^k\.?\s*o\b/, /\bk\.?o\b/, /knock\s*-?\s*out/]},
   ticket:    {label:'Ticket Award',  res:[/ticket/, /award/]},
   payout:    {label:'Payout',        res:[/payout/, /pagamento/, /premiac/], excl:/calculated|calculado/},
   calcpayout:{label:'Calculated Payout', res:[/calculated\s*payout/, /payout\s*calculado/, /calc.*payout/]},
@@ -1223,6 +1224,7 @@ function earlyActive(it){ const i = earlyInfo(it); return fieldActive(i) ? i : n
 /* ── campos-chave da FICHA do torneio (via registro, com mapeamento manual) ── */
 function mttInfo(it){       return fieldInfo('mtt', it); }
 function gameTypeInfo(it){  return fieldInfo('gametype', it); }
+function koInfo(it){        return fieldInfo('ko', it); }
 function ticketInfo(it){    return fieldInfo('ticket', it); }
 function payoutInfo(it){    return fieldInfo('payout', it); }
 function calcPayoutInfo(it){return fieldInfo('calcpayout', it); }
@@ -1271,12 +1273,18 @@ function rawToPct(it, info){
   if (raw >= 1) return (it.buyin && it.buyin > 0) ? raw / it.buyin : 0;
   return raw;
 }
-/* ADMIN FEE UNIFICADO — Rake/Fee + Admin Fee somados num único percentual.
-   Sem $: o time pediu o número seco, como se digita no app. */
+/* ADMIN FEE — Rake/Fee e Admin Fee SEPARADOS na mesma linha (regra da casa:
+   10% do buy-in / +2% do buy-in quando tem admin fee de campanha).
+   Cada parcela mostra o % e o decimal do buy-in (sem $). */
 function adminFeeParts(it){
-  const total = rawToPct(it, feeActive(it)) + rawToPct(it, adminActive(it));
-  if (!total) return null;
-  return {main: (Math.round(total * 10000) / 100).toLocaleString('pt-BR') + '%'};
+  const pctTx = p => (Math.round(p * 10000) / 100).toLocaleString('pt-BR') + '%';
+  const decTx = p => it.buyin != null
+    ? ' = ' + ((CURRENCY === 'usd' ? it.buyin : it.buyin * BRL_RATE) * p).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})
+    : '';
+  const f = rawToPct(it, feeActive(it)), a = rawToPct(it, adminActive(it));
+  if (!f && !a) return null;
+  const seg = p => pctTx(p) + decTx(p);
+  return {main: [f ? seg(f) : null, a ? seg(a) : null].filter(Boolean).join(' / '), sub: ''};
 }
 /* EARLY BIRD — o percentual (0–20%) representa % das FICHAS (chips) do stack
    inicial: mostra o % e quantas fichas extras ele significa. */
@@ -1337,7 +1345,7 @@ function specSheetHtml(it){
   const tiles = [];
   tiles.push(specTile('buyin','c-felt','Buy-in', fmtMoney(it.buyin), '', true));
   tiles.push(specTile('prize','c-felt','Prize Pool', fmtMoney(it.garantido), '', true));
-  const af = adminFeeParts(it); if (af) tiles.push(specTile('admin','c-side','Admin Fee', escHtml(af.main), 'Rake/Fee + Admin unificados', true));
+  const af = adminFeeParts(it); if (af) tiles.push(specTile('admin','c-side','Admin Fee', escHtml(af.main), '10% do buy-in / +2% se tiver admin fee', true));
   const e = earlyParts(it);     if (e)  tiles.push(specTile('early','c-sat','Early Bird', escHtml(e.main), e.sub + ' (% das fichas)', true));
   const tk = ticketInfo(it);   if (tk) tiles.push(specTile('ticket','c-gold','Ticket Award', escHtml(tk.disp), '', true));
   const pay = payoutInfo(it);  if (pay) tiles.push(specTile('payout','c-sat','Payout', escHtml(pay.disp), '', true));
@@ -1772,6 +1780,7 @@ function renderFieldDiag(){
     ['Campanha', seek(campInfo)],
     ['MTT', seek(mttInfo)],
     ['Game Type', seek(gameTypeInfo)],
+    ['K.O', seek(koInfo)],
     ['Ticket Award', seek(ticketInfo)],
     ['Payout', seek(payoutInfo)],
     ['Calculated Payout', seek(calcPayoutInfo)],
@@ -1974,6 +1983,9 @@ function toggleDone(key){
 }
 
 function recipeFields(){ return (DATA && DATA.fields) || []; }
+/* linhas da receita que a operação NÃO usa na criação — fora da tabela e do foco */
+const HIDDEN_RECIPE = /num\.?\s*(de\s*)?players|jogadores|\bchat\b/;
+function visibleRecipeFields(){ return recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l))); }
 function recipeText(it, cat){
   const parts = [
     `${cat} — ${it.nome}`,
@@ -1984,7 +1996,7 @@ function recipeText(it, cat){
   if (it.groupHeader) parts.push(`Grupo: ${it.groupHeader}`);
   // destaques do turno: cálculo e campanha em cima, antes da receita crua
   const af = adminFeeParts(it), e = earlyParts(it);
-  if (af) parts.push(`Admin Fee (Rake/Fee + Admin): ${af.main}`);
+  if (af) parts.push(`Admin Fee (Rake/Fee + Admin): ${af.main}${af.sub ? ' ' + af.sub : ''}`);
   if (e) parts.push(`Early Bird: ${e.main}${e.sub ? ' ' + e.sub : ''}`);
   if (hasCampaign(it)){ const c = campInfo(it); parts.push(`✦ CAMPANHA${c ? ': ' + c.disp : ''}`); }
   // receita completa da GU — todos os campos que vão no app, na ordem da planilha
@@ -2012,7 +2024,7 @@ function recipeGridHtml(it){
 function calcChipsHtml(it){
   const chips = [];
   const af = adminFeeParts(it);
-  if (af) chips.push(`<span class="calc-chip admin" title="Admin Fee — Rake/Fee + Admin unificados"><span class="lab">Admin Fee</span>${escHtml(af.main)}</span>`);
+  if (af) chips.push(`<span class="calc-chip admin" title="Admin Fee — 10% do buy-in / +2% se tiver admin fee"><span class="lab">Admin Fee</span>${escHtml(af.main)}</span>`);
   const e = earlyParts(it);
   if (e) chips.push(`<span class="calc-chip early" title="Early Bird — % das fichas do stack inicial"><span class="lab">EB</span>${escHtml(e.main)}${e.sub ? `<span class="amt">${escHtml(e.sub)}</span>` : ''}</span>`);
   return chips.length ? `<div class="calc-chips">${chips.join('')}</div>` : `<span class="tval" style="opacity:.35">—</span>`;
@@ -2028,7 +2040,7 @@ function calcPanelHtml(it){
   const tile = (cls, k, p, sub) =>
     `<div class="calc-tile ${cls}"><div class="k">${k}</div><div class="v ${p ? '' : 'empty'}">${p ? escHtml(p.main) : '—'}</div>${p && sub ? `<div class="sub">${escHtml(sub)}</div>` : ''}</div>`;
   let html = `<div class="calc-panel">
-    ${tile('admin','Admin Fee', af, 'Rake/Fee + Admin unificados')}
+    ${tile('admin','Admin Fee', af, af ? '10% do buy-in / +2% se tiver admin fee' : '')}
     ${tile('early','Early Bird', e, e ? e.sub + ' (% das fichas)' : '')}`;
   if (hasCampaign(it))
     html += `<div class="calc-tile camp"><div class="k">✦ Campanha</div><div class="v">${c ? escHtml(c.disp) : 'Ativa'}</div>${c ? `<div class="sub" title="${escHtml(c.label)}">${escHtml(c.label)}</div>` : ''}</div>`;
@@ -2180,7 +2192,7 @@ function renderVertical(items, cat, asg){
   const cell = (fn, cls) => cols.map(c => `<td class="${c.done ? 'done-col' : ''} ${cls || ''}">${fn(c)}</td>`).join('');
   // rótulos das colunas-chave pra destacar a linha correspondente da receita
   const keyLabels = new Set();
-  cols.forEach(c => [feeInfo, adminInfo, earlyInfo, ticketInfo, payoutInfo, calcPayoutInfo, rebuyInfo, addonInfo, chipsInfo, structureInfo]
+  cols.forEach(c => [feeInfo, adminInfo, earlyInfo, ticketInfo, payoutInfo, calcPayoutInfo, rebuyInfo, addonInfo, chipsInfo, structureInfo, gameTypeInfo, koInfo]
     .forEach(g => { const i = g(c.it); if (i && i.label) keyLabels.add(i.label); }));
   const addonL = (() => { const c0 = cols.find(c => addonInfo(c.it)); return c0 ? addonInfo(c0.it).label : null; })();
   return `
@@ -2194,12 +2206,12 @@ function renderVertical(items, cat, asg){
       <tr><th class="rowlab">Horário</th>${cell(c => `<span class="thora">${escHtml(c.it.hora)}</span>`)}</tr>
       <tr><th class="rowlab key">Garantido</th>${cell(c => `<span class="tval">${fmtMoney(c.it.garantido)}</span>`)}</tr>
       <tr><th class="rowlab key">Buy-in</th>${cell(c => `<span class="tval">${fmtMoney(c.it.buyin)}</span>`)}</tr>
-      <tr><th class="rowlab">Admin Fee</th>${cell(c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
+      <tr><th class="rowlab">Admin Fee</th>${cell(c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
       <tr><th class="rowlab">Early Bird</th>${cell(c => { const p = earlyParts(c.it); return p ? `<span class="calc-chip early">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
       ${cols.some(c => hasCampaign(c.it)) ? `<tr><th class="rowlab">Campanha</th>${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : ''}
       ${cat.key === 'sat' ? `<tr><th class="rowlab">Grupo</th>${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : ''}
-      ${recipeFields().length
-        ? recipeFields().map(label => `<tr><th class="rowlab ${keyLabels.has(label) ? 'key' : ''}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(c => {
+      ${visibleRecipeFields().length
+        ? visibleRecipeFields().map(label => `<tr><th class="rowlab ${keyLabels.has(label) ? 'key' : ''}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(c => {
             const v = c.it.extra ? c.it.extra[label] : undefined;
             const has = v !== undefined && v !== null && v !== '';
             if (!has) return `<span class="mono" style="color:var(--ink-soft);opacity:.5">—</span>`;
@@ -2353,7 +2365,7 @@ function focusAdvance(){ FOCUS_ANIMATE = true; renderFocus(); }
    na descida. Os campos-chave (buy-in, garantido, rake, admin, early, campanha)
    ganham cor na própria linha. */
 function focusFlowHtml(it){
-  const fields = recipeFields();
+  const fields = visibleRecipeFields();
   if (!fields.length)
     return `<div class="recipe-note">Receita completa indisponível nesta planilha (cabeçalho da Global não foi lido). Recarregue a Global MTT original.</div>`;
   const feeL = (feeInfo(it) || {}).label, admL = (adminInfo(it) || {}).label,
@@ -2363,7 +2375,7 @@ function focusFlowHtml(it){
   const setFeat = (info, cls) => { if (info && info.label && !featMap[info.label]) featMap[info.label] = cls; };
   setFeat(gameTypeInfo(it),'game'); setFeat(ticketInfo(it),'ticket'); setFeat(chipsInfo(it),'chips');
   setFeat(structureInfo(it),'structure'); setFeat(timeBankInfo(it),'timebank'); setFeat(payoutInfo(it),'payout');
-  setFeat(calcPayoutInfo(it),'payout'); setFeat(rebuyInfo(it),'rebuy'); setFeat(addonInfo(it),'addon');
+  setFeat(calcPayoutInfo(it),'payout'); setFeat(rebuyInfo(it),'rebuy'); setFeat(addonInfo(it),'addon'); setFeat(koInfo(it),'game');
   const copySvg = `<svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`;
   return fields.map((label, i) => {
     const v = it.extra ? it.extra[label] : undefined;
@@ -2378,10 +2390,10 @@ function focusFlowHtml(it){
     else if (nl.includes('prize') || nl.includes('guarant')) accent = 'prize';
     else if (featMap[label]) accent = featMap[label];
     let vHtml = has ? escHtml(disp) : 'deixar em branco';
-    // Admin Fee unificado: em cada linha de fee mostra também o total somado (sem $)
+    // linha de fee: mostra as parcelas separadas (10% / 2%) com o decimal do buy-in
     if (has && accent === 'admin'){
       const af = adminFeeParts(it);
-      if (af && feeL && admL && feeL !== admL) vHtml = escHtml(disp) + `<span class="fsub">Σ ${escHtml(af.main)}</span>`;
+      if (af) vHtml = escHtml(disp) + `<span class="fsub">${escHtml(af.main)}</span>`;
     }
     // Early Bird: % das fichas — mostra as fichas extras que o % representa
     if (has && accent === 'early'){
@@ -2455,7 +2467,7 @@ function openCreateConfirm(it, cat, key, onConfirm){
       ${cci('Horário', escHtml(it.hora))}
       ${cci('Buy-in', fmtMoney(it.buyin), it.buyin == null)}
       ${cci('Garantido', fmtMoney(it.garantido), it.garantido == null)}
-      ${af ? cci('Admin Fee', escHtml(af.main)) : cci('Admin Fee', '—', cat.key !== 'sat')}
+      ${af ? cci('Admin Fee', escHtml(af.main) + (af.sub ? ` <span style="opacity:.6;font-size:11px">${escHtml(af.sub)}</span>` : '')) : cci('Admin Fee', '—', cat.key !== 'sat')}
       ${e ? cci('Early Bird', escHtml(e.main) + (e.sub ? ` <span style="opacity:.6;font-size:11px">${escHtml(e.sub)}</span>` : '')) : ''}
       ${hasCampaign(it) ? cci('✦ Campanha', escHtml((campInfo(it) || {}).disp || 'ativa'), false) : ''}
       ${cci('ID Pokerbyte', idv ? escHtml(idv) : 'em branco', !idv)}
@@ -2489,7 +2501,7 @@ function renderFocus(){
   // progresso "digitei" é por torneio — zera ao trocar de torneio
   if (FOCUS_ENTERED_KEY !== key){ FOCUS_ENTERED = new Set(); FOCUS_ENTERED_KEY = key; FOCUS_CURSOR = null; }
   if (!FOCUS_SEEN_AT[key]) FOCUS_SEEN_AT[key] = Date.now();   // #4 início da criação
-  FOCUS_FIELDS = recipeFields().slice();                     // #2 ordem dos campos
+  FOCUS_FIELDS = visibleRecipeFields();                      // #2 ordem dos campos (sem Num. Players/Chat)
   if (!FOCUS_CURSOR || !FOCUS_FIELDS.includes(FOCUS_CURSOR) || FOCUS_ENTERED.has(FOCUS_CURSOR))
     FOCUS_CURSOR = focusNextField(null);
   const urg = urgency(it);
@@ -2503,7 +2515,7 @@ function renderFocus(){
   const mineTotal = mineAll.length || 1;
   const nightPct = Math.round(mineDone / mineTotal * 100);
   const next = queue[1] ? queue[1].it : null;
-  const fieldsN = recipeFields().length;
+  const fieldsN = FOCUS_FIELDS.length;
 
   card.innerHTML = `
     <div class="focus-head">
@@ -2700,7 +2712,7 @@ $('exportBtn').addEventListener('click', () => {
       });
       const dur = DONE[key] && typeof DONE[key].dur === 'number' ? Math.round(DONE[key].dur / 60000 * 10) / 10 : '';
       rows.push([cat.label, it.nome, it.hora, conv(it.garantido), conv(it.buyin),
-        af ? af.main : '', e ? `${e.main}${e.sub ? ' ' + e.sub : ''}` : '', hasCampaign(it) ? (c ? c.disp : 'sim') : '',
+        af ? `${af.main}${af.sub ? ' ' + af.sub : ''}` : '', e ? `${e.main}${e.sub ? ' ' + e.sub : ''}` : '', hasCampaign(it) ? (c ? c.disp : 'sim') : '',
         validateItem(it, cat).join(' · '), it.late || '', asg[key] || '', idVal(key),
         DONE[key] ? '✓' : '', DONE[key] ? (DONE[key].by || '') : '', dur, ...extras]);
     });
