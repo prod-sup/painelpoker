@@ -7,6 +7,7 @@ const STATIC_ASSETS = [
   '/painelpoker/',
   '/painelpoker/index.html',
   '/painelpoker/criacao-noturna.html',
+  '/painelpoker/gu-parser.js',
 ];
 
 self.addEventListener('install', e => {

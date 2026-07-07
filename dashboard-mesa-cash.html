@@ -1,0 +1,2210 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Suprema Cash Intelligence</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0e0e11;
+  --bg2:#141418;
+  --bg3:#1a1a1f;
+  --surf:#1f1f25;
+  --surf2:#252530;
+  --bdr:rgba(255,255,255,.06);
+  --bdr2:rgba(255,255,255,.04);
+  --ink:#f0f0f5;
+  --ink2:#8888a0;
+  --ink3:#55556a;
+  --dia:#4f8ef7;
+  --dia2:rgba(79,142,247,.12);
+  --noite:#a78bfa;
+  --noite2:rgba(167,139,250,.12);
+  --green:#34d399;
+  --green2:rgba(52,211,153,.1);
+  --red:#f87171;
+  --red2:rgba(248,113,113,.1);
+  --amber:#fbbf24;
+  --amber2:rgba(251,191,36,.1);
+  --gold:#d4a853;
+  --r:10px;--r2:16px;--r3:20px;
+  --sh:0 2px 10px rgba(0,0,0,.35),0 1px 1px rgba(0,0,0,.2);
+  --sh2:0 12px 40px rgba(0,0,0,.45);
+  --ease:cubic-bezier(.16,1,.3,1);
+}
+html[data-theme="light"]{
+  color-scheme:light;
+  --bg:#f5f6f8;
+  --bg2:#eceef2;
+  --bg3:#e4e6ec;
+  --surf:#ffffff;
+  --surf2:#f1f2f6;
+  --bdr:rgba(15,15,25,.08);
+  --bdr2:rgba(15,15,25,.05);
+  --ink:#14141a;
+  --ink2:#54546a;
+  --ink3:#8a8a9c;
+  --dia2:rgba(79,142,247,.1);
+  --noite2:rgba(139,110,230,.12);
+  --green2:rgba(16,150,105,.1);
+  --red2:rgba(220,38,38,.08);
+  --amber2:rgba(217,119,6,.1);
+  --sh:0 1px 3px rgba(20,20,30,.08),0 1px 1px rgba(20,20,30,.04);
+  --sh2:0 8px 24px rgba(20,20,30,.1);
+  --hdr-bg:rgba(255,255,255,.85);
+}
+:root{--hdr-bg:rgba(14,14,17,.92)}
+html{font-size:13px;-webkit-font-smoothing:antialiased;color-scheme:dark}
+body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;line-height:1.4}
+a,button{font-family:inherit;cursor:pointer;text-decoration:none;color:inherit;border:none;background:none}
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:2px}
+
+/* ── HDR ── */
+.hdr{
+  position:sticky;top:0;z-index:200;height:52px;
+  background:var(--hdr-bg);backdrop-filter:blur(24px);
+  border-bottom:1px solid var(--bdr);
+  display:flex;align-items:center;padding:0 24px;gap:0;
+}
+.brand{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.brand-ico{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#4f8ef7,#a78bfa);display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 4px 12px rgba(79,142,247,.3)}
+.brand-name{font-size:14px;font-weight:800;letter-spacing:-.04em;color:var(--ink)}
+.brand-sep{width:1px;height:14px;background:var(--bdr);margin:0 14px}
+.nav{display:flex;gap:1px;flex:1;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.nav::-webkit-scrollbar{display:none}
+.nt{padding:5px 12px;border-radius:7px;font-size:11px;font-weight:700;color:var(--ink3);letter-spacing:.01em;transition:color .12s,background .12s;position:relative;white-space:nowrap;flex-shrink:0}
+.nt:hover{color:var(--ink2);background:var(--bdr)}
+.nt.on{color:var(--ink);background:var(--surf2)}
+.nt.on::after{content:'';position:absolute;left:12px;right:12px;bottom:-9px;height:2px;border-radius:2px;background:var(--dia)}
+.hdr-r{display:flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:0}
+@media(max-width:860px){
+  .hdr{padding:0 14px;gap:10px}
+  .brand-name{display:none}
+  .brand-sep{margin:0 8px}
+  .shift-chip span#shiftLabel{display:none}
+  .up-btn span{display:none}
+  .up-btn{padding:8px}
+  .app-hdr-user{display:none}
+}
+@media(max-width:520px){
+  .wrap{padding:16px 14px 40px}
+  .pgh-title{font-size:21px}
+  .kg{grid-template-columns:repeat(2,1fr)}
+  .card{padding:14px}
+}
+.shift-chip{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:7px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;border:1px solid}
+.shift-chip.dia{background:var(--dia2);border-color:rgba(79,142,247,.2);color:var(--dia)}
+.shift-chip.noite{background:var(--noite2);border-color:rgba(167,139,250,.2);color:var(--noite)}
+.pulse{width:6px;height:6px;border-radius:50%;animation:pulse 2s infinite}
+.pulse.dia{background:var(--dia);box-shadow:0 0 0 0 rgba(79,142,247,.4)}
+.pulse.noite{background:var(--noite);box-shadow:0 0 0 0 rgba(167,139,250,.4)}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.7;transform:scale(.9)}}
+.up-btn{display:flex;align-items:center;gap:5px;padding:6px 13px;border-radius:8px;background:var(--dia);color:#fff;font-size:11px;font-weight:800;transition:opacity .15s,transform .12s var(--ease);letter-spacing:.01em}
+.up-btn:hover{opacity:.85}
+.up-btn:active{transform:scale(.97)}
+.up-btn svg{width:12px;height:12px}
+
+/* ── WRAP ── */
+.wrap{max-width:1480px;margin:0 auto;padding:24px 24px 60px}
+
+/* ── PAGE ── */
+.pg{display:none}
+.pg.on{display:block}
+
+/* ── PG HDR ── */
+.pgh{margin-bottom:28px}
+.pgh-label{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--dia);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.pgh-title{font-size:26px;font-weight:900;letter-spacing:-.045em;color:var(--ink)}
+.pgh-sub{font-size:11px;color:var(--ink3);margin-top:6px;line-height:1.65;max-width:92ch}
+
+/* ── KPI GRID ── */
+.kg{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px;margin-bottom:16px}
+.kpi{
+  background:var(--surf);border:1px solid var(--bdr);
+  border-radius:var(--r2);padding:14px 16px;
+  box-shadow:var(--sh);position:relative;overflow:hidden;
+  transition:border-color .18s var(--ease),transform .18s var(--ease),box-shadow .18s var(--ease);
+}
+.kpi:hover{border-color:var(--bdr2);transform:translateY(-1px);box-shadow:var(--sh2)}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:var(--r2) var(--r2) 0 0}
+.kpi.c-dia::before{background:linear-gradient(90deg,var(--dia),transparent)}
+.kpi.c-noite::before{background:linear-gradient(90deg,var(--noite),transparent)}
+.kpi.c-green::before{background:linear-gradient(90deg,var(--green),transparent)}
+.kpi.c-amber::before{background:linear-gradient(90deg,var(--amber),transparent)}
+.kpi.c-red::before{background:linear-gradient(90deg,var(--red),transparent)}
+.kpi.c-gold::before{background:linear-gradient(90deg,var(--gold),transparent)}
+.kpi.hero{background:linear-gradient(135deg,rgba(79,142,247,.15),rgba(167,139,250,.1));border-color:rgba(79,142,247,.2)}
+.kpi.hero::before{background:linear-gradient(90deg,var(--dia),var(--noite))}
+.kl{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);margin-bottom:9px;display:flex;align-items:center;justify-content:space-between}
+.kv{font-size:22px;font-weight:900;letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums;color:var(--ink)}
+.kpi.hero .kv{font-size:26px}
+.ks{font-size:9px;color:var(--ink3);margin-top:6px;line-height:1.45}
+.kb{position:absolute;top:10px;right:10px;font-size:8px;font-weight:800;padding:2px 6px;border-radius:4px;letter-spacing:.04em}
+.kb.g{background:var(--green2);color:var(--green)}
+.kb.r{background:var(--red2);color:var(--red)}
+.kb.a{background:var(--amber2);color:var(--amber)}
+.kb.b{background:var(--dia2);color:var(--dia)}
+
+/* ── CARD ── */
+.card{background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r3);padding:20px;box-shadow:var(--sh);transition:border-color .18s var(--ease)}
+.card:hover{border-color:var(--bdr2)}
+.card+.card{margin-top:0}
+.ct{font-size:13px;font-weight:800;letter-spacing:-.01em;color:var(--ink);margin-bottom:2px}
+.cs{font-size:10px;color:var(--ink3);margin-bottom:16px;line-height:1.55}
+
+/* ── GRIDS ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px}
+.g21{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px}
+.g12{display:grid;grid-template-columns:1fr 2fr;gap:12px;margin-bottom:12px}
+.g13{display:grid;grid-template-columns:1fr 3fr;gap:12px;margin-bottom:12px}
+@media(max-width:1200px){.g3{grid-template-columns:1fr 1fr}.g21,.g12,.g13{grid-template-columns:1fr}}
+@media(max-width:768px){.g2,.g3,.g21,.g12,.g13{grid-template-columns:1fr}.kg{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:420px){.kg{grid-template-columns:1fr}}
+
+/* ── CHART TABS ── */
+.chtabs{display:inline-flex;gap:1px;margin-bottom:12px;background:var(--bg2);border-radius:8px;padding:3px}
+.chtab{padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;color:var(--ink3);cursor:pointer;transition:.12s;letter-spacing:.01em}
+.chtab.on{background:var(--surf2);color:var(--ink)}
+
+/* ── TABLE ── */
+.tw{overflow-x:auto}
+table.t{width:100%;border-collapse:collapse;font-size:11px}
+table.t th{padding:8px 10px;text-align:left;font-size:8px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);border-bottom:1px solid var(--bdr);white-space:nowrap}
+table.t th.r{text-align:right}
+table.t td{padding:9px 10px;border-bottom:1px solid var(--bdr2);vertical-align:middle}
+table.t tr:last-child td{border-bottom:none}
+table.t tr:hover td{background:rgba(255,255,255,.015)}
+table.t td.r{text-align:right}
+table.t td.b{font-weight:700;color:var(--ink)}
+table.t td.m{color:var(--ink2)}
+.rk{width:20px;height:20px;border-radius:5px;background:var(--surf2);border:1px solid var(--bdr);display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:var(--ink3)}
+.tag{display:inline-flex;padding:2px 7px;border-radius:4px;font-size:8px;font-weight:800;letter-spacing:.04em;white-space:nowrap}
+.tp{background:rgba(79,142,247,.15);color:#7ab3ff}
+.tn{background:rgba(52,211,153,.15);color:#34d399}
+.to{background:rgba(251,191,36,.15);color:#fbbf24}
+.t6{background:rgba(167,139,250,.15);color:#c4b5fd}
+.sbdg{display:inline-flex;align-items:center;gap:4px;font-size:8px;font-weight:800;padding:2px 7px;border-radius:4px;letter-spacing:.04em}
+.sbdg.dia{background:var(--dia2);color:var(--dia)}
+.sbdg.noite{background:var(--noite2);color:var(--noite)}
+.sdot{width:5px;height:5px;border-radius:50%}
+.sdot.dia{background:var(--dia)}
+.sdot.noite{background:var(--noite)}
+
+/* ── STAT ROW ── */
+.sr{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bdr2)}
+.sr:last-child{border-bottom:none}
+.sr-l{font-size:10px;color:var(--ink3)}
+.sr-v{font-size:11px;font-weight:700;color:var(--ink)}
+.sr-v.g{color:var(--green)}
+.sr-v.a{color:var(--amber)}
+.sr-v.r{color:var(--red)}
+.sr-v.b{color:var(--dia)}
+
+/* ── MINI BARS ── */
+.mb{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.mb-l{width:76px;font-size:9px;color:var(--ink3);flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mb-t{flex:1;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden}
+.mb-f{height:100%;border-radius:2px;transition:width .6s}
+.mb-v{width:56px;text-align:right;font-size:9px;font-weight:700;color:var(--ink2);flex-shrink:0}
+
+/* ── PROGRESS ── */
+.pb{margin-bottom:8px}
+.pb-top{display:flex;justify-content:space-between;font-size:10px;margin-bottom:4px}
+.pb-t{font-weight:700;color:var(--ink)}
+.pb-s{color:var(--ink3)}
+.pb-track{height:5px;border-radius:3px;background:var(--bg2);overflow:hidden}
+.pb-fill{height:100%;border-radius:3px;transition:width .6s}
+
+/* ── REC CARDS ── */
+.recs{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.rec{border-radius:var(--r2);padding:14px;border:1px solid var(--bdr);background:var(--surf2)}
+.rec.g{border-color:rgba(52,211,153,.2);background:rgba(52,211,153,.04)}
+.rec.w{border-color:rgba(251,191,36,.2);background:rgba(251,191,36,.04)}
+.rec.i{border-color:rgba(79,142,247,.2);background:rgba(79,142,247,.04)}
+.rec.a{border-color:rgba(248,113,113,.2);background:rgba(248,113,113,.04)}
+.rec-ico{font-size:18px;margin-bottom:8px;display:block}
+.rec-t{font-size:11px;font-weight:800;color:var(--ink);margin-bottom:4px}
+.rec-b{font-size:10px;color:var(--ink3);line-height:1.55}
+.rec-sh{font-size:9px;font-weight:800;margin-top:7px;letter-spacing:.04em}
+.rec-sh.dia{color:var(--dia)}
+.rec-sh.noite{color:var(--noite)}
+
+/* ── TIMELINE ── */
+.tl-wrap{position:relative}
+.tl-axis{display:flex;font-size:8px;color:var(--ink3);margin-bottom:5px;font-weight:700;letter-spacing:.03em}
+.tl-axis span{flex:1;text-align:center}
+.tl-band{display:flex;height:40px;border-radius:8px;overflow:hidden;gap:1px;background:var(--bg2);padding:1px}
+.tl-seg{flex:1;border-radius:4px;cursor:default;transition:opacity .15s;position:relative}
+.tl-seg:hover{opacity:.75;outline:1px solid rgba(255,255,255,.15)}
+.tl-legend{display:flex;gap:14px;margin-top:8px;flex-wrap:wrap}
+.tl-li{display:flex;align-items:center;gap:5px;font-size:9px;color:var(--ink3)}
+.tl-dot{width:10px;height:10px;border-radius:3px}
+
+/* ── SHIFT CARDS ── */
+.shift-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+@media(max-width:640px){.shift-pair{grid-template-columns:1fr}}
+.scard{border-radius:var(--r3);padding:20px;border:1px solid var(--bdr)}
+.scard.dia{border-top:2px solid var(--dia);background:linear-gradient(135deg,rgba(79,142,247,.06),transparent)}
+.scard.noite{border-top:2px solid var(--noite);background:linear-gradient(135deg,rgba(167,139,250,.06),transparent)}
+.scard-hdr{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.scard-ico{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px}
+.scard-ico.dia{background:var(--dia2)}
+.scard-ico.noite{background:var(--noite2)}
+.scard-title{font-size:13px;font-weight:900;letter-spacing:-.02em;color:var(--ink)}
+.scard-sub{font-size:9px;color:var(--ink3);margin-top:1px;text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.scard-big{font-size:28px;font-weight:900;letter-spacing:-.05em;margin-bottom:12px}
+.scard-big.dia{color:var(--dia)}
+.scard-big.noite{color:var(--noite)}
+
+/* ── HEATMAP ── */
+.hmtbl{width:100%;border-collapse:separate;border-spacing:3px}
+.hmtbl th{font-size:8px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3);padding:3px 5px;text-align:center}
+.hmtbl th:first-child{text-align:left}
+.hmtbl td{padding:6px 4px;border-radius:5px;text-align:center;transition:opacity .15s}
+.hmtbl td:first-child{text-align:left;background:none!important;font-weight:700;font-size:9px;color:var(--ink2);padding-left:0}
+.hmtbl td.e{background:none!important;text-align:right;font-size:9px;color:var(--ink3)}
+.hmtbl td.e.b{font-weight:800;color:var(--ink)}
+.hv{font-size:9px;font-weight:800;line-height:1.3}
+.hn{font-size:7px;opacity:.6;margin-top:1px}
+
+/* ── CONCENTRATION BAR ── */
+.conc-bar{display:flex;height:28px;border-radius:8px;overflow:hidden;margin:12px 0;gap:1px}
+.conc-seg{height:100%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:rgba(255,255,255,.8);transition:opacity .15s}
+.conc-seg:hover{opacity:.8}
+.conc-labels{display:flex;justify-content:space-between;font-size:8px;color:var(--ink3)}
+
+/* ── UPLOAD ── */
+.up-zone{border:2px dashed var(--bdr);border-radius:var(--r3);padding:48px 20px;text-align:center;cursor:pointer;transition:.2s;position:relative}
+.up-zone:hover{border-color:var(--dia);background:var(--dia2)}
+.up-zone h3{font-size:14px;font-weight:900;color:var(--ink);margin:10px 0 5px;letter-spacing:-.02em}
+.up-zone p{font-size:11px;color:var(--ink3);margin-bottom:16px}
+.btn-p{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:8px;background:var(--dia);color:#fff;font-size:11px;font-weight:800;transition:opacity .15s,transform .12s var(--ease)}
+.btn-p:hover{opacity:.85}
+.btn-p:active{transform:scale(.97)}
+.btn-p:disabled{opacity:.5;cursor:not-allowed}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;color:var(--ink3);transition:color .12s,background .12s}
+.icon-btn:hover{color:var(--red);background:var(--red2)}
+.ph-spinner{animation:spin .8s linear infinite;display:inline-block}
+@media(prefers-reduced-motion:reduce){.ph-spinner{animation:none}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.theme-toggle{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;color:var(--ink3);transition:color .12s,background .12s;flex-shrink:0}
+.theme-toggle:hover{color:var(--ink);background:var(--bdr)}
+
+/* ── INTEL CARDS (shift recs) ── */
+.intel-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:1100px){.intel-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){.intel-grid{grid-template-columns:1fr}}
+.intel{
+  border-radius:16px;border:1px solid var(--bdr);
+  background:var(--surf2);padding:16px;
+  display:flex;flex-direction:column;gap:0;
+  position:relative;overflow:hidden;
+}
+.intel::after{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  border-radius:16px 16px 0 0;
+}
+.intel.dia::after{background:linear-gradient(90deg,var(--dia),transparent 70%)}
+.intel.noite::after{background:linear-gradient(90deg,var(--noite),transparent 70%)}
+.intel.both::after{background:linear-gradient(90deg,var(--dia),var(--noite),transparent 85%)}
+.intel.alert::after{background:linear-gradient(90deg,var(--red),transparent 70%)}
+.intel.gold::after{background:linear-gradient(90deg,var(--gold),transparent 70%)}
+.intel-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
+.intel-tag{font-size:8px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:5px}
+.intel-tag.dia{background:var(--dia2);color:var(--dia)}
+.intel-tag.noite{background:var(--noite2);color:var(--noite)}
+.intel-tag.both{background:rgba(255,255,255,.06);color:var(--ink2)}
+.intel-tag.alert{background:var(--red2);color:var(--red)}
+.intel-tag.gold{background:rgba(212,168,83,.12);color:var(--gold)}
+.intel-icon{font-size:20px;line-height:1}
+.intel-title{font-size:12px;font-weight:800;color:var(--ink);letter-spacing:-.02em;margin-bottom:5px;line-height:1.3}
+.intel-body{font-size:10px;color:var(--ink3);line-height:1.6;flex:1}
+.intel-metric{
+  display:flex;align-items:baseline;gap:6px;
+  margin-top:12px;padding-top:10px;
+  border-top:1px solid var(--bdr2);
+}
+.intel-metric-val{font-size:18px;font-weight:900;letter-spacing:-.04em;line-height:1}
+.intel-metric-val.dia{color:var(--dia)}
+.intel-metric-val.noite{color:var(--noite)}
+.intel-metric-val.g{color:var(--green)}
+.intel-metric-val.r{color:var(--red)}
+.intel-metric-val.a{color:var(--amber)}
+.intel-metric-val.gold{color:var(--gold)}
+.intel-metric-label{font-size:9px;color:var(--ink3);font-weight:600;line-height:1.3}
+.intel-action{
+  display:inline-flex;align-items:center;gap:4px;
+  margin-top:10px;font-size:9px;font-weight:800;
+  color:var(--ink3);letter-spacing:.04em;text-transform:uppercase;
+  border:1px solid var(--bdr);border-radius:5px;padding:3px 8px;
+  background:var(--bg2);cursor:default;width:fit-content;
+}
+.intel-action.dia{color:var(--dia);border-color:rgba(79,142,247,.2);background:var(--dia2)}
+.intel-action.noite{color:var(--noite);border-color:rgba(167,139,250,.2);background:var(--noite2)}
+.intel-action.g{color:var(--green);border-color:rgba(52,211,153,.2);background:var(--green2)}
+.intel-action.a{color:var(--amber);border-color:rgba(251,191,36,.2);background:var(--amber2)}
+.intel-compare{display:flex;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--bdr2)}
+.intel-cmp-col{flex:1}
+.intel-cmp-label{font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.intel-cmp-label.dia{color:var(--dia)}
+.intel-cmp-label.noite{color:var(--noite)}
+.intel-cmp-val{font-size:13px;font-weight:900;letter-spacing:-.03em;color:var(--ink)}
+.intel-cmp-sub{font-size:8px;color:var(--ink3);margin-top:1px}
+/* ── TOOLTIP OVERRIDE ── */
+.cw{position:relative;width:100%}
+
+/* ── LOGIN GATE ── */
+#loginWrap{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:20px}
+.login-box{width:100%;max-width:340px;background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r3);padding:32px;box-shadow:var(--sh2)}
+.login-brand{display:flex;align-items:center;gap:10px;margin-bottom:24px}
+.login-title{font-size:16px;font-weight:900;letter-spacing:-.03em;color:var(--ink);margin-bottom:4px}
+.login-sub{font-size:11px;color:var(--ink3);margin-bottom:22px;line-height:1.5}
+.login-field{margin-bottom:14px}
+.login-field label{display:block;font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px}
+.login-field input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--bdr);background:var(--bg2);color:var(--ink);font-size:13px;font-family:inherit;transition:border-color .12s}
+.login-field input:focus{outline:none;border-color:var(--dia)}
+.login-err{font-size:11px;color:var(--red);min-height:16px;margin-bottom:10px}
+.login-btn{width:100%;padding:11px;border-radius:8px;background:var(--dia);color:#fff;font-size:12px;font-weight:800;transition:opacity .15s,transform .12s var(--ease)}
+.login-btn:hover{opacity:.88}
+.login-btn:active{transform:scale(.98)}
+.login-btn:disabled{opacity:.5;cursor:not-allowed}
+#app{display:none}
+.app-hdr-user{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--ink3);padding:4px 8px}
+.logout-btn{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;color:var(--ink3);transition:color .12s,background .12s;flex-shrink:0}
+.logout-btn:hover{color:var(--red);background:var(--red2)}
+</style>
+</head>
+<body>
+
+<div id="loginWrap">
+  <div class="login-box">
+    <div class="login-brand">
+      <div class="brand-ico"><i class="ph-fill ph-spade"></i></div>
+      <span class="brand-name">Suprema Cash Intelligence</span>
+    </div>
+    <div class="login-title">Acesso restrito</div>
+    <div class="login-sub">Somente administradores têm acesso a esta análise de mesa cash. Use o mesmo login do Painel/Admin.</div>
+    <div class="login-field">
+      <label>Email</label>
+      <input type="email" id="lEmail" placeholder="seu.nome@suprema.group" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('lPass').focus()">
+    </div>
+    <div class="login-field">
+      <label>Senha</label>
+      <input type="password" id="lPass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="login-err" id="lErr"></div>
+    <button class="login-btn" id="lBtn" onclick="doLogin()">Entrar</button>
+  </div>
+</div>
+
+<div id="app">
+<header class="hdr">
+  <div class="brand">
+    <div class="brand-ico">♠</div>
+    <span class="brand-name">Suprema Cash</span>
+  </div>
+  <div class="brand-sep"></div>
+  <nav class="nav">
+    <button class="nt on" onclick="pg('dash',this)">Overview</button>
+    <button class="nt" onclick="pg('turnos',this)">Turnos</button>
+    <button class="nt" onclick="pg('stakes',this)">Stakes</button>
+    <button class="nt" onclick="pg('salas',this)">Salas</button>
+    <button class="nt" onclick="pg('player',this)">Comportamento</button>
+    <button class="nt" onclick="pg('hist',this)">Histórico</button>
+    <button class="nt" onclick="pg('forecast',this)">Previsão</button>
+    <button class="nt" onclick="pg('validar',this)">Validar Dados</button>
+  </nav>
+  <div class="hdr-r">
+    <div class="shift-chip dia" id="shiftChip">
+      <span class="pulse dia" id="shiftPulse"></span>
+      <span id="shiftLabel">Turno Dia</span>
+    </div>
+    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Alternar tema" aria-label="Alternar tema claro/escuro"><i class="ph ph-moon"></i></button>
+    <label class="up-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
+      <span>Importar</span>
+      <input type="file" accept=".xlsx" style="display:none" onchange="handleUpload(this)">
+    </label>
+    <div class="app-hdr-user"><i class="ph ph-user-circle"></i> <span id="appUserName"></span></div>
+    <button class="logout-btn" onclick="doLogout()" title="Sair" aria-label="Sair"><i class="ph ph-sign-out"></i></button>
+  </div>
+</header>
+
+<div class="wrap">
+
+<!-- ═══════════════ OVERVIEW ═══ -->
+<div id="pg-dash" class="pg on">
+  <div class="pgh">
+    <div class="pgh-label"><i class="ph-fill ph-spade"></i> Suprema Cash Intelligence · 22/06/2026</div>
+    <div class="pgh-title">Dashboard de Mesa Cash</div>
+    <div class="pgh-sub">2.965 sessões cash · Turno Dia R$ 641.410 (58,1%) · Turno Noite R$ 463.030 (41,9%) · 570 sessões cruzaram a virada de turno · Top 1% das mesas gera 32,6% do rake</div>
+  </div>
+
+  <div class="kg">
+    <div class="kpi hero">
+      <div class="kl">Fee bruto</div>
+      <div class="kv">R$ 1.104.440</div>
+      <div class="ks">Fee líquido R$ 1.013.225 após JP</div>
+    </div>
+    <div class="kpi c-dia">
+      <div class="kl">Turno Dia <i class="ph-fill ph-sun"></i></div>
+      <div class="kv">R$ 641.410</div>
+      <div class="ks">1.899 mesas · R$ 337,7/mesa</div>
+    </div>
+    <div class="kpi c-noite">
+      <div class="kl">Turno Noite <i class="ph-fill ph-moon-stars"></i></div>
+      <div class="kv">R$ 463.030</div>
+      <div class="ks">1.066 mesas · R$ 434,4/mesa</div>
+    </div>
+    <div class="kpi c-green">
+      <div class="kl">Buyin total</div>
+      <div class="kv">R$ 13,42M</div>
+      <div class="ks">take rate médio 8,23%</div>
+    </div>
+    <div class="kpi c-amber">
+      <div class="kb a">24,5%</div>
+      <div class="kl">Mesas mortas</div>
+      <div class="kv">726</div>
+      <div class="ks">463 Dia · 263 Noite</div>
+    </div>
+    <div class="kpi c-gold">
+      <div class="kb b">VIP</div>
+      <div class="kl">Concentração top 1%</div>
+      <div class="kv">32,6%</div>
+      <div class="ks">29 mesas = R$ 360.435</div>
+    </div>
+    <div class="kpi c-green">
+      <div class="kl">Fee / mão</div>
+      <div class="kv">R$ 3,80</div>
+      <div class="ks">Noite 4,55 › Dia 3,40</div>
+    </div>
+    <div class="kpi c-red">
+      <div class="kb r">8,3%</div>
+      <div class="kl">Jackpot deducted</div>
+      <div class="kv">R$ 91.210</div>
+      <div class="ks">1.054 mesas com JP</div>
+    </div>
+    <div class="kpi">
+      <div class="kl">Fee / mesa ativa</div>
+      <div class="kv">R$ 493,5</div>
+      <div class="ks">excluindo mesas mortas</div>
+    </div>
+    <div class="kpi">
+      <div class="kl">Mesas simultâneas peak</div>
+      <div class="kv">606</div>
+      <div class="ks">17h — maior concorrência</div>
+    </div>
+    <div class="kpi c-noite">
+      <div class="kl">Slot mais eficiente</div>
+      <div class="kv">23:00</div>
+      <div class="ks">R$ 269,5/mesa/hora</div>
+    </div>
+    <div class="kpi">
+      <div class="kl">Sessões cruzam turno</div>
+      <div class="kv">570</div>
+      <div class="ks">19,2% das sessões cash</div>
+    </div>
+  </div>
+
+  <!-- TIMELINE -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="ct">Mapa de intensidade de rake — 00:00 a 23:30</div>
+    <div class="cs">Cada segmento = 30 min · intensidade = fee gerado · azul = Turno Dia · roxo = Turno Noite · hover para detalhes</div>
+    <div class="tl-wrap" id="timeline"></div>
+    <div class="tl-legend">
+      <span class="tl-li"><span class="tl-dot" style="background:var(--dia)"></span>Turno Dia (08–20h)</span>
+      <span class="tl-li"><span class="tl-dot" style="background:var(--noite)"></span>Turno Noite (20–08h)</span>
+      <span class="tl-li"><span class="tl-dot" style="background:rgba(255,255,255,.06)"></span>Sem atividade</span>
+    </div>
+  </div>
+
+  <!-- FEE HORA + LIFECYCLE -->
+  <div class="g2">
+    <div class="card">
+      <div class="ct">Fee por hora · cor indica turno</div>
+      <div class="cs">Pico 23h R$ 109.115 (Noite) · 21h R$ 113.430 (Noite) · 09h R$ 96.000 (Dia)</div>
+      <div class="chtabs">
+        <span class="chtab on" onclick="swHr('fee',this)">Fee</span>
+        <span class="chtab" onclick="swHr('players',this)">Players</span>
+        <span class="chtab" onclick="swHr('hands',this)">Mãos</span>
+        <span class="chtab" onclick="swHr('concurrent',this)">Simultâneas</span>
+      </div>
+      <div class="cw" style="height:200px"><canvas id="cHour" role="img" aria-label="Fee por hora"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct">Abertura vs encerramento de sessões — 30 min</div>
+      <div class="cs">Barras = novas mesas abertas · linha = mesas encerradas · identifica picos de atividade</div>
+      <div class="cw" style="height:230px"><canvas id="cLife" role="img" aria-label="Lifecycle"></canvas></div>
+    </div>
+  </div>
+
+  <!-- MODAL + OP -->
+  <div class="g21">
+    <div class="card">
+      <div class="ct">Fee e rake rate por modalidade</div>
+      <div class="cs">PLO5 domina volume · PLO6(DB) tem melhor rake rate (14,9%) · tamanho das barras = fee absoluto</div>
+      <div class="cw" style="height:220px"><canvas id="cModal" role="img" aria-label="Modalidades"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct">Operadores × Turno</div>
+      <div class="cs">Distribuição de rake por sala e período</div>
+      <div id="opDiv"></div>
+    </div>
+  </div>
+
+  <!-- TOP 10 -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="ct">Top 10 sessões por fee — com turno e eficiência</div>
+    <div class="cs">Sessões individuais com maior rake · take rate colorido por eficiência</div>
+    <div class="tw"><table class="t" id="top10t"></table></div>
+  </div>
+
+  <!-- RECS -->
+  <div style="font-size:11px;font-weight:800;color:var(--ink);margin-bottom:10px;letter-spacing:-.01em">Recomendações automáticas</div>
+  <div class="recs" id="recsDiv"></div>
+</div>
+
+<!-- ═══════════════ TURNOS ═══ -->
+<div id="pg-turnos" class="pg">
+  <div class="pgh">
+    <div class="pgh-label"><i class="ph ph-circle-half"></i> Análise de Turnos</div>
+    <div class="pgh-title">Turno Dia vs Turno Noite</div>
+    <div class="pgh-sub">Brian 08h–20h · Noturno 20h–08h · O Turno Noite tem fee/mesa 28% superior apesar de 44% menos sessões abertas</div>
+  </div>
+
+  <div class="shift-pair">
+    <div class="scard dia">
+      <div class="scard-hdr">
+        <div class="scard-ico dia"><i class="ph-fill ph-sun"></i></div>
+        <div>
+          <div class="scard-title">Turno Dia</div>
+          <div class="scard-sub">08:00 — 20:00 · Brian</div>
+        </div>
+      </div>
+      <div class="scard-big dia">R$ 641.410</div>
+      <div class="sr"><span class="sr-l">Sessões abertas</span><span class="sr-v">1.899</span></div>
+      <div class="sr"><span class="sr-l">Jogadores</span><span class="sr-v">24.407</span></div>
+      <div class="sr"><span class="sr-l">Mãos jogadas</span><span class="sr-v">187.745</span></div>
+      <div class="sr"><span class="sr-l">Mesas mortas</span><span class="sr-v a">463 (24,4%)</span></div>
+      <div class="sr"><span class="sr-l">Fee por mão</span><span class="sr-v b">R$ 3,415</span></div>
+      <div class="sr"><span class="sr-l">Fee por mesa</span><span class="sr-v b">R$ 338,0</span></div>
+      <div class="sr"><span class="sr-l">Duração média</span><span class="sr-v">2h 58m</span></div>
+      <div class="sr"><span class="sr-l">Participação no rake</span><span class="sr-v">58,1%</span></div>
+      <div style="margin-top:12px;font-size:9px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px">Melhores slots (30min)</div>
+      <div id="diaBestSlots"></div>
+    </div>
+    <div class="scard noite">
+      <div class="scard-hdr">
+        <div class="scard-ico noite"><i class="ph-fill ph-moon-stars"></i></div>
+        <div>
+          <div class="scard-title">Turno Noite</div>
+          <div class="scard-sub">20:00 — 08:00 · Noturno</div>
+        </div>
+      </div>
+      <div class="scard-big noite">R$ 463.030</div>
+      <div class="sr"><span class="sr-l">Sessões abertas</span><span class="sr-v">1.066</span></div>
+      <div class="sr"><span class="sr-l">Jogadores</span><span class="sr-v">13.370</span></div>
+      <div class="sr"><span class="sr-l">Mãos jogadas</span><span class="sr-v">102.309</span></div>
+      <div class="sr"><span class="sr-l">Mesas mortas</span><span class="sr-v a">263 (24,7%)</span></div>
+      <div class="sr"><span class="sr-l">Fee por mão</span><span class="sr-v g">R$ 4,525</span></div>
+      <div class="sr"><span class="sr-l">Fee por mesa</span><span class="sr-v g">R$ 434,5</span></div>
+      <div class="sr"><span class="sr-l">Duração média</span><span class="sr-v">2h 53m</span></div>
+      <div class="sr"><span class="sr-l">Participação no rake</span><span class="sr-v">41,9%</span></div>
+      <div style="margin-top:12px;font-size:9px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px">Melhores slots (30min)</div>
+      <div id="nBestSlots"></div>
+    </div>
+  </div>
+
+  <div class="g2">
+    <div class="card">
+      <div class="ct">Fee por slot de 30 min — Dia vs Noite</div>
+      <div class="cs">Evolução intra-turno em janelas de 30 minutos</div>
+      <div class="cw" style="height:230px"><canvas id="cShiftFee" role="img" aria-label="Fee por turno"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct">Mesas simultâneas abertas por hora</div>
+      <div class="cs">Pico de 606 mesas às 17h · queda abrupta após 22h</div>
+      <div class="cw" style="height:230px"><canvas id="cConcurrent" role="img" aria-label="Simultâneas"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:12px">
+    <div class="ct">Operadores × Turno — detalhamento completo</div>
+    <div class="cs">Fee, mesas, ociosidade e eficiência por sala em cada turno</div>
+    <div class="tw"><table class="t" id="opShiftTbl"></table></div>
+  </div>
+
+  <div class="intel-grid" id="shiftRecs"></div>
+</div>
+
+<!-- ═══════════════ STAKES ═══ -->
+<div id="pg-stakes" class="pg">
+  <div class="pgh">
+    <div class="pgh-label"><i class="ph ph-coins"></i> Análise de Stakes</div>
+    <div class="pgh-title">Segmentação por Nível de Stake</div>
+    <div class="pgh-sub">VHigh (BB > R$ 25): 199 mesas geram R$ 452.060 (40,9%) · Top 1% de mesas = 32,6% do rake total · fee/hand aumenta 113x do Micro para VHigh</div>
+  </div>
+
+  <!-- KPIs STAKE -->
+  <div class="kg" style="grid-template-columns:repeat(5,1fr);margin-bottom:12px">
+    <div class="kpi">
+      <div class="kl" style="font-size:8px">Micro · BB≤0.05</div>
+      <div class="kv" style="font-size:16px">R$ 22.225</div>
+      <div class="ks">703 mesas · ret 83,8%</div>
+    </div>
+    <div class="kpi">
+      <div class="kl" style="font-size:8px">Low · BB 0.05-0.2</div>
+      <div class="kv" style="font-size:16px">R$ 114.120</div>
+      <div class="ks">809 mesas · ret 78,5%</div>
+    </div>
+    <div class="kpi">
+      <div class="kl" style="font-size:8px">Mid · BB 0.2-1</div>
+      <div class="kv" style="font-size:16px">R$ 183.415</div>
+      <div class="ks">561 mesas · ret 71,3%</div>
+    </div>
+    <div class="kpi c-amber">
+      <div class="kl" style="font-size:8px">High · BB 1-5</div>
+      <div class="kv" style="font-size:16px">R$ 332.445</div>
+      <div class="ks">688 mesas · ret 70,6%</div>
+    </div>
+    <div class="kpi c-gold">
+      <div class="kb b">VIP</div>
+      <div class="kl" style="font-size:8px">VHigh · BB &gt;5</div>
+      <div class="kv" style="font-size:16px">R$ 452.060</div>
+      <div class="ks">199 mesas · ret 62,8%</div>
+    </div>
+  </div>
+
+  <div class="g2">
+    <div class="card">
+      <div class="ct">Fee e distribuição por stake tier</div>
+      <div class="cs">Volume de rake por segmento de stakes</div>
+      <div class="cw" style="height:220px"><canvas id="cTierFee" role="img" aria-label="Fee por tier"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct">Fee por mão por stake tier</div>
+      <div class="cs">Eficiência por stake — VHigh gera 113x mais por mão que Micro</div>
+      <div class="cw" style="height:220px"><canvas id="cTierFph" role="img" aria-label="Fee por mão por tier"></canvas></div>
+    </div>
+  </div>
+
+  <!-- CONCENTRAÇÃO -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="ct">Concentração de rake — regra 80/20</div>
+    <div class="cs">Quão concentrada é a geração de rake · fator crítico para gestão de risco com dados crescentes</div>
+    <div id="concBar"></div>
+    <div class="g2" style="margin-top:14px;margin-bottom:0">
+      <div>
+        <div class="sr"><span class="sr-l">Top 1% das mesas (29)</span><span class="sr-v g">32,6% do rake · R$ 360.435</span></div>
+        <div class="sr"><span class="sr-l">Top 5% das mesas (148)</span><span class="sr-v g">59,4% do rake · R$ 656.500</span></div>
+        <div class="sr"><span class="sr-l">Top 10% das mesas (296)</span><span class="sr-v">74,5% do rake · R$ 822.405</span></div>
+        <div class="sr"><span class="sr-l">Top 20% das mesas (593)</span><span class="sr-v">88,4% do rake · R$ 976.730</span></div>
+      </div>
+      <div>
+        <div class="sr"><span class="sr-l">Fee rate 0–3%</span><span class="sr-v m">840 mesas · R$ 16.590</span></div>
+        <div class="sr"><span class="sr-l">Fee rate 3–6%</span><span class="sr-v m">649 mesas · R$ 101.945</span></div>
+        <div class="sr"><span class="sr-l">Fee rate 6–9%</span><span class="sr-v">749 mesas · R$ 391.775</span></div>
+        <div class="sr"><span class="sr-l">Fee rate 9–12%</span><span class="sr-v a">502 mesas · R$ 284.400</span></div>
+        <div class="sr"><span class="sr-l">Fee rate 12%+</span><span class="sr-v r">225 mesas · R$ 309.725</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HU vs MULTI + ANTE -->
+  <div class="g2">
+    <div class="card">
+      <div class="ct">HU vs Multipagador</div>
+      <div class="cs">Heads-up tem 1,6x mais fee/mão · Multi retém 94,4% vs 45% HU</div>
+      <div class="cw" style="height:200px"><canvas id="cHuMulti" role="img" aria-label="HU vs Multi"></canvas></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:12px">
+        <div style="background:var(--bg2);border-radius:8px;padding:10px">
+          <div style="font-size:8px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">HU (≤2 players)</div>
+          <div class="sr"><span class="sr-l">Mesas</span><span class="sr-v">1.135</span></div>
+          <div class="sr"><span class="sr-l">Fee</span><span class="sr-v">R$ 255.995</span></div>
+          <div class="sr"><span class="sr-l">Fee/mão</span><span class="sr-v g">5,125</span></div>
+          <div class="sr"><span class="sr-l">Retenção</span><span class="sr-v r">45,0%</span></div>
+          <div class="sr"><span class="sr-l">BuyIn/player</span><span class="sr-v">R$ 1.568,0</span></div>
+          <div class="sr"><span class="sr-l">Mãos/hora</span><span class="sr-v">11,5</span></div>
+        </div>
+        <div style="background:var(--bg2);border-radius:8px;padding:10px">
+          <div style="font-size:8px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Multi (3+ players)</div>
+          <div class="sr"><span class="sr-l">Mesas</span><span class="sr-v">1.830</span></div>
+          <div class="sr"><span class="sr-l">Fee</span><span class="sr-v">R$ 848.445</span></div>
+          <div class="sr"><span class="sr-l">Fee/mão</span><span class="sr-v m">3,215</span></div>
+          <div class="sr"><span class="sr-l">Retenção</span><span class="sr-v g">94,4%</span></div>
+          <div class="sr"><span class="sr-l">BuyIn/player</span><span class="sr-v">R$ 531,5</span></div>
+          <div class="sr"><span class="sr-l">Mãos/hora</span><span class="sr-v">33,1</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ct">Jackpot Impact Analysis</div>
+      <div class="cs">Fee bruto vs líquido · JP representa 8,3% do rake — gerenciamento crítico com escala</div>
+      <div class="cw" style="height:200px"><canvas id="cJP" role="img" aria-label="Jackpot"></canvas></div>
+      <div style="margin-top:12px">
+        <div class="sr"><span class="sr-l">Fee bruto</span><span class="sr-v">R$ 1.104.440</span></div>
+        <div class="sr"><span class="sr-l">Jackpot deducted</span><span class="sr-v r">− R$ 91.210</span></div>
+        <div class="sr"><span class="sr-l">Fee líquido</span><span class="sr-v g">R$ 1.013.225</span></div>
+        <div class="sr"><span class="sr-l">Mesas com JP</span><span class="sr-v">1.054 (35,5%)</span></div>
+        <div class="sr"><span class="sr-l">Impacto % no rake</span><span class="sr-v a">8,3%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FEE PER PLAYER -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="ct">Valor do player por modalidade (Fee / player)</div>
+    <div class="cs">Proxy de quanto cada player gera em rake por sessão — PLO5 players valem 11x mais que OFC players</div>
+    <div id="fppBars" style="margin-top:6px"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ SALAS ═══ -->
+<div id="pg-salas" class="pg">
+  <div class="pgh">
+    <div class="pgh-label"><i class="ph ph-house"></i> Salas</div>
+    <div class="pgh-title">Ranking de Salas</div>
+    <div class="pgh-sub">Home Game tem take rate 20,4% — o mais alto · Golden Cucurucho lidera em volume absoluto com R$ 170.420</div>
+  </div>
+  <div class="g21">
+    <div class="card">
+      <div class="ct">Top 15 salas por volume de buyin</div>
+      <div class="cs">Take rate colorido: verde ≤8% · âmbar 8–15% · vermelho &gt;15%</div>
+      <div class="tw"><table class="t" id="roomsTbl"></table></div>
+    </div>
+    <div class="card">
+      <div class="ct">Rake rate por sala (top 12)</div>
+      <div class="cs">% fee ÷ buyin — indica eficiência por sala</div>
+      <div class="cw" style="height:320px"><canvas id="cRR" role="img" aria-label="Rake rate"></canvas></div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ct">Fee por nível de Big Blind</div>
+      <div class="cs">BB R$ 10,0 gera R$ 241.190 apesar de ser o 2º em frequência</div>
+      <div id="blindBars" style="margin-top:4px"></div>
+    </div>
+    <div class="card">
+      <div class="ct">Fee vs Rake rate — bubble chart</div>
+      <div class="cs">Tamanho = nº de mesas · eixo Y = rake rate · eixo X = fee total</div>
+      <div class="cw" style="height:260px"><canvas id="cBubble" role="img" aria-label="Bubble"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ COMPORTAMENTO ═══ -->
+<div id="pg-player" class="pg">
+  <div class="pgh">
+    <div class="pgh-label"><i class="ph ph-users"></i> Comportamento</div>
+    <div class="pgh-title">Engajamento e Retenção do Player</div>
+    <div class="pgh-sub">Sessões 4h+ = 51,4% do rake com 19,8% das mesas · Multi retém 94,4% vs 45% HU · PLO5 player vale R$ 164,35/sessão</div>
+  </div>
+  <div class="kg" style="grid-template-columns:repeat(auto-fill,minmax(155px,1fr))">
+    <div class="kpi c-green"><div class="kl">Multi retenção</div><div class="kv">94,4%</div><div class="ks">1.727 de 1.830 retidas</div></div>
+    <div class="kpi c-red"><div class="kl">HU retenção</div><div class="kv">45,0%</div><div class="ks">alta taxa de abandono</div></div>
+    <div class="kpi c-green"><div class="kl">Mesas &gt;100 mãos</div><div class="kv">887</div><div class="ks">30% — alto engajamento</div></div>
+    <div class="kpi c-amber"><div class="kl">Mesas &gt;500 mãos</div><div class="kv">84</div><div class="ks">sessões VIP · rakeback</div></div>
+    <div class="kpi"><div class="kl">PLO5 valor/player</div><div class="kv">R$ 164,35</div><div class="ks">11x mais que OFC</div></div>
+    <div class="kpi"><div class="kl">Mãos/hora (p50)</div><div class="kv">32,0</div><div class="ks">p25: 17,9 · p90: 52,0</div></div>
+    <div class="kpi c-gold"><div class="kb b">51%</div><div class="kl">4h+ do rake</div><div class="kv">R$ 567.165</div><div class="ks">586 mesas (19,8%)</div></div>
+    <div class="kpi"><div class="kl">Ante fee/mão</div><div class="kv">R$ 9,24</div><div class="ks">3x mais que sem ante</div></div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ct">Retenção e fee por faixa de duração</div>
+      <div class="cs">Retidas = mesas com ≥10 mãos · sessões longas acumulam rake exponencialmente</div>
+      <div class="cw" style="height:220px"><canvas id="cRet" role="img" aria-label="Retenção"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct">Concentração de fee em sessões longas</div>
+      <div class="cs">4h+ = 51,4% do rake com apenas 19,8% das mesas — padrão Pareto</div>
+      <div class="cw" style="height:220px"><canvas id="cDurFee" role="img" aria-label="Fee por duração"></canvas></div>
+    </div>
+  </div>
+  <div class="g21">
+    <div class="card">
+      <div class="ct">Heatmap de retenção · modalidade × duração</div>
+      <div class="cs">% de mesas retidas (≥10 mãos) · verde escuro = reteve mais · dados crescem com novos uploads</div>
+      <div class="tw" style="margin-top:8px"><table class="hmtbl" id="hmTbl"></table></div>
+    </div>
+    <div class="card">
+      <div class="ct">Ante vs Sem Ante</div>
+      <div class="cs">Mesas com ante têm fee/mão 3,1x maior — driver de rake subestimado</div>
+      <div style="margin-top:8px">
+        <div style="background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:8px">
+          <div style="font-size:9px;font-weight:800;color:var(--ink3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.07em">Com Ante (458 mesas)</div>
+          <div class="sr"><span class="sr-l">Fee total</span><span class="sr-v g">R$ 319.795</span></div>
+          <div class="sr"><span class="sr-l">Fee / mão</span><span class="sr-v g">R$ 9,24</span></div>
+          <div class="sr"><span class="sr-l">Retenção</span><span class="sr-v">72,1%</span></div>
+        </div>
+        <div style="background:var(--bg2);border-radius:8px;padding:12px">
+          <div style="font-size:9px;font-weight:800;color:var(--ink3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.07em">Sem Ante (2.507 mesas)</div>
+          <div class="sr"><span class="sr-l">Fee total</span><span class="sr-v">R$ 784.640</span></div>
+          <div class="sr"><span class="sr-l">Fee / mão</span><span class="sr-v m">R$ 2,98</span></div>
+          <div class="sr"><span class="sr-l">Retenção</span><span class="sr-v">76,1%</span></div>
+        </div>
+        <div style="margin-top:10px;padding:10px;border-radius:8px;border:1px solid rgba(251,191,36,.2);background:rgba(251,191,36,.04)">
+          <div style="font-size:10px;font-weight:700;color:var(--amber)">Mesas com ante geram 3,1x mais rake por mão jogada. Com crescimento da base, expandir ante pode ser a maior alavanca de receita.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ HISTÓRICO ═══ -->
+<div id="pg-hist" class="pg">
+  <div class="pgh" style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <div>
+      <div class="pgh-label"><i class="ph ph-calendar"></i> Histórico</div>
+      <div class="pgh-title">Evolução e Comparativo</div>
+      <div class="pgh-sub">Importe relatórios de outros dias para análise de tendência · dados crescem automaticamente com cada upload</div>
+    </div>
+    <button class="btn-p" style="background:var(--surf2);color:var(--ink2);border:1px solid var(--bdr)" onclick="exportHistory()"><i class="ph ph-download-simple"></i> Exportar JSON</button>
+  </div>
+  <div class="intel-grid" id="histCompare" style="display:none;margin-bottom:12px"></div>
+  <div class="card" style="margin-bottom:12px">
+    <div class="ct">Dias importados</div>
+    <div class="cs">Dados salvos localmente no navegador · importe novos arquivos pelo botão no cabeçalho</div>
+    <div class="tw"><table class="t" id="histTbl">
+      <thead><tr>
+        <th>Data</th><th>Turno</th>
+        <th class="r">Sessões</th><th class="r">Fee Bruto</th>
+        <th class="r">Fee Líquido</th><th class="r">Buyin</th>
+        <th class="r">Players</th><th class="r">Fee/mão</th>
+        <th class="r">Mortas %</th><th class="r">Take rate</th><th></th>
+      </tr></thead>
+      <tbody id="histBody"></tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <div class="ct">Tendência de fee diário</div>
+    <div class="cs">Gráfico aparece com 2+ dias importados</div>
+    <div id="histChartWrap"><div style="text-align:center;padding:50px 0;font-size:11px;color:var(--ink3)">Importe mais relatórios para ver tendências.</div></div>
+  </div>
+</div>
+
+<!-- ═══════════════ PREVISÃO ═══ -->
+<div id="pg-forecast" class="pg">
+  <div class="pgh">
+    <div class="pgh-label"><i class="ph ph-trend-up"></i> Inteligência Financeira</div>
+    <div class="pgh-title">Previsão e Cenários</div>
+    <div class="pgh-sub">Base: 22/06/2026 · R$ 1.104.440 bruto · R$ 1.013.225 líquido · 2.965 sessões · Take rate 8,23% · Projeções por extrapolação linear + cenários de otimização operacional</div>
+  </div>
+
+  <!-- PROJEÇÃO HEADER CARDS -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-bottom:16px">
+    <div class="kpi hero">
+      <div class="kl">Projeção mensal</div>
+      <div class="kv">R$ 33,15M</div>
+      <div class="ks">bruto · base linear</div>
+    </div>
+    <div class="kpi c-green">
+      <div class="kl">Líquido mensal</div>
+      <div class="kv">R$ 30,40M</div>
+      <div class="ks">após jackpot (8,3%)</div>
+    </div>
+    <div class="kpi c-dia">
+      <div class="kl">Projeção semanal</div>
+      <div class="kv">R$ 7,75M</div>
+      <div class="ks">7 dias · base linear</div>
+    </div>
+    <div class="kpi c-gold">
+      <div class="kl">Projeção anual</div>
+      <div class="kv">R$ 403,0M</div>
+      <div class="ks">365 dias · sem sazonalidade</div>
+    </div>
+    <div class="kpi c-amber">
+      <div class="kl">Fee/hora atual</div>
+      <div class="kv">R$ 46.020</div>
+      <div class="ks">média das 24 horas</div>
+    </div>
+    <div class="kpi c-green">
+      <div class="kl">Take rate</div>
+      <div class="kv">8,23%</div>
+      <div class="ks">fee ÷ buyin total</div>
+    </div>
+  </div>
+
+  <!-- CURVA DE PROJEÇÃO + PIZZA RECEITA -->
+  <div class="g2">
+    <div class="card">
+      <div class="ct">Curva de projeção acumulada — 12 meses</div>
+      <div class="cs">3 cenários: base linear · otimista (−20% mortas, +15% sessões) · agressivo (−30% mortas, +30% sessões)</div>
+      <div class="cw" style="height:240px"><canvas id="cFcCurve" role="img" aria-label="Curva de projeção"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct">Composição da receita por stake</div>
+      <div class="cs">VHigh (BB>5 GU) = 40,9% do rake com apenas 6,7% das mesas</div>
+      <div class="cw" style="height:240px"><canvas id="cFcStake" role="img" aria-label="Receita por stake"></canvas></div>
+    </div>
+  </div>
+
+  <!-- CENÁRIOS DE CRESCIMENTO -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="ct">Simulador de cenários — impacto financeiro mensal</div>
+    <div class="cs">Quanto cada alavanca operacional gera de receita adicional por mês · base: R$ 1.104.440/dia</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:4px" id="scenGrid"></div>
+  </div>
+
+  <!-- ALAVANCAS + PROJEÇÃO TURNO -->
+  <div class="g2">
+    <div class="card">
+      <div class="ct">Alavancas de receita — ROI por ação</div>
+      <div class="cs">Impacto diário estimado de cada mudança operacional</div>
+      <div id="leverBars" style="margin-top:6px"></div>
+    </div>
+    <div class="card">
+      <div class="ct">Projeção mensal por turno</div>
+      <div class="cs">Dia vs Noite extrapolados · potencial se Noite atingir eficiência do Dia</div>
+      <div class="cw" style="height:240px"><canvas id="cFcTurno" role="img" aria-label="Projeção por turno"></canvas></div>
+    </div>
+  </div>
+
+  <!-- INTEL FINANCEIRO -->
+  <div style="font-size:11px;font-weight:800;color:var(--ink);margin-bottom:10px;letter-spacing:-.01em">Inteligência financeira — insights críticos</div>
+  <div class="intel-grid" id="fcIntel"></div>
+</div>
+
+<!-- ═══════════════ VALIDAR DADOS ═══ -->
+<div id="pg-validar" class="pg">
+  <div class="pgh">
+    <div class="pgh-label"><i class="ph ph-check-circle"></i> Validar Dados</div>
+    <div class="pgh-title">Importação Semanal com Validação</div>
+    <div class="pgh-sub">Envie uma planilha com uma semana inteira de sessões · revise o resumo por dia antes de confirmar a substituição no histórico</div>
+  </div>
+  <div class="card" style="margin-bottom:12px">
+    <div class="ct">Selecionar planilha semanal</div>
+    <div class="cs">Aceita .xlsx com múltiplas datas nas colunas de Start Time · nenhum dado é salvo até você confirmar</div>
+    <label class="up-zone" style="display:block">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:28px;height:28px;color:var(--ink3);margin:0 auto"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
+      <h3>Arraste ou clique para selecionar</h3>
+      <p>Planilha .xlsx com sessões de vários dias (mesmas colunas do relatório diário)</p>
+      <span class="btn-p">Escolher arquivo</span>
+      <input type="file" accept=".xlsx" style="display:none" onchange="handleValidateUpload(this)">
+    </label>
+  </div>
+  <div class="card" id="validarPreviewCard" style="display:none;margin-bottom:12px">
+    <div class="ct">Pré-visualização por data</div>
+    <div class="cs">Confira sessões, fee bruto e buyin de cada dia encontrado no arquivo antes de gravar no histórico</div>
+    <div class="tw"><table class="t" id="validarPreviewTbl"></table></div>
+    <div style="margin-top:14px;display:flex;align-items:center;gap:10px">
+      <button class="btn-p" onclick="confirmarSemana()">Confirmar e substituir semana</button>
+      <span id="validarStatus" style="font-size:10px;color:var(--ink3)"></span>
+    </div>
+  </div>
+</div>
+
+</div><!-- /wrap -->
+</div><!-- /app -->
+
+<script>
+/* ── FIREBASE + LOGIN (mesmo login do Painel/Admin) ────────────
+   Config e lógica de hash copiadas de admin.html para reaproveitar
+   as mesmas contas/senhas. Sem firebase.auth() — igual ao resto do
+   app hoje, o controle de acesso é feito no client (ADMIN_EMAILS /
+   users/{key}.admin), não em regra de segurança do RTDB. */
+const FB_CFG={
+  apiKey:"AIzaSyAFy1GtRaJE3LHC1Rjtmq0uw2JC8bviXes",
+  authDomain:"design-1-53c00.firebaseapp.com",
+  databaseURL:"https://design-1-53c00-default-rtdb.firebaseio.com",
+  projectId:"design-1-53c00"
+};
+const ADMIN_EMAILS=['brian@suprema.group','admin@suprema.group','brian.rodrigues@suprema.group'];
+const PBKDF2_ITER=150000;
+const eKey=e=>e.toLowerCase().replace(/\./g,'_dot_').replace(/@/g,'_at_');
+function bufToHex(buf){return[...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');}
+function hexToBytes(hex){const bytes=new Uint8Array(hex.length/2);for(let i=0;i<bytes.length;i++)bytes[i]=parseInt(hex.substr(i*2,2),16);return bytes;}
+async function pbkdf2Hash(pw,saltHex){
+  saltHex=saltHex||bufToHex(crypto.getRandomValues(new Uint8Array(16)));
+  const enc=new TextEncoder();
+  const keyMat=await crypto.subtle.importKey('raw',enc.encode(pw),'PBKDF2',false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:hexToBytes(saltHex),iterations:PBKDF2_ITER,hash:'SHA-256'},keyMat,256);
+  return`pbkdf2v2$${PBKDF2_ITER}$${saltHex}$${bufToHex(bits)}`;
+}
+async function pbkdf2HashLegacySalt(pw,saltHex){
+  const enc=new TextEncoder();
+  const keyMat=await crypto.subtle.importKey('raw',enc.encode(pw),'PBKDF2',false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(saltHex),iterations:PBKDF2_ITER,hash:'SHA-256'},keyMat,256);
+  return`pbkdf2$${PBKDF2_ITER}$${saltHex}$${bufToHex(bits)}`;
+}
+function legacyHash(s){
+  let h=5381;
+  for(let i=0;i<s.length;i++){h=((h<<5)+h)^s.charCodeAt(i);h|=0;}
+  const salt='suprema2024';let h2=h;
+  for(let i=0;i<salt.length;i++){h2=((h2<<5)+h2)^salt.charCodeAt(i);h2|=0;}
+  return'h2_'+Math.abs(h).toString(36)+'_'+Math.abs(h2).toString(36);
+}
+async function verifyPassword(pw,storedHash,onMigrate){
+  if(!storedHash)return true;
+  if(storedHash.startsWith('pbkdf2v2$')){
+    const[,,saltHex]=storedHash.split('$');
+    return(await pbkdf2Hash(pw,saltHex))===storedHash;
+  }
+  if(storedHash.startsWith('pbkdf2$')){
+    const[,,saltHex]=storedHash.split('$');
+    const ok=(await pbkdf2HashLegacySalt(pw,saltHex))===storedHash;
+    if(ok&&onMigrate)onMigrate(await pbkdf2Hash(pw));
+    return ok;
+  }
+  const ok=storedHash===legacyHash(pw);
+  if(ok&&onMigrate)onMigrate(await pbkdf2Hash(pw));
+  return ok;
+}
+const LOGIN_MAX_ATTEMPTS=5, LOGIN_LOCK_MS=5*60*1000;
+function loginLockRemaining(user){if(!user?.loginLockUntil)return 0;return Math.max(0,user.loginLockUntil-Date.now());}
+
+let db=null,fbOk=false,_email='',_name='';
+function initFb(){
+  try{firebase.initializeApp(FB_CFG);db=firebase.database();fbOk=true;}
+  catch(e){console.error('Firebase init',e);}
+}
+async function doLogin(){
+  const email=document.getElementById('lEmail').value.trim().toLowerCase();
+  const pass=document.getElementById('lPass').value;
+  const btn=document.getElementById('lBtn');
+  const err=document.getElementById('lErr');
+  err.textContent='';
+  if(!email||!pass){err.textContent='Preencha email e senha.';return;}
+  if(!fbOk){err.textContent='Firebase não conectado.';return;}
+  btn.disabled=true;btn.textContent='Verificando...';
+  const userRef=db.ref(`users/${eKey(email)}`);
+  try{
+    const snap=await userRef.once('value');
+    const user=snap.val();
+    if(!user){err.textContent='Usuário não encontrado.';btn.disabled=false;btn.textContent='Entrar';return;}
+    const remaining=loginLockRemaining(user);
+    if(remaining>0){err.textContent=`Muitas tentativas. Tente novamente em ${Math.ceil(remaining/60000)} min.`;btn.disabled=false;btn.textContent='Entrar';return;}
+    const ok=await verifyPassword(pass,user.pwHash,newHash=>userRef.update({pwHash:newHash}));
+    if(!ok){
+      const attempts=(user.loginAttempts||0)+1;
+      const patch={loginAttempts:attempts};
+      if(attempts>=LOGIN_MAX_ATTEMPTS){patch.loginLockUntil=Date.now()+LOGIN_LOCK_MS;patch.loginAttempts=0;}
+      await userRef.update(patch);
+      err.textContent=attempts>=LOGIN_MAX_ATTEMPTS?`Muitas tentativas. Login bloqueado por ${LOGIN_LOCK_MS/60000} min.`:'Senha incorreta.';
+      btn.disabled=false;btn.textContent='Entrar';return;
+    }
+    if(user.loginAttempts||user.loginLockUntil)await userRef.update({loginAttempts:0,loginLockUntil:null});
+    if(!ADMIN_EMAILS.includes(email)&&!user.admin){err.textContent='Acesso negado — apenas administradores.';btn.disabled=false;btn.textContent='Entrar';return;}
+    _email=email;_name=user.apelido||user.nome||email.split('@')[0];
+    document.getElementById('loginWrap').style.display='none';
+    document.getElementById('app').style.display='block';
+    const un=document.getElementById('appUserName');if(un)un.textContent=_name;
+    startApp();
+  }catch(e){err.textContent='Erro: '+e.message;btn.disabled=false;btn.textContent='Entrar';}
+}
+function doLogout(){
+  _email='';_name='';
+  document.getElementById('app').style.display='none';
+  document.getElementById('loginWrap').style.display='flex';
+  document.getElementById('lEmail').value='';document.getElementById('lPass').value='';
+  document.getElementById('lErr').textContent='';
+  document.getElementById('lBtn').disabled=false;document.getElementById('lBtn').textContent='Entrar';
+}
+initFb();
+
+const GU_TO_BRL=5;
+// ══════════════════════════════ DATA
+const D = {
+  slots30:[{"slot":"00:00","turno":"noite","tables":34,"fee":2006.36,"players":413,"hands":3238,"dead":7},{"slot":"00:30","turno":"noite","tables":19,"fee":866.64,"players":114,"hands":973,"dead":7},{"slot":"01:00","turno":"noite","tables":39,"fee":774.5,"players":278,"hands":2394,"dead":11},{"slot":"01:30","turno":"noite","tables":23,"fee":1840.93,"players":251,"hands":1994,"dead":3},{"slot":"02:00","turno":"noite","tables":26,"fee":317.38,"players":153,"hands":1223,"dead":15},{"slot":"02:30","turno":"noite","tables":26,"fee":227.18,"players":192,"hands":1385,"dead":10},{"slot":"03:00","turno":"noite","tables":22,"fee":1221.79,"players":118,"hands":1338,"dead":11},{"slot":"03:30","turno":"noite","tables":24,"fee":5153.18,"players":335,"hands":2785,"dead":6},{"slot":"04:00","turno":"noite","tables":16,"fee":232.59,"players":129,"hands":1034,"dead":7},{"slot":"04:30","turno":"noite","tables":12,"fee":165.36,"players":97,"hands":737,"dead":3},{"slot":"05:00","turno":"noite","tables":63,"fee":3079.97,"players":1016,"hands":8464,"dead":20},{"slot":"05:30","turno":"noite","tables":11,"fee":758.77,"players":254,"hands":1528,"dead":5},{"slot":"06:00","turno":"noite","tables":6,"fee":678.38,"players":72,"hands":646,"dead":1},{"slot":"06:30","turno":"noite","tables":16,"fee":847.22,"players":149,"hands":1516,"dead":4},{"slot":"07:00","turno":"noite","tables":78,"fee":10787.66,"players":1374,"hands":12103,"dead":12},{"slot":"07:30","turno":"noite","tables":23,"fee":1806.41,"players":360,"hands":3092,"dead":8},{"slot":"08:00","turno":"dia","tables":27,"fee":1543.53,"players":667,"hands":5573,"dead":8},{"slot":"08:30","turno":"dia","tables":38,"fee":832.71,"players":189,"hands":1305,"dead":17},{"slot":"09:00","turno":"dia","tables":118,"fee":16734.66,"players":1523,"hands":12066,"dead":33},{"slot":"09:30","turno":"dia","tables":44,"fee":2465.83,"players":858,"hands":6656,"dead":9},{"slot":"10:00","turno":"dia","tables":55,"fee":3458.72,"players":680,"hands":4955,"dead":20},{"slot":"10:30","turno":"dia","tables":42,"fee":3198.32,"players":421,"hands":3509,"dead":6},{"slot":"11:00","turno":"dia","tables":122,"fee":6966.21,"players":1830,"hands":13955,"dead":31},{"slot":"11:30","turno":"dia","tables":56,"fee":6807.86,"players":653,"hands":6030,"dead":10},{"slot":"12:00","turno":"dia","tables":58,"fee":1401.36,"players":828,"hands":5805,"dead":18},{"slot":"12:30","turno":"dia","tables":73,"fee":3742.18,"players":993,"hands":7943,"dead":18},{"slot":"13:00","turno":"dia","tables":132,"fee":10158.95,"players":1803,"hands":15205,"dead":26},{"slot":"13:30","turno":"dia","tables":60,"fee":1665.91,"players":515,"hands":3776,"dead":20},{"slot":"14:00","turno":"dia","tables":65,"fee":2023.39,"players":653,"hands":4516,"dead":21},{"slot":"14:30","turno":"dia","tables":64,"fee":5289.42,"players":749,"hands":6520,"dead":14},{"slot":"15:00","turno":"dia","tables":122,"fee":6035.11,"players":1092,"hands":7460,"dead":28},{"slot":"15:30","turno":"dia","tables":54,"fee":3637.27,"players":550,"hands":4117,"dead":13},{"slot":"16:00","turno":"dia","tables":89,"fee":4352.6,"players":978,"hands":8154,"dead":23},{"slot":"16:30","turno":"dia","tables":86,"fee":8430.7,"players":1159,"hands":9606,"dead":15},{"slot":"17:00","turno":"dia","tables":122,"fee":10808.45,"players":1681,"hands":12119,"dead":26},{"slot":"17:30","turno":"dia","tables":78,"fee":4565.63,"players":1030,"hands":7789,"dead":18},{"slot":"18:00","turno":"dia","tables":94,"fee":7830.08,"players":1142,"hands":8802,"dead":20},{"slot":"18:30","turno":"dia","tables":79,"fee":3246.5,"players":1377,"hands":10166,"dead":12},{"slot":"19:00","turno":"dia","tables":120,"fee":8433.82,"players":1436,"hands":10244,"dead":35},{"slot":"19:30","turno":"dia","tables":101,"fee":4652.64,"players":1600,"hands":11474,"dead":22},{"slot":"20:00","turno":"noite","tables":73,"fee":4051.8,"players":1175,"hands":7601,"dead":13},{"slot":"20:30","turno":"noite","tables":84,"fee":3903.2,"players":1297,"hands":8870,"dead":13},{"slot":"21:00","turno":"noite","tables":89,"fee":16764.81,"players":1242,"hands":9023,"dead":19},{"slot":"21:30","turno":"noite","tables":83,"fee":5921.28,"players":1090,"hands":7989,"dead":16},{"slot":"22:00","turno":"noite","tables":69,"fee":6726.92,"players":817,"hands":6255,"dead":15},{"slot":"22:30","turno":"noite","tables":75,"fee":2650.23,"players":843,"hands":5737,"dead":15},{"slot":"23:00","turno":"noite","tables":96,"fee":20500.95,"players":1026,"hands":8440,"dead":22},{"slot":"23:30","turno":"noite","tables":59,"fee":1322.23,"players":575,"hands":3944,"dead":20}],
+  end30:[{"slot":"00:00","tables":87},{"slot":"00:30","tables":95},{"slot":"01:00","tables":79},{"slot":"01:30","tables":76},{"slot":"02:00","tables":59},{"slot":"02:30","tables":69},{"slot":"03:00","tables":38},{"slot":"03:30","tables":43},{"slot":"04:00","tables":61},{"slot":"04:30","tables":32},{"slot":"05:00","tables":67},{"slot":"05:30","tables":10},{"slot":"06:00","tables":24},{"slot":"06:30","tables":27},{"slot":"07:00","tables":12},{"slot":"07:30","tables":19},{"slot":"08:00","tables":19},{"slot":"08:30","tables":20},{"slot":"09:00","tables":31},{"slot":"09:30","tables":30},{"slot":"10:00","tables":54},{"slot":"10:30","tables":49},{"slot":"11:00","tables":54},{"slot":"11:30","tables":49},{"slot":"12:00","tables":53},{"slot":"12:30","tables":53},{"slot":"13:00","tables":63},{"slot":"13:30","tables":69},{"slot":"14:00","tables":70},{"slot":"14:30","tables":65},{"slot":"15:00","tables":90},{"slot":"15:30","tables":78},{"slot":"16:00","tables":74},{"slot":"16:30","tables":69},{"slot":"17:00","tables":90},{"slot":"17:30","tables":87},{"slot":"18:00","tables":100},{"slot":"18:30","tables":79},{"slot":"19:00","tables":83},{"slot":"19:30","tables":80},{"slot":"20:00","tables":98},{"slot":"20:30","tables":90},{"slot":"21:00","tables":70},{"slot":"21:30","tables":96},{"slot":"22:00","tables":63},{"slot":"22:30","tables":89},{"slot":"23:00","tables":82},{"slot":"23:30","tables":70}],
+  concurrent:[{"h":0,"open":53},{"h":1,"open":115},{"h":2,"open":147},{"h":3,"open":148},{"h":4,"open":135},{"h":5,"open":184},{"h":6,"open":140},{"h":7,"open":189},{"h":8,"open":220},{"h":9,"open":338},{"h":10,"open":374},{"h":11,"open":446},{"h":12,"open":466},{"h":13,"open":547},{"h":14,"open":538},{"h":15,"open":576},{"h":16,"open":565},{"h":17,"open":606},{"h":18,"open":580},{"h":19,"open":582},{"h":20,"open":528},{"h":21,"open":433},{"h":22,"open":303},{"h":23,"open":152}],
+  gametypes:[{"type":"PLO5","tables":975,"fee":122945,"buyin":1382894,"players":14124,"hands":106243,"avg_dur":3.14,"rake_rate":8.89},{"type":"PLO6","tables":815,"fee":68494,"buyin":976632,"players":9642,"hands":66578,"avg_dur":2.77,"rake_rate":7.01},{"type":"NLH","tables":226,"fee":12955,"buyin":126221,"players":4922,"hands":49396,"avg_dur":4.42,"rake_rate":10.26},{"type":"PLO4","tables":141,"fee":6484,"buyin":70493,"players":3571,"hands":28010,"avg_dur":4.96,"rake_rate":9.2},{"type":"NLH(Swap)","tables":420,"fee":2785,"buyin":51755,"players":2915,"hands":18502,"avg_dur":2.01,"rake_rate":5.38},{"type":"PLO6(DB)","tables":42,"fee":2703,"buyin":18098,"players":871,"hands":6282,"avg_dur":4.17,"rake_rate":14.94},{"type":"6+PLO4","tables":45,"fee":2470,"buyin":22294,"players":604,"hands":5841,"avg_dur":3.51,"rake_rate":11.08},{"type":"OFC","tables":289,"fee":1971,"buyin":34419,"players":985,"hands":7807,"avg_dur":1.61,"rake_rate":5.73}],
+  opShift:[{"op":"Mesas S1","turno":"dia","tables":1698,"fee":119188,"players":23813,"dead":387},{"op":"Mesas S1","turno":"noite","tables":931,"fee":88977,"players":12951,"dead":202},{"op":"Mesas S2","turno":"dia","tables":185,"fee":8024,"players":559,"dead":67},{"op":"Mesas S2","turno":"noite","tables":118,"fee":2389,"players":382,"dead":53},{"op":"Mesas S3","turno":"dia","tables":14,"fee":1061,"players":31,"dead":8},{"op":"Mesas S3","turno":"noite","tables":7,"fee":1213,"players":14,"dead":1},{"op":"Mesas P1","turno":"dia","tables":2,"fee":8,"players":4,"dead":1},{"op":"Mesas P1","turno":"noite","tables":10,"fee":27,"players":23,"dead":7}],
+  rooms:[{"name":"Golden Cucurucho","tables":188,"fee":34084,"buyin":395696,"players":2011,"hands":17034,"rake_rate":8.61},{"name":"HighStakes HU","tables":12,"fee":25761,"buyin":306275,"players":27,"hands":1408,"rake_rate":8.41},{"name":"MONACO HU","tables":47,"fee":12614,"buyin":198054,"players":137,"hands":2903,"rake_rate":6.37},{"name":"LAS VEGAS","tables":16,"fee":12140,"buyin":108920,"players":36,"hands":1512,"rake_rate":11.15},{"name":"Titan HU","tables":116,"fee":6214,"buyin":116335,"players":258,"hands":3406,"rake_rate":5.34},{"name":"MONACO 20bb","tables":15,"fee":7006,"buyin":105480,"players":106,"hands":922,"rake_rate":6.64},{"name":"CARIBE HU","tables":78,"fee":5440,"buyin":103066,"players":165,"hands":2162,"rake_rate":5.28},{"name":"Golden 20bb","tables":64,"fee":6785,"buyin":101305,"players":518,"hands":4155,"rake_rate":6.7},{"name":"Edge 20bb","tables":134,"fee":7612,"buyin":84957,"players":4087,"hands":27896,"rake_rate":8.96},{"name":"Harmony 20bb","tables":71,"fee":6863,"buyin":84181,"players":1850,"hands":14094,"rake_rate":8.15},{"name":"Golden HU","tables":126,"fee":3663,"buyin":63256,"players":276,"hands":3830,"rake_rate":5.79},{"name":"Home Game","tables":2,"fee":9137,"buyin":44855,"players":4,"hands":115,"rake_rate":20.37},{"name":"MONACO Cucurucho","tables":5,"fee":3566,"buyin":42273,"players":36,"hands":485,"rake_rate":8.44},{"name":"Titan 20bb","tables":7,"fee":3044,"buyin":43969,"players":91,"hands":1097,"rake_rate":6.92},{"name":"MONACO","tables":3,"fee":3149,"buyin":47723,"players":29,"hands":410,"rake_rate":6.6}],
+  blinds:[{"bb":0.04,"tables":598,"fee":4333},{"bb":2.0,"tables":399,"fee":48239},{"bb":0.2,"tables":357,"fee":15771},{"bb":0.4,"tables":289,"fee":21598},{"bb":0.8,"tables":209,"fee":13849},{"bb":0.12,"tables":165,"fee":2160},{"bb":1.2,"tables":160,"fee":6443},{"bb":4.0,"tables":129,"fee":11807}],
+  duration:[{"bucket":"30-60m","tables":92,"fee":329,"dead":40,"ret":56.5},{"bucket":"1-2h","tables":1206,"fee":17757,"dead":489,"ret":59.5},{"bucket":"2-4h","tables":1079,"fee":89341,"dead":197,"ret":81.7},{"bucket":"4h+","tables":586,"fee":113434,"dead":0,"ret":100.0}],
+  top10:[{"name":"Home Game II A(46139796)","type":"PLO5","players":2,"hands":114,"fee":9136.54,"buyin":40855.07,"dur":3.65,"start_h":14},{"name":"HomeGame I Cucurucho(46153561)","type":"PLO5","players":10,"hands":277,"fee":8030.63,"buyin":29001.34,"dur":5.39,"start_h":9},{"name":"HighStakes HU II 1(46156264)","type":"PLO5","players":4,"hands":206,"fee":6291.24,"buyin":80362.93,"dur":3.33,"start_h":16},{"name":"HighStakes HU 1(46133258)","type":"PLO5","players":2,"hands":284,"fee":4486.06,"buyin":26935.47,"dur":3.96,"start_h":11},{"name":"LAS VEGAS HU ANTE(46137184)","type":"PLO5","players":3,"hands":560,"fee":3945.43,"buyin":15060.61,"dur":7.82,"start_h":9},{"name":"LAS VEGAS HU ANTE(46142632)","type":"PLO5","players":5,"hands":444,"fee":3424.7,"buyin":17101.28,"dur":7.59,"start_h":11},{"name":"HighStakes HU 1(46156731)","type":"PLO5","players":3,"hands":181,"fee":2842.75,"buyin":29247.0,"dur":4.58,"start_h":17},{"name":"HighStakes HU 2(46156402)","type":"PLO5","players":2,"hands":161,"fee":2779.01,"buyin":21065.12,"dur":4.3,"start_h":17},{"name":"HighStakes HU(46148172)","type":"PLO6","players":2,"hands":136,"fee":2489.85,"buyin":22150.71,"dur":3.96,"start_h":13},{"name":"MONACO Cucurucho C(46150833)","type":"PLO6","players":21,"hands":299,"fee":2469.42,"buyin":28517.27,"dur":6.24,"start_h":10}],
+  tiers:[{"tier":"Micro","tables":703,"fee":4445,"buyin":56727,"players":12184,"hands":78525,"dead":114,"ret_pct":83.8,"avg_fph":0.0452,"avg_fpp":0.27,"avg_bpp":3.8,"rake_rate":7.84},{"tier":"Low","tables":809,"fee":22824,"buyin":254491,"players":13790,"hands":100694,"dead":174,"ret_pct":78.5,"avg_fph":0.1624,"avg_fpp":1.07,"avg_bpp":16.3,"rake_rate":8.97},{"tier":"Mid","tables":561,"fee":36683,"buyin":445697,"players":7032,"hands":59099,"dead":161,"ret_pct":71.3,"avg_fph":0.4529,"avg_fpp":3.57,"avg_bpp":66.7,"rake_rate":8.23},{"tier":"High","tables":688,"fee":66489,"buyin":883198,"players":4059,"hands":39836,"dead":202,"ret_pct":70.6,"avg_fph":1.3207,"avg_fpp":13.27,"avg_bpp":220.9,"rake_rate":7.53},{"tier":"VHigh","tables":199,"fee":90412,"buyin":1042915,"players":641,"hands":11177,"dead":74,"ret_pct":62.8,"avg_fph":5.0975,"avg_fpp":148.15,"avg_bpp":1734.7,"rake_rate":8.67}],
+  fpp:[{"type":"PLO5","fpp":32.87,"tables":796},{"type":"PLO6","fpp":20.66,"tables":572},{"type":"PLO6(DB)","fpp":8.85,"tables":35},{"type":"6+PLO4","fpp":7.64,"tables":42},{"type":"NLH(Swap)","fpp":3.10,"tables":253},{"type":"NLH","fpp":2.89,"tables":205},{"type":"OFC","fpp":2.65,"tables":201},{"type":"PLO4","fpp":2.22,"tables":124}]
+};
+
+const KPI_DEMO={
+  feeGross:220888,feeNet:202645,feeDia:128282,feeNoite:92606,tablesDia:1899,tablesNoite:1066,
+  buyinTotal:2683388,takeRate:8.23,deadTables:726,deadPct:24.5,deadDia:463,deadNoite:263,
+  conc1pct:32.6,conc1Fee:72087,conc1Tables:29,conc5pct:59.4,conc5Fee:131300,conc5Tables:148,
+  conc10pct:74.5,conc10Fee:164481,conc10Tables:296,conc20pct:88.4,conc20Fee:195346,conc20Tables:593,
+  feePerHand:0.76,feePerHandDia:0.68,feePerHandNoite:0.91,jackpot:18242,jackpotPct:8.3,jackpotTables:1054,
+  feePerActiveTable:98.7,peakConcurrent:606,peakHour:'17h',bestSlot:'23:00',bestSlotEff:53.9,
+  crossShift:570,crossShiftPct:19.2,sessions:2965,playersTotal:37777,
+  huTables:1135,huFee:51199,huFph:1.025,huRet:45.0,huBpp:313.6,huHph:11.5,
+  multiTables:1830,multiFee:169689,multiFph:0.643,multiRet:94.4,multiBpp:106.3,multiHph:33.1,
+  anteTables:458,anteFee:63959,anteFph:1.847,anteRet:72.1,noAnteTables:2507,noAnteFee:156928,noAnteFph:0.596,noAnteRet:76.1,
+  feeRateB:[{r:'0–3%',t:840,fee:3318},{r:'3–6%',t:649,fee:20389},{r:'6–9%',t:749,fee:78355},{r:'9–12%',t:502,fee:56880},{r:'12%+',t:225,fee:61945}],
+  tables4hPlus:586,fee4hPlus:113433,fee4hPct:51.4,tablesMoreThan100:887,tablesMoreThan500:84,
+  multiRetTables:1727,handsPerHourP50:32.0,handsPerHourP25:17.9,handsPerHourP90:52.0,
+  date:'22/06/2026'
+};
+Object.keys(KPI_DEMO).forEach(k=>{
+  if(/fee|buyin|jackpot/i.test(k)&&typeof KPI_DEMO[k]==='number')KPI_DEMO[k]=KPI_DEMO[k]*GU_TO_BRL;
+});
+KPI_DEMO.feeRateB.forEach(x=>x.fee*=GU_TO_BRL);
+D.slots30.forEach(s=>s.fee*=GU_TO_BRL);
+D.gametypes.forEach(g=>{g.fee*=GU_TO_BRL;g.buyin*=GU_TO_BRL;});
+D.opShift.forEach(o=>o.fee*=GU_TO_BRL);
+D.rooms.forEach(r=>{r.fee*=GU_TO_BRL;r.buyin*=GU_TO_BRL;});
+D.blinds.forEach(b=>b.fee*=GU_TO_BRL);
+D.duration.forEach(x=>x.fee*=GU_TO_BRL);
+D.top10.forEach(x=>{x.fee*=GU_TO_BRL;x.buyin*=GU_TO_BRL;});
+D.tiers.forEach(t=>{t.fee*=GU_TO_BRL;t.buyin*=GU_TO_BRL;t.avg_fph*=GU_TO_BRL;t.avg_fpp*=GU_TO_BRL;t.avg_bpp*=GU_TO_BRL;});
+D.fpp.forEach(x=>x.fpp*=GU_TO_BRL);
+
+// ══════════════════════════════ HELPERS
+const f=(n,d=0)=>n==null?'—':Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fK=n=>n>=1e6?f(n/1e6,1)+'M':n>=1e3?f(n/1e3,1)+'k':f(n,0);
+const fKR=n=>'R$ '+fK(n);
+const shiftOf=h=>(h>=8&&h<20)?'dia':'noite';
+const tagCls=t=>t.startsWith('PLO')?'tp':t.startsWith('NLH')?'tn':t==='OFC'?'to':'t6';
+const CTOP={backgroundColor:'#0e0e11',titleColor:'#f0f0f5',bodyColor:'rgba(240,240,245,.6)',padding:10,cornerRadius:8,borderColor:'rgba(255,255,255,.08)',borderWidth:1};
+const CGRID='rgba(255,255,255,.04)';
+const CTEXT='rgba(240,240,245,.35)';
+
+// ══════════════════════════════ ICON HELPER
+const ic=(name,fill)=>`<i class="ph${fill?'-fill':''} ph-${name}"></i>`;
+
+// ══════════════════════════════ INTEL CARD RENDERER (shared by recs/shiftRecs/fcIntel)
+function renderIntelCards(elId,cards){
+  const el=document.getElementById(elId);if(!el)return;
+  el.innerHTML=cards.map(c=>`
+    <div class="intel ${c.type}">
+      <div class="intel-header">
+        <span class="intel-icon">${c.icon}</span>
+        <span class="intel-tag ${c.type}">${c.tag}</span>
+      </div>
+      <div class="intel-title">${c.title}</div>
+      <div class="intel-body">${c.body}</div>
+      ${c.metric?`<div class="intel-metric">
+        <span class="intel-metric-val ${c.metric.cls}">${c.metric.val}</span>
+        <span class="intel-metric-label">${c.metric.label}</span>
+      </div>`:''}
+      ${c.compare?`<div class="intel-compare">
+        <div class="intel-cmp-col">
+          <div class="intel-cmp-label ${c.compare.left.label}">${c.compare.left.label==='dia'?ic('sun',1)+' Dia':c.compare.left.label==='noite'?ic('moon-stars',1)+' Noite':c.compare.left.label}</div>
+          <div class="intel-cmp-val">${c.compare.left.val}</div>
+          <div class="intel-cmp-sub">${c.compare.left.sub}</div>
+        </div>
+        <div style="width:1px;background:var(--bdr)"></div>
+        <div class="intel-cmp-col">
+          <div class="intel-cmp-label ${c.compare.right.label}">${c.compare.right.label==='dia'?ic('sun',1)+' Dia':c.compare.right.label==='noite'?ic('moon-stars',1)+' Noite':c.compare.right.label}</div>
+          <div class="intel-cmp-val">${c.compare.right.val}</div>
+          <div class="intel-cmp-sub">${c.compare.right.sub}</div>
+        </div>
+      </div>`:''}
+      <span class="intel-action ${c.action.cls}">${ic('arrow-right')} ${c.action.text}</span>
+    </div>`).join('');
+}
+
+// ══════════════════════════════ THEME TOGGLE
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme',t);
+  const btn=document.getElementById('themeToggle');
+  if(btn)btn.innerHTML=t==='light'?'<i class="ph ph-sun"></i>':'<i class="ph ph-moon"></i>';
+}
+function toggleTheme(){
+  const cur=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';
+  localStorage.setItem('theme',cur);
+  applyTheme(cur);
+}
+applyTheme(localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'));
+
+// ══════════════════════════════ SHIFT DETECT
+function detectShift(){
+  const h=new Date().getHours();
+  const s=shiftOf(h);
+  const chip=document.getElementById('shiftChip');
+  const pl=document.getElementById('shiftPulse');
+  const lb=document.getElementById('shiftLabel');
+  chip.className='shift-chip '+s;
+  pl.className='pulse '+s;
+  lb.textContent=s==='dia'?'Turno Dia (08–20)':'Turno Noite (20–08)';
+}
+detectShift();
+
+// ══════════════════════════════ PAGE NAV
+function pg(id,btn){
+  document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.nt').forEach(b=>b.classList.remove('on'));
+  document.getElementById('pg-'+id).classList.add('on');
+  btn.classList.add('on');
+}
+
+// ══════════════════════════════ TIMELINE
+function buildTimeline(){
+  const el=document.getElementById('timeline');
+  const max=Math.max(...D.slots30.map(s=>s.fee));
+  let ax='<div class="tl-axis">';
+  for(let h=0;h<24;h+=2)ax+=`<span>${String(h).padStart(2,'0')}h</span>`;
+  ax+='</div>';
+  let band='<div class="tl-band">';
+  D.slots30.forEach(s=>{
+    const p=s.fee/max;
+    const a=Math.max(0.06,p*0.94+0.06);
+    const c=s.turno==='dia'?`rgba(79,142,247,${a.toFixed(2)})`:`rgba(167,139,250,${a.toFixed(2)})`;
+    const tt=`${s.slot} · Turno ${s.turno==='dia'?'Dia':'Noite'} · R$ ${f(s.fee,0)} · ${s.tables} mesas · ${s.players} players`;
+    band+=`<div class="tl-seg" style="background:${c}" title="${tt}"></div>`;
+  });
+  band+='</div>';
+  el.innerHTML=ax+band;
+}
+
+// ══════════════════════════════ HOUR CHART
+let hrC;const hrByH={};
+D.slots30.forEach(s=>{const h=parseInt(s.slot);if(!hrByH[h]){hrByH[h]={fee:0,players:0,hands:0,tables:0,concurrent:0}}hrByH[h].fee+=s.fee;hrByH[h].players+=s.players;hrByH[h].hands+=s.hands;hrByH[h].tables+=s.tables;});
+D.concurrent.forEach(c=>{if(hrByH[c.h])hrByH[c.h].concurrent=c.open;});
+const hrLabels=[];const hrFee=[];const hrPl=[];const hrHd=[];const hrTb=[];const hrCc=[];const hrBg=[];const hrBd=[];
+for(let h=0;h<24;h++){hrLabels.push(String(h).padStart(2,'0')+'h');const d=hrByH[h]||{fee:0,players:0,hands:0,tables:0,concurrent:0};hrFee.push(d.fee);hrPl.push(d.players);hrHd.push(d.hands);hrTb.push(d.tables);hrCc.push(d.concurrent);hrBg.push(shiftOf(h)==='dia'?'rgba(79,142,247,.2)':'rgba(167,139,250,.2)');hrBd.push(shiftOf(h)==='dia'?'#4f8ef7':'#a78bfa');}
+function buildHrChart(){
+  hrC=new Chart(document.getElementById('cHour'),{
+    type:'bar',
+    data:{labels:hrLabels,datasets:[
+      {type:'line',data:hrFee,borderColor:'rgba(255,255,255,.5)',borderWidth:1.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:4,yAxisID:'y',order:1},
+      {type:'bar',data:hrFee,backgroundColor:hrBg,borderColor:hrBd,borderWidth:1,borderRadius:4,yAxisID:'y',order:2}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{...CTOP,callbacks:{title:c=>`${c[0].label} · ${shiftOf(parseInt(c[0].label))==='dia'?'Turno Dia':'Turno Noite'}`,label:c=>c.datasetIndex===0?` R$ ${f(c.parsed.y,0)}`:''}},
+      },
+      scales:{x:{grid:{display:false},ticks:{font:{size:9},color:CTEXT,maxRotation:0,callback:(v,i)=>i%3===0?hrLabels[i]:''},border:{display:false}},y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>fK(v)},border:{display:false}}}
+    }
+  });
+  window._hrData={fee:hrFee,players:hrPl,hands:hrHd,tables:hrTb,concurrent:hrCc};
+}
+function swHr(m,el){
+  document.querySelectorAll('.chtab').forEach(t=>t.classList.remove('on'));el.classList.add('on');
+  const d=window._hrData[m];
+  hrC.data.datasets[0].data=d;hrC.data.datasets[1].data=d;hrC.update();
+}
+
+// ══════════════════════════════ LIFECYCLE
+function buildLifecycle(){
+  new Chart(document.getElementById('cLife'),{
+    type:'bar',
+    data:{labels:D.slots30.map(s=>s.slot),datasets:[
+      {type:'bar',label:'Abertas',data:D.slots30.map(s=>s.tables),backgroundColor:D.slots30.map(s=>s.turno==='dia'?'rgba(79,142,247,.3)':'rgba(167,139,250,.3)'),borderColor:D.slots30.map(s=>s.turno==='dia'?'#4f8ef7':'#a78bfa'),borderWidth:1,borderRadius:3},
+      {type:'line',label:'Encerradas',data:D.end30.map(s=>s.tables),borderColor:'#f87171',borderWidth:1.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:4}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:10,usePointStyle:true}},tooltip:{...CTOP}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:8},color:CTEXT,maxRotation:0,callback:(v,i)=>i%4===0?D.slots30[i].slot:''},border:{display:false}},y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT},border:{display:false}}}
+    }
+  });
+}
+
+// ══════════════════════════════ MODAL
+function buildModal(){
+  const d=D.gametypes.slice(0,8);
+  const cols=['#4f8ef7','#a78bfa','#34d399','#fbbf24','#f87171','#f472b6','#60a5fa','#c084fc'];
+  new Chart(document.getElementById('cModal'),{
+    type:'bar',
+    data:{labels:d.map(x=>x.type),datasets:[{label:'Fee',data:d.map(x=>x.fee),backgroundColor:cols,borderRadius:5,borderSkipped:false}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{...CTOP,callbacks:{label:c=>` R$ ${f(c.parsed.x,0)} · rake ${d[c.dataIndex].rake_rate}%`}}},
+      scales:{x:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>fK(v)},border:{display:false}},y:{grid:{display:false},ticks:{font:{size:10},color:'rgba(240,240,245,.7)',font:{weight:'700'}},border:{display:false}}}
+    }
+  });
+}
+
+// ══════════════════════════════ OPERATORS
+function buildOpDiv(){
+  const ops=['Mesas S1','Mesas S2','Mesas S3','Mesas P1'];
+  const total=D.opShift.reduce((a,b)=>a+b.fee,0);
+  document.getElementById('opDiv').innerHTML=ops.map(op=>{
+    const dia=D.opShift.find(x=>x.op===op&&x.turno==='dia')||{tables:0,fee:0,players:0};
+    const noite=D.opShift.find(x=>x.op===op&&x.turno==='noite')||{tables:0,fee:0,players:0};
+    const t=dia.fee+noite.fee;if(!t)return'';
+    return`<div class="pb" style="margin-bottom:14px">
+      <div class="pb-top"><span class="pb-t">${op}</span><span class="pb-s">R$ ${f(t,0)} · ${(t/total*100).toFixed(1)}%</span></div>
+      <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;gap:1px">
+        <div style="width:${(dia.fee/t*100).toFixed(1)}%;background:#4f8ef7;border-radius:4px 0 0 4px;min-width:2px"></div>
+        <div style="flex:1;background:#a78bfa;border-radius:0 4px 4px 0;min-width:2px"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;color:var(--ink3);margin-top:3px">
+        <span style="color:var(--dia)"><i class="ph-fill ph-sun"></i> ${f(dia.fee,0)}</span><span style="color:var(--noite)"><i class="ph-fill ph-moon-stars"></i> ${f(noite.fee,0)}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════ TOP 10
+function buildTop10(){
+  const t=document.getElementById('top10t');
+  t.innerHTML=`<thead><tr><th>#</th><th>Sessão</th><th>Tipo</th><th>Turno</th><th class="r">Players</th><th class="r">Mãos</th><th class="r">Dur.</th><th class="r">Buyin R$</th><th class="r">Fee R$</th><th class="r">Take rate</th></tr></thead><tbody>`+
+  D.top10.map((r,i)=>{
+    const sh=shiftOf(r.start_h);const tr=(r.fee/r.buyin*100).toFixed(1);
+    const trc=tr>15?'var(--red)':tr>10?'var(--amber)':'var(--green)';
+    return`<tr>
+      <td><span class="rk">${i+1}</span></td>
+      <td class="b" style="max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</td>
+      <td><span class="tag ${tagCls(r.type)}">${r.type}</span></td>
+      <td><span class="sbdg ${sh}"><span class="sdot ${sh}"></span>${sh==='dia'?'Dia':'Noite'}</span></td>
+      <td class="r m">${r.players}</td><td class="r m">${f(r.hands)}</td>
+      <td class="r m">${r.dur.toFixed(1)}h</td><td class="r m">${f(r.buyin,0)}</td>
+      <td class="r b">${f(r.fee,2)}</td>
+      <td class="r"><span style="color:${trc};font-weight:700;font-size:11px">${tr}%</span></td>
+    </tr>`;
+  }).join('')+'</tbody>';
+}
+
+// ══════════════════════════════ RECS
+// ══════════════════════════════ RECOMMENDATION ENGINE (Overview)
+function computeOverviewRecs(){
+  const recs=[];
+  const totalGameFee=D.gametypes.reduce((a,g)=>a+g.fee,0);
+  const top=D.gametypes.reduce((a,b)=>b.fee>a.fee?b:a);
+  const topShare=top.fee/totalGameFee*100;
+  const bestDiaSlot=D.slots30.filter(s=>s.turno==='dia').reduce((a,b)=>b.fee>(a?a.fee:0)?b:a,null);
+  const bestNoiteSlot=D.slots30.filter(s=>s.turno==='noite').reduce((a,b)=>b.fee>(a?a.fee:0)?b:a,null);
+  recs.push({i:ic('fire',1),c:'g',t:`${top.type} domina ${f(topShare,1)}% do rake`,
+    b:`R$ ${f(top.fee,0)} em ${top.tables} mesas. Priorizar abertura em ${bestDiaSlot.slot} (Dia) e ${bestNoiteSlot.slot} (Noite) — os melhores slots de cada turno.`,sh:'dia'});
+
+  const diaFpm=KPI_DEMO.feeDia/KPI_DEMO.tablesDia, noiteFpm=KPI_DEMO.feeNoite/KPI_DEMO.tablesNoite;
+  const shiftUp=noiteFpm>=diaFpm?'noite':'dia', shiftDown=shiftUp==='dia'?'noite':'dia';
+  const shiftGap=(Math.abs(noiteFpm-diaFpm)/Math.min(diaFpm,noiteFpm)*100);
+  recs.push({i:ic(shiftUp==='noite'?'moon-stars':'sun',1),c:'i',t:`Turno ${shiftUp==='dia'?'Dia':'Noite'}: fee/mesa ${f(shiftGap,0)}% maior`,
+    b:`R$ ${f(Math.max(diaFpm,noiteFpm),1)} vs R$ ${f(Math.min(diaFpm,noiteFpm),1)} no Turno ${shiftDown==='dia'?'Dia':'Noite'}. A diferença de eficiência por mesa é o principal sinal de qualidade de player entre turnos.`,sh:shiftUp});
+
+  const anteMult=KPI_DEMO.anteFph/KPI_DEMO.noAnteFph;
+  recs.push({i:ic('lightning',1),c:'g',t:`Ante ${f(anteMult,1)}x mais fee/mão`,
+    b:`Mesas com ante: R$ ${f(KPI_DEMO.anteFph,2)}/mão vs R$ ${f(KPI_DEMO.noAnteFph,2)} sem ante, em ${KPI_DEMO.anteTables} mesas com ante contra ${KPI_DEMO.noAnteTables} sem. Expandir a estrutura de ante é a maior alavanca de receita disponível hoje.`,sh:''});
+
+  const vhigh=D.tiers.find(t=>t.tier==='VHigh');
+  const totalTierFee=D.tiers.reduce((a,t)=>a+t.fee,0), totalTierTables=D.tiers.reduce((a,t)=>a+t.tables,0);
+  const vhighFeeShare=vhigh.fee/totalTierFee*100, vhighTableShare=vhigh.tables/totalTierTables*100;
+  recs.push({i:ic('diamond',1),c:'g',t:`VHigh: R$ ${f(vhigh.fee,0)} com ${vhigh.tables} mesas`,
+    b:`${f(vhighFeeShare,1)}% do rake concentrado em apenas ${f(vhighTableShare,1)}% das mesas. Concentração extrema — proteger esses jogadores é missão crítica.`,sh:''});
+
+  recs.push({i:ic('chart-bar',1),c:KPI_DEMO.conc1pct>30?'w':'i',t:`Top 1% gera ${f(KPI_DEMO.conc1pct,1)}% do rake`,
+    b:`${KPI_DEMO.conc1Tables} mesas geram R$ ${f(KPI_DEMO.conc1Fee,0)}. Com crescimento de base, criar alertas para sessões anômalas automaticamente reduz o risco de churn concentrado.`,sh:''});
+
+  const worstBucket=D.duration.reduce((a,b)=>b.ret<a.ret?b:a);
+  const worstAbandon=100-worstBucket.ret;
+  recs.push({i:ic('warning',1),c:'w',t:`${worstBucket.bucket}: ${f(worstAbandon,1)}% de abandono`,
+    b:`${worstBucket.tables} mesas nessa faixa de duração, ${worstBucket.dead} sem retenção. Investigar horários e tipos com maior abandono para intervenção direcionada.`,sh:''});
+
+  let bestSlot=null,bestSlotEff=0;
+  D.slots30.forEach(s=>{if(!s.tables)return;const eff=s.fee/(s.tables*0.5);if(eff>bestSlotEff){bestSlotEff=eff;bestSlot=s;}});
+  recs.push({i:ic('sun-horizon',1),c:'i',t:`${bestSlot.slot}: slot mais eficiente (R$ ${f(bestSlotEff,1)}/mesa/h)`,
+    b:`O melhor slot de toda a operação, no Turno ${bestSlot.turno==='dia'?'Dia':'Noite'}. Garantir cobertura operacional máxima nesse horário.`,sh:bestSlot.turno});
+
+  recs.push({i:ic('arrows-clockwise',1),c:'w',t:`${f(KPI_DEMO.crossShift)} sessões cruzam a virada de turno`,
+    b:`${f(KPI_DEMO.crossShiftPct,1)}% das sessões diárias. Handoff crítico às 08h e 20h — rastrear quais salas geram mais mesas órfãs nesse momento.`,sh:''});
+
+  return recs;
+}
+function buildRecs(){
+  const recs=computeOverviewRecs();
+  document.getElementById('recsDiv').innerHTML=recs.map(r=>`
+    <div class="rec ${r.c}">
+      <span class="rec-ico">${r.i}</span>
+      <div class="rec-t">${r.t}</div>
+      <div class="rec-b">${r.b}</div>
+      ${r.sh?`<div class="rec-sh ${r.sh}">${r.sh==='dia'?ic('sun',1)+' Turno Dia':ic('moon-stars',1)+' Turno Noite'}</div>`:''}
+    </div>`).join('');
+}
+
+// ══════════════════════════════ SHIFT BEST SLOTS
+function buildBestSlots(){
+  const dia=D.slots30.filter(s=>s.turno==='dia').sort((a,b)=>b.fee-a.fee).slice(0,3);
+  const noite=D.slots30.filter(s=>s.turno==='noite').sort((a,b)=>b.fee-a.fee).slice(0,3);
+  const maxDia=dia[0]?.fee||1;const maxNoite=noite[0]?.fee||1;
+  const renderSlots=(arr,maxF,col,elId)=>{
+    document.getElementById(elId).innerHTML=arr.map(s=>`
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:10px;font-weight:800;width:40px;color:${col}">${s.slot}</span>
+        <div style="flex:1;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden">
+          <div style="width:${(s.fee/maxF*100).toFixed(0)}%;height:100%;background:${col};border-radius:3px"></div>
+        </div>
+        <span style="font-size:9px;font-weight:700;color:${col};width:60px;text-align:right">R$ ${fK(s.fee)}</span>
+      </div>`).join('');
+  };
+  renderSlots(dia,maxDia,'#4f8ef7','diaBestSlots');
+  renderSlots(noite,maxNoite,'#a78bfa','nBestSlots');
+}
+
+// ══════════════════════════════ SHIFT FEE CHART
+function buildShiftFee(){
+  const dia=D.slots30.filter(s=>s.turno==='dia');
+  const noite=D.slots30.filter(s=>s.turno==='noite');
+  const ctx=document.getElementById('cShiftFee');if(!ctx)return;
+  new Chart(ctx,{
+    type:'bar',
+    data:{labels:Array.from({length:Math.max(dia.length,noite.length)},(_,i)=>i),
+      datasets:[
+        {label:'Dia (08-20h)',data:dia.map(s=>s.fee),backgroundColor:'rgba(79,142,247,.3)',borderColor:'#4f8ef7',borderWidth:1,borderRadius:4},
+        {label:'Noite (20-08h)',data:noite.map(s=>s.fee),backgroundColor:'rgba(167,139,250,.3)',borderColor:'#a78bfa',borderWidth:1,borderRadius:4}
+      ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:10}},tooltip:{...CTOP,callbacks:{title:c=>c[0].datasetIndex===0?dia[c[0].dataIndex]?.slot:noite[c[0].dataIndex]?.slot}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:8},color:CTEXT,callback:(v,i)=>i%3===0?(dia[i]?.slot||''):''},border:{display:false}},y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>fK(v)},border:{display:false}}}
+    }
+  });
+}
+
+// ══════════════════════════════ CONCURRENT
+function buildConcurrent(){
+  const ctx=document.getElementById('cConcurrent');if(!ctx)return;
+  new Chart(ctx,{
+    type:'line',
+    data:{labels:D.concurrent.map(c=>String(c.h).padStart(2,'0')+'h'),
+      datasets:[{
+        label:'Mesas simultâneas',
+        data:D.concurrent.map(c=>c.open),
+        borderColor:'#34d399',borderWidth:2,tension:.4,fill:true,
+        backgroundColor:'rgba(52,211,153,.06)',
+        pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:'#34d399'
+      }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{...CTOP,callbacks:{label:c=>` ${f(c.parsed.y)} mesas simultâneas`}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:9},color:CTEXT,maxRotation:0},border:{display:false}},y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT},border:{display:false},min:0}}
+    }
+  });
+}
+
+// ══════════════════════════════ OP SHIFT TABLE
+function buildOpShiftTable(){
+  const t=document.getElementById('opShiftTbl');if(!t)return;
+  const ops=[...new Set(D.opShift.map(x=>x.op))];
+  t.innerHTML=`<thead><tr><th>Operador</th><th>Turno</th><th class="r">Mesas</th><th class="r">Fee R$</th><th class="r">Players</th><th class="r">Mortas</th><th class="r">Fee/mesa</th></tr></thead><tbody>`+
+  ops.flatMap(op=>{
+    const d=D.opShift.find(x=>x.op===op&&x.turno==='dia')||{tables:0,fee:0,players:0,dead:0};
+    const n=D.opShift.find(x=>x.op===op&&x.turno==='noite')||{tables:0,fee:0,players:0,dead:0};
+    return[`<tr><td rowspan="2" class="b" style="border-right:1px solid var(--bdr)">${op}</td>
+      <td><span class="sbdg dia"><span class="sdot dia"></span><i class="ph-fill ph-sun"></i> Dia</span></td>
+      <td class="r m">${f(d.tables)}</td><td class="r b">${f(d.fee,0)}</td><td class="r m">${f(d.players)}</td>
+      <td class="r" style="color:${d.tables?d.dead/d.tables>0.25?'var(--amber)':'var(--ink2)':'var(--ink3)'}">${d.dead} (${d.tables?f(d.dead/d.tables*100,0):0}%)</td>
+      <td class="r m">${d.tables?f(d.fee/d.tables,1):'—'}</td></tr>`,
+    `<tr style="background:rgba(255,255,255,.015)"><td><span class="sbdg noite"><span class="sdot noite"></span><i class="ph-fill ph-moon-stars"></i> Noite</span></td>
+      <td class="r m">${f(n.tables)}</td><td class="r b">${f(n.fee,0)}</td><td class="r m">${f(n.players)}</td>
+      <td class="r" style="color:${n.tables?n.dead/n.tables>0.25?'var(--amber)':'var(--ink2)':'var(--ink3)'}">${n.dead} (${n.tables?f(n.dead/n.tables*100,0):0}%)</td>
+      <td class="r m">${n.tables?f(n.fee/n.tables,1):'—'}</td></tr>`];
+  }).join('')+'</tbody>';
+}
+
+// ══════════════════════════════ SHIFT RECS — INTEL CARDS
+function buildShiftRecs(){
+  if(!document.getElementById('shiftRecs'))return;
+
+  const diaFee=KPI_DEMO.feeDia, noiteFee=KPI_DEMO.feeNoite;
+  const diaMesas=KPI_DEMO.tablesDia, noiteMesas=KPI_DEMO.tablesNoite;
+  const diaFpm=diaFee/diaMesas, noiteFpm=noiteFee/noiteMesas;
+  const diaDeadPct=KPI_DEMO.deadDia/diaMesas*100, noiteDeadPct=KPI_DEMO.deadNoite/noiteMesas*100;
+  const higherFpm=noiteFpm>=diaFpm?'noite':'dia';
+  const gain=(Math.abs(noiteFpm-diaFpm)/Math.min(diaFpm,noiteFpm)*100);
+  const volumeUp=diaMesas>=noiteMesas?'dia':'noite';
+  const volumeGain=(Math.abs(diaMesas-noiteMesas)/Math.min(diaMesas,noiteMesas)*100);
+  const revenueUp=diaFee>=noiteFee?'dia':'noite';
+  const revenueGain=(Math.abs(diaFee-noiteFee)/Math.min(diaFee,noiteFee)*100);
+
+  const diaSlots=D.slots30.filter(s=>s.turno==='dia'), noiteSlots=D.slots30.filter(s=>s.turno==='noite');
+  const bestDiaSlot=diaSlots.reduce((a,b)=>b.fee>a.fee?b:a);
+  const bestNoiteSlot=noiteSlots.reduce((a,b)=>b.fee>a.fee?b:a);
+  const bestDiaEff=bestDiaSlot.fee/(bestDiaSlot.tables*0.5);
+  const bestNoiteEff=bestNoiteSlot.fee/(bestNoiteSlot.tables*0.5);
+  const avgEff=D.slots30.filter(s=>s.tables).reduce((a,s)=>a+s.fee/(s.tables*0.5),0)/D.slots30.filter(s=>s.tables).length;
+  const overallBest=bestNoiteSlot.fee>=bestDiaSlot.fee?bestNoiteSlot:bestDiaSlot, overallOther=overallBest===bestNoiteSlot?bestDiaSlot:bestNoiteSlot;
+  const overallBestEff=overallBest===bestNoiteSlot?bestNoiteEff:bestDiaEff;
+  const diaSlotShare=bestDiaSlot.fee/diaFee*100;
+
+  const crossing=KPI_DEMO.crossShift;
+  const crossPct=crossing/(diaMesas+noiteMesas)*100;
+
+  const lostDeadFee=Math.round((diaDeadPct/100)*diaFee+(noiteDeadPct/100)*noiteFee);
+
+  const noite7hSlot=noiteSlots.find(s=>s.slot==='07:00');
+  const noiteRank=[...noiteSlots].sort((a,b)=>b.fee-a.fee).findIndex(s=>s.slot==='07:00')+1;
+
+  const cards=[
+    {
+      type:'both', icon:ic('scales',1),
+      tag:'Comparativo',
+      title:`Turno ${higherFpm==='noite'?'Noite':'Dia'} é ${f(gain,0)}% mais eficiente por mesa — mas Turno ${revenueUp==='dia'?'Dia':'Noite'} gera ${f(revenueGain,0)}% mais receita total`,
+      body:`O Turno ${volumeUp==='dia'?'Dia':'Noite'} abre ${f(volumeGain,0)}% mais mesas e domina em volume. O outro turno compensa com qualidade: players com stakes mais altos produzem R$ ${f(gain,0)}% a mais por mesa. A estratégia ótima é maximizar volume onde ele já é forte e proteger qualidade no outro turno.`,
+      compare:{
+        left:{label:'dia', val:'R$ '+f(diaFpm,0), sub:'fee por mesa ativa'},
+        right:{label:'noite', val:'R$ '+f(noiteFpm,0), sub:'fee por mesa ativa'}
+      },
+      action:{cls:'both', text:'Oportunidade estrutural de longo prazo'}
+    },
+    {
+      type:overallBest===bestNoiteSlot?'noite':'dia', icon:ic('sparkle',1),
+      tag:`Turno ${overallBest===bestNoiteSlot?'Noite':'Dia'}`,
+      title:`${overallBest.slot} supera qualquer slot do outro turno — o melhor momento de toda a operação`,
+      body:`O slot das ${overallBest.slot} gera R$ ${f(overallBest.fee,0)} em apenas 30 minutos, ${f((overallBest.fee/overallOther.fee-1)*100,0)}% acima do melhor slot do outro turno. Fee/mesa/hora de R$ ${f(overallBestEff,1)} — ${f(overallBestEff/avgEff,1)}x a média geral. Cobertura operacional neste bloco é inegociável.`,
+      metric:{val:'R$ '+f(overallBestEff,1), cls:overallBest===bestNoiteSlot?'noite':'dia', label:`fee por mesa por hora no slot ${overallBest.slot}`},
+      compare:{
+        left:{label:'noite', val:'R$ '+f(bestNoiteSlot.fee,0), sub:'melhor slot: '+bestNoiteSlot.slot},
+        right:{label:'dia', val:'R$ '+f(bestDiaSlot.fee,0), sub:'melhor slot: '+bestDiaSlot.slot}
+      },
+      action:{cls:overallBest===bestNoiteSlot?'noite':'dia', text:'Prioridade máxima nesse bloco'}
+    },
+    {
+      type:'dia', icon:ic('sun',1),
+      tag:'Turno Dia',
+      title:`${bestDiaSlot.slot} concentra ${f(diaSlotShare,1)}% de todo o fee diurno em 30 minutos`,
+      body:`O slot das ${bestDiaSlot.slot} gera R$ ${f(bestDiaSlot.fee,0)}, representando ${f(diaSlotShare,1)}% de todo o rake do Turno Dia. Mesas premium, promoções e atenção operacional devem se concentrar neste momento.`,
+      metric:{val:f(diaSlotShare,1)+'%', cls:'dia', label:`do rake do Turno Dia gerado no slot ${bestDiaSlot.slot}`},
+      compare:{
+        left:{label:'dia', val:'R$ '+f(bestDiaSlot.fee,0), sub:`slot ${bestDiaSlot.slot} (30 min)`},
+        right:{label:'dia', val:'R$ '+f(diaFee/diaSlots.length,0), sub:'média por slot 30min'}
+      },
+      action:{cls:'dia', text:`Preparar grade antes das ${bestDiaSlot.slot}`}
+    },
+    {
+      type:'alert', icon:ic('arrows-clockwise',1),
+      tag:'Risco operacional',
+      title:`${f(crossing)} sessões ativas na virada de turno — ${f(crossPct,1)}% das mesas não têm dono claro`,
+      body:`Às 08:00 e 20:00 há ${f(crossing)} mesas em andamento que foram abertas no turno anterior. Com crescimento da base, esse número vai aumentar. Sem protocolo de handoff, jogadores nessas mesas ficam sem suporte. Criar SLA de transferência é urgente.`,
+      metric:{val:f(crossPct,1)+'%', cls:'r', label:'das sessões diárias cruzam a fronteira de turno'},
+      action:{cls:'a', text:'Implementar protocolo de handoff'}
+    },
+    {
+      type:'gold', icon:ic('hand-coins',1),
+      tag:'Fee desperdiçado',
+      title:`R$ ${f(lostDeadFee,0)} perdidos por mesas mortas — ${f(diaDeadPct,1)}% Dia e ${f(noiteDeadPct,1)}% Noite`,
+      body:`Taxa de ociosidade próxima nos dois turnos indica problema estrutural, não de gestão por turno. As mesas abertas sem jogadores custam rake não gerado. Cada 1% de redução na taxa de mortas equivale a aproximadamente R$ ${f(lostDeadFee/100*20,0)} extras por dia.`,
+      compare:{
+        left:{label:'dia', val:f(diaDeadPct,1)+'%', sub:'mesas sem retenção'},
+        right:{label:'noite', val:f(noiteDeadPct,1)+'%', sub:'mesas sem retenção'}
+      },
+      action:{cls:'a', text:'Auditar salas com maior ociosidade'}
+    },
+  ];
+  if(noite7hSlot){
+    cards.push({
+      type:'noite', icon:ic('rocket-launch',1),
+      tag:'Underdog do Noite',
+      title:`07:00 é o slot surpresa — R$ ${f(noite7hSlot.fee,0)} ignorado nos relatórios convencionais`,
+      body:`O bloco das 7h gera R$ ${f(noite7hSlot.fee,0)} — mais que a maioria dos slots do Turno Dia. É o "pico de chegada" de jogadores que entram antes da virada às 08h. Abrir mesas premium nesse slot adianta receita que normalmente seria contada como Dia.`,
+      metric:{val:'R$ '+f(noite7hSlot.fee,0), cls:'noite', label:`gerados no slot 07:00 — ${noiteRank}° melhor do Turno Noite`},
+      action:{cls:'noite', text:'Abrir grade premium às 06:30'}
+    });
+  }
+  renderIntelCards('shiftRecs',cards);
+}
+
+// ══════════════════════════════ TIER CHARTS
+function buildTierCharts(){
+  const ctx1=document.getElementById('cTierFee');if(!ctx1)return;
+  const cols=['rgba(120,120,150,.6)','rgba(79,142,247,.7)','rgba(52,211,153,.7)','rgba(251,191,36,.8)','rgba(212,168,83,.9)'];
+  new Chart(ctx1,{type:'bar',
+    data:{labels:D.tiers.map(t=>t.tier),datasets:[{label:'Fee',data:D.tiers.map(t=>t.fee),backgroundColor:cols,borderRadius:6,borderSkipped:false}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{...CTOP,callbacks:{label:c=>` R$ ${f(c.parsed.y,0)} · rake ${D.tiers[c.dataIndex].rake_rate}% · ret ${D.tiers[c.dataIndex].ret_pct}%`}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:9},color:CTEXT},border:{display:false}},y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>fK(v)},border:{display:false}}}
+    }
+  });
+  const ctx2=document.getElementById('cTierFph');if(!ctx2)return;
+  new Chart(ctx2,{type:'bar',
+    data:{labels:D.tiers.map(t=>t.tier),datasets:[{label:'Fee/mão',data:D.tiers.map(t=>t.avg_fph),backgroundColor:cols,borderRadius:6,borderSkipped:false}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{...CTOP,callbacks:{label:c=>` R$ ${c.parsed.y.toFixed(4)}/mão · fee/player ${D.tiers[c.dataIndex].avg_fpp}`}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:9},color:CTEXT},border:{display:false}},y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT},border:{display:false}}}
+    }
+  });
+}
+
+// ══════════════════════════════ CONCENTRATION BAR
+function buildConc(){
+  const el=document.getElementById('concBar');if(!el)return;
+  el.innerHTML=`<div class="conc-bar">
+    <div class="conc-seg" style="width:32.6%;background:linear-gradient(135deg,#d4a853,#f59e0b)" title="Top 1%: 32,6% do rake">Top 1%</div>
+    <div class="conc-seg" style="width:26.8%;background:linear-gradient(135deg,#4f8ef7,#60a5fa)" title="1%-5%: 26,8%">2–5%</div>
+    <div class="conc-seg" style="width:15.1%;background:linear-gradient(135deg,#34d399,#6ee7b7)" title="5%-10%: 15,1%">6–10%</div>
+    <div class="conc-seg" style="width:13.9%;background:linear-gradient(135deg,#a78bfa,#c084fc)" title="10%-20%: 13,9%">11–20%</div>
+    <div class="conc-seg" style="flex:1;background:rgba(255,255,255,.08)" title="Resto 80%: 11,6%">80%</div>
+  </div>
+  <div class="conc-labels"><span style="color:var(--gold)">Top 1% · 32,6%</span><span style="color:var(--dia)">1–5% · 26,8%</span><span style="color:var(--green)">5–10% · 15,1%</span><span style="color:var(--noite)">10–20% · 13,9%</span><span>Demais · 11,6%</span></div>`;
+}
+
+// ══════════════════════════════ HU MULTI CHART
+function buildHuMulti(){
+  const ctx=document.getElementById('cHuMulti');if(!ctx)return;
+  new Chart(ctx,{type:'doughnut',
+    data:{labels:['Multi (3+ players)','HU (≤2 players)'],datasets:[{data:[KPI_DEMO.multiFee,KPI_DEMO.huFee],backgroundColor:['#4f8ef7','#a78bfa'],borderWidth:0,hoverOffset:6}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',
+      plugins:{legend:{position:'bottom',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:10}},
+        tooltip:{...CTOP,callbacks:{label:c=>` R$ ${f(c.parsed,0)} (${(c.parsed/KPI_DEMO.feeGross*100).toFixed(1)}%)`}}}
+    }
+  });
+}
+
+// ══════════════════════════════ JP CHART
+function buildJP(){
+  const ctx=document.getElementById('cJP');if(!ctx)return;
+  new Chart(ctx,{type:'doughnut',
+    data:{labels:['Fee Líquido','Jackpot Deduzido'],datasets:[{data:[KPI_DEMO.feeNet,KPI_DEMO.jackpot],backgroundColor:['#34d399','#f87171'],borderWidth:0,hoverOffset:5}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'70%',
+      plugins:{legend:{position:'bottom',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:10}},
+        tooltip:{...CTOP,callbacks:{label:c=>` R$ ${f(c.parsed,0)}`}}}
+    }
+  });
+}
+
+// ══════════════════════════════ FPP BARS
+function buildFPP(){
+  const el=document.getElementById('fppBars');if(!el)return;
+  const max=D.fpp[0].fpp;
+  el.innerHTML=D.fpp.map(d=>`
+    <div class="mb">
+      <span class="mb-l">${d.type}</span>
+      <div class="mb-t"><div class="mb-f" style="width:${(d.fpp/max*100).toFixed(0)}%;background:${d.fpp>20?'#d4a853':d.fpp>8?'#4f8ef7':'rgba(255,255,255,.2)'}"></div></div>
+      <span class="mb-v">R$ ${d.fpp.toFixed(2)}</span>
+    </div>`).join('');
+}
+
+// ══════════════════════════════ ROOMS TABLE
+function buildRooms(){
+  const t=document.getElementById('roomsTbl');if(!t)return;
+  t.innerHTML=`<thead><tr><th>#</th><th>Sala</th><th class="r">Mesas</th><th class="r">Players</th><th class="r">Fee R$</th><th class="r">Buyin R$</th><th class="r">Take rate</th></tr></thead><tbody>`+
+  D.rooms.map((r,i)=>{
+    const rr=r.rake_rate;
+    const c=rr>15?'var(--red)':rr>10?'var(--amber)':'var(--green)';
+    const bg=rr>15?'rgba(248,113,113,.1)':rr>10?'rgba(251,191,36,.1)':'rgba(52,211,153,.1)';
+    return`<tr><td><span class="rk">${i+1}</span></td><td class="b">${r.name}</td><td class="r m">${r.tables}</td><td class="r m">${f(r.players)}</td><td class="r b">${f(r.fee,0)}</td><td class="r m">${f(r.buyin,0)}</td>
+      <td class="r"><span style="padding:2px 8px;border-radius:4px;font-size:8px;font-weight:800;background:${bg};color:${c}">${rr}%</span></td></tr>`;
+  }).join('')+'</tbody>';
+}
+
+// ══════════════════════════════ RAKE RATE CHART
+function buildRR(){
+  const ctx=document.getElementById('cRR');if(!ctx)return;
+  const d=[...D.rooms].sort((a,b)=>b.rake_rate-a.rake_rate).slice(0,12);
+  new Chart(ctx,{type:'bar',
+    data:{labels:d.map(x=>x.name),datasets:[{label:'Rake rate %',data:d.map(x=>x.rake_rate),backgroundColor:d.map(x=>x.rake_rate>15?'rgba(248,113,113,.8)':x.rake_rate>10?'rgba(251,191,36,.8)':'rgba(79,142,247,.7)'),borderRadius:5,borderSkipped:false}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{...CTOP,callbacks:{label:c=>` ${c.parsed.x}% rake rate`}}},
+      scales:{x:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>v+'%'},border:{display:false}},y:{grid:{display:false},ticks:{font:{size:9},color:'rgba(240,240,245,.7)'},border:{display:false}}}
+    }
+  });
+}
+
+// ══════════════════════════════ BLIND BARS
+function buildBlindBars(){
+  const el=document.getElementById('blindBars');if(!el)return;
+  const max=Math.max(...D.blinds.map(b=>b.tables));
+  el.innerHTML=D.blinds.map(b=>`
+    <div class="mb">
+      <span class="mb-l">BB ${b.bb} GU</span>
+      <div class="mb-t"><div class="mb-f" style="width:${(b.tables/max*100).toFixed(0)}%;background:${b.fee>40000?'#d4a853':b.fee>15000?'#4f8ef7':'rgba(255,255,255,.2)'}"></div></div>
+      <span class="mb-v">${b.tables} <span style="font-weight:400;color:var(--ink3)">mesas</span></span>
+    </div>
+    <div style="font-size:8px;color:var(--ink3);margin:-4px 0 8px 84px">Fee R$ ${f(b.fee,0)}</div>`).join('');
+}
+
+// ══════════════════════════════ BUBBLE
+function buildBubble(){
+  const ctx=document.getElementById('cBubble');if(!ctx)return;
+  const d=D.gametypes.filter(x=>x.tables>10);
+  const cols=['#4f8ef7','#a78bfa','#34d399','#fbbf24','#f87171','#f472b6','#60a5fa','#c084fc'];
+  new Chart(ctx,{type:'bubble',
+    data:{datasets:d.map((x,i)=>({label:x.type,data:[{x:x.fee/1000,y:x.rake_rate,r:Math.sqrt(x.tables)*2}],backgroundColor:cols[i%cols.length]+'88',borderColor:cols[i%cols.length],borderWidth:1}))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{font:{size:8},color:CTEXT,boxWidth:8,boxHeight:8,padding:6}},tooltip:{...CTOP,callbacks:{title:c=>c[0].dataset.label,label:c=>[` Fee: R$ ${f(c.parsed.x*1000,0)}`,` Rake: ${c.parsed.y}%`,` Mesas: ${d.find(g=>g.type===c.dataset.label)?.tables}`]}}},
+      scales:{x:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>v+'k'},border:{display:false},min:0,title:{display:true,text:'Fee (R$ k)',font:{size:9},color:CTEXT}},y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>v+'%'},border:{display:false},min:4,max:32,title:{display:true,text:'Rake rate %',font:{size:9},color:CTEXT}}}
+    }
+  });
+}
+
+// ══════════════════════════════ RETENTION
+function buildRet(){
+  const ctx=document.getElementById('cRet');if(!ctx)return;
+  new Chart(ctx,{type:'bar',
+    data:{labels:D.duration.map(x=>x.bucket),datasets:[
+      {label:'Retidas',data:D.duration.map(x=>x.tables-x.dead),backgroundColor:'#4f8ef7',borderRadius:5,borderSkipped:false},
+      {label:'Mortas',data:D.duration.map(x=>x.dead),backgroundColor:'rgba(248,113,113,.3)',borderRadius:5,borderSkipped:false}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:8}},tooltip:{...CTOP,callbacks:{afterBody:c=>[`Retenção: ${D.duration[c[0].dataIndex].ret}%`]}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:11},color:CTEXT},border:{display:false}},y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT},border:{display:false}}}
+    }
+  });
+}
+
+// ══════════════════════════════ DUR FEE
+function buildDurFee(){
+  const ctx=document.getElementById('cDurFee');if(!ctx)return;
+  const total=D.duration.reduce((a,b)=>a+b.fee,0);
+  new Chart(ctx,{type:'doughnut',
+    data:{labels:D.duration.map(x=>x.bucket),datasets:[{data:D.duration.map(x=>x.fee),backgroundColor:['rgba(255,255,255,.1)','rgba(79,142,247,.5)','rgba(167,139,250,.7)','#a78bfa'],borderWidth:0,hoverOffset:6}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',
+      plugins:{legend:{position:'right',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:8}},tooltip:{...CTOP,callbacks:{label:c=>` R$ ${f(c.parsed,0)} (${(c.parsed/total*100).toFixed(1)}%)`}}}
+    }
+  });
+}
+
+// ══════════════════════════════ HEATMAP
+function buildHM(){
+  const rows=[
+    {mod:'PLO5',cols:[null,{r:57,n:92},{r:59,n:1206},{r:82,n:1079},{r:100,n:586}],total:975,ret:'71.5%'},
+    {mod:'PLO6',cols:[null,{r:56,n:126},{r:71,n:99},{r:100,n:48},null],total:815,ret:'69.3%'},
+    {mod:'NLH',cols:[null,{r:70,n:20},{r:93,n:30},{r:100,n:31},null],total:226,ret:'90.1%'},
+    {mod:'NLH(Swap)',cols:[null,{r:42,n:107},{r:64,n:58},{r:100,n:8},null],total:420,ret:'52.3%'},
+    {mod:'PLO4',cols:[null,{r:50,n:8},{r:88,n:8},{r:100,n:28},null],total:141,ret:'88.6%'},
+    {mod:'OFC',cols:[null,{r:65,n:54},{r:90,n:31},null,null],total:289,ret:'66.1%'},
+  ];
+  const hd=['30-60m','1-2h','2-4h','4h+'];
+  const bg=r=>{if(!r)return'rgba(255,255,255,.04)';const a=.06+(r/100)*.89;return`rgba(52,211,153,${a.toFixed(2)})`};
+  const cl=r=>r>55?'#0d1f17':'rgba(240,240,245,.9)';
+  const t=document.getElementById('hmTbl');if(!t)return;
+  t.innerHTML=`<thead><tr><th>Mod.</th>${hd.map(c=>`<th>${c}</th>`).join('')}<th style="text-align:right">Total</th><th style="text-align:right">Ret.</th></tr></thead><tbody>`+
+  rows.map(row=>`<tr><td>${row.mod}</td>`+row.cols.map(c=>c?`<td style="background:${bg(c.r)};color:${cl(c.r)}"><div class="hv">${c.r}%</div><div class="hn">${c.n}</div></td>`:`<td style="background:rgba(255,255,255,.03);color:var(--ink3)"><div class="hv">—</div></td>`).join('')+`<td class="e">${row.total}</td><td class="e b">${row.ret}</td></tr>`).join('')+'</tbody>';
+}
+
+// ══════════════════════════════ HISTORY
+function parseDateLabel(s){const[dd,mm,yy]=s.split('/').map(Number);return new Date(yy,mm-1,dd);}
+async function buildHist(){
+  const body=document.getElementById('histBody');if(!body)return;
+  const days=await Store.list();
+  const base={date:'22/06/2026',shift:'Dia + Noite',sessions:2965,fee:220888,netFee:202645,buyin:2683388,players:37777,feePerHand:0.76,deadPct:24.5,takeRate:8.23,demo:true};
+  const all=[base,...days.filter(d=>d.date!==base.date)].sort((a,b)=>parseDateLabel(a.date)-parseDateLabel(b.date));
+
+  // day-over-day comparison card
+  const cmpEl=document.getElementById('histCompare');
+  if(cmpEl){
+    const real=all.filter(d=>!d.demo);
+    if(real.length>=2){
+      const [prev,last]=real.slice(-2);
+      const feeDelta=(last.fee-prev.fee)/(prev.fee||1)*100;
+      const deadDelta=last.deadPct-prev.deadPct;
+      const sessDelta=(last.sessions-prev.sessions)/(prev.sessions||1)*100;
+      const up=feeDelta>=0;
+      cmpEl.style.display='';
+      renderIntelCards('histCompare',[{
+        type:up?'g':'alert',icon:ic(up?'trend-up':'trend-down',1),tag:'Comparativo dia a dia',
+        title:`Fee ${up?'subiu':'caiu'} ${f(Math.abs(feeDelta),1)}% de ${prev.date} para ${last.date}`,
+        body:`R$ ${f(prev.fee,0)} → R$ ${f(last.fee,0)}. Sessões ${sessDelta>=0?'+':''}${f(sessDelta,1)}%, mesas mortas ${deadDelta>=0?'+':''}${f(deadDelta,1)}pp (${f(prev.deadPct,1)}% → ${f(last.deadPct,1)}%).`,
+        metric:{val:(up?'+':'')+f(feeDelta,1)+'%',cls:up?'g':'r',label:'variação de fee bruto vs. dia anterior importado'},
+        action:{cls:up?'g':'a',text:up?'Manter estratégia atual':'Investigar queda'}
+      }]);
+    }else{cmpEl.style.display='none';}
+  }
+
+  body.innerHTML=all.map(d=>`<tr>
+    <td class="b">${d.date}${d.demo?` <span class="tag t6">demo</span>`:''}</td><td>${d.shift||'—'}</td>
+    <td class="r m">${f(d.sessions)}</td><td class="r b">${f(d.fee,0)}</td>
+    <td class="r m">${f(d.netFee,0)}</td><td class="r m">${f(d.buyin,0)}</td>
+    <td class="r m">${f(d.players)}</td><td class="r m">${(d.feePerHand||0).toFixed(2)}</td>
+    <td class="r m">${d.deadPct}%</td><td class="r m">${d.takeRate||'—'}%</td>
+    <td class="r">${d.demo?'':`<button class="icon-btn" title="Remover" onclick="removeHistoryDay('${d.date}')">${ic('trash')}</button>`}</td>
+  </tr>`).join('');
+
+  const hw=document.getElementById('histChartWrap');
+  if(all.length<2){
+    hw.innerHTML=`<div style="text-align:center;padding:56px 0">
+      <div style="font-size:28px;color:var(--ink3);margin-bottom:10px">${ic('chart-line')}</div>
+      <div style="font-size:11px;color:var(--ink3)">Importe mais relatórios para ver tendências ao longo do tempo.</div>
+    </div>`;
+    return;
+  }
+  hw.innerHTML='<div style="height:200px;position:relative"><canvas id="cHistFee" role="img" aria-label="Tendência fee"></canvas></div>';
+  setTimeout(()=>{
+    const ctx=document.getElementById('cHistFee');if(!ctx)return;
+    new Chart(ctx,{type:'line',data:{labels:all.map(d=>d.date),datasets:[{label:'Fee',data:all.map(d=>d.fee),borderColor:'#4f8ef7',borderWidth:2,fill:true,backgroundColor:'rgba(79,142,247,.08)',tension:.4,pointRadius:5,pointBackgroundColor:'#4f8ef7'},{label:'Fee Líquido',data:all.map(d=>d.netFee||d.fee),borderColor:'#34d399',borderWidth:1.5,fill:false,tension:.4,pointRadius:3,pointBackgroundColor:'#34d399',borderDash:[4,4]}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:10}},tooltip:{...CTOP,callbacks:{label:c=>` R$ ${f(c.parsed.y,0)}`}}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:10}},border:{display:false}},y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>fK(v)},border:{display:false}}}}
+    });
+  },50);
+}
+
+// ══════════════════════════════ STORAGE ABSTRACTION
+// Firebase Realtime Database, mesmo projeto do Painel/Admin (design-1-53c00).
+// Node: mesasCashHistory/{yyyy-mm-dd} — chave sem "/" pois RTDB não aceita
+// barra em path. Cai para localStorage se o Firebase não estiver disponível
+// (offline, bloqueado, etc.) para nunca travar o uso do dashboard.
+const RTDB_NODE='mesasCashHistory';
+function labelToRtdbKey(dateStr){const[dd,mm,yy]=dateStr.split('/');return`${yy}-${mm}-${dd}`;}
+const Store={
+  async list(){
+    if(fbOk&&db){
+      try{
+        const snap=await db.ref(RTDB_NODE).once('value');
+        const val=snap.val()||{};
+        return Object.values(val);
+      }catch(e){console.error('Store.list (Firebase)',e);}
+    }
+    return JSON.parse(localStorage.getItem('cashHistory')||'[]');
+  },
+  async upsert(dateStr,summary){
+    const record={date:dateStr,...summary,updatedAt:Date.now(),updatedBy:_email||''};
+    if(fbOk&&db){
+      try{await db.ref(`${RTDB_NODE}/${labelToRtdbKey(dateStr)}`).set(record);return;}
+      catch(e){console.error('Store.upsert (Firebase)',e);}
+    }
+    const hist=JSON.parse(localStorage.getItem('cashHistory')||'[]').filter(d=>d.date!==dateStr);
+    hist.push(record);
+    localStorage.setItem('cashHistory',JSON.stringify(hist));
+  },
+  async remove(dateStr){
+    if(fbOk&&db){
+      try{await db.ref(`${RTDB_NODE}/${labelToRtdbKey(dateStr)}`).remove();return;}
+      catch(e){console.error('Store.remove (Firebase)',e);}
+    }
+    const hist=JSON.parse(localStorage.getItem('cashHistory')||'[]').filter(d=>d.date!==dateStr);
+    localStorage.setItem('cashHistory',JSON.stringify(hist));
+  }
+};
+
+const REQUIRED_COLUMNS=['Start Time','Fee','Total Buyin','Players','Hands','Game Type'];
+function validateColumns(firstRow){
+  const missing=REQUIRED_COLUMNS.filter(c=>!(c in firstRow));
+  if(missing.length)throw new Error(`Colunas ausentes na planilha: ${missing.join(', ')}. Confira se é o mesmo formato do relatório G.U GAME STAT.`);
+}
+
+// ══════════════════════════════ REAL XLSX PARSING
+function readRowsFromFile(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onerror=()=>reject(reader.error);
+    reader.onload=e=>{
+      try{
+        const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+        const sheet=wb.Sheets[wb.SheetNames[0]];
+        const raw=XLSX.utils.sheet_to_json(sheet,{defval:null});
+        if(!raw.length)throw new Error('A planilha está vazia.');
+        validateColumns(raw[0]);
+        resolve(raw.map(normalizeRow).filter(r=>r.startTime));
+      }catch(err){reject(err)}
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+function toDate(v){
+  if(v==null)return null;
+  if(v instanceof Date)return v;
+  if(typeof v==='number')return new Date(Math.round((v-25569)*86400*1000));
+  const s=String(v).trim();if(!s)return null;
+  const d=new Date(s.replace(' ','T'));
+  return isNaN(d)?null:d;
+}
+function normalizeRow(r){
+  return{
+    sala:r['Creator Name']||'',
+    gameName:r['Game Name']||'',
+    gameType:r['Game Type']||'',
+    startTime:toDate(r['Start Time']),
+    endTime:toDate(r['End Time']),
+    fee:Number(r['Fee'])||0,
+    adminFee:Number(r['Admin Fee'])||0,
+    buyin:Number(r['Total Buyin'])||0,
+    players:Number(r['Players'])||0,
+    hands:Number(r['Hands'])||0,
+    bigBlind:Number(r['Big Blind(GU)'])||0,
+    ante:Number(r['Ante(GU)'])||0,
+    jackpotFee:Number(r['Jackpot Fee(GU)'])||0,
+    jackpotPayout:Number(r['Jackpot Payout(GU)'])||0,
+  };
+}
+function dateKey(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function dateLabel(d){return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()}
+const DEAD_HANDS_THRESHOLD=10;
+function summarizeDay(rows){
+  const sessions=rows.length;
+  const feeGross=rows.reduce((a,r)=>a+r.fee,0)*GU_TO_BRL;
+  const jackpot=rows.reduce((a,r)=>a+r.jackpotFee,0)*GU_TO_BRL;
+  const buyin=rows.reduce((a,r)=>a+r.buyin,0)*GU_TO_BRL;
+  const players=rows.reduce((a,r)=>a+r.players,0);
+  const hands=rows.reduce((a,r)=>a+r.hands,0);
+  const dead=rows.filter(r=>r.hands<DEAD_HANDS_THRESHOLD).length;
+  return{
+    sessions,fee:feeGross,netFee:feeGross-jackpot,buyin,players,
+    feePerHand:hands?feeGross/hands:0,
+    deadPct:sessions?+(dead/sessions*100).toFixed(1):0,
+    takeRate:buyin?+(feeGross/buyin*100).toFixed(2):0,
+    shift:'Dia + Noite'
+  };
+}
+function diffSummary(oldS,newS){
+  const feeDelta=((newS.fee-oldS.fee)/(oldS.fee||1)*100);
+  return`sessões ${oldS.sessions} → ${newS.sessions} · fee R$ ${f(oldS.fee,0)} → R$ ${f(newS.fee,0)} (${feeDelta>=0?'+':''}${f(feeDelta,1)}%)`;
+}
+async function upsertWithDuplicateCheck(dateStr,summary){
+  const existing=(await Store.list()).find(d=>d.date===dateStr);
+  if(existing){
+    const ok=confirm(`Já existe um registro para ${dateStr}.\n\n${diffSummary(existing,summary)}\n\nSubstituir pelos novos dados?`);
+    if(!ok)return false;
+  }
+  await Store.upsert(dateStr,summary);
+  return true;
+}
+function setBtnLoading(labelEl,loading,loadingText){
+  if(!labelEl)return;
+  if(loading){labelEl.dataset.origText=labelEl.textContent;labelEl.textContent=loadingText;labelEl.closest('label,button')?.setAttribute('aria-busy','true');}
+  else{if(labelEl.dataset.origText)labelEl.textContent=labelEl.dataset.origText;labelEl.closest('label,button')?.removeAttribute('aria-busy');}
+}
+
+// ══════════════════════════════ DAILY UPLOAD
+async function handleUpload(input){
+  const fl=input.files[0];if(!fl)return;
+  const lbl=input.closest('label')?.querySelector('span');
+  setBtnLoading(lbl,true,'Lendo…');
+  try{
+    const rows=await readRowsFromFile(fl);
+    if(!rows.length){alert('Não encontrei sessões com Start Time válido nesse arquivo.');return;}
+    const byDate={};
+    rows.forEach(r=>{const k=dateKey(r.startTime);(byDate[k]=byDate[k]||[]).push(r);});
+    const dates=Object.keys(byDate).sort();
+    const mainKey=dates.reduce((a,b)=>byDate[b].length>byDate[a].length?b:a);
+    const summary=summarizeDay(byDate[mainKey]);
+    const label=dateLabel(byDate[mainKey][0].startTime);
+    const saved=await upsertWithDuplicateCheck(label,summary);
+    if(!saved)return;
+    await buildHist();
+    alert(`${fl.name} importado.\n\n${label}: ${summary.sessions} sessões · R$ ${f(summary.fee,0)} fee bruto.`);
+  }catch(err){
+    alert('Erro ao ler o arquivo: '+err.message);
+  }finally{
+    setBtnLoading(lbl,false);
+    input.value='';
+  }
+}
+
+// ══════════════════════════════ WEEKLY VALIDATION
+let _weekRowsByDate=null;
+async function handleValidateUpload(input){
+  const fl=input.files[0];if(!fl)return;
+  const status=document.getElementById('validarStatus');
+  status.innerHTML=`${ic('spinner',1)} Lendo arquivo…`;
+  try{
+    const rows=await readRowsFromFile(fl);
+    if(!rows.length){status.innerHTML=`${ic('warning',1)} Nenhuma sessão com Start Time válido encontrada.`;return;}
+    const byDate={};
+    rows.forEach(r=>{const k=dateKey(r.startTime);(byDate[k]=byDate[k]||[]).push(r);});
+    _weekRowsByDate=byDate;
+    const existing=await Store.list();
+    const dias=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+    const keys=Object.keys(byDate).sort();
+    const tbl=document.getElementById('validarPreviewTbl');
+    tbl.innerHTML=`<thead><tr><th>Data</th><th>Dia</th><th class="r">Sessões</th><th class="r">Fee Bruto</th><th class="r">Buyin</th><th class="r">Players</th><th></th></tr></thead><tbody>`+
+      keys.map(k=>{
+        const rs=byDate[k];const s=summarizeDay(rs);const d=rs[0].startTime;const lbl=dateLabel(d);
+        const dup=existing.find(x=>x.date===lbl);
+        return`<tr><td class="b">${lbl}</td><td class="m">${dias[d.getDay()]}</td>
+          <td class="r m">${f(s.sessions)}</td><td class="r b">R$ ${f(s.fee,0)}</td>
+          <td class="r m">R$ ${f(s.buyin,0)}</td><td class="r m">${f(s.players)}</td>
+          <td class="r">${dup?`<span class="tag to">${ic('arrows-clockwise')} substitui</span>`:`<span class="tag tn">${ic('plus')} novo</span>`}</td></tr>`;
+      }).join('')+'</tbody>';
+    document.getElementById('validarPreviewCard').style.display='block';
+    status.innerHTML=`${ic('check-circle',1)} ${keys.length} dia(s) encontrados · confira antes de confirmar.`;
+  }catch(err){
+    status.innerHTML=`${ic('x-circle',1)} Erro: ${err.message}`;
+  }
+}
+async function confirmarSemana(){
+  if(!_weekRowsByDate)return;
+  const status=document.getElementById('validarStatus');
+  const btn=document.querySelector('#validarPreviewCard .btn-p');
+  if(btn){btn.disabled=true;btn.style.opacity='.6';}
+  status.innerHTML=`${ic('spinner',1)} Gravando…`;
+  const keys=Object.keys(_weekRowsByDate).sort();
+  for(const k of keys){
+    const rs=_weekRowsByDate[k];
+    await Store.upsert(dateLabel(rs[0].startTime),summarizeDay(rs));
+  }
+  await buildHist();
+  status.innerHTML=`${ic('check-circle',1)} ${keys.length} dia(s) gravados/substituídos no histórico.`;
+  if(btn){btn.disabled=false;btn.style.opacity='';}
+  _weekRowsByDate=null;
+}
+
+// ══════════════════════════════ EXPORT / DELETE HISTORY
+async function exportHistory(){
+  const hist=await Store.list();
+  if(!hist.length){alert('Nenhum dado no histórico ainda.');return;}
+  const blob=new Blob([JSON.stringify(hist,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`cash-history-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+async function removeHistoryDay(dateStr){
+  if(!confirm(`Remover o registro de ${dateStr} do histórico?`))return;
+  await Store.remove(dateStr);
+  await buildHist();
+}
+
+
+// ══════════════════════════════ FORECAST PAGE
+function buildForecast(){
+  // ── Projection curve (12 months)
+  const ctx1=document.getElementById('cFcCurve');if(!ctx1)return;
+  const baseDay=KPI_DEMO.feeGross, netDay=KPI_DEMO.feeNet;
+  const optDay=237611*GU_TO_BRL, aggDay=308247*GU_TO_BRL;
+  const months=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const cumBase=[], cumOpt=[], cumAgg=[], cumNet=[];
+  for(let i=1;i<=12;i++){cumBase.push(baseDay*30*i);cumNet.push(netDay*30*i);cumOpt.push(optDay*30*i);cumAgg.push(aggDay*30*i);}
+  new Chart(ctx1,{type:'line',
+    data:{labels:months,datasets:[
+      {label:'Agressivo',data:cumAgg,borderColor:'#d4a853',borderWidth:2,fill:false,tension:.4,pointRadius:3,pointBackgroundColor:'#d4a853',borderDash:[6,3]},
+      {label:'Otimista',data:cumOpt,borderColor:'#4f8ef7',borderWidth:2,fill:false,tension:.4,pointRadius:3,pointBackgroundColor:'#4f8ef7'},
+      {label:'Base linear',data:cumBase,borderColor:'rgba(240,240,245,.4)',borderWidth:1.5,fill:false,tension:.4,pointRadius:0,borderDash:[4,4]},
+      {label:'Líquido (base)',data:cumNet,borderColor:'#34d399',borderWidth:1.5,fill:true,backgroundColor:'rgba(52,211,153,.05)',tension:.4,pointRadius:0,borderDash:[4,4]},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:10}},
+        tooltip:{...CTOP,callbacks:{label:c=>` R$ ${fK(c.parsed.y)}`}}},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:9},color:CTEXT},border:{display:false}},
+        y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>'R$ '+fK(v)},border:{display:false}}
+      }
+    }
+  });
+
+  // ── Stake composition donut
+  const ctx2=document.getElementById('cFcStake');if(!ctx2)return;
+  new Chart(ctx2,{type:'doughnut',
+    data:{labels:['VHigh (BB>5)','High (BB 1-5)','Mid (BB 0.2-1)','Low (BB<0.2)','Micro'],
+      datasets:[{data:[D.tiers[4].fee,D.tiers[3].fee,D.tiers[2].fee,D.tiers[1].fee,D.tiers[0].fee],backgroundColor:['#d4a853','#fbbf24','#4f8ef7','#a78bfa','rgba(255,255,255,.12)'],borderWidth:0,hoverOffset:8}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
+      plugins:{legend:{position:'right',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:8}},
+        tooltip:{...CTOP,callbacks:{label:c=>` R$ ${f(c.parsed,0)} (${(c.parsed/KPI_DEMO.feeGross*100).toFixed(1)}%)`}}}
+    }
+  });
+
+  // ── Scenarios grid
+  const scens=[
+    {label:'Base linear',color:'rgba(255,255,255,.08)',colorTxt:CTEXT,desc:'Sem mudanças operacionais',day:KPI_DEMO.feeGross,assumptions:['2.965 sessões/dia','24,5% de mortas','fee/mão R$ 3,80']},
+    {label:'Conservador',color:'rgba(79,142,247,.12)',colorTxt:'var(--dia)',desc:'−10% mortas · +5% sessões',day:237611*GU_TO_BRL,assumptions:['3.113 sessões/dia','22,0% de mortas','+R$ 83.615/dia']},
+    {label:'Otimista',color:'rgba(52,211,153,.1)',colorTxt:'var(--green)',desc:'−20% mortas · +15% sessões',day:266460*GU_TO_BRL,assumptions:['3.410 sessões/dia','19,6% de mortas','+R$ 227.860/dia']},
+    {label:'Agressivo',color:'rgba(212,168,83,.12)',colorTxt:'var(--gold)',desc:'−30% mortas · +30% sessões · +ante',day:308247*GU_TO_BRL,assumptions:['3.854 sessões/dia','17,1% de mortas','+R$ 436.795/dia']},
+  ];
+  // Remove 4th scenario on mobile if needed – we show 3 base+otimista+agressivo
+  const el=document.getElementById('scenGrid');if(!el)return;
+  el.innerHTML=scens.map(s=>`
+    <div style="background:${s.color};border:1px solid var(--bdr);border-radius:14px;padding:16px;position:relative;overflow:hidden">
+      <div style="font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:${s.colorTxt};margin-bottom:6px">${s.label}</div>
+      <div style="font-size:10px;color:var(--ink3);margin-bottom:10px">${s.desc}</div>
+      <div style="font-size:22px;font-weight:900;letter-spacing:-.04em;color:var(--ink);margin-bottom:2px">R$ ${fK(s.day*30)}</div>
+      <div style="font-size:9px;color:var(--ink3);margin-bottom:12px">por mês · R$ ${fK(s.day)}/dia</div>
+      <div style="border-top:1px solid var(--bdr2);padding-top:10px">${s.assumptions.map(a=>`<div style="font-size:9px;color:var(--ink3);margin-bottom:3px;display:flex;align-items:center;gap:5px"><span style="color:${s.colorTxt}">→</span>${a}</div>`).join('')}</div>
+      ${s.label!=='Base linear'?`<div style="margin-top:8px;font-size:10px;font-weight:800;color:${s.colorTxt}">+R$ ${fK((s.day-KPI_DEMO.feeGross)*30)}/mês vs base</div>`:''}
+    </div>`).join('');
+
+  // ── Lever bars
+  const levers=[
+    {label:'Dobrar mesas VHigh',daily:90412*GU_TO_BRL,color:'#d4a853',note:'mais 199 mesas BB>5 GU'},
+    {label:'Converter 10% para ante',daily:31279*GU_TO_BRL,color:'#fbbf24',note:'fee/mão 3,1x maior c/ ante'},
+    {label:'Reduzir mortas em 20%',daily:14185*GU_TO_BRL,color:'#4f8ef7',note:'−145 sessões ociosas/dia'},
+    {label:'Maximizar slot 23h',daily:8200*GU_TO_BRL,color:'#a78bfa',note:'dobrar abertura 22h–00h'},
+    {label:'Reduzir mortas em 10%',daily:7044*GU_TO_BRL,color:'#34d399',note:'−72 sessões ociosas/dia'},
+    {label:'Maximizar slot 09h Dia',daily:5400*GU_TO_BRL,color:'#60a5fa',note:'abrir grade premium 08:30'},
+  ];
+  const maxL=levers[0].daily;
+  const lb=document.getElementById('leverBars');if(!lb)return;
+  lb.innerHTML=levers.map(l=>`
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+        <span style="font-size:10px;font-weight:700;color:var(--ink)">${l.label}</span>
+        <span style="font-size:11px;font-weight:900;color:${l.color}">+R$ ${f(l.daily,0)}/dia</span>
+      </div>
+      <div style="height:6px;background:var(--bg2);border-radius:3px;overflow:hidden;margin-bottom:3px">
+        <div style="width:${(l.daily/maxL*100).toFixed(1)}%;height:100%;border-radius:3px;background:${l.color};transition:width .8s"></div>
+      </div>
+      <div style="font-size:8px;color:var(--ink3)">${l.note} · +R$ ${fK(l.daily*30)}/mês</div>
+    </div>`).join('');
+
+  // ── Turno projection bar chart
+  const ctx3=document.getElementById('cFcTurno');if(!ctx3)return;
+  const dF=KPI_DEMO.feeDia, nF=KPI_DEMO.feeNoite;
+  new Chart(ctx3,{type:'bar',
+    data:{labels:['Semana','Mês','Trimestre','Ano'],
+      datasets:[
+        {label:'Turno Dia',data:[dF*7,dF*30,dF*90,dF*365],backgroundColor:'rgba(79,142,247,.7)',borderRadius:5,borderSkipped:false},
+        {label:'Turno Noite',data:[nF*7,nF*30,nF*90,nF*365],backgroundColor:'rgba(167,139,250,.7)',borderRadius:5,borderSkipped:false},
+        {label:'Noite → patamar Dia',data:[(dF-nF)*7,(dF-nF)*30,(dF-nF)*90,(dF-nF)*365],backgroundColor:'rgba(52,211,153,.35)',borderRadius:5,borderSkipped:false},
+      ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:8}},
+        tooltip:{...CTOP,callbacks:{label:c=>` R$ ${fK(c.parsed.y)}`}}},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:10},color:CTEXT},border:{display:false},stacked:true},
+        y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>'R$ '+fK(v)},border:{display:false},stacked:true}
+      }
+    }
+  });
+
+  // ── Financial intel cards (fully computed)
+  const otherShare=100-KPI_DEMO.conc1pct;
+  const anteFphGain=KPI_DEMO.anteFph-KPI_DEMO.noAnteFph;
+  const anteConvDaily=KPI_DEMO.noAnteTables*0.1*(D.gametypes.reduce((a,g)=>a+g.hands,0)/D.gametypes.reduce((a,g)=>a+g.tables,0))*anteFphGain;
+  const diaDeadPctG=KPI_DEMO.deadDia/KPI_DEMO.tablesDia*100, noiteDeadPctG=KPI_DEMO.deadNoite/KPI_DEMO.tablesNoite*100;
+  function lostFeeDelta(relPct){
+    const newDiaDead=diaDeadPctG*(1-relPct/100), newNoiteDead=noiteDeadPctG*(1-relPct/100);
+    return((diaDeadPctG-newDiaDead)/100)*KPI_DEMO.feeDia+((noiteDeadPctG-newNoiteDead)/100)*KPI_DEMO.feeNoite;
+  }
+  const deadGain10=lostFeeDelta(10), deadGain20=lostFeeDelta(20);
+  const jpMonthly=KPI_DEMO.jackpot*30;
+  const micro=D.tiers.find(t=>t.tier==='Micro'), high=D.tiers.find(t=>t.tier==='High'), vhigh2=D.tiers.find(t=>t.tier==='VHigh');
+  const fphMult=high.avg_fph/micro.avg_fph;
+  const mixDaily=(D.gametypes.reduce((a,g)=>a+g.hands,0)*0.05)*(high.avg_fph-micro.avg_fph);
+  const yearAgg=aggDay*365, yearBase=baseDay*365;
+  const yearDelta=yearAgg-yearBase, yearGainPct=(yearAgg/yearBase-1)*100;
+
+  const intel=[
+    {
+      type:'gold',icon:ic('coin',1),tag:'Receita',
+      title:`Top 1% das mesas gera ${f(KPI_DEMO.conc1pct,1)}% do rake — risco de concentração cresce com a base`,
+      body:`${KPI_DEMO.conc1Tables} sessões individuais respondem por R$ ${f(KPI_DEMO.conc1Fee,0)}. Se esse perfil de player sair, a operação perde uma fatia desproporcional da receita. Monitorar churn dessas mesas é tão crítico quanto crescer volume.`,
+      metric:{val:'R$ '+f(KPI_DEMO.conc1Fee,0),cls:'gold',label:`gerado por apenas ${KPI_DEMO.conc1Tables} sessões (top 1%)`},
+      compare:{left:{label:'dia',val:f(KPI_DEMO.conc1pct,1)+'%',sub:'rake em 1% das mesas'},right:{label:'noite',val:f(otherShare,1)+'%',sub:'rake nos outros 99%'}},
+      action:{cls:'a',text:'Criar alertas de churn VHigh'}
+    },
+    {
+      type:'noite',icon:ic('ruler',1),tag:'Eficiência',
+      title:`Converter 10% das mesas sem ante para com ante gera +R$ ${f(anteConvDaily,0)}/dia — R$ ${f(anteConvDaily*30/1e6,2)}M/mês`,
+      body:`Fee/mão com ante: R$ ${f(KPI_DEMO.anteFph,2)} vs R$ ${f(KPI_DEMO.noAnteFph,2)} sem ante — diferença de ${f(KPI_DEMO.anteFph/KPI_DEMO.noAnteFph,1)}x. São ${KPI_DEMO.noAnteTables} mesas sem ante hoje. A simples mudança de estrutura, sem adicionar sessões, adiciona receita real ao mês.`,
+      metric:{val:'+R$ '+f(anteConvDaily*30/1e6,2)+'M',cls:'noite',label:'potencial mensal ao converter 10% para estrutura com ante'},
+      action:{cls:'noite',text:'Prioridade: expandir mesas com ante'}
+    },
+    {
+      type:'both',icon:ic('lightning',1),tag:'Alavanca imediata',
+      title:`Reduzir mortas em 20% (relativo) gera +R$ ${f(deadGain20*30/1e6,2)}M por mês — sem abrir 1 mesa nova`,
+      body:`${KPI_DEMO.deadTables} sessões são abertas e não retêm nenhum jogador. O custo de oportunidade diário é R$ ${f(deadGain10,0)} numa redução conservadora de 10%. Esta é a alavanca de maior ROI no curto prazo: cortar ociosidade é puro ganho sem investimento em aquisição.`,
+      metric:{val:'+R$ '+f(deadGain10,0)+'/dia',cls:'g',label:`se reduzir mortas em 10% relativo (hoje ${f(KPI_DEMO.deadPct,1)}%)`},
+      compare:{left:{label:'dia',val:'R$ '+fK(deadGain10*30),sub:'ganho mensal −10% mortas'},right:{label:'dia',val:'R$ '+fK(deadGain20*30),sub:'ganho mensal −20% mortas'}},
+      action:{cls:'g',text:'Auditoria de salas ociosas: esta semana'}
+    },
+    {
+      type:'alert',icon:ic('warning',1),tag:'Risco jackpot',
+      title:`JP deduz R$ ${f(KPI_DEMO.jackpot,0)}/dia — R$ ${f(jpMonthly/1e6,2)}M/mês de rake que não converte em receita líquida`,
+      body:`Com ${KPI_DEMO.jackpotTables} mesas impactadas, a gestão do JP representa um vazamento de ${f(KPI_DEMO.jackpotPct,1)}% da receita bruta. Com crescimento da base, esse número escala linearmente.`,
+      metric:{val:'R$ '+f(jpMonthly/1e6,2)+'M',cls:'r',label:'deduzido por jackpot ao mês com a base atual'},
+      action:{cls:'a',text:'Revisar estrutura de JP por stake'}
+    },
+    {
+      type:'dia',icon:ic('target',1),tag:'Mix ideal',
+      title:`Mover 5% das sessões de Micro/Low para Mid/High gera +R$ ${f(mixDaily,0)}/dia`,
+      body:`Micro gera R$ ${f(micro.avg_fph,3)}/mão, High gera R$ ${f(high.avg_fph,3)}/mão — ${f(fphMult,0)}x mais. Migrar players dos stakes baixos para stakes maiores via promoções e incentivos específicos tem ROI imediato sem aumentar número de sessões.`,
+      metric:{val:f(fphMult,0)+'x',cls:'dia',label:'fee por mão de High vs Micro'},
+      compare:{left:{label:'dia',val:'R$ '+f(micro.avg_fph,3),sub:'fee/mão Micro'},right:{label:'noite',val:'R$ '+f(vhigh2.avg_fph,2),sub:'fee/mão VHigh'}},
+      action:{cls:'dia',text:'Programa de upgrade de stakes'}
+    },
+    {
+      type:'gold',icon:ic('calendar',1),tag:'Projeção anual',
+      title:`No cenário agressivo, a operação atinge R$ ${f(yearAgg/1e6,1)}M/ano — +${f(yearGainPct,0)}% vs base linear`,
+      body:`Base linear: R$ ${f(yearBase/1e6,1)}M/ano. Cenário agressivo (menos mortas, mais sessões, expansão de ante e VHigh): R$ ${f(yearAgg/1e6,1)}M/ano. A diferença de R$ ${f(yearDelta/1e6,1)}M/ano vem exclusivamente de otimização operacional, sem depender de novos jogadores.`,
+      metric:{val:'R$ '+f(yearAgg/1e6,1)+'M',cls:'gold',label:'projeção anual no cenário agressivo'},
+      compare:{left:{label:'dia',val:'R$ '+f(yearBase/1e6,1)+'M',sub:'base linear (sem mudanças)'},right:{label:'noite',val:'R$ '+f(yearAgg/1e6,1)+'M',sub:'agressivo (+'+f(yearGainPct,0)+'%)'}},
+      action:{cls:'g',text:'Roadmap de otimização operacional'}
+    },
+  ];
+  renderIntelCards('fcIntel',intel);
+}
+
+// ══════════════════════════════ INIT (chamado após login bem-sucedido)
+let _appStarted=false;
+function startApp(){
+  if(_appStarted)return;_appStarted=true;
+  buildTimeline();buildHrChart();buildLifecycle();buildModal();buildOpDiv();buildTop10();buildRecs();
+  buildBestSlots();buildShiftFee();buildForecast();buildConcurrent();buildOpShiftTable();buildShiftRecs();
+  buildTierCharts();buildConc();buildHuMulti();buildJP();buildFPP();
+  buildRooms();buildRR();buildBlindBars();buildBubble();
+  buildRet();buildDurFee();buildHM();buildHist();
+}
+</script>
+</body>
+</html>

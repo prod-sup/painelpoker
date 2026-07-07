@@ -1037,6 +1037,20 @@
   }
 })();
 
+/* ── GUARDA: esta página depende de gu-parser.js (parser da G MTTS compartilhado).
+   Se ele não carregou (não foi publicado junto no deploy, 404, cache velho),
+   avisa NA TELA em vez de morrer em silêncio com tudo em "—". ── */
+if (typeof buildSections === 'undefined' || typeof CONF_WINDOW_END_MIN === 'undefined'){
+  document.addEventListener('DOMContentLoaded', () => {
+    document.body.insertAdjacentHTML('afterbegin',
+      `<div style="background:#c0392b;color:#fff;padding:14px 20px;font:600 13.5px/1.6 -apple-system,sans-serif;text-align:center">
+        ⚠ O arquivo <b>gu-parser.js</b> não foi carregado — a página não consegue ler a Global nem conectar.<br>
+        Publique o <b>gu-parser.js</b> na MESMA pasta do criacao-noturna.html (ele faz parte do deploy) e recarregue.
+      </div>`);
+  });
+  throw new Error('gu-parser.js ausente');
+}
+
 /* ── modo escuro: padrão DARK (página noturna), mas respeita a escolha salva do painel ── */
 (function(){
   const saved = localStorage.getItem('suprema_dark_mode');
