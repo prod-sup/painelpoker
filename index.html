@@ -4587,6 +4587,7 @@ function minutesToHHMM(min){
    informado, dentro de um teto de 3h após o início — janela de fallback razoável pra torneios de
    poker). Função única reaproveitada tanto no card individual quanto no filtro "Rolando agora". */
 function isRunningNow(t, nowMin){
+  if (gradeDaysAhead() > 0) return false; // grade já é do dia seguinte: nada dela está "rolando agora"
   const startMin = timeToMinutes(t.hora);
   const lateMin = timeToMinutes(t.late);
   const endMin = lateMin !== null ? lateMin : (startMin !== null ? startMin + 180 : null);
@@ -4603,12 +4604,29 @@ function isRunningNow(t, nowMin){
 function opMinutes(min){
   return (min !== null && min <= 330) ? min + 1440 : min; // <= 05:30 → +24h
 }
+/* quantos dias a GRADE exibida está À FRENTE do dia operacional do relógio. Quando o cronograma
+   fecha 100% e a Global do dia seguinte é carregada antes da virada (05:30), LAST_KNOWN_DATE
+   avança mas o relógio ainda é do dia anterior — sem esse desconto, todos os eventos do dia novo
+   anteriores à hora atual apareciam como "atrasados" na hora do upload */
+function gradeDaysAhead(){
+  try{
+    if (typeof LAST_KNOWN_DATE === 'undefined' || !LAST_KNOWN_DATE) return 0;
+    const today = todayPathSP();
+    if (LAST_KNOWN_DATE <= today) return 0;
+    const p = s => { const [y,m,d] = s.split('-').map(Number); return Date.UTC(y, m-1, d); };
+    return Math.max(0, Math.round((p(LAST_KNOWN_DATE) - p(today)) / 86400000));
+  }catch(e){ return 0; }
+}
+/* relógio operacional JÁ ajustado pro dia da grade — todo cálculo de atraso/em breve usa este */
+function opNowMinutes(){
+  return opMinutes(nowMinutesSP()) - 1440 * gradeDaysAhead();
+}
 function timeStatus(hhmm, cat){
   const evMinRaw = timeToMinutes(hhmm);
   if (evMinRaw === null) return null;
   const evMin = opMinutes(evMinRaw);
   const lead = LEAD_MIN[cat] ?? 30;
-  const nowMin = opMinutes(nowMinutesSP());
+  const nowMin = opNowMinutes();
   const deadline = evMin - lead;       // horário em que o torneio PRECISA estar fixado
   const diffToDeadline = deadline - nowMin;
   if (diffToDeadline < 0) return 'late';
@@ -4804,13 +4822,13 @@ function timeFlagMessage(hhmm, cat, flag){
   const deadline = evMin - lead;
   const deadlineLabel = minutesToHHMM(((deadline % 1440) + 1440) % 1440);
   if (flag === 'late'){
-    const nowMin = opMinutes(nowMinutesSP());
+    const nowMin = opNowMinutes();
     const lateBy = nowMin - deadline; // minutos desde o prazo
     const lateLabel = lateBy > 0 && lateBy <= 720 ? ` (${lateBy}min atrás)` : ''; // esconde o contador além de 12h (provável virada de dia, não atraso real do dia)
     return `⏰ Devia ter sido fixado até ${deadlineLabel}${lateLabel}`;
   }
   if (flag === 'soon'){
-    const nowMin = opMinutes(nowMinutesSP());
+    const nowMin = opNowMinutes();
     const remaining = deadline - nowMin;
     const remainingLabel = remaining >= 0 && remaining <= 720 ? ` (faltam ${remaining}min)` : '';
     return `⏳ Fixar até ${deadlineLabel}${remainingLabel}`;
@@ -7393,12 +7411,72 @@ function updateResultsProgress(){
   el.textContent = `· ${done}/${total} fechados`;
 }
 
+/* migra o trabalho já feito (fix, ID, field, garantido, premiação) quando um re-upload do MESMO dia
+   muda a chave de um torneio — rowKey depende de nome|hora|buyin|garantido, então uma GU com garantido
+   corrigido (ou buy-in reformatado) trocava a chave e o painel "esquecia" quem já estava fixado,
+   marcando tudo de novo como atrasado. O casamento é por nome+hora e só acontece quando é inequívoco
+   (exatamente 1 candidato de cada lado), pra nunca migrar pro torneio errado. */
+function migrateOrphanedWork(newRows){
+  if (!RAW_ROWS.length || !newRows?.length) return 0;
+  const ident = r => `${String(r.nome||'').trim().toUpperCase()}|${r.hora||''}|${r.proxCronograma?'px':''}`;
+  const newByIdent = new Map();
+  newRows.forEach(r => newByIdent.set(ident(r), newByIdent.has(ident(r)) ? null : r)); // null = ambíguo
+  const oldByIdent = new Map();
+  RAW_ROWS.forEach(r => oldByIdent.set(ident(r), oldByIdent.has(ident(r)) ? null : r));
+  const newKeys = new Set(newRows.map(r => rowKey(r)));
+  let premLocal = {};
+  try{ premLocal = JSON.parse(localStorage.getItem('suprema_prem_v1')||'{}'); }catch(e){}
+  let migrated = 0;
+  oldByIdent.forEach((oldRow, k) => {
+    if (!oldRow) return;                    // nome+hora duplicado no quadro antigo — ambíguo, não arrisca
+    const oldKey = oldRow._key;
+    if (newKeys.has(oldKey)) return;        // a chave sobreviveu ao re-upload, nada a migrar
+    const target = newByIdent.get(k);
+    if (!target) return;                    // sem correspondente único no quadro novo
+    const newKey = rowKey(target);
+    if (newKey === oldKey) return;
+    const hadWork = FIXED_MAP[oldKey] != null || ID_MAP[oldKey] != null || FIELD_MAP[oldKey] != null ||
+                    GARANTIDO_MAP[oldKey] != null || oldRow.premiacao != null;
+    if (!hadWork) return;
+    [[FIXED_MAP,'fixed'], [ID_MAP,'ids'], [FIELD_MAP,'field'], [GARANTIDO_MAP,'garantido']].forEach(([map, node]) => {
+      if (map[oldKey] == null || map[newKey] != null) return;
+      map[newKey] = map[oldKey]; delete map[oldKey];
+      if (fbReady && fbDb){
+        try{
+          fbDb.ref(`${FB_BASE_PATH}/${node}/${newKey}`).set(map[newKey]);
+          fbDb.ref(`${FB_BASE_PATH}/${node}/${oldKey}`).remove();
+        }catch(e){}
+      }
+    });
+    // premiação vive na própria row + nó próprio no Firebase + backup local
+    if (oldRow.premiacao != null){
+      if (target.premiacao == null) target.premiacao = oldRow.premiacao;
+      if (premLocal[oldKey] != null && premLocal[newKey] == null){ premLocal[newKey] = premLocal[oldKey]; delete premLocal[oldKey]; }
+      if (fbReady && fbDb){
+        try{
+          fbDb.ref(`${FB_BASE_PATH}/premiacao/${newKey}`).set(oldRow.premiacao);
+          fbDb.ref(`${FB_BASE_PATH}/premiacao/${oldKey}`).remove();
+        }catch(e){}
+      }
+    }
+    migrated++;
+  });
+  if (migrated){
+    saveFixedMapLocal(FIXED_MAP); saveIdMapLocal(ID_MAP); saveFieldMapLocal(FIELD_MAP); saveGarantidoMapLocal(GARANTIDO_MAP);
+    try{ localStorage.setItem('suprema_prem_v1', JSON.stringify(premLocal)); }catch(e){}
+  }
+  return migrated;
+}
+
 function ingest(rows, filename, fromRemote=false){
   // Proteção: ignorar sheets com menos de 5 torneios (provavelmente corrompida ou parcial)
   if(!rows || rows.length < 5){
     console.warn('ingest: sheet ignorada (menos de 5 rows)', rows?.length);
     return;
   }
+  // re-upload do mesmo dia com valores ajustados: transfere o trabalho já feito pras chaves novas
+  const _migrated = migrateOrphanedWork(rows);
+  if (_migrated) logActivity(`♻️ Re-upload: ${_migrated} torneio${_migrated>1?'s':''} já trabalhado${_migrated>1?'s':''} tiveram o vínculo preservado (fix/ID/valores migrados pra planilha nova)`);
   RAW_ROWS = rows.map(r => ({...r, _key: rowKey(r)}));
   // Persistir sheet + dados dos cards no localStorage (restauração imediata ao recarregar)
   try {
@@ -7900,7 +7978,7 @@ function renderUpcoming(){
     const evMin = opMinutes(timeToMinutes(t.hora)); // relógio operacional: madrugada = fim do dia da grade
     let countdownHtml = '';
     if(evMin !== null && !fixed){
-      const diff = evMin - opMinutes(cardNowMin);
+      const diff = evMin - (opMinutes(cardNowMin) - 1440 * gradeDaysAhead()); // desconta grade adiantada (dia seguinte carregado cedo)
       const absDiff = Math.abs(diff);
       if(diff > 0 && diff <= 120){
         const h = Math.floor(absDiff/60), m = absDiff%60;
@@ -10904,7 +10982,7 @@ function tick(){
   const mm = String(n.minute).padStart(2,'0');
   document.getElementById('navTime').textContent = `${dd} ${months[n.month - 1]} · ${hh}:${mm}`;
   // atualiza countdowns só se há cards visíveis
-  const nowMin = opMinutes(nowMinutesSP()); // relógio operacional — data-evmin já vem deslocado do render
+  const nowMin = opNowMinutes(); // relógio operacional ajustado à grade — data-evmin já vem deslocado do render
   const countdownEls = document.querySelectorAll('.tcard-countdown[data-evmin]');
   if(!countdownEls.length) return;
   countdownEls.forEach(el => {
