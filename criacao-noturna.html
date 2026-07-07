@@ -2195,6 +2195,10 @@ function renderVertical(items, cat, asg){
   cols.forEach(c => [feeInfo, adminInfo, earlyInfo, ticketInfo, payoutInfo, calcPayoutInfo, rebuyInfo, addonInfo, chipsInfo, structureInfo, gameTypeInfo, koInfo]
     .forEach(g => { const i = g(c.it); if (i && i.label) keyLabels.add(i.label); }));
   const addonL = (() => { const c0 = cols.find(c => addonInfo(c.it)); return c0 ? addonInfo(c0.it).label : null; })();
+  // FEE e ADMIN FEE crus saem da receita: já estão consolidados na linha "Admin Fee" lá em cima
+  const feeCols = new Set();
+  cols.forEach(c => [feeInfo, adminInfo].forEach(g => { const i = g(c.it); if (i && i.label) feeCols.add(i.label); }));
+  const rows = visibleRecipeFields().filter(l => !feeCols.has(l));
   return `
     <div class="vwrap"><table class="vtable">
       <tr><th class="rowlab">Torneio</th>${cell(c => {
@@ -2210,8 +2214,8 @@ function renderVertical(items, cat, asg){
       <tr><th class="rowlab">Early Bird</th>${cell(c => { const p = earlyParts(c.it); return p ? `<span class="calc-chip early">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
       ${cols.some(c => hasCampaign(c.it)) ? `<tr><th class="rowlab">Campanha</th>${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : ''}
       ${cat.key === 'sat' ? `<tr><th class="rowlab">Grupo</th>${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : ''}
-      ${visibleRecipeFields().length
-        ? visibleRecipeFields().map(label => `<tr><th class="rowlab ${keyLabels.has(label) ? 'key' : ''}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(c => {
+      ${rows.length
+        ? rows.map(label => `<tr><th class="rowlab ${keyLabels.has(label) ? 'key' : ''}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(c => {
             const v = c.it.extra ? c.it.extra[label] : undefined;
             const has = v !== undefined && v !== null && v !== '';
             if (!has) return `<span class="mono" style="color:var(--ink-soft);opacity:.5">—</span>`;
