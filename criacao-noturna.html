@@ -582,6 +582,58 @@
   .calc-tile.camp .k{color:var(--gold)}
   .calc-tile.camp .v{font-family:var(--display);font-size:15px;color:var(--gold)}
 
+  /* valor que o fee representa, dentro do chip da lista */
+  .calc-chip .amt{opacity:.62;font-weight:600;margin-left:1px}
+  .calc-chip .amt::before{content:'· '}
+
+  /* nome interno (coluna MTT) sob o torneio, destacado */
+  .mtt-kick{
+    display:inline-flex;align-items:center;gap:5px;margin-top:5px;
+    font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.02em;
+    color:var(--felt-bright);background:var(--felt-soft);
+    padding:2px 9px;border-radius:7px;max-width:100%;
+  }
+  .mtt-kick .tag-k{font-family:var(--text);font-size:8.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;opacity:.72}
+  .mtt-kick .val{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* ══ FICHA DO TORNEIO — destaque legal dos campos-chave ══ */
+  .spec-sheet{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px;margin-bottom:16px;
+  }
+  .spec{
+    --acc:var(--felt-bright);
+    display:flex;gap:11px;align-items:flex-start;
+    background:var(--card);border:1px solid var(--hairline);border-radius:var(--radius-sm);padding:11px 12px;
+    transition:border-color .25s var(--ease), transform .25s var(--ease);
+  }
+  .spec:hover{transform:translateY(-1px)}
+  .spec.c-felt{--acc:var(--felt-bright);--acc-soft:var(--felt-soft)}
+  .spec.c-gold{--acc:var(--gold);--acc-soft:var(--gold-soft)}
+  .spec.c-side{--acc:var(--side-bright);--acc-soft:var(--side-soft)}
+  .spec.c-sat{--acc:var(--sat-bright);--acc-soft:var(--sat-soft)}
+  .spec.c-sidefree{--acc:var(--sidefree-bright);--acc-soft:var(--sidefree-soft)}
+  .spec:hover{border-color:var(--acc)}
+  .spec-ic{
+    width:30px;height:30px;border-radius:9px;flex:none;display:grid;place-items:center;
+    color:var(--acc);background:var(--acc-soft);
+  }
+  .spec-ic svg{width:16px;height:16px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .spec-tx{min-width:0;flex:1}
+  .spec-k{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+  .spec-v{
+    font-family:var(--mono);font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;
+    color:var(--ink);margin-top:3px;line-height:1.25;word-break:break-word;
+  }
+  .spec.hot .spec-v{color:var(--acc)}
+  .spec-sub{font-size:10px;font-weight:600;color:var(--ink-soft);margin-top:3px;line-height:1.3}
+  /* nome interno no modo foco */
+  .focus-mtt{
+    display:inline-flex;align-items:center;gap:6px;margin-top:8px;
+    font-family:var(--mono);font-size:12px;font-weight:700;color:var(--felt-bright);
+    background:var(--felt-soft);padding:3px 11px;border-radius:8px;
+  }
+  .focus-mtt .tag-k{font-family:var(--text);font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;opacity:.72}
+
   /* ── seletor de função no chip do operador ── */
   .op-chip .role-sel{
     border:none;background:transparent;font-family:var(--text);
@@ -677,6 +729,19 @@
   .frow.early .fv{color:var(--sat-bright)}
   .frow.camp{background:var(--gold-soft)}
   .frow.camp .fk,.frow.camp .fv{color:var(--gold);font-weight:800}
+  /* campos-chave destacados na descida */
+  .frow.game .fk{color:var(--side-bright)}
+  .frow.ticket .fk,.frow.ticket .fv{color:var(--gold)}
+  .frow.chips .fk{color:var(--felt-bright)}
+  .frow.structure .fk{color:var(--gold)}
+  .frow.timebank .fk{color:var(--sidefree-bright)}
+  .frow.payout .fk{color:var(--sat-bright)}
+  .frow .fv .fsub{font-size:11px;opacity:.6;font-weight:600;margin-left:4px;font-family:var(--mono)}
+  .spec-title{
+    display:flex;align-items:center;gap:7px;margin:4px 0 10px;
+    font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);
+  }
+  .spec-title svg{width:13px;height:13px;stroke:var(--gold);stroke-width:1.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
   /* já digitado — apaga pra não perder o lugar na descida */
   .frow.entered{opacity:.38}
   .frow.entered .fv{text-decoration:line-through}
@@ -739,8 +804,8 @@
   /* ── #5 menu popover (handoff) ── */
   .pop-menu{
     position:fixed;z-index:110;background:var(--card);border:1px solid var(--hairline-strong);
-    border-radius:var(--radius-md);box-shadow:var(--shadow-lg);padding:8px;min-width:210px;max-width:min(320px,92vw);
-    animation:popIn .2s var(--ease-expo);
+    border-radius:var(--radius-md);box-shadow:var(--shadow-lg);padding:8px;min-width:210px;max-width:min(340px,92vw);
+    max-height:min(60vh,440px);overflow-y:auto;animation:popIn .2s var(--ease-expo);
   }
   @keyframes popIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
   .pop-menu .ph{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft);padding:6px 8px 8px;line-height:1.4}
@@ -1180,10 +1245,45 @@ function detectField(it, patterns, exclude){
   }
   return null;
 }
-function adminInfo(it){ return detectField(it, [/admin\s*fee/, /taxa\s*administ/, /adm\.?\s*fee/], /early/); }
-function feeInfo(it){   return detectField(it, [/\brake\b/, /^fee$/, /(^|[^a-z])fee([^a-z]|$)/, /taxa\s*do\s*torneio/], /admin|early|adm\.?\s*fee/); }
-function earlyInfo(it){ return detectField(it, [/early\s*bird/, /\bearly\b/, /bird/]); }
-function campInfo(it){  return detectField(it, [/campanh/, /campaign/, /\bpromo/, /\bcampanha/]); }
+/* registro dos campos-chave: padrões de auto-detecção + rótulo amigável. Um
+   mapeamento manual (MAP[fk] = coluna) sempre vence a auto-detecção. */
+const FIELD_DEFS = {
+  fee:       {label:'Rake / Fee',    res:[/\brake\b/, /^fee$/, /(^|[^a-z])fee([^a-z]|$)/, /taxa\s*do\s*torneio/], excl:/admin|early|adm\.?\s*fee/},
+  admin:     {label:'Admin Fee',     res:[/admin\s*fee/, /taxa\s*administ/, /adm\.?\s*fee/], excl:/early/},
+  early:     {label:'Early Bird',    res:[/early\s*bird/, /\bearly\b/, /bird/]},
+  camp:      {label:'Campanha',      res:[/campanh/, /campaign/, /\bpromo/, /\bcampanha/]},
+  mtt:       {label:'MTT',           res:[/^mtt$/, /^mtt\s*id/, /nome\s*interno/], excl:/marketing/},
+  gametype:  {label:'Game Type',     res:[/game\s*type/, /variante/, /modalidade/, /^game$/]},
+  ticket:    {label:'Ticket Award',  res:[/ticket/, /award/]},
+  payout:    {label:'Payout',        res:[/payout/, /pagamento/, /premiac/]},
+  chips:     {label:'Chips',         res:[/^chips$/, /chip\s*stack/, /starting\s*stack/, /stack\s*inicial/, /fichas/, /\bstack\b/], excl:/add-?on|rebuy|reentry/},
+  timebank:  {label:'Time Bank',     res:[/time\s*bank/, /banco\s*de\s*tempo/, /^tb$/]},
+  structure: {label:'Structure',     res:[/structure/, /estrutura/]}
+};
+/* resolve o campo por MAP (manual) ou auto-detecção */
+function fieldInfo(fk, it){
+  const col = MAP[fk];
+  if (col){
+    if (!it || !it.extra) return null;
+    const v = it.extra[col];
+    return (v !== undefined && v !== null && v !== '') ? {label: col, raw: v, disp: fmtExtraVal(col, v)} : null;
+  }
+  const d = FIELD_DEFS[fk];
+  return d ? detectField(it, d.res, d.excl) : null;
+}
+/* qual coluna cada campo está usando (pro diagnóstico/mapeador) — via probe */
+function fieldColumn(fk){
+  if (MAP[fk]) return {col: MAP[fk], manual: true};
+  const labels = recipeFields();
+  const probe = {extra: Object.fromEntries(labels.map(l => [l, 1]))};
+  const d = FIELD_DEFS[fk];
+  const i = d ? detectField(probe, d.res, d.excl) : null;
+  return {col: i ? i.label : null, manual: false};
+}
+function feeInfo(it){   return fieldInfo('fee', it); }
+function adminInfo(it){ return fieldInfo('admin', it); }
+function earlyInfo(it){ return fieldInfo('early', it); }
+function campInfo(it){  return fieldInfo('camp', it); }
 
 /* "tem valor de fato" — número > 0, ou texto que não seja um "vazio disfarçado" */
 function fieldActive(info){
@@ -1198,6 +1298,85 @@ function hasCampaign(it){ return fieldActive(campInfo(it)); }
 function feeActive(it){   const i = feeInfo(it);   return fieldActive(i) ? i : null; }
 function adminActive(it){ const i = adminInfo(it); return fieldActive(i) ? i : null; }
 function earlyActive(it){ const i = earlyInfo(it); return fieldActive(i) ? i : null; }
+
+/* ── campos-chave da FICHA do torneio (via registro, com mapeamento manual) ── */
+function mttInfo(it){       return fieldInfo('mtt', it); }
+function gameTypeInfo(it){  return fieldInfo('gametype', it); }
+function ticketInfo(it){    return fieldInfo('ticket', it); }
+function payoutInfo(it){    return fieldInfo('payout', it); }
+function chipsInfo(it){     return fieldInfo('chips', it); }
+function timeBankInfo(it){  return fieldInfo('timebank', it); }
+function structureInfo(it){ return fieldInfo('structure', it); }
+
+/* #valores: quanto um fee/percentual REPRESENTA em dinheiro (buy-in em dólar).
+   - fração (0<v<1)  → é percentual: valor = buy-in × v
+   - v ≥ 1           → já é valor absoluto: mostra e calcula o % sobre o buy-in
+   pctOnly = true  → não converte absolutos em dinheiro (ex.: chips do early bird) */
+function calcValueParts(it, info, pctOnly){
+  if (!info) return null;
+  let raw;
+  if (typeof info.raw === 'number') raw = info.raw;
+  else {
+    const s = String(info.raw);
+    raw = parseFloat(s.replace(/[^\d.,-]/g, '').replace(',', '.'));
+    if (isFinite(raw) && /%/.test(s)) raw = raw / 100;   // "10%" (texto) → 0.10
+  }
+  if (!isFinite(raw)) return {main: info.disp, sub: '', money: null};
+  if (raw > 0 && raw < 1){
+    const money = (it.buyin != null) ? Math.round(it.buyin * raw * 100) / 100 : null;
+    const pct = (Math.round(raw * 10000) / 100).toLocaleString('pt-BR') + '%';
+    return {main: pct, sub: money != null ? fmtMoneyPlain(money) : '', money};
+  }
+  if (pctOnly) return {main: info.disp, sub: '', money: null};
+  const pct = (it.buyin && it.buyin > 0) ? (Math.round(raw / it.buyin * 10000) / 100).toLocaleString('pt-BR') + '%' : '';
+  return {main: fmtMoneyPlain(raw), sub: pct, money: raw, isMoney: true};
+}
+
+/* ícones da ficha (traço, no mesmo estilo do resto) */
+const SPEC_ICONS = {
+  buyin:'<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  rake:'<path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>',
+  admin:'<path d="M5 3v18l2-1 2 1 2-1 2 1 2-1 2 1V3l-2 1-2-1-2 1-2-1-2 1z"/><path d="M9 8h6M9 12h5"/>',
+  early:'<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  prize:'<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3"/>',
+  payout:'<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>',
+  game:'<path d="M12 3C9 7 5 8 5 12a3 3 0 0 0 5 2c-.3 2-1 3-2 4h8c-1-1-1.7-2-2-4a3 3 0 0 0 5-2c0-4-4-5-7-9z"/>',
+  chips:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>',
+  structure:'<path d="M3 20h4v-6H3zM10 20h4V8h-4zM17 20h4V4h-4z"/>',
+  timebank:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  ticket:'<path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2 2 2 0 0 0 0 4 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2 2 2 0 0 0 0-4z"/><path d="M15 6v12"/>'
+};
+function specTile(icon, accent, label, mainHtml, sub, hot){
+  if (mainHtml === '' || mainHtml === null || mainHtml === undefined || mainHtml === '—') return '';
+  return `<div class="spec ${accent} ${hot ? 'hot' : ''}">
+    <span class="spec-ic"><svg viewBox="0 0 24 24">${SPEC_ICONS[icon] || ''}</svg></span>
+    <div class="spec-tx"><div class="spec-k">${escHtml(label)}</div><div class="spec-v">${mainHtml}</div>${sub ? `<div class="spec-sub">${escHtml(sub)}</div>` : ''}</div>
+  </div>`;
+}
+/* a FICHA: valores (com quanto o fee representa) + especificações destacadas */
+function specSheetHtml(it){
+  const tiles = [];
+  tiles.push(specTile('buyin','c-felt','Buy-in', fmtMoney(it.buyin), '', true));
+  tiles.push(specTile('prize','c-felt','Prize Pool', fmtMoney(it.garantido), '', true));
+  const f = feeActive(it);   if (f){ const p = calcValueParts(it, f, false); tiles.push(specTile('rake','c-gold','Rake / Fee', escHtml(p.main), p.sub ? (p.isMoney ? p.sub + ' do buy-in' : '= ' + p.sub + ' por jogador') : '', true)); }
+  const a = adminActive(it); if (a){ const p = calcValueParts(it, a, false); tiles.push(specTile('admin','c-side','Admin Fee', escHtml(p.main), p.sub ? (p.isMoney ? p.sub + ' do buy-in' : '= ' + p.sub) : '', true)); }
+  const e = earlyActive(it); if (e){ const p = calcValueParts(it, e, true);  tiles.push(specTile('early','c-sat','Early Bird', escHtml(p.main), p.sub ? ('= ' + p.sub) : '', true)); }
+  const pay = payoutInfo(it); if (pay) tiles.push(specTile('payout','c-sat','Payout', escHtml(pay.disp), '', false));
+  const gt = gameTypeInfo(it); if (gt) tiles.push(specTile('game','c-side','Game Type', escHtml(gt.disp), '', true));
+  const tk = ticketInfo(it);   if (tk) tiles.push(specTile('ticket','c-gold','Ticket Award', escHtml(tk.disp), '', true));
+  const ch = chipsInfo(it);    if (ch) tiles.push(specTile('chips','c-felt','Chips', escHtml(ch.disp), '', false));
+  const st = structureInfo(it);if (st) tiles.push(specTile('structure','c-gold','Structure', escHtml(st.disp), '', false));
+  const tb = timeBankInfo(it); if (tb) tiles.push(specTile('timebank','c-sidefree','Time Bank', escHtml(tb.disp), '', false));
+  const filled = tiles.filter(Boolean);
+  return filled.length ? `<div class="spec-sheet">${filled.join('')}</div>` : '';
+}
+/* nome interno curto (coluna MTT) quando difere do nome exibido */
+function mttKicker(it){
+  const m = mttInfo(it);
+  if (!m || !fieldActive(m)) return null;
+  if (normText(m.disp) === normText(it.nome)) return null;
+  return m.disp;
+}
 
 /* separa os Side Events em dois blocos: com e sem Admin Fee */
 function sideSplit(){
@@ -1356,6 +1535,7 @@ let DONE = {};            // key -> {by, at}
 let IDS = {};             // key -> {val, by, at} — ID do evento no Pokerbyte
 let ROLES = {};           // roleKey(op) -> 'mainSat' | 'sideAdmin' | 'sideNoAdmin'
 let OVERRIDES = {};       // itemKey -> opName — reatribuições manuais (handoff) vencem a divisão
+let MAP = {};             // fieldKey -> rótulo da coluna (mapeamento manual vence a auto-detecção)
 let PRESENCE = {};        // sessionId -> {name, at}
 let SEARCH = '';
 let CURRENCY = localStorage.getItem('cn_currency') || 'usd';
@@ -1411,6 +1591,11 @@ try{
   });
   fbDb.ref(`${FB_PATH}/overrides`).on('value', s => {
     OVERRIDES = s.val() || {};
+    renderAll();
+    renderFocus();
+  });
+  fbDb.ref(`${FB_PATH}/fieldMap`).on('value', s => {
+    MAP = s.val() || {};
     renderAll();
     renderFocus();
   });
@@ -1671,7 +1856,14 @@ function renderFieldDiag(){
     ['Admin Fee', seek(adminInfo)],
     ['Rake / Fee', seek(feeInfo)],
     ['Early Bird', seek(earlyInfo)],
-    ['Campanha', seek(campInfo)]
+    ['Campanha', seek(campInfo)],
+    ['MTT', seek(mttInfo)],
+    ['Game Type', seek(gameTypeInfo)],
+    ['Ticket Award', seek(ticketInfo)],
+    ['Payout', seek(payoutInfo)],
+    ['Chips', seek(chipsInfo)],
+    ['Time Bank', seek(timeBankInfo)],
+    ['Structure', seek(structureInfo)]
   ];
   const chips = items.map(([k, lab]) => lab
     ? `<span class="lk" title="coluna reconhecida: ${escHtml(lab)}"><span class="d" style="background:var(--felt-bright)"></span>${k}</span>`
@@ -1883,11 +2075,16 @@ function recipeGridHtml(it){
 /* ── CÁLCULO em destaque: rake / admin fee / early bird ──
    chips compactos pra ver na linha sem abrir a receita */
 function calcChipsHtml(it){
+  const mk = (info, cls, lab, pctOnly) => {
+    const p = calcValueParts(it, info, pctOnly);
+    const amt = p && p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : '';
+    return `<span class="calc-chip ${cls}" title="${lab} — ${escHtml(info.label)}"><span class="lab">${lab}</span>${escHtml(p ? p.main : info.disp)}${amt}</span>`;
+  };
   const f = feeActive(it), a = adminActive(it), e = earlyActive(it);
   const chips = [];
-  if (f) chips.push(`<span class="calc-chip rake" title="Rake / Fee — ${escHtml(f.label)}"><span class="lab">Rake</span>${escHtml(f.disp)}</span>`);
-  if (a) chips.push(`<span class="calc-chip admin" title="Admin Fee — ${escHtml(a.label)}"><span class="lab">Adm</span>${escHtml(a.disp)}</span>`);
-  if (e) chips.push(`<span class="calc-chip early" title="Early Bird — ${escHtml(e.label)}"><span class="lab">EB</span>${escHtml(e.disp)}</span>`);
+  if (f) chips.push(mk(f, 'rake', 'Rake', false));
+  if (a) chips.push(mk(a, 'admin', 'Adm', false));
+  if (e) chips.push(mk(e, 'early', 'EB', true));
   return chips.length ? `<div class="calc-chips">${chips.join('')}</div>` : `<span class="tval" style="opacity:.35">—</span>`;
 }
 function campBadgeHtml(it){
@@ -2064,7 +2261,7 @@ function renderHorizontal(items, cat, asg){
     rows += `
       <tr class="${done ? 'done' : ''} ${urg ? 'urg-' + urg : ''} ${hasCampaign(it) ? 'has-camp' : ''}" data-rowkey="${key}">
         <td><button class="chk ${done ? 'on' : ''}" data-done="${key}" title="${done ? `Criado por ${escHtml(done.by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button></td>
-        <td class="tname">${escHtml(it.nome)}${campBadgeHtml(it)}${valBadge(it, cat)}${urg ? `<span class="urg-pill ${urg}">⏰ ${urgLabel(it)}</span>` : ''}${chg}</td>
+        <td class="tname">${escHtml(it.nome)}${campBadgeHtml(it)}${valBadge(it, cat)}${urg ? `<span class="urg-pill ${urg}">⏰ ${urgLabel(it)}</span>` : ''}${chg}${(() => { const m = mttKicker(it); return m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : ''; })()}</td>
         <td class="thora">${escHtml(it.hora)}</td>
         <td class="tval">${fmtMoney(it.garantido)}</td>
         <td class="tval">${fmtMoney(it.buyin)}</td>
@@ -2075,7 +2272,7 @@ function renderHorizontal(items, cat, asg){
         <td><button class="exp-btn" data-expand="${key}" title="Ver a receita completa do torneio">Receita <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></td>
         <td><button class="copy-btn" data-copy="${escHtml(recipeText(it, cat.label))}" title="Copiar receita completa do torneio"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></td>
       </tr>
-      <tr class="detail-row" data-detail="${key}" hidden><td colspan="11">${calcPanelHtml(it)}${recipeGridHtml(it)}</td></tr>`;
+      <tr class="detail-row" data-detail="${key}" hidden><td colspan="11">${specSheetHtml(it)}${recipeGridHtml(it)}</td></tr>`;
   });
   return `
     <div class="ttable"><table>
@@ -2095,13 +2292,13 @@ function renderVertical(items, cat, asg){
   const cell = (fn, cls) => cols.map(c => `<td class="${c.done ? 'done-col' : ''} ${cls || ''}">${fn(c)}</td>`).join('');
   return `
     <div class="vwrap"><table class="vtable">
-      <tr><th class="rowlab">Torneio</th>${cell(c => escHtml(c.it.nome), 'vname')}</tr>
+      <tr><th class="rowlab">Torneio</th>${cell(c => { const m = mttKicker(c.it); return escHtml(c.it.nome) + (m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : ''); }, 'vname')}</tr>
       <tr><th class="rowlab">Horário</th>${cell(c => `<span class="thora">${escHtml(c.it.hora)}</span>`)}</tr>
       <tr><th class="rowlab">Garantido</th>${cell(c => `<span class="tval">${fmtMoney(c.it.garantido)}</span>`)}</tr>
       <tr><th class="rowlab">Buy-in</th>${cell(c => `<span class="tval">${fmtMoney(c.it.buyin)}</span>`)}</tr>
-      <tr><th class="rowlab">Rake / Fee</th>${cell(c => { const f = feeActive(c.it); return f ? `<span class="calc-chip rake">${escHtml(f.disp)}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
-      <tr><th class="rowlab">Admin Fee</th>${cell(c => { const a = adminActive(c.it); return a ? `<span class="calc-chip admin">${escHtml(a.disp)}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
-      <tr><th class="rowlab">Early Bird</th>${cell(c => { const e = earlyActive(c.it); return e ? `<span class="calc-chip early">${escHtml(e.disp)}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
+      <tr><th class="rowlab">Rake / Fee</th>${cell(c => { const f = feeActive(c.it); if (!f) return `<span style="opacity:.4">—</span>`; const p = calcValueParts(c.it, f, false); return `<span class="calc-chip rake">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>`; })}</tr>
+      <tr><th class="rowlab">Admin Fee</th>${cell(c => { const a = adminActive(c.it); if (!a) return `<span style="opacity:.4">—</span>`; const p = calcValueParts(c.it, a, false); return `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>`; })}</tr>
+      <tr><th class="rowlab">Early Bird</th>${cell(c => { const e = earlyActive(c.it); if (!e) return `<span style="opacity:.4">—</span>`; const p = calcValueParts(c.it, e, true); return `<span class="calc-chip early">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>`; })}</tr>
       <tr><th class="rowlab">Campanha</th>${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>
       ${cat.key === 'sat' ? `<tr><th class="rowlab">Grupo</th>${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : ''}
       ${items.some(it => validateItem(it, cat).length) ? `<tr><th class="rowlab">Conferir</th>${cell(c => valBadge(c.it, cat) || `<span style="opacity:.4">—</span>`)}</tr>` : ''}
@@ -2257,6 +2454,11 @@ function focusFlowHtml(it){
     return `<div class="recipe-note">Receita completa indisponível nesta planilha (cabeçalho da Global não foi lido). Recarregue a Global MTT original.</div>`;
   const feeL = (feeInfo(it) || {}).label, admL = (adminInfo(it) || {}).label,
         earL = (earlyInfo(it) || {}).label, campL = (campInfo(it) || {}).label;
+  // mapa rótulo→destaque dos campos-chave (game type, ticket, chips, structure, time bank, payout)
+  const featMap = {};
+  const setFeat = (info, cls) => { if (info && info.label && !featMap[info.label]) featMap[info.label] = cls; };
+  setFeat(gameTypeInfo(it),'game'); setFeat(ticketInfo(it),'ticket'); setFeat(chipsInfo(it),'chips');
+  setFeat(structureInfo(it),'structure'); setFeat(timeBankInfo(it),'timebank'); setFeat(payoutInfo(it),'payout');
   const copySvg = `<svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`;
   return fields.map((label, i) => {
     const v = it.extra ? it.extra[label] : undefined;
@@ -2270,11 +2472,19 @@ function focusFlowHtml(it){
     else if (label === campL && hasCampaign(it)) accent = 'camp';
     else if (nl.includes('buy')) accent = 'buyin';
     else if (nl.includes('prize') || nl.includes('guarant')) accent = 'prize';
+    else if (featMap[label]) accent = featMap[label];
+    // valor exibido: nos fees, mostra também quanto representa em dinheiro
+    let vHtml = has ? escHtml(disp) : 'deixar em branco';
+    if (has && (accent === 'rake' || accent === 'admin' || accent === 'early')){
+      const info = accent === 'rake' ? feeActive(it) : accent === 'admin' ? adminActive(it) : earlyActive(it);
+      const p = info ? calcValueParts(it, info, accent === 'early') : null;
+      if (p && p.sub) vHtml = escHtml(p.main) + `<span class="fsub">${accent === 'early' ? '= ' : '· '}${escHtml(p.sub)}</span>`;
+    }
     const done = FOCUS_ENTERED.has(label);
     return `<div class="frow ${accent} ${has ? '' : 'blank'} ${done ? 'entered' : ''} ${accent ? 'key-line' : ''}" data-field="${escHtml(label)}">
       <span class="fnum">${done ? '✓' : (i + 1)}</span>
       <span class="fk" title="${escHtml(label)}">${escHtml(label)}</span>
-      <span class="fv">${has ? escHtml(disp) : 'deixar em branco'}</span>
+      <span class="fv">${vHtml}</span>
       ${has ? `<button class="fcopy" data-fcopy="${escHtml(disp)}" title="Copiar valor">${copySvg}</button>` : `<span></span>`}
     </div>`;
   }).join('');
@@ -2332,9 +2542,9 @@ function openCreateConfirm(it, cat, key, onConfirm){
       ${cci('Horário', escHtml(it.hora))}
       ${cci('Buy-in', fmtMoney(it.buyin), it.buyin == null)}
       ${cci('Garantido', fmtMoney(it.garantido), it.garantido == null)}
-      ${cci('Rake / Fee', f ? escHtml(f.disp) : '—', !f && cat.key !== 'sat')}
-      ${a ? cci('Admin Fee', escHtml(a.disp)) : ''}
-      ${e ? cci('Early Bird', escHtml(e.disp)) : ''}
+      ${(() => { if (!f) return cci('Rake / Fee', '—', cat.key !== 'sat'); const p = calcValueParts(it, f, false); return cci('Rake / Fee', escHtml(p.main) + (p.sub ? ` <span style="opacity:.6;font-size:11px">${escHtml(p.sub)}</span>` : '')); })()}
+      ${a ? (() => { const p = calcValueParts(it, a, false); return cci('Admin Fee', escHtml(p.main) + (p.sub ? ` <span style="opacity:.6;font-size:11px">${escHtml(p.sub)}</span>` : '')); })() : ''}
+      ${e ? (() => { const p = calcValueParts(it, e, true); return cci('Early Bird', escHtml(p.main) + (p.sub ? ` <span style="opacity:.6;font-size:11px">${escHtml(p.sub)}</span>` : '')); })() : ''}
       ${hasCampaign(it) ? cci('✦ Campanha', escHtml((campInfo(it) || {}).disp || 'ativa'), false) : ''}
       ${cci('ID Pokerbyte', idv ? escHtml(idv) : 'em branco', !idv)}
     </div>
@@ -2394,6 +2604,7 @@ function renderFocus(){
         <button class="focus-close" id="focusClose" title="Fechar (Esc)">✕</button>
       </div>
       <div class="focus-name">${escHtml(it.nome)}</div>
+      ${(() => { const m = mttKicker(it); return m ? `<div class="focus-mtt"><span class="tag-k">MTT</span>${escHtml(m)}</div>` : ''; })()}
       <div class="focus-check">
         <div class="fc hora"><span class="k">Horário</span><span class="v">${escHtml(it.hora)}</span></div>
         <div class="fc"><span class="k">Buy-in</span><span class="v">${fmtMoney(it.buyin)}</span></div>
@@ -2409,6 +2620,7 @@ function renderFocus(){
 
     <div class="focus-body">
       ${issues.length ? `<div class="focus-alerts">${issues.map(m => `<div class="focus-alert">⚠ ${escHtml(m)}</div>`).join('')}</div>` : ''}
+      ${(() => { const s = specSheetHtml(it); return s ? `<div class="spec-title"><svg viewBox="0 0 24 24"><path d="M12 2 15 9l7 .5-5.3 4.6L18.5 21 12 17l-6.5 4 1.8-6.9L2 9.5 9 9z"/></svg> Destaques</div>${s}` : ''; })()}
       <div class="flow-head">
         <span class="t"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h12"/></svg> Receita — de cima para baixo</span>
         <span class="flow-prog" id="flowProg">${FOCUS_ENTERED.size}/${fieldsN} campos</span>
@@ -2582,8 +2794,9 @@ $('exportBtn').addEventListener('click', () => {
         return v === undefined || v === null || v === '' ? '' : fmtExtraVal(label, v);
       });
       const dur = DONE[key] && typeof DONE[key].dur === 'number' ? Math.round(DONE[key].dur / 60000 * 10) / 10 : '';
+      const feeCell = (info, pctOnly) => { if (!info) return ''; const p = calcValueParts(it, info, pctOnly); return p.sub ? `${p.main} (${p.sub})` : p.main; };
       rows.push([cat.label, it.nome, it.hora, conv(it.garantido), conv(it.buyin),
-        f ? f.disp : '', a ? a.disp : '', e ? e.disp : '', hasCampaign(it) ? (c ? c.disp : 'sim') : '',
+        feeCell(f, false), feeCell(a, false), feeCell(e, true), hasCampaign(it) ? (c ? c.disp : 'sim') : '',
         validateItem(it, cat).join(' · '), it.late || '', asg[key] || '', idVal(key), DONE[key] ? `✓ ${DONE[key].by || ''}` : '', dur, ...extras]);
     });
     rows.push([]);
