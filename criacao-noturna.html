@@ -448,6 +448,30 @@
   .copy-btn:hover{border-color:var(--felt-bright)}
   .copy-btn:hover svg{stroke:var(--felt-bright)}
 
+  /* vertical (transposta) — o formato da criação: campos nas linhas, torneios nas colunas */
+  .vwrap{
+    background:var(--card);border:1px solid var(--hairline);
+    border-radius:var(--radius-md);box-shadow:var(--shadow-sm);
+    overflow-x:auto;
+  }
+  .vtable{border-collapse:collapse}
+  .vtable th, .vtable td{
+    padding:10px 16px;font-size:12.5px;border-bottom:1px solid var(--hairline);
+    border-right:1px solid var(--hairline);white-space:nowrap;text-align:left;
+    vertical-align:middle;
+  }
+  .vtable tr:last-child th, .vtable tr:last-child td{border-bottom:none}
+  .vtable .rowlab{
+    position:sticky;left:0;z-index:2;
+    background:var(--card-elevated);
+    font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-soft);min-width:110px;
+  }
+  .vtable .rowlab.key{color:var(--felt-bright)}
+  .vtable td.vname{font-weight:650;font-size:12.5px;max-width:190px;white-space:normal;line-height:1.35}
+  .vtable td.done-col{opacity:.45}
+  .vtable td.done-col.vname{text-decoration:line-through}
+
   /* ── banner de turno concluído: pede a próxima GU ── */
   .alldone{
     display:flex;gap:14px;align-items:flex-start;
@@ -2107,7 +2131,7 @@ function renderList(){
         <span class="line"></span>
       </div>
       ${sectionNoteHtml(cat)}`;
-    html += renderHorizontal(items, cat, asg);
+    html += renderVertical(items, cat, asg);
   });
 
   if (DATA.unknown && DATA.unknown.length && FILTER === 'all'){
@@ -2146,45 +2170,52 @@ function renderList(){
   }));
 }
 
-/* horizontal: linhas = torneios (formato clássico da GU); o botão "Receita"
-   expande uma linha de detalhe com TODOS os campos que a pessoa digita no app */
-function renderHorizontal(items, cat, asg){
-  let rows = '';
-  let lastGroup = null;
-  items.forEach(it => {
+/* vertical (única visão): planilha transposta — campos nas linhas, torneios nas
+   colunas, na ordem em que se digita no app. Campos-chave com rótulo destacado. */
+function renderVertical(items, cat, asg){
+  const cols = items.map(it => {
     const key = itemKey(it);
-    const done = DONE[key];
-    if (cat.key === 'sat'){
-      const g = it.groupHeader || it.nome;
-      if (g !== lastGroup){
-        rows += `<tr class="sat-group-row"><td colspan="11">${escHtml(g)}</td></tr>`;
-        lastGroup = g;
-      }
-    }
-    const urg = urgency(it);
-    const chg = changeBadge(it);
-    rows += `
-      <tr class="${done ? 'done' : ''} ${urg ? 'urg-' + urg : ''} ${hasCampaign(it) ? 'has-camp' : ''}" data-rowkey="${key}">
-        <td><button class="chk ${done ? 'on' : ''}" data-done="${key}" title="${done ? `Criado por ${escHtml(done.by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button></td>
-        <td class="tname">${escHtml(it.nome)}${campBadgeHtml(it)}${valBadge(it, cat)}${urg ? `<span class="urg-pill ${urg}">⏰ ${urgLabel(it)}</span>` : ''}${chg}${(() => { const m = mttKicker(it); return m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : ''; })()}</td>
-        <td class="thora">${escHtml(it.hora)}</td>
-        <td class="tval">${fmtMoney(it.garantido)}</td>
-        <td class="tval">${fmtMoney(it.buyin)}</td>
-        <td>${calcChipsHtml(it)}</td>
-        <td class="mono" style="color:var(--ink-soft)">${it.late ? escHtml(it.late) : '—'}</td>
-        <td>${opTagHtml(asg[key])}</td>
-        <td>${idInputHtml(key)}</td>
-        <td><button class="exp-btn" data-expand="${key}" title="Ver a receita completa do torneio">Receita <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></td>
-        <td><button class="copy-btn" data-copy="${escHtml(recipeText(it, cat.label))}" title="Copiar receita completa do torneio"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></td>
-      </tr>
-      <tr class="detail-row" data-detail="${key}" hidden><td colspan="11">${specSheetHtml(it)}${recipeGridHtml(it)}</td></tr>`;
+    return {it, key, done: !!DONE[key], op: asg[key]};
   });
+  const cell = (fn, cls) => cols.map(c => `<td class="${c.done ? 'done-col' : ''} ${cls || ''}">${fn(c)}</td>`).join('');
+  // rótulos das colunas-chave pra destacar a linha correspondente da receita
+  const keyLabels = new Set();
+  cols.forEach(c => [feeInfo, adminInfo, earlyInfo, ticketInfo, payoutInfo, calcPayoutInfo, rebuyInfo, addonInfo, chipsInfo, structureInfo]
+    .forEach(g => { const i = g(c.it); if (i && i.label) keyLabels.add(i.label); }));
+  const addonL = (() => { const c0 = cols.find(c => addonInfo(c.it)); return c0 ? addonInfo(c0.it).label : null; })();
   return `
-    <div class="ttable"><table>
-      <thead><tr>
-        <th></th><th>Torneio</th><th>Horário</th><th>Garantido</th><th>Buy-in</th><th>Admin Fee · EB</th><th>Late reg</th><th>Operador</th><th>ID Pokerbyte</th><th>Receita</th><th></th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
+    <div class="vwrap"><table class="vtable">
+      <tr><th class="rowlab">Torneio</th>${cell(c => {
+        const m = mttKicker(c.it), urg = urgency(c.it);
+        return escHtml(c.it.nome) + campBadgeHtml(c.it) + valBadge(c.it, cat) + changeBadge(c.it)
+          + (urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(c.it)}</span>` : '')
+          + (m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : '');
+      }, 'vname')}</tr>
+      <tr><th class="rowlab">Horário</th>${cell(c => `<span class="thora">${escHtml(c.it.hora)}</span>`)}</tr>
+      <tr><th class="rowlab key">Garantido</th>${cell(c => `<span class="tval">${fmtMoney(c.it.garantido)}</span>`)}</tr>
+      <tr><th class="rowlab key">Buy-in</th>${cell(c => `<span class="tval">${fmtMoney(c.it.buyin)}</span>`)}</tr>
+      <tr><th class="rowlab">Admin Fee</th>${cell(c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
+      <tr><th class="rowlab">Early Bird</th>${cell(c => { const p = earlyParts(c.it); return p ? `<span class="calc-chip early">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
+      ${cols.some(c => hasCampaign(c.it)) ? `<tr><th class="rowlab">Campanha</th>${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : ''}
+      ${cat.key === 'sat' ? `<tr><th class="rowlab">Grupo</th>${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : ''}
+      ${recipeFields().length
+        ? recipeFields().map(label => `<tr><th class="rowlab ${keyLabels.has(label) ? 'key' : ''}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(c => {
+            const v = c.it.extra ? c.it.extra[label] : undefined;
+            const has = v !== undefined && v !== null && v !== '';
+            if (!has) return `<span class="mono" style="color:var(--ink-soft);opacity:.5">—</span>`;
+            // Add-on em $; demais campos como se digita no app
+            if (label === addonL){
+              const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.'));
+              if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n))}</span>`;
+            }
+            return `<span class="mono" style="${keyLabels.has(label) ? 'font-weight:700' : ''}">${escHtml(fmtExtraVal(label, v))}</span>`;
+          })}</tr>`).join('')
+        : `<tr><th class="rowlab">Late reg</th>${cell(c => `<span class="mono" style="color:var(--ink-soft)">${c.it.late ? escHtml(c.it.late) : '—'}</span>`)}</tr>`}
+      <tr><th class="rowlab">Operador</th>${cell(c => opTagHtml(c.op))}</tr>
+      <tr><th class="rowlab">ID Pokerbyte</th>${cell(c => idInputHtml(c.key, 'width:110px'))}</tr>
+      <tr><th class="rowlab">Criado</th>${cell(c => `
+        <button class="chk ${c.done ? 'on' : ''}" data-done="${c.key}" title="${c.done ? `Criado por ${escHtml((DONE[c.key]||{}).by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
+        <button class="copy-btn" data-copy="${escHtml(recipeText(c.it, cat.label))}" title="Copiar receita" style="margin-left:6px;display:inline-grid;vertical-align:middle"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>`)}</tr>
     </table></div>`;
 }
 
