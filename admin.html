@@ -1339,6 +1339,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
 <div id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
@@ -1517,6 +1518,8 @@ function loginLockRemaining(user){
 function initFb(){
   try{
     firebase.initializeApp(FB_CFG);
+    // auth anônimo: exigido pelas regras do banco (firebase.rules.json)
+    firebase.auth().signInAnonymously().catch(e=>console.warn('auth anônimo falhou',e));
     db=firebase.database();
     fbOk=true;
   }catch(e){console.error('Firebase init',e);}

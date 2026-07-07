@@ -1,0 +1,16 @@
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null",
+
+    "painel": {
+      "$dia": {
+        "criacaoNoturna": {
+          "done":      { "$key": { ".validate": "newData.hasChild('by')" } },
+          "ids":       { "$key": { ".validate": "newData.hasChild('val')" } },
+          "presence":  { "$sid": { ".validate": "newData.hasChild('name')" } }
+        }
+      }
+    }
+  }
+}
