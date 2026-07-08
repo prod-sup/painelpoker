@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suprema OS</title>
+<style>
+/* ============================================================
+   SUPREMA OS — hub de produtos do Grupo Suprema
+   Identidade: verde feltro + dourado, ♠, SF Pro / SF Mono
+   (mesmas famílias e tokens dos painéis; tema dark travado,
+   como as experiências Poker Learn e A Constelação)
+   ============================================================ */
+:root{
+  --bg:        #0b0d0c;
+  --bg-raise:  #111412;
+  --ink:       #f2ede2;
+  --ink-soft:  rgba(242,237,226,.58);
+  --ink-faint: rgba(242,237,226,.34);
+  --hairline:  rgba(242,237,226,.10);
+  --gold:      #d8b56d;
+  --gold-soft: rgba(216,181,109,.12);
+  --felt:      #18a36b;
+
+  /* cor de cada produto (a identidade que cada app já tem) */
+  --p-painel:  #18a36b;
+  --p-admin:   #c9a35c;
+  --p-gu:      #8c5cc6;
+  --p-learn:   #e8933d;
+  --p-org:     #d8b56d;
+
+  --display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", sans-serif;
+  --text:    "SF Pro Text", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", sans-serif;
+  --mono:    "SF Mono", "IBM Plex Mono", ui-monospace, "Roboto Mono", monospace;
+
+  --radius: 18px;
+  --ease: cubic-bezier(.22,1,.36,1);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  min-height:100dvh;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--text);
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+/* fundo: brilho de feltro no horizonte + vinheta */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(120% 70% at 50% -20%, rgba(24,163,107,.10), transparent 60%),
+    radial-gradient(90% 60% at 85% 110%, rgba(216,181,109,.06), transparent 55%);
+}
+
+/* ---------- nav ---------- */
+nav{
+  position:sticky;top:0;z-index:10;height:64px;
+  display:flex;align-items:center;
+  border-bottom:1px solid var(--hairline);
+  background:rgba(11,13,12,.82);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+}
+.nav-inner{
+  width:100%;max-width:1180px;margin:0 auto;padding:0 28px;
+  display:flex;align-items:center;gap:14px;
+}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:700;letter-spacing:.02em}
+.brand .suit{color:var(--gold);font-size:19px;line-height:1}
+.brand small{font-family:var(--mono);font-weight:400;color:var(--ink-faint);font-size:11px;margin-left:4px}
+.nav-time{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+
+/* ---------- hero ---------- */
+.hero{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:56px 28px 34px}
+.hero h1{
+  font-family:var(--display);
+  font-size:clamp(38px,5.6vw,64px);
+  line-height:1.02;letter-spacing:-.03em;margin:0;
+}
+.hero h1 .os{color:var(--gold)}
+.hero p{margin:14px 0 0;max-width:52ch;color:var(--ink-soft);font-size:16px;line-height:1.55}
+
+/* ---------- grid de produtos ---------- */
+.grid{
+  position:relative;z-index:1;
+  max-width:1180px;margin:26px auto 0;padding:0 28px 72px;
+  display:grid;gap:14px;
+  grid-template-columns:repeat(6,1fr);
+}
+.tile{
+  --tint:var(--gold);
+  position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;
+  min-height:250px;padding:24px;
+  border:1px solid var(--hairline);border-radius:var(--radius);
+  background:var(--bg-raise);
+  color:var(--ink);text-decoration:none;
+  transition:transform .45s var(--ease), border-color .45s var(--ease), box-shadow .45s var(--ease);
+}
+.tile:hover,.tile:focus-visible{
+  transform:translateY(-4px);
+  border-color:color-mix(in srgb, var(--tint) 55%, transparent);
+  box-shadow:0 18px 44px -18px color-mix(in srgb, var(--tint) 45%, transparent);
+  outline:none;
+}
+.tile:active{transform:translateY(-2px) scale(.995)}
+/* tinta de cada produto: gradiente próprio + naipe marca-d'água */
+.tile::before{
+  content:"";position:absolute;inset:0;
+  background:radial-gradient(130% 110% at 80% -10%, color-mix(in srgb, var(--tint) 22%, transparent), transparent 62%);
+  transition:opacity .45s var(--ease);opacity:.85;
+}
+.tile:hover::before{opacity:1}
+.tile .mark{
+  position:absolute;top:-38px;right:-16px;
+  font-size:190px;line-height:1;font-family:var(--display);
+  color:color-mix(in srgb, var(--tint) 20%, transparent);
+  user-select:none;pointer-events:none;
+  transition:transform .6s var(--ease);
+}
+.tile:hover .mark{transform:translateY(6px) rotate(-4deg)}
+.tile h2{
+  position:relative;margin:0;
+  font-family:var(--display);font-size:24px;letter-spacing:-.015em;line-height:1.1;
+}
+.tile .desc{position:relative;margin:8px 0 0;color:var(--ink-soft);font-size:13.5px;line-height:1.5;max-width:40ch}
+.tile .meta{
+  position:relative;margin-top:16px;display:flex;align-items:center;gap:8px;
+  font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  color:color-mix(in srgb, var(--tint) 85%, white 10%);
+}
+.tile .meta .arrow{transition:transform .35s var(--ease)}
+.tile:hover .meta .arrow{transform:translateX(4px)}
+
+/* composição do bento: 5 produtos, 5 células com ritmo */
+.t-painel{grid-column:span 4;min-height:320px;--tint:var(--p-painel)}
+.t-admin {grid-column:span 2;min-height:320px;--tint:var(--p-admin)}
+.t-gu    {grid-column:span 2;--tint:var(--p-gu)}
+.t-learn {grid-column:span 2;--tint:var(--p-learn)}
+.t-org   {grid-column:span 2;--tint:var(--p-org)}
+.t-painel h2{font-size:32px}
+.t-painel .desc{max-width:52ch}
+/* Constelação: céu estrelado próprio */
+.t-org{
+  background:
+    radial-gradient(1px 1px at 18% 30%, rgba(242,237,226,.7), transparent 100%),
+    radial-gradient(1px 1px at 42% 14%, rgba(242,237,226,.5), transparent 100%),
+    radial-gradient(1.5px 1.5px at 66% 38%, rgba(216,181,109,.8), transparent 100%),
+    radial-gradient(1px 1px at 84% 20%, rgba(242,237,226,.6), transparent 100%),
+    radial-gradient(1px 1px at 30% 55%, rgba(242,237,226,.4), transparent 100%),
+    #060707;
+}
+/* Learn: mesa aquecida */
+.t-learn{background:linear-gradient(160deg,#171008 0%,var(--bg-raise) 55%)}
+/* GU: noite */
+.t-gu{background:linear-gradient(160deg,#120d1c 0%,var(--bg-raise) 60%)}
+
+/* ---------- rodapé ---------- */
+footer{
+  position:relative;z-index:1;border-top:1px solid var(--hairline);
+  padding:20px 28px 28px;
+}
+.foot-inner{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:10px;color:var(--ink-faint);font-family:var(--mono);font-size:11.5px}
+.foot-inner .suit{color:var(--gold)}
+
+/* ---------- entrada ---------- */
+@media (prefers-reduced-motion: no-preference){
+  .hero h1,.hero p,.tile{
+    opacity:0;transform:translateY(16px);
+    animation:rise .8s var(--ease) forwards;
+  }
+  .hero p{animation-delay:.08s}
+  .tile{animation-delay:calc(.14s + var(--i,0) * .07s)}
+  @keyframes rise{to{opacity:1;transform:none}}
+}
+
+/* ---------- responsivo ---------- */
+@media (max-width:900px){
+  .t-painel,.t-admin{grid-column:span 6}
+  .t-gu,.t-learn,.t-org{grid-column:span 6}
+  .tile{min-height:200px}
+  .hero{padding-top:40px}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <span class="brand"><span class="suit">&spades;</span> Suprema <small>OS</small></span>
+    <span class="nav-time" id="navTime"></span>
+  </div>
+</nav>
+
+<header class="hero">
+  <h1>Suprema <span class="os">OS</span></h1>
+  <p>Todas as ferramentas da operação em um lugar. Escolha um produto para entrar.</p>
+</header>
+
+<main class="grid">
+
+  <a class="tile t-painel" href="index.html" style="--i:0">
+    <span class="mark" aria-hidden="true">&spades;</span>
+    <h2>Painel do Dia</h2>
+    <p class="desc">A grade de torneios ao vivo: agenda, GU, resultados e checklist do turno, sincronizado entre operadores.</p>
+    <span class="meta">Operação diária <span class="arrow">&rarr;</span></span>
+  </a>
+
+  <a class="tile t-admin" href="admin.html" style="--i:1">
+    <span class="mark" aria-hidden="true">&diams;</span>
+    <h2>Admin</h2>
+    <p class="desc">Gestão da operação: usuários, períodos, histórico e auditoria.</p>
+    <span class="meta">Área restrita <span class="arrow">&rarr;</span></span>
+  </a>
+
+  <a class="tile t-gu" href="criacao-noturna.html" style="--i:2">
+    <span class="mark" aria-hidden="true">&#9789;</span>
+    <h2>Criação Noturna</h2>
+    <p class="desc">A receita da GU pro dia seguinte, dividida pelas funções do turno da noite.</p>
+    <span class="meta">GU 19:00 &ndash; 07:00 <span class="arrow">&rarr;</span></span>
+  </a>
+
+  <a class="tile t-learn" href="learn-poker/dist/index.html" style="--i:3">
+    <span class="mark" aria-hidden="true">&hearts;</span>
+    <h2>Poker Learn</h2>
+    <p class="desc">Treinamento imersivo: domine cada posição da mesa em uma experiência 3D.</p>
+    <span class="meta">Experi&ecirc;ncia 3D <span class="arrow">&rarr;</span></span>
+  </a>
+
+  <a class="tile t-org" href="https://prod-sup.github.io/organograma/" style="--i:4" id="orgLink">
+    <span class="mark" aria-hidden="true">&#10022;</span>
+    <h2>A Constela&ccedil;&atilde;o</h2>
+    <p class="desc">O organograma vivo do Grupo Suprema: cada estrela &eacute; uma pessoa.</p>
+    <span class="meta">Organograma WebGL <span class="arrow">&rarr;</span></span>
+  </a>
+
+</main>
+
+<footer>
+  <div class="foot-inner"><span class="suit">&spades;</span> Grupo Suprema</div>
+</footer>
+
+<script>
+// Relógio (mesmo formato do painel)
+function tick(){
+  const el = document.getElementById('navTime');
+  el.textContent = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+}
+tick(); setInterval(tick, 15000);
+
+// A Constelação mora em outro repositório; ajuste a URL publicada aqui quando mudar.
+// Em desenvolvimento local, aponta pro build da pasta vizinha se ela existir.
+if (location.protocol === 'file:') {
+  document.getElementById('orgLink').href = '../Organograma/docs/index.html';
+}
+</script>
+</body>
+</html>
