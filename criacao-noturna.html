@@ -28,7 +28,7 @@
     --felt-bright: #18a36b;
     --felt-soft: #e7f5ee;
 
-    --gold: #ad8a4e;
+    --gold: #8f6b2d; /* escurecido no tema claro pra manter 4,5:1 sobre o gold-soft */
     --gold-soft: #f6efe1;
 
     --red: #c0392b;
@@ -448,12 +448,56 @@
   .copy-btn:hover{border-color:var(--felt-bright)}
   .copy-btn:hover svg{stroke:var(--felt-bright)}
 
-  /* vertical (transposta) — o formato da criação: campos nas linhas, torneios nas colunas */
+  /* vertical (transposta) — o formato da criação: campos nas linhas, torneios nas colunas.
+     Rola nos DOIS eixos dentro do card: assim a linha "Torneio" (sticky no topo) e o
+     rótulo do campo (sticky à esquerda) mantêm o contexto em qualquer ponto da rolagem. */
+  .secwrap{position:relative}
+  .secwrap::before{ /* naipe marca-d'água da seção */
+    content:attr(data-suit);position:absolute;top:-6px;right:14px;z-index:3;
+    font-size:72px;line-height:1;opacity:.055;pointer-events:none;color:var(--ink);
+  }
   .vwrap{
     background:var(--card);border:1px solid var(--hairline);
     border-radius:var(--radius-md);box-shadow:var(--shadow-sm);
-    overflow-x:auto;
+    overflow:auto;max-height:80vh;overscroll-behavior-x:contain;
   }
+  html.dark .vwrap{ /* feltro da mesa, bem sutil */
+    background:linear-gradient(180deg, rgba(14,107,64,.09), rgba(14,107,64,.02) 260px), var(--card);
+  }
+  .vtable tr.trow-head th, .vtable tr.trow-head td{
+    position:sticky;top:0;z-index:4;background:var(--card);
+    box-shadow:0 1px 0 var(--hairline-strong);
+  }
+  html.dark .vtable tr.trow-head td{background:#161e18}
+  .vtable tr.trow-head th.rowlab{z-index:6}
+  .vgo{cursor:pointer;transition:color .2s}
+  .vgo:hover{color:var(--felt-bright);text-decoration:underline;text-underline-offset:3px}
+
+  /* ── modo TV (parede do turno): só leitura, número grande ── */
+  #tvOverlay{position:fixed;inset:0;z-index:95;background:#090c0a;display:none;color:#e8ede9;overflow-y:auto}
+  #tvOverlay.open{display:block}
+  .tv-inner{max-width:1100px;margin:0 auto;padding:48px 40px}
+  .tv-head{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;margin-bottom:30px}
+  .tv-head h2{font-family:var(--display);font-size:30px;font-weight:800;letter-spacing:-.02em}
+  .tv-head .clk{font-family:var(--mono);font-size:22px;color:#22d47e;margin-left:auto}
+  .tv-pct{font-family:var(--mono);font-size:clamp(64px,12vw,120px);font-weight:800;line-height:1;color:#22d47e}
+  .tv-bar{height:14px;border-radius:99px;background:rgba(255,255,255,.09);overflow:hidden;margin:18px 0 8px}
+  .tv-bar .fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#22d47e,#5aa8ff);transition:width .8s var(--ease-expo)}
+  .tv-sub{font-size:15px;color:rgba(232,237,233,.6);font-family:var(--mono)}
+  .tv-grid{display:grid;grid-template-columns:1fr 1fr;gap:34px;margin-top:38px}
+  @media (max-width:760px){.tv-grid{grid-template-columns:1fr}}
+  .tv-sec h3{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(232,237,233,.5);margin-bottom:14px}
+  .tv-op{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+  .tv-op .av{width:30px;height:30px;border-radius:99px;display:grid;place-items:center;color:#fff;font-size:12px;font-weight:800;flex:none}
+  .tv-op .nm{font-size:15px;font-weight:700;min-width:90px}
+  .tv-op .bar{flex:1;height:9px;border-radius:99px;background:rgba(255,255,255,.09);overflow:hidden}
+  .tv-op .bar .fill{height:100%;background:#22d47e;border-radius:99px}
+  .tv-op .n{font-family:var(--mono);font-size:13px;color:rgba(232,237,233,.7);min-width:52px;text-align:right}
+  .tv-next{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:14.5px}
+  .tv-next .h{font-family:var(--mono);font-weight:800;color:#22d47e;min-width:52px}
+  .tv-next .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tv-next.late .h{color:#f06050}
+  .tv-close{position:fixed;top:20px;right:24px;z-index:96;border:1px solid rgba(255,255,255,.2);background:transparent;color:#e8ede9;border-radius:99px;width:38px;height:38px;font-size:16px;cursor:pointer}
   .vtable{border-collapse:collapse}
   .vtable th, .vtable td{
     padding:10px 16px;font-size:12.5px;border-bottom:1px solid var(--hairline);
@@ -471,6 +515,53 @@
   .vtable td.vname{font-weight:650;font-size:12.5px;max-width:190px;white-space:normal;line-height:1.35}
   .vtable td.done-col{opacity:.45}
   .vtable td.done-col.vname{text-decoration:line-through}
+
+  /* ══ ELEMENTOS DE POKER na planilha ══ */
+  /* ticket com borda picotada (furos nas laterais + picote no canhoto) */
+  .tkt{
+    display:inline-flex;align-items:center;
+    font-family:var(--mono);font-size:11.5px;font-weight:750;font-variant-numeric:tabular-nums;
+    color:var(--gold);background:var(--gold-soft);
+    padding:5px 14px 5px 12px;border-radius:5px;line-height:1.4;max-width:100%;
+    -webkit-mask:
+      radial-gradient(circle 5px at 0 50%, transparent 96%, #000 100%),
+      radial-gradient(circle 5px at 100% 50%, transparent 96%, #000 100%);
+    -webkit-mask-composite: source-in;
+    mask:
+      radial-gradient(circle 5px at 0 50%, transparent 96%, #000 100%),
+      radial-gradient(circle 5px at 100% 50%, transparent 96%, #000 100%);
+    mask-composite: intersect;
+  }
+  .tkt .stub{
+    font-family:var(--text);font-size:8.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+    opacity:.7;padding-right:8px;margin-right:8px;border-right:1.5px dashed currentColor;flex:none;
+  }
+  .tkt .val{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* ficha de poker (bolinha com borda tracejada, cor por contexto) */
+  .pchip{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;font-weight:750;font-variant-numeric:tabular-nums}
+  .pchip::before{
+    content:'';width:13px;height:13px;border-radius:99px;flex:none;
+    background:var(--felt-bright);
+    border:2.5px dashed rgba(255,255,255,.9);
+    box-shadow:0 0 0 2px var(--felt-bright), 0 1px 3px rgba(0,0,0,.25);
+    box-sizing:border-box;
+  }
+  .pchip.red::before{background:var(--main-bright);box-shadow:0 0 0 2px var(--main-bright), 0 1px 3px rgba(0,0,0,.25)}
+  /* carta de baralho (Game Type) — carta é branca nos dois temas */
+  .gcard{
+    display:inline-flex;align-items:center;gap:6px;
+    background:#fff;color:#1d1d1f;border:1px solid rgba(0,0,0,.14);
+    border-radius:6px 6px 6px 6px;padding:3px 10px 3px 8px;
+    font-size:11.5px;font-weight:750;box-shadow:0 1px 2px rgba(0,0,0,.18), 0 2px 6px -2px rgba(0,0,0,.2);
+    position:relative;
+  }
+  .gcard .suit{font-size:12px;line-height:1;flex:none}
+  .gcard .suit.red{color:#c0392b}
+  /* bounty (K.O) — alvo vermelho */
+  .kochip{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12px;font-weight:750;color:var(--main-bright)}
+  .kochip svg{width:13px;height:13px;stroke:currentColor;stroke-width:2;fill:none;flex:none}
+  /* naipe no cabeçalho da seção */
+  .section-head .tag .suit{font-size:12px;margin-right:5px}
 
   /* ── banner de turno concluído: pede a próxima GU ── */
   .alldone{
@@ -943,6 +1034,7 @@
       <h3>Turno criou tudo! Suba uma nova GU pra atualizar o cronograma de criação.</h3>
       <p>Todos os torneios deste dia da grade foram marcados como <b>criados</b>. Carregue a próxima <b>Global MTT (GU)</b> acima pra atualizar o cronograma do próximo dia — lembrando: <b>quem cria é o turno noturno (19:00 → 07:00)</b>; o turno da manhã (07:00 → 19:00) não cria.</p>
       <button class="go" id="allDoneGo">↑ Subir nova GU agora</button>
+      <button class="go" id="allDoneExport" style="margin-left:8px;background:var(--side)">⬇ Arquivar relatório da noite (.xlsx)</button>
     </div>
   </div>
 
@@ -1026,11 +1118,21 @@
       <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/><path d="M3 5v14"/></svg>
       Passar meus pendentes
     </button>
+    <button class="btn ghost" id="tvBtn" title="Visão de parede: progresso e prazos em tela cheia, só leitura">
+      <svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      Modo TV
+    </button>
+    <button class="btn ghost" id="logBtn" title="Quem marcou, desmarcou, trocou ID ou passou torneio — trilha da noite">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      Histórico
+    </button>
   </div>
 
 </main>
 
 <div id="focusOverlay"><div class="focus-card" id="focusCard"></div></div>
+
+<div id="tvOverlay"><button class="tv-close" id="tvClose" title="Fechar (Esc)">✕</button><div class="tv-inner" id="tvInner"></div></div>
 
 <div id="toast" role="status" aria-live="polite"></div>
 
@@ -1379,10 +1481,10 @@ function sideSplit(){
    tokens (--main / --sat / --side / --sidefree). O 'role' liga o bloco ao
    operador: quem faz Main faz Satélite (mesmo role 'mainSat').
 ========================================================================= */
-const CAT_MAIN   = {key:'main',        cls:'main',     label:'Main Events',              role:'mainSat'};
-const CAT_SAT    = {key:'sat',         cls:'sat',      label:'Satélites',                role:'mainSat'};
-const CAT_SIDE_A = {key:'sideAdmin',   cls:'side',     label:'Side Events · com Admin Fee', role:'sideAdmin'};
-const CAT_SIDE_B = {key:'sideNoAdmin', cls:'sidefree', label:'Side Events · sem Admin Fee', role:'sideNoAdmin'};
+const CAT_MAIN   = {key:'main',        cls:'main',     suit:'♠', label:'Main Events',              role:'mainSat'};
+const CAT_SAT    = {key:'sat',         cls:'sat',      suit:'♣', label:'Satélites',                role:'mainSat'};
+const CAT_SIDE_A = {key:'sideAdmin',   cls:'side',     suit:'♥', label:'Side Events · com Admin Fee', role:'sideAdmin'};
+const CAT_SIDE_B = {key:'sideNoAdmin', cls:'sidefree', suit:'♦', label:'Side Events · sem Admin Fee', role:'sideNoAdmin'};
 const SECTIONS = [CAT_MAIN, CAT_SAT, CAT_SIDE_A, CAT_SIDE_B];
 function catItems(cat){
   if (!DATA) return [];
@@ -1448,6 +1550,7 @@ let ROLES = {};           // roleKey(op) -> 'mainSat' | 'sideAdmin' | 'sideNoAdm
 let OVERRIDES = {};       // itemKey -> opName — reatribuições manuais (handoff) vencem a divisão
 let MAP = {};             // fieldKey -> rótulo da coluna (mapeamento manual vence a auto-detecção)
 let PRESENCE = {};        // sessionId -> {name, at}
+let AUDIT = {};           // itemKey -> {status:'erro', motivo, by, at} — marcado pelo Admin
 let SEARCH = '';
 let CURRENCY = localStorage.getItem('cn_currency') || 'usd';
 let FILTER = 'all';
@@ -1517,6 +1620,15 @@ try{
     PRESENCE = s.val() || {};
     renderPresence();
   });
+  // erros de criação marcados pela auditoria (admin.html → Criação GU)
+  fbDb.ref(`${FB_PATH}/audit`).on('value', s => {
+    const before = Object.keys(AUDIT).filter(k => AUDIT[k] && AUDIT[k].status === 'erro').length;
+    AUDIT = s.val() || {};
+    const now = Object.keys(AUDIT).filter(k => AUDIT[k] && AUDIT[k].status === 'erro').length;
+    if (now > before) showToast(`⚠ A auditoria marcou ${now - before} erro(s) de criação — veja o alerta no topo.`, true);
+    renderAll();
+    renderFocus();
+  });
 }catch(e){
   console.error('Firebase indisponível — modo local', e);
   setSync('off','Offline (só local)');
@@ -1554,6 +1666,85 @@ function paintOperator(){
   $('opBadge').title = SESSION ? `${SESSION.email} — clique para sair` : 'Entrar com a conta do Painel';
 }
 paintOperator();
+
+/* ══ BLOQUEIO POR NOTIFICAÇÃO — a MESMA lógica do painel: notificação com
+   blocked:true (erro apontado pelo admin ou suspensão) trava a página até o
+   operador justificar. Grava nos mesmos nós (userNotifs + pendingNotif), então
+   justificar aqui libera o painel também, e vice-versa. ══ */
+const EMAIL_KEY = SESSION ? SESSION.email.toLowerCase().replace(/\./g,'_dot_').replace(/@/g,'_at_') : '';
+function initNotifBlock(){
+  if (!fbDb || !EMAIL_KEY) return;
+  fbDb.ref(`userNotifs/${EMAIL_KEY}`).on('value', snap => {
+    const notifs = snap.val();
+    const existing = $('cnJustifModal');
+    if (!notifs){ if (existing) existing.remove(); return; }
+    const pending = Object.entries(notifs).filter(([id, n]) => n && !n.justified && !n.resolved && n.blocked);
+    if (pending.length){ showBlockModal(pending); return; }
+    if (existing) existing.remove();
+    // não-bloqueantes: só avisa (o painel marca o "seen")
+    Object.values(notifs).forEach(n => {
+      if (n && !n.seen && !n.justified && !n.resolved && !n.blocked)
+        showToast('⚠ Notificação do admin: ' + (n.typeLabel || 'verifique o painel.'), true);
+    });
+  });
+}
+function showBlockModal(pending){
+  const [notifId, notif] = pending[0];
+  const existing = $('cnJustifModal');
+  if (existing){ if (existing.dataset.nid === notifId) return; existing.remove(); }
+  const dateLabel = notif.date ? notif.date.split('-').reverse().join('/') : '';
+  const el = document.createElement('div');
+  el.id = 'cnJustifModal'; el.dataset.nid = notifId;
+  el.style.cssText = 'position:fixed;inset:0;z-index:200;background:rgba(8,10,9,.88);backdrop-filter:blur(14px);display:grid;place-items:center;padding:20px';
+  el.innerHTML = `
+    <div style="background:var(--card);border:1px solid var(--hairline-strong);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);width:min(520px,94vw);padding:28px">
+      <div style="width:44px;height:44px;border-radius:12px;background:var(--red-soft);display:grid;place-items:center;font-size:20px;margin-bottom:14px">🚫</div>
+      <div style="font-family:var(--display);font-size:19px;font-weight:800;letter-spacing:-.02em">Justificativa necessária</div>
+      <p style="font-size:13px;color:var(--ink-soft);line-height:1.6;margin:6px 0 16px">O admin sinalizou uma pendência — a criação fica travada até você justificar (a mesma trava do painel).</p>
+      <div style="background:var(--card-elevated);border:1px solid var(--hairline);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:16px">
+        <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--red)">${escHtml(notif.typeLabel || 'Erro operacional')}</div>
+        <div style="font-weight:700;margin-top:5px">${escHtml(notif.torneio || '')}</div>
+        ${notif.desc ? `<div style="font-size:12.5px;color:var(--ink-soft);line-height:1.55;margin-top:5px">${escHtml(notif.desc)}</div>` : ''}
+        <div style="font-size:11px;color:var(--ink-soft);margin-top:8px;font-family:var(--mono)">${dateLabel ? dateLabel + ' · ' : ''}por ${escHtml(notif.sentBy || 'admin')}</div>
+      </div>
+      ${pending.length > 1 ? `<div style="font-size:12px;color:var(--ink-soft);margin-bottom:12px">⚠ Há mais ${pending.length - 1} notificação(ões) após esta.</div>` : ''}
+      <textarea id="cnJustifText" rows="4" placeholder="Descreva o que ocorreu, a causa e como foi ou será corrigido… (mín. 10 caracteres)"
+        style="width:100%;background:var(--card-elevated);border:1.5px solid var(--hairline-strong);border-radius:10px;padding:11px 13px;font-family:var(--text);font-size:13px;color:var(--ink);outline:none;resize:none"></textarea>
+      <div id="cnJustifErr" style="display:none;color:var(--red);font-size:12px;margin-top:8px"></div>
+      <button class="btn primary" id="cnJustifBtn" style="width:100%;justify-content:center;margin-top:14px">Enviar justificativa</button>
+    </div>`;
+  document.body.appendChild(el);
+  $('cnJustifBtn').addEventListener('click', async () => {
+    const text = $('cnJustifText').value.trim();
+    const err = $('cnJustifErr');
+    if (text.length < 10){ err.textContent = 'Justificativa muito curta — descreva o ocorrido.'; err.style.display = 'block'; return; }
+    $('cnJustifBtn').disabled = true;
+    try{
+      await fbDb.ref(`userNotifs/${EMAIL_KEY}/${notifId}`).update({justified:true, justification:text, justifiedAt:Date.now(), justifiedBy:ME || SESSION.email});
+      await fbDb.ref(`users/${EMAIL_KEY}/pendingNotif`).remove();
+      el.remove();
+      showToast('✓ Justificativa enviada — aguarde a aprovação do admin');
+    }catch(e){ err.textContent = 'Erro ao enviar: ' + e.message; err.style.display = 'block'; $('cnJustifBtn').disabled = false; }
+  });
+  setTimeout(() => { const t = $('cnJustifText'); if (t) t.focus(); }, 250);
+}
+initNotifBlock();
+
+/* ── nova versão publicada: banner de recarga (mesmo aviso do painel) —
+   página fica aberta o turno todo, ninguém pode operar com código velho ── */
+if ('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data && e.data.type === 'sw-updated' && !$('swBar')){
+      const bar = document.createElement('div');
+      bar.id = 'swBar';
+      bar.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:150;background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:99px;font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);cursor:pointer';
+      bar.innerHTML = `Nova versão (v${escHtml(String(e.data.version))}) — <u>clique para atualizar</u>`;
+      bar.addEventListener('click', () => location.reload());
+      document.body.appendChild(bar);
+    }
+  });
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
 
 /* ── presença ao vivo: heartbeat por sessão, some sozinho ao fechar a aba ── */
 const SESSION_ID = 's' + Math.random().toString(36).slice(2, 10);
@@ -1657,6 +1848,7 @@ async function handleFile(file){
         by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP
       });
     }
+    logEvent('subiu Global', `${file.name} — ${sections.main.length + sections.side.length + sections.sat.length} torneios${changes.length ? ` (${changes.length} alterações)` : ''}`);
     showToast(`Global carregada — ${sections.main.length + sections.side.length + sections.sat.length} torneios de ${WEEKDAY_TOMORROW.toLowerCase()}.`);
   }catch(e){
     console.error(e);
@@ -1754,14 +1946,116 @@ function onDataReady(fromRemote){
   renderAll();
 }
 
-function renderAll(){
+function renderAllNow(){
   renderOps();
   renderFilters();
   renderAlerts();
   renderStats();
   renderFieldDiag();
   renderList();
+  renderTV();
 }
+/* PERF: os listeners do Firebase disparam em rajada (done + ids + roles no mesmo
+   segundo) — agrupa tudo num render só, em vez de reconstruir a tabela 3–4x */
+let _renderT = null;
+function renderAll(){
+  if (_renderT) return;
+  _renderT = setTimeout(() => { _renderT = null; renderAllNow(); }, 80);
+}
+
+/* ── LOG DE AUDITORIA — trilha só-de-acréscimo da noite: quem marcou, desmarcou,
+   trocou ID, passou torneio, subiu Global. Responde "quem mexeu nisso?" às 4h. ── */
+function logEvent(action, detail){
+  if (!fbDb) return;
+  try{
+    fbDb.ref(`${FB_PATH}/log`).push({
+      by: ME || '—', at: firebase.database.ServerValue.TIMESTAMP,
+      action, detail: String(detail || '').slice(0, 140)
+    });
+  }catch(e){}
+}
+$('logBtn').addEventListener('click', e => {
+  const anchor = e.currentTarget;
+  if (!fbDb){ showToast('Histórico precisa do Firebase (offline agora).', true); return; }
+  fbDb.ref(`${FB_PATH}/log`).limitToLast(30).once('value').then(s => {
+    const v = s.val() || {};
+    const entries = Object.values(v).sort((a,b) => (b.at||0) - (a.at||0));
+    if (!entries.length){ showToast('Nada registrado ainda nesta noite.'); return; }
+    openPickMenu(anchor, 'Histórico da noite (últimos 30)', entries.map(en => {
+      const t = en.at ? new Date(en.at).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', timeZone:'America/Sao_Paulo'}) : '—';
+      return {label: `${t} · ${en.by}: ${en.action}${en.detail ? ' — ' + en.detail : ''}`,
+              color: opColor(en.by), initial: (en.by || '?').trim()[0].toUpperCase(), onPick: () => {}};
+    }));
+  });
+});
+
+/* ── NOTIFICAÇÃO DE PRAZO — avisa mesmo com a aba em segundo plano quando um
+   torneio entra em "late" (<3h) sem estar criado. Pede permissão no 1º clique. ── */
+const NOTIFIED = new Set();
+document.addEventListener('click', () => {
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+}, {once: true});
+function checkDeadlineNotifs(){
+  if (!('Notification' in window) || Notification.permission !== 'granted' || !DATA) return;
+  const late = [...DATA.main, ...DATA.side, ...DATA.sat]
+    .filter(it => !DONE[itemKey(it)] && !NOTIFIED.has(itemKey(it)) && urgency(it) === 'late')
+    .slice(0, 3); // no máx. 3 por checagem pra não virar spam
+  late.forEach(it => {
+    NOTIFIED.add(itemKey(it));
+    try{ new Notification(`⏰ ${it.nome}`, {body: `Começa ${urgLabel(it)} (${it.hora}) e ainda não foi criado.`, tag: itemKey(it)}); }catch(e){}
+  });
+}
+
+/* ── MODO TV — visão de parede, só leitura: progresso, ritmo por operador e
+   próximos prazos. Atualiza sozinho junto com o sync. ── */
+let TV_OPEN = false;
+function renderTV(){
+  if (!TV_OPEN || !DATA) return;
+  const asg = computeAssignments();
+  const all = [...DATA.main, ...DATA.side, ...DATA.sat];
+  const total = all.length, doneCount = all.filter(it => DONE[itemKey(it)]).length;
+  const pct = total ? Math.round(doneCount/total*100) : 0;
+  const n = nowInSP();
+  const ops = OPS.map(o => {
+    const mine = all.filter(it => asg[itemKey(it)] === o);
+    const d = mine.filter(it => DONE[itemKey(it)]).length;
+    return {o, d, t: mine.length};
+  }).filter(x => x.t);
+  const next = all.filter(it => !DONE[itemKey(it)])
+    .sort((a,b) => (hoursToStart(a) ?? 999) - (hoursToStart(b) ?? 999)).slice(0, 9);
+  $('tvInner').innerHTML = `
+    <div class="tv-head">
+      <h2>🌙 Criação Noturna — ${WEEKDAY_TOMORROW.toLowerCase()} ${refToLabel(TURNO.refTomorrow)}</h2>
+      <span class="clk">${String(n.hour).padStart(2,'0')}:${String(n.minute).padStart(2,'0')} BRT</span>
+    </div>
+    <div class="tv-pct">${pct}%</div>
+    <div class="tv-bar"><div class="fill" style="width:${pct}%"></div></div>
+    <div class="tv-sub">${doneCount} de ${total} torneios criados${avgDurMin() ? ` · ⏱ ${avgDurMin().toFixed(1)}m/torneio` : ''}</div>
+    <div class="tv-grid">
+      <div class="tv-sec"><h3>Ritmo por operador</h3>
+        ${ops.length ? ops.map(x => `
+          <div class="tv-op">
+            <span class="av" style="background:${opColor(x.o)}">${escHtml(x.o.trim()[0].toUpperCase())}</span>
+            <span class="nm">${escHtml(x.o.split(' ')[0])}</span>
+            <span class="bar"><span class="fill" style="width:${x.t ? Math.round(x.d/x.t*100) : 0}%"></span></span>
+            <span class="n">${x.d}/${x.t}</span>
+          </div>`).join('') : '<div class="tv-sub">sem equipe montada</div>'}
+      </div>
+      <div class="tv-sec"><h3>Próximos prazos</h3>
+        ${next.length ? next.map(it => `
+          <div class="tv-next ${urgency(it) === 'late' ? 'late' : ''}">
+            <span class="h">${escHtml(it.hora)}</span>
+            <span class="nm">${escHtml(it.nome)}</span>
+            <span style="font-family:var(--mono);font-size:12px;opacity:.6">${urgLabel(it)}</span>
+          </div>`).join('') : '<div class="tv-sub">🎉 tudo criado</div>'}
+      </div>
+    </div>`;
+}
+function openTV(){ if (!DATA){ showToast('Carregue a Global primeiro.', true); return; } TV_OPEN = true; $('tvOverlay').classList.add('open'); renderTV(); }
+function closeTV(){ TV_OPEN = false; $('tvOverlay').classList.remove('open'); }
+$('tvBtn').addEventListener('click', openTV);
+$('tvClose').addEventListener('click', closeTV);
+$('allDoneExport').addEventListener('click', () => $('exportBtn').click());
 
 /* mostra QUAIS colunas da Global foram reconhecidas como Admin Fee / Rake /
    Early Bird / Campanha — reaproveita a MESMA lógica de detecção (probe com
@@ -1860,6 +2154,14 @@ function renderFilters(){
 function renderAlerts(){
   const el = $('alerts');
   let html = (DATA && DATA.warnings || []).map(w => `<div class="alert">⚠ ${escHtml(w)}</div>`).join('');
+  // erros de criação apontados pela auditoria — o turno corrige e avisa o admin
+  if (DATA){
+    const errs = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => auditErr(it));
+    if (errs.length){
+      const lines = errs.slice(0, 10).map(it => { const a = auditErr(it); return `<b>${escHtml(it.nome)}</b> (${escHtml(it.hora)})${a.motivo ? ' — ' + escHtml(a.motivo) : ''}`; });
+      html += `<div class="alert">🛑 <b>Auditoria apontou ${errs.length} erro(s) de criação</b> — corrija no Pokerbyte e avise o admin:<br>${lines.join('<br>')}${errs.length > 10 ? `<br>… e mais ${errs.length - 10}.` : ''}</div>`;
+    }
+  }
   const chg = DATA && DATA.changes || [];
   if (chg.length){
     const lines = chg.slice(0, 14).map(c => `<b>${escHtml(c.nome)}</b> — ${escHtml(c.campo)}: ${escHtml(fmtChangeVal(c.de))} → ${escHtml(fmtChangeVal(c.para))}`);
@@ -1955,8 +2257,8 @@ function urgLabel(it){
 function setId(key, val){
   val = String(val || '').trim();
   if (fbDb){
-    if (val) fbDb.ref(`${FB_PATH}/ids/${key}`).set({val, by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP});
-    else fbDb.ref(`${FB_PATH}/ids/${key}`).remove();
+    if (val){ fbDb.ref(`${FB_PATH}/ids/${key}`).set({val, by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP}); logEvent('registrou ID', `${key} → ${val}`); }
+    else { fbDb.ref(`${FB_PATH}/ids/${key}`).remove(); logEvent('apagou ID', key); }
   } else {
     if (val) IDS[key] = {val, by: ME}; else delete IDS[key];
     renderAll();
@@ -1971,11 +2273,11 @@ function idInputHtml(key, extraStyle){
 function toggleDone(key){
   const cur = DONE[key];
   if (fbDb){
-    if (cur) fbDb.ref(`${FB_PATH}/done/${key}`).remove();
+    if (cur){ fbDb.ref(`${FB_PATH}/done/${key}`).remove(); logEvent('desmarcou criado', key); }
     // transação: se um parceiro marcou no mesmo instante, o registro dele
     // (by/at) é preservado — retornar undefined aborta sem sobrescrever
-    else fbDb.ref(`${FB_PATH}/done/${key}`).transaction(existing =>
-      existing ? undefined : {by: ME || 'Alguém', at: Date.now()});
+    else { fbDb.ref(`${FB_PATH}/done/${key}`).transaction(existing =>
+      existing ? undefined : {by: ME || 'Alguém', at: Date.now()}); logEvent('marcou criado', key); }
   } else {
     if (cur) delete DONE[key]; else DONE[key] = {by: ME, at: Date.now()};
     renderAll();
@@ -2089,6 +2391,17 @@ function changeBadge(it){
 }
 function fmtChangeVal(v){ return typeof v === 'number' ? v.toLocaleString('pt-BR', {maximumFractionDigits:2}) : String(v); }
 
+/* ── erro de criação marcado pela auditoria (Admin) ── */
+function auditErr(it){
+  const a = AUDIT[itemKey(it)];
+  return a && a.status === 'erro' ? a : null;
+}
+function auditBadge(it){
+  const a = auditErr(it);
+  if (!a) return '';
+  return `<span class="chg-pill review" title="Erro apontado por ${escHtml(a.by || 'Admin')}${a.motivo ? ':\n' + escHtml(a.motivo) : ''}">⚠ erro de criação</span>`;
+}
+
 const EXPANDED = new Set();
 function applyExpanded(){
   document.querySelectorAll('[data-detail]').forEach(tr => { tr.hidden = !EXPANDED.has(tr.dataset.detail); });
@@ -2138,12 +2451,12 @@ function renderList(){
     const doneCount = items.filter(it => DONE[itemKey(it)]).length;
     html += `
       <div class="section-head ${cat.cls}">
-        <span class="tag">${cat.label}</span>
+        <span class="tag"><span class="suit">${cat.suit}</span>${cat.label}</span>
         <span class="cnt">${doneCount}/${items.length} criados</span>
         <span class="line"></span>
       </div>
       ${sectionNoteHtml(cat)}`;
-    html += renderVertical(items, cat, asg);
+    html += `<div class="secwrap" data-suit="${cat.suit}">${renderVertical(items, cat, asg)}</div>`;
   });
 
   if (DATA.unknown && DATA.unknown.length && FILTER === 'all'){
@@ -2162,6 +2475,7 @@ function renderList(){
   area.innerHTML = html;
 
   area.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
+  area.querySelectorAll('[data-focus]').forEach(el => el.addEventListener('click', () => openFocusAt(el.dataset.focus)));
   // ID Pokerbyte: grava ao sair do campo ou no Enter (não a cada tecla, pra não ecoar no parceiro)
   area.querySelectorAll('.id-inp').forEach(inp => {
     inp.addEventListener('change', () => setId(inp.dataset.idkey, inp.value));
@@ -2194,16 +2508,21 @@ function renderVertical(items, cat, asg){
   const keyLabels = new Set();
   cols.forEach(c => [feeInfo, adminInfo, earlyInfo, ticketInfo, payoutInfo, calcPayoutInfo, rebuyInfo, addonInfo, chipsInfo, structureInfo, gameTypeInfo, koInfo]
     .forEach(g => { const i = g(c.it); if (i && i.label) keyLabels.add(i.label); }));
-  const addonL = (() => { const c0 = cols.find(c => addonInfo(c.it)); return c0 ? addonInfo(c0.it).label : null; })();
-  // FEE e ADMIN FEE crus saem da receita: já estão consolidados na linha "Admin Fee" lá em cima
+  // rótulo da coluna de cada campo temático (ticket, chips, game type, k.o)
+  const labelOf = getter => { const c0 = cols.find(c => getter(c.it)); return c0 ? getter(c0.it).label : null; };
+  const addonL = labelOf(addonInfo), ticketL = labelOf(ticketInfo), chipsL = labelOf(chipsInfo),
+        gameL = labelOf(gameTypeInfo), koL = labelOf(koInfo);
+  const SUITS = ['♠','♥','♦','♣'];
+  // FEE, ADMIN FEE e EARLY BIRD crus saem da receita: já estão consolidados nas linhas de cima
   const feeCols = new Set();
-  cols.forEach(c => [feeInfo, adminInfo].forEach(g => { const i = g(c.it); if (i && i.label) feeCols.add(i.label); }));
+  cols.forEach(c => [feeInfo, adminInfo, earlyInfo].forEach(g => { const i = g(c.it); if (i && i.label) feeCols.add(i.label); }));
   const rows = visibleRecipeFields().filter(l => !feeCols.has(l));
   return `
     <div class="vwrap"><table class="vtable">
-      <tr><th class="rowlab">Torneio</th>${cell(c => {
+      <tr class="trow-head"><th class="rowlab">Torneio</th>${cell(c => {
         const m = mttKicker(c.it), urg = urgency(c.it);
-        return escHtml(c.it.nome) + campBadgeHtml(c.it) + valBadge(c.it, cat) + changeBadge(c.it)
+        return `<span class="vgo" data-focus="${c.key}" title="Abrir este torneio no modo foco">${escHtml(c.it.nome)}</span>` + campBadgeHtml(c.it) + valBadge(c.it, cat) + changeBadge(c.it) + auditBadge(c.it)
+          + (auditErr(c.it) && auditErr(c.it).motivo ? `<br><span style="font-size:10.5px;color:var(--red);font-weight:600">↳ ${escHtml(auditErr(c.it).motivo)}</span>` : '')
           + (urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(c.it)}</span>` : '')
           + (m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : '');
       }, 'vname')}</tr>
@@ -2219,12 +2538,22 @@ function renderVertical(items, cat, asg){
             const v = c.it.extra ? c.it.extra[label] : undefined;
             const has = v !== undefined && v !== null && v !== '';
             if (!has) return `<span class="mono" style="color:var(--ink-soft);opacity:.5">—</span>`;
+            const disp = fmtExtraVal(label, v);
             // Add-on em $; demais campos como se digita no app
             if (label === addonL){
               const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.'));
               if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n))}</span>`;
             }
-            return `<span class="mono" style="${keyLabels.has(label) ? 'font-weight:700' : ''}">${escHtml(fmtExtraVal(label, v))}</span>`;
+            // elementos de poker: ticket picotado, ficha de chips, carta do game type, bounty do K.O
+            if (label === ticketL) return `<span class="tkt"><span class="stub">Ticket</span><span class="val" title="${escHtml(disp)}">${escHtml(disp)}</span></span>`;
+            if (label === chipsL) return `<span class="pchip">${escHtml(disp)}</span>`;
+            if (label === gameL){
+              const idx = [...normText(disp)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 4;
+              return `<span class="gcard"><span class="suit ${idx === 1 || idx === 2 ? 'red' : ''}">${SUITS[idx]}</span>${escHtml(disp)}</span>`;
+            }
+            if (label === koL && !/^(off|nao|não|no|-|—)$/i.test(String(disp).trim()))
+              return `<span class="kochip"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg>${escHtml(disp)}</span>`;
+            return `<span class="mono" style="${keyLabels.has(label) ? 'font-weight:700' : ''}">${escHtml(disp)}</span>`;
           })}</tr>`).join('')
         : `<tr><th class="rowlab">Late reg</th>${cell(c => `<span class="mono" style="color:var(--ink-soft)">${c.it.late ? escHtml(c.it.late) : '—'}</span>`)}</tr>`}
       <tr><th class="rowlab">Operador</th>${cell(c => opTagHtml(c.op))}</tr>
@@ -2278,8 +2607,11 @@ function markDone(key){
   const dur = start ? Date.now() - start : null;
   DONE[key] = {by: ME || 'Alguém', at: Date.now(), ...(dur ? {dur} : {})}; // otimista — o eco do Firebase confirma
   // transação: se dois operadores marcarem juntos, o primeiro vence e o by/dur dele fica
-  if (fbDb) fbDb.ref(`${FB_PATH}/done/${key}`).transaction(existing =>
-    existing ? undefined : {by: ME || 'Alguém', at: Date.now(), ...(dur ? {dur} : {})});
+  if (fbDb){
+    fbDb.ref(`${FB_PATH}/done/${key}`).transaction(existing =>
+      existing ? undefined : {by: ME || 'Alguém', at: Date.now(), ...(dur ? {dur} : {})});
+    logEvent('criou (modo foco)', key);
+  }
   renderAll();
 }
 
@@ -2313,9 +2645,10 @@ function saveOverrides(){ if (fbDb) fbDb.ref(`${FB_PATH}/overrides`).set(OVERRID
 function handoffTo(items, toOp){
   items.forEach(it => OVERRIDES[itemKey(it)] = toOp);
   saveOverrides();
+  logEvent('passou pendentes', `${items.length} torneio(s) → ${toOp}`);
   showToast(`${items.length} torneio(s) passados para ${toOp.split(' ')[0]}.`);
 }
-function resetOverrides(){ OVERRIDES = {}; saveOverrides(); showToast('Divisão automática restaurada.'); }
+function resetOverrides(){ OVERRIDES = {}; saveOverrides(); logEvent('restaurou divisão automática', ''); showToast('Divisão automática restaurada.'); }
 function openHandoff(anchor){
   const {op, items} = myPending();
   if (!op){ showToast('Entre na equipe (ou filtre por você) pra passar torneios.', true); return; }
@@ -2331,10 +2664,22 @@ function openHandoff(anchor){
   openPickMenu(anchor, title, opts);
 }
 
+let FOCUS_TARGET = null; // clicou num torneio da tabela → foco abre direto nele
+function openFocusAt(key){
+  if (DONE[key]){ showToast('Esse torneio já foi criado.'); return; }
+  FOCUS_TARGET = key;
+  openFocus();
+}
 function focusQueue(){
   if (!DATA) return [];
   const asg = computeAssignments();
   let all = allWithCat().filter(x => !DONE[itemKey(x.it)]);
+  // torneio clicado na tabela fura a fila (mesmo sendo de outro operador)
+  if (FOCUS_TARGET){
+    const hit = all.find(x => itemKey(x.it) === FOCUS_TARGET);
+    if (hit) return [hit, ...all.filter(x => x !== hit).sort((a,b) => (hoursToStart(a.it) ?? 999) - (hoursToStart(b.it) ?? 999))];
+    FOCUS_TARGET = null;
+  }
   // meus torneios primeiro: se meu nome está na equipe, a fila é só minha;
   // senão respeita o filtro de operador escolhido na tela
   const mineOp = OPS.find(o => normText(o) === normText(ME)) || (FILTER !== 'all' ? FILTER : null);
@@ -2361,7 +2706,7 @@ function closeFocus(){
 }
 
 /* avança na fila com transição — usado por "Criado" e "Pular" */
-function focusAdvance(){ FOCUS_ANIMATE = true; renderFocus(); }
+function focusAdvance(){ FOCUS_TARGET = null; FOCUS_ANIMATE = true; renderFocus(); }
 
 /* a RECEITA de cima para baixo: uma coluna, na ORDEM da planilha (= ordem que
    se digita no app). Cada campo tem valor, botão de copiar só aquele valor e
@@ -2526,6 +2871,7 @@ function renderFocus(){
       <div class="focus-top">
         <span class="tag" style="background:var(--${cat.cls}-soft);color:var(--${cat.cls}-bright)">${cat.label}</span>
         ${urg ? `<span class="urg-pill ${urg}">⏰ começa ${urgLabel(it)}</span>` : ''}
+        ${auditBadge(it)}
         ${campBadgeHtml(it)}
         ${it.groupHeader ? `<span class="pill" style="color:var(--sat-bright)">${escHtml(it.groupHeader)}</span>` : ''}
         <span class="queue-pos">${mineDone + 1} de ${mineTotal} · ${queue.length} na fila</span>
@@ -2632,6 +2978,7 @@ $('focusOverlay').addEventListener('click', e => { if (e.target === $('focusOver
 /* #2 teclado no foco: setas movem o campo atual, Enter marca e desce */
 document.addEventListener('keydown', e => {
   if ($('popMenu') && e.key === 'Escape'){ closePickMenu(); return; }
+  if (TV_OPEN && e.key === 'Escape'){ closeTV(); return; }
   const confirmEl = $('focusConfirm');
   if (confirmEl){
     if (e.key === 'Escape'){ confirmEl.remove(); e.preventDefault(); }
@@ -2675,11 +3022,21 @@ setInterval(() => {
 /* ── busca ── */
 $('searchInp').addEventListener('input', () => { SEARCH = $('searchInp').value; renderList(); });
 
-/* relógio de urgência: re-renderiza a cada minuto pros contadores de prazo andarem
-   (pula se alguém está digitando um ID pra não roubar o foco) */
+/* relógio de urgência: a cada minuto atualiza stats/notificações, mas SÓ
+   reconstrói a tabela se algum torneio mudou de estado de prazo (warn/late) —
+   sem mudança, re-renderizar 10 mil células é desperdício */
+let LAST_URG_SIG = '';
+function urgSignature(){
+  return [...DATA.main, ...DATA.side, ...DATA.sat].map(it => urgency(it) || '-').join('');
+}
 setInterval(() => {
   if (!DATA) return;
   renderStats();
+  renderTV();
+  checkDeadlineNotifs();
+  const sig = urgSignature();
+  if (sig === LAST_URG_SIG) return;
+  LAST_URG_SIG = sig;
   const ae = document.activeElement;
   if (!(ae && ae.classList.contains('id-inp'))) renderList();
   // não re-renderizar o foco enquanto a pessoa digita o ID ou marca campos

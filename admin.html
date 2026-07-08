@@ -718,6 +718,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
   <nav class="sidebar">
     <span class="nav-group">Auditoria</span>
     <button class="ntab active" onclick="nav('audit',this)"><span class="ni"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>Acompanhamento</button>
+    <button class="ntab" onclick="nav('criacao',this)"><span class="ni"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></span>Criação (GU)</button>
     <span class="nav-group">Analytics</span>
     <button class="ntab" onclick="nav('dashboard',this)"><span class="ni"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>Dashboard</button>
     <button class="ntab" onclick="nav('grade',this)"><span class="ni"><svg viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></span>Grade</button>
@@ -789,6 +790,48 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
     </div>
 
     <!-- ══ DASHBOARD ══ -->
+    <!-- ══ AUDITORIA DA CRIAÇÃO NOTURNA (GU) ══ -->
+    <div class="page" id="pageCriacao">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow">Auditoria</div>
+          <h1>Criação Noturna (GU)</h1>
+          <p>O que o turno da noite criou, torneio a torneio — marque erros de criação (o alerta aparece na hora na página da criação) e meça a performance de cada operador</p>
+        </div>
+        <div class="ph-actions">
+          <button class="btn btn-ghost" id="btnCnSoErros" onclick="toggleCnErros()">⚠ Só erros / anomalias</button>
+          <button class="btn btn-ghost" onclick="exportCnXlsx()">⬇ Exportar XLSX</button>
+          <button class="btn btn-gold" onclick="loadCriacao()">Buscar</button>
+        </div>
+      </div>
+      <div class="filters" style="flex-wrap:wrap;gap:8px">
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3)">Período</span>
+          <button class="btn btn-ghost btn-sm" onclick="setCnPeriod(1)">Hoje</button>
+          <button class="btn btn-ghost btn-sm" onclick="setCnPeriod(7)">7 dias</button>
+          <button class="btn btn-ghost btn-sm" onclick="setCnPeriod(30)">30 dias</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div class="fld"><label>De</label><input type="date" id="cnFrom"></div>
+          <div class="fld"><label>Até</label><input type="date" id="cnTo"></div>
+        </div>
+        <div class="fld"><label>Operador</label>
+          <select id="cnOp" onchange="renderCn()"><option value="">Todos</option></select>
+        </div>
+        <div class="fld"><label>Torneio</label>
+          <input type="text" id="cnSearch" placeholder="Buscar por nome..." oninput="renderCn()">
+        </div>
+      </div>
+      <div class="kpi-grid" id="cnKpi"></div>
+      <div class="card" style="margin-bottom:18px">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Performance por operador</h3>
+        <div class="tbl-wrap"><table class="audit-table" id="cnOpsTable"></table></div>
+      </div>
+      <div class="card">
+        <div class="tbl-wrap"><table class="audit-table" id="cnTable"></table></div>
+      </div>
+    </div>
+
     <div class="page" id="pageDashboard">
       <div class="ph">
         <div>
@@ -805,6 +848,11 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
         </div>
       </div>
       <div class="kpi-grid" id="dashKpi"></div>
+      <div class="card" style="margin-bottom:18px">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:4px">🌙 Criação Noturna (GU) — últimos 30 dias</h3>
+        <div style="font-size:12px;color:var(--ink3);margin-bottom:12px">Produtividade do turno da noite — detalhe na aba <a href="#" onclick="nav('criacao',document.querySelector('.ntab[onclick*=criacao]'));return false" style="color:var(--gold)">Criação (GU)</a></div>
+        <div class="kpi-grid" id="dashCnKpi" style="margin-bottom:0"><div class="kpi"><div class="kpi-label">Carregando…</div></div></div>
+      </div>
       <div class="card" style="margin-bottom:18px">
         <div class="card-head">
           <div><div class="card-title"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Insights do período</div><div class="card-sub">Anomalias e oportunidades detectadas automaticamente</div></div>
@@ -1063,7 +1111,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
         <div class="msub">Performance dos últimos 30 dias</div>
         <div class="tbl-wrap" style="max-height:420px;overflow-y:auto">
           <table>
-            <thead><tr><th>#</th><th>Operador</th><th class="r">Torneios</th><th class="r">Fixados</th><th class="r">Com ID</th><th class="r">Sem prem.</th><th class="r">Notif.</th></tr></thead>
+            <thead><tr><th>#</th><th>Operador</th><th class="r">Torneios</th><th class="r">Fixados</th><th class="r">Com ID</th><th class="r">Sem prem.</th><th class="r">Notif.</th><th class="r" title="Torneios criados na Criação Noturna (GU), últimos 30 dias">Criados GU</th><th class="r" title="Erros de criação marcados pela auditoria">Erros GU</th></tr></thead>
             <tbody id="opRankingBody"></tbody>
           </table>
         </div>
@@ -1221,6 +1269,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
         <button class="notif-type-btn" onclick="selNotifType('field',this)">Field errado</button>
         <button class="notif-type-btn" onclick="selNotifType('premiacao',this)">Premiação errada</button>
         <button class="notif-type-btn" onclick="selNotifType('id',this)">ID incorreto</button>
+        <button class="notif-type-btn" onclick="selNotifType('criacao',this)">Erro de criação (GU)</button>
         <button class="notif-type-btn" onclick="selNotifType('outro',this)">Outro</button>
       </div>
     </div>
@@ -1779,6 +1828,219 @@ function nav(id,btn){
   if(id==='backup')initBackup(); // initBackup já faz loadAll() internamente
   if(id==='grade')renderGrade();
   if(id==='audit')loadAudit();
+  if(id==='criacao')loadCriacao();
+}
+
+/* ══ AUDITORIA DA CRIAÇÃO NOTURNA (GU) ═══════════════════════════
+   Lê painel/{dia}/criacaoNoturna de cada dia do período (sheet + done + ids +
+   audit) e monta: KPIs do período, performance por operador e a lista torneio
+   a torneio. "Marcar erro" grava em .../audit/{key} — a página da criação
+   escuta esse nó e mostra o alerta pro turno na hora. */
+let _cnRows = [], _cnSoErros = false;
+const cnNorm = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+// MESMA chave da página de criação (itemKey) — é o elo entre as duas telas
+const cnKey = it => `${cnNorm(it.nome)}|${it.hora}`.replace(/[.#$\[\]\/]/g,'_');
+function setCnPeriod(n){
+  document.getElementById('cnFrom').value = dago(n-1);
+  document.getElementById('cnTo').value = nowSP();
+  loadCriacao();
+}
+function toggleCnErros(){
+  _cnSoErros = !_cnSoErros;
+  document.getElementById('btnCnSoErros').classList.toggle('btn-gold', _cnSoErros);
+  renderCn();
+}
+function cnDates(){
+  const from = document.getElementById('cnFrom').value, to = document.getElementById('cnTo').value;
+  if(!from || !to) return [];
+  const out = [], d = new Date(from + 'T12:00:00Z'), end = new Date(to + 'T12:00:00Z');
+  while(d <= end && out.length < 62){ out.push(d.toISOString().slice(0,10)); d.setUTCDate(d.getUTCDate()+1); }
+  return out;
+}
+async function loadCriacao(){
+  if(!document.getElementById('cnFrom').value) setCnPeriodDefaults();
+  const dates = cnDates();
+  if(!dates.length){ toast('Escolha o período','err'); return; }
+  document.getElementById('cnKpi').innerHTML = '<div class="kpi"><div class="kpi-label">Carregando…</div></div>';
+  const snaps = await Promise.all(dates.map(d => db.ref(`painel/${d}/criacaoNoturna`).once('value').then(s => ({d, v: s.val()}))));
+  const rows = [];
+  snaps.forEach(({d, v}) => {
+    if(!v || !v.sheet || !v.sheet.json) return;
+    let data; try{ data = JSON.parse(v.sheet.json); }catch(e){ return; }
+    const done = v.done||{}, ids = v.ids||{}, audit = v.audit||{};
+    const sheetAt = v.sheet.at || null;
+    const changedNames = new Set((data.changes||[]).map(c => cnNorm(c.nome)));
+    [['main','Main Event'],['side','Side Event'],['sat','Satélite']].forEach(([k,label]) => (data[k]||[]).forEach(it => {
+      const key = cnKey(it);
+      const idRaw = ids[key];
+      const doneAt = (done[key]&&done[key].at)||null;
+      // início real do evento: madrugada (≤05:30) pertence ao dia SEGUINTE da grade
+      let startMs = null;
+      const hm = /^(\d{1,2}):(\d{2})$/.exec(it.hora||'');
+      if(hm){
+        const min = (+hm[1])*60 + (+hm[2]);
+        const ref = new Date(d + 'T12:00:00Z');
+        if(min <= 330) ref.setUTCDate(ref.getUTCDate()+1);
+        // horário da grade é relógio de Brasília (UTC-3)
+        startMs = Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), ref.getUTCDate(), +hm[1]+3, +hm[2]);
+      }
+      rows.push({date:d, key, nome:it.nome, hora:it.hora, cat:label,
+        doneBy:(done[key]&&done[key].by)||'', doneAt, dur:(done[key]&&done[key].dur)||null,
+        id: idRaw ? (idRaw.val !== undefined ? idRaw.val : idRaw) : '', audit: audit[key]||null,
+        aposInicio: !!(doneAt && startMs && doneAt > startMs),
+        alteradoPos: !!(doneAt && sheetAt && doneAt < sheetAt && changedNames.has(cnNorm(it.nome)))});
+    }));
+  });
+  _cnRows = rows;
+  // popula o filtro de operador com quem realmente criou no período
+  const sel = document.getElementById('cnOp'), cur = sel.value;
+  const ops = [...new Set(rows.map(r => r.doneBy).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">Todos</option>' + ops.map(o => `<option ${o===cur?'selected':''}>${esc(o)}</option>`).join('');
+  renderCn();
+}
+function setCnPeriodDefaults(){
+  document.getElementById('cnFrom').value = dago(6);
+  document.getElementById('cnTo').value = nowSP();
+}
+/* anomalias detectadas SOZINHAS (sem o admin caçar): criado sem ID, criado
+   depois do horário de início, tempo de criação 3× acima da média, e receita
+   alterada pela GU DEPOIS do torneio já criado (precisa revisar no app) */
+function cnAnoms(r, avgDur){
+  const out = [];
+  if(!r.doneBy) return out;
+  if(!r.id) out.push('sem ID');
+  if(r.aposInicio) out.push('criado após o início');
+  if(r.dur && avgDur && r.dur > 3*avgDur && r.dur > 5*60000) out.push('tempo 3× acima da média');
+  if(r.alteradoPos) out.push('receita alterada após criar');
+  return out;
+}
+function cnAvgDur(rows){
+  const ds = rows.map(r => r.dur).filter(Boolean);
+  return ds.length ? ds.reduce((a,b)=>a+b,0)/ds.length : null;
+}
+function cnFiltered(){
+  const op = document.getElementById('cnOp').value, q = cnNorm(document.getElementById('cnSearch').value);
+  const avg = cnAvgDur(_cnRows);
+  return _cnRows.filter(r =>
+    (!op || r.doneBy === op) &&
+    (!q || cnNorm(r.nome).includes(q)) &&
+    (!_cnSoErros || (r.audit && r.audit.status === 'erro') || cnAnoms(r, avg).length));
+}
+function cnFmtDur(ms){ if(!ms) return ''; const m = ms/60000; return m < 1 ? Math.round(ms/1000)+'s' : m.toFixed(1)+'m'; }
+function renderCn(){
+  const rows = cnFiltered();
+  const criados = rows.filter(r => r.doneBy);
+  const comId = criados.filter(r => r.id);
+  const erros = rows.filter(r => r.audit && r.audit.status === 'erro');
+  const durs = criados.map(r => r.dur).filter(Boolean);
+  const avg = durs.length ? durs.reduce((a,b)=>a+b,0)/durs.length : null;
+  const pct = (a,b) => b ? Math.round(a/b*100)+'%' : '—';
+  document.getElementById('cnKpi').innerHTML = `
+    <div class="kpi b"><div class="kpi-label">Torneios no período</div><div class="kpi-val">${rows.length}</div><div class="kpi-sub">${new Set(rows.map(r=>r.date)).size} dia(s) de grade</div></div>
+    <div class="kpi g"><div class="kpi-label">Criados</div><div class="kpi-val">${criados.length}</div><div class="kpi-sub">${pct(criados.length, rows.length)} da grade</div></div>
+    <div class="kpi ${comId.length===criados.length?'g':''}"><div class="kpi-label">Com ID Pokerbyte</div><div class="kpi-val">${pct(comId.length, criados.length)}</div><div class="kpi-sub">${comId.length} de ${criados.length} criados</div></div>
+    <div class="kpi p"><div class="kpi-label">Tempo médio de criação</div><div class="kpi-val">${avg?cnFmtDur(avg):'—'}</div><div class="kpi-sub">${durs.length} com tempo medido (modo foco)</div></div>
+    <div class="kpi ${erros.length?'r':'g'}"><div class="kpi-label">Erros de criação</div><div class="kpi-val">${erros.length}</div><div class="kpi-sub">taxa ${pct(erros.length, criados.length)} sobre os criados</div></div>
+    ${(() => { const avgA = cnAvgDur(_cnRows); const an = rows.filter(r => cnAnoms(r, avgA).length).length; return `<div class="kpi ${an?'r':'g'}"><div class="kpi-label">Anomalias automáticas</div><div class="kpi-val">${an}</div><div class="kpi-sub">sem ID · após início · tempo 3× · alterado pós-criação</div></div>`; })()}`;
+  // ── performance por operador ──
+  const byOp = {};
+  criados.forEach(r => {
+    const o = byOp[r.doneBy] || (byOp[r.doneBy] = {criados:0, comId:0, durs:[], erros:0});
+    o.criados++; if(r.id) o.comId++; if(r.dur) o.durs.push(r.dur);
+    if(r.audit && r.audit.status === 'erro') o.erros++;
+  });
+  const opRows = Object.entries(byOp).sort((a,b) => b[1].criados - a[1].criados);
+  document.getElementById('cnOpsTable').innerHTML = `
+    <thead><tr><th>Operador</th><th class="r">Criados</th><th class="r">Com ID</th><th class="r">Tempo médio</th><th class="r">Erros</th><th class="r">Taxa de erro</th><th class="r">Ritmo (torneios/dia)</th></tr></thead>
+    <tbody>${opRows.length ? opRows.map(([o, s]) => {
+      const oa = s.durs.length ? s.durs.reduce((a,b)=>a+b,0)/s.durs.length : null;
+      const dias = new Set(criados.filter(r=>r.doneBy===o).map(r=>r.date)).size || 1;
+      return `<tr>
+        <td><b>${esc(o)}</b></td>
+        <td class="r mono">${s.criados}</td>
+        <td class="r mono">${pct(s.comId, s.criados)}</td>
+        <td class="r mono">${oa?cnFmtDur(oa):'—'}</td>
+        <td class="r mono" style="${s.erros?'color:var(--red);font-weight:700':''}">${s.erros}</td>
+        <td class="r mono" style="${s.erros?'color:var(--red)':''}">${pct(s.erros, s.criados)}</td>
+        <td class="r mono">${(s.criados/dias).toFixed(1)}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="7" style="color:var(--ink3)">Nenhum torneio criado no período.</td></tr>'}</tbody>`;
+  // ── torneio a torneio ──
+  document.getElementById('cnTable').innerHTML = `
+    <thead><tr><th>Data</th><th>Torneio</th><th>Cat.</th><th>Horário</th><th>Criado por</th><th>Quando</th><th class="r">Tempo</th><th>ID</th><th>Auditoria</th><th></th></tr></thead>
+    <tbody>${rows.length ? rows.map((r, i) => {
+      const when = r.doneAt ? new Date(r.doneAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}) : '';
+      const anoms = cnAnoms(r, cnAvgDur(_cnRows));
+      const aud = (r.audit && r.audit.status === 'erro'
+        ? `<span style="color:var(--red);font-weight:700" title="por ${esc(r.audit.by||'—')}">⚠ erro</span>${r.audit.motivo?`<div style="font-size:11px;color:var(--ink3);max-width:200px;white-space:normal">${esc(r.audit.motivo)}</div>`:''}`
+        : (r.doneBy ? '<span style="color:var(--green)">✓ ok</span>' : '<span style="color:var(--ink3)">—</span>'))
+        + (anoms.length ? `<div style="font-size:11px;color:var(--amber);font-weight:600;max-width:200px;white-space:normal">⚡ ${anoms.map(esc).join(' · ')}</div>` : '');
+      const btn = r.audit && r.audit.status === 'erro'
+        ? `<button class="btn btn-gold btn-sm" onclick="notifyCnError(${i})">📨 Notificar</button> <button class="btn btn-ghost btn-sm" onclick="clearCnError(${i})">Desfazer</button>`
+        : (r.doneBy ? `<button class="btn btn-ghost btn-sm" onclick="markCnError(${i})">⚠ Marcar erro</button>` : '');
+      return `<tr data-cni="${i}">
+        <td class="mono">${r.date.slice(5).split('-').reverse().join('/')}</td>
+        <td style="max-width:260px;white-space:normal"><b>${esc(r.nome)}</b></td>
+        <td>${r.cat}</td>
+        <td class="mono">${esc(r.hora)}</td>
+        <td>${r.doneBy ? esc(r.doneBy) : '<span style="color:var(--ink3)">não criado</span>'}</td>
+        <td class="mono">${when}</td>
+        <td class="r mono">${cnFmtDur(r.dur)}</td>
+        <td class="mono">${r.id ? esc(r.id) : '<span style="color:var(--amber)">sem ID</span>'}</td>
+        <td>${aud}</td>
+        <td class="r">${btn}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="10" style="color:var(--ink3)">Nada no período (a criação noturna começou a gravar nesses nós a partir de julho/2026).</td></tr>'}</tbody>`;
+  window._cnView = rows; // índice usado pelos botões
+}
+function markCnError(i){
+  const r = window._cnView[i];
+  const motivo = prompt(`Erro de criação em "${r.nome}" (${r.hora}, criado por ${r.doneBy}).\n\nDescreva o erro — o operador vê esse motivo na página da criação:`);
+  if(motivo === null) return;
+  const payload = {status:'erro', motivo: motivo.trim().slice(0,200), by:_name||'Admin', at:Date.now()};
+  db.ref(`painel/${r.date}/criacaoNoturna/audit/${r.key}`).set(payload);
+  db.ref(`painel/${r.date}/criacaoNoturna/log`).push({by:`Admin ${_name||''}`.trim(), at:Date.now(), action:'marcou ERRO de criação', detail:`${r.nome} — ${payload.motivo||'sem motivo'}`});
+  r.audit = payload; renderCn();
+  toast(`⚠ Erro marcado — ${r.doneBy} vê o alerta na página da criação`,'ok');
+  // já abre a notificação oficial (a MESMA que aparece no painel do operador,
+  // com bloqueio até justificar) pré-preenchida com o motivo
+  notifyCnError(window._cnView.indexOf(r));
+}
+/* notificação de erro de criação — reaproveita o fluxo oficial do admin
+   (openNotif/sendNotif → userNotifs + pendingNotif): o operador recebe no
+   painel exatamente a mesma mensagem/bloqueio das outras auditorias */
+function notifyCnError(i){
+  const r = window._cnView[i];
+  if(!r) return;
+  openNotif({nome:`${r.nome} (${r.hora} · grade ${r.date.slice(5).split('-').reverse().join('/')})`, date:r.date, key:r.key, fixBy:r.doneBy});
+  // pré-seleciona o tipo "Erro de criação (GU)" e preenche a descrição com o motivo
+  setTimeout(() => {
+    const btn = [...document.querySelectorAll('.notif-type-btn')].find(b => (b.getAttribute('onclick')||'').includes("'criacao'"));
+    if(btn) selNotifType('criacao', btn);
+    if(r.audit && r.audit.motivo){
+      document.getElementById('notifDesc').value = r.audit.motivo;
+      if(typeof updateNotifPreview === 'function') updateNotifPreview();
+    }
+  }, 50);
+}
+function clearCnError(i){
+  const r = window._cnView[i];
+  db.ref(`painel/${r.date}/criacaoNoturna/audit/${r.key}`).remove();
+  db.ref(`painel/${r.date}/criacaoNoturna/log`).push({by:`Admin ${_name||''}`.trim(), at:Date.now(), action:'desfez erro de criação', detail:r.nome});
+  r.audit = null; renderCn();
+  toast('Erro desfeito','ok');
+}
+function exportCnXlsx(){
+  const rows = cnFiltered();
+  if(!rows.length){ toast('Nada pra exportar','err'); return; }
+  const aoa = [['Data','Torneio','Categoria','Horário','Criado por','Quando','Tempo (min)','ID Pokerbyte','Auditoria','Motivo do erro','Marcado por'],
+    ...rows.map(r => [r.date, r.nome, r.cat, r.hora, r.doneBy, r.doneAt?new Date(r.doneAt).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}):'',
+      r.dur?Math.round(r.dur/6000)/10:'', r.id, r.audit&&r.audit.status==='erro'?'ERRO':(r.doneBy?'OK':''), (r.audit&&r.audit.motivo)||'', (r.audit&&r.audit.by)||''])];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:11},{wch:34},{wch:11},{wch:8},{wch:16},{wch:18},{wch:10},{wch:14},{wch:9},{wch:30},{wch:14}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Criação GU');
+  XLSX.writeFile(wb, `AuditoriaCriacao_${document.getElementById('cnFrom').value}_${document.getElementById('cnTo').value}.xlsx`);
 }
 
 // Drill-down: pula da Grade/Dashboard direto pra Auditoria já filtrada pelo torneio,
@@ -1977,7 +2239,24 @@ function setDp(n,btn){
   buildDash();
 }
 
+async function buildDashCn(){
+  const el = document.getElementById('dashCnKpi');
+  if(!el) return;
+  try{
+    const s = await cnStatsByOp(dago(29), nowSP());
+    const pct = (a,b) => b ? Math.round(a/b*100)+'%' : '—';
+    const avg = s.durN ? (s.durSum/s.durN/60000) : null;
+    const topOp = Object.entries(s.byOp).sort((a,b)=>b[1].criados-a[1].criados)[0];
+    el.innerHTML = `
+      <div class="kpi g"><div class="kpi-label">Torneios criados</div><div class="kpi-val">${s.criados}</div><div class="kpi-sub">${pct(s.criados,s.total)} da grade · ${s.dias} noite(s)</div></div>
+      <div class="kpi b"><div class="kpi-label">Com ID Pokerbyte</div><div class="kpi-val">${pct(s.comId,s.criados)}</div><div class="kpi-sub">${s.comId} de ${s.criados}</div></div>
+      <div class="kpi p"><div class="kpi-label">Tempo médio</div><div class="kpi-val">${avg?avg.toFixed(1)+'m':'—'}</div><div class="kpi-sub">${s.durN} medidos no modo foco</div></div>
+      <div class="kpi ${s.erros?'r':'g'}"><div class="kpi-label">Erros de criação</div><div class="kpi-val">${s.erros}</div><div class="kpi-sub">taxa ${pct(s.erros,s.criados)}</div></div>
+      <div class="kpi"><div class="kpi-label">Top criador</div><div class="kpi-val" style="font-size:20px">${topOp?esc(topOp[0]):'—'}</div><div class="kpi-sub">${topOp?topOp[1].criados+' criados':'sem dados'}</div></div>`;
+  }catch(e){ el.innerHTML = '<div class="kpi"><div class="kpi-label">Erro ao carregar</div><div class="kpi-sub">'+esc(e.message)+'</div></div>'; }
+}
 function buildDash(){
+  buildDashCn();
   const rows=flatRows(dago(_dp),nowSP());
   const closed=rows.filter(r=>r.premiacao!=null);
   const withOv=closed.filter(r=>r.overlay!=null&&r.overlay<0);
@@ -2482,6 +2761,7 @@ const NOTIF_TYPES = {
   field:     'Field incorreto',
   premiacao: 'Premiação incorreta',
   id:        'ID do evento incorreto',
+  criacao:   'Erro de criação (GU)',
   outro:     'Erro operacional',
 };
 
@@ -2651,6 +2931,15 @@ async function forceUnblockOp(key,name){
 async function resolveNotif(opKey,nid){
   if(!await confirmModal({title:'Resolver notificação',message:'Marcar como resolvido e liberar o operador?',confirmLabel:'Resolver'}))return;
   try {
+    // erro de criação (GU): resolver a notificação também limpa o badge de erro
+    // na página da criação — fecha o ciclo marcou → notificou → justificou → ok
+    try{
+      const n = (await db.ref(`userNotifs/${opKey}/${nid}`).once('value')).val();
+      if(n && n.type === 'criacao' && n.date && n.key){
+        await db.ref(`painel/${n.date}/criacaoNoturna/audit/${n.key}`).remove();
+        db.ref(`painel/${n.date}/criacaoNoturna/log`).push({by:`Admin ${_name||''}`.trim(), at:Date.now(), action:'aceitou justificativa — erro resolvido', detail:n.torneio||n.key});
+      }
+    }catch(e){}
     await db.ref(`userNotifs/${opKey}/${nid}/resolved`).set(true);
     await db.ref(`users/${opKey}/pendingNotif`).remove();
     invalidateNotifsCache();
@@ -3194,6 +3483,17 @@ async function executeCleanup(old){
   let removed = 0;
   for(const date of old){
     try{
+      // A criação noturna mora DENTRO de painel/{dia} — arquivar em snapshots/
+      // antes de apagar, senão os KPIs de período longo (criados, tempos, erros)
+      // somem junto com a limpeza. Guarda só o essencial (sem a sheet pesada).
+      try{
+        const cn = (await db.ref(`painel/${date}/criacaoNoturna`).once('value')).val();
+        if(cn && (cn.done || cn.audit)){
+          await db.ref(`snapshots/${date}/criacaoNoturna`).set({
+            done: cn.done||null, ids: cn.ids||null, audit: cn.audit||null, log: cn.log||null
+          });
+        }
+      }catch(e){ console.error('Erro ao arquivar criação de', date, e); }
       // Remover só o nó painel/ — manter snapshots/ e relatorios/
       await db.ref(`painel/${date}`).remove();
       delete _allData[date];
@@ -3600,6 +3900,33 @@ async function openNotifHistory(){
 }
 
 /* ── 5. Ranking de operadores ── */
+/* estatísticas da Criação Noturna por operador no período (pro ranking e dashboard) */
+async function cnStatsByOp(fromDate, toDate){
+  const dates = [];
+  const d = new Date(fromDate + 'T12:00:00Z'), end = new Date(toDate + 'T12:00:00Z');
+  while(d <= end && dates.length < 62){ dates.push(d.toISOString().slice(0,10)); d.setUTCDate(d.getUTCDate()+1); }
+  const snaps = await Promise.all(dates.map(dt => db.ref(`painel/${dt}/criacaoNoturna`).once('value').then(s => s.val())));
+  const byOp = {}; let total = 0, criados = 0, comId = 0, erros = 0, durSum = 0, durN = 0, dias = 0;
+  snaps.forEach(v => {
+    if(!v || !v.sheet) return;
+    dias++;
+    let data; try{ data = JSON.parse(v.sheet.json); }catch(e){ return; }
+    const done = v.done||{}, ids = v.ids||{}, audit = v.audit||{};
+    ['main','side','sat'].forEach(k => (data[k]||[]).forEach(it => {
+      total++;
+      const key = cnKey(it), dn = done[key];
+      if(!dn || !dn.by) return;
+      criados++;
+      const o = byOp[dn.by] || (byOp[dn.by] = {criados:0, erros:0, comId:0, durSum:0, durN:0});
+      o.criados++;
+      if(ids[key]){ o.comId++; comId++; }
+      if(dn.dur){ o.durSum += dn.dur; o.durN++; durSum += dn.dur; durN++; }
+      if(audit[key] && audit[key].status === 'erro'){ o.erros++; erros++; }
+    }));
+  });
+  return {byOp, total, criados, comId, erros, durSum, durN, dias};
+}
+
 async function openOpRanking(){
   const mo = document.getElementById('moOpRanking');
   const el = document.getElementById('opRankingBody');
@@ -3630,7 +3957,16 @@ async function openOpRanking(){
     });
   }catch(e){}
 
-  const sorted = Object.values(byOp).sort((a,b)=>b.total-a.total);
+  // soma o lado da CRIAÇÃO NOTURNA (GU) — quem cria de noite também pontua/penaliza aqui
+  let cn = {byOp:{}};
+  try{ cn = await cnStatsByOp(dago(30), nowSP()); }catch(e){}
+  Object.entries(cn.byOp).forEach(([name, s]) => {
+    if(!byOp[name]) byOp[name] = {op:name, total:0, fixados:0, comId:0, overlay:0, semPrem:0, notifs:0};
+    byOp[name].cnCriados = s.criados;
+    byOp[name].cnErros = s.erros;
+  });
+
+  const sorted = Object.values(byOp).sort((a,b)=>(b.total+(b.cnCriados||0))-(a.total+(a.cnCriados||0)));
 
   el.innerHTML = sorted.map((op,i)=>`<tr>
     <td style="font-weight:700;color:var(--ink3)">${i+1}</td>
@@ -3640,7 +3976,9 @@ async function openOpRanking(){
     <td class="r mono">${op.comId}</td>
     <td class="r mono ${op.semPrem>5?'c-red':''}">${op.semPrem}</td>
     <td class="r mono ${op.notifs>0?'c-amber':''}">${op.notifs}</td>
-  </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--ink3)">Sem dados nos últimos 30 dias.</td></tr>';
+    <td class="r mono">${op.cnCriados||0}</td>
+    <td class="r mono ${op.cnErros?'c-red':''}">${op.cnErros||0}</td>
+  </tr>`).join('') || '<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--ink3)">Sem dados nos últimos 30 dias.</td></tr>';
 
   mo.classList.add('open');
 }
