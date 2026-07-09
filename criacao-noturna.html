@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Criação Noturna — GU · Suprema Poker</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌙</text></svg>">
+<title>Criação Noturna GU · Suprema OS</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%238c5cc6'>♠</text></svg>">
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" onerror="window.__xlsxFail=true"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
@@ -1003,6 +1003,7 @@
   }
   @media (prefers-reduced-motion:reduce){ *{transition:none !important;animation:none !important} }
 </style>
+<link rel="stylesheet" href="suprema-tokens.css">
 </head>
 <body>
 
@@ -1171,18 +1172,18 @@
    se mudar lá, espelhar aqui.
 ========================================================================= */
 
-/* ── PORTÃO DE ACESSO: esta página é uma extensão do Painel — só entra quem
-   está logado lá (mesma sessão 'suprema_session_v1'). Sem sessão válida,
-   redireciona pro Painel ANTES de qualquer coisa renderizar. ── */
+/* ── PORTÃO DE ACESSO: o login do Suprema OS mora no hub (hub.html) — só entra
+   quem está logado lá (mesma sessão 'suprema_session_v1'). Sem sessão válida,
+   redireciona pro hub ANTES de qualquer coisa renderizar. ── */
 (function(){
   try{
     const s = JSON.parse(localStorage.getItem('suprema_session_v1') || 'null');
     if (!s || !s.email || !s.expiresAt || Date.now() > s.expiresAt){
-      location.replace('index.html');
+      location.replace('hub.html');
       throw new Error('sem sessão'); // interrompe o resto do script inline até o redirect
     }
   }catch(e){
-    if (e.message !== 'sem sessão') location.replace('index.html');
+    if (e.message !== 'sem sessão') location.replace('hub.html');
     throw e;
   }
 })();
@@ -1660,8 +1661,8 @@ try{
 
 /* =========================================================================
    CONTA — a MESMA do Painel/Admin, e SÓ ela: não existe login próprio aqui.
-   O portão no <script> inicial redireciona pro Painel quem chega sem a
-   sessão 'suprema_session_v1'; o login/cadastro acontecem exclusivamente lá.
+   O portão no <script> inicial redireciona pro hub (hub.html) quem chega sem
+   a sessão 'suprema_session_v1'; o login/cadastro acontecem exclusivamente lá.
 ========================================================================= */
 const AUTH_STORE_KEY = 'suprema_session_v1';
 function getSession(){

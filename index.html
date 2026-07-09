@@ -19,7 +19,18 @@
 <link rel="preconnect" href="https://design-1-53c00-default-rtdb.firebaseio.com" crossorigin>
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Suprema Poker — Painel do Dia</title>
+<title>Painel do Dia · Suprema OS</title>
+<script>
+/* ── PORTÃO DE ACESSO: o login/cadastro do Suprema OS mora no hub (hub.html).
+   Sem sessão válida ('suprema_session_v1'), redireciona pro hub ANTES de renderizar. ── */
+(function(){
+  try{
+    var s = JSON.parse(localStorage.getItem('suprema_session_v1') || 'null');
+    if(!s || !s.email || !s.expiresAt || Date.now() > s.expiresAt) location.replace('hub.html');
+  }catch(e){ location.replace('hub.html'); }
+})();
+</script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%2318a36b'>♠</text></svg>">
 <meta name="description" content="Acompanhamento dos torneios Suprema Poker. Garantidos, resultados e performance, atualizados a partir da planilha diária.">
 <!-- XLSX (~900KB) só é usado em upload/exportar (ação do usuário), nunca no load:
      defer tira ele do caminho crítico → a página pinta na hora e ele carrega em paralelo. -->
@@ -2816,6 +2827,7 @@
   background:none;border:none;cursor:pointer;padding:0;
 }
 </style>
+  <link rel="stylesheet" href="suprema-tokens.css">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#22c55e">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -3446,7 +3458,6 @@
     <!-- Tabs -->
     <div class="auth-tabs-wrap">
       <button type="button" id="tabLogin" class="auth-tab active" onclick="switchAuthTab('login')">Entrar</button>
-      <button type="button" id="tabCadastro" class="auth-tab" onclick="switchAuthTab('cadastro')">Criar conta</button>
       <div class="auth-tab-indicator" id="authTabIndicator"></div>
     </div>
 
@@ -3523,85 +3534,7 @@
       </button>
       <button type="button" class="auth-link-btn" onclick="switchAuthTab('login')">← Voltar ao login</button>
     </div>
-    <div id="panelCadastro" class="auth-panel" style="display:none;">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div class="auth-field">
-          <label class="auth-label">Nome</label>
-          <div class="auth-input-wrap">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-            <input type="text" id="cadNome" class="auth-input" placeholder="João" maxlength="40" autocomplete="given-name">
-          </div>
-        </div>
-        <div class="auth-field">
-          <label class="auth-label">Sobrenome</label>
-          <div class="auth-input-wrap">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-            <input type="text" id="cadSobrenome" class="auth-input" placeholder="Silva" maxlength="40" autocomplete="family-name">
-          </div>
-        </div>
-      </div>
-      <div class="auth-field">
-        <label class="auth-label">Apelido <span style="opacity:.5;font-weight:400;text-transform:none;letter-spacing:0">(como aparece no painel)</span></label>
-        <div class="auth-input-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-          <input type="text" id="cadApelido" class="auth-input" placeholder="Ex: Joãozinho" maxlength="30" autocomplete="nickname">
-        </div>
-      </div>
-      <div class="auth-field">
-        <label class="auth-label">Email corporativo</label>
-        <div class="auth-input-wrap" id="cadEmailWrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-          <input type="email" id="cadEmail" class="auth-input" placeholder="nome@suprema.group" autocomplete="email" oninput="validateCadEmail()">
-        </div>
-        <span id="cadEmailHint" class="auth-hint">Precisa terminar com @suprema.group</span>
-      </div>
-      <div class="auth-field">
-        <label class="auth-label">Senha</label>
-        <div class="auth-input-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          <input type="password" id="cadPassword" class="auth-input" placeholder="Mín. 6 · 1 minúscula · 1 especial" maxlength="64" autocomplete="new-password" style="padding-right:44px;" oninput="checkPasswordStrength();checkPasswordMatch()" onkeyup="authCapsHint(event,'cadCapsHint')">
-          <button type="button" class="auth-pass-toggle" onclick="togglePassVisibility('cadPassword', this)" aria-label="Mostrar senha" title="Mostrar/ocultar senha">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-          </button>
-        </div>
-        <div id="cadCapsHint" class="auth-capslock" hidden>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M12 3 4 11h4v6h8v-6h4L12 3Z"/><path d="M8 21h8"/></svg>
-          Caps Lock está ativado
-        </div>
-        <!-- Indicador de força da senha -->
-        <div class="pwd-strength" id="pwdStrength" style="display:none;">
-          <div class="pwd-bars">
-            <div class="pwd-bar" id="pwdBar1"></div>
-            <div class="pwd-bar" id="pwdBar2"></div>
-            <div class="pwd-bar" id="pwdBar3"></div>
-            <div class="pwd-bar" id="pwdBar4"></div>
-          </div>
-          <span class="pwd-label" id="pwdLabel"></span>
-        </div>
-        <div class="pwd-reqs" id="pwdReqs">
-          <span class="pwd-req" id="req-len">6+ caracteres</span>
-          <span class="pwd-req" id="req-lower">1 letra minúscula</span>
-          <span class="pwd-req" id="req-special">1 caractere especial</span>
-        </div>
-      </div>
-      <div class="auth-field">
-        <label class="auth-label">Confirmar senha</label>
-        <div class="auth-input-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          <input type="password" id="cadPassword2" class="auth-input" placeholder="Repita a senha" maxlength="64" autocomplete="new-password" style="padding-right:44px;"
-            oninput="checkPasswordMatch()" onkeydown="if(event.key==='Enter')doCadastro()">
-          <button type="button" class="auth-pass-toggle" onclick="togglePassVisibility('cadPassword2', this)" aria-label="Mostrar senha" title="Mostrar/ocultar senha">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-          </button>
-        </div>
-        <span id="cadPw2Hint" class="auth-hint" hidden></span>
-      </div>
-      <div id="cadError" class="auth-error" hidden></div>
-      <button type="button" class="auth-submit" id="cadastroBtn" onclick="doCadastro()">
-        <span>Criar conta</span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-      </button>
-    </div>
+    <!-- Cadastro removido do painel: criar conta acontece no hub (hub.html) -->
     </div><!-- /auth-card -->
   </div>
 
@@ -5377,12 +5310,10 @@ function promptOperatorNameIfNeeded(){
 /* ── Tab switcher com animação de indicador deslizante ── */
 function switchAuthTab(tab){
   document.getElementById('panelLogin').style.display = tab === 'login' ? '' : 'none';
-  document.getElementById('panelCadastro').style.display = tab === 'cadastro' ? '' : 'none';
   document.getElementById('panelRecovery').style.display = tab === 'recovery' ? '' : 'none';
-  document.getElementById('tabLogin').classList.toggle('active', tab !== 'cadastro');
-  document.getElementById('tabCadastro').classList.toggle('active', tab === 'cadastro');
-  updateTabIndicator(tab === 'cadastro' ? 'cadastro' : 'login');
-  ['loginError','cadError','recoveryMsg'].forEach(id => {
+  document.getElementById('tabLogin').classList.add('active');
+  updateTabIndicator('login');
+  ['loginError','recoveryMsg'].forEach(id => {
     const el = document.getElementById(id);
     if(el) el.hidden = true;
   });
@@ -5397,56 +5328,10 @@ function switchAuthTab(tab){
 }
 function updateTabIndicator(tab){
   const indicator = document.getElementById('authTabIndicator');
-  const btn = document.getElementById(tab === 'login' ? 'tabLogin' : 'tabCadastro');
+  const btn = document.getElementById('tabLogin');
   if(!indicator || !btn) return;
   indicator.style.width = btn.offsetWidth + 'px';
   indicator.style.transform = `translateX(${btn.offsetLeft - 4}px)`;
-}
-
-/* ── Validação de email em tempo real ── */
-function validateCadEmail(){
-  const val = (document.getElementById('cadEmail').value||'').trim().toLowerCase();
-  const hint = document.getElementById('cadEmailHint');
-  const wrap = document.getElementById('cadEmailWrap');
-  const ok = val.endsWith('@suprema.group') && val.split('@')[0].length > 0;
-  hint.className = 'auth-hint ' + (ok ? 'ok' : (val.length > 3 ? 'err' : ''));
-  hint.textContent = ok ? '✓ Email válido' : 'Precisa terminar com @suprema.group';
-  if(wrap) wrap.className = 'auth-input-wrap ' + (ok ? 'valid' : (val.length > 3 ? 'invalid' : ''));
-}
-
-/* ── Força da senha em tempo real ── */
-function checkPasswordStrength(){
-  const pw = document.getElementById('cadPassword').value;
-  const strengthEl = document.getElementById('pwdStrength');
-  const labelEl = document.getElementById('pwdLabel');
-  const bars = [document.getElementById('pwdBar1'),document.getElementById('pwdBar2'),document.getElementById('pwdBar3'),document.getElementById('pwdBar4')];
-
-  const hasLen = pw.length >= 6;
-  const hasLower = /[a-z]/.test(pw);
-  const hasUpper = /[A-Z]/.test(pw);
-  const hasSpecial = /[^a-zA-Z0-9]/.test(pw);
-  const hasLong = pw.length >= 10;
-
-  // requisitos obrigatórios
-  document.getElementById('req-len').className = 'pwd-req' + (hasLen ? ' met' : '');
-  document.getElementById('req-lower').className = 'pwd-req' + (hasLower ? ' met' : '');
-  document.getElementById('req-special').className = 'pwd-req' + (hasSpecial ? ' met' : '');
-
-  if(!pw){ strengthEl.style.display = 'none'; return; }
-  strengthEl.style.display = 'flex';
-
-  const score = [hasLen, hasLower, hasUpper || hasSpecial, hasLong && hasSpecial].filter(Boolean).length;
-  const levels = [
-    { label:'Fraca', cls:'active-weak', count:1 },
-    { label:'Razoável', cls:'active-fair', count:2 },
-    { label:'Boa', cls:'active-good', count:3 },
-    { label:'Forte', cls:'active-strong', count:4 },
-  ];
-  const lvl = levels[Math.min(score - 1, 3)] || levels[0];
-  bars.forEach((b,i) => {
-    b.className = 'pwd-bar' + (i < lvl.count ? ' ' + lvl.cls : '');
-  });
-  if(labelEl){ labelEl.textContent = lvl.label; labelEl.style.color = score >= 3 ? 'var(--felt-bright)' : score === 2 ? '#f0a020' : '#e85555'; }
 }
 
 /* ── Validação de senha ── */
@@ -5485,19 +5370,6 @@ function authCapsHint(event, hintId){
   const hint = document.getElementById(hintId || 'loginCapsHint');
   if(!hint || !event.getModifierState) return;
   hint.hidden = !event.getModifierState('CapsLock');
-}
-
-/* validação em tempo real da confirmação de senha do cadastro — mostra o desencontro
-   enquanto digita, em vez de só estourar erro depois do clique em "Criar conta" */
-function checkPasswordMatch(){
-  const p1 = document.getElementById('cadPassword')?.value || '';
-  const p2 = document.getElementById('cadPassword2')?.value || '';
-  const hint = document.getElementById('cadPw2Hint');
-  if(!hint) return;
-  if(!p2){ hint.hidden = true; return; }
-  hint.hidden = false;
-  if(p1 === p2){ hint.textContent = '✓ Senhas conferem'; hint.className = 'auth-hint ok'; }
-  else { hint.textContent = 'As senhas não coincidem'; hint.className = 'auth-hint err'; }
 }
 
 /* ── Login ── */
@@ -5977,69 +5849,7 @@ async function doRecovery(){
   }finally{ btn.disabled = false; }
 }
 
-/* ── Cadastro ── */
-function doCadastro(){
-  const nome      = (document.getElementById('cadNome').value||'').trim();
-  const sobrenome = (document.getElementById('cadSobrenome').value||'').trim();
-  const apelido   = (document.getElementById('cadApelido').value||'').trim();
-  const email     = (document.getElementById('cadEmail').value||'').trim().toLowerCase();
-  const pw        = (document.getElementById('cadPassword').value||'');
-  const pw2       = (document.getElementById('cadPassword2').value||'');
-  document.getElementById('cadError').hidden = true;
-
-  if(!nome)    { showAuthError('cadError','Informe seu nome.'); return; }
-  if(!sobrenome){ showAuthError('cadError','Informe seu sobrenome.'); return; }
-  if(!email)   { showAuthError('cadError','Informe seu email.'); return; }
-  if(!email.endsWith('@suprema.group')){ showAuthError('cadError','Apenas emails @suprema.group são aceitos.'); return; }
-  const pwErr = validatePassword(pw);
-  if(pwErr){ showAuthError('cadError', pwErr); return; }
-  if(pw !== pw2){ showAuthError('cadError','As senhas não conferem.'); return; }
-  if(!fbReady){ showAuthError('cadError','Sem conexão com o servidor.'); return; }
-
-  const btn = document.getElementById('cadastroBtn');
-  const btnSpan = btn?.querySelector('span');
-  if(btn){ btn.disabled = true; if(btnSpan) btnSpan.textContent = 'Verificando...'; }
-
-  const key = emailToKey(email);
-
-  // Verificar se email já existe
-  if(btnSpan) btnSpan.textContent = 'Verificando...';
-  fbDb.ref(`users/${key}`).once('value').then(async snap => {
-    if(snap.exists()){
-      if(btn){ btn.disabled = false; if(btnSpan) btnSpan.textContent = 'Criar conta'; }
-      showAuthError('cadError','Este email já possui cadastro. Faça login.');
-      return; // sai aqui
-    }
-
-    // Criar conta
-    if(btnSpan) btnSpan.textContent = 'Criando conta...';
-    const displayName = apelido || nome;
-    fbDb.ref(`users/${key}`).set({
-      nome, sobrenome, apelido: displayName, email,
-      pwHash: await hashPassword(pw),
-      createdAt: firebase.database.ServerValue.TIMESTAMP,
-    }).then(() => {
-      // ✅ Sucesso — .set() resolve com undefined (comportamento normal do Firebase)
-      if(btn){ btn.disabled = false; if(btnSpan) btnSpan.textContent = 'Criar conta'; }
-      saveSession({ email, nome, sobrenome, apelido: displayName, displayName });
-      _session = getSession();
-      OPERATOR_NAME = displayName;
-      document.getElementById('operatorBadge').textContent = displayName;
-      refreshMyPresenceName();
-      showWelcomeSuccess(displayName, email);
-      setTimeout(maybeShowNotifBanner, 2000);
-    }).catch(err => {
-      if(btn){ btn.disabled = false; if(btnSpan) btnSpan.textContent = 'Criar conta'; }
-      showAuthError('cadError','Falha ao salvar conta. Verifique sua conexão.');
-      console.error('Cadastro set error:', err);
-    });
-
-  }).catch(err => {
-    if(btn){ btn.disabled = false; if(btnSpan) btnSpan.textContent = 'Criar conta'; }
-    showAuthError('cadError','Sem conexão com o servidor. Tente novamente.');
-    console.error('Cadastro check error:', err);
-  });
-}
+/* ── Cadastro: removido do painel — criar conta acontece no hub (hub.html) ── */
 
 /* ── Tela de sucesso pós-cadastro ── */
 function showWelcomeSuccess(displayName, email){

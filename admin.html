@@ -3,7 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Suprema · Admin</title>
+<title>Admin · Suprema OS</title>
+<script>
+/* ── PORTÃO DE ACESSO: o login do Suprema OS mora no hub (hub.html).
+   Sem sessão válida ('suprema_session_v1'), redireciona pro hub ANTES de renderizar.
+   (o login próprio do admin continua valendo como segunda camada, abaixo) ── */
+(function(){
+  try{
+    var s = JSON.parse(localStorage.getItem('suprema_session_v1') || 'null');
+    if(!s || !s.email || !s.expiresAt || Date.now() > s.expiresAt) location.replace('hub.html');
+  }catch(e){ location.replace('hub.html'); }
+})();
+</script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%238f6b2d'>♠</text></svg>">
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://design-1-53c00-default-rtdb.firebaseio.com" crossorigin>
 <style>
@@ -729,6 +741,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
 }
 .c-amber{ color:var(--amber,#f59e0b) !important; }
 </style>
+<link rel="stylesheet" href="suprema-tokens.css">
 <script>/* dark antes do primeiro paint — mesma chave do painel/criação */
 (function(){ if(localStorage.getItem('suprema_dark_mode')==='1') document.documentElement.classList.add('dark'); })();</script>
 </head>

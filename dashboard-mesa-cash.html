@@ -3,7 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Suprema Cash Intelligence</title>
+<title>Cash Intelligence · Suprema OS</title>
+<script>
+/* ── PORTÃO DE ACESSO: o login do Suprema OS mora no hub (hub.html).
+   Sem sessão válida ('suprema_session_v1'), redireciona pro hub ANTES de renderizar. ── */
+(function(){
+  try{
+    var s = JSON.parse(localStorage.getItem('suprema_session_v1') || 'null');
+    if(!s || !s.email || !s.expiresAt || Date.now() > s.expiresAt) location.replace('hub.html');
+  }catch(e){ location.replace('hub.html'); }
+})();
+</script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%234f8ef7'>♠</text></svg>">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
@@ -382,6 +393,7 @@ table.t td.m{color:var(--ink2)}
 .logout-btn{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;color:var(--ink3);transition:color .12s,background .12s;flex-shrink:0}
 .logout-btn:hover{color:var(--red);background:var(--red2)}
 </style>
+<link rel="stylesheet" href="suprema-tokens.css">
 </head>
 <body>
 
@@ -428,6 +440,7 @@ table.t td.m{color:var(--ink2)}
       <span class="pulse dia" id="shiftPulse"></span>
       <span id="shiftLabel">Turno Dia</span>
     </div>
+    <a href="hub.html" class="theme-toggle" title="Voltar ao hub Suprema OS" style="text-decoration:none;font-size:13px">♠</a>
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Alternar tema" aria-label="Alternar tema claro/escuro"><i class="ph ph-moon"></i></button>
     <label class="up-btn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
@@ -1211,9 +1224,14 @@ function applyTheme(t){
 function toggleTheme(){
   const cur=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';
   localStorage.setItem('theme',cur);
+  // mesma chave dos outros produtos do Suprema OS ('1' = escuro)
+  localStorage.setItem('suprema_dark_mode', cur==='dark'?'1':'0');
   applyTheme(cur);
 }
-applyTheme(localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'));
+// preferência compartilhada do Suprema OS primeiro; depois a antiga local; depois o sistema
+const supDark = localStorage.getItem('suprema_dark_mode');
+applyTheme(supDark!==null ? (supDark==='1'?'dark':'light')
+  : localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'));
 
 // ══════════════════════════════ SHIFT DETECT
 function detectShift(){

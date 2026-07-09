@@ -3,6 +3,12 @@
     ".read": "auth != null",
     ".write": "auth != null",
 
+    "hub": {
+      "calendar":  { "$id": { ".validate": "newData.hasChildren(['date','title'])" } },
+      "links":     { "$id": { ".validate": "newData.hasChildren(['url','title'])" } },
+      "patchNotes": { ".validate": "newData.hasChildren(['text'])" }
+    },
+
     "painel": {
       "$dia": {
         "criacaoNoturna": {

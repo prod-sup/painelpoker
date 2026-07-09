@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Suprema OS</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%23d8b56d'>♠</text></svg>">
 <style>
 /* ============================================================
    SUPREMA OS — hub de produtos do Grupo Suprema
@@ -28,6 +29,7 @@
   --p-gu:      #8c5cc6;
   --p-learn:   #e8933d;
   --p-org:     #d8b56d;
+  --p-cash:    #4f8ef7;
 
   --display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", sans-serif;
   --text:    "SF Pro Text", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", sans-serif;
@@ -36,6 +38,23 @@
   --radius: 18px;
   --ease: cubic-bezier(.22,1,.36,1);
 }
+/* tema claro: segue a preferência salva dos painéis (suprema_dark_mode) */
+html.light{
+  --bg:        #fbfbfd;
+  --bg-raise:  #ffffff;
+  --ink:       #1d1d1f;
+  --ink-soft:  #6e6e73;
+  --ink-faint: #86868b;
+  --hairline:  rgba(0,0,0,.09);
+  --gold:      #8f6b2d;
+  --gold-soft: rgba(143,107,45,.10);
+}
+html.light nav{background:rgba(251,251,253,.85)}
+html.light .tile{box-shadow:0 1px 2px rgba(16,28,22,.05), 0 3px 10px -2px rgba(16,28,22,.06)}
+html.light .t-gu,html.light .t-learn{background:var(--bg-raise)}
+/* A Constelação é uma experiência dark: o tile mantém o céu dela nos dois temas */
+html.light .t-org{color:#f2ede2;border-color:rgba(0,0,0,.15)}
+html.light .t-org .desc{color:rgba(242,237,226,.58)}
 *{box-sizing:border-box}
 html,body{margin:0}
 body{
@@ -132,7 +151,18 @@ nav{
 .tile .meta .arrow{transition:transform .35s var(--ease)}
 .tile:hover .meta .arrow{transform:translateX(4px)}
 
-/* composição do bento: 5 produtos, 5 células com ritmo */
+/* dado vivo dentro do tile (presença, progresso da GU) */
+.tile .live{
+  position:relative;display:inline-flex;align-items:center;gap:6px;
+  margin-left:auto;font-family:var(--mono);font-size:11px;letter-spacing:.04em;
+  color:var(--ink-soft);
+}
+.tile .live .pulse{
+  width:6px;height:6px;border-radius:99px;background:var(--tint);
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--tint) 22%, transparent);
+}
+
+/* composição do bento: 6 produtos, 6 células com ritmo */
 .t-painel{grid-column:span 4;min-height:320px;--tint:var(--p-painel)}
 .t-admin {grid-column:span 2;min-height:320px;--tint:var(--p-admin)}
 .t-gu    {grid-column:span 2;--tint:var(--p-gu)}
@@ -154,6 +184,230 @@ nav{
 .t-learn{background:linear-gradient(160deg,#171008 0%,var(--bg-raise) 55%)}
 /* GU: noite */
 .t-gu{background:linear-gradient(160deg,#120d1c 0%,var(--bg-raise) 60%)}
+/* Cash: faixa horizontal de inteligência */
+.t-cash{grid-column:span 6;min-height:120px;--tint:var(--p-cash);flex-direction:row;align-items:center;gap:22px}
+.t-cash h2{font-size:20px}
+.t-cash .desc{margin:4px 0 0}
+.t-cash .meta{margin:0 0 0 auto}
+.t-cash .mark{font-size:120px;top:-24px}
+
+/* ---------- gate de autenticação (login/cadastro do Suprema OS) ---------- */
+.gate{
+  position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
+  background:
+    radial-gradient(120% 70% at 50% -20%, rgba(24,163,107,.12), transparent 60%),
+    var(--bg);
+  padding:24px;overflow-y:auto;
+}
+.gate[hidden]{display:none}
+.gate-card{
+  width:100%;max-width:400px;
+  border:1px solid var(--hairline);border-radius:var(--radius);
+  background:var(--bg-raise);padding:30px 28px 26px;
+}
+.gate-brand{display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:22px;text-align:center}
+.gate-brand .suit{color:var(--gold);font-size:34px;line-height:1}
+.gate-brand h1{margin:0;font-family:var(--display);font-size:24px;letter-spacing:-.02em}
+.gate-brand h1 span{color:var(--gold)}
+.gate-brand p{margin:0;font-size:13px;color:var(--ink-soft)}
+.gate-tabs{display:flex;gap:4px;margin-bottom:18px;border:1px solid var(--hairline);border-radius:99px;padding:4px}
+.gate-tab{
+  flex:1;padding:8px 0;border:0;border-radius:99px;background:none;cursor:pointer;
+  font-family:var(--text);font-size:13px;font-weight:600;color:var(--ink-soft);
+  transition:background .3s var(--ease), color .3s var(--ease);
+}
+.gate-tab.active{background:var(--gold-soft);color:var(--gold)}
+.gate-field{margin-bottom:12px}
+.gate-field label{display:block;margin-bottom:5px;font-size:11.5px;font-weight:600;letter-spacing:.03em;color:var(--ink-soft)}
+.gate-field input{
+  width:100%;padding:11px 13px;border-radius:12px;
+  border:1px solid var(--hairline);background:transparent;color:var(--ink);
+  font-family:var(--text);font-size:14px;outline:none;
+  transition:border-color .3s var(--ease);
+}
+.gate-field input:focus{border-color:var(--gold)}
+.gate-field input::placeholder{color:var(--ink-faint)}
+.gate-row{display:flex;gap:10px}
+.gate-row .gate-field{flex:1}
+.gate-error{margin:2px 0 10px;font-size:12.5px;color:#e85555}
+.gate-error[hidden]{display:none}
+.gate-ok{margin:2px 0 10px;font-size:12.5px;color:var(--felt)}
+.gate-ok[hidden]{display:none}
+.gate-submit{
+  width:100%;padding:12px 0;margin-top:4px;border:0;border-radius:12px;cursor:pointer;
+  background:var(--gold);color:#14100a;font-family:var(--text);font-size:14px;font-weight:700;
+  transition:transform .2s var(--ease), filter .2s var(--ease);
+}
+.gate-submit:hover{filter:brightness(1.08)}
+.gate-submit:active{transform:scale(.985)}
+.gate-submit:disabled{opacity:.55;cursor:default}
+.gate-link{
+  display:block;margin:14px auto 0;border:0;background:none;cursor:pointer;
+  font-family:var(--text);font-size:12.5px;color:var(--ink-soft);text-decoration:underline;text-underline-offset:3px;
+}
+.gate-link:hover{color:var(--ink)}
+/* usuário logado na nav */
+.nav-user{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--ink-soft)}
+.nav-user b{color:var(--ink);font-weight:600}
+.nav-user button{
+  border:1px solid var(--hairline);background:none;border-radius:99px;padding:5px 12px;cursor:pointer;
+  font-family:var(--text);font-size:11.5px;color:var(--ink-soft);
+  transition:border-color .3s var(--ease), color .3s var(--ease);
+}
+.nav-user button:hover{border-color:var(--gold);color:var(--gold)}
+
+/* ---------- calendário + patch notes ---------- */
+.boards{
+  position:relative;z-index:1;
+  max-width:1180px;margin:0 auto;padding:0 28px 72px;
+  display:grid;gap:14px;grid-template-columns:7fr 5fr;
+  align-items:start;
+}
+.board{
+  border:1px solid var(--hairline);border-radius:var(--radius);
+  background:var(--bg-raise);padding:22px 22px 20px;
+}
+.board-head{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.board-head h2{margin:0;font-family:var(--display);font-size:19px;letter-spacing:-.015em}
+.board-head .suit{color:var(--gold);font-size:16px}
+.board-head .spacer{margin-left:auto}
+.board-btn{
+  border:1px solid var(--hairline);background:none;border-radius:99px;padding:5px 13px;cursor:pointer;
+  font-family:var(--text);font-size:11.5px;font-weight:600;color:var(--ink-soft);
+  transition:border-color .3s var(--ease), color .3s var(--ease);
+}
+.board-btn:hover{border-color:var(--gold);color:var(--gold)}
+.board-btn.primary{background:var(--gold);border-color:var(--gold);color:#14100a}
+.board-btn.primary:hover{filter:brightness(1.08);color:#14100a}
+/* calendário */
+.cal-nav{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.cal-nav b{font-family:var(--display);font-size:14px;letter-spacing:.01em;min-width:150px;text-align:center;text-transform:capitalize}
+.cal-nav button{
+  border:1px solid var(--hairline);background:none;border-radius:10px;width:28px;height:28px;cursor:pointer;
+  color:var(--ink-soft);font-size:14px;line-height:1;
+  transition:border-color .3s var(--ease), color .3s var(--ease);
+}
+.cal-nav button:hover{border-color:var(--gold);color:var(--gold)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-dow{
+  text-align:center;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-faint);padding:4px 0 6px;
+}
+.cal-day{
+  position:relative;aspect-ratio:1.15/1;border-radius:10px;border:1px solid transparent;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  font-size:12.5px;color:var(--ink-soft);background:none;
+  font-family:var(--text);
+}
+.cal-day.in-month{color:var(--ink)}
+.cal-day.other{opacity:.28}
+.cal-day.today{border-color:color-mix(in srgb, var(--felt) 55%, transparent);color:var(--felt);font-weight:700}
+.cal-day.has-ev{background:var(--gold-soft);font-weight:600;cursor:pointer}
+.cal-day.has-ev:hover{border-color:var(--gold)}
+.cal-day .dot{width:5px;height:5px;border-radius:99px;background:var(--gold)}
+.cal-day.admin-click{cursor:pointer}
+.cal-day.admin-click:hover{border-color:var(--hairline)}
+/* lista de eventos */
+.ev-list{margin-top:16px;display:flex;flex-direction:column;gap:8px}
+.ev-empty{font-size:12.5px;color:var(--ink-faint);padding:6px 2px}
+.ev-item{
+  display:flex;align-items:center;gap:12px;padding:10px 12px;
+  border:1px solid var(--hairline);border-radius:12px;
+}
+.ev-item.past{opacity:.45}
+.ev-date{
+  flex:none;width:52px;text-align:center;font-family:var(--mono);
+  border-right:1px solid var(--hairline);padding-right:12px;
+}
+.ev-date b{display:block;font-size:17px;color:var(--gold);line-height:1.1}
+.ev-date span{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint)}
+.ev-body{min-width:0}
+.ev-body b{display:block;font-size:13.5px;letter-spacing:-.01em}
+.ev-body span{font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+.ev-del{
+  margin-left:auto;border:0;background:none;cursor:pointer;color:var(--ink-faint);
+  font-size:14px;padding:4px 6px;border-radius:8px;
+}
+.ev-del:hover{color:#e85555}
+/* form admin do calendário */
+.ev-form{
+  margin-top:14px;padding-top:14px;border-top:1px solid var(--hairline);
+  display:grid;grid-template-columns:auto auto 1fr auto;gap:8px;align-items:center;
+}
+.ev-form[hidden]{display:none}
+.ev-form input{
+  padding:8px 10px;border-radius:10px;border:1px solid var(--hairline);
+  background:transparent;color:var(--ink);font-family:var(--text);font-size:12.5px;outline:none;
+  transition:border-color .3s var(--ease);
+}
+.ev-form input:focus{border-color:var(--gold)}
+.ev-form input[type=date]{font-family:var(--mono)}
+.ev-form input[type=time]{font-family:var(--mono)}
+.ev-form input::-webkit-calendar-picker-indicator{filter:invert(.6)}
+html.light .ev-form input::-webkit-calendar-picker-indicator{filter:none}
+.ev-form-note{grid-column:1/-1;font-size:11px;color:var(--ink-faint);margin-top:-2px}
+/* links de eventos (campanhas, eventos live) */
+.boards .board:first-child{grid-row:span 2} /* calendário alto à esquerda; direita empilha patch notes + links */
+.lk-list{display:flex;flex-direction:column;gap:8px}
+.lk-item{
+  display:flex;align-items:center;gap:12px;padding:11px 13px;
+  border:1px solid var(--hairline);border-radius:12px;
+  color:var(--ink);text-decoration:none;
+  transition:border-color .3s var(--ease), transform .3s var(--ease);
+}
+.lk-item:hover{border-color:var(--gold);transform:translateY(-1px)}
+.lk-body{min-width:0}
+.lk-body b{display:block;font-size:13.5px;letter-spacing:-.01em}
+.lk-body span{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:34ch}
+.lk-tag{
+  margin-left:auto;flex:none;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--gold);background:var(--gold-soft);border-radius:99px;padding:4px 10px;
+}
+.lk-tag.live{color:var(--felt);background:rgba(24,163,107,.12)}
+.lk-arrow{flex:none;color:var(--ink-faint);font-size:13px}
+.lk-del{
+  flex:none;border:0;background:none;cursor:pointer;color:var(--ink-faint);
+  font-size:13px;padding:4px 6px;border-radius:8px;
+}
+.lk-del:hover{color:#e85555}
+.lk-form{
+  margin-top:14px;padding-top:14px;border-top:1px solid var(--hairline);
+  display:grid;grid-template-columns:1fr 1fr;gap:8px;
+}
+.lk-form[hidden]{display:none}
+.lk-form input{
+  padding:8px 10px;border-radius:10px;border:1px solid var(--hairline);
+  background:transparent;color:var(--ink);font-family:var(--text);font-size:12.5px;outline:none;
+  transition:border-color .3s var(--ease);
+}
+.lk-form input:focus{border-color:var(--gold)}
+.lk-form input[type=url]{grid-column:1/-1;font-family:var(--mono);font-size:11.5px}
+.lk-form .board-btn{grid-column:1/-1}
+/* patch notes */
+.pn-body{font-size:13px;line-height:1.65;color:var(--ink-soft)}
+.pn-body h3{
+  margin:16px 0 6px;font-family:var(--display);font-size:14px;letter-spacing:-.01em;color:var(--ink);
+  display:flex;align-items:baseline;gap:8px;
+}
+.pn-body h3:first-child{margin-top:0}
+.pn-body h3 small{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);font-weight:400}
+.pn-body ul{margin:0;padding-left:18px}
+.pn-body li{margin:3px 0}
+.pn-meta{margin-top:14px;font-family:var(--mono);font-size:10.5px;color:var(--ink-faint)}
+.pn-edit[hidden]{display:none}
+.pn-edit textarea{
+  width:100%;min-height:220px;resize:vertical;
+  padding:12px;border-radius:12px;border:1px solid var(--hairline);
+  background:transparent;color:var(--ink);font-family:var(--mono);font-size:12px;line-height:1.6;outline:none;
+}
+.pn-edit textarea:focus{border-color:var(--gold)}
+.pn-edit .row{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
+.pn-hint{font-size:11px;color:var(--ink-faint);margin:8px 0 0}
+@media (max-width:900px){
+  .boards{grid-template-columns:1fr}
+  .ev-form{grid-template-columns:1fr 1fr}
+  .ev-form .board-btn{grid-column:1/-1}
+}
 
 /* ---------- rodapé ---------- */
 footer{
@@ -179,6 +433,8 @@ footer{
   .t-painel,.t-admin{grid-column:span 6}
   .t-gu,.t-learn,.t-org{grid-column:span 6}
   .tile{min-height:200px}
+  .t-cash{flex-direction:column;align-items:flex-start;gap:8px}
+  .t-cash .meta{margin:10px 0 0}
   .hero{padding-top:40px}
 }
 </style>
@@ -188,6 +444,7 @@ footer{
 <nav>
   <div class="nav-inner">
     <span class="brand"><span class="suit">&spades;</span> Suprema <small>OS</small></span>
+    <span class="nav-user" id="navUser" hidden><b id="navUserName"></b><button type="button" id="logoutBtn">Sair</button></span>
     <span class="nav-time" id="navTime"></span>
   </div>
 </nav>
@@ -203,7 +460,9 @@ footer{
     <span class="mark" aria-hidden="true">&spades;</span>
     <h2>Painel do Dia</h2>
     <p class="desc">A grade de torneios ao vivo: agenda, GU, resultados e checklist do turno, sincronizado entre operadores.</p>
-    <span class="meta">Operação diária <span class="arrow">&rarr;</span></span>
+    <span class="meta">Operação diária <span class="arrow">&rarr;</span>
+      <span class="live" id="livePainel" hidden><span class="pulse"></span><span id="livePainelTxt"></span></span>
+    </span>
   </a>
 
   <a class="tile t-admin" href="admin.html" style="--i:1">
@@ -217,7 +476,9 @@ footer{
     <span class="mark" aria-hidden="true">&#9789;</span>
     <h2>Criação Noturna</h2>
     <p class="desc">A receita da GU pro dia seguinte, dividida pelas funções do turno da noite.</p>
-    <span class="meta">GU 19:00 &ndash; 07:00 <span class="arrow">&rarr;</span></span>
+    <span class="meta">GU 19:00 &ndash; 07:00 <span class="arrow">&rarr;</span>
+      <span class="live" id="liveGu" hidden><span class="pulse"></span><span id="liveGuTxt"></span></span>
+    </span>
   </a>
 
   <a class="tile t-learn" href="learn-poker/dist/index.html" style="--i:3">
@@ -234,13 +495,150 @@ footer{
     <span class="meta">Organograma WebGL <span class="arrow">&rarr;</span></span>
   </a>
 
+  <a class="tile t-cash" href="dashboard-mesa-cash.html" style="--i:5">
+    <span class="mark" aria-hidden="true">&clubs;</span>
+    <div>
+      <h2>Cash Intelligence</h2>
+      <p class="desc">Receita das mesas cash por turno: hist&oacute;rico, comportamento e previs&atilde;o.</p>
+    </div>
+    <span class="meta">An&aacute;lise de dados <span class="arrow">&rarr;</span></span>
+  </a>
+
 </main>
+
+<!-- ── Calendário de eventos + Patch notes ── -->
+<section class="boards">
+
+  <div class="board" id="calBoard">
+    <div class="board-head">
+      <span class="suit" aria-hidden="true">&spades;</span>
+      <h2>Pr&oacute;ximos eventos</h2>
+    </div>
+    <div class="cal-nav">
+      <button type="button" id="calPrev" aria-label="M&ecirc;s anterior">&lsaquo;</button>
+      <b id="calMonth"></b>
+      <button type="button" id="calNext" aria-label="Pr&oacute;ximo m&ecirc;s">&rsaquo;</button>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+    <div class="ev-list" id="evList"></div>
+    <!-- só o admin vê e usa este form; a lista é pública pra quem está logado -->
+    <form class="ev-form" id="evForm" hidden onsubmit="return false">
+      <input type="date" id="evDate" required>
+      <input type="time" id="evTime" value="15:00">
+      <input type="text" id="evTitle" placeholder="Nome do evento (ex: Primeiro 5M Garantidos)" maxlength="80" required>
+      <button type="submit" class="board-btn primary" id="evAddBtn">Adicionar</button>
+      <span class="ev-form-note">Modo admin: clique num dia do calend&aacute;rio pra preencher a data.</span>
+    </form>
+  </div>
+
+  <div class="board" id="lkBoard">
+    <div class="board-head">
+      <span class="suit" aria-hidden="true">&hearts;</span>
+      <h2>Nossos eventos</h2>
+    </div>
+    <div class="lk-list" id="lkList"></div>
+    <!-- só o admin vê e usa este form -->
+    <form class="lk-form" id="lkForm" hidden onsubmit="return false">
+      <input type="url" id="lkUrl" placeholder="https://..." required>
+      <input type="text" id="lkTitle" placeholder="Nome (ex: Suprema Poker Tour)" maxlength="60" required>
+      <input type="text" id="lkTag" placeholder="Etiqueta (ex: Evento Live)" maxlength="30">
+      <button type="submit" class="board-btn primary">Adicionar link</button>
+    </form>
+  </div>
+
+  <div class="board" id="pnBoard">
+    <div class="board-head">
+      <span class="suit" aria-hidden="true">&diams;</span>
+      <h2>Patch notes</h2>
+      <span class="spacer"></span>
+      <button type="button" class="board-btn" id="pnEditBtn" hidden>Editar</button>
+    </div>
+    <div class="pn-body" id="pnBody"></div>
+    <div class="pn-meta" id="pnMeta"></div>
+    <div class="pn-edit" id="pnEdit" hidden>
+      <textarea id="pnText" spellcheck="false"></textarea>
+      <p class="pn-hint">Formato: linha come&ccedil;ando com <b>##</b> vira t&iacute;tulo da vers&atilde;o (ex: <b>## v1.2 &middot; 08/07/2026</b>); linha com <b>-</b> vira item da lista.</p>
+      <div class="row">
+        <button type="button" class="board-btn" id="pnCancelBtn">Cancelar</button>
+        <button type="button" class="board-btn primary" id="pnSaveBtn">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+</section>
 
 <footer>
   <div class="foot-inner"><span class="suit">&spades;</span> Grupo Suprema</div>
 </footer>
 
+<!-- ── Gate de autenticação: o login/cadastro do Suprema OS mora aqui.
+     Mesma conta e mesma sessão (suprema_session_v1) de todos os produtos. ── -->
+<div class="gate" id="gate" hidden>
+  <div class="gate-card">
+    <div class="gate-brand">
+      <span class="suit" aria-hidden="true">&spades;</span>
+      <h1>Suprema <span>OS</span></h1>
+      <p>Entre com sua conta @suprema.group para acessar os produtos.</p>
+    </div>
+
+    <div class="gate-tabs" id="gateTabs">
+      <button type="button" class="gate-tab active" data-tab="login">Entrar</button>
+      <button type="button" class="gate-tab" data-tab="cadastro">Criar conta</button>
+    </div>
+
+    <!-- LOGIN -->
+    <form id="gLogin" onsubmit="return false">
+      <div class="gate-field"><label for="gLoginEmail">Email corporativo</label>
+        <input type="email" id="gLoginEmail" placeholder="nome@suprema.group" autocomplete="email"></div>
+      <div class="gate-field"><label for="gLoginPw">Senha</label>
+        <input type="password" id="gLoginPw" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="current-password"></div>
+      <div class="gate-error" id="gLoginErr" hidden></div>
+      <button type="submit" class="gate-submit" id="gLoginBtn">Entrar</button>
+      <button type="button" class="gate-link" data-tab="recovery">Esqueci minha senha</button>
+    </form>
+
+    <!-- CADASTRO -->
+    <form id="gCad" hidden onsubmit="return false">
+      <div class="gate-row">
+        <div class="gate-field"><label for="gCadNome">Nome</label>
+          <input type="text" id="gCadNome" autocomplete="given-name"></div>
+        <div class="gate-field"><label for="gCadSobrenome">Sobrenome</label>
+          <input type="text" id="gCadSobrenome" autocomplete="family-name"></div>
+      </div>
+      <div class="gate-field"><label for="gCadApelido">Apelido (como aparece no painel)</label>
+        <input type="text" id="gCadApelido" autocomplete="nickname"></div>
+      <div class="gate-field"><label for="gCadEmail">Email corporativo</label>
+        <input type="email" id="gCadEmail" placeholder="nome@suprema.group" autocomplete="email"></div>
+      <div class="gate-field"><label for="gCadPw">Senha</label>
+        <input type="password" id="gCadPw" placeholder="M&iacute;n. 6 &middot; 1 min&uacute;scula &middot; 1 especial" autocomplete="new-password"></div>
+      <div class="gate-field"><label for="gCadPw2">Confirmar senha</label>
+        <input type="password" id="gCadPw2" autocomplete="new-password"></div>
+      <div class="gate-error" id="gCadErr" hidden></div>
+      <button type="submit" class="gate-submit" id="gCadBtn">Criar conta</button>
+    </form>
+
+    <!-- RECUPERAÇÃO -->
+    <form id="gRec" hidden onsubmit="return false">
+      <div class="gate-field"><label for="gRecEmail">Email corporativo</label>
+        <input type="email" id="gRecEmail" placeholder="nome@suprema.group" autocomplete="email"></div>
+      <div id="gRecStep2" hidden>
+        <div class="gate-field"><label for="gRecCode">C&oacute;digo de 6 d&iacute;gitos</label>
+          <input type="text" id="gRecCode" maxlength="6" inputmode="numeric" style="font-family:var(--mono);letter-spacing:.2em;text-align:center"></div>
+        <div class="gate-field"><label for="gRecPw">Nova senha</label>
+          <input type="password" id="gRecPw" placeholder="M&iacute;n. 6 &middot; 1 min&uacute;scula &middot; 1 especial" autocomplete="new-password"></div>
+      </div>
+      <div class="gate-error" id="gRecErr" hidden></div>
+      <div class="gate-ok" id="gRecOk" hidden></div>
+      <button type="submit" class="gate-submit" id="gRecBtn">Enviar c&oacute;digo</button>
+      <button type="button" class="gate-link" data-tab="login">Voltar ao login</button>
+    </form>
+  </div>
+</div>
+
 <script>
+// Tema: segue a preferência salva dos painéis (default do hub é escuro)
+if (localStorage.getItem('suprema_dark_mode') === '0') document.documentElement.classList.add('light');
+
 // Relógio (mesmo formato do painel)
 function tick(){
   const el = document.getElementById('navTime');
@@ -253,6 +651,508 @@ tick(); setInterval(tick, 15000);
 if (location.protocol === 'file:') {
   document.getElementById('orgLink').href = '../Organograma/docs/index.html';
 }
+</script>
+
+<!-- Dados vivos nos tiles: mesmo Firebase dos painéis (leitura exige auth anônimo) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script>
+(function(){
+  /* ── Sessão compartilhada do Suprema OS (mesma dos painéis) ── */
+  const AUTH_STORE_KEY = 'suprema_session_v1';
+  function getSession(){
+    try{
+      const s = JSON.parse(localStorage.getItem(AUTH_STORE_KEY) || 'null');
+      if(!s || !s.email || !s.expiresAt) return null;
+      if(Date.now() > s.expiresAt){ localStorage.removeItem(AUTH_STORE_KEY); return null; }
+      return s;
+    }catch(e){ return null; }
+  }
+  function saveSession(data){
+    try{ localStorage.setItem(AUTH_STORE_KEY, JSON.stringify({...data, expiresAt: Date.now() + 365*24*60*60*1000})); }catch(e){}
+  }
+  function clearSession(){ try{ localStorage.removeItem(AUTH_STORE_KEY); }catch(e){} }
+  function emailToKey(email){ return email.toLowerCase().trim().replace(/\./g,'_dot_').replace(/@/g,'_at_'); }
+
+  /* ── Hash de senha: protocolo idêntico ao do painel (PBKDF2v2 +
+        verificação/migração dos formatos legados já salvos no Firebase) ── */
+  const PBKDF2_ITER = 150000;
+  const bufToHex = buf => [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  function hexToBytes(hex){
+    const bytes = new Uint8Array(hex.length/2);
+    for(let i=0;i<bytes.length;i++) bytes[i] = parseInt(hex.substr(i*2,2),16);
+    return bytes;
+  }
+  async function hashPassword(pw, saltHex){
+    saltHex = saltHex || bufToHex(crypto.getRandomValues(new Uint8Array(16)));
+    const enc = new TextEncoder();
+    const keyMat = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits({name:'PBKDF2', salt:hexToBytes(saltHex), iterations:PBKDF2_ITER, hash:'SHA-256'}, keyMat, 256);
+    return `pbkdf2v2$${PBKDF2_ITER}$${saltHex}$${bufToHex(bits)}`;
+  }
+  async function hashPasswordLegacySalt(pw, saltHex){
+    const enc = new TextEncoder();
+    const keyMat = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits({name:'PBKDF2', salt:enc.encode(saltHex), iterations:PBKDF2_ITER, hash:'SHA-256'}, keyMat, 256);
+    return `pbkdf2$${PBKDF2_ITER}$${saltHex}$${bufToHex(bits)}`;
+  }
+  function legacyHashPassword(pw){
+    let h = 5381;
+    for(let i=0;i<pw.length;i++){ h = ((h<<5)+h) ^ pw.charCodeAt(i); h |= 0; }
+    const salt = 'suprema2024';
+    let h2 = h;
+    for(let i=0;i<salt.length;i++){ h2 = ((h2<<5)+h2) ^ salt.charCodeAt(i); h2 |= 0; }
+    return 'h2_' + Math.abs(h).toString(36) + '_' + Math.abs(h2).toString(36);
+  }
+  async function verifyPassword(pw, storedHash, onMigrate){
+    if(!storedHash) return true;
+    if(storedHash.startsWith('pbkdf2v2$')){
+      const [,,saltHex] = storedHash.split('$');
+      return (await hashPassword(pw, saltHex)) === storedHash;
+    }
+    if(storedHash.startsWith('pbkdf2$')){
+      const [,,saltHex] = storedHash.split('$');
+      const ok = (await hashPasswordLegacySalt(pw, saltHex)) === storedHash;
+      if(ok && onMigrate) onMigrate(await hashPassword(pw));
+      return ok;
+    }
+    if(/^[0-9a-f]{64}$/i.test(storedHash)){
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
+      const ok = bufToHex(digest) === storedHash.toLowerCase();
+      if(ok && onMigrate) onMigrate(await hashPassword(pw));
+      return ok;
+    }
+    const ok = storedHash === legacyHashPassword(pw);
+    if(ok && onMigrate) onMigrate(await hashPassword(pw));
+    return ok;
+  }
+  function validatePassword(pw){
+    if(pw.length < 6) return 'A senha precisa ter pelo menos 6 caracteres.';
+    if(!/[a-z]/.test(pw)) return 'A senha precisa ter pelo menos 1 letra minúscula.';
+    if(!/[^a-zA-Z0-9]/.test(pw)) return 'A senha precisa ter pelo menos 1 caractere especial (ex: @, #, !, %).';
+    return null;
+  }
+  const LOGIN_MAX_ATTEMPTS = 5, LOGIN_LOCK_MS = 5*60*1000;
+  const loginLockRemaining = user => user && user.loginLockUntil ? Math.max(0, user.loginLockUntil - Date.now()) : 0;
+
+  /* ── Gate: sem sessão, o hub mostra login/cadastro; com sessão, os produtos ── */
+  const $ = id => document.getElementById(id);
+  let session = getSession();
+  let db = null, fbReady = false;
+
+  function paintAuthState(){
+    session = getSession();
+    $('gate').hidden = !!session;
+    $('navUser').hidden = !session;
+    if(session) $('navUserName').textContent = session.displayName || session.apelido || session.nome || session.email;
+  }
+  function switchTab(tab){
+    document.querySelectorAll('.gate-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    $('gLogin').hidden = tab !== 'login';
+    $('gCad').hidden   = tab !== 'cadastro';
+    $('gRec').hidden   = tab !== 'recovery';
+  }
+  document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+  $('logoutBtn').addEventListener('click', () => { clearSession(); location.reload(); });
+
+  const err = (id,msg) => { const el=$(id); el.textContent = msg; el.hidden = false; };
+  const busy = (btn,label,on) => { btn.disabled = on; btn.textContent = label; };
+
+  /* login — mesmas regras e lockout do painel */
+  $('gLogin').addEventListener('submit', () => {
+    const email = ($('gLoginEmail').value||'').trim().toLowerCase();
+    const pw = $('gLoginPw').value||'';
+    $('gLoginErr').hidden = true;
+    if(!email || !pw) return err('gLoginErr','Preencha email e senha.');
+    if(!email.endsWith('@suprema.group')) return err('gLoginErr','Use seu email @suprema.group.');
+    if(!fbReady) return err('gLoginErr','Sem conexão com o servidor. Tente em instantes.');
+    const btn = $('gLoginBtn'); busy(btn,'Entrando...',true);
+    const userRef = db.ref(`users/${emailToKey(email)}`);
+    userRef.once('value').then(async snap => {
+      const reset = () => busy(btn,'Entrar',false);
+      if(!snap.exists()){ reset(); return err('gLoginErr','Email não cadastrado. Crie sua conta.'); }
+      const user = snap.val();
+      const remaining = loginLockRemaining(user);
+      if(remaining > 0){ reset(); return err('gLoginErr',`Muitas tentativas. Tente novamente em ${Math.ceil(remaining/60000)} min.`); }
+      const ok = await verifyPassword(pw, user.pwHash, h => userRef.update({pwHash:h}));
+      if(!ok){
+        const attempts = (user.loginAttempts||0) + 1;
+        const patch = {loginAttempts: attempts};
+        if(attempts >= LOGIN_MAX_ATTEMPTS){ patch.loginLockUntil = Date.now()+LOGIN_LOCK_MS; patch.loginAttempts = 0; }
+        await userRef.update(patch);
+        reset();
+        return err('gLoginErr', attempts >= LOGIN_MAX_ATTEMPTS
+          ? `Muitas tentativas. Login bloqueado por ${LOGIN_LOCK_MS/60000} min.` : 'Senha incorreta.');
+      }
+      if(user.loginAttempts || user.loginLockUntil) userRef.update({loginAttempts:0, loginLockUntil:null});
+      reset();
+      const displayName = user.apelido || user.nome || email;
+      saveSession({ email, nome:user.nome, sobrenome:user.sobrenome, apelido:user.apelido, displayName });
+      paintAuthState();
+      startLiveTiles();
+    }).catch(() => { busy(btn,'Entrar',false); err('gLoginErr','Falha ao conectar. Tente novamente.'); });
+  });
+
+  /* cadastro — mesmo formato de conta do painel */
+  $('gCad').addEventListener('submit', () => {
+    const nome = ($('gCadNome').value||'').trim(), sobrenome = ($('gCadSobrenome').value||'').trim();
+    const apelido = ($('gCadApelido').value||'').trim();
+    const email = ($('gCadEmail').value||'').trim().toLowerCase();
+    const pw = $('gCadPw').value||'', pw2 = $('gCadPw2').value||'';
+    $('gCadErr').hidden = true;
+    if(!nome) return err('gCadErr','Informe seu nome.');
+    if(!sobrenome) return err('gCadErr','Informe seu sobrenome.');
+    if(!email) return err('gCadErr','Informe seu email.');
+    if(!email.endsWith('@suprema.group')) return err('gCadErr','Apenas emails @suprema.group são aceitos.');
+    const pwErr = validatePassword(pw);
+    if(pwErr) return err('gCadErr', pwErr);
+    if(pw !== pw2) return err('gCadErr','As senhas não conferem.');
+    if(!fbReady) return err('gCadErr','Sem conexão com o servidor.');
+    const btn = $('gCadBtn'); busy(btn,'Verificando...',true);
+    const key = emailToKey(email);
+    db.ref(`users/${key}`).once('value').then(async snap => {
+      if(snap.exists()){ busy(btn,'Criar conta',false); return err('gCadErr','Este email já possui cadastro. Faça login.'); }
+      busy(btn,'Criando conta...',true);
+      const displayName = apelido || nome;
+      db.ref(`users/${key}`).set({
+        nome, sobrenome, apelido: displayName, email,
+        pwHash: await hashPassword(pw),
+        createdAt: firebase.database.ServerValue.TIMESTAMP,
+      }).then(() => {
+        busy(btn,'Criar conta',false);
+        saveSession({ email, nome, sobrenome, apelido: displayName, displayName });
+        paintAuthState();
+        startLiveTiles();
+      }).catch(() => { busy(btn,'Criar conta',false); err('gCadErr','Falha ao salvar conta. Verifique sua conexão.'); });
+    }).catch(() => { busy(btn,'Criar conta',false); err('gCadErr','Sem conexão com o servidor. Tente novamente.'); });
+  });
+
+  /* recuperação — mesmo fluxo do painel (código em passwordReset/, 15 min) */
+  let recEmail = null, recCode = null, recExpiry = 0;
+  $('gRec').addEventListener('submit', async () => {
+    const btn = $('gRecBtn');
+    $('gRecErr').hidden = true; $('gRecOk').hidden = true;
+    if(recEmail && recCode){
+      const code = ($('gRecCode').value||'').trim();
+      const newPw = $('gRecPw').value||'';
+      if(code !== recCode || Date.now() > recExpiry) return err('gRecErr','Código inválido ou expirado. Tente novamente.');
+      const pwErr = validatePassword(newPw);
+      if(pwErr) return err('gRecErr', pwErr);
+      if(!fbReady) return err('gRecErr','Sem conexão.');
+      busy(btn,'Salvando...',true);
+      try{
+        await db.ref(`users/${emailToKey(recEmail)}/pwHash`).set(await hashPassword(newPw));
+        await db.ref(`passwordReset/${emailToKey(recEmail)}`).remove();
+        recEmail = null; recCode = null;
+        $('gRecOk').textContent = 'Senha redefinida! Faça login com a nova senha.'; $('gRecOk').hidden = false;
+        setTimeout(() => switchTab('login'), 1600);
+      }catch(e){ err('gRecErr','Erro ao salvar. Tente novamente.'); }
+      finally{ busy(btn,'Redefinir senha',false); }
+      return;
+    }
+    const email = ($('gRecEmail').value||'').trim().toLowerCase();
+    if(!email.endsWith('@suprema.group')) return err('gRecErr','Use seu email @suprema.group.');
+    if(!fbReady) return err('gRecErr','Sem conexão.');
+    busy(btn,'Verificando...',true);
+    try{
+      const snap = await db.ref(`users/${emailToKey(email)}`).once('value');
+      if(!snap.exists()){ busy(btn,'Enviar código',false); return err('gRecErr','Email não cadastrado.'); }
+      const code = String(Math.floor(100000 + Math.random()*900000));
+      const expiry = Date.now() + 15*60*1000;
+      await db.ref(`passwordReset/${emailToKey(email)}`).set({ code, expiry, email, requestedAt: firebase.database.ServerValue.TIMESTAMP });
+      recEmail = email; recCode = code; recExpiry = expiry;
+      $('gRecEmail').disabled = true;
+      $('gRecStep2').hidden = false;
+      busy(btn,'Redefinir senha',false);
+      $('gRecOk').textContent = `Código gerado: ${code} (válido por 15min). Em produção será enviado ao email.`;
+      $('gRecOk').hidden = false;
+      setTimeout(() => { $('gRecOk').hidden = true; }, 8000);
+    }catch(e){ busy(btn,'Enviar código',false); err('gRecErr','Erro. Tente novamente.'); }
+  });
+
+  /* ═══════════════ Calendário de eventos + Patch notes ═══════════════
+     Dados no Firebase: hub/calendar (eventos), hub/calendarHidden
+     (tombstones dos eventos padrão apagados) e hub/patchNotes.
+     Todo mundo logado vê; só admin adiciona/edita/apaga. */
+  const ADMIN_EMAILS = [
+    'brian@suprema.group',
+    'admin@suprema.group',
+    'brian.rodrigues@suprema.group',
+  ];
+  const isAdmin = email => ADMIN_EMAILS.includes((email||'').toLowerCase());
+
+  // Eventos padrão embutidos: aparecem mesmo antes de qualquer escrita no Firebase.
+  // Apagar um deles (admin) grava tombstone em hub/calendarHidden/<id>.
+  const DEFAULT_EVENTS = [
+    { id:'seed-5m-20260816', date:'2026-08-16', time:'15:00', title:'Primeiro 5M Garantidos' },
+  ];
+  // Links dos nossos eventos: padrões embutidos + hub/links no Firebase.
+  // Apagar um padrão (admin) grava tombstone em hub/linksHidden/<id>.
+  const DEFAULT_LINKS = [
+    { id:'seed-allin',  url:'https://allin.supremapoker.com.br/', title:'All-in Suprema',     tag:'Campanha ativa' },
+    { id:'seed-tour',   url:'https://supremapokertour.com/',      title:'Suprema Poker Tour', tag:'Evento Live' },
+  ];
+  const DEFAULT_PATCH_NOTES =
+`## v1.0 · 08/07/2026
+- Login e criação de conta agora acontecem só aqui no hub — os produtos exigem sessão.
+- Novo calendário de eventos importantes (admin adiciona, todo mundo vê).
+- Nova área de Patch notes.`;
+
+  let boardsDb = null;               // fica pronto junto com o auth anônimo do Firebase
+  let fbEvents = {};                 // hub/calendar
+  let hiddenSeeds = {};              // hub/calendarHidden
+  let fbLinks = {};                  // hub/links
+  let hiddenLinks = {};              // hub/linksHidden
+  let patchNotes = null;             // hub/patchNotes ({text, updatedAt, by}) ou null (usa default)
+  const now0 = new Date();
+  let viewY = now0.getFullYear(), viewM = now0.getMonth();
+
+  const pad = n => String(n).padStart(2,'0');
+  const todayIso = () => { const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+  const escHtml = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const MONTHS = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  const MONTHS_SHORT = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+
+  function allEvents(){
+    const list = DEFAULT_EVENTS.filter(e => !hiddenSeeds[e.id]).map(e => ({...e, seed:true}));
+    Object.entries(fbEvents).forEach(([id,e]) => { if(e && e.date && e.title) list.push({id, ...e}); });
+    return list.sort((a,b) => (a.date+(a.time||'')) < (b.date+(b.time||'')) ? -1 : 1);
+  }
+
+  function renderCalendar(){
+    const grid = $('calGrid');
+    $('calMonth').textContent = `${MONTHS[viewM]} ${viewY}`;
+    const evByDate = {};
+    allEvents().forEach(e => { (evByDate[e.date] = evByDate[e.date] || []).push(e); });
+    const admin = session && isAdmin(session.email);
+    const first = new Date(viewY, viewM, 1);
+    const start = new Date(first); start.setDate(1 - first.getDay()); // domingo da 1ª semana
+    let html = ['D','S','T','Q','Q','S','S'].map(d => `<span class="cal-dow">${d}</span>`).join('');
+    const tIso = todayIso();
+    for(let i=0;i<42;i++){
+      const d = new Date(start); d.setDate(start.getDate()+i);
+      const iso = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+      const inMonth = d.getMonth() === viewM;
+      const evs = evByDate[iso] || [];
+      const cls = ['cal-day', inMonth?'in-month':'other', iso===tIso?'today':'', evs.length?'has-ev':'', admin?'admin-click':''].filter(Boolean).join(' ');
+      const title = evs.length ? ` title="${escHtml(evs.map(e => (e.time?e.time+' · ':'')+e.title).join('\n'))}"` : '';
+      html += `<span class="${cls}" data-date="${iso}"${title}>${d.getDate()}${evs.length?'<span class="dot"></span>':''}</span>`;
+    }
+    grid.innerHTML = html;
+    // admin: clicar num dia preenche a data do form; qualquer um: clicar num dia com evento navega a lista
+    grid.querySelectorAll('.cal-day').forEach(el => el.addEventListener('click', () => {
+      if(admin){ $('evDate').value = el.dataset.date; $('evTitle').focus(); }
+    }));
+  }
+
+  function renderEventList(){
+    const list = $('evList');
+    const admin = session && isAdmin(session.email);
+    const tIso = todayIso();
+    const evs = allEvents().filter(e => e.date >= tIso);
+    if(!evs.length){ list.innerHTML = '<div class="ev-empty">Nenhum evento agendado por enquanto.</div>'; return; }
+    list.innerHTML = evs.map(e => {
+      const [y,m,d] = e.date.split('-');
+      return `<div class="ev-item">
+        <span class="ev-date"><b>${+d}</b><span>${MONTHS_SHORT[+m-1]} ${y !== String(now0.getFullYear()) ? y : ''}</span></span>
+        <span class="ev-body"><b>${escHtml(e.title)}</b><span>${e.time ? e.time : 'dia todo'}${e.by ? ' · por '+escHtml((e.by.split('@')[0]||'')) : ''}</span></span>
+        ${admin ? `<button type="button" class="ev-del" data-id="${escHtml(e.id)}" data-seed="${e.seed?'1':''}" title="Apagar evento">✕</button>` : ''}
+      </div>`;
+    }).join('');
+    list.querySelectorAll('.ev-del').forEach(btn => btn.addEventListener('click', () => {
+      if(!boardsDb) return alert('Sem conexão com o servidor.');
+      if(!confirm('Apagar este evento?')) return;
+      if(btn.dataset.seed) boardsDb.ref(`hub/calendarHidden/${btn.dataset.id}`).set(true);
+      else boardsDb.ref(`hub/calendar/${btn.dataset.id}`).remove();
+    }));
+  }
+
+  /* links dos nossos eventos (campanhas, eventos live) */
+  function renderLinks(){
+    const admin = session && isAdmin(session.email);
+    const links = DEFAULT_LINKS.filter(l => !hiddenLinks[l.id]).map(l => ({...l, seed:true}));
+    Object.entries(fbLinks).forEach(([id,l]) => { if(l && l.url && l.title) links.push({id, ...l}); });
+    const list = $('lkList');
+    if(!links.length){ list.innerHTML = '<div class="ev-empty">Nenhum link por enquanto.</div>'; return; }
+    list.innerHTML = links.map(l => {
+      const tagCls = /live|ao vivo/i.test(l.tag||'') ? 'lk-tag live' : 'lk-tag';
+      const host = (l.url||'').replace(/^https?:\/\//,'').replace(/\/$/,'');
+      return `<a class="lk-item" href="${escHtml(l.url)}" target="_blank" rel="noopener">
+        <span class="lk-body"><b>${escHtml(l.title)}</b><span>${escHtml(host)}</span></span>
+        ${l.tag ? `<span class="${tagCls}">${escHtml(l.tag)}</span>` : ''}
+        ${admin ? `<button type="button" class="lk-del" data-id="${escHtml(l.id)}" data-seed="${l.seed?'1':''}" title="Remover link">✕</button>` : '<span class="lk-arrow">↗</span>'}
+      </a>`;
+    }).join('');
+    list.querySelectorAll('.lk-del').forEach(btn => btn.addEventListener('click', ev => {
+      ev.preventDefault(); ev.stopPropagation(); // não abrir o link ao apagar
+      if(!boardsDb) return alert('Sem conexão com o servidor.');
+      if(!confirm('Remover este link?')) return;
+      if(btn.dataset.seed) boardsDb.ref(`hub/linksHidden/${btn.dataset.id}`).set(true);
+      else boardsDb.ref(`hub/links/${btn.dataset.id}`).remove();
+    }));
+  }
+
+  $('lkForm').addEventListener('submit', () => {
+    if(!session || !isAdmin(session.email)) return;
+    const url = ($('lkUrl').value||'').trim(), title = ($('lkTitle').value||'').trim(), tag = ($('lkTag').value||'').trim();
+    if(!url || !title) return alert('Preencha o link e o nome.');
+    if(!/^https?:\/\//i.test(url)) return alert('O link precisa começar com https://');
+    if(!boardsDb) return alert('Sem conexão com o servidor. Tente em instantes.');
+    boardsDb.ref('hub/links').push({
+      url, title, tag: tag || null,
+      by: session.email, createdAt: firebase.database.ServerValue.TIMESTAMP,
+    });
+    $('lkUrl').value = ''; $('lkTitle').value = ''; $('lkTag').value = '';
+  });
+
+  /* patch notes: "## título" vira heading, "- item" vira bullet, resto vira parágrafo */
+  function renderPatchNotes(){
+    const raw = (patchNotes && patchNotes.text) || DEFAULT_PATCH_NOTES;
+    let html = '', ul = [];
+    const flush = () => { if(ul.length){ html += `<ul>${ul.map(i=>`<li>${i}</li>`).join('')}</ul>`; ul = []; } };
+    raw.split('\n').forEach(line => {
+      const l = line.trim();
+      if(!l) { flush(); return; }
+      if(l.startsWith('## ')){
+        flush();
+        const [t, ...rest] = l.slice(3).split('·');
+        html += `<h3>${escHtml(t.trim())}${rest.length?` <small>${escHtml(rest.join('·').trim())}</small>`:''}</h3>`;
+      }
+      else if(l.startsWith('- ')) ul.push(escHtml(l.slice(2)));
+      else { flush(); html += `<p>${escHtml(l)}</p>`; }
+    });
+    flush();
+    $('pnBody').innerHTML = html;
+    $('pnMeta').textContent = patchNotes && patchNotes.updatedAt
+      ? `Atualizado em ${new Date(patchNotes.updatedAt).toLocaleDateString('pt-BR')} por ${(patchNotes.by||'').split('@')[0]}`
+      : '';
+  }
+
+  function refreshBoardsAdminUI(){
+    const admin = session && isAdmin(session.email);
+    $('evForm').hidden = !admin;
+    $('lkForm').hidden = !admin;
+    $('pnEditBtn').hidden = !admin;
+    renderCalendar(); renderEventList(); renderLinks();
+  }
+
+  /* chamado pelo fluxo de login/cadastro do gate (acima) — atualiza os
+     controles de admin dos boards assim que a sessão nasce */
+  function startLiveTiles(){ refreshBoardsAdminUI(); }
+
+  $('calPrev').addEventListener('click', () => { viewM--; if(viewM<0){viewM=11;viewY--;} renderCalendar(); });
+  $('calNext').addEventListener('click', () => { viewM++; if(viewM>11){viewM=0;viewY++;} renderCalendar(); });
+
+  $('evForm').addEventListener('submit', () => {
+    if(!session || !isAdmin(session.email)) return;
+    const date = $('evDate').value, time = $('evTime').value, title = ($('evTitle').value||'').trim();
+    if(!date || !title) return alert('Preencha a data e o nome do evento.');
+    if(!boardsDb) return alert('Sem conexão com o servidor. Tente em instantes.');
+    boardsDb.ref('hub/calendar').push({
+      date, time: time || null, title,
+      by: session.email, createdAt: firebase.database.ServerValue.TIMESTAMP,
+    });
+    $('evTitle').value = '';
+  });
+
+  $('pnEditBtn').addEventListener('click', () => {
+    $('pnText').value = (patchNotes && patchNotes.text) || DEFAULT_PATCH_NOTES;
+    $('pnEdit').hidden = false; $('pnBody').hidden = true; $('pnMeta').hidden = true; $('pnEditBtn').hidden = true;
+    $('pnText').focus();
+  });
+  $('pnCancelBtn').addEventListener('click', () => {
+    $('pnEdit').hidden = true; $('pnBody').hidden = false; $('pnMeta').hidden = false;
+    $('pnEditBtn').hidden = !(session && isAdmin(session.email));
+  });
+  $('pnSaveBtn').addEventListener('click', () => {
+    if(!session || !isAdmin(session.email)) return;
+    if(!boardsDb) return alert('Sem conexão com o servidor. Tente em instantes.');
+    boardsDb.ref('hub/patchNotes').set({
+      text: $('pnText').value, by: session.email,
+      updatedAt: firebase.database.ServerValue.TIMESTAMP,
+    }).then(() => $('pnCancelBtn').click())
+      .catch(() => alert('Falha ao salvar. Tente novamente.'));
+  });
+
+  function initBoards(db){
+    boardsDb = db;
+    db.ref('hub/calendar').on('value', s => { fbEvents = s.val() || {}; renderCalendar(); renderEventList(); });
+    db.ref('hub/calendarHidden').on('value', s => { hiddenSeeds = s.val() || {}; renderCalendar(); renderEventList(); });
+    db.ref('hub/patchNotes').on('value', s => { patchNotes = s.val(); renderPatchNotes(); });
+    db.ref('hub/links').on('value', s => { fbLinks = s.val() || {}; renderLinks(); });
+    db.ref('hub/linksHidden').on('value', s => { hiddenLinks = s.val() || {}; renderLinks(); });
+  }
+
+  // primeiro paint (offline / antes do Firebase responder): defaults embutidos
+  renderPatchNotes();
+  refreshBoardsAdminUI();
+
+  paintAuthState();
+
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAFy1GtRaJE3LHC1Rjtmq0uw2JC8bviXes",
+    authDomain: "design-1-53c00.firebaseapp.com",
+    databaseURL: "https://design-1-53c00-default-rtdb.firebaseio.com",
+    projectId: "design-1-53c00",
+    storageBucket: "design-1-53c00.firebasestorage.app",
+    messagingSenderId: "140511032441",
+    appId: "1:140511032441:web:dcf970125bbf5eec53d0a8"
+  };
+
+  // Dia OPERACIONAL em São Paulo: antes das 05:30 ainda é o dia anterior (mesma regra do painel)
+  function opDates(){
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone:'America/Sao_Paulo', year:'numeric', month:'2-digit', day:'2-digit',
+      hour:'2-digit', minute:'2-digit', hour12:false
+    }).formatToParts(new Date()).reduce((a,p)=>(a[p.type]=p.value,a),{});
+    const ref = new Date(Date.UTC(+parts.year, +parts.month-1, +parts.day, 12));
+    const hm = +parts.hour*60 + +parts.minute;
+    if (hm < 5*60+30) ref.setUTCDate(ref.getUTCDate()-1);
+    const iso = d => d.toISOString().slice(0,10);
+    const tomorrow = new Date(ref); tomorrow.setUTCDate(tomorrow.getUTCDate()+1);
+    return { today: iso(ref), tomorrow: iso(tomorrow) };
+  }
+
+  function show(id, txtId, txt){
+    document.getElementById(txtId).textContent = txt;
+    document.getElementById(id).hidden = false;
+  }
+
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    firebase.auth().signInAnonymously().then(() => {
+      const db = firebase.database();
+      const { tomorrow } = opDates();
+
+      // calendário + patch notes ficam vivos assim que o auth anônimo entra
+      initBoards(db);
+
+      // Painel: operadores online agora
+      db.ref('presence').on('value', s => {
+        const n = s.numChildren();
+        if (n > 0) show('livePainel', 'livePainelTxt', n + (n === 1 ? ' operador online' : ' operadores online'));
+        else document.getElementById('livePainel').hidden = true;
+      });
+
+      // Criação GU: progresso da noite (torneios criados / total da receita)
+      const guBase = `painel/${tomorrow}/criacaoNoturna`;
+      let guTotal = 0, guDone = 0;
+      const paintGu = () => {
+        if (guTotal > 0) show('liveGu', 'liveGuTxt', `${guDone}/${guTotal} criados · ${Math.round(guDone/guTotal*100)}%`);
+      };
+      db.ref(`${guBase}/sheet`).on('value', s => {
+        const v = s.val();
+        if (v && v.json) { try {
+          const d = JSON.parse(v.json);
+          guTotal = (d.main||[]).length + (d.side||[]).length + (d.sat||[]).length;
+          paintGu();
+        } catch(e){} }
+      });
+      db.ref(`${guBase}/done`).on('value', s => { guDone = s.numChildren(); paintGu(); });
+    }).catch(()=>{ /* sem auth (ex.: ambiente local), tiles ficam estáticos */ });
+  } catch(e){ /* offline: hub continua funcionando como launcher */ }
+})();
 </script>
 </body>
 </html>

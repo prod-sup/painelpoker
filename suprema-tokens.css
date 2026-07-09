@@ -1,0 +1,68 @@
+/* ============================================================
+   SUPREMA OS — tokens de identidade compartilhados
+   Fonte única da marca: mudou aqui, muda em todos os produtos.
+   Carregado DEPOIS do <style> de cada página: os valores :root
+   daqui vencem os locais; os blocos html.dark de cada app
+   continuam vencendo no modo escuro (especificidade maior),
+   por isso o dark também é definido aqui pra quem usa os nomes
+   compartilhados.
+
+   Produtos e suas cores (modelo Riot: cada produto tem a sua,
+   o sistema tem uma voz só):
+     Painel do Dia ...... verde feltro  #18a36b
+     Admin .............. dourado       #8f6b2d
+     Criação Noturna GU . violeta       #8c5cc6
+     Poker Learn ........ âmbar da mesa #e8933d
+     A Constelação ...... ouro estelar  #d8b56d
+   ============================================================ */
+
+:root{
+  /* -- núcleo da marca ------------------------------------- */
+  --sup-bg:        #fbfbfd;
+  --sup-bg-deep:   #0b0d0c;
+  --sup-ink:       #1d1d1f;
+  --sup-ink-soft:  #6e6e73;
+  --sup-ink-faint: #86868b;
+  --sup-hairline:  rgba(0,0,0,.08);
+  --sup-felt:      #0c5c3f;
+  --sup-felt-bright:#18a36b;
+  --sup-gold:      #8f6b2d;   /* dourado light unificado */
+  --sup-gold-bright:#ad8a4e;
+  --sup-red:       #c0392b;
+
+  /* -- tipografia ------------------------------------------ */
+  --sup-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", sans-serif;
+  --sup-text:    "SF Pro Text", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", sans-serif;
+  --sup-mono:    "SF Mono", "IBM Plex Mono", ui-monospace, "Roboto Mono", monospace;
+
+  /* -- forma e movimento ----------------------------------- */
+  --sup-radius-sm: 12px;
+  --sup-radius-md: 18px;
+  --sup-radius-lg: 28px;
+  --sup-ease:      cubic-bezier(.22,1,.36,1);
+  --sup-ease-expo: cubic-bezier(.16,1,.3,1);
+
+  /* -- cores por produto ----------------------------------- */
+  --sup-p-painel: #18a36b;
+  --sup-p-admin:  #8f6b2d;
+  --sup-p-gu:     #8c5cc6;
+  --sup-p-learn:  #e8933d;
+  --sup-p-org:    #d8b56d;
+  --sup-p-cash:   #4f8ef7;
+
+  /* -- pontes pros nomes que cada app já usa ---------------- */
+  /* Painel / Criação GU */
+  --gold: var(--sup-gold);
+  --ease: var(--sup-ease);
+  --ease-expo: var(--sup-ease-expo);
+  /* Admin (alinha raios à família 12/18) */
+  --r:  var(--sup-radius-sm);
+  --r2: var(--sup-radius-md);
+}
+
+/* dark: devolve o dourado claro usado pelos apps no escuro
+   (mesma especificidade dos blocos html.dark internos, mas este
+   arquivo carrega depois, então vence — valor idêntico ao atual) */
+html.dark{
+  --gold: #c9a84c;
+}

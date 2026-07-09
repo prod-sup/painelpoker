@@ -8,6 +8,10 @@ const STATIC_ASSETS = [
   '/painelpoker/index.html',
   '/painelpoker/criacao-noturna.html',
   '/painelpoker/gu-parser.js',
+  '/painelpoker/hub.html',
+  '/painelpoker/admin.html',
+  '/painelpoker/dashboard-mesa-cash.html',
+  '/painelpoker/suprema-tokens.css',
 ];
 
 self.addEventListener('install', e => {
