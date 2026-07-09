@@ -586,10 +586,14 @@
     box-shadow:0 8px 30px -18px rgba(12,30,22,0.5);
   }
   .nav-inner{
-    max-width:1180px; margin:0 auto; padding:0 28px;
-    height:56px; display:flex; align-items:center; justify-content:space-between; gap:16px;
+    /* a nav é uma TOOLBAR cheia — precisa de mais largura que o conteúdo (1180px)
+       pra não estourar pra fora da tela em monitores largos */
+    max-width:1480px; margin:0 auto; padding:0 24px;
+    height:56px; display:flex; align-items:center; justify-content:space-between; gap:12px;
     transition:height .4s var(--ease-expo);
   }
+  @media (max-width:1280px){ .nav-time{display:none;} }
+  @media (max-width:1180px){ .sync-status .sync-label{display:none;} }
   nav.scrolled .nav-inner{ height:48px; }
   .brand{display:flex; align-items:center; gap:9px; font-size:14.5px; font-weight:600; letter-spacing:-0.01em; flex:none;}
   .brand-mark{width:20px; height:20px; flex:none;}
@@ -598,14 +602,15 @@
   .bchip-a{ left:0; z-index:2; }
   .bchip-b{ left:9px; z-index:1; }
   @media (max-width:680px){ .brand-chips{ display:none; } }
-  /* ── NAV OUSADO — display caps + pill de feltro que "senta" no link ativo
-     (scroll-spy) e naipe da casa que pula acima no hover. Só transform/opacity. ── */
-  .nav-links{display:flex; gap:4px; font-size:11.5px; color:var(--ink-soft);}
+  /* ── NAV OUSADO — pill de feltro que "senta" no link ativo (scroll-spy) e
+     naipe da casa que pula acima no hover. Só transform/opacity.
+     Fonte = var(--text) (a mesma dos outros painéis) e compacto pra NÃO estourar
+     a largura da nav, que já é cheia de ferramentas. ── */
+  .nav-links{display:flex; gap:2px; font-size:12px; color:var(--ink-soft); flex:none;}
   .nav-links a{
-    position:relative; isolation:isolate;
-    padding:7px 15px; border-radius:99px;
-    font-family:var(--display); font-weight:800;
-    letter-spacing:.08em; text-transform:uppercase;
+    position:relative; isolation:isolate; white-space:nowrap;
+    padding:6px 11px; border-radius:99px;
+    font-family:var(--text); font-weight:700; letter-spacing:.01em;
     transition:color .25s var(--ease), transform .25s var(--ease);
   }
   /* pill que cresce por trás do texto (hover) e vira feltro sólido no ativo */
@@ -642,7 +647,7 @@
     .nav-links a, .nav-links a::before, .nav-links a::after{ transition:none; }
     nav, .nav-inner{ transition:none; }
   }
-  .nav-right{display:flex; align-items:center; gap:14px;}
+  .nav-right{display:flex; align-items:center; gap:9px; min-width:0;}
   .presence-wrap{ display:flex; align-items:center; }
   .presence-avatar{
     width:26px; height:26px; border-radius:50%; flex:none;
@@ -1704,26 +1709,50 @@
     font:inherit; font-size:12.5px; color:var(--ink); min-width:200px;
   }
   .gc-search:focus{ outline:none; border-color:var(--felt); }
-  .gc-scroll{ overflow:auto; border:1px solid var(--hairline-strong); border-radius:14px; background:var(--card); max-height:calc(100vh - 210px); }
-  table.gc-table{ border-collapse:separate; border-spacing:0; font-size:12px; min-width:max-content; }
+  /* seções na ordem da Criação: Main Event ♠ / Side Event ♥ / Satélite ♣ */
+  .gc-sec{ display:flex; align-items:center; gap:10px; margin:20px 0 10px; }
+  .gc-sec:first-of-type{ margin-top:4px; }
+  .gc-sec .tag{
+    display:inline-flex; align-items:center; gap:7px; padding:5px 14px; border-radius:99px;
+    font-size:11px; font-weight:800; letter-spacing:.04em; text-transform:uppercase;
+  }
+  .gc-sec .tag .suit{ font-size:12px; }
+  .gc-sec.main .tag{ background:rgba(216,73,47,.12); color:#d8492f; }
+  .gc-sec.side .tag{ background:rgba(47,127,214,.12); color:#2f7fd6; }
+  .gc-sec.sat .tag{ background:var(--felt-soft); color:var(--felt); }
+  .gc-sec .cnt{ font-family:var(--mono); font-size:11px; color:var(--ink-soft); }
+  .gc-sec .line{ flex:1; height:1px; background:var(--hairline); }
+  /* planilha TRANSPOSTA (igual à Criação): campos nas linhas, torneios nas colunas */
+  .gc-scroll{ overflow:auto; border:1px solid var(--hairline-strong); border-radius:14px; background:var(--card); max-height:calc(100vh - 250px); }
+  table.gc-table{ border-collapse:separate; border-spacing:0; font-size:12.5px; min-width:max-content; }
   .gc-table th, .gc-table td{
-    padding:8px 12px; border-bottom:1px solid var(--hairline); border-right:1px solid var(--hairline);
+    padding:8px 13px; border-bottom:1px solid var(--hairline); border-right:1px solid var(--hairline);
     white-space:nowrap; text-align:left; vertical-align:middle; background:var(--card);
   }
-  .gc-table thead th{
-    position:sticky; top:0; z-index:3; background:var(--bg-deep, var(--card));
-    font-size:10px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--ink-soft);
+  .gc-table tr:last-child th, .gc-table tr:last-child td{ border-bottom:none; }
+  /* rótulo do campo (coluna fixa à esquerda) — mesmo tom da vtable da Criação */
+  .gc-table th.gc-rowlab{
+    position:sticky; left:0; z-index:2;
+    background:var(--card-strong, #f5f5f7); font-family:var(--mono);
+    font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--ink-soft); min-width:130px;
   }
-  .gc-table th.gc-sticky, .gc-table td.gc-sticky{
-    position:sticky; left:0; z-index:2; border-right:1px solid var(--hairline-strong);
-    max-width:230px; white-space:normal; line-height:1.3; font-weight:700;
+  html.dark .gc-table th.gc-rowlab{ background:#1f2420; }
+  .gc-table th.gc-rowlab.key{ color:var(--felt); }
+  /* linha de cabeçalho = nomes dos torneios, presa no topo do scroll */
+  .gc-table tr.gc-head th, .gc-table tr.gc-head td{ position:sticky; top:0; z-index:3; }
+  .gc-table tr.gc-head th.gc-rowlab{ z-index:4; }
+  .gc-table td.gc-name{
+    font-weight:700; font-size:12.5px; max-width:180px; min-width:120px;
+    white-space:normal; line-height:1.35;
   }
-  .gc-table thead th.gc-sticky{ z-index:4; }
   .gc-table td.gc-time{ font-family:var(--mono); font-weight:750; color:var(--felt); }
   .gc-table td.gc-num{ font-family:var(--mono); font-variant-numeric:tabular-nums; }
-  .gc-table tr.gc-ok td{ opacity:.45; }
-  .gc-table tr.gc-ok td.gc-sticky{ text-decoration:line-through; }
-  .gc-table tr.gc-ok td.gc-act{ opacity:1; text-decoration:none; }
+  /* coluna conferida: apaga e risca o nome (igual done-col da Criação) */
+  .gc-table td.gc-ok{ opacity:.45; }
+  .gc-table td.gc-ok.gc-name{ text-decoration:line-through; }
+  .gc-table td.gc-act{ text-align:center; }
+  .gc-table td.gc-act.gc-ok{ opacity:1; }
   .gc-chk{
     width:26px; height:26px; border-radius:8px; border:2px solid var(--hairline-strong); cursor:pointer;
     display:inline-grid; place-items:center; background:transparent; color:transparent; padding:0;
@@ -8991,12 +9020,17 @@ document.getElementById('shiftReportDrawerOverlay').addEventListener('click', (e
     }
     return escHtml(String(v));
   }
-  function gcItems(){
+  /* seções na MESMA ordem/divisão da Criação: Main Event / Side Event / Satélite */
+  function gcSections(){
     if (!gcSheet) return [];
-    const all = [...(gcSheet.main||[]), ...(gcSheet.side||[]), ...(gcSheet.sat||[])];
-    all.sort((a,b) => (timeToMinutes(a.hora) ?? 9999) - (timeToMinutes(b.hora) ?? 9999));
-    return all;
+    const byHora = arr => [...(arr||[])].sort((a,b) => (timeToMinutes(a.hora) ?? 9999) - (timeToMinutes(b.hora) ?? 9999));
+    return [
+      {cls:'main', suit:'♠', label:'Main Event', items: byHora(gcSheet.main)},
+      {cls:'side', suit:'♥', label:'Side Event', items: byHora(gcSheet.side)},
+      {cls:'sat',  suit:'♣', label:'Satélite',   items: byHora(gcSheet.sat)},
+    ].filter(s => s.items.length);
   }
+  function gcItems(){ return gcSections().flatMap(s => s.items); }
   function gcToggle(key){
     if (!fbDb) { showToast('Sem conexão com o Firebase.', true); return; }
     if (gcConf[key]) fbDb.ref(`${BASE}/conf/${key}`).remove();
@@ -9020,20 +9054,33 @@ document.getElementById('shiftReportDrawerOverlay').addEventListener('click', (e
     const badge = document.getElementById('guConfBadge');
     badge.hidden = false; badge.textContent = `${done}/${total}`;
     const q = normText(gcSearch);
-    const vis = q ? items.filter(it => normText(it.nome).includes(q)) : items;
-    const head = `<tr><th class="gc-sticky">Torneio</th>${GC_COLS.map(c => `<th>${c.lab}</th>`).join('')}<th>ID</th><th>Action</th></tr>`;
-    const rows = vis.map(it => {
-      const key = gcKey(it);
-      const ok = !!gcConf[key];
-      const by = ok && gcConf[key].by ? String(gcConf[key].by).split(' ')[0] : '';
-      return `<tr class="${ok ? 'gc-ok' : ''}">
-        <td class="gc-sticky">${escHtml(it.nome)}</td>
-        ${GC_COLS.map(c => `<td class="${c.cls||''}">${gcFmtVal(c, it)}</td>`).join('')}
-        <td class="gc-num">${gcIds[key] ? escHtml(gcIds[key].val) : '—'}</td>
-        <td class="gc-act" style="text-align:center"><button class="gc-chk ${ok ? 'on' : ''}" data-gckey="${escHtml(key)}" title="${ok ? 'Conferido por ' + escHtml(by) : 'Marcar como conferido'}"><svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>${by ? `<span class="gc-by">${escHtml(by)}</span>` : ''}</td>
-      </tr>`;
-    }).join('');
-    area.innerHTML = `<div class="gc-scroll"><table class="gc-table"><thead>${head}</thead><tbody>${rows || `<tr><td class="gc-sticky">Nada nesse filtro.</td></tr>`}</tbody></table></div>`;
+    // TRANSPOSTO, igual à Criação: campos nas linhas, torneios nas colunas, por seção
+    let html = '';
+    gcSections().forEach(sec => {
+      const vis = q ? sec.items.filter(it => normText(it.nome).includes(q)) : sec.items;
+      if (!vis.length) return;
+      const cols = vis.map(it => {
+        const key = gcKey(it);
+        return {it, key, ok: !!gcConf[key], by: gcConf[key] && gcConf[key].by ? String(gcConf[key].by).split(' ')[0] : ''};
+      });
+      const secDone = sec.items.filter(it => gcConf[gcKey(it)]).length;
+      const cell = (fn, cls) => cols.map(c => `<td class="${c.ok ? 'gc-ok' : ''} ${cls || ''}">${fn(c)}</td>`).join('');
+      let t = `<tr class="gc-head"><th class="gc-rowlab">Torneio</th>${cell(c => escHtml(c.it.nome), 'gc-name')}</tr>`;
+      GC_COLS.forEach(col => {
+        t += `<tr><th class="gc-rowlab ${['Horário','Admin Fee','Early Bird','Buy-in','Prize Pool USD'].includes(col.lab) ? 'key' : ''}">${col.lab}</th>${cell(c => gcFmtVal(col, c.it), col.cls || '')}</tr>`;
+      });
+      t += `<tr><th class="gc-rowlab">ID Pokerbyte</th>${cell(c => gcIds[c.key] ? escHtml(gcIds[c.key].val) : '—', 'gc-num')}</tr>`;
+      t += `<tr><th class="gc-rowlab key">Action</th>${cell(c =>
+        `<button class="gc-chk ${c.ok ? 'on' : ''}" data-gckey="${escHtml(c.key)}" title="${c.ok ? 'Conferido por ' + escHtml(c.by) : 'Marcar como conferido'}"><svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>${c.by ? `<span class="gc-by">${escHtml(c.by)}</span>` : ''}`, 'gc-act')}</tr>`;
+      html += `
+        <div class="gc-sec ${sec.cls}">
+          <span class="tag"><span class="suit">${sec.suit}</span>${sec.label}</span>
+          <span class="cnt">${secDone}/${sec.items.length} conferidos</span>
+          <span class="line"></span>
+        </div>
+        <div class="gc-scroll"><table class="gc-table">${t}</table></div>`;
+    });
+    area.innerHTML = html || `<div class="gc-empty"><span class="ic">🃏</span>Nada nesse filtro.</div>`;
     area.querySelectorAll('[data-gckey]').forEach(b => b.addEventListener('click', () => gcToggle(b.dataset.gckey)));
   }
   function gcAttach(){
