@@ -5887,9 +5887,11 @@ function launchConfetti(){
 }
 
 /* ── Badge na nav ── */
+/* O perfil do operador agora mora no hub (hub.html#perfil): experiência única
+   pra editar apelido, tag, avatar e ver progresso. O painel só aponta pra lá. */
 document.getElementById('operatorBadge')?.addEventListener('click', () => {
   if(_session){
-    openUserProfile();
+    location.href = 'hub.html#perfil';
   } else {
     const overlay = document.getElementById('operatorOverlay');
     overlay.classList.add('open');
@@ -11105,6 +11107,15 @@ document.getElementById('darkToggle')?.addEventListener('click', () => {
   const isDark = document.documentElement.classList.toggle('dark');
   localStorage.setItem('suprema_dark_mode', isDark ? '1' : '0');
   document.getElementById('darkToggle').textContent = isDark ? '☀️' : '🌙';
+});
+
+/* Ecossistema: se o tema mudar em outra aba/página (hub, admin...), acompanha na hora */
+window.addEventListener('storage', e => {
+  if(e.key !== 'suprema_dark_mode' || e.newValue === null) return;
+  const isDark = e.newValue === '1';
+  document.documentElement.classList.toggle('dark', isDark);
+  const btn = document.getElementById('darkToggle');
+  if(btn) btn.textContent = isDark ? '☀️' : '🌙';
 });
 
 /* =========================================================================

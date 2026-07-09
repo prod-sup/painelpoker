@@ -2310,15 +2310,74 @@ function toggleDone(key){
 }
 
 function recipeFields(){ return (DATA && DATA.fields) || []; }
+
+/* ── ORDEM DE CRIAÇÃO ── a receita segue a ordem em que se DIGITA no app,
+   não a ordem das colunas da planilha:
+   Torneio → K.O → Max. Table → Garantido → Ticket Award → Calculated Payout →
+   Payout → Buy-in → Reentry/Rebuy → Stack Reentry/Rebuy → Rebuy Condition →
+   Add-on → Stack Add-on → Break Late Reg. → Admin Fee → Structure → Chips →
+   Early game → Pós Late Reg. → Final Table → Early Bird → Time Bank.
+   Colunas fora da lista entram DEPOIS, na ordem original da planilha.
+   Garantido e Buy-in aparecem UMA vez só: se outra coluna casar de novo
+   (ex.: "Size buy-in"), ela sai da receita em vez de duplicar. */
+const CREATION_ORDER = [
+  { m: n => n === 'mtt' },                                                          // Torneio
+  { m: n => /(^|[^a-z])k\.?\s*o\b/.test(n) || n.includes('knock') },                // K.O (REG/PROG/OFF)
+  { m: n => n.includes('max') && n.includes('table') },                             // MAX. TABLE
+  { m: n => n.includes('prize pool') || n.includes('guarant') || n.includes('garantido'), once: true }, // Garantido (1x)
+  { m: n => n.includes('ticket') && n.includes('award') },                          // TICKET AWARD
+  { m: n => n.includes('payout') && (n.includes('calculated') || n.includes('calculado')) }, // CALCULATED PAYOUT
+  { m: n => n.includes('payout') || n.includes('premiac') },                        // PAYOUT
+  { m: n => n.includes('buy-in') || n.includes('buy in') || n === 'buyin', once: true }, // Buy-in (1x)
+  { m: n => (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) && !n.includes('stack') && !n.includes('condition') },
+  { m: n => n.includes('stack') && (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) },
+  { m: n => n.includes('rebuy') && n.includes('condition') },
+  { m: n => (n.includes('add-on') || n.includes('addon')) && !n.includes('stack') },
+  { m: n => n.includes('stack') && (n.includes('add-on') || n.includes('addon')) },
+  { m: n => n.includes('break') && n.includes('late') },                            // BREAK LATE REG.
+  { m: n => n.includes('admin') && n.includes('fee') },                             // Admin Fee
+  { m: n => n.includes('structure') || n.includes('estrutura') },                   // STRUCTURE
+  { m: n => n === 'chips' || n.includes('chip stack') || n.includes('starting stack') || n.includes('stack inicial') },
+  { m: n => n.includes('early game') },                                             // Early game (blinds)
+  { m: n => n.includes('pos late') },                                               // Pós Late Reg. (normText tira o acento)
+  { m: n => n.includes('final table') },                                            // Final Table
+  { m: n => n.includes('early bird') },                                             // Early Bird
+  { m: n => n.includes('time bank') || n === 'tb' },                                // TIME BANK
+];
+function creationOrderFields(fields){
+  const remaining = fields.slice(), out = [];
+  CREATION_ORDER.forEach(slot => {
+    let claimed = false;
+    for (let i = 0; i < remaining.length; ){
+      if (slot.m(normText(remaining[i]))){
+        if (!claimed){
+          out.push(remaining[i]); remaining.splice(i, 1); claimed = true;
+          if (!slot.once) break;               // sem dedup: para no primeiro
+        } else remaining.splice(i, 1);          // duplicata de Garantido/Buy-in: fora
+      } else i++;
+    }
+  });
+  return out.concat(remaining);                 // o que sobrou vai pro fim, na ordem da planilha
+}
+
+/* data e hora em que o evento deve ser CRIADO na grade: torneios da madrugada
+   (até 05:30) pertencem ao dia civil SEGUINTE ao da grade. Formato: 2026-xx-xx dia 00:00 */
+function creationWhen(it){
+  const m = timeToMinutes(it.hora);
+  const ref = (m !== null && m <= CONF_WINDOW_END_MIN) ? TURNO.refDayAfter : TURNO.refTomorrow;
+  return `${refToISO(ref)} dia ${it.hora}`;
+}
+
 /* linhas da receita que a operação NÃO usa na criação — fora da tabela e do foco */
 const HIDDEN_RECIPE = /num\.?\s*(de\s*)?players|jogadores|\bchat\b/;
-function visibleRecipeFields(){ return recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l))); }
+function visibleRecipeFields(){ return creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l)))); }
 function recipeText(it, cat){
+  // Garantido e Buy-in não entram aqui em cima: já saem UMA vez, na posição
+  // deles, dentro da receita ordenada abaixo (ordem de digitação do app)
   const parts = [
     `${cat} — ${it.nome}`,
-    `Horário: ${it.hora}`,
-    `Garantido: ${fmtMoneyPlain(it.garantido)}`,
-    `Buy-in: ${fmtMoneyPlain(it.buyin)}`
+    creationWhen(it),
+    `Horário: ${it.hora}`
   ];
   if (it.groupHeader) parts.push(`Grupo: ${it.groupHeader}`);
   // destaques do turno: cálculo e campanha em cima, antes da receita crua
@@ -2326,8 +2385,8 @@ function recipeText(it, cat){
   if (af) parts.push(`Admin Fee (Rake/Fee + Admin): ${af.main}${af.sub ? ' ' + af.sub : ''}`);
   if (e) parts.push(`Early Bird: ${e.main}${e.sub ? ' ' + e.sub : ''}`);
   if (hasCampaign(it)){ const c = campInfo(it); parts.push(`✦ CAMPANHA${c ? ': ' + c.disp : ''}`); }
-  // receita completa da GU — todos os campos que vão no app, na ordem da planilha
-  recipeFields().forEach(label => {
+  // receita completa da GU — todos os campos que vão no app, na ordem de criação
+  creationOrderFields(recipeFields()).forEach(label => {
     const v = it.extra ? it.extra[label] : undefined;
     if (v !== undefined && v !== null && v !== '') parts.push(`${label}: ${fmtExtraVal(label, v)}`);
   });
@@ -2339,7 +2398,7 @@ function recipeText(it, cat){
 function recipeGridHtml(it){
   const fields = recipeFields();
   if (!fields.length) return `<div class="recipe-note">Receita completa indisponível nesta planilha (cabeçalho da Global não foi lido). Recarregue a Global MTT original.</div>`;
-  return `<div class="recipe-grid">${fields.map(label => {
+  return `<div class="recipe-grid">${creationOrderFields(fields).map(label => {
     const v = it.extra ? it.extra[label] : undefined;
     const has = v !== undefined && v !== null && v !== '';
     return `<div class="rf"><div class="k" title="${escHtml(label)}">${escHtml(label)}</div><div class="v ${has ? '' : 'empty'}">${has ? escHtml(fmtExtraVal(label, v)) : 'em branco'}</div></div>`;
@@ -2552,8 +2611,7 @@ function renderVertical(items, cat, asg){
           + (m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : '');
       }, 'vname')}</tr>
       <tr><th class="rowlab">Horário</th>${cell(c => `<span class="thora">${escHtml(c.it.hora)}</span>`)}</tr>
-      <tr><th class="rowlab key">Garantido</th>${cell(c => `<span class="tval">${fmtMoney(c.it.garantido)}</span>`)}</tr>
-      <tr><th class="rowlab key">Buy-in</th>${cell(c => `<span class="tval">${fmtMoney(c.it.buyin)}</span>`)}</tr>
+      <tr><th class="rowlab key">Criar em</th>${cell(c => `<span class="mono" style="font-weight:700">${escHtml(creationWhen(c.it))}</span>`)}</tr>
       <tr><th class="rowlab">Admin Fee</th>${cell(c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
       <tr><th class="rowlab">Early Bird</th>${cell(c => { const p = earlyParts(c.it); return p ? `<span class="calc-chip early">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
       ${cols.some(c => hasCampaign(c.it)) ? `<tr><th class="rowlab">Campanha</th>${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : ''}
@@ -2751,7 +2809,15 @@ function focusFlowHtml(it){
   setFeat(structureInfo(it),'structure'); setFeat(timeBankInfo(it),'timebank'); setFeat(payoutInfo(it),'payout');
   setFeat(calcPayoutInfo(it),'payout'); setFeat(rebuyInfo(it),'rebuy'); setFeat(addonInfo(it),'addon'); setFeat(koInfo(it),'game');
   const copySvg = `<svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`;
-  return fields.map((label, i) => {
+  // linha 0 — quando o evento deve ser criado (2026-xx-xx dia 00:00); só leitura
+  const quando = creationWhen(it);
+  const quandoRow = `<div class="frow prize key-line" data-static="1">
+    <span class="fnum">♦</span>
+    <span class="fk">Criar em</span>
+    <span class="fv">${escHtml(quando)}</span>
+    <button class="fcopy" data-fcopy="${escHtml(quando)}" title="Copiar data e hora">${copySvg}</button>
+  </div>`;
+  return quandoRow + fields.map((label, i) => {
     const v = it.extra ? it.extra[label] : undefined;
     const has = v !== undefined && v !== null && v !== '';
     const disp = has ? fmtExtraVal(label, v) : '';
@@ -2905,9 +2971,7 @@ function renderFocus(){
       <div class="focus-name">${escHtml(it.nome)}</div>
       ${(() => { const m = mttKicker(it); return m ? `<div class="focus-mtt"><span class="tag-k">MTT</span>${escHtml(m)}</div>` : ''; })()}
       <div class="focus-check">
-        <div class="fc hora"><span class="k">Horário</span><span class="v">${escHtml(it.hora)}</span></div>
-        <div class="fc"><span class="k">Buy-in</span><span class="v">${fmtMoney(it.buyin)}</span></div>
-        <div class="fc"><span class="k">Garantido</span><span class="v">${fmtMoney(it.garantido)}</span></div>
+        <div class="fc hora"><span class="k">Criar em</span><span class="v">${escHtml(creationWhen(it))}</span></div>
         ${it.late ? `<div class="fc"><span class="k">Fim late reg</span><span class="v">${escHtml(it.late)}</span></div>` : ''}
       </div>
       <div class="focus-night">
@@ -2977,6 +3041,7 @@ function renderFocus(){
   // por-campo: toque marca "digitei" e AVANÇA o campo atual; botão copia só o valor
   card.querySelectorAll('.frow').forEach(row => {
     row.addEventListener('click', e => {
+      if (row.dataset.static) return;   // linha "Criar em": só leitura/cópia
       if (e.target.closest('.fcopy')) return;
       const f = row.dataset.field;
       const willEnter = !FOCUS_ENTERED.has(f);

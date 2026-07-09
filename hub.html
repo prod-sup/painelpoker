@@ -38,23 +38,62 @@
   --radius: 18px;
   --ease: cubic-bezier(.22,1,.36,1);
 }
-/* tema claro: segue a preferência salva dos painéis (suprema_dark_mode) */
+/* tema claro: segue a preferência salva dos painéis (suprema_dark_mode).
+   Não é um "dark invertido": é a sala de dia — luz natural na mesa de feltro,
+   papel com um sopro de verde, sombras quentes e o dourado mais bronze. */
 html.light{
-  --bg:        #fbfbfd;
+  --bg:        #f4f5f2;   /* papel com um sopro do feltro */
   --bg-raise:  #ffffff;
-  --ink:       #1d1d1f;
-  --ink-soft:  #6e6e73;
-  --ink-faint: #86868b;
-  --hairline:  rgba(0,0,0,.09);
-  --gold:      #8f6b2d;
-  --gold-soft: rgba(143,107,45,.10);
+  --ink:       #171a18;
+  --ink-soft:  #545b56;
+  --ink-faint: #7c837d;
+  --hairline:  rgba(23,26,24,.10);
+  --gold:      #8a6420;   /* bronze: dourado que segura contraste no claro */
+  --gold-soft: rgba(138,100,32,.10);
+  --felt:      #0e7a4e;   /* feltro um tom mais fundo pra ler sobre claro */
 }
-html.light nav{background:rgba(251,251,253,.85)}
-html.light .tile{box-shadow:0 1px 2px rgba(16,28,22,.05), 0 3px 10px -2px rgba(16,28,22,.06)}
-html.light .t-gu,html.light .t-learn{background:var(--bg-raise)}
+/* de dia a luz entra pela janela: feltro no horizonte, mais presente que no dark */
+html.light body::before{
+  background:
+    radial-gradient(120% 70% at 50% -20%, rgba(14,122,78,.10), transparent 60%),
+    radial-gradient(90% 60% at 85% 110%, rgba(138,100,32,.07), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,.6), transparent 30%);
+}
+html.light nav{background:rgba(244,245,242,.85)}
+html.light .tile{
+  border-color:rgba(23,26,24,.08);
+  box-shadow:0 1px 2px rgba(16,28,22,.06), 0 8px 24px -10px rgba(16,28,22,.10);
+}
+html.light .tile:hover,html.light .tile:focus-visible{
+  box-shadow:0 18px 44px -16px color-mix(in srgb, var(--tint) 38%, rgba(16,28,22,.2));
+}
+/* no claro a tinta de cada produto fica mais franca: o hub ganha cor de dia */
+html.light .tile::before{opacity:1}
+html.light .tile .mark{color:color-mix(in srgb, var(--tint) 26%, transparent)}
+html.light .tile .meta{color:color-mix(in srgb, var(--tint) 72%, #000 18%)}
+/* GU e Learn têm céus próprios no dark; no claro viram papel com a tinta deles */
+html.light .t-gu{background:linear-gradient(160deg, rgba(140,92,198,.10), var(--bg-raise) 55%)}
+html.light .t-learn{background:linear-gradient(160deg, rgba(232,147,61,.12), var(--bg-raise) 55%)}
 /* A Constelação é uma experiência dark: o tile mantém o céu dela nos dois temas */
-html.light .t-org{color:#f2ede2;border-color:rgba(0,0,0,.15)}
+html.light .t-org{color:#f2ede2;border-color:rgba(0,0,0,.18)}
 html.light .t-org .desc{color:rgba(242,237,226,.58)}
+html.light .t-org .meta{color:#d8b56d}
+/* boards de dia: papel elevado com sombra suave; feltro do calendário mais vivo */
+html.light .board{
+  border-color:rgba(23,26,24,.08);
+  box-shadow:0 1px 2px rgba(16,28,22,.05), 0 6px 18px -8px rgba(16,28,22,.08);
+}
+html.light .cal-grid{
+  background:
+    radial-gradient(140% 120% at 50% -30%, rgba(14,122,78,.12), transparent 70%),
+    rgba(14,122,78,.06);
+  border-color:rgba(14,122,78,.28);
+}
+html.light .ev-date{box-shadow:0 3px 8px -3px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.8)}
+html.light .lk-chip{border-color:rgba(255,255,255,.65)}
+/* naipes do fundo: no claro são marca-d'água de toalha de mesa, um pouco mais visíveis */
+html.light .ambient span{color:rgba(14,122,78,.10)}
+html.light .ambient .s2,html.light .ambient .s5{color:rgba(138,100,32,.10)}
 *{box-sizing:border-box}
 html,body{margin:0}
 body{
@@ -537,6 +576,142 @@ html.light .ev-form input[type=date],html.light .ev-form input[type=time]{color-
   .boards{grid-template-columns:1fr}
 }
 
+/* ---------- perfil do operador: a experiência mora aqui no hub ----------
+   Drawer à direita, estilo cartão de jogador (Riot) com a calma da Apple:
+   identidade em cima, progressão no meio, dados e ações embaixo. */
+.pf-overlay{
+  position:fixed;inset:0;z-index:40;display:flex;justify-content:flex-end;
+  background:rgba(0,0,0,.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  opacity:0;pointer-events:none;transition:opacity .35s var(--ease);
+}
+.pf-overlay.open{opacity:1;pointer-events:auto}
+.pf-panel{
+  width:min(440px,100vw);height:100%;overflow-y:auto;
+  background:var(--bg-raise);border-left:1px solid var(--hairline);
+  box-shadow:-30px 0 80px rgba(0,0,0,.35);
+  transform:translateX(40px);transition:transform .45s var(--ease);
+}
+.pf-overlay.open .pf-panel{transform:translateX(0)}
+/* topo: o feltro do jogador */
+.pf-hero{
+  position:relative;padding:26px 26px 54px;color:#f2ede2;
+  background:
+    radial-gradient(120% 100% at 80% -20%, rgba(216,181,109,.25), transparent 60%),
+    linear-gradient(150deg,#124d33,#0b2b1d 70%);
+  border-bottom:1px solid rgba(216,181,109,.25);
+}
+.pf-hero .pf-eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:rgba(216,181,109,.9)}
+.pf-hero h2{margin:6px 0 2px;font-family:var(--display);font-size:26px;letter-spacing:-.02em}
+.pf-hero .pf-tagline{font-family:var(--mono);font-size:11.5px;color:rgba(242,237,226,.6)}
+.pf-hero .pf-tag-pill{
+  display:inline-flex;align-items:center;gap:6px;margin-top:10px;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:#d8b56d;background:rgba(216,181,109,.14);border:1px solid rgba(216,181,109,.4);
+  border-radius:99px;padding:4px 12px;
+}
+.pf-hero .pf-tag-pill[hidden]{display:none}
+.pf-close{
+  position:absolute;top:18px;right:18px;
+  border:1px solid rgba(242,237,226,.25);background:rgba(0,0,0,.2);border-radius:99px;
+  width:30px;height:30px;cursor:pointer;color:#f2ede2;font-size:13px;line-height:1;
+}
+.pf-close:hover{border-color:#d8b56d;color:#d8b56d}
+/* avatar sobre a borda do feltro */
+.pf-avatar-row{display:flex;justify-content:center;margin-top:-40px;position:relative}
+.pf-avatar{
+  width:80px;height:80px;border-radius:22px;cursor:pointer;position:relative;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--display);font-size:34px;font-weight:700;color:#f2ede2;
+  background:linear-gradient(145deg,#1d7a52,#0f4a31);
+  border:2px solid rgba(216,181,109,.55);
+  box-shadow:0 14px 34px -12px rgba(24,163,107,.6);
+  transition:transform .3s var(--ease);
+}
+.pf-avatar:hover{transform:scale(1.04)}
+.pf-avatar .edit{
+  position:absolute;bottom:-6px;right:-6px;width:26px;height:26px;border-radius:99px;
+  display:flex;align-items:center;justify-content:center;font-size:12px;
+  background:var(--gold);color:#14100a;border:2px solid var(--bg-raise);
+}
+.pf-body{padding:20px 24px 28px;display:flex;flex-direction:column;gap:14px}
+.pf-picker{display:none;padding:12px;border:1px solid var(--hairline);border-radius:14px}
+.pf-picker.open{display:block}
+.pf-picker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:6px}
+.pf-picker-grid button{
+  border:1px solid transparent;background:none;border-radius:10px;cursor:pointer;
+  font-size:20px;padding:6px 0;transition:transform .2s var(--ease), border-color .2s var(--ease);
+}
+.pf-picker-grid button:hover{transform:scale(1.15)}
+.pf-picker-grid button.selected{border-color:var(--gold);background:var(--gold-soft)}
+.pf-card{border:1px solid var(--hairline);border-radius:14px;padding:14px 16px}
+.pf-card-title{
+  display:flex;align-items:baseline;gap:8px;margin-bottom:10px;
+  font-family:var(--display);font-size:13.5px;letter-spacing:-.01em;
+}
+.pf-card-title::before{content:"♦";color:var(--gold);font-size:10px}
+.pf-card-title small{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--ink-faint);font-weight:400}
+.pf-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;font-size:13px}
+.pf-row .k{color:var(--ink-soft)}
+.pf-row .v{font-weight:600;text-align:right}
+.pf-row + .pf-row{border-top:1px solid var(--hairline)}
+.pf-field{display:flex;gap:8px;align-items:center}
+.pf-field input{
+  flex:1;padding:9px 11px;border-radius:10px;border:1px solid var(--hairline);
+  background:transparent;color:var(--ink);font-family:var(--text);font-size:13px;outline:none;
+  transition:border-color .3s var(--ease);
+}
+.pf-field input:focus{border-color:var(--gold)}
+/* progressão: nível + barra de XP, à la passe de batalha — mas sóbrio */
+.pf-level{display:flex;align-items:center;gap:14px}
+.pf-level-badge{
+  flex:none;width:52px;height:52px;border-radius:14px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-family:var(--mono);color:#f2ede2;
+  background:linear-gradient(145deg,#1d7a52,#0f4a31);border:1px solid rgba(216,181,109,.45);
+}
+.pf-level-badge b{font-size:18px;line-height:1}
+.pf-level-badge span{font-size:8px;letter-spacing:.12em;text-transform:uppercase;opacity:.7}
+.pf-xp{flex:1}
+.pf-xp .lbl{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);margin-bottom:6px}
+.pf-xp .bar{height:6px;border-radius:99px;background:var(--hairline);overflow:hidden}
+.pf-xp .bar i{
+  display:block;height:100%;border-radius:99px;width:0;
+  background:linear-gradient(90deg,var(--felt),var(--gold));
+  transition:width .8s var(--ease);
+}
+/* títulos desbloqueáveis: fichas que você conquista jogando */
+.pf-titles{display:flex;flex-wrap:wrap;gap:7px}
+.pf-title{
+  border:1px solid var(--hairline);background:none;border-radius:99px;padding:6px 13px;cursor:pointer;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);
+  transition:border-color .25s var(--ease), color .25s var(--ease), background .25s var(--ease), transform .25s var(--ease);
+}
+.pf-title:hover:not(.locked){border-color:var(--gold);color:var(--gold);transform:translateY(-1px)}
+.pf-title.on{border-color:var(--gold);color:var(--gold);background:var(--gold-soft)}
+.pf-title.locked{opacity:.42;cursor:default;border-style:dashed}
+.pf-title .lock{font-size:9px;margin-right:4px}
+.pf-hint{font-size:11px;color:var(--ink-faint);margin:8px 0 0;line-height:1.5}
+.pf-actions{display:flex;gap:8px;margin-top:4px}
+.pf-btn{
+  flex:1;padding:11px 0;border-radius:12px;cursor:pointer;font-family:var(--text);font-size:13px;font-weight:600;
+  border:1px solid var(--hairline);background:none;color:var(--ink-soft);
+  transition:border-color .3s var(--ease), color .3s var(--ease);
+}
+.pf-btn:hover{border-color:var(--gold);color:var(--gold)}
+.pf-btn.danger:hover{border-color:#e85555;color:#e85555}
+/* avatar clicável na nav */
+.nav-user .nav-avatar{
+  width:30px;height:30px;border-radius:9px;border:1px solid rgba(216,181,109,.45);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  font-family:var(--display);font-size:13px;font-weight:700;color:#f2ede2;
+  background:linear-gradient(145deg,#1d7a52,#0f4a31);padding:0;
+  transition:transform .3s var(--ease), box-shadow .3s var(--ease);
+}
+.nav-user .nav-avatar:hover{transform:scale(1.08);box-shadow:0 6px 16px -6px rgba(24,163,107,.6)}
+@media (prefers-reduced-motion: reduce){
+  .pf-overlay,.pf-panel,.pf-xp .bar i{transition:none}
+}
+
 /* ---------- rodapé ---------- */
 footer{
   position:relative;z-index:1;border-top:1px solid var(--hairline);
@@ -556,7 +731,6 @@ footer{
 .ambient .s3{top:78%;left:12%;font-size:70px}
 .ambient .s4{top:30%;left:70%;font-size:56px;color:color-mix(in srgb, var(--felt) 6%, transparent)}
 .ambient .s5{top:6%;left:44%;font-size:44px}
-html.light .ambient span{opacity:.55}
 
 /* ---------- entrada ---------- */
 @media (prefers-reduced-motion: no-preference){
@@ -614,7 +788,10 @@ html.light .ambient span{opacity:.55}
 <nav>
   <div class="nav-inner">
     <span class="brand"><span class="suit">&spades;</span> Suprema <small>OS</small></span>
-    <span class="nav-user" id="navUser" hidden><b id="navUserName"></b><button type="button" id="logoutBtn">Sair</button></span>
+    <span class="nav-user" id="navUser" hidden>
+      <button type="button" class="nav-avatar" id="navAvatar" title="Meu perfil" aria-label="Abrir meu perfil">&spades;</button>
+      <b id="navUserName"></b>
+    </span>
     <span class="nav-time" id="navTime"></span>
     <button type="button" class="theme-btn" id="themeBtn" title="Alternar tema claro/escuro" aria-label="Alternar tema">&#9790;</button>
   </div>
@@ -726,7 +903,7 @@ html.light .ambient span{opacity:.55}
   <div class="board" id="lkBoard" data-suit="&#9829;" style="--b:1">
     <div class="board-head">
       <span class="suit" aria-hidden="true">&#9829;</span>
-      <h2>Mesas abertas</h2>
+      <h2>Fique ligado</h2>
     </div>
     <div class="lk-list" id="lkList"></div>
     <!-- só o admin vê e usa este form -->
@@ -762,6 +939,64 @@ html.light .ambient span{opacity:.55}
 <footer>
   <div class="foot-inner"><span class="suit">&spades;</span> Grupo Suprema</div>
 </footer>
+
+<!-- ── Perfil do operador: identidade, progressão e conta — só aqui no hub ── -->
+<div class="pf-overlay" id="pfOverlay" aria-hidden="true">
+  <div class="pf-panel" role="dialog" aria-modal="true" aria-label="Meu perfil">
+    <div class="pf-hero">
+      <div class="pf-eyebrow">Suprema OS &middot; Cart&atilde;o do operador</div>
+      <h2 id="pfName">&mdash;</h2>
+      <div class="pf-tagline" id="pfEmail"></div>
+      <span class="pf-tag-pill" id="pfTagPill" hidden>&spades; <span id="pfTagTxt"></span></span>
+      <button type="button" class="pf-close" id="pfClose" aria-label="Fechar perfil">&#10005;</button>
+    </div>
+    <div class="pf-avatar-row">
+      <div class="pf-avatar" id="pfAvatar" role="button" tabindex="0" aria-label="Trocar foto de perfil"
+           onkeydown="if(event.key==='Enter'||event.key===' ')this.click()">
+        <span id="pfAvatarContent">&spades;</span>
+        <span class="edit" aria-hidden="true">&#9998;</span>
+      </div>
+    </div>
+    <div class="pf-body">
+      <div class="pf-picker" id="pfPicker"><div class="pf-picker-grid" id="pfPickerGrid"></div></div>
+
+      <div class="pf-card">
+        <div class="pf-card-title">Progress&atilde;o <small id="pfXpMeta"></small></div>
+        <div class="pf-level">
+          <span class="pf-level-badge"><b id="pfLevel">1</b><span>N&iacute;vel</span></span>
+          <span class="pf-xp">
+            <span class="lbl"><span id="pfXpLbl"></span><span id="pfXpNext"></span></span>
+            <span class="bar"><i id="pfXpBar"></i></span>
+          </span>
+        </div>
+        <p class="pf-hint">Cada ferramenta aberta e cada dia ativo rendem XP. Suba de n&iacute;vel pra desbloquear novos t&iacute;tulos.</p>
+      </div>
+
+      <div class="pf-card">
+        <div class="pf-card-title">T&iacute;tulos <small>escolha o seu</small></div>
+        <div class="pf-titles" id="pfTitles"></div>
+        <p class="pf-hint" id="pfTitlesHint"></p>
+      </div>
+
+      <div class="pf-card">
+        <div class="pf-card-title">Identidade</div>
+        <div class="pf-field">
+          <input type="text" id="pfNick" maxlength="24" placeholder="Apelido (como aparece nos pain&eacute;is)">
+          <button type="button" class="pf-btn" id="pfNickSave" style="flex:none;padding:11px 16px">Salvar</button>
+        </div>
+      </div>
+
+      <div class="pf-card">
+        <div class="pf-card-title">Dados da conta</div>
+        <div id="pfInfo"></div>
+      </div>
+
+      <div class="pf-actions">
+        <button type="button" class="pf-btn danger" id="pfLogout">Sair da conta</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ── Gate de autenticação: o login/cadastro do Suprema OS mora aqui.
      Mesma conta e mesma sessão (suprema_session_v1) de todos os produtos. ── -->
@@ -834,7 +1069,12 @@ html.light .ambient span{opacity:.55}
 // Tema: aplica JÁ a última preferência salva neste navegador (sem flash);
 // a preferência POR USUÁRIO (Firebase users/<key>/darkMode) é aplicada no login
 // e sempre que o hub abre com sessão — ver setTheme()/loadUserPrefs() abaixo.
-if (localStorage.getItem('suprema_dark_mode') === '0') document.documentElement.classList.add('light');
+(function(){
+  const saved = localStorage.getItem('suprema_dark_mode');
+  // mesma regra do painel: sem preferência salva, segue o sistema
+  const dark = saved !== null ? saved === '1' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if (!dark) document.documentElement.classList.add('light');
+})();
 
 // Relógio (mesmo formato do painel)
 function tick(){
@@ -966,7 +1206,10 @@ if (location.protocol === 'file:') {
     const el = $('hhAvatar');
     const cached = (()=>{ try{ return localStorage.getItem('suprema_user_avatar_v1'); }catch(e){ return null; } })();
     const fallback = session ? (session.displayName || session.email || '?').slice(0,2).toUpperCase() : '♠';
-    el.textContent = av || cached || fallback;
+    const face = av || cached || fallback;
+    el.textContent = face;
+    const navAv = $('navAvatar'); if(navAv) navAv.textContent = face;
+    const pfAv = $('pfAvatarContent'); if(pfAv) pfAv.textContent = face;
   }
 
   /* ── Vídeo do gate: só baixa/roda enquanto o gate está na tela ── */
@@ -1002,6 +1245,12 @@ if (location.protocol === 'file:') {
   }
   $('themeBtn').addEventListener('click', () => setTheme(!isDark(), true));
   applyThemeBtn();
+  // ecossistema: tema trocado em outra aba/página (painel, admin...) reflete aqui na hora
+  window.addEventListener('storage', e => {
+    if(e.key !== 'suprema_dark_mode' || e.newValue === null) return;
+    document.documentElement.classList.toggle('light', e.newValue !== '1');
+    applyThemeBtn();
+  });
 
   /* preferências salvas do usuário (tema por usuário + avatar do painel) */
   function loadUserPrefs(){
@@ -1024,7 +1273,6 @@ if (location.protocol === 'file:') {
     $('gRec').hidden   = tab !== 'recovery';
   }
   document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
-  $('logoutBtn').addEventListener('click', () => { clearSession(); location.reload(); });
 
   const err = (id,msg) => { const el=$(id); el.textContent = msg; el.hidden = false; };
   const busy = (btn,label,on) => { btn.disabled = on; btn.textContent = label; };
@@ -1059,6 +1307,8 @@ if (location.protocol === 'file:') {
       reset();
       const displayName = user.apelido || user.nome || email;
       saveSession({ email, nome:user.nome, sobrenome:user.sobrenome, apelido:user.apelido, displayName });
+      // admin reconhecido neste navegador: das próximas vezes o gate libera direto
+      if(isAdmin(email)){ try{ localStorage.setItem('suprema_trusted_admin', email); }catch(e){} }
       paintAuthState();
       startLiveTiles();
     }).catch(() => { busy(btn,'Entrar',false); err('gLoginErr','Falha ao conectar. Tente novamente.'); });
@@ -1250,7 +1500,7 @@ if (location.protocol === 'file:') {
       const [pip, pipCls] = PIPS[i % 4];
       return `<div class="ev-item">
         <span class="ev-date"><span class="pip ${pipCls}">${pip}</span><b${range && sameMonth ? ' class="range"' : ''}>${dayLabel}</b><span>${MONTHS_SHORT[+m-1]} ${y !== String(now0.getFullYear()) ? y : ''}</span></span>
-        <span class="ev-body"><b>${escHtml(e.title)}</b><span>${evWhen(e)}${e.by ? ' · por '+escHtml((e.by.split('@')[0]||'')) : ''}</span></span>
+        <span class="ev-body"><b>${escHtml(e.title)}</b><span>${evWhen(e)}</span></span>
         ${admin ? `<button type="button" class="ev-del" data-id="${escHtml(e.id)}" data-seed="${e.seed?'1':''}" title="Apagar evento">✕</button>` : ''}
       </div>`;
     }).join('');
@@ -1335,7 +1585,7 @@ if (location.protocol === 'file:') {
 
   /* chamado pelo fluxo de login/cadastro do gate (acima) — atualiza os
      controles de admin dos boards assim que a sessão nasce */
-  function startLiveTiles(){ refreshBoardsAdminUI(); loadUserPrefs(); }
+  function startLiveTiles(){ refreshBoardsAdminUI(); loadUserPrefs(); pfLoadStats(); }
 
   $('calPrev').addEventListener('click', () => { viewM--; if(viewM<0){viewM=11;viewY--;} renderCalendar(); });
   $('calNext').addEventListener('click', () => { viewM++; if(viewM>11){viewM=0;viewY++;} renderCalendar(); });
@@ -1391,7 +1641,162 @@ if (location.protocol === 'file:') {
     db.ref('hub/links').on('value', s => { fbLinks = s.val() || {}; renderLinks(); });
     db.ref('hub/linksHidden').on('value', s => { hiddenLinks = s.val() || {}; renderLinks(); });
     loadUserPrefs(); // tema por usuário + avatar assim que a conexão nasce
+    pfLoadStats();   // progressão do perfil (XP, títulos) — e o dia ativo de hoje
   }
+
+  /* ═══════════════ Perfil do operador (a experiência mora no hub) ═══════════════
+     Identidade (apelido, avatar, título), dados da conta e progressão.
+     XP: cada abertura de ferramenta e cada dia ativo contam — quanto mais a
+     pessoa usa o Suprema OS, mais títulos ela desbloqueia. Dados em
+     users/<key>/{avatar, apelido, tag, stats{opens, days}}. */
+  const XP_PER_OPEN = 10, XP_PER_DAY = 25;
+  const TITLES = [
+    { id:'novato',    name:'Novato na mesa',  xp:0,    desc:'Todo mundo começa aqui.' },
+    { id:'regular',   name:'Regular',         xp:100,  desc:'10 ferramentas abertas ou 4 dias ativos.' },
+    { id:'grinder',   name:'Grinder',         xp:300,  desc:'Presença constante na operação.' },
+    { id:'tubarao',   name:'Tubarão',         xp:700,  desc:'A mesa te respeita.' },
+    { id:'highroller',name:'High Roller',     xp:1500, desc:'Uso pesado de todas as ferramentas.' },
+    { id:'lenda',     name:'Lenda da casa',   xp:3000, desc:'O Suprema OS é sua segunda casa.' },
+  ];
+  const levelFromXp = xp => Math.min(50, 1 + Math.floor(Math.sqrt(xp/25)));
+  const xpForLevel = lv => 25*(lv-1)*(lv-1);
+  let pfStats = { opens:0, days:0 };
+  let pfTag = null;
+
+  function pfXp(){ return pfStats.opens*XP_PER_OPEN + pfStats.days*XP_PER_DAY; }
+
+  // registra a abertura de um produto (chamado no clique dos tiles)
+  function trackOpen(prod){
+    if(!session) return;
+    const key = emailToKey(session.email);
+    try{
+      if(db && fbReady){
+        db.ref(`users/${key}/stats/opens`).transaction(n => (n||0)+1);
+        db.ref(`users/${key}/stats/days/${todayIso()}`).set(true);
+      }
+    }catch(e){}
+  }
+  document.querySelectorAll('.grid .tile').forEach(t => t.addEventListener('click', () => trackOpen(t.className)));
+
+  let pfStatsWired = false;
+  function pfLoadStats(){
+    if(pfStatsWired || !session || !db || !fbReady) return;
+    pfStatsWired = true;
+    const key = emailToKey(session.email);
+    db.ref(`users/${key}/stats`).on('value', s => {
+      const v = s.val() || {};
+      pfStats = { opens: v.opens||0, days: v.days ? Object.keys(v.days).length : 0 };
+      renderProfileProgress();
+    });
+    db.ref(`users/${key}/tag`).on('value', s => { pfTag = s.val(); renderProfileTag(); renderProfileTitles(); });
+    // presença do dia: abrir o hub logado já conta como dia ativo
+    db.ref(`users/${key}/stats/days/${todayIso()}`).set(true).catch(()=>{});
+  }
+
+  function renderProfileTag(){
+    const t = TITLES.find(t => t.id === pfTag);
+    $('pfTagPill').hidden = !t;
+    if(t) $('pfTagTxt').textContent = t.name;
+  }
+  function renderProfileProgress(){
+    const xp = pfXp(), lv = levelFromXp(xp);
+    const cur = xpForLevel(lv), next = xpForLevel(lv+1);
+    $('pfLevel').textContent = lv;
+    $('pfXpLbl').textContent = `${xp} XP`;
+    $('pfXpNext').textContent = `nível ${lv+1} · ${next} XP`;
+    $('pfXpBar').style.width = `${Math.min(100, Math.round((xp-cur)/(next-cur)*100))}%`;
+    $('pfXpMeta').textContent = `${pfStats.opens} aberturas · ${pfStats.days} dias ativos`;
+    renderProfileTitles();
+  }
+  function renderProfileTitles(){
+    const xp = pfXp();
+    $('pfTitles').innerHTML = TITLES.map(t => {
+      const locked = xp < t.xp;
+      const on = pfTag === t.id;
+      return `<button type="button" class="pf-title${locked?' locked':''}${on?' on':''}" data-id="${t.id}"
+        title="${escHtml(t.desc)}${locked ? ` — desbloqueia com ${t.xp} XP` : ''}">${locked?'<span class="lock">🔒</span>':''}${escHtml(t.name)}</button>`;
+    }).join('');
+    const nextT = TITLES.find(t => xp < t.xp);
+    $('pfTitlesHint').textContent = nextT
+      ? `Próximo título: ${nextT.name} aos ${nextT.xp} XP — faltam ${nextT.xp - xp}.`
+      : 'Você desbloqueou todos os títulos. Lenda confirmada. ♠';
+    $('pfTitles').querySelectorAll('.pf-title:not(.locked)').forEach(b => b.addEventListener('click', () => {
+      pfTag = b.dataset.id === pfTag ? null : b.dataset.id;
+      renderProfileTag(); renderProfileTitles();
+      if(session && db && fbReady) db.ref(`users/${emailToKey(session.email)}/tag`).set(pfTag).catch(()=>{});
+    }));
+  }
+
+  const PF_EMOJIS = ['🎯','🃏','♠️','♣️','♦️','♥️','🎲','🏆','⚡','🌟','🦁','🐯','🦊','🐺','🦅','🔥','💎','🥇','🎭','🚀','👑','🌙','⚔️','🛡️','🎱','🎰','🎮','💡','🏅','😎'];
+  $('pfAvatar').addEventListener('click', () => {
+    const picker = $('pfPicker');
+    const atual = (()=>{ try{ return localStorage.getItem('suprema_user_avatar_v1'); }catch(e){ return null; } })();
+    $('pfPickerGrid').innerHTML = PF_EMOJIS.map(e =>
+      `<button type="button"${e===atual?' class="selected"':''} aria-label="Usar ${e}">${e}</button>`).join('');
+    $('pfPickerGrid').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      const em = b.textContent;
+      try{ localStorage.setItem('suprema_user_avatar_v1', em); }catch(e){}
+      if(session && db && fbReady) db.ref(`users/${emailToKey(session.email)}/avatar`).set(em).catch(()=>{});
+      paintAvatar(em);
+      picker.classList.remove('open');
+    }));
+    picker.classList.toggle('open');
+  });
+
+  function renderProfile(){
+    if(!session) return;
+    $('pfName').textContent = session.displayName || session.nome || '—';
+    $('pfEmail').textContent = session.email;
+    $('pfNick').value = session.apelido || session.displayName || '';
+    const info = [
+      { k:'Nome completo', v:`${session.nome||''} ${session.sobrenome||''}`.trim() || '—' },
+      { k:'Email', v:session.email },
+      { k:'Acesso', v:isAdmin(session.email) ? 'Admin ♦' : 'Operador' },
+    ];
+    $('pfInfo').innerHTML = info.map(i => `<div class="pf-row"><span class="k">${escHtml(i.k)}</span><span class="v">${escHtml(i.v)}</span></div>`).join('');
+    paintAvatar();
+    renderProfileTag(); renderProfileProgress();
+  }
+
+  function openProfile(){
+    if(!session) return;
+    renderProfile();
+    pfLoadStats();
+    $('pfOverlay').classList.add('open');
+    $('pfOverlay').setAttribute('aria-hidden','false');
+  }
+  function closeProfile(){
+    $('pfOverlay').classList.remove('open');
+    $('pfOverlay').setAttribute('aria-hidden','true');
+    if(location.hash === '#perfil') history.replaceState(null,'',location.pathname);
+  }
+  $('navAvatar').addEventListener('click', openProfile);
+  $('pfClose').addEventListener('click', closeProfile);
+  $('pfOverlay').addEventListener('click', e => { if(e.target === $('pfOverlay')) closeProfile(); });
+  document.addEventListener('keydown', e => { if(e.key === 'Escape') closeProfile(); });
+
+  // apelido: salva no Firebase + sessão, e reflete em todos os painéis
+  $('pfNickSave').addEventListener('click', () => {
+    const nick = ($('pfNick').value||'').trim();
+    if(!nick || !session) return;
+    session = {...session, apelido:nick, displayName:nick};
+    saveSession(session);
+    if(db && fbReady) db.ref(`users/${emailToKey(session.email)}/apelido`).set(nick).catch(()=>{});
+    paintAuthState();
+    renderProfile();
+    $('pfNickSave').textContent = 'Salvo ✓';
+    setTimeout(() => { $('pfNickSave').textContent = 'Salvar'; }, 1500);
+  });
+
+  $('pfLogout').addEventListener('click', () => {
+    if(!confirm('Sair da sua conta?')) return;
+    clearSession();
+    try{ localStorage.removeItem('suprema_trusted_admin'); }catch(e){}
+    location.reload();
+  });
+
+  // deep-link: os painéis mandam o operador pra cá com hub.html#perfil
+  if(location.hash === '#perfil' && session) setTimeout(openProfile, 300);
 
   // primeiro paint (offline / antes do Firebase responder): defaults embutidos
   renderPatchNotes();
@@ -1437,6 +1842,22 @@ if (location.protocol === 'file:') {
     db = firebase.database();
     fbReady = true;
     initBoards(db);
+    // Admin reconhecido neste navegador: nada de tela de login — a sessão é
+    // recriada direto do cadastro no Firebase e o gate nem aparece.
+    (function restoreTrustedAdmin(){
+      if(session) return;
+      let trusted = null;
+      try{ trusted = localStorage.getItem('suprema_trusted_admin'); }catch(e){}
+      if(!trusted || !isAdmin(trusted)) return;
+      db.ref(`users/${emailToKey(trusted)}`).once('value').then(snap => {
+        if(!snap.exists()) return;
+        const u = snap.val();
+        const displayName = u.apelido || u.nome || trusted;
+        saveSession({ email:trusted, nome:u.nome, sobrenome:u.sobrenome, apelido:u.apelido, displayName });
+        paintAuthState();
+        startLiveTiles();
+      }).catch(()=>{});
+    })();
     firebase.auth().signInAnonymously().then(() => {
       const { tomorrow } = opDates();
 
