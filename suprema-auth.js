@@ -177,7 +177,35 @@
     return null;
   }
 
+  /* ── Firebase Auth (email/senha) ──
+     Helpers finos usados na migração (Fase 1) e pelos painéis na Fase 4.
+     Só funcionam com firebase-app + firebase-auth compat carregados e o
+     provedor Email/Senha ligado no Console. Guardam contra ausência do SDK. */
+  function fbAuth() {
+    return (global.firebase && global.firebase.auth) ? global.firebase.auth() : null;
+  }
+  function signInEmail(email, pw) {
+    var a = fbAuth();
+    return a ? a.signInWithEmailAndPassword(email, pw) : Promise.reject(new Error('firebase-auth ausente'));
+  }
+  function signUpEmail(email, pw) {
+    var a = fbAuth();
+    return a ? a.createUserWithEmailAndPassword(email, pw) : Promise.reject(new Error('firebase-auth ausente'));
+  }
+  function sendReset(email) {
+    var a = fbAuth();
+    return a ? a.sendPasswordResetEmail(email) : Promise.reject(new Error('firebase-auth ausente'));
+  }
+  /* onUser(cb): dispara com o usuário do Firebase Auth (ou null). Na Fase 4 os
+     painéis trocam signInAnonymously por isto: sem usuário → manda pro hub. */
+  function onUser(cb) {
+    var a = fbAuth();
+    if (!a) { cb(null); return function () {}; }
+    return a.onAuthStateChanged(cb);
+  }
+
   global.SupremaAuth = {
+    signInEmail: signInEmail, signUpEmail: signUpEmail, sendReset: sendReset, onUser: onUser,
     SESSION_KEY: SESSION_KEY, TRUSTED_KEY: TRUSTED_KEY, THEME_KEY: THEME_KEY, AVATAR_KEY: AVATAR_KEY,
     ADMIN_EMAILS: ADMIN_EMAILS, isAdminEmail: isAdminEmail,
     getSession: getSession, saveSession: saveSession, clearSession: clearSession,

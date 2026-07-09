@@ -1278,6 +1278,15 @@ if (location.protocol === 'file:') {
   const busy = (btn,label,on) => { btn.disabled = on; btn.textContent = label; };
 
   /* login — mesmas regras e lockout do painel */
+  /* LOGIN — MIGRAÇÃO PREGUIÇOSA (Fase 1 do PLANO-AUTENTICACAO.md):
+     1) tenta Firebase Auth (usuário novo ou já migrado);
+     2) se falhar, decide pelo registro no banco: quem já tem `authUid` errou a
+        senha; quem é legado (só `pwHash`) confere contra o hash antigo e, se
+        bater, é MIGRADO — cria a conta no Firebase Auth com a MESMA senha.
+     O `pwHash` NÃO é apagado agora (só na Fase 4): assim o login legado segue
+     válido e um `git revert` reverte tudo sem travar ninguém. Se o provedor
+     Email/Senha ainda não estiver ligado no Console, os passos de Auth falham
+     de leve e o login legado continua funcionando — nada quebra. */
   $('gLogin').addEventListener('submit', () => {
     const email = ($('gLoginEmail').value||'').trim().toLowerCase();
     const pw = $('gLoginPw').value||'';
@@ -1286,11 +1295,40 @@ if (location.protocol === 'file:') {
     if(!email.endsWith('@suprema.group')) return err('gLoginErr','Use seu email @suprema.group.');
     if(!fbReady) return err('gLoginErr','Sem conexão com o servidor. Tente em instantes.');
     const btn = $('gLoginBtn'); busy(btn,'Entrando...',true);
+    loginFlow(email, pw, btn);
+  });
+
+  async function loginFlow(email, pw, btn){
+    const reset = () => busy(btn,'Entrar',false);
     const userRef = db.ref(`users/${emailToKey(email)}`);
-    userRef.once('value').then(async snap => {
-      const reset = () => busy(btn,'Entrar',false);
+    try{
+      // 1) tenta Firebase Auth
+      let uid = null, authOk = false;
+      try{
+        const cred = await firebase.auth().signInWithEmailAndPassword(email, pw);
+        uid = cred.user.uid; authOk = true;
+      }catch(e){
+        if(e && e.code === 'auth/too-many-requests'){ reset(); return err('gLoginErr','Muitas tentativas. Tente novamente mais tarde.'); }
+        // outros erros (senha errada OU usuário legado sem conta Auth OU provedor
+        // desligado): decidimos lendo o registro no banco, abaixo.
+      }
+      const snap = await userRef.once('value');
+      const user = snap.val() || {};
+
+      if(authOk){
+        // Firebase Auth aceitou: garante o registro e a marca de migrado
+        if(!snap.exists()){
+          await userRef.set({ email, authUid: uid, createdAt: firebase.database.ServerValue.TIMESTAMP }).catch(()=>{});
+        }
+        await afterAuthLogin(email, uid, userRef, user);
+        reset(); return;
+      }
+
+      // Firebase Auth NÃO aceitou:
       if(!snap.exists()){ reset(); return err('gLoginErr','Email não cadastrado. Crie sua conta.'); }
-      const user = snap.val();
+      if(user.authUid){ reset(); return err('gLoginErr','Senha incorreta.'); } // já migrado → senha errada mesmo
+
+      // legado, ainda não migrado: confere contra o pwHash antigo
       const remaining = loginLockRemaining(user);
       if(remaining > 0){ reset(); return err('gLoginErr',`Muitas tentativas. Tente novamente em ${Math.ceil(remaining/60000)} min.`); }
       const ok = await verifyPassword(pw, user.pwHash, h => userRef.update({pwHash:h}));
@@ -1304,17 +1342,39 @@ if (location.protocol === 'file:') {
           ? `Muitas tentativas. Login bloqueado por ${LOGIN_LOCK_MS/60000} min.` : 'Senha incorreta.');
       }
       if(user.loginAttempts || user.loginLockUntil) userRef.update({loginAttempts:0, loginLockUntil:null});
-      reset();
-      const displayName = user.apelido || user.nome || email;
-      saveSession({ email, nome:user.nome, sobrenome:user.sobrenome, apelido:user.apelido, displayName });
-      // admin reconhecido neste navegador: das próximas vezes o gate libera direto
-      if(isAdmin(email)){ try{ localStorage.setItem('suprema_trusted_admin', email); }catch(e){} }
-      paintAuthState();
-      startLiveTiles();
-    }).catch(() => { busy(btn,'Entrar',false); err('gLoginErr','Falha ao conectar. Tente novamente.'); });
-  });
 
-  /* cadastro — mesmo formato de conta do painel */
+      // senha legada confere → MIGRA: cria a conta no Firebase Auth com a mesma senha
+      let newUid = null;
+      try{
+        const cred = await firebase.auth().createUserWithEmailAndPassword(email, pw);
+        newUid = cred.user.uid;
+      }catch(e){
+        if(e && e.code === 'auth/email-already-in-use'){
+          try{ const c = await firebase.auth().signInWithEmailAndPassword(email, pw); newUid = c.user.uid; }catch(_){}
+        }
+        // provedor desligado / rede: segue no legado, migra na próxima vez
+      }
+      await afterAuthLogin(email, newUid, userRef, user);
+      reset();
+    }catch(e){
+      busy(btn,'Entrar',false);
+      err('gLoginErr','Falha ao conectar. Tente novamente.');
+    }
+  }
+
+  /* fecha o login: grava `authUid` (marca migrado), cria a sessão compartilhada
+     e reconhece o admin neste navegador. NÃO remove `pwHash` (só na Fase 4). */
+  async function afterAuthLogin(email, uid, userRef, user){
+    user = user || {};
+    if(uid && user.authUid !== uid){ userRef.update({ authUid: uid }).catch(()=>{}); }
+    const displayName = user.apelido || user.nome || email;
+    saveSession({ email, nome:user.nome, sobrenome:user.sobrenome, apelido:user.apelido, displayName });
+    if(isAdmin(email)){ try{ localStorage.setItem('suprema_trusted_admin', email); }catch(e){} }
+    paintAuthState();
+    startLiveTiles();
+  }
+
+  /* cadastro — conta nova nasce no Firebase Auth (com `authUid`, sem `pwHash`) */
   $('gCad').addEventListener('submit', () => {
     const nome = ($('gCadNome').value||'').trim(), sobrenome = ($('gCadSobrenome').value||'').trim();
     const apelido = ($('gCadApelido').value||'').trim();
@@ -1330,23 +1390,41 @@ if (location.protocol === 'file:') {
     if(pw !== pw2) return err('gCadErr','As senhas não conferem.');
     if(!fbReady) return err('gCadErr','Sem conexão com o servidor.');
     const btn = $('gCadBtn'); busy(btn,'Verificando...',true);
-    const key = emailToKey(email);
-    db.ref(`users/${key}`).once('value').then(async snap => {
+    cadFlow({ nome, sobrenome, apelido, email, pw, btn });
+  });
+
+  async function cadFlow({ nome, sobrenome, apelido, email, pw, btn }){
+    const userRef = db.ref(`users/${emailToKey(email)}`);
+    try{
+      const snap = await userRef.once('value');
       if(snap.exists()){ busy(btn,'Criar conta',false); return err('gCadErr','Este email já possui cadastro. Faça login.'); }
       busy(btn,'Criando conta...',true);
       const displayName = apelido || nome;
-      db.ref(`users/${key}`).set({
-        nome, sobrenome, apelido: displayName, email,
-        pwHash: await hashPassword(pw),
-        createdAt: firebase.database.ServerValue.TIMESTAMP,
-      }).then(() => {
+      // cria no Firebase Auth
+      let uid = null;
+      try{
+        const cred = await firebase.auth().createUserWithEmailAndPassword(email, pw);
+        uid = cred.user.uid;
+      }catch(e){
         busy(btn,'Criar conta',false);
-        saveSession({ email, nome, sobrenome, apelido: displayName, displayName });
-        paintAuthState();
-        startLiveTiles();
-      }).catch(() => { busy(btn,'Criar conta',false); err('gCadErr','Falha ao salvar conta. Verifique sua conexão.'); });
-    }).catch(() => { busy(btn,'Criar conta',false); err('gCadErr','Sem conexão com o servidor. Tente novamente.'); });
-  });
+        if(e && e.code === 'auth/email-already-in-use') return err('gCadErr','Este email já possui cadastro. Faça login.');
+        if(e && e.code === 'auth/operation-not-allowed')  return err('gCadErr','Cadastro indisponível no momento. Avise o admin.');
+        return err('gCadErr','Falha ao criar conta. Verifique sua conexão.');
+      }
+      // grava o perfil (sem pwHash — a senha agora vive no Firebase Auth)
+      await userRef.set({
+        nome, sobrenome, apelido: displayName, email, authUid: uid,
+        createdAt: firebase.database.ServerValue.TIMESTAMP,
+      });
+      busy(btn,'Criar conta',false);
+      saveSession({ email, nome, sobrenome, apelido: displayName, displayName });
+      if(isAdmin(email)){ try{ localStorage.setItem('suprema_trusted_admin', email); }catch(e){} }
+      paintAuthState();
+      startLiveTiles();
+    }catch(e){
+      busy(btn,'Criar conta',false); err('gCadErr','Sem conexão com o servidor. Tente novamente.');
+    }
+  }
 
   /* recuperação — mesmo fluxo do painel (código em passwordReset/, 15 min) */
   let recEmail = null, recCode = null, recExpiry = 0;
@@ -1378,6 +1456,18 @@ if (location.protocol === 'file:') {
     try{
       const snap = await db.ref(`users/${emailToKey(email)}`).once('value');
       if(!snap.exists()){ busy(btn,'Enviar código',false); return err('gRecErr','Email não cadastrado.'); }
+      // conta já migrada pro Firebase Auth → link de redefinição por email nativo
+      if((snap.val()||{}).authUid){
+        try{
+          await firebase.auth().sendPasswordResetEmail(email);
+          busy(btn,'Enviar código',false);
+          $('gRecOk').textContent = 'Enviamos um link de redefinição para seu email. Confira a caixa de entrada e o spam.';
+          $('gRecOk').hidden = false;
+          setTimeout(() => switchTab('login'), 2600);
+          return;
+        }catch(e){ busy(btn,'Enviar código',false); return err('gRecErr','Não foi possível enviar o email agora. Tente em instantes.'); }
+      }
+      // legado (ainda não migrado): mantém o fluxo de código até a Fase 4
       const code = String(Math.floor(100000 + Math.random()*900000));
       const expiry = Date.now() + 15*60*1000;
       await db.ref(`passwordReset/${emailToKey(email)}`).set({ code, expiry, email, requestedAt: firebase.database.ServerValue.TIMESTAMP });

@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fase 4 · Limpar pwHash — Suprema OS</title>
+<style>
+  :root{
+    --bg:#0b0d0c; --card:#111412; --ink:#f2ede2; --soft:rgba(242,237,226,.6);
+    --gold:#d8b56d; --felt:#18a36b; --red:#e85555; --line:rgba(242,237,226,.12);
+    --mono:"SF Mono","IBM Plex Mono",ui-monospace,monospace;
+    --text:"SF Pro Text",-apple-system,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--text);min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:32px}
+  .wrap{width:100%;max-width:640px}
+  h1{font-size:22px;margin:0 0 4px} h1 span{color:var(--gold)}
+  .sub{color:var(--soft);font-size:13px;margin:0 0 22px;line-height:1.5}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:14px}
+  label{display:block;font-size:12px;color:var(--soft);margin-bottom:5px}
+  input{width:100%;padding:11px 13px;border-radius:10px;border:1px solid var(--line);background:rgba(242,237,226,.05);color:var(--ink);font-family:var(--text);font-size:14px;outline:none;margin-bottom:12px}
+  input:focus{border-color:var(--gold)}
+  button{border:0;border-radius:10px;padding:11px 16px;font-family:var(--text);font-size:14px;font-weight:700;cursor:pointer}
+  .btn-gold{background:var(--gold);color:#14100a} .btn-gold:disabled{opacity:.45;cursor:default}
+  .btn-red{background:var(--red);color:#fff} .btn-red:disabled{opacity:.4;cursor:default}
+  .btn-ghost{background:none;border:1px solid var(--line);color:var(--soft)}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .stat{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .stat:last-child{border-bottom:0} .stat b{font-family:var(--mono)}
+  .ok{color:var(--felt)} .warn{color:var(--gold)} .bad{color:var(--red)}
+  .msg{font-size:13px;margin-top:12px;line-height:1.5;white-space:pre-wrap}
+  .pill{display:inline-block;font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--soft)}
+  code{font-family:var(--mono);color:var(--gold)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Fase 4 · Limpar <span>pwHash</span></h1>
+  <p class="sub">Ferramenta de admin do <b>PLANO-AUTENTICACAO.md</b>. Remove o <code>pwHash</code>
+    <b>somente das contas já migradas</b> (que têm <code>authUid</code>). Quem ainda não migrou
+    <b>nunca é tocado</b> — a trava impede lockout. Rode isto <b>antes</b> de publicar as regras estritas,
+    e só depois de a Fase 3 ter zerado os não migrados.</p>
+
+  <div class="card" id="loginCard">
+    <label for="email">Email de admin</label>
+    <input type="email" id="email" placeholder="brian.rodrigues@suprema.group" autocomplete="email">
+    <label for="pw">Senha</label>
+    <input type="password" id="pw" autocomplete="current-password">
+    <button class="btn-gold" id="loginBtn">Entrar e analisar</button>
+    <div class="msg bad" id="loginMsg"></div>
+  </div>
+
+  <div class="card" id="reportCard" style="display:none">
+    <div class="stat"><span>Total de usuários</span><b id="sTotal">—</b></div>
+    <div class="stat"><span class="ok">Migrados (com authUid)</span><b id="sMig" class="ok">—</b></div>
+    <div class="stat"><span class="warn">Ainda com pwHash</span><b id="sHash" class="warn">—</b></div>
+    <div class="stat"><span class="bad">NÃO migrados (sem authUid)</span><b id="sUnmig" class="bad">—</b></div>
+    <div class="msg" id="reportMsg"></div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn-red" id="cleanBtn" disabled>Apagar pwHash das contas migradas</button>
+      <button class="btn-ghost" id="reloadBtn">Reanalisar</button>
+    </div>
+    <div class="msg" id="cleanMsg"></div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script>
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAFy1GtRaJE3LHC1Rjtmq0uw2JC8bviXes",
+  authDomain: "design-1-53c00.firebaseapp.com",
+  databaseURL: "https://design-1-53c00-default-rtdb.firebaseio.com",
+  projectId: "design-1-53c00",
+  storageBucket: "design-1-53c00.firebasestorage.app",
+  messagingSenderId: "140511032441",
+  appId: "1:140511032441:web:dcf970125bbf5eec53d0a8"
+};
+const ADMIN_EMAILS = ['brian@suprema.group','admin@suprema.group','brian.rodrigues@suprema.group'];
+firebase.initializeApp(FIREBASE_CONFIG);
+const db = firebase.database();
+const $ = id => document.getElementById(id);
+let unmigrated = 0;
+
+$('loginBtn').addEventListener('click', async () => {
+  const email = ($('email').value||'').trim().toLowerCase();
+  const pw = $('pw').value||'';
+  $('loginMsg').textContent = '';
+  if(!ADMIN_EMAILS.includes(email)){ $('loginMsg').textContent = 'Este email não é de admin.'; return; }
+  $('loginBtn').disabled = true; $('loginBtn').textContent = 'Entrando...';
+  try{
+    await firebase.auth().signInWithEmailAndPassword(email, pw);
+    await analyze();
+    $('loginCard').style.display = 'none';
+    $('reportCard').style.display = 'block';
+  }catch(e){
+    $('loginMsg').textContent = 'Falha no login: ' + (e.code || e.message);
+    $('loginBtn').disabled = false; $('loginBtn').textContent = 'Entrar e analisar';
+  }
+});
+
+async function analyze(){
+  const snap = await db.ref('users').once('value');
+  const users = snap.val() || {};
+  let total = 0, migrated = 0, withHash = 0; unmigrated = 0;
+  Object.values(users).forEach(u => {
+    if(!u || typeof u !== 'object') return;
+    total++;
+    if(u.authUid) migrated++; else unmigrated++;
+    if(u.pwHash) withHash++;
+  });
+  $('sTotal').textContent = total;
+  $('sMig').textContent = migrated;
+  $('sHash').textContent = withHash;
+  $('sUnmig').textContent = unmigrated;
+  const migratedWithHash = Object.values(users).filter(u => u && u.authUid && u.pwHash).length;
+  $('cleanBtn').disabled = migratedWithHash === 0;
+  $('cleanBtn').textContent = `Apagar pwHash de ${migratedWithHash} conta(s) migrada(s)`;
+  if(unmigrated > 0){
+    $('reportMsg').className = 'msg bad';
+    $('reportMsg').textContent = `⚠ Há ${unmigrated} conta(s) NÃO migrada(s). Elas mantêm o pwHash e NÃO serão tocadas. `
+      + `NÃO publique as regras estritas ainda — finalize a Fase 3 (reset por email) até este número zerar, `
+      + `senão essas pessoas ficam sem conseguir entrar.`;
+  } else {
+    $('reportMsg').className = 'msg ok';
+    $('reportMsg').textContent = migratedWithHash > 0
+      ? '✓ Todos migrados. Pode apagar os pwHash e, em seguida, publicar as regras estritas.'
+      : '✓ Todos migrados e nenhum pwHash restante. Pode publicar as regras estritas.';
+  }
+}
+
+$('reloadBtn').addEventListener('click', analyze);
+
+$('cleanBtn').addEventListener('click', async () => {
+  if(!confirm('Apagar o pwHash de TODAS as contas migradas (com authUid)? As não migradas não serão tocadas.')) return;
+  $('cleanBtn').disabled = true; $('cleanMsg').className = 'msg'; $('cleanMsg').textContent = 'Apagando...';
+  try{
+    const snap = await db.ref('users').once('value');
+    const users = snap.val() || {};
+    const updates = {};
+    Object.entries(users).forEach(([key, u]) => {
+      if(u && u.authUid && u.pwHash) updates[`${key}/pwHash`] = null; // null = remove
+    });
+    const n = Object.keys(updates).length;
+    if(n === 0){ $('cleanMsg').className = 'msg ok'; $('cleanMsg').textContent = 'Nada a apagar.'; return; }
+    await db.ref('users').update(updates);
+    $('cleanMsg').className = 'msg ok';
+    $('cleanMsg').textContent = `✓ pwHash removido de ${n} conta(s). Agora publique o database.rules.target.json.`;
+    await analyze();
+  }catch(e){
+    $('cleanMsg').className = 'msg bad';
+    $('cleanMsg').textContent = 'Erro: ' + (e.code || e.message);
+    $('cleanBtn').disabled = false;
+  }
+});
+</script>
+</body>
+</html>
