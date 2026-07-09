@@ -598,23 +598,48 @@
   .bchip-a{ left:0; z-index:2; }
   .bchip-b{ left:9px; z-index:1; }
   @media (max-width:680px){ .brand-chips{ display:none; } }
-  .nav-links{display:flex; gap:30px; font-size:12.5px; color:var(--ink-soft);}
+  /* ── NAV OUSADO — display caps + pill de feltro que "senta" no link ativo
+     (scroll-spy) e naipe da casa que pula acima no hover. Só transform/opacity. ── */
+  .nav-links{display:flex; gap:4px; font-size:11.5px; color:var(--ink-soft);}
   .nav-links a{
-    position:relative; padding:4px 1px;
-    transition:color .25s var(--ease);
+    position:relative; isolation:isolate;
+    padding:7px 15px; border-radius:99px;
+    font-family:var(--display); font-weight:800;
+    letter-spacing:.08em; text-transform:uppercase;
+    transition:color .25s var(--ease), transform .25s var(--ease);
   }
-  /* sublinhado que cresce do centro no hover e trava no link da seção ativa (scroll-spy) */
+  /* pill que cresce por trás do texto (hover) e vira feltro sólido no ativo */
+  .nav-links a::before{
+    content:""; position:absolute; inset:0; z-index:-1; border-radius:99px;
+    background:color-mix(in srgb, var(--felt) 13%, transparent);
+    opacity:0; transform:scale(.8);
+    transition:opacity .28s var(--ease-quart), transform .45s var(--ease-expo), background-color .28s;
+  }
+  /* naipe que pula acima do link no hover — marcador lúdico, zero layout shift */
   .nav-links a::after{
-    content:""; position:absolute; left:0; right:0; bottom:-2px; height:2px; border-radius:2px;
-    background:var(--felt-bright); transform:scaleX(0); transform-origin:center;
-    transition:transform .35s var(--ease-expo);
+    content:"♠"; position:absolute; left:50%; top:-9px; z-index:1;
+    font-size:9px; color:var(--felt-bright); line-height:1;
+    opacity:0; transform:translateX(-50%) translateY(5px) scale(.5) rotate(-90deg);
+    transition:opacity .3s var(--ease-quart), transform .45s var(--ease-expo);
+    pointer-events:none;
   }
-  .nav-links a:hover{color:var(--ink);}
-  .nav-links a:hover::after{ transform:scaleX(1); }
-  .nav-links a.active{ color:var(--ink); }
-  .nav-links a.active::after{ transform:scaleX(1); }
+  .nav-links a:nth-child(1)::after{ content:"♦"; color:var(--gold); }
+  .nav-links a:nth-child(3)::after{ content:"♥"; color:#e05a5a; }
+  .nav-links a:nth-child(4)::after{ content:"♣"; }
+  .nav-links a:last-child::after{ content:none; }   /* "♠ OS" já tem o naipe no texto */
+  .nav-links a:hover{ color:var(--ink); transform:translateY(-1px); }
+  .nav-links a:hover::before{ opacity:1; transform:scale(1); }
+  .nav-links a:hover::after{ opacity:1; transform:translateX(-50%) translateY(0) scale(1) rotate(0deg); }
+  .nav-links a.active{ color:#fff; }
+  .nav-links a.active::before{
+    opacity:1; transform:scale(1);
+    background:linear-gradient(135deg, var(--felt), var(--felt-bright));
+    box-shadow:0 6px 18px -8px rgba(24,163,107,.75);
+  }
+  html.dark .nav-links a.active{ color:#fff; }
+  .nav-links a:active{ transform:translateY(0) scale(.96); transition-duration:.1s; }
   @media (prefers-reduced-motion: reduce){
-    .nav-links a::after{ transition:none; }
+    .nav-links a, .nav-links a::before, .nav-links a::after{ transition:none; }
     nav, .nav-inner{ transition:none; }
   }
   .nav-right{display:flex; align-items:center; gap:14px;}
@@ -1664,6 +1689,53 @@
 
   /* ---------- CONFERÊNCIA DE HOJE ---------- */
   .drawer-wide{ width:min(560px, 94vw); }
+  .drawer-xwide{ width:min(1480px, 97vw); }
+
+  /* ---------- CONFERÊNCIA DO DIA (GU) — folha com todas as colunas da receita ---------- */
+  .gc-meta{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:14px; }
+  .gc-pill{
+    font-family:var(--mono); font-size:12.5px; font-weight:800; padding:6px 14px; border-radius:99px;
+    background:var(--felt-soft); color:var(--felt);
+  }
+  .gc-bar{ flex:1; min-width:150px; height:9px; border-radius:99px; background:var(--hairline); overflow:hidden; }
+  .gc-bar .fill{ height:100%; border-radius:99px; background:var(--felt-bright); transform-origin:left; transition:transform .7s var(--ease-expo); }
+  .gc-search{
+    padding:8px 13px; border-radius:10px; border:1px solid var(--hairline-strong); background:var(--card);
+    font:inherit; font-size:12.5px; color:var(--ink); min-width:200px;
+  }
+  .gc-search:focus{ outline:none; border-color:var(--felt); }
+  .gc-scroll{ overflow:auto; border:1px solid var(--hairline-strong); border-radius:14px; background:var(--card); max-height:calc(100vh - 210px); }
+  table.gc-table{ border-collapse:separate; border-spacing:0; font-size:12px; min-width:max-content; }
+  .gc-table th, .gc-table td{
+    padding:8px 12px; border-bottom:1px solid var(--hairline); border-right:1px solid var(--hairline);
+    white-space:nowrap; text-align:left; vertical-align:middle; background:var(--card);
+  }
+  .gc-table thead th{
+    position:sticky; top:0; z-index:3; background:var(--bg-deep, var(--card));
+    font-size:10px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--ink-soft);
+  }
+  .gc-table th.gc-sticky, .gc-table td.gc-sticky{
+    position:sticky; left:0; z-index:2; border-right:1px solid var(--hairline-strong);
+    max-width:230px; white-space:normal; line-height:1.3; font-weight:700;
+  }
+  .gc-table thead th.gc-sticky{ z-index:4; }
+  .gc-table td.gc-time{ font-family:var(--mono); font-weight:750; color:var(--felt); }
+  .gc-table td.gc-num{ font-family:var(--mono); font-variant-numeric:tabular-nums; }
+  .gc-table tr.gc-ok td{ opacity:.45; }
+  .gc-table tr.gc-ok td.gc-sticky{ text-decoration:line-through; }
+  .gc-table tr.gc-ok td.gc-act{ opacity:1; text-decoration:none; }
+  .gc-chk{
+    width:26px; height:26px; border-radius:8px; border:2px solid var(--hairline-strong); cursor:pointer;
+    display:inline-grid; place-items:center; background:transparent; color:transparent; padding:0;
+    transition:background-color .18s,border-color .18s,color .18s,transform .1s;
+  }
+  .gc-chk:hover{ border-color:var(--felt); }
+  .gc-chk:active{ transform:scale(.88); }
+  .gc-chk.on{ background:var(--felt); border-color:var(--felt); color:#fff; }
+  .gc-chk svg{ width:13px; height:13px; stroke:currentColor; stroke-width:3.2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+  .gc-by{ display:block; font-size:9px; color:var(--ink-soft); font-family:var(--mono); margin-top:2px; }
+  .gc-empty{ text-align:center; padding:48px 16px; color:var(--ink-soft); font-size:13px; line-height:1.6; }
+  .gc-empty .ic{ font-size:30px; display:block; margin-bottom:8px; }
   .routine-tool-desc{ font-size:12.5px; color:var(--ink-soft); line-height:1.6; margin:0 0 16px; }
   .drawer-section-divider{ height:1px; background:var(--hairline); margin:26px 0 20px; }
   .drawer-section-title{ font-family:var(--display); font-weight:650; font-size:15px; letter-spacing:-0.01em; margin-bottom:10px; }
@@ -2885,6 +2957,10 @@
       <button class="clear-btn" id="routineToggle" title="Conferência de hoje">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
       </button>
+      <button class="clear-btn" id="guConfToggle" title="Conferência do dia (GU) — todas as colunas da receita dos eventos de hoje">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/><path d="m12.5 14.5 2 2 4-4.5"/></svg>
+        <span id="guConfBadge" class="checklist-badge" hidden>0/0</span>
+      </button>
       <button class="clear-btn" id="overlayCalcToggle" title="Calculadora de Overlay">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2.2"/><path d="M8 2.5v3M16 2.5v3M3 9.5h18"/><circle cx="8" cy="14" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="14" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="14" r="1.1" fill="currentColor" stroke="none"/><circle cx="8" cy="17.6" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="17.6" r="1.1" fill="currentColor" stroke="none"/></svg>
       </button>
@@ -3376,6 +3452,24 @@
 
       <div id="cashTablesResult"></div>
       <div id="cashTableChecklist" hidden></div>
+    </div>
+  </aside>
+</div>
+
+<div class="drawer-overlay" id="guConfDrawerOverlay">
+  <aside class="drawer drawer-xwide" id="guConfDrawer" role="dialog" aria-modal="true" aria-label="Conferência do dia (GU)">
+    <div class="drawer-head">
+      <div class="drawer-title">Conferência do dia <span id="guConfDayLbl" style="font-family:var(--mono);font-size:13px;color:var(--felt);font-weight:700;margin-left:6px"></span></div>
+      <button class="drawer-close" id="guConfDrawerClose" type="button" aria-label="Fechar">✕</button>
+    </div>
+    <div class="drawer-body">
+      <p class="routine-tool-desc">A receita completa da <b>GU</b> dos eventos de hoje (criados pelo turno noturno) — confira coluna a coluna contra o Pokerbyte e marque <b>✓</b> em Action. Sincroniza ao vivo com a equipe.</p>
+      <div class="gc-meta">
+        <span class="gc-pill" id="guConfProgress">—</span>
+        <div class="gc-bar"><div class="fill" id="guConfBarFill" style="transform:scaleX(0)"></div></div>
+        <input type="search" class="gc-search" id="guConfSearch" placeholder="Filtrar por torneio…">
+      </div>
+      <div id="guConfArea"><div class="gc-empty"><span class="ic">🃏</span>Carregando a receita do dia…</div></div>
     </div>
   </aside>
 </div>
@@ -8821,6 +8915,155 @@ document.getElementById('shiftReportDrawerOverlay').addEventListener('click', (e
 });
 
 /* =========================================================================
+   CONFERÊNCIA DO DIA (GU) — a receita COMPLETA dos eventos de hoje, lida do
+   que o turno noturno publicou no Firebase (painel/{hoje}/criacaoNoturna/sheet).
+   Cada linha é um torneio; as colunas são os campos da GU na ordem de conferência;
+   "Action" marca conferido em …/conf (mesma base que a Criação usava) — sincroniza.
+========================================================================= */
+(function guConfInit(){
+  // dia operacional: antes das 05:30 a grade em vigor ainda é a de ontem (mesma regra da Criação)
+  function opTodayISO(){
+    const n = nowInSP();
+    const d = new Date(Date.UTC(n.year, n.month-1, n.day, 12));
+    if (n.hour*60 + n.minute < 330) d.setUTCDate(d.getUTCDate()-1);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+  }
+  const DAY_ISO = opTodayISO();
+  const BASE = `painel/${DAY_ISO}/criacaoNoturna`;
+  let gcSheet = null, gcConf = {}, gcIds = {}, gcAttached = false, gcSearch = '';
+
+  const gcKey = it => `${normText(it.nome)}|${it.hora}`.replace(/[.#$\[\]\/]/g,'_');   // = itemKey da Criação
+  const normCol = s => normText(s).replace(/[^a-z0-9]/g,'');
+
+  /* colunas na ordem pedida; keys = candidatos de match no rótulo da GU,
+     not = rótulos que NÃO podem casar (evita "Payout" pegar "Calculated Payout") */
+  const GC_COLS = [
+    {lab:'Horário',              cls:'gc-time', prop:'hora'},
+    {lab:'Admin Fee',            keys:['adminfee']},
+    {lab:'Early Bird',           keys:['earlybird']},
+    {lab:'MTT',                  keys:['mtt'], not:['mtts']},
+    {lab:'K.O',                  keys:['ko','koregprogoff','knockout']},
+    {lab:'Max. Table',           keys:['maxtable','maxtables']},
+    {lab:'Prize Pool USD',       keys:['prizepoolusd','prizepool'], prop:'garantido', money:true, cls:'gc-num'},
+    {lab:'Ticket Award',         keys:['ticketaward']},
+    {lab:'Calculated Payout',    keys:['calculatedpayout']},
+    {lab:'Payout',               keys:['payout'], not:['calculatedpayout']},
+    {lab:'Buy-in',               keys:['buyin'], prop:'buyin', money:true, cls:'gc-num'},
+    {lab:'Reentry/Rebuy',        keys:['reentryrebuy','rebuyreentry'], not:['stack','condition']},
+    {lab:'Stack Reentry/Rebuy',  keys:['stackreentryrebuy','stackreentry','stackrebuy']},
+    {lab:'Rebuy Condition',      keys:['rebuycondition']},
+    {lab:'Add-on',               keys:['addon'], not:['stackaddon']},
+    {lab:'Stack Add-on',         keys:['stackaddon']},
+    {lab:'Break Late Reg.',      keys:['breaklatereg']},
+    {lab:'Structure',            keys:['structure']},
+    {lab:'Chips',                keys:['chips'], cls:'gc-num'},
+    {lab:'Early game',           keys:['earlygame']},
+    {lab:'Pós Late Reg.',        keys:['poslatereg','postlatereg']},
+    {lab:'Final Table',          keys:['finaltable']},
+    {lab:'Time Bank',            keys:['timebank']},
+    {lab:'Game Type',            keys:['gametype']},
+    {lab:'Personalized Award',   keys:['personalizedaward']},
+    {lab:'Late Reg.',            keys:['latereg'], not:['breaklatereg','hourlate','poslatereg','postlatereg'], prop:'late'},
+    {lab:'Hour late register',   keys:['hourlateregister','hourlatereg']},
+  ];
+
+  // resolve UMA VEZ por sheet qual rótulo da GU alimenta cada coluna
+  function gcResolveCols(){
+    const labels = (gcSheet && gcSheet.fields) || [];
+    GC_COLS.forEach(col => {
+      col.field = null;
+      if (!col.keys) return;
+      col.field = labels.find(l => col.keys.some(k => normCol(l) === k))
+        || labels.find(l => {
+             const n = normCol(l);
+             return col.keys.some(k => n.includes(k)) && !(col.not||[]).some(x => n.includes(x));
+           }) || null;
+    });
+  }
+  function gcFmtVal(col, it){
+    let v = col.field && it.extra ? it.extra[col.field] : undefined;
+    if ((v === undefined || v === null || v === '') && col.prop) v = it[col.prop];
+    if (v === undefined || v === null || v === '') return '—';
+    if (typeof v === 'number'){
+      if (col.money) return '$ ' + v.toLocaleString('pt-BR', {maximumFractionDigits:2});
+      if (v > 0 && v < 1) return (v*100).toLocaleString('pt-BR', {maximumFractionDigits:2}) + '%'; // fração da GU = percentual
+      return v.toLocaleString('pt-BR', {maximumFractionDigits:2});
+    }
+    return escHtml(String(v));
+  }
+  function gcItems(){
+    if (!gcSheet) return [];
+    const all = [...(gcSheet.main||[]), ...(gcSheet.side||[]), ...(gcSheet.sat||[])];
+    all.sort((a,b) => (timeToMinutes(a.hora) ?? 9999) - (timeToMinutes(b.hora) ?? 9999));
+    return all;
+  }
+  function gcToggle(key){
+    if (!fbDb) { showToast('Sem conexão com o Firebase.', true); return; }
+    if (gcConf[key]) fbDb.ref(`${BASE}/conf/${key}`).remove();
+    else fbDb.ref(`${BASE}/conf/${key}`).set({by: OPERATOR_NAME || 'Alguém', at: Date.now()});
+  }
+  function gcRender(){
+    const area = document.getElementById('guConfArea');
+    const dayLbl = document.getElementById('guConfDayLbl');
+    const [y,m,d] = DAY_ISO.split('-');
+    dayLbl.textContent = `${d}/${m}`;
+    const items = gcItems();
+    if (!items.length){
+      area.innerHTML = `<div class="gc-empty"><span class="ic">🌙</span>Nenhuma receita publicada pra hoje (${d}/${m}).<br>O turno noturno sobe a GU na página de Criação — assim que subir, aparece aqui.</div>`;
+      document.getElementById('guConfProgress').textContent = '—';
+      document.getElementById('guConfBadge').hidden = true;
+      return;
+    }
+    const total = items.length, done = items.filter(it => gcConf[gcKey(it)]).length;
+    document.getElementById('guConfProgress').textContent = `${done}/${total} conferidos`;
+    document.getElementById('guConfBarFill').style.transform = `scaleX(${total ? done/total : 0})`;
+    const badge = document.getElementById('guConfBadge');
+    badge.hidden = false; badge.textContent = `${done}/${total}`;
+    const q = normText(gcSearch);
+    const vis = q ? items.filter(it => normText(it.nome).includes(q)) : items;
+    const head = `<tr><th class="gc-sticky">Torneio</th>${GC_COLS.map(c => `<th>${c.lab}</th>`).join('')}<th>ID</th><th>Action</th></tr>`;
+    const rows = vis.map(it => {
+      const key = gcKey(it);
+      const ok = !!gcConf[key];
+      const by = ok && gcConf[key].by ? String(gcConf[key].by).split(' ')[0] : '';
+      return `<tr class="${ok ? 'gc-ok' : ''}">
+        <td class="gc-sticky">${escHtml(it.nome)}</td>
+        ${GC_COLS.map(c => `<td class="${c.cls||''}">${gcFmtVal(c, it)}</td>`).join('')}
+        <td class="gc-num">${gcIds[key] ? escHtml(gcIds[key].val) : '—'}</td>
+        <td class="gc-act" style="text-align:center"><button class="gc-chk ${ok ? 'on' : ''}" data-gckey="${escHtml(key)}" title="${ok ? 'Conferido por ' + escHtml(by) : 'Marcar como conferido'}"><svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>${by ? `<span class="gc-by">${escHtml(by)}</span>` : ''}</td>
+      </tr>`;
+    }).join('');
+    area.innerHTML = `<div class="gc-scroll"><table class="gc-table"><thead>${head}</thead><tbody>${rows || `<tr><td class="gc-sticky">Nada nesse filtro.</td></tr>`}</tbody></table></div>`;
+    area.querySelectorAll('[data-gckey]').forEach(b => b.addEventListener('click', () => gcToggle(b.dataset.gckey)));
+  }
+  function gcAttach(){
+    if (gcAttached || !fbDb) return;
+    gcAttached = true;
+    fbDb.ref(`${BASE}/sheet`).on('value', s => {
+      const v = s.val();
+      if (v && v.json){ try{ gcSheet = JSON.parse(v.json); gcResolveCols(); }catch(e){ console.error('guConf: sheet corrompida', e); } }
+      gcRender();
+    });
+    fbDb.ref(`${BASE}/conf`).on('value', s => { gcConf = s.val() || {}; gcRender(); });
+    fbDb.ref(`${BASE}/ids`).on('value', s => { gcIds = s.val() || {}; gcRender(); });
+  }
+  // o fbDb só existe depois do init do Firebase — tenta já e re-tenta até conectar
+  gcAttach();
+  const gcRetry = setInterval(() => { gcAttach(); if (gcAttached) clearInterval(gcRetry); }, 2000);
+
+  document.getElementById('guConfToggle').addEventListener('click', () => { openDrawer('guConfDrawerOverlay'); gcAttach(); gcRender(); });
+  document.getElementById('guConfDrawerClose').addEventListener('click', () => closeDrawer('guConfDrawerOverlay'));
+  document.getElementById('guConfDrawerOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'guConfDrawerOverlay') closeDrawer('guConfDrawerOverlay');
+  });
+  let gcSearchT = null;
+  document.getElementById('guConfSearch').addEventListener('input', function(){
+    clearTimeout(gcSearchT);
+    gcSearchT = setTimeout(() => { gcSearch = this.value; gcRender(); }, 150);
+  });
+})();
+
+/* =========================================================================
    CALCULADORA DE OVERLAY
    Reproduz exatamente a fórmula da planilha de conferência terceira: cada linha
    (Buy-in/Rebuys/Add-on) entra no pote já com o rake descontado por unidade
@@ -10618,7 +10861,7 @@ document.getElementById('cashTablesDrawerOverlay').addEventListener('click', (e)
    tudo de uma vez se houver mais de um aberto). Ctrl/Cmd+F foca a busca por nome da Agenda
    em vez de abrir a busca nativa do navegador — mais útil nesse contexto de uso o turno inteiro.
 ========================================================================= */
-const ALL_DRAWER_OVERLAY_IDS = ['checklistDrawerOverlay', 'serversDrawerOverlay', 'routineDrawerOverlay', 'overlayCalcDrawerOverlay', 'overlayProjDrawerOverlay', 'cashTablesDrawerOverlay', 'shiftReportDrawerOverlay'];
+const ALL_DRAWER_OVERLAY_IDS = ['checklistDrawerOverlay', 'serversDrawerOverlay', 'routineDrawerOverlay', 'overlayCalcDrawerOverlay', 'overlayProjDrawerOverlay', 'cashTablesDrawerOverlay', 'shiftReportDrawerOverlay', 'guConfDrawerOverlay'];
 
 /* =========================================================================
    HISTÓRICO DE TORNEIOS

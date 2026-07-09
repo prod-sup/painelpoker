@@ -362,6 +362,11 @@ nav{
   display:grid;gap:14px;grid-template-columns:5fr 7fr;
   align-items:start;
 }
+/* calendário ocupa a coluna esquerda inteira; "Fique ligado" + Patch notes
+   empilham na direita (sem o patch notes cair embaixo do calendário) */
+#calBoard{grid-column:1;grid-row:1 / span 2}
+#lkBoard{grid-column:2;grid-row:1}
+#pnBoard{grid-column:2;grid-row:2}
 .board{
   position:relative;overflow:hidden;
   border:1px solid var(--hairline);border-radius:var(--radius);
@@ -411,6 +416,14 @@ nav{
   transition:border-color .3s var(--ease), color .3s var(--ease);
 }
 .cal-nav button:hover{border-color:var(--gold);color:var(--gold)}
+/* toggle de feriados: pílula à direita; apagada quando ocultos */
+.cal-nav .cal-hol-toggle{
+  width:auto;margin-left:auto;padding:0 10px;border-radius:99px;
+  font-size:10px;font-weight:700;letter-spacing:.04em;
+  color:var(--felt);border-color:color-mix(in srgb, var(--felt) 35%, transparent);
+}
+.cal-nav .cal-hol-toggle:hover{border-color:var(--felt);color:var(--felt)}
+.cal-nav .cal-hol-toggle.off{color:var(--ink-faint);border-color:var(--hairline);text-decoration:line-through}
 /* a grade é o feltro: compacta, com borda de mesa */
 .cal-grid{
   display:grid;grid-template-columns:repeat(7,1fr);gap:2px;
@@ -600,6 +613,7 @@ html.light .ev-form input[type=date],html.light .ev-form input[type=time]{color-
 .pn-hint{font-size:11px;color:var(--ink-faint);margin:8px 0 0}
 @media (max-width:900px){
   .boards{grid-template-columns:1fr}
+  #calBoard,#lkBoard,#pnBoard{grid-column:auto;grid-row:auto}
 }
 
 /* ---------- perfil do operador: a experiência mora aqui no hub ----------
@@ -655,9 +669,11 @@ html.light .ev-form input[type=date],html.light .ev-form input[type=time]{color-
 }
 .pf-avatar:hover{transform:scale(1.04)}
 .pf-avatar .edit{
-  position:absolute;bottom:-6px;right:-6px;width:26px;height:26px;border-radius:99px;
+  /* fora do aro da moldura (que fica em inset:-4px) e ACIMA dele (z-index) */
+  position:absolute;bottom:-11px;right:-11px;width:26px;height:26px;border-radius:99px;
   display:flex;align-items:center;justify-content:center;font-size:12px;
   background:var(--gold);color:#14100a;border:2px solid var(--bg-raise);
+  z-index:3;box-shadow:0 3px 10px -3px rgba(0,0,0,.5);
 }
 .pf-body{padding:20px 24px 28px;display:flex;flex-direction:column;gap:14px}
 .pf-picker{display:none;padding:12px;border:1px solid var(--hairline);border-radius:14px}
@@ -760,22 +776,37 @@ html.light .ev-form input[type=date],html.light .ev-form input[type=time]{color-
 }
 .nav-avatar[data-tier]::before{inset:-3px;padding:2px}   /* avatar da nav é menor */
 
-/* Bronze — aro sólido, sem movimento */
-[data-tier="1"]::before{ background:linear-gradient(135deg,#7d5a34,#c99a5f 45%,#efcf96 60%,#9a6d3a); }
-/* Prata — dois tons frios, sem movimento */
-[data-tier="2"]::before{ background:linear-gradient(135deg,#8b95a4,#e9eef6 40%,#aab4c4 62%,#f6f9fd); }
-/* Ouro — leque dourado que gira devagar (varredura de brilho) */
+/* Bronze — metal batido com um glint discreto varrendo bem devagar (LoL: aro de temporada bronze) */
+[data-tier="1"]::before{
+  background:conic-gradient(from var(--frameAngle),#6e4d29,#9a6d3a 18%,#c99a5f 34%,#f0d29a 42%,#c99a5f 50%,#7d5a34 68%,#8a6236 84%,#6e4d29);
+  animation:frameSweep 26s linear infinite;
+}
+/* Prata — aço frio com sheen lento; segunda parada clara cria o "fio" de luz */
+[data-tier="2"]::before{
+  background:conic-gradient(from var(--frameAngle),#7e8896,#aab4c4 20%,#eef3fa 33%,#aab4c4 46%,#8b95a4 62%,#dfe7f1 80%,#7e8896);
+  animation:frameSweep 16s linear infinite;
+}
+/* Ouro — leque dourado com dois fios de brilho (varredura clássica de coroação) */
 [data-tier="3"]::before{ padding:3.5px;
-  background:conic-gradient(from var(--frameAngle),#a97a2e,#f6e6b8 22%,#d8b56d 42%,#fff6dc 55%,#d8b56d 70%,#a97a2e);
-  animation:frameSweep 9s linear infinite; }
-/* Platina — varredura fria mais viva + halo suave */
+  background:conic-gradient(from var(--frameAngle),#a97a2e,#e3c176 16%,#fff3cf 26%,#d8b56d 40%,#8f6b2d 55%,#f6e6b8 72%,#fff6dc 80%,#c9a84c 90%,#a97a2e);
+  animation:frameSweep 9s linear infinite;
+}
+/* Platina — gelo vivo, sweep rápido + halo respirando */
 [data-tier="4"]::before{ padding:4px;
-  background:conic-gradient(from var(--frameAngle),#9fb0c6,#ffffff 20%,#c7d4e6 40%,#eef4fb 55%,#aebccf 72%,#ffffff 88%,#9fb0c6);
-  animation:frameSweep 6.5s linear infinite; }
-/* Diamante — holográfico na paleta da casa (ouro→esmeralda→ciano→violeta) + halo */
+  background:conic-gradient(from var(--frameAngle),#9fb0c6,#ffffff 14%,#c7d4e6 30%,#eef4fb 44%,#aebccf 58%,#ffffff 72%,#dce6f2 86%,#9fb0c6);
+  animation:frameSweep 6.5s linear infinite;
+}
+/* Diamante — holográfico da casa (ouro→esmeralda→ciano→violeta), o aro máximo */
 [data-tier="5"]::before{ padding:4.5px;
-  background:conic-gradient(from var(--frameAngle),#d8b56d,#22d47e 20%,#5ad0ff 38%,#b98cff 56%,#ffd98a 74%,#22d47e 88%,#d8b56d);
-  animation:frameSweep 5s linear infinite; }
+  background:conic-gradient(from var(--frameAngle),#d8b56d,#22d47e 18%,#9ff0c8 28%,#5ad0ff 40%,#b98cff 56%,#ffd98a 70%,#fff3cf 78%,#22d47e 88%,#d8b56d);
+  animation:frameSweep 5s linear infinite;
+}
+/* micro-interação: passar o mouse no avatar acelera a varredura da moldura */
+[data-tier="1"]:hover::before{ animation-duration:8s }
+[data-tier="2"]:hover::before{ animation-duration:6s }
+[data-tier="3"]:hover::before{ animation-duration:3.5s }
+[data-tier="4"]:hover::before{ animation-duration:2.6s }
+[data-tier="5"]:hover::before{ animation-duration:2s }
 
 /* halo pulsante (só Platina e Diamante, e só nos avatares grandes) */
 .hh-avatar[data-tier="4"]::after,.pf-avatar[data-tier="4"]::after,
@@ -800,6 +831,158 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{ animati
   /* molduras: mantém o visual, sem rotação nem pulso */
   [data-tier]::before{ animation:none !important; }
   [data-tier]::after{ animation:none !important; opacity:.32 !important; }
+}
+
+/* ═══ CARTÃO DO OPERADOR AAA — banners, molduras, badges, level-up ═══ */
+
+/* banners do cartão (escolhíveis) — o feltro é o padrão */
+.pf-hero[data-banner="felt"]{ background:radial-gradient(120% 100% at 80% -20%, rgba(216,181,109,.25), transparent 60%), linear-gradient(150deg,#124d33,#0b2b1d 70%); }
+.pf-hero[data-banner="gold"]{ background:radial-gradient(120% 100% at 80% -20%, rgba(255,246,220,.28), transparent 60%), linear-gradient(150deg,#6b4e1e,#2b1f0c 70%); }
+.pf-hero[data-banner="crimson"]{ background:radial-gradient(120% 100% at 80% -20%, rgba(216,181,109,.2), transparent 60%), linear-gradient(150deg,#6e1f22,#26090c 70%); }
+.pf-hero[data-banner="night"]{ background:radial-gradient(120% 100% at 80% -20%, rgba(90,168,255,.18), transparent 60%), linear-gradient(150deg,#122036,#070d18 70%); }
+.pf-hero[data-banner="royal"]{ background:radial-gradient(120% 100% at 80% -20%, rgba(185,140,255,.2), transparent 60%), linear-gradient(150deg,#3a2260,#150a2a 70%); }
+.pf-banner-picker{ position:absolute;right:18px;bottom:12px;display:flex;gap:6px }
+.pf-banner-picker button{
+  width:16px;height:16px;border-radius:99px;cursor:pointer;padding:0;
+  border:2px solid rgba(242,237,226,.35);
+  transition:transform .25s var(--ease), border-color .25s var(--ease);
+}
+.pf-banner-picker button:hover{ transform:scale(1.25) }
+.pf-banner-picker button.on{ border-color:#f2ede2; transform:scale(1.15) }
+.pf-banner-picker button[data-b="felt"]{ background:linear-gradient(150deg,#124d33,#0b2b1d) }
+.pf-banner-picker button[data-b="gold"]{ background:linear-gradient(150deg,#6b4e1e,#2b1f0c) }
+.pf-banner-picker button[data-b="crimson"]{ background:linear-gradient(150deg,#6e1f22,#26090c) }
+.pf-banner-picker button[data-b="night"]{ background:linear-gradient(150deg,#122036,#070d18) }
+.pf-banner-picker button[data-b="royal"]{ background:linear-gradient(150deg,#3a2260,#150a2a) }
+
+/* barra de XP: fill por scaleX (compositor) + fio de luz varrendo o preenchido */
+.pf-xp .bar{ position:relative }
+.pf-xp .bar i{
+  width:100%;transform:scaleX(0);transform-origin:left;
+  transition:transform .8s var(--ease);
+  position:relative;overflow:hidden;
+}
+.pf-xp .bar i::after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(100deg, transparent 30%, rgba(255,255,255,.55) 50%, transparent 70%);
+  transform:translateX(-100%);
+  animation:xp-shine 3.2s var(--ease) infinite;
+}
+@keyframes xp-shine{ 0%{transform:translateX(-100%)} 55%,100%{transform:translateX(100%)} }
+
+/* próxima recompensa: strip dourado com presente pulsando de leve */
+.pf-next-reward{
+  display:flex;align-items:center;gap:10px;margin-top:12px;
+  border:1px solid color-mix(in srgb, var(--gold) 40%, transparent);
+  background:var(--gold-soft);border-radius:12px;padding:9px 13px;
+}
+.pf-next-reward[hidden]{display:none}
+.pf-next-reward .nr-ic{ font-size:18px;flex:none;animation:nr-bounce 2.6s var(--ease) infinite }
+@keyframes nr-bounce{ 0%,72%,100%{transform:none} 78%{transform:translateY(-3px) rotate(-6deg)} 86%{transform:translateY(0) rotate(4deg)} 92%{transform:translateY(-1px) rotate(0)} }
+.pf-next-reward .nr-txt{ min-width:0;flex:1 }
+.pf-next-reward .nr-txt b{ display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);font-family:var(--mono) }
+.pf-next-reward .nr-txt span{ font-size:12.5px;font-weight:600 }
+.pf-next-reward .nr-xp{ font-family:var(--mono);font-size:11px;font-weight:800;color:var(--gold);flex:none }
+
+/* galeria de molduras: previews vivos, estado equipado/bloqueado */
+.pf-frames{ display:grid;grid-template-columns:repeat(3,1fr);gap:10px }
+.pf-frame-it{
+  position:relative;border:1px solid var(--hairline);border-radius:14px;padding:14px 8px 10px;
+  display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;background:none;
+  transition:border-color .25s var(--ease), transform .25s var(--ease);
+}
+.pf-frame-it:hover:not(.locked){ transform:translateY(-2px);border-color:color-mix(in srgb, var(--gold) 50%, transparent) }
+.pf-frame-it.equipped{ border-color:var(--gold);background:var(--gold-soft) }
+.pf-frame-it.locked{ cursor:default }
+.pf-frame-it.locked .fprev, .pf-frame-it.locked .fname{ opacity:.35;filter:grayscale(.8) }
+.fprev{
+  width:44px;height:44px;border-radius:13px;position:relative;
+  display:flex;align-items:center;justify-content:center;
+  font-size:17px;font-weight:700;color:#f2ede2;font-family:var(--display);
+  background:linear-gradient(145deg,#1d7a52,#0f4a31);
+}
+.fprev[data-tier]::before{ inset:-3px !important; padding:2px !important }
+.fprev[data-tier]::after{ content:none !important }   /* sem halo nos previews (barato) */
+.pf-frame-it .fname{ font-size:10.5px;font-weight:700;letter-spacing:.02em }
+.pf-frame-it .fxp{ font-family:var(--mono);font-size:9px;color:var(--ink-faint) }
+.pf-frame-it .flock{ position:absolute;top:7px;right:9px;font-size:10px }
+.pf-frame-it .fequip{
+  position:absolute;top:6px;left:8px;font-size:8.5px;font-weight:800;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--gold);font-family:var(--mono);
+}
+@media (max-width:420px){ .pf-frames{grid-template-columns:repeat(2,1fr)} }
+
+/* badges: conquistas da operação */
+.pf-badges{ display:grid;grid-template-columns:repeat(4,1fr);gap:9px }
+.pf-badge{
+  border:1px solid var(--hairline);border-radius:13px;padding:10px 6px 8px;text-align:center;
+  transition:transform .25s var(--ease), border-color .25s var(--ease);
+}
+.pf-badge:hover{ transform:translateY(-2px);border-color:color-mix(in srgb, var(--gold) 45%, transparent) }
+.pf-badge .bic{ font-size:20px;display:block;line-height:1.2 }
+.pf-badge .bnm{ font-size:9px;font-weight:700;letter-spacing:.02em;display:block;margin-top:4px;line-height:1.25 }
+.pf-badge.locked{ opacity:.38 }
+.pf-badge.locked .bic{ filter:grayscale(1) }
+@media (max-width:420px){ .pf-badges{grid-template-columns:repeat(3,1fr)} }
+
+/* ── LEVEL-UP: celebração de mesa — raios girando, naipes subindo, número estampado ── */
+.lvlup{
+  position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;
+  background:rgba(4,8,6,.72);opacity:0;pointer-events:none;
+  transition:opacity .4s var(--ease);
+}
+.lvlup.open{ opacity:1;pointer-events:auto }
+.lvlup-card{
+  position:relative;text-align:center;color:#f2ede2;padding:52px 64px;overflow:hidden;
+  background:linear-gradient(160deg,#12352394,#0b1f1594);
+  border:1px solid rgba(216,181,109,.5);border-radius:26px;
+  transform:scale(.82) translateY(16px);
+  transition:transform .55s var(--ease);
+}
+.lvlup.open .lvlup-card{ transform:none }
+.lvlup-rays{
+  position:absolute;inset:-70%;pointer-events:none;opacity:.5;
+  background:conic-gradient(from 0deg, transparent 0 14deg, rgba(216,181,109,.14) 14deg 22deg, transparent 22deg 40deg, rgba(216,181,109,.1) 40deg 46deg, transparent 46deg 78deg, rgba(216,181,109,.14) 78deg 86deg, transparent 86deg 120deg, rgba(216,181,109,.1) 120deg 127deg, transparent 127deg 168deg, rgba(216,181,109,.13) 168deg 176deg, transparent 176deg 220deg, rgba(216,181,109,.1) 220deg 227deg, transparent 227deg 268deg, rgba(216,181,109,.14) 268deg 276deg, transparent 276deg 318deg, rgba(216,181,109,.1) 318deg 325deg, transparent 325deg);
+  animation:lvlup-spin 14s linear infinite;
+}
+@keyframes lvlup-spin{ to{transform:rotate(360deg)} }
+.lvlup-eyebrow{
+  position:relative;font-family:var(--mono);font-size:11px;letter-spacing:.3em;
+  text-transform:uppercase;color:var(--gold,#d8b56d);
+}
+.lvlup-num{
+  position:relative;font-family:var(--display);font-size:96px;font-weight:800;line-height:1;
+  margin:10px 0 4px;color:#f6e6b8;
+  animation:lvlup-pop .7s var(--ease) .15s backwards;
+}
+@keyframes lvlup-pop{ from{transform:scale(.4);opacity:0} 70%{transform:scale(1.08)} to{transform:none;opacity:1} }
+.lvlup-sub{ position:relative;font-size:13px;color:rgba(242,237,226,.75);max-width:300px;margin:0 auto }
+.lvlup-ok{
+  position:relative;margin-top:22px;border:0;border-radius:99px;padding:11px 30px;cursor:pointer;
+  font-weight:800;font-size:13px;background:var(--gold,#d8b56d);color:#14100a;
+  transition:transform .2s var(--ease);
+}
+.lvlup-ok:hover{ transform:translateY(-1px) scale(1.03) }
+/* naipes que sobem da base do cartão (one-shot ao abrir) */
+.lvlup-suits span{
+  position:absolute;bottom:-30px;font-size:20px;opacity:0;pointer-events:none;color:var(--gold,#d8b56d);
+}
+.lvlup.open .lvlup-suits span{ animation:lvlup-rise 2.4s var(--ease) forwards }
+.lvlup-suits span:nth-child(1){ left:12%;animation-delay:.15s }
+.lvlup-suits span:nth-child(2){ left:28%;color:#e05a5a;animation-delay:.4s }
+.lvlup-suits span:nth-child(3){ left:46%;color:#e05a5a;animation-delay:.25s }
+.lvlup-suits span:nth-child(4){ left:62%;animation-delay:.55s }
+.lvlup-suits span:nth-child(5){ left:78%;animation-delay:.35s }
+.lvlup-suits span:nth-child(6){ left:90%;color:#e05a5a;animation-delay:.6s }
+@keyframes lvlup-rise{
+  0%{ transform:translateY(0) rotate(0);opacity:0 }
+  12%{ opacity:.9 }
+  100%{ transform:translateY(-340px) rotate(200deg);opacity:0 }
+}
+@media (prefers-reduced-motion: reduce){
+  .lvlup, .lvlup-card{ transition:opacity .2s }
+  .lvlup-rays, .lvlup-suits span, .lvlup-num, .pf-next-reward .nr-ic, .pf-xp .bar i::after{ animation:none !important }
+  .lvlup-card{ transform:none }
 }
 
 /* ---------- rodapé ---------- */
@@ -960,6 +1143,7 @@ footer{
       <button type="button" id="calPrev" aria-label="M&ecirc;s anterior">&lsaquo;</button>
       <b id="calMonth"></b>
       <button type="button" id="calNext" aria-label="Pr&oacute;ximo m&ecirc;s">&rsaquo;</button>
+      <button type="button" class="cal-hol-toggle" id="calHolToggle" title="Mostrar/ocultar feriados nacionais" aria-pressed="true">&#9733; Feriados</button>
     </div>
     <div class="cal-grid" id="calGrid"></div>
     <div class="ev-list" id="evList"></div>
@@ -1033,12 +1217,13 @@ footer{
 <!-- ── Perfil do operador: identidade, progressão e conta — só aqui no hub ── -->
 <div class="pf-overlay" id="pfOverlay" aria-hidden="true">
   <div class="pf-panel" role="dialog" aria-modal="true" aria-label="Meu perfil">
-    <div class="pf-hero">
+    <div class="pf-hero" id="pfHero" data-banner="felt">
       <div class="pf-eyebrow">Suprema OS &middot; Cart&atilde;o do operador</div>
       <h2 id="pfName">&mdash;</h2>
       <div class="pf-tagline" id="pfEmail"></div>
       <span class="pf-tag-pill" id="pfTagPill" hidden>&spades; <span id="pfTagTxt"></span></span>
       <button type="button" class="pf-close" id="pfClose" aria-label="Fechar perfil">&#10005;</button>
+      <div class="pf-banner-picker" id="pfBannerPicker" aria-label="Escolher banner do cart&atilde;o"></div>
     </div>
     <div class="pf-avatar-row">
       <div class="pf-avatar" id="pfAvatar" role="button" tabindex="0" aria-label="Trocar foto de perfil"
@@ -1059,8 +1244,23 @@ footer{
             <span class="bar"><i id="pfXpBar"></i></span>
           </span>
         </div>
-        <p class="pf-hint">Cada ferramenta aberta e cada dia ativo rendem XP. Suba de n&iacute;vel pra desbloquear novos t&iacute;tulos.</p>
-        <p class="pf-frame-lbl" id="pfFrameLbl"></p>
+        <p class="pf-hint">Cada ferramenta aberta e cada dia ativo rendem XP. Suba de n&iacute;vel pra desbloquear molduras, badges e t&iacute;tulos.</p>
+        <div class="pf-next-reward" id="pfNextReward" hidden>
+          <span class="nr-ic" id="pfNextRewardIc">&#127873;</span>
+          <span class="nr-txt"><b>Pr&oacute;xima recompensa</b><span id="pfNextRewardTxt"></span></span>
+          <span class="nr-xp" id="pfNextRewardXp"></span>
+        </div>
+      </div>
+
+      <div class="pf-card">
+        <div class="pf-card-title">Molduras <small id="pfFrameLbl"></small></div>
+        <div class="pf-frames" id="pfFrames"></div>
+        <p class="pf-hint">A moldura equipada aparece no seu avatar em todo o Suprema OS. Desbloqueie subindo de n&iacute;vel &mdash; e escolha qualquer uma que j&aacute; conquistou.</p>
+      </div>
+
+      <div class="pf-card">
+        <div class="pf-card-title">Badges <small id="pfBadgesHint"></small></div>
+        <div class="pf-badges" id="pfBadges"></div>
       </div>
 
       <div class="pf-card">
@@ -1086,6 +1286,18 @@ footer{
         <button type="button" class="pf-btn danger" id="pfLogout">Sair da conta</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ── Celebração de level-up: aparece uma vez quando o nível sobe ── -->
+<div class="lvlup" id="lvlUp" aria-hidden="true">
+  <div class="lvlup-card">
+    <div class="lvlup-rays" aria-hidden="true"></div>
+    <div class="lvlup-suits" aria-hidden="true"><span>&spades;</span><span>&hearts;</span><span>&diams;</span><span>&clubs;</span><span>&spades;</span><span>&diams;</span></div>
+    <div class="lvlup-eyebrow">Subiu de n&iacute;vel</div>
+    <div class="lvlup-num" id="lvlUpNum">2</div>
+    <div class="lvlup-sub" id="lvlUpSub"></div>
+    <button type="button" class="lvlup-ok" id="lvlUpOk">Continuar &spades;</button>
   </div>
 </div>
 
@@ -1673,6 +1885,9 @@ if (location.protocol === 'file:') {
   }
   function holidays(y){ return holidayCache[y] || (holidayCache[y] = holidaysForYear(y)); }
   function holidayName(isoDate){ return holidays(+isoDate.slice(0,4))[isoDate] || null; }
+  // preferência do usuário: ocultar feriados no calendário/lista (persistida)
+  let hideHolidays = false;
+  try{ hideHolidays = localStorage.getItem('hub_hide_holidays_v1') === '1'; }catch(e){}
 
   function allEvents(){
     const list = DEFAULT_EVENTS.filter(e => !hiddenSeeds[e.id]).map(e => ({...e, seed:true}));
@@ -1712,7 +1927,7 @@ if (location.protocol === 'file:') {
       const iso = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
       const inMonth = d.getMonth() === viewM;
       const evs = evByDate[iso] || [];
-      const hol = holidayName(iso);
+      const hol = hideHolidays ? null : holidayName(iso);
       const cls = ['cal-day', inMonth?'in-month':'other', iso===tIso?'today':'', evs.length?'has-ev':'', hol?'holiday':'', admin?'admin-click':''].filter(Boolean).join(' ');
       const tipLines = [...(hol ? [`Feriado · ${hol}`] : []), ...evs.map(e => `${evWhen(e)} · ${e.title}`)];
       const title = tipLines.length ? ` title="${escHtml(tipLines.join('\n'))}"` : '';
@@ -1735,7 +1950,7 @@ if (location.protocol === 'file:') {
     // próximos feriados nacionais (ano atual + próximo), a partir de hoje — só leitura
     const curY = now0.getFullYear();
     const holItems = [];
-    [curY, curY+1].forEach(y => Object.entries(holidays(y)).forEach(([date, name]) => {
+    if(!hideHolidays) [curY, curY+1].forEach(y => Object.entries(holidays(y)).forEach(([date, name]) => {
       if(date >= tIso) holItems.push({date, title:name, hol:true});
     }));
     const combined = [...evs, ...holItems].sort((a,b) => (a.date+(a.time||'')) < (b.date+(b.time||'')) ? -1 : 1).slice(0, 24);
@@ -1845,6 +2060,18 @@ if (location.protocol === 'file:') {
 
   $('calPrev').addEventListener('click', () => { viewM--; if(viewM<0){viewM=11;viewY--;} renderCalendar(); });
   $('calNext').addEventListener('click', () => { viewM++; if(viewM>11){viewM=0;viewY++;} renderCalendar(); });
+  // toggle de feriados (persistido por navegador)
+  function paintHolToggle(){
+    const b = $('calHolToggle');
+    b.classList.toggle('off', hideHolidays);
+    b.setAttribute('aria-pressed', String(!hideHolidays));
+  }
+  $('calHolToggle').addEventListener('click', () => {
+    hideHolidays = !hideHolidays;
+    try{ localStorage.setItem('hub_hide_holidays_v1', hideHolidays ? '1' : '0'); }catch(e){}
+    paintHolToggle(); renderCalendar(); renderEventList();
+  });
+  paintHolToggle();
 
   // pílula "Dia inteiro": desliga o campo de hora
   $('evAllDay').addEventListener('change', () => {
@@ -1941,9 +2168,23 @@ if (location.protocol === 'file:') {
     document.addEventListener('visibilitychange', () => set(document.hidden));
   })();
   function nextFrame(xp){ return FRAME_TIERS.find(ft => xp < ft.xp) || null; }
-  // aplica o data-tier nos três avatares (hero, nav, perfil) conforme o XP atual
+
+  /* ── equipar moldura + banner do cartão (localStorage p/ pintar já; Firebase p/ seguir a conta) ── */
+  let equippedFrame = null;   // tier escolhido; null = a mais alta desbloqueada
+  let pfBanner = 'felt';
+  try{ const v = localStorage.getItem('suprema_user_frame_v1'); if(v !== null && v !== '') equippedFrame = +v; }catch(e){}
+  try{ pfBanner = localStorage.getItem('suprema_user_banner_v1') || 'felt'; }catch(e){}
+  const PF_BANNERS = ['felt','gold','crimson','night','royal'];
+
+  function unlockedTier(){ return frameFromXp(pfXp()).t; }
+  function shownFrame(){
+    const un = unlockedTier();
+    const t = (equippedFrame !== null && equippedFrame >= 0 && equippedFrame <= un) ? equippedFrame : un;
+    return FRAME_TIERS[t] || FRAME_TIERS[0];
+  }
+  // aplica a moldura EQUIPADA nos três avatares (hero, nav, perfil)
   function applyProgressionFrames(){
-    const f = frameFromXp(pfXp());
+    const f = shownFrame();
     const setTier = (el, withTitle) => {
       if(!el) return;
       if(f.t) el.setAttribute('data-tier', f.t); else el.removeAttribute('data-tier');
@@ -1953,12 +2194,104 @@ if (location.protocol === 'file:') {
     setTier($('navAvatar'), false);           // mantém o title "Meu perfil"
     setTier(document.querySelector('.pf-avatar'), false);
     const lbl = $('pfFrameLbl');
-    if(lbl){
-      const nx = nextFrame(pfXp());
-      lbl.innerHTML = `Moldura <b>${f.name}</b>${nx ? ` · próxima: ${nx.name} aos ${nx.xp} XP` : ' · a mais alta ♠'}`;
-    }
+    if(lbl) lbl.textContent = `${unlockedTier()+1} de ${FRAME_TIERS.length} conquistadas`;
+    renderFrames();
+    renderNextReward();
     return f;
   }
+
+  /* galeria: todas as molduras, com estado conquistada/equipada/bloqueada */
+  function renderFrames(){
+    const box = $('pfFrames'); if(!box) return;
+    const un = unlockedTier(), cur = shownFrame().t;
+    let face = '♠';
+    try{ face = localStorage.getItem('suprema_user_avatar_v1') || '♠'; }catch(e){}
+    box.innerHTML = FRAME_TIERS.map(ft => {
+      const locked = ft.t > un, eq = ft.t === cur;
+      return `<button type="button" class="pf-frame-it${locked?' locked':''}${eq?' equipped':''}" data-ft="${ft.t}"
+        title="${escHtml(ft.desc)}${locked ? ` — desbloqueia aos ${ft.xp} XP` : eq ? ' — equipada' : ' — clique pra equipar'}">
+        ${eq ? '<span class="fequip">Equipada</span>' : ''}${locked ? '<span class="flock">🔒</span>' : ''}
+        <span class="fprev" ${ft.t ? `data-tier="${ft.t}"` : ''}>${escHtml(face)}</span>
+        <span class="fname">${escHtml(ft.name)}</span>
+        <span class="fxp">${ft.xp ? ft.xp + ' XP' : 'inicial'}</span>
+      </button>`;
+    }).join('');
+    box.querySelectorAll('.pf-frame-it:not(.locked)').forEach(b => b.addEventListener('click', () => {
+      equippedFrame = +b.dataset.ft;
+      try{ localStorage.setItem('suprema_user_frame_v1', String(equippedFrame)); }catch(e){}
+      if(session && db && fbReady) db.ref(`users/${emailToKey(session.email)}/frame`).set(equippedFrame).catch(()=>{});
+      applyProgressionFrames();
+    }));
+  }
+
+  /* próxima recompensa: o que chega primeiro (moldura ou título) no caminho do XP */
+  function renderNextReward(){
+    const el = $('pfNextReward'); if(!el) return;
+    const xp = pfXp();
+    const cands = [];
+    const nf = nextFrame(xp); if(nf) cands.push({xp:nf.xp, txt:`Moldura ${nf.name}`, ic:'🖼️'});
+    const nt = TITLES.find(t => xp < t.xp); if(nt) cands.push({xp:nt.xp, txt:`Título "${nt.name}"`, ic:'🏷️'});
+    if(!cands.length){ el.hidden = true; return; }
+    cands.sort((a,b) => a.xp - b.xp);
+    el.hidden = false;
+    $('pfNextRewardIc').textContent = cands[0].ic;
+    $('pfNextRewardTxt').textContent = cands[0].txt;
+    $('pfNextRewardXp').textContent = `faltam ${cands[0].xp - xp} XP`;
+  }
+
+  /* badges: conquistas da operação (derivadas das stats — nada extra pra gravar) */
+  const PF_BADGES = [
+    {id:'firsthand', ic:'🃏', nm:'Primeira mão',    desc:'Primeiro dia ativo no Suprema OS.',      test:() => pfStats.days >= 1},
+    {id:'week',      ic:'📅', nm:'Semana cheia',    desc:'7 dias ativos.',                          test:() => pfStats.days >= 7},
+    {id:'month',     ic:'🗓️', nm:'Mês de mesa',     desc:'30 dias ativos.',                         test:() => pfStats.days >= 30},
+    {id:'opens50',   ic:'🛠️', nm:'Mão na massa',    desc:'50 ferramentas abertas.',                 test:() => pfStats.opens >= 50},
+    {id:'opens200',  ic:'⚙️', nm:'Engrenagem',      desc:'200 ferramentas abertas.',                test:() => pfStats.opens >= 200},
+    {id:'lv10',      ic:'📈', nm:'Nível 10',        desc:'Alcance o nível 10.',                     test:() => levelFromXp(pfXp()) >= 10},
+    {id:'lv25',      ic:'🚀', nm:'Nível 25',        desc:'Alcance o nível 25.',                     test:() => levelFromXp(pfXp()) >= 25},
+    {id:'lenda',     ic:'👑', nm:'Lenda da casa',   desc:'3000 XP — o topo da progressão.',         test:() => pfXp() >= 3000},
+    {id:'admin',     ic:'♦',  nm:'Admin',           desc:'Acesso de administrador.',                test:() => !!(session && isAdmin(session.email))},
+  ];
+  function renderBadges(){
+    const box = $('pfBadges'); if(!box) return;
+    let got = 0;
+    box.innerHTML = PF_BADGES.map(b => {
+      const on = b.test(); if(on) got++;
+      return `<div class="pf-badge${on?'':' locked'}" title="${escHtml(b.desc)}${on?'':' (bloqueada)'}">
+        <span class="bic">${b.ic}</span><span class="bnm">${escHtml(b.nm)}</span>
+      </div>`;
+    }).join('');
+    const hint = $('pfBadgesHint');
+    if(hint) hint.textContent = `${got}/${PF_BADGES.length} conquistadas`;
+  }
+
+  /* banner do cartão */
+  function paintBanner(){
+    const hero = $('pfHero'); if(!hero) return;
+    hero.dataset.banner = PF_BANNERS.includes(pfBanner) ? pfBanner : 'felt';
+    const picker = $('pfBannerPicker');
+    if(picker && !picker.childElementCount){
+      picker.innerHTML = PF_BANNERS.map(b => `<button type="button" data-b="${b}" title="Banner ${b}" aria-label="Banner ${b}"></button>`).join('');
+      picker.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => {
+        pfBanner = bt.dataset.b;
+        try{ localStorage.setItem('suprema_user_banner_v1', pfBanner); }catch(e){}
+        if(session && db && fbReady) db.ref(`users/${emailToKey(session.email)}/banner`).set(pfBanner).catch(()=>{});
+        paintBanner();
+      }));
+    }
+    if(picker) picker.querySelectorAll('button').forEach(bt => bt.classList.toggle('on', bt.dataset.b === hero.dataset.banner));
+  }
+
+  /* level-up: celebração quando o nível sobe (comparado por navegador/conta) */
+  function showLevelUp(lv){
+    $('lvlUpNum').textContent = lv;
+    const nf = nextFrame(pfXp());
+    $('lvlUpSub').textContent = nf ? `Continue assim — a moldura ${nf.name} chega aos ${nf.xp} XP.` : 'Você está no topo da casa. Moldura máxima equipável. ♠';
+    $('lvlUp').classList.add('open');
+    $('lvlUp').setAttribute('aria-hidden','false');
+  }
+  function closeLevelUp(){ $('lvlUp').classList.remove('open'); $('lvlUp').setAttribute('aria-hidden','true'); }
+  $('lvlUpOk').addEventListener('click', closeLevelUp);
+  $('lvlUp').addEventListener('click', e => { if(e.target === $('lvlUp')) closeLevelUp(); });
 
   // registra a abertura de um produto (chamado no clique dos tiles)
   function trackOpen(prod){
@@ -1982,8 +2315,29 @@ if (location.protocol === 'file:') {
       const v = s.val() || {};
       pfStats = { opens: v.opens||0, days: v.days ? Object.keys(v.days).length : 0 };
       renderProfileProgress();
+      // level-up: compara com o último nível visto NESTA conta/navegador e celebra
+      try{
+        const lvKey = 'suprema_last_level_v1_' + key;
+        const lv = levelFromXp(pfXp());
+        const prev = parseInt(localStorage.getItem(lvKey) || '0', 10);
+        if(prev > 0 && lv > prev) showLevelUp(lv);
+        localStorage.setItem(lvKey, String(lv));
+      }catch(e){}
     });
     db.ref(`users/${key}/tag`).on('value', s => { pfTag = s.val(); renderProfileTag(); renderProfileTitles(); });
+    // moldura equipada e banner seguem a CONTA (o localStorage só evita piscar no load)
+    db.ref(`users/${key}/frame`).on('value', s => {
+      const v = s.val();
+      if(v !== null && v !== undefined){
+        equippedFrame = +v;
+        try{ localStorage.setItem('suprema_user_frame_v1', String(v)); }catch(e){}
+        applyProgressionFrames();
+      }
+    });
+    db.ref(`users/${key}/banner`).on('value', s => {
+      const v = s.val();
+      if(v){ pfBanner = v; try{ localStorage.setItem('suprema_user_banner_v1', v); }catch(e){} paintBanner(); }
+    });
     // presença do dia: abrir o hub logado já conta como dia ativo
     db.ref(`users/${key}/stats/days/${todayIso()}`).set(true).catch(()=>{});
   }
@@ -1999,9 +2353,11 @@ if (location.protocol === 'file:') {
     $('pfLevel').textContent = lv;
     $('pfXpLbl').textContent = `${xp} XP`;
     $('pfXpNext').textContent = `nível ${lv+1} · ${next} XP`;
-    $('pfXpBar').style.width = `${Math.min(100, Math.round((xp-cur)/(next-cur)*100))}%`;
+    // fill por scaleX (compositor) — o CSS anima transform, não width
+    $('pfXpBar').style.transform = `scaleX(${Math.min(1, (xp-cur)/(next-cur)).toFixed(3)})`;
     $('pfXpMeta').textContent = `${pfStats.opens} aberturas · ${pfStats.days} dias ativos`;
     applyProgressionFrames();
+    renderBadges();
     renderProfileTitles();
   }
   function renderProfileTitles(){
@@ -2051,6 +2407,7 @@ if (location.protocol === 'file:') {
     ];
     $('pfInfo').innerHTML = info.map(i => `<div class="pf-row"><span class="k">${escHtml(i.k)}</span><span class="v">${escHtml(i.v)}</span></div>`).join('');
     paintAvatar();
+    paintBanner();
     renderProfileTag(); renderProfileProgress();
   }
 
