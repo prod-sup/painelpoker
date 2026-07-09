@@ -5301,10 +5301,8 @@ let OPERATOR_NAME = _session ? (_session.apelido || _session.nome || _session.em
 
 function promptOperatorNameIfNeeded(){
   if(_session) return;
-  const overlay = document.getElementById('operatorOverlay');
-  overlay.classList.add('open');
-  // posiciona o indicador de tab
-  setTimeout(() => updateTabIndicator('login'), 50);
+  // A tela de login do painel não existe mais: sem sessão, o lugar é o hub.
+  location.replace('hub.html');
 }
 
 /* ── Tab switcher com animação de indicador deslizante ── */
@@ -6039,25 +6037,16 @@ function upSetEmoji(e){
   document.getElementById('operatorBadge').textContent = OPERATOR_NAME;
 }
 
+/* Sair/Trocar conta: o login mora no hub (hub.html) — limpa a sessão e volta pra lá */
 function upChangeAccount(){
-  closeUserProfile();
-  setTimeout(() => {
-    const overlay = document.getElementById('operatorOverlay');
-    overlay.classList.add('open');
-    document.getElementById('welcomeCloseBtn').hidden = false;
-    switchAuthTab('login');
-    setTimeout(() => updateTabIndicator('login'), 50);
-  }, 350);
+  clearSession();
+  location.href = 'hub.html';
 }
 function doLogout(){ upLogout(); }
 function upLogout(){
   if(!confirm('Sair da sua conta?')) return;
   clearSession();
-  _session = null;
-  OPERATOR_NAME = '';
-  document.getElementById('operatorBadge').textContent = '';
-  closeUserProfile();
-  setTimeout(() => promptOperatorNameIfNeeded(), 350);
+  location.href = 'hub.html';
 }
 
 // Feedback de erro — chamado quando operador preenche dado incorreto
