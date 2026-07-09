@@ -397,27 +397,8 @@ table.t td.m{color:var(--ink2)}
 </head>
 <body>
 
-<div id="loginWrap">
-  <div class="login-box">
-    <div class="login-brand">
-      <div class="brand-ico"><i class="ph-fill ph-spade"></i></div>
-      <span class="brand-name">Suprema Cash Intelligence</span>
-    </div>
-    <div class="login-title">Acesso restrito</div>
-    <div class="login-sub">Somente administradores têm acesso a esta análise de mesa cash. Use o mesmo login do Painel/Admin.</div>
-    <div class="login-field">
-      <label>Email</label>
-      <input type="email" id="lEmail" placeholder="seu.nome@suprema.group" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('lPass').focus()">
-    </div>
-    <div class="login-field">
-      <label>Senha</label>
-      <input type="password" id="lPass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
-    </div>
-    <div class="login-err" id="lErr"></div>
-    <button class="login-btn" id="lBtn" onclick="doLogin()">Entrar</button>
-  </div>
-</div>
-
+<!-- O login mora no hub (Suprema OS): o portão no <head> já barrou quem
+     não tem sessão; aqui é só entrar. -->
 <div id="app">
 <header class="hdr">
   <div class="brand">
@@ -1080,47 +1061,32 @@ function initFb(){
   try{firebase.initializeApp(FB_CFG);db=firebase.database();fbOk=true;}
   catch(e){console.error('Firebase init',e);}
 }
-async function doLogin(){
-  const email=document.getElementById('lEmail').value.trim().toLowerCase();
-  const pass=document.getElementById('lPass').value;
-  const btn=document.getElementById('lBtn');
-  const err=document.getElementById('lErr');
-  err.textContent='';
-  if(!email||!pass){err.textContent='Preencha email e senha.';return;}
-  if(!fbOk){err.textContent='Firebase não conectado.';return;}
-  btn.disabled=true;btn.textContent='Verificando...';
-  const userRef=db.ref(`users/${eKey(email)}`);
-  try{
-    const snap=await userRef.once('value');
-    const user=snap.val();
-    if(!user){err.textContent='Usuário não encontrado.';btn.disabled=false;btn.textContent='Entrar';return;}
-    const remaining=loginLockRemaining(user);
-    if(remaining>0){err.textContent=`Muitas tentativas. Tente novamente em ${Math.ceil(remaining/60000)} min.`;btn.disabled=false;btn.textContent='Entrar';return;}
-    const ok=await verifyPassword(pass,user.pwHash,newHash=>userRef.update({pwHash:newHash}));
-    if(!ok){
-      const attempts=(user.loginAttempts||0)+1;
-      const patch={loginAttempts:attempts};
-      if(attempts>=LOGIN_MAX_ATTEMPTS){patch.loginLockUntil=Date.now()+LOGIN_LOCK_MS;patch.loginAttempts=0;}
-      await userRef.update(patch);
-      err.textContent=attempts>=LOGIN_MAX_ATTEMPTS?`Muitas tentativas. Login bloqueado por ${LOGIN_LOCK_MS/60000} min.`:'Senha incorreta.';
-      btn.disabled=false;btn.textContent='Entrar';return;
-    }
-    if(user.loginAttempts||user.loginLockUntil)await userRef.update({loginAttempts:0,loginLockUntil:null});
-    if(!ADMIN_EMAILS.includes(email)&&!user.admin){err.textContent='Acesso negado — apenas administradores.';btn.disabled=false;btn.textContent='Entrar';return;}
-    _email=email;_name=user.apelido||user.nome||email.split('@')[0];
-    document.getElementById('loginWrap').style.display='none';
-    document.getElementById('app').style.display='block';
-    const un=document.getElementById('appUserName');if(un)un.textContent=_name;
-    startApp();
-  }catch(e){err.textContent='Erro: '+e.message;btn.disabled=false;btn.textContent='Entrar';}
+/* Entrada direta: a sessão do Suprema OS (validada pelo portão no <head>)
+   identifica o usuário. Login/senha próprios foram removidos — quem chegou
+   até aqui já está logado no hub. */
+function enterFromHubSession(){
+  let s=null;
+  try{s=JSON.parse(localStorage.getItem('suprema_session_v1')||'null');}catch(e){}
+  if(!s||!s.email){location.replace('hub.html');return;}
+  _email=String(s.email).toLowerCase();
+  _name=s.apelido||s.nome||_email.split('@')[0];
+  document.getElementById('app').style.display='block';
+  const un=document.getElementById('appUserName');if(un)un.textContent=_name;
+  startApp();
+  // apelido/nome ficam mais bonitos vindos do cadastro, quando o Firebase responder
+  if(fbOk&&!s.apelido&&!s.nome){
+    db.ref(`users/${eKey(_email)}`).once('value').then(snap=>{
+      const u=snap.val();
+      if(u&&(u.apelido||u.nome)){
+        _name=u.apelido||u.nome;
+        if(un)un.textContent=_name;
+      }
+    }).catch(()=>{});
+  }
 }
 function doLogout(){
-  _email='';_name='';
-  document.getElementById('app').style.display='none';
-  document.getElementById('loginWrap').style.display='flex';
-  document.getElementById('lEmail').value='';document.getElementById('lPass').value='';
-  document.getElementById('lErr').textContent='';
-  document.getElementById('lBtn').disabled=false;document.getElementById('lBtn').textContent='Entrar';
+  // Sair = voltar pro hub (a sessão é dele; trocar de conta acontece lá)
+  location.href='hub.html';
 }
 initFb();
 
@@ -2223,6 +2189,7 @@ function startApp(){
   buildRooms();buildRR();buildBlindBars();buildBubble();
   buildRet();buildDurFee();buildHM();buildHist();
 }
+enterFromHubSession();
 </script>
 </body>
 </html>
