@@ -1198,6 +1198,11 @@ function toggleTheme(){
 const supDark = localStorage.getItem('suprema_dark_mode');
 applyTheme(supDark!==null ? (supDark==='1'?'dark':'light')
   : localStorage.getItem('theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'));
+// ecossistema: tema trocado em outro painel/aba reflete aqui na hora
+window.addEventListener('storage', e => {
+  if (e.key !== 'suprema_dark_mode' || e.newValue === null) return;
+  applyTheme(e.newValue === '1' ? 'dark' : 'light');
+});
 
 // ══════════════════════════════ SHIFT DETECT
 function detectShift(){

@@ -1809,6 +1809,12 @@ $('darkToggle').addEventListener('click', () => {
   localStorage.setItem('suprema_dark_mode', isDark ? '1' : '0');
   paintDarkBtn();
 });
+// ecossistema: tema trocado em outro painel/aba reflete aqui na hora
+window.addEventListener('storage', e => {
+  if (e.key !== 'suprema_dark_mode' || e.newValue === null) return;
+  document.documentElement.classList.toggle('dark', e.newValue === '1');
+  paintDarkBtn();
+});
 
 /* =========================================================================
    UPLOAD

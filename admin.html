@@ -4,16 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Admin · Suprema OS</title>
+<script src="suprema-auth.js"></script>
 <script>
 /* ── PORTÃO DE ACESSO: o login do Suprema OS mora no hub (hub.html).
-   Sem sessão válida ('suprema_session_v1'), redireciona pro hub ANTES de renderizar.
-   (o login próprio do admin continua valendo como segunda camada, abaixo) ── */
-(function(){
-  try{
-    var s = JSON.parse(localStorage.getItem('suprema_session_v1') || 'null');
-    if(!s || !s.email || !s.expiresAt || Date.now() > s.expiresAt) location.replace('hub.html');
-  }catch(e){ location.replace('hub.html'); }
-})();
+   Reconhece quem já está logado OU é admin confiável neste navegador — nesse
+   caso o painel entra direto (ver autoEnterFromSession, abaixo). Quem não é
+   reconhecido volta pro hub ANTES de renderizar. ── */
+SupremaAuth.guard();
 </script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%238f6b2d'>♠</text></svg>">
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
@@ -1526,6 +1523,12 @@ function toggleDark(){
   paintDarkBtn();
 }
 paintDarkBtn();
+// ecossistema: tema trocado em outro painel/aba reflete aqui na hora
+window.addEventListener('storage', e => {
+  if(e.key !== 'suprema_dark_mode' || e.newValue === null) return;
+  document.documentElement.classList.toggle('dark', e.newValue === '1');
+  paintDarkBtn();
+});
 const brl = (v,d=2) => v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const brlk = v => { if(v==null||isNaN(v))return'—'; const a=Math.abs(v),s=v<0?'-':''; return a>=1e6?s+'R$'+brl(a/1e6,1)+'M':a>=1e3?s+'R$'+brl(a/1e3,0)+'K':s+'R$'+brl(a,0); };
 const pct  = (v,d=2) => v==null?'—':(v>=0?'+':'')+Number(v).toFixed(d)+'%';
@@ -1711,23 +1714,64 @@ async function doLogin(){
     if(user.loginAttempts||user.loginLockUntil) await userRef.update({loginAttempts:0,loginLockUntil:null});
 
     if(!ADMIN_EMAILS.includes(email)&&!user.admin){err.textContent='Acesso negado — apenas administradores.';btn.disabled=false;btn.textContent='Entrar';return;}
-    _email=email;_name=user.apelido||user.nome||email.split('@')[0];
-    document.getElementById('adminName').textContent=_name;
-    document.getElementById('loginWrap').style.display='none';
-    document.getElementById('app').style.display='block';
-    document.getElementById('loader').classList.add('on');
-    await loadAll();
-    document.getElementById('loader').classList.remove('on');
-    initDates();
-    await loadAudit();
-    await loadOps();
-    await loadUsers();
-    loadPendingNotifs();
+    // login manual bem-sucedido: grava a sessão compartilhada do Suprema OS
+    // (assim os outros produtos reconhecem, e o admin fica confiável neste navegador)
+    SupremaAuth.saveSession({ email, nome:user.nome, sobrenome:user.sobrenome, apelido:user.apelido, displayName:user.apelido||user.nome||email });
+    await enterApp(email, user.apelido||user.nome||email.split('@')[0]);
   }catch(e){err.textContent='Erro: '+e.message;btn.disabled=false;btn.textContent='Entrar';}
 }
 
+/* entra no painel admin (caminho único de sucesso: login manual ou sessão) */
+async function enterApp(email, name){
+  _email=email;_name=name;
+  document.getElementById('adminName').textContent=_name;
+  document.getElementById('loginWrap').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('loader').classList.add('on');
+  await loadAll();
+  document.getElementById('loader').classList.remove('on');
+  initDates();
+  await loadAudit();
+  await loadOps();
+  await loadUsers();
+  loadPendingNotifs();
+}
+
+/* ── RECONHECIMENTO AUTOMÁTICO ──
+   Se chego aqui já logado como admin (ou como admin confiável neste navegador),
+   o painel entra DIRETO — sem pedir login de novo. É o que faz o "clicar em
+   Admin pela Criação" funcionar como uma hub real. */
+async function autoEnterFromSession(){
+  const r = SupremaAuth.recognize();
+  if(!r.email || !r.isAdmin) return;               // não-admin: fica no login manual
+  const email = r.email.toLowerCase();
+  // admin da lista da casa: entra na hora (sem esperar leitura do Firebase)
+  if(SupremaAuth.isAdminEmail(email)){
+    const nm = (r.session && (r.session.displayName||r.session.apelido||r.session.nome)) || email.split('@')[0];
+    if(r.trustedOnly){ // sem sessão viva: reconstrói do Firebase pra manter tudo em sincronia
+      try{
+        const snap = await db.ref(`users/${eKey(email)}`).once('value');
+        const u = snap.val() || {};
+        SupremaAuth.saveSession({ email, nome:u.nome, sobrenome:u.sobrenome, apelido:u.apelido, displayName:u.apelido||u.nome||email });
+        return enterApp(email, u.apelido||u.nome||email.split('@')[0]);
+      }catch(e){ /* offline: entra com o que temos */ }
+    }
+    return enterApp(email, nm);
+  }
+  // admin por flag no Firebase (não está na lista fixa): confirma antes de entrar
+  try{
+    const snap = await db.ref(`users/${eKey(email)}`).once('value');
+    const u = snap.val();
+    if(u && u.admin) return enterApp(email, u.apelido||u.nome||email.split('@')[0]);
+  }catch(e){ /* fica no login manual */ }
+}
+
 function doLogout(){
+  // sair do admin encerra a sessão compartilhada e o reconhecimento de admin:
+  // volta pro hub, o ecossistema inteiro exige login de novo
+  SupremaAuth.clearSession();
   _email='';_name='';_allData={};
+  location.replace('hub.html');
   document.getElementById('loginWrap').style.display='flex';
   document.getElementById('app').style.display='none';
   document.getElementById('lEmail').value='';
@@ -4303,6 +4347,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelect
 
 /* ── INIT ────────────────────────────────────────────────────── */
 initFb();
+// admin reconhecido entra direto; senão, fica o login manual (loginWrap)
+autoEnterFromSession();
 </script>
 </body>
 </html>

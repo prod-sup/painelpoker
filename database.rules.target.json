@@ -1,0 +1,62 @@
+{
+  "_comment": "REGRAS-ALVO (pós-migração para Firebase Auth email/senha). NÃO publicar antes da Fase 4 do PLANO-AUTENTICACAO.md — enquanto o login ainda ler pwHash no cliente, publicar isto TRAVA o login. Fonte única: apagar firebase.rules.json e database.rules.json antigos ao adotar este.",
+
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "users": {
+      "_comment": "Admin (lista fixa por e-mail do token do Firebase Auth) lê a coleção inteira p/ a gestão de usuários. Cada usuário só lê/escreve o PRÓPRIO registro, provado pelo authUid gravado nele (não pelo nome da chave). pwHash deixa de ser legível por qualquer um.",
+      ".read": "auth != null && (auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group')",
+      "$userKey": {
+        ".read": "auth != null && data.child('authUid').val() === auth.uid",
+        ".write": "auth != null && ((!data.child('authUid').exists() && newData.child('authUid').val() === auth.uid) || data.child('authUid').val() === auth.uid || auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group')",
+        "authUid":        { ".validate": "newData.isString()" },
+        "admin":          { ".validate": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'" },
+        "blocked":        { ".validate": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'" }
+      }
+    },
+
+    "hub": {
+      "_comment": "Calendário, links e patch notes: todo mundo logado lê; só admin escreve.",
+      ".read": "auth != null",
+      "calendar":       { ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'", "$id": { ".validate": "newData.hasChildren(['date','title'])" } },
+      "calendarHidden": { ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'" },
+      "links":          { ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'", "$id": { ".validate": "newData.hasChildren(['url','title'])" } },
+      "linksHidden":    { ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'" },
+      "patchNotes":     { ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'", ".validate": "newData.hasChildren(['text'])" }
+    },
+
+    "painel": {
+      "_comment": "Operação diária: qualquer operador logado lê e escreve (marcar criado, IDs, presença). Validações mínimas por segurança.",
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$dia": {
+        "criacaoNoturna": {
+          "done":     { "$key": { ".validate": "newData.hasChild('by')" } },
+          "ids":      { "$key": { ".validate": "newData.hasChild('val')" } },
+          "presence": { "$sid": { ".validate": "newData.hasChild('name')" } }
+        }
+      }
+    },
+
+    "snapshots":  { ".read": "auth != null", ".write": false },
+
+    "userNotifs": {
+      "$opKey": {
+        ".read": "auth != null && (data.parent().parent().child('users').child($opKey).child('authUid').val() === auth.uid || auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group')",
+        ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'"
+      }
+    },
+
+    "adminLog": {
+      ".read": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'",
+      ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'"
+    },
+
+    "passwordReset": {
+      "_comment": "Deixa de existir na Fase 4: o reset passa a ser o e-mail nativo do Firebase (sendPasswordResetEmail). Bloqueado.",
+      ".read": false, ".write": false
+    }
+  }
+}
