@@ -1121,12 +1121,15 @@ if (location.protocol === 'file:') {
 
   try {
     firebase.initializeApp(FIREBASE_CONFIG);
+    // Mesmo protocolo do painel: a conexão fica pronta JÁ — o auth anônimo
+    // roda em paralelo (se falhar, os listeners é que não recebem dados).
+    // Antes o db/fbReady do gate nunca eram setados e login/gravações no hub
+    // morriam com "Sem conexão com o servidor".
+    db = firebase.database();
+    fbReady = true;
+    initBoards(db);
     firebase.auth().signInAnonymously().then(() => {
-      const db = firebase.database();
       const { tomorrow } = opDates();
-
-      // calendário + patch notes ficam vivos assim que o auth anônimo entra
-      initBoards(db);
 
       // Painel: operadores online agora
       db.ref('presence').on('value', s => {
