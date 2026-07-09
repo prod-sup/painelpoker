@@ -5,12 +5,19 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Cash Intelligence · Suprema OS</title>
 <script>
-/* ── PORTÃO DE ACESSO: o login do Suprema OS mora no hub (hub.html).
-   Sem sessão válida ('suprema_session_v1'), redireciona pro hub ANTES de renderizar. ── */
+/* ── PORTÃO DE ACESSO: Mesa Cash é ÁREA DE ADMIN. O login mora no hub (hub.html).
+   Sem sessão válida ('suprema_session_v1') OU sem ser admin, redireciona pro hub
+   ANTES de renderizar — vale de qualquer origem (link direto, outra página etc.). ── */
 (function(){
+  var ADMIN_EMAILS = ['brian@suprema.group','admin@suprema.group','brian.rodrigues@suprema.group'];
   try{
     var s = JSON.parse(localStorage.getItem('suprema_session_v1') || 'null');
-    if(!s || !s.email || !s.expiresAt || Date.now() > s.expiresAt) location.replace('hub.html');
+    if(!s || !s.email || !s.expiresAt || Date.now() > s.expiresAt){ location.replace('hub.html'); return; }
+    var email = (s.email || '').toLowerCase();
+    var trusted = '';
+    try{ trusted = (localStorage.getItem('suprema_trusted_admin') || '').toLowerCase(); }catch(e){}
+    var isAdmin = ADMIN_EMAILS.indexOf(email) !== -1 || (trusted && trusted === email);
+    if(!isAdmin) location.replace('hub.html');   // operador comum não entra na Mesa Cash
   }catch(e){ location.replace('hub.html'); }
 })();
 </script>

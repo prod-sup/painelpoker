@@ -90,6 +90,16 @@ já criadas não atrapalham — o login legado continua válido porque `pwHash` 
 
 ## Fase 2 — Deixar a base migrar sozinha (dias/semanas)
 
+**ATENÇÃO — quem já estava logado NÃO migra sozinho.** A migração acontece no
+*momento do login* (precisa da senha em texto, que a sessão salva não guarda). Quem
+tem sessão válida (365 dias) entra direto e nunca passa pelo login — logo, nunca
+migra só navegando. Para migrar, a pessoa precisa **sair e entrar de novo uma vez**
+(mesma senha). Isso vale para os já-logados no dia do deploy (ex.: Brian e Kelly).
+Estratégia de rollout: pedir para a equipe sair/entrar uma vez, ou, perto da Fase 4,
+forçar re-login/reset dos que ainda não têm `authUid`. A rede de segurança final é a
+trava da Fase 4 (`onAuthStateChanged`): quem chegar sem usuário do Firebase Auth é
+mandado ao login uma vez e migra ali — ninguém perde a conta.
+
 Com a Fase 1 no ar, todo login migra um usuário. Acompanhar o progresso:
 
 - Contagem de migrados: no Console, quantos registros em `users` já têm `authUid` vs total.

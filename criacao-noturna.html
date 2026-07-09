@@ -534,6 +534,81 @@
   .vtable td.done-col{opacity:.45}
   .vtable td.done-col.vname{text-decoration:line-through}
 
+  /* ── CONFERÊNCIA DO DIA + CRONOGRAMA DE TERCEIROS (overlays temáticos) ── */
+  #confOverlay,#thirdOverlay{
+    position:fixed;inset:0;z-index:95;background:var(--bg);color:var(--ink);
+    display:none;overflow-y:auto;
+  }
+  #confOverlay.open,#thirdOverlay.open{display:block;animation:ovIn .35s var(--ease-expo)}
+  @keyframes ovIn{from{opacity:0}to{opacity:1}}
+  @media (prefers-reduced-motion:reduce){#confOverlay.open,#thirdOverlay.open{animation:none}}
+  .conf-inner,.third-inner{max-width:1180px;margin:0 auto;padding:40px 34px 80px}
+  .ov-head{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:8px}
+  .ov-head h2{font-family:var(--display);font-size:26px;font-weight:800;letter-spacing:-.02em}
+  .ov-head .ov-day{font-family:var(--mono);font-size:14px;color:var(--felt-bright);font-weight:700}
+  .ov-lead{font-size:13px;color:var(--ink-soft);line-height:1.6;margin:2px 0 22px;max-width:720px}
+  .ov-prog{display:flex;align-items:center;gap:14px;margin:0 0 22px;flex-wrap:wrap}
+  .ov-prog .pill{
+    font-family:var(--mono);font-size:12.5px;font-weight:800;padding:6px 13px;border-radius:99px;
+    background:var(--felt-soft);color:var(--felt-bright);
+  }
+  .ov-prog .bar{flex:1;min-width:160px;height:10px;border-radius:99px;background:var(--hairline);overflow:hidden}
+  .ov-prog .bar .fill{height:100%;border-radius:99px;background:var(--felt-bright);transition:width .7s var(--ease-expo)}
+
+  /* folha de conferência: campos nas linhas, torneios nas colunas */
+  .conf-scroll{overflow-x:auto;border:1px solid var(--hairline);border-radius:var(--radius-md);background:var(--card)}
+  table.conf-table{border-collapse:collapse;width:100%}
+  .conf-table th,.conf-table td{
+    padding:9px 14px;font-size:12.5px;border-bottom:1px solid var(--hairline);
+    border-right:1px solid var(--hairline);white-space:nowrap;text-align:left;vertical-align:middle;
+  }
+  .conf-table tr:last-child th,.conf-table tr:last-child td{border-bottom:none}
+  .conf-table .rowlab{
+    position:sticky;left:0;z-index:2;background:var(--card-elevated);
+    font-size:10.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft);min-width:118px;
+  }
+  .conf-table thead .rowlab{color:var(--ink)}
+  .conf-table td.cf-name{font-weight:700;max-width:200px;white-space:normal;line-height:1.35}
+  .conf-table td.cf-time{font-family:var(--mono);font-weight:750;color:var(--felt-bright)}
+  .conf-table td.cf-num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .conf-table col.cf-done,.conf-table td.cf-ok{opacity:.5}
+  .conf-table td.cf-ok.cf-name{text-decoration:line-through}
+  .conf-table thead th{background:var(--card-elevated);position:sticky;top:0;z-index:1}
+  .cf-chk{
+    width:24px;height:24px;border-radius:7px;border:2px solid var(--hairline);cursor:pointer;
+    display:inline-grid;place-items:center;background:transparent;color:transparent;
+    transition:background .18s,border-color .18s,color .18s,transform .1s;
+  }
+  .cf-chk:hover{border-color:var(--felt-bright)}
+  .cf-chk:active{transform:scale(.9)}
+  .cf-chk.on{background:var(--felt-bright);border-color:var(--felt-bright);color:#08130c}
+  .cf-chk svg{width:13px;height:13px;stroke:currentColor;stroke-width:3.2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .cf-by{display:block;font-size:9px;color:var(--ink-soft);margin-top:3px;font-family:var(--mono)}
+
+  /* cronograma de terceiros */
+  .third-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;align-items:center}
+  .third-scroll{overflow-x:auto;border:1px solid var(--hairline);border-radius:var(--radius-md);background:var(--card)}
+  table.third-table{border-collapse:collapse;width:100%;min-width:720px}
+  .third-table th,.third-table td{padding:8px 12px;font-size:12.5px;border-bottom:1px solid var(--hairline);text-align:left;vertical-align:middle}
+  .third-table th{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);background:var(--card-elevated)}
+  .third-table tr:last-child td{border-bottom:none}
+  .third-table td.tp-time{font-family:var(--mono);font-weight:750;color:var(--felt-bright);white-space:nowrap}
+  .third-table td.tp-num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .third-table input, .third-table select{
+    width:100%;min-width:70px;background:transparent;border:1px solid transparent;border-radius:7px;
+    padding:6px 8px;font:inherit;color:var(--ink);
+  }
+  .third-table input:hover,.third-table select:hover{border-color:var(--hairline)}
+  .third-table input:focus,.third-table select:focus{border-color:var(--felt-bright);outline:none;background:var(--card-elevated)}
+  .tp-del{border:none;background:transparent;color:var(--ink-soft);cursor:pointer;font-size:16px;padding:4px 8px;border-radius:7px;line-height:1}
+  .tp-del:hover{color:var(--main-bright);background:var(--main-soft)}
+  .third-day-head td{
+    background:var(--felt-soft);color:var(--felt-bright);font-weight:800;font-size:11px;
+    letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;
+  }
+  .third-empty,.conf-empty{text-align:center;padding:56px 20px;color:var(--ink-soft);font-size:13.5px;line-height:1.6}
+  .third-empty .ic,.conf-empty .ic{font-size:34px;display:block;margin-bottom:10px}
+
   /* ══ ELEMENTOS DE POKER na planilha ══ */
   /* ticket com borda picotada (furos nas laterais + picote no canhoto) */
   .tkt{
@@ -604,6 +679,55 @@
   }
   .alldone .go:hover{background:var(--felt-bright)}
   @media (prefers-reduced-motion:reduce){ .alldone{animation:none} }
+
+  /* ── aviso de fechamento dos planos de mesa (toda segunda 05:00) ── */
+  .plan-deadline{
+    position:fixed;left:50%;top:70px;transform:translateX(-50%) translateY(-14px);
+    z-index:70;display:none;align-items:center;gap:14px;
+    max-width:min(680px,calc(100vw - 28px));
+    padding:13px 18px;border-radius:14px;
+    background:var(--card);border:1px solid var(--gold);
+    box-shadow:0 18px 46px -18px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.02);
+    opacity:0;transition:opacity .4s var(--ease-expo), transform .4s var(--ease-expo);
+    will-change:opacity,transform;
+  }
+  .plan-deadline.show{display:flex;opacity:1;transform:translateX(-50%) translateY(0)}
+  .plan-deadline .pd-ic{
+    width:40px;height:40px;flex:none;border-radius:12px;display:grid;place-items:center;
+    font-size:19px;background:var(--gold-soft);color:var(--gold);position:relative;
+  }
+  /* anel de pulso: opacidade só (compositor) — nunca box-shadow animado */
+  .plan-deadline .pd-ic::after{
+    content:"";position:absolute;inset:-4px;border-radius:15px;
+    box-shadow:0 0 0 2px currentColor inset;opacity:0;
+  }
+  .plan-deadline.lvl2 .pd-ic::after{animation:pd-ring 2s ease-in-out infinite}
+  .plan-deadline.lvl3 .pd-ic::after{animation:pd-ring 1.05s ease-in-out infinite}
+  @keyframes pd-ring{0%,100%{opacity:0}50%{opacity:.85}}
+  .plan-deadline .pd-txt{min-width:0}
+  .plan-deadline .pd-title{
+    font-family:var(--display);font-size:13.5px;font-weight:800;letter-spacing:-.01em;color:var(--ink);
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  }
+  .plan-deadline .pd-count{
+    font-family:var(--mono);font-weight:800;font-variant-numeric:tabular-nums;
+    color:var(--gold);font-size:13px;
+  }
+  .plan-deadline .pd-sub{font-size:11.5px;color:var(--ink-soft);line-height:1.5;margin-top:2px}
+  .plan-deadline .pd-x{
+    flex:none;margin-left:2px;width:26px;height:26px;border-radius:8px;border:1px solid var(--hairline);
+    background:transparent;color:var(--ink-soft);cursor:pointer;font-size:14px;line-height:1;
+    display:grid;place-items:center;transition:border-color .2s,color .2s;
+  }
+  .plan-deadline .pd-x:hover{border-color:var(--gold);color:var(--ink)}
+  /* escalonamento: 30min = âmbar forte, 15min/estourou = vermelho */
+  .plan-deadline.lvl2{border-color:var(--gold)}
+  .plan-deadline.lvl3{border-color:var(--main-bright)}
+  .plan-deadline.lvl3 .pd-ic{background:var(--main-soft);color:var(--main-bright)}
+  .plan-deadline.lvl3 .pd-count{color:var(--main-bright)}
+  .plan-deadline.lvl3 .pd-title .pd-count{color:var(--main-bright)}
+  @media (prefers-reduced-motion:reduce){ .plan-deadline .pd-ic::after{animation:none!important} }
+  @media (max-width:560px){ .plan-deadline{top:62px;padding:11px 13px;gap:10px} }
 
   /* alertas */
   .alerts{display:flex;flex-direction:column;gap:8px;margin:14px 0}
@@ -1151,6 +1275,14 @@
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
       Histórico
     </button>
+    <button class="btn ghost" id="confBtn" title="Dados transpostos dos eventos — folha de conferência diária">
+      <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Conferência do dia
+    </button>
+    <button class="btn ghost" id="thirdBtn" title="Cronograma de eventos de outras salas / terceiros">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      Terceiros
+    </button>
   </div>
 
 </main>
@@ -1158,6 +1290,10 @@
 <div id="focusOverlay"><div class="focus-card" id="focusCard"></div></div>
 
 <div id="tvOverlay"><button class="tv-close" id="tvClose" title="Fechar (Esc)">✕</button><div class="tv-inner" id="tvInner"></div></div>
+
+<div id="confOverlay"><button class="tv-close" id="confClose" title="Fechar (Esc)">✕</button><div class="conf-inner" id="confInner"></div></div>
+
+<div id="thirdOverlay"><button class="tv-close" id="thirdClose" title="Fechar (Esc)">✕</button><div class="third-inner" id="thirdInner"></div></div>
 
 <div id="toast" role="status" aria-live="polite"></div>
 
@@ -1565,6 +1701,7 @@ const FIREBASE_CONFIG = {
   appId: "1:140511032441:web:dcf970125bbf5eec53d0a8"
 };
 const FB_PATH = `painel/${TOMORROW_ISO}/criacaoNoturna`;
+const FB_GLOBAL = `painel/global`;   // dados que não são do dia (ex.: cronograma de terceiros)
 
 let fbDb = null;
 let DATA = null;          // {main, side, sat[], unknown, warnings, by, at}
@@ -1576,6 +1713,8 @@ let OVERRIDES = {};       // itemKey -> opName — reatribuições manuais (hand
 let MAP = {};             // fieldKey -> rótulo da coluna (mapeamento manual vence a auto-detecção)
 let PRESENCE = {};        // sessionId -> {name, at}
 let AUDIT = {};           // itemKey -> {status:'erro', motivo, by, at} — marcado pelo Admin
+let CONF = {};            // itemKey -> {by, at} — conferência diária (separado de "criado")
+let THIRD = [];           // [{sala, evento, dia, hora, buyin, gtd, obs}] — cronograma de terceiros (global)
 let SEARCH = '';
 let CURRENCY = localStorage.getItem('cn_currency') || 'usd';
 let FILTER = 'all';
@@ -1653,6 +1792,17 @@ try{
     if (now > before) showToast(`⚠ A auditoria marcou ${now - before} erro(s) de criação — veja o alerta no topo.`, true);
     renderAll();
     renderFocus();
+  });
+  // conferência diária (marcações de "conferido") — por dia da grade
+  fbDb.ref(`${FB_PATH}/conf`).on('value', s => {
+    CONF = s.val() || {};
+    renderConf();
+  });
+  // cronograma de eventos de terceiros — global (recorrente, não é do dia)
+  fbDb.ref(`${FB_GLOBAL}/thirdParty`).on('value', s => {
+    const v = s.val();
+    THIRD = Array.isArray(v) ? v.filter(Boolean) : (v ? Object.values(v).filter(Boolean) : []);
+    renderThird();
   });
 }catch(e){
   console.error('Firebase indisponível — modo local', e);
@@ -1985,6 +2135,7 @@ function renderAllNow(){
   renderFieldDiag();
   renderList();
   renderTV();
+  renderConf();
 }
 /* PERF: os listeners do Firebase disparam em rajada (done + ids + roles no mesmo
    segundo) — agrupa tudo num render só, em vez de reconstruir a tabela 3–4x */
@@ -2087,6 +2238,122 @@ function closeTV(){ TV_OPEN = false; $('tvOverlay').classList.remove('open'); }
 $('tvBtn').addEventListener('click', openTV);
 $('tvClose').addEventListener('click', closeTV);
 $('allDoneExport').addEventListener('click', () => $('exportBtn').click());
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CONFERÊNCIA DO DIA — dados transpostos (campos nas linhas, torneios nas
+   colunas) só com os números que se confere contra o Pokerbyte, + uma linha
+   de "Conferido" marcável por torneio (separada de "Criado"), sincronizada.
+═══════════════════════════════════════════════════════════════════════ */
+let CONF_OPEN = false;
+function infoDisp(info){ return info ? escHtml(info.disp != null ? info.disp : info.raw) : '—'; }
+const CONF_ROWS = [
+  {lab:'Horário',      cls:'cf-time', get:c => escHtml(c.it.hora || '—')},
+  {lab:'Buy-in',       cls:'cf-num',  get:c => escHtml(fmtMoneyPlain(c.it.buyin))},
+  {lab:'Garantido',    cls:'cf-num',  get:c => escHtml(fmtMoneyPlain(c.it.garantido))},
+  {lab:'Admin Fee',    cls:'',        get:c => { const a = adminFeeParts(c.it); return a ? escHtml(a.main) : '—'; }},
+  {lab:'Early Bird',   cls:'',        get:c => { const e = earlyParts(c.it); return e ? escHtml(e.main) + (e.sub ? ` <span style="opacity:.55">${escHtml(e.sub)}</span>` : '') : '—'; }},
+  {lab:'Campanha',     cls:'',        get:c => hasCampaign(c.it) ? '✦ ' + infoDisp(campInfo(c.it)) : '—'},
+  {lab:'Structure',    cls:'',        get:c => infoDisp(structureInfo(c.it))},
+  {lab:'Chips',        cls:'cf-num',  get:c => infoDisp(chipsInfo(c.it))},
+  {lab:'ID Pokerbyte', cls:'cf-num',  get:c => idVal(c.key) ? escHtml(idVal(c.key)) : '<span style="opacity:.4">—</span>'},
+  {lab:'Operador',     cls:'',        get:c => c.op ? escHtml(c.op.split(' ')[0]) : '—'},
+  {lab:'Criado',       cls:'',        get:c => DONE[c.key] ? '<span style="color:var(--felt-bright);font-weight:800">✓</span>' : '<span style="opacity:.4">—</span>'},
+];
+function confCols(){
+  const asg = computeAssignments();
+  const cols = [];
+  SECTIONS.forEach(cat => catItems(cat).forEach(it => {
+    const key = itemKey(it);
+    cols.push({it, cat, key, op: asg[key], conf: !!CONF[key]});
+  }));
+  return cols;
+}
+function toggleConf(key){
+  const cur = CONF[key];
+  if (fbDb){
+    if (cur){ fbDb.ref(`${FB_PATH}/conf/${key}`).remove(); logEvent('desconferiu', key); }
+    else { fbDb.ref(`${FB_PATH}/conf/${key}`).set({by: ME || 'Alguém', at: Date.now()}); logEvent('conferiu', key); }
+  } else {
+    if (cur) delete CONF[key]; else CONF[key] = {by: ME, at: Date.now()};
+    renderConf();
+  }
+}
+function renderConf(){
+  if (!CONF_OPEN) return;
+  const inner = $('confInner');
+  if (!DATA){ inner.innerHTML = `<div class="conf-empty"><span class="ic">🌙</span>Carregue a Global MTT pra montar a folha de conferência.</div>`; return; }
+  const cols = confCols();
+  if (!cols.length){ inner.innerHTML = `<div class="conf-empty"><span class="ic">🃏</span>Nenhum torneio pra conferir.</div>`; return; }
+  const total = cols.length, done = cols.filter(c => c.conf).length;
+  const pct = total ? Math.round(done/total*100) : 0;
+  const suitColor = cat => cat.cls === 'main' ? 'var(--main-bright)' : cat.cls === 'side' ? 'var(--side-bright)' : cat.cls === 'sidefree' ? 'var(--sidefree-bright)' : 'var(--felt-bright)';
+  const head = `<tr><th class="rowlab">Torneio</th>${cols.map(c =>
+    `<td class="cf-name ${c.conf ? 'cf-ok' : ''}"><span style="color:${suitColor(c.cat)};font-weight:800">${c.cat.suit}</span> ${escHtml(c.it.nome)}</td>`).join('')}</tr>`;
+  const body = CONF_ROWS.map(r =>
+    `<tr><th class="rowlab">${r.lab}</th>${cols.map(c =>
+      `<td class="${r.cls} ${c.conf ? 'cf-ok' : ''}">${r.get(c)}</td>`).join('')}</tr>`).join('');
+  const check = `<tr><th class="rowlab" style="color:var(--felt-bright)">Conferido</th>${cols.map(c =>
+    `<td style="text-align:center"><button class="cf-chk ${c.conf ? 'on' : ''}" data-conf="${escHtml(c.key)}" title="${c.conf && CONF[c.key] && CONF[c.key].by ? 'Conferido por ' + escHtml(CONF[c.key].by) : 'Marcar como conferido'}"><svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>${c.conf && CONF[c.key] && CONF[c.key].by ? `<span class="cf-by">${escHtml((CONF[c.key].by||'').split(' ')[0])}</span>` : ''}</td>`).join('')}</tr>`;
+  inner.innerHTML = `
+    <div class="ov-head"><h2>✔ Conferência do dia</h2><span class="ov-day">${WEEKDAY_TOMORROW} ${refToLabel(TURNO.refTomorrow)}</span></div>
+    <p class="ov-lead">Dados transpostos dos eventos — campos nas linhas, torneios nas colunas. Bata cada número com o Pokerbyte e marque <b>Conferido</b>. A conferência é diária e sincroniza com o turno ao vivo.</p>
+    <div class="ov-prog"><span class="pill">${done}/${total} conferidos</span><div class="bar"><div class="fill" style="width:${pct}%"></div></div></div>
+    <div class="conf-scroll"><table class="conf-table"><thead>${head}</thead><tbody>${body}${check}</tbody></table></div>`;
+  inner.querySelectorAll('[data-conf]').forEach(b => b.addEventListener('click', () => toggleConf(b.dataset.conf)));
+}
+function openConf(){ if (!DATA){ showToast('Carregue a Global primeiro.', true); return; } CONF_OPEN = true; $('confOverlay').classList.add('open'); renderConf(); }
+function closeConf(){ CONF_OPEN = false; $('confOverlay').classList.remove('open'); }
+$('confBtn').addEventListener('click', openConf);
+$('confClose').addEventListener('click', closeConf);
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CRONOGRAMA DE EVENTOS DE TERCEIROS — schedule recorrente (outras salas /
+   parceiros) que o turno precisa conhecer. Editável e global (não é do dia).
+═══════════════════════════════════════════════════════════════════════ */
+let THIRD_OPEN = false;
+const THIRD_DAYS = ['Diário','Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'];
+function saveThird(){
+  if (fbDb) fbDb.ref(`${FB_GLOBAL}/thirdParty`).set(THIRD);
+  else renderThird();
+}
+function renderThird(){
+  if (!THIRD_OPEN) return;
+  // não re-renderizar enquanto a pessoa digita numa célula (evita perder o foco)
+  const ae = document.activeElement;
+  if (ae && ae.closest && ae.closest('.third-table')) return;
+  const inner = $('thirdInner');
+  const rows = THIRD.map((r, i) => {
+    const dayOpts = THIRD_DAYS.map(d => `<option value="${d}" ${(r.dia||'')===d?'selected':''}>${d}</option>`).join('');
+    return `<tr>
+      <td><input data-i="${i}" data-f="sala" value="${escHtml(r.sala||'')}" placeholder="Sala / origem"></td>
+      <td><input data-i="${i}" data-f="evento" value="${escHtml(r.evento||'')}" placeholder="Nome do evento"></td>
+      <td><select data-i="${i}" data-f="dia"><option value="">—</option>${dayOpts}</select></td>
+      <td class="tp-time"><input data-i="${i}" data-f="hora" value="${escHtml(r.hora||'')}" placeholder="00:00" style="max-width:76px"></td>
+      <td class="tp-num"><input data-i="${i}" data-f="buyin" value="${escHtml(r.buyin||'')}" placeholder="Buy-in" style="max-width:96px"></td>
+      <td class="tp-num"><input data-i="${i}" data-f="gtd" value="${escHtml(r.gtd||'')}" placeholder="GTD" style="max-width:110px"></td>
+      <td><input data-i="${i}" data-f="obs" value="${escHtml(r.obs||'')}" placeholder="Observações"></td>
+      <td><button class="tp-del" data-del="${i}" title="Remover linha">✕</button></td>
+    </tr>`;
+  }).join('');
+  inner.innerHTML = `
+    <div class="ov-head"><h2>🗓️ Cronograma de terceiros</h2></div>
+    <p class="ov-lead">Eventos de <b>outras salas / parceiros</b> que o turno precisa ter no radar — recorrente e compartilhado entre todos. Edite direto nas células; salva sozinho.</p>
+    <div class="third-toolbar"><button class="btn primary" id="thirdAdd"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Adicionar evento</button>
+      <span class="section-note" style="opacity:.8">${THIRD.length} evento(s) no cronograma</span></div>
+    ${THIRD.length ? `<div class="third-scroll"><table class="third-table">
+      <thead><tr><th>Sala</th><th>Evento</th><th>Dia</th><th>Horário</th><th>Buy-in</th><th>GTD</th><th>Obs.</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`
+    : `<div class="third-empty"><span class="ic">🗓️</span>Nenhum evento de terceiro cadastrado ainda.<br>Clique em <b>Adicionar evento</b> pra montar o cronograma.</div>`}`;
+  $('thirdAdd').addEventListener('click', () => { THIRD.push({sala:'',evento:'',dia:'',hora:'',buyin:'',gtd:'',obs:''}); saveThird(); renderThird(); const inp = inner.querySelector('tbody tr:last-child input'); if (inp) inp.focus(); });
+  inner.querySelectorAll('input[data-i],select[data-i]').forEach(el => {
+    el.addEventListener('change', () => { const i = +el.dataset.i; if (THIRD[i]){ THIRD[i][el.dataset.f] = el.value; saveThird(); } });
+  });
+  inner.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => { THIRD.splice(+b.dataset.del, 1); saveThird(); renderThird(); }));
+}
+function openThird(){ THIRD_OPEN = true; $('thirdOverlay').classList.add('open'); renderThird(); }
+function closeThird(){ THIRD_OPEN = false; $('thirdOverlay').classList.remove('open'); }
+$('thirdBtn').addEventListener('click', openThird);
+$('thirdClose').addEventListener('click', closeThird);
 
 /* mostra QUAIS colunas da Global foram reconhecidas como Admin Fee / Rake /
    Early Bird / Campanha — reaproveita a MESMA lógica de detecção (probe com
@@ -2285,15 +2552,18 @@ function urgLabel(it){
 }
 
 /* ── ID do evento (Pokerbyte) — compartilhado com o turno via Firebase ── */
-function setId(key, val){
+function setId(key, val, autoCheck = true){
   val = String(val || '').trim();
   if (fbDb){
     if (val){ fbDb.ref(`${FB_PATH}/ids/${key}`).set({val, by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP}); logEvent('registrou ID', `${key} → ${val}`); }
     else { fbDb.ref(`${FB_PATH}/ids/${key}`).remove(); logEvent('apagou ID', key); }
   } else {
     if (val) IDS[key] = {val, by: ME}; else delete IDS[key];
-    renderAll();
   }
+  // check automático: cadastrar o ID = o evento existe no Pokerbyte, então marca "criado".
+  // só marca (nunca desmarca) e só se ainda não estava criado — apagar o ID não reverte.
+  if (autoCheck && val && !DONE[key]) markDone(key);
+  else if (!fbDb) renderAll();
 }
 function idVal(key){ return IDS[key] ? IDS[key].val : ''; }
 function idInputHtml(key, extraStyle){
@@ -3033,7 +3303,7 @@ function renderFocus(){
   // #6 "Criado" abre a conferência antes de confirmar
   $('focusDone').addEventListener('click', () => {
     const idv = $('focusIdInp').value.trim();
-    if (idv && idv !== idVal(key)) setId(key, idv);
+    if (idv && idv !== idVal(key)) setId(key, idv, false); // no foco, a conferência é que confirma
     openCreateConfirm(it, cat, key, () => { markDone(key); focusAdvance(); });
   });
   $('focusSkip').addEventListener('click', () => { FOCUS_SKIP.add(key); focusAdvance(); });
@@ -3041,7 +3311,7 @@ function renderFocus(){
     try{ await navigator.clipboard.writeText(recipeText(it, cat.label)); showToast('Receita completa copiada 📋'); }
     catch(e){ showToast('Não consegui copiar.', true); }
   });
-  $('focusIdInp').addEventListener('change', () => setId(key, $('focusIdInp').value));
+  $('focusIdInp').addEventListener('change', () => setId(key, $('focusIdInp').value, false));
   $('focusIdInp').addEventListener('keydown', e => { if (e.key === 'Enter') $('focusDone').click(); });
 
   // por-campo: toque marca "digitei" e AVANÇA o campo atual; botão copia só o valor
@@ -3075,6 +3345,8 @@ $('focusOverlay').addEventListener('click', e => { if (e.target === $('focusOver
 document.addEventListener('keydown', e => {
   if ($('popMenu') && e.key === 'Escape'){ closePickMenu(); return; }
   if (TV_OPEN && e.key === 'Escape'){ closeTV(); return; }
+  if (CONF_OPEN && e.key === 'Escape'){ closeConf(); return; }
+  if (THIRD_OPEN && e.key === 'Escape'){ closeThird(); return; }
   const confirmEl = $('focusConfirm');
   if (confirmEl){
     if (e.key === 'Escape'){ confirmEl.remove(); e.preventDefault(); }
@@ -3138,6 +3410,116 @@ setInterval(() => {
   // não re-renderizar o foco enquanto a pessoa digita o ID ou marca campos
   if (!(FOCUS_OPEN && ae && ae.id === 'focusIdInp')) renderFocus();
 }, 60000);
+
+/* ── AVISO: fechamento dos planos de mesa — toda SEGUNDA 05:00 (BRT) ──
+   Aparece 1h, 30min e 15min antes (banner escalonado + notificação nativa).
+   Deadline = próxima segunda 05:00 no fuso America/Sao_Paulo. ── */
+(function tablePlanDeadline(){
+  const THRESHOLDS = [60, 30, 15];   // minutos antes que disparam o aviso
+  const NOTIF_KEY  = 'cn_plan_notified_v1';   // {deadlineTs: [thresholds já notificados]}
+  let notified = {};
+  try{ notified = JSON.parse(localStorage.getItem(NOTIF_KEY)) || {}; }catch(e){ notified = {}; }
+  let dismissedFor = 0;              // nível de escalonamento que o usuário fechou p/ este deadline
+
+  // "agora" em SP como se fosse UTC — assim getUTCDay()/getUTCHours() = relógio de parede de SP
+  function spNowUTC(){
+    const n = nowInSP();
+    return new Date(Date.UTC(n.year, n.month-1, n.day, n.hour, n.minute, n.second));
+  }
+  // próxima segunda-feira 05:00 (SP). Se hoje é segunda e ainda não deu 05:00, é hoje.
+  function nextDeadline(){
+    const now = spNowUTC();
+    const t = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 5, 0, 0));
+    const toMon = (1 - t.getUTCDay() + 7) % 7;         // dias até segunda (0=dom,1=seg)
+    t.setUTCDate(t.getUTCDate() + toMon);
+    if (t.getTime() <= now.getTime()) t.setUTCDate(t.getUTCDate() + 7);
+    return { now, target: t, minsLeft: (t.getTime() - now.getTime()) / 60000 };
+  }
+
+  // elemento (criado uma vez)
+  let el = null;
+  function ensureEl(){
+    if (el) return el;
+    el = document.createElement('div');
+    el.className = 'plan-deadline';
+    el.innerHTML =
+      `<div class="pd-ic">🗂️</div>
+       <div class="pd-txt">
+         <div class="pd-title">Fechar os planos de mesa <span class="pd-count" id="pdCount"></span></div>
+         <div class="pd-sub" id="pdSub"></div>
+       </div>
+       <button class="pd-x" id="pdX" title="Ocultar até o próximo aviso" aria-label="Ocultar">✕</button>`;
+    document.body.appendChild(el);
+    el.querySelector('#pdX').addEventListener('click', () => {
+      dismissedFor = curLevel;   // esconde até subir de nível (30→15) ou passar do prazo
+      el.classList.remove('show');
+    });
+    return el;
+  }
+
+  let curLevel = 0;  // 0 nada · 1 (≤60) · 2 (≤30) · 3 (≤15 ou estourou)
+  function fmtLeft(m){
+    if (m <= 0) return 'agora';
+    const h = Math.floor(m/60), mm = Math.floor(m%60);
+    return h > 0 ? `${h}h${String(mm).padStart(2,'0')}` : `${mm}min`;
+  }
+  function levelOf(m){
+    if (m <= 15) return 3;
+    if (m <= 30) return 2;
+    if (m <= 60) return 1;
+    return 0;
+  }
+
+  function tick(){
+    const d = nextDeadline();
+    const key = String(d.target.getTime());
+    // limpa notificações de deadlines antigos
+    Object.keys(notified).forEach(k => { if (Number(k) < d.now.getTime() - 3600000) delete notified[k]; });
+
+    // dispara notificação nativa ao CRUZAR cada limiar (janela de ~1 min)
+    if ('Notification' in window && Notification.permission === 'granted'){
+      const fired = notified[key] || [];
+      THRESHOLDS.forEach(T => {
+        if (d.minsLeft <= T && d.minsLeft > T - 1.2 && !fired.includes(T)){
+          fired.push(T);
+          try{ new Notification('🗂️ Fechamento dos planos de mesa', {
+            body: `Faltam ${T} min (segunda 05:00). Feche os planos de mesa antes do prazo.`,
+            tag: 'plan-deadline'
+          }); }catch(e){}
+        }
+      });
+      notified[key] = fired;
+      try{ localStorage.setItem(NOTIF_KEY, JSON.stringify(notified)); }catch(e){}
+    }
+
+    // banner: visível de 60min antes até 30min DEPOIS do prazo (grace pra pegar as 05:00)
+    const passed = d.minsLeft <= 0;
+    const inGrace = passed && d.minsLeft > -30;
+    const lvl = passed ? (inGrace ? 3 : 0) : levelOf(d.minsLeft);
+    curLevel = lvl;
+    if (lvl === 0){ if (el) el.classList.remove('show'); dismissedFor = 0; return; }
+
+    ensureEl();
+    // subiu de nível → reexibe mesmo se o usuário tinha fechado
+    if (dismissedFor && lvl > dismissedFor) dismissedFor = 0;
+    el.classList.toggle('lvl2', lvl === 2);
+    el.classList.toggle('lvl3', lvl === 3);
+    el.classList.remove('lvl1');
+    const count = el.querySelector('#pdCount');
+    const sub   = el.querySelector('#pdSub');
+    if (passed){
+      count.textContent = '· prazo às 05:00';
+      sub.textContent = 'Passou das 05:00 — confirme que os planos de mesa foram fechados.';
+    } else {
+      count.textContent = `· faltam ${fmtLeft(d.minsLeft)}`;
+      sub.textContent = 'Prazo toda segunda-feira às 05:00 (BRT). Feche os planos de mesa antes do horário.';
+    }
+    if (!dismissedFor) el.classList.add('show');
+  }
+
+  tick();
+  setInterval(tick, 20000);   // atualiza o contador e checa os limiares
+})();
 
 /* ── segmented: moeda + orientação ── */
 $('currencySeg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
