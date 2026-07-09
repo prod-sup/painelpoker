@@ -704,6 +704,8 @@
   .plan-deadline.lvl2 .pd-ic::after{animation:pd-ring 2s ease-in-out infinite}
   .plan-deadline.lvl3 .pd-ic::after{animation:pd-ring 1.05s ease-in-out infinite}
   @keyframes pd-ring{0%,100%{opacity:0}50%{opacity:.85}}
+  /* congela toda animação quando a janela perde o foco/fica oculta — não pesar nos outros apps */
+  body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{animation-play-state:paused!important}
   .plan-deadline .pd-txt{min-width:0}
   .plan-deadline .pd-title{
     font-family:var(--display);font-size:13.5px;font-weight:800;letter-spacing:-.01em;color:var(--ink);
@@ -3595,6 +3597,14 @@ $('summaryBtn').addEventListener('click', async () => {
     showToast('Resumo copiado — pronto pra colar no grupo 📋');
   }catch(e){ showToast('Não consegui copiar.', true); }
 });
+
+/* pausa animações quando a janela sai de foco / fica oculta — mantém o PC fluido p/ os outros apps */
+(function freezeWhenBlurred(){
+  const set = b => document.body.classList.toggle('win-blurred', b);
+  addEventListener('blur', () => set(true));
+  addEventListener('focus', () => set(false));
+  document.addEventListener('visibilitychange', () => set(document.hidden));
+})();
 </script>
 </body>
 </html>

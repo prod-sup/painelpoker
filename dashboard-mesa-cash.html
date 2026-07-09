@@ -125,6 +125,10 @@ a,button{font-family:inherit;cursor:pointer;text-decoration:none;color:inherit;b
 .pulse.dia{background:var(--dia);box-shadow:0 0 0 0 rgba(79,142,247,.4)}
 .pulse.noite{background:var(--noite);box-shadow:0 0 0 0 rgba(167,139,250,.4)}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.7;transform:scale(.9)}}
+/* congela toda animação quando a janela perde o foco / fica oculta — o browser só
+   freia abas OCULTAS, não janela visível-sem-foco; sem isso o painel roda a 60fps
+   pra sempre e pesa nos outros apps (cliente Suprema no outro monitor etc). */
+body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{animation-play-state:paused!important}
 .up-btn{display:flex;align-items:center;gap:5px;padding:6px 13px;border-radius:8px;background:var(--dia);color:#fff;font-size:11px;font-weight:800;transition:opacity .15s,transform .12s var(--ease);letter-spacing:.01em}
 .up-btn:hover{opacity:.85}
 .up-btn:active{transform:scale(.97)}
@@ -2202,6 +2206,14 @@ function startApp(){
   buildRet();buildDurFee();buildHM();buildHist();
 }
 enterFromHubSession();
+
+/* pausa as animações quando a janela sai de foco / fica oculta (fluidez p/ os outros apps) */
+(function freezeWhenBlurred(){
+  var set = function(b){ document.body.classList.toggle('win-blurred', b); };
+  addEventListener('blur', function(){ set(true); });
+  addEventListener('focus', function(){ set(false); });
+  document.addEventListener('visibilitychange', function(){ set(document.hidden); });
+})();
 </script>
 </body>
 </html>

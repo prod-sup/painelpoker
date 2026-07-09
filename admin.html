@@ -302,7 +302,7 @@ html.dark .lbox{border-color:var(--border)}
 .tb-back{
   font-size:13px;color:var(--ink2);padding:6px 13px;border-radius:8px;
   background:transparent;border:1px solid var(--border);
-  display:flex;align-items:center;gap:6px;transition:all .12s;
+  display:flex;align-items:center;gap:6px;transition:background .12s,border-color .12s,color .12s;
 }
 .tb-back:hover{background:var(--s3);color:var(--ink)}
 
@@ -383,7 +383,7 @@ html.dark .lbox{border-color:var(--border)}
 }
 .ptab{
   padding:6px 14px;border-radius:7px;font-size:13px;font-weight:500;
-  color:var(--ink2);transition:all .15s;letter-spacing:-.01em;
+  color:var(--ink2);transition:background .15s,color .15s;letter-spacing:-.01em;
 }
 .ptab:hover{color:var(--ink)}
 .ptab.active{
@@ -592,10 +592,13 @@ td.center{text-align:center}
   background:var(--s1);border:1px solid var(--border);border-radius:var(--r3);
   padding:32px;max-width:480px;width:90%;
   box-shadow:var(--sh-3);
-  /* entrada decidida (ease-expo, sem bounce) resolvendo um leve desfoque */
+  /* entrada decidida (ease-expo, sem bounce). Só transform/opacity — animar filter:blur
+     re-filtra a cada frame e trava; o desfoque saiu de propósito. */
   animation:popIn .42s var(--ease-expo);
 }
-@keyframes popIn{from{opacity:0;transform:scale(.95) translateY(14px);filter:blur(6px)}to{opacity:1;transform:none;filter:blur(0)}}
+@keyframes popIn{from{opacity:0;transform:scale(.95) translateY(14px)}to{opacity:1;transform:none}}
+/* congela animações quando a janela perde o foco / fica oculta — não pesar nos outros apps do PC */
+body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{animation-play-state:paused!important}
 .modal h2{font-size:20px;font-weight:600;margin-bottom:6px;letter-spacing:-.022em;color:var(--ink)}
 .modal .msub{font-size:13.5px;color:var(--ink2);margin-bottom:22px;letter-spacing:-.005em;line-height:1.45}
 .mf{margin-bottom:14px}
@@ -623,7 +626,7 @@ td.center{text-align:center}
   backdrop-filter:saturate(180%) blur(20px);
   border:1px solid var(--border);border-radius:12px;
   padding:12px 18px;font-size:13.5px;font-weight:500;color:var(--ink);
-  transform:translateY(12px);opacity:0;transition:all .25s cubic-bezier(.34,1.56,.64,1);
+  transform:translateY(12px);opacity:0;transition:transform .25s var(--ease-quart),opacity .25s var(--ease-quart);
   pointer-events:none;max-width:320px;
   box-shadow:var(--sh-3);
   letter-spacing:-.005em;
@@ -656,7 +659,7 @@ td.center{text-align:center}
 .notif-type-btn{
   flex:1;padding:9px 12px;border-radius:9px;font-size:12.5px;font-weight:500;
   border:1px solid var(--border);background:var(--s1);color:var(--ink2);
-  cursor:pointer;transition:all .12s;text-align:center;
+  cursor:pointer;transition:background .12s,border-color .12s,color .12s;text-align:center;
   letter-spacing:-.005em;box-shadow:var(--sh-1);
 }
 .notif-type-btn:hover{border-color:var(--gold);color:var(--gold);background:var(--goldf)}
@@ -710,7 +713,7 @@ a.tb-back{text-decoration:none}
 .audit-edit-btn{
   padding:3px 8px;border-radius:6px;font-size:10px;font-weight:700;
   background:var(--s3);color:var(--ink2);border:1px solid var(--border);
-  cursor:pointer;transition:all .12s;white-space:nowrap;
+  cursor:pointer;transition:background .12s,border-color .12s,color .12s;white-space:nowrap;
 }
 .audit-edit-btn:hover{background:var(--goldf);color:var(--gold);border-color:var(--goldb)}
 .audit-edit-btn.auditado{background:var(--goldf);color:var(--gold);border-color:var(--goldb)}
@@ -905,7 +908,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
           <select id="cnOp" onchange="renderCn()"><option value="">Todos</option></select>
         </div>
         <div class="fld"><label>Torneio</label>
-          <input type="text" id="cnSearch" placeholder="Buscar por nome..." oninput="renderCn()">
+          <input type="text" id="cnSearch" placeholder="Buscar por nome..." oninput="debounced('cn',renderCn,150)">
         </div>
       </div>
       <div class="kpi-grid" id="cnKpi"></div>
@@ -1014,7 +1017,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
           </select>
         </div>
         <div class="fld"><label>Buscar</label>
-          <input type="text" id="gradeSearch" placeholder="Nome do torneio..." oninput="renderGrade()">
+          <input type="text" id="gradeSearch" placeholder="Nome do torneio..." oninput="debounced('grade',renderGrade,150)">
         </div>
       </div>
       <div class="card">
@@ -4345,10 +4348,25 @@ function exportAuditSummaryXlsx(){
 }
 document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-bg.open').forEach(m=>m.classList.remove('open'));});
 
+/* debounce por chave: buscas não re-renderizam a lista a cada tecla (fluidez ao digitar) */
+var _dbTimers = {};
+function debounced(key, fn, ms){
+  clearTimeout(_dbTimers[key]);
+  _dbTimers[key] = setTimeout(fn, ms || 150);
+}
+
 /* ── INIT ────────────────────────────────────────────────────── */
 initFb();
 // admin reconhecido entra direto; senão, fica o login manual (loginWrap)
 autoEnterFromSession();
+
+/* pausa animações quando a janela sai de foco / fica oculta — fluidez p/ os outros apps */
+(function freezeWhenBlurred(){
+  var set = function(b){ document.body.classList.toggle('win-blurred', b); };
+  addEventListener('blur', function(){ set(true); });
+  addEventListener('focus', function(){ set(false); });
+  document.addEventListener('visibilitychange', function(){ set(document.hidden); });
+})();
 </script>
 </body>
 </html>

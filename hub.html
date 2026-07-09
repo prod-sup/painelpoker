@@ -791,9 +791,9 @@ html.light .ev-form input[type=date],html.light .ev-form input[type=time]{color-
 @keyframes frameSweep{ to{--frameAngle:360deg} }
 @keyframes frameHalo{ 0%,100%{opacity:.14} 50%{opacity:.5} }
 
-/* congela as molduras quando a janela está sem foco (não pesar nos outros apps) */
-body.win-blurred [data-tier]::before,
-body.win-blurred [data-tier]::after{ animation-play-state:paused !important; }
+/* congela TODA animação (molduras, naipes à deriva, pulsos) quando a janela perde
+   o foco / fica oculta — não pesar nos outros apps do PC */
+body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{ animation-play-state:paused !important; }
 
 @media (prefers-reduced-motion: reduce){
   .pf-overlay,.pf-panel,.pf-xp .bar i{transition:none}
