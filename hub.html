@@ -2667,8 +2667,15 @@ if (location.protocol === 'file:') {
         glow.className = 'cursor-glow';
         glow.setAttribute('aria-hidden','true');
         t.appendChild(glow);
+        // rect medido 1x por hover (getBoundingClientRect força layout) —
+        // scroll/resize invalidam
+        let rect = null;
+        const drop = () => { rect = null; };
+        addEventListener('scroll', drop, {passive:true, capture:true});
+        addEventListener('resize', drop, {passive:true});
+        t.addEventListener('pointerenter', drop);
         t.addEventListener('pointermove', e => {
-          const r = t.getBoundingClientRect();
+          const r = rect || (rect = t.getBoundingClientRect());
           const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
           t.style.setProperty('--mx', (x*100).toFixed(1) + '%');
           t.style.setProperty('--my', (y*100).toFixed(1) + '%');
@@ -3333,7 +3340,12 @@ if (location.protocol === 'file:') {
         else document.getElementById('livePainel').hidden = true;
       };
       db.ref('presence').on('value', s => { pOnline = s.numChildren(); paintPainel(); });
-      db.ref(`painel/${today}/sheet/rows`).on('value', s => { pTorneios = s.numChildren(); paintPainel(); });
+      // lê só o contador (barato); planilhas antigas sem `count` caem no fallback de 1 leitura das rows
+      db.ref(`painel/${today}/sheet/count`).on('value', s => {
+        const n = s.val();
+        if(typeof n === 'number'){ pTorneios = n; paintPainel(); }
+        else db.ref(`painel/${today}/sheet/rows`).once('value').then(r => { pTorneios = r.numChildren(); paintPainel(); });
+      });
       db.ref(`painel/${today}/checklist`).on('value', s => { pConferidos = s.numChildren(); paintPainel(); });
 
       // Criação GU: progresso da noite (torneios criados / total da receita)

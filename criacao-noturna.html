@@ -43,6 +43,9 @@ html.dark body::before{
     radial-gradient(90% 60% at 85% 110%, rgba(216,181,109,.06), transparent 55%);
 }
 body > *{position:relative;z-index:1}
+/* fluidez: cada bloco de tabela da receita fora da tela é pulado pelo
+   browser (a GU cheia pode passar de 100 torneios) */
+.vwrap{content-visibility:auto;contain-intrinsic-size:auto 520px}
 </style>
 <style>
   /* ══════════════════════════════════════════════════════════════════

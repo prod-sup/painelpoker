@@ -187,12 +187,16 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{animatio
 .card{
   border:1px solid var(--bdr);border-radius:var(--r3);padding:20px;box-shadow:var(--sh);
   transition:border-color .18s var(--ease);
-  /* vidro fosco (ref. MotionSites/Liquid Glass), com fallback sólido */
-  background:color-mix(in srgb, var(--surf) 86%, transparent);
-  -webkit-backdrop-filter:blur(12px) saturate(150%);
-  backdrop-filter:blur(12px) saturate(150%);
+  /* translúcido SEM blur: com 32 cards, backdrop-filter em todos custava
+     compositor à toa (o fundo aqui é quase plano — o vidro nem aparecia).
+     O header mantém o blur de verdade. */
+  background:color-mix(in srgb, var(--surf) 93%, transparent);
+  /* fluidez: card fora da tela (inclusive os canvas do Chart.js) não é
+     renderizado até entrar no viewport */
+  content-visibility:auto;
+  contain-intrinsic-size:auto 380px;
 }
-@supports not (backdrop-filter:blur(1px)){ .card{background:var(--surf)} }
+@supports not (background:color-mix(in srgb, #000 50%, #fff)){ .card{background:var(--surf)} }
 .card:hover{border-color:var(--bdr2)}
 .card+.card{margin-top:0}
 .ct{font-size:13px;font-weight:800;letter-spacing:-.01em;color:var(--ink);margin-bottom:2px}

@@ -138,10 +138,22 @@
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
   }
 
-  /* brilho que segue o cursor dentro dos cards que casam com `selector` */
+  /* brilho que segue o cursor dentro dos cards que casam com `selector`.
+     Perf: getBoundingClientRect é CARO em página grande (força layout) —
+     o rect é medido uma vez por hover e reaproveitado; scroll/resize
+     invalidam o cache de todo mundo via contador de época. */
+  var rectEpoch = 0;
+  var epochWired = false;
+  function wireEpoch() {
+    if (epochWired) return;
+    epochWired = true;
+    addEventListener('scroll', function () { rectEpoch++; }, { passive: true, capture: true });
+    addEventListener('resize', function () { rectEpoch++; }, { passive: true });
+  }
   function glow(selector) {
     if (!fine || calm) return;
     injectCss();
+    wireEpoch();
     document.addEventListener('pointermove', function (e) {
       var el = e.target && e.target.closest ? e.target.closest(selector) : null;
       if (!el) return;
@@ -154,7 +166,11 @@
         el.classList.add('sp-has-glow');
         el.__spGlow = g;
       }
-      var r = el.getBoundingClientRect();
+      if (!el.__spRect || el.__spEpoch !== rectEpoch) {
+        el.__spRect = el.getBoundingClientRect();
+        el.__spEpoch = rectEpoch;
+      }
+      var r = el.__spRect;
       el.style.setProperty('--sp-mx', ((e.clientX - r.left) / r.width * 100).toFixed(1) + '%');
       el.style.setProperty('--sp-my', ((e.clientY - r.top) / r.height * 100).toFixed(1) + '%');
     }, { passive: true });

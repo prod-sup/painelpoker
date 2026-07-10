@@ -431,6 +431,10 @@ html.dark .lbox{border-color:var(--border)}
 .card{
   background:var(--s1);border:1px solid var(--border);border-radius:var(--r2);
   overflow:hidden;margin-bottom:20px;box-shadow:var(--sh-1);
+  /* fluidez: com ~17k nós, o browser pula render/layout dos cards fora da
+     tela (tabelões só custam quando visíveis); a altura estimada segura o scroll */
+  content-visibility:auto;
+  contain-intrinsic-size:auto 420px;
 }
 .card-head{
   padding:16px 20px;border-bottom:1px solid var(--border2);
@@ -1756,10 +1760,11 @@ async function enterApp(email, name){
   await loadAll();
   document.getElementById('loader').classList.remove('on');
   initDates();
-  await loadAudit();
-  await loadOps();
-  await loadUsers();
-  loadPendingNotifs();
+  await loadAudit();   // a aba inicial (Acompanhamento) precisa disto
+  // o resto sai do caminho crítico: a primeira tela já está de pé,
+  // operadores/usuários/notificações carregam quando a thread sobrar
+  const idle = window.requestIdleCallback || (fn => setTimeout(fn, 350));
+  idle(async () => { await loadOps(); await loadUsers(); loadPendingNotifs(); });
 }
 
 /* ── RECONHECIMENTO AUTOMÁTICO ──
@@ -1821,14 +1826,22 @@ function doLogout(){
 // painel/{date}/garantido  → {rk_XXX: valor} (sobrescrito)
 // snapshots/{date}/rows    → objeto completo com tudo pronto
 
-async function loadAll(){
+let _loadAllFull = false;   // true depois que o backup puxou o histórico inteiro
+async function loadAll(fullHistory){
   if(!fbOk)return;
+  if(fullHistory) _loadAllFull = true;
   _allData={};
 
-  // Carregar snapshots e painel em paralelo (mais rápido)
+  // Janela de 60 dias por padrão: as chaves são datas ISO, então orderByKey
+  // corta no servidor — sem isso o admin baixava o histórico INTEIRO do banco
+  // a cada abertura (custo de rede/memória crescendo pra sempre). O backup
+  // é a exceção: chama loadAll(true) e leva tudo.
+  const since = _loadAllFull ? null : dago(60);
+  const painelQ = since ? db.ref('painel').orderByKey().startAt(since)    : db.ref('painel');
+  const snapQ   = since ? db.ref('snapshots').orderByKey().startAt(since) : db.ref('snapshots');
   const [snapSnap, painelSnapPar] = await Promise.all([
-    db.ref('snapshots').once('value'),
-    db.ref('painel').once('value'),
+    snapQ.once('value'),
+    painelQ.once('value'),
   ]);
   const snapRaw  = snapSnap.val()||{};
   Object.entries(snapRaw).forEach(([date,snap])=>{
@@ -3446,7 +3459,7 @@ async function initBackup(){
   if(urlField && !urlField.value) urlField.value = localStorage.getItem('suprema_sheets_url') || '';
   const secretField = document.getElementById('sheetsSecret');
   if(secretField && !secretField.value) secretField.value = localStorage.getItem('suprema_sheets_secret') || '';
-  await loadAll();
+  await loadAll(true);   // backup exporta o histórico COMPLETO, não a janela de 60 dias
   const dates = Object.keys(_allData).sort();
   if(!dates.length){ document.getElementById('backupKpi').innerHTML='<div style="color:var(--ink3);font-size:12px">Nenhum dado encontrado.</div>'; return; }
 

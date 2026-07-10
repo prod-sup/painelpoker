@@ -1271,6 +1271,24 @@
   }
   .tf-sheet-done:hover{ background:var(--felt); }
 
+  /* ── Seletor de horário no DARK: a folha era #fff hardcoded, então os fades
+     escuros pintavam blocos pretos sobre cartão branco. Aqui o sheet inteiro
+     vira o cartão escuro, com os fades/roda/botão na mesma matéria. ── */
+  html.dark .tf-sheet-overlay{ background:rgba(0,0,0,0.55); }
+  html.dark .tf-sheet{
+    background:var(--card);
+    border:1px solid var(--hairline-strong);
+    box-shadow:0 -10px 48px rgba(0,0,0,0.6);
+  }
+  html.dark .tf-sheet-handle{ background:var(--hairline-strong); }
+  html.dark .tf-sheet-title{ color:var(--ink); }
+  html.dark .tf-wheel-item{ background:transparent; border:none; color:var(--ink-faint); }
+  html.dark .tf-wheel-item.is-selected{ color:var(--felt-bright); }
+  html.dark .tf-wheel-colon{ color:var(--ink); }
+  html.dark .tf-wheel-selection-bar{ background:var(--felt-soft); box-shadow:inset 0 0 0 1px var(--felt); }
+  html.dark .tf-sheet-done{ background:var(--felt-bright); color:#0d1210; }
+  html.dark .tf-sheet-done:hover{ background:var(--felt); color:#fff; }
+
   .grid-cards{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
   @media (max-width:900px){ .grid-cards{grid-template-columns:repeat(2,1fr);} }
   @media (max-width:620px){ .grid-cards{grid-template-columns:1fr;} }
@@ -2984,3 +3002,10 @@ html.dark .routine-tool-desc b{ color:var(--felt-bright); }
 
 /* fichas do herói (substituem as cartas): redondas, com aro tracejado de ficha real */
 .hcard.hchip{ border-radius:50%; width:118px; filter:drop-shadow(0 16px 30px rgba(12,30,22,.22)); }
+
+/* ── FLUIDEZ: o browser pula render/layout do que está fora da tela ──
+   127 cards de torneio + a seção Learn inteira só custam quando visíveis.
+   contain-intrinsic-size reserva a altura estimada (scrollbar não pula). */
+.tcard{ content-visibility:auto; contain-intrinsic-size:auto 230px; }
+.learn-card{ content-visibility:auto; contain-intrinsic-size:auto 260px; }
+.ev-item, .checklist-item{ content-visibility:auto; contain-intrinsic-size:auto 64px; }

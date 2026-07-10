@@ -17,6 +17,7 @@ const STATIC_ASSETS = [
   '/painelpoker/suprema-auth.js',
   '/painelpoker/suprema-motion.js',
   '/painelpoker/painel.css',
+  '/painelpoker/painel.js',
   '/painelpoker/manifest.json',
 ];
 
