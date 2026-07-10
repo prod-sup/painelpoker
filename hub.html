@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Suprema OS</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%23d8b56d'>♠</text></svg>">
+<!-- tokens compartilhados da marca ANTES do estilo local: o hub é o único
+     produto sempre-dark, então os valores locais (abaixo) vencem os pontes
+     :root do arquivo — mas os nomes --sup-* ficam disponíveis aqui também -->
+<link rel="stylesheet" href="suprema-tokens.css">
 <style>
 /* ============================================================
    SUPREMA OS — hub de produtos do Grupo Suprema
@@ -389,6 +393,68 @@ nav{
 #calBoard{grid-column:1;grid-row:1 / span 2}
 #lkBoard{grid-column:2;grid-row:1}
 #pnBoard{grid-column:2;grid-row:2;align-self:start}
+#lbBoard{grid-column:1 / -1;grid-row:3}
+#lbBoard{--tint:#5ad0ff}
+.lb-note{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint)}
+.lb-list{display:flex;flex-direction:column;gap:6px}
+.lb-row{
+  display:flex;align-items:center;gap:12px;padding:9px 14px 9px 10px;
+  border:1px solid var(--hairline);border-radius:12px;
+  transition:border-color .3s var(--ease);
+}
+.lb-row:hover{border-color:color-mix(in srgb, var(--gold) 40%, transparent)}
+.lb-row.me{border-color:color-mix(in srgb, var(--gold) 55%, transparent);background:var(--gold-soft)}
+.lb-pos{
+  flex:none;width:26px;height:26px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:12px;font-weight:800;color:var(--ink-soft);
+  border:1px solid var(--hairline);
+}
+.lb-pos.p1{color:#14100a;background:linear-gradient(150deg,#f0d79a,#c9a84c);border-color:transparent}
+.lb-pos.p2{color:#14100a;background:linear-gradient(150deg,#e8edf3,#aab4c4);border-color:transparent}
+.lb-pos.p3{color:#f2ede2;background:linear-gradient(150deg,#b07f47,#7d5a34);border-color:transparent}
+.lb-face{
+  position:relative;flex:none;width:32px;height:32px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;font-size:14px;
+  background:linear-gradient(145deg,#1d7a52,#0f4a31);color:#f2ede2;
+}
+.lb-face[data-tier]::before{inset:-3px !important;padding:2px !important}
+.lb-face[data-tier]::after{content:none !important}
+.lb-nm{min-width:0;font-size:13.5px;font-weight:700;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb-nm small{font-weight:400;color:var(--ink-faint);font-size:11px}
+.lb-lv{margin-left:auto;flex:none;font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+.lb-xp{flex:none;font-family:var(--mono);font-size:12px;font-weight:800;color:var(--gold)}
+
+/* missões do dia */
+.pf-missions{display:flex;flex-direction:column;gap:8px}
+.pf-mission{
+  display:grid;grid-template-columns:22px 1fr 72px;align-items:center;gap:10px;
+  border:1px solid var(--hairline);border-radius:12px;padding:9px 12px;
+}
+.pf-mission.done{border-color:color-mix(in srgb, var(--felt) 45%, transparent);background:color-mix(in srgb, var(--felt) 8%, transparent)}
+.pm-check{
+  width:20px;height:20px;border-radius:99px;display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--hairline);font-size:11px;color:#fff;
+}
+.pf-mission.done .pm-check{background:var(--felt);border-color:var(--felt)}
+.pm-txt{min-width:0}
+.pm-txt b{display:block;font-size:12.5px;letter-spacing:-.01em}
+.pm-txt span{font-family:var(--mono);font-size:10px;color:var(--ink-soft)}
+.pf-mission.done .pm-txt span{color:var(--felt)}
+.pm-bar{height:5px;border-radius:99px;background:color-mix(in srgb, var(--ink-faint) 22%, transparent);overflow:hidden}
+.pm-bar i{display:block;height:100%;border-radius:inherit;background:var(--gold);transform-origin:left;transition:transform .6s var(--ease)}
+.pf-mission.done .pm-bar i{background:var(--felt)}
+
+/* atividade: 14 dias + uso por ferramenta */
+.pa-days{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.pa-lbl{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+.pa-dots{display:flex;gap:4px}
+.pa-dot{width:9px;height:9px;border-radius:3px;background:color-mix(in srgb, var(--ink-faint) 22%, transparent)}
+.pa-dot.on{background:var(--felt)}
+.pa-tool{display:grid;grid-template-columns:110px 1fr 40px;align-items:center;gap:10px;margin:6px 0}
+.pa-nm{font-size:11.5px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pa-track{height:6px;border-radius:99px;background:color-mix(in srgb, var(--ink-faint) 18%, transparent);overflow:hidden}
+.pa-track i{display:block;height:100%;border-radius:inherit;transition:width .6s var(--ease)}
+.pa-n{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-soft);text-align:right}
 .board{
   position:relative;overflow:hidden;
   border:1px solid var(--hairline);border-radius:var(--radius);
@@ -472,8 +538,8 @@ html.js-reveal .board.in{
   border:1px solid color-mix(in srgb, var(--felt) 22%, transparent);
 }
 .cal-dow{
-  text-align:center;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--ink-faint);padding:2px 0 5px;
+  text-align:center;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-soft);padding:2px 0 5px;
 }
 .cal-day{
   position:relative;aspect-ratio:1.5/1;border-radius:8px;border:1px solid transparent;
@@ -501,6 +567,7 @@ html.js-reveal .board.in{
 .cal-daymarks{display:flex;gap:2px;align-items:center;justify-content:center}
 .cal-day.admin-click{cursor:pointer}
 .cal-day.admin-click:hover{border-color:var(--hairline)}
+.cal-day.admin-click:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
 /* lista de eventos: a data é uma carta de baralho na mesa */
 .ev-list{margin-top:14px;display:flex;flex-direction:column;gap:8px}
 .ev-empty{font-size:12.5px;color:var(--ink-faint);padding:6px 2px}
@@ -651,7 +718,7 @@ html.light .ev-form input[type=date],html.light .ev-form input[type=time]{color-
 .pn-hint{font-size:11px;color:var(--ink-faint);margin:8px 0 0}
 @media (max-width:900px){
   .boards{grid-template-columns:1fr}
-  #calBoard,#lkBoard,#pnBoard{grid-column:auto;grid-row:auto}
+  #calBoard,#lkBoard,#pnBoard,#lbBoard{grid-column:auto;grid-row:auto}
 }
 
 /* ---------- perfil do operador: a experiência mora aqui no hub ----------
@@ -1014,7 +1081,7 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{ animati
   background:color-mix(in srgb, var(--rk,#8a8f98) 10%, transparent);
 }
 .pf-rank-badge b{ font-family:var(--display);font-size:13px;letter-spacing:-.01em;color:var(--rk,#8a8f98) }
-.pf-rank-badge span{ font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint) }
+.pf-rank-badge span{ font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft) }
 .pf-rank-badge[data-rank="ferro"]{ --rk:#8a8f98 }
 .pf-rank-badge[data-rank="bronze"]{ --rk:#c08a4e }
 .pf-rank-badge[data-rank="prata"]{ --rk:#b9c3d1 }
@@ -1054,7 +1121,7 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{ animati
   background:var(--gold-soft);border-radius:12px;padding:9px 13px;
 }
 .pf-next-reward[hidden]{display:none}
-.pf-next-reward .nr-ic{ font-size:18px;flex:none;animation:nr-bounce 2.6s var(--ease) infinite }
+.pf-next-reward .nr-ic{ font-size:18px;flex:none;color:var(--gold);display:flex;align-items:center;animation:nr-bounce 2.6s var(--ease) infinite }
 @keyframes nr-bounce{ 0%,72%,100%{transform:none} 78%{transform:translateY(-3px) rotate(-6deg)} 86%{transform:translateY(0) rotate(4deg)} 92%{transform:translateY(-1px) rotate(0)} }
 .pf-next-reward .nr-txt{ min-width:0;flex:1 }
 .pf-next-reward .nr-txt b{ display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);font-family:var(--mono) }
@@ -1081,7 +1148,7 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{ animati
 .fprev[data-tier]::before{ inset:-3px !important; padding:2px !important }
 .fprev[data-tier]::after{ content:none !important }   /* sem halo nos previews (barato) */
 .pf-frame-it .fname{ font-size:10.5px;font-weight:700;letter-spacing:.02em }
-.pf-frame-it .fxp{ font-family:var(--mono);font-size:9px;color:var(--ink-faint) }
+.pf-frame-it .fxp{ font-family:var(--mono);font-size:10px;color:var(--ink-soft) }
 .pf-frame-it .flock{ position:absolute;top:7px;right:9px;font-size:10px }
 .pf-frame-it .fequip{
   position:absolute;top:6px;left:8px;font-size:8.5px;font-weight:800;letter-spacing:.08em;
@@ -1097,7 +1164,16 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{ animati
 }
 .pf-badge:hover{ transform:translateY(-2px);border-color:color-mix(in srgb, var(--gold) 45%, transparent) }
 .pf-badge .bic{ font-size:20px;display:block;line-height:1.2 }
-.pf-badge .bnm{ font-size:9px;font-weight:700;letter-spacing:.02em;display:block;margin-top:4px;line-height:1.25 }
+.pf-badge .bnm{ font-size:10px;font-weight:700;letter-spacing:.02em;display:block;margin-top:4px;line-height:1.25 }
+/* raridade em texto (não só no aro): comum apagada, rara/épica/lendária na cor da liga */
+.pf-badge .brar{
+  display:block;margin-top:3px;font-family:var(--mono);font-size:8.5px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);
+}
+.pf-badge[data-rar="rara"] .brar{ color:#5ad0ff }
+.pf-badge[data-rar="epica"] .brar{ color:#b98cff }
+.pf-badge[data-rar="lendaria"] .brar{ color:var(--gold) }
+.pf-badge.locked .brar{ color:var(--ink-faint) }
 .pf-badge.locked{ opacity:.38 }
 .pf-badge.locked .bic{ filter:grayscale(1) }
 @media (max-width:420px){ .pf-badges{grid-template-columns:repeat(3,1fr)} }
@@ -1271,7 +1347,7 @@ footer{
     <span class="mark" aria-hidden="true">&diams;</span>
     <h2>Admin</h2>
     <p class="desc">Gestão da operação: usuários, períodos, histórico e auditoria.</p>
-    <span class="meta"><span class="lock-badge">&#128274; Somente admin</span><span class="arrow-txt">&Aacute;rea restrita </span><span class="arrow">&rarr;</span></span>
+    <span class="meta"><span class="lock-badge"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> Somente admin</span><span class="arrow-txt">&Aacute;rea restrita </span><span class="arrow">&rarr;</span></span>
   </a>
 
   <a class="tile t-gu" href="criacao-noturna.html" style="--i:2">
@@ -1303,7 +1379,7 @@ footer{
       <h2>Cash Intelligence</h2>
       <p class="desc">Receita das mesas cash por turno: hist&oacute;rico, comportamento e previs&atilde;o.</p>
     </div>
-    <span class="meta"><span class="lock-badge">&#128274; Somente admin</span><span class="arrow-txt">An&aacute;lise de dados </span><span class="arrow">&rarr;</span></span>
+    <span class="meta"><span class="lock-badge"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> Somente admin</span><span class="arrow-txt">An&aacute;lise de dados </span><span class="arrow">&rarr;</span></span>
   </a>
 
 </main>
@@ -1385,6 +1461,17 @@ footer{
     </div>
   </div>
 
+  <!-- ── Mesa dos campeões: leaderboard de XP da casa ── -->
+  <div class="board" id="lbBoard" data-suit="&clubs;" style="--b:3">
+    <div class="board-head">
+      <span class="suit" aria-hidden="true">&clubs;</span>
+      <h2>Mesa dos campe&otilde;es</h2>
+      <span class="spacer"></span>
+      <span class="lb-note">XP de toda a opera&ccedil;&atilde;o</span>
+    </div>
+    <div class="lb-list" id="lbList"><p class="ev-empty">Carregando a mesa&hellip;</p></div>
+  </div>
+
 </section>
 
 <footer>
@@ -1434,6 +1521,16 @@ footer{
         <div class="pf-card-title">Molduras <small id="pfFrameLbl"></small></div>
         <div class="pf-frames" id="pfFrames"></div>
         <p class="pf-hint">A moldura equipada aparece no seu avatar em todo o Suprema OS. Desbloqueie subindo de n&iacute;vel &mdash; e escolha qualquer uma que j&aacute; conquistou.</p>
+      </div>
+
+      <div class="pf-card">
+        <div class="pf-card-title">Miss&otilde;es do dia <small id="pfMissionsHint"></small></div>
+        <div class="pf-missions" id="pfMissions"></div>
+      </div>
+
+      <div class="pf-card">
+        <div class="pf-card-title">Atividade</div>
+        <div class="pf-activity" id="pfActivity"></div>
       </div>
 
       <div class="pf-card">
@@ -2111,13 +2208,19 @@ if (location.protocol === 'file:') {
       const tipLines = [...(hol ? [`Feriado · ${hol}`] : []), ...evs.map(e => `${evWhen(e)} · ${e.title}`)];
       const title = tipLines.length ? ` title="${escHtml(tipLines.join('\n'))}"` : '';
       const marks = [hol?'<span class="dot hol"></span>':'', evs.length?'<span class="dot"></span>':''].filter(Boolean).join('');
-      html += `<span class="${cls}" data-date="${iso}"${title}>${d.getDate()}${marks?`<span class="cal-daymarks">${marks}</span>`:''}</span>`;
+      // a11y: pro admin o dia é interativo (preenche o form) — precisa ser alcançável por Tab+Enter
+      const kbd = admin ? ` tabindex="0" role="button" aria-label="Usar ${iso} no formulário de evento"` : '';
+      html += `<span class="${cls}" data-date="${iso}"${title}${kbd}>${d.getDate()}${marks?`<span class="cal-daymarks">${marks}</span>`:''}</span>`;
     }
     grid.innerHTML = html;
-    // admin: clicar num dia preenche a data do form; qualquer um: clicar num dia com evento navega a lista
-    grid.querySelectorAll('.cal-day').forEach(el => el.addEventListener('click', () => {
-      if(admin){ $('evDate').value = el.dataset.date; $('evTitle').focus(); }
-    }));
+    // admin: clicar (ou Enter/Espaço) num dia preenche a data do form
+    grid.querySelectorAll('.cal-day').forEach(el => {
+      const pick = () => { if(admin){ $('evDate').value = el.dataset.date; $('evTitle').focus(); } };
+      el.addEventListener('click', pick);
+      if(admin) el.addEventListener('keydown', e => {
+        if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); pick(); }
+      });
+    });
   }
 
   function renderEventList(){
@@ -2300,6 +2403,7 @@ if (location.protocol === 'file:') {
     db.ref('hub/calendar').on('value', s => { fbEvents = s.val() || {}; renderCalendar(); renderEventList(); });
     db.ref('hub/calendarHidden').on('value', s => { hiddenSeeds = s.val() || {}; renderCalendar(); renderEventList(); });
     db.ref('hub/patchNotes').on('value', s => { patchNotes = s.val(); renderPatchNotes(); });
+    db.ref('hub/leaderboard').on('value', s => { lbData = s.val() || {}; renderLeaderboard(); });
     db.ref('hub/links').on('value', s => { fbLinks = s.val() || {}; renderLinks(); });
     db.ref('hub/linksHidden').on('value', s => { hiddenLinks = s.val() || {}; renderLinks(); });
     loadUserPrefs(); // tema por usuário + avatar assim que a conexão nasce
@@ -2332,12 +2436,14 @@ if (location.protocol === 'file:') {
     { id:'imortal',     name:'Imortal',          xp:10500, desc:'Seu nome fica na parede.' },
     { id:'tita',        name:'Titã Suprema',     xp:12000, desc:'O topo absoluto da progressão.' },
   ];
-  const levelFromXp = xp => Math.min(50, 1 + Math.floor(Math.sqrt(xp/25)));
-  const xpForLevel = lv => 25*(lv-1)*(lv-1);
+  /* curva calibrada pra jornada terminar junto: nível 50 cai em 12.005 XP —
+     exatamente o marco Suprema (antes exigia 60k, inalcançável) */
+  const levelFromXp = xp => Math.min(50, 1 + Math.floor(Math.sqrt(xp/5)));
+  const xpForLevel = lv => 5*(lv-1)*(lv-1);
   let pfStats = { opens:0, days:0, actions:0, tools:{} };
   let pfTag = null;
 
-  function pfXp(){ return pfStats.opens*XP_PER_OPEN + pfStats.days*XP_PER_DAY + pfStats.actions*XP_PER_ACTION; }
+  function pfXp(){ return pfStats.opens*XP_PER_OPEN + pfStats.days*XP_PER_DAY + pfStats.actions*XP_PER_ACTION + missionsTotal()*XP_PER_MISSION; }
 
   /* ── Molduras de progressão: a jornada completa do operador, do Novato ao
      Suprema. Cada faixa de XP libera um aro melhor no avatar. ── */
@@ -2366,6 +2472,33 @@ if (location.protocol === 'file:') {
   ];
   function rankScore(){ return pfStats.days*10 + Math.min(pfStats.opens,1000) + pfStats.actions*3; }
   function rankFromStats(){ let r = RANKS[0]; const s = rankScore(); for(const rk of RANKS) if(s >= rk.score) r = rk; return r; }
+
+  /* ── MISSÕES DO DIA: metas diárias derivadas de stats/daily/<dia> (que o
+     suprema-auth alimenta em todos os produtos). Completou, o hub grava
+     stats/missions/<dia>/<id> e cada missão cumprida vale 15 XP pra sempre. ── */
+  const XP_PER_MISSION = 15;
+  const MISSIONS = [
+    { id:'abrir1',  nm:'Abra uma ferramenta',            target:1,  of:d => d.opens||0 },
+    { id:'abrir3',  nm:'Abra 3 ferramentas no dia',      target:3,  of:d => d.opens||0 },
+    { id:'acoes10', nm:'Conclua 10 ações na operação',   target:10, of:d => d.actions||0 },
+  ];
+  function missionsToday(){ return (pfStats.missions && pfStats.missions[todayIso()]) || {}; }
+  function missionsTotal(){
+    let n = 0;
+    for(const dia in (pfStats.missions||{})) n += Object.keys(pfStats.missions[dia]).length;
+    return n;
+  }
+  // detecta missões recém-completadas e registra no Firebase (idempotente)
+  function checkMissions(){
+    if(!session || !db || !fbReady) return;
+    const daily = (pfStats.daily && pfStats.daily[todayIso()]) || {};
+    const done = missionsToday();
+    const key = emailToKey(session.email);
+    MISSIONS.forEach(m => {
+      if(!done[m.id] && m.of(daily) >= m.target)
+        db.ref(`users/${key}/stats/missions/${todayIso()}/${m.id}`).set(true).catch(()=>{});
+    });
+  }
   function frameFromXp(xp){ let f = FRAME_TIERS[0]; for(const ft of FRAME_TIERS) if(xp >= ft.xp) f = ft; return f; }
   // pausa a rotação/pulso das molduras quando a janela perde o foco ou fica oculta
   // (o browser só freia abas OCULTAS, não janela visível-sem-foco) — não pesa nos outros apps
@@ -2498,16 +2631,101 @@ if (location.protocol === 'file:') {
     const el = $('pfNextReward'); if(!el) return;
     const xp = pfXp();
     const cands = [];
-    const nf = nextFrame(xp); if(nf) cands.push({xp:nf.xp, txt:`Moldura ${nf.name}`, ic:'🖼️'});
-    const nt = TITLES.find(t => xp < t.xp); if(nt) cands.push({xp:nt.xp, txt:`Título "${nt.name}"`, ic:'🏷️'});
+    // ícones estruturais em SVG (emoji varia por plataforma e não segue o tema)
+    const IC = {
+      frame:  '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><rect x="8" y="8" width="8" height="8" rx="1.5"/></svg>',
+      title:  '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15l-5.5 3 1.5-6L3 8l6-.5L12 2l3 5.5L21 8l-5 4 1.5 6z"/></svg>',
+      banner: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h14v18l-7-4-7 4z"/></svg>'
+    };
+    const nf = nextFrame(xp); if(nf) cands.push({xp:nf.xp, txt:`Moldura ${nf.name}`, ic:IC.frame});
+    const nt = TITLES.find(t => xp < t.xp); if(nt) cands.push({xp:nt.xp, txt:`Título "${nt.name}"`, ic:IC.title});
     const nb = PF_BANNERS.filter(b => xp < b.xp).sort((a,b) => a.xp - b.xp)[0];
-    if(nb) cands.push({xp:nb.xp, txt:`Banner ${nb.nm}`, ic:'🎴'});
+    if(nb) cands.push({xp:nb.xp, txt:`Banner ${nb.nm}`, ic:IC.banner});
     if(!cands.length){ el.hidden = true; return; }
     cands.sort((a,b) => a.xp - b.xp);
     el.hidden = false;
-    $('pfNextRewardIc').textContent = cands[0].ic;
+    $('pfNextRewardIc').innerHTML = cands[0].ic;   // SVG estrutural, não emoji
     $('pfNextRewardTxt').textContent = cands[0].txt;
     $('pfNextRewardXp').textContent = `faltam ${cands[0].xp - xp} XP`;
+  }
+
+  /* ── missões do dia + estatísticas no perfil ── */
+  function renderMissions(){
+    const box = $('pfMissions'); if(!box) return;
+    const daily = (pfStats.daily && pfStats.daily[todayIso()]) || {};
+    const done = missionsToday();
+    box.innerHTML = MISSIONS.map(m => {
+      const cur = Math.min(m.of(daily), m.target), ok = !!done[m.id];
+      return `<div class="pf-mission${ok?' done':''}">
+        <span class="pm-check" aria-hidden="true">${ok?'✓':''}</span>
+        <span class="pm-txt"><b>${escHtml(m.nm)}</b><span>${ok?'Concluída · +'+XP_PER_MISSION+' XP':`${cur}/${m.target}`}</span></span>
+        <span class="pm-bar"><i style="transform:scaleX(${ok?1:(cur/m.target).toFixed(2)})"></i></span>
+      </div>`;
+    }).join('');
+    const tot = missionsTotal();
+    $('pfMissionsHint').textContent = tot
+      ? `${tot} ${tot === 1 ? 'missão cumprida' : 'missões cumpridas'} até hoje · +${tot*XP_PER_MISSION} XP no total`
+      : 'Missões renovam todo dia — cada uma vale 15 XP pra sempre.';
+  }
+  const TOOL_META = {
+    painel:{nm:'Painel do Dia', c:'var(--p-painel)'}, admin:{nm:'Admin', c:'var(--p-admin)'},
+    gu:{nm:'Criação Noturna', c:'var(--p-gu)'}, cash:{nm:'Cash Intelligence', c:'var(--p-cash)'},
+    learn:{nm:'Poker Learn', c:'var(--p-learn)'}, org:{nm:'A Constelação', c:'var(--p-org)'},
+  };
+  function renderActivity(){
+    const box = $('pfActivity'); if(!box) return;
+    // últimos 14 dias: bolinha acesa = dia ativo
+    const dots = [];
+    for(let i = 13; i >= 0; i--){
+      const d = new Date(); d.setDate(d.getDate()-i);
+      const iso = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+      dots.push(`<span class="pa-dot${(pfStats.daysMap && pfStats.daysMap[iso])?' on':''}" title="${iso}"></span>`);
+    }
+    const tools = Object.entries(pfStats.tools||{})
+      .filter(([id]) => TOOL_META[id]).sort((a,b) => b[1]-a[1]);
+    const max = tools.length ? tools[0][1] : 1;
+    box.innerHTML = `
+      <div class="pa-days"><span class="pa-lbl">Últimos 14 dias</span><span class="pa-dots">${dots.join('')}</span></div>
+      ${tools.length ? tools.map(([id,n]) => `
+        <div class="pa-tool">
+          <span class="pa-nm">${TOOL_META[id].nm}</span>
+          <span class="pa-track"><i style="width:${Math.max(6,(n/max*100)).toFixed(0)}%;background:${TOOL_META[id].c}"></i></span>
+          <span class="pa-n">${n}</span>
+        </div>`).join('')
+      : '<p class="pf-hint" style="margin:6px 0 0">Use as ferramentas — os números aparecem aqui.</p>'}`;
+  }
+
+  /* ── leaderboard: publica o próprio placar e desenha a mesa dos campeões ── */
+  let lbData = null, lbLastPub = 0;
+  function lbPublish(){
+    if(!session || !db || !fbReady) return;
+    const now = Date.now();
+    if(now - lbLastPub < 30000) return;   // no máx. a cada 30s
+    lbLastPub = now;
+    let face = '♠'; try{ face = localStorage.getItem('suprema_user_avatar_v1') || '♠'; }catch(e){}
+    db.ref(`hub/leaderboard/${emailToKey(session.email)}`).set({
+      name: session.displayName || session.apelido || session.nome || session.email.split('@')[0],
+      xp: pfXp(), lv: levelFromXp(pfXp()), tier: frameFromXp(pfXp()).t, face, updatedAt: now
+    }).catch(()=>{});
+  }
+  function renderLeaderboard(){
+    const list = $('lbList'); if(!list) return;
+    const rows = Object.entries(lbData || {})
+      .map(([k,v]) => ({key:k, ...v})).filter(r => r && r.name)
+      .sort((a,b) => (b.xp||0) - (a.xp||0)).slice(0,10);
+    if(!rows.length){
+      list.innerHTML = '<p class="ev-empty">A mesa ainda está vazia — o primeiro a jogar leva a ponta.</p>';
+      return;
+    }
+    const meKey = session ? emailToKey(session.email) : null;
+    list.innerHTML = rows.map((r,i) => `
+      <div class="lb-row${r.key === meKey ? ' me' : ''}">
+        <span class="lb-pos p${i+1}">${i+1}</span>
+        <span class="lb-face" ${r.tier ? `data-tier="${r.tier}"` : ''}>${escHtml(r.face || '♠')}</span>
+        <span class="lb-nm">${escHtml(r.name)}${r.key === meKey ? ' <small>(você)</small>' : ''}</span>
+        <span class="lb-lv">Nv ${r.lv || 1}</span>
+        <span class="lb-xp">${(r.xp || 0).toLocaleString('pt-BR')} XP</span>
+      </div>`).join('');
   }
 
   /* badges: conquistas da operação (derivadas das stats — nada extra pra gravar).
@@ -2553,8 +2771,8 @@ if (location.protocol === 'file:') {
     {id:'lv15',      ic:'🧗', nm:'Nível 15',        rar:'rara',     desc:'Alcance o nível 15.',                   test:() => levelFromXp(pfXp()) >= 15},
     {id:'lv20',      ic:'🎖️', nm:'Nível 20',        rar:'rara',     desc:'Alcance o nível 20.',                   test:() => levelFromXp(pfXp()) >= 20},
     {id:'lv25',      ic:'🚀', nm:'Nível 25',        rar:'epica',    desc:'Alcance o nível 25.',                   test:() => levelFromXp(pfXp()) >= 25},
-    {id:'lv35',      ic:'🛰️', nm:'Nível 35',        rar:'epica',    desc:'Alcance o nível 35.',                   test:() => levelFromXp(pfXp()) >= 35},
-    {id:'lv50',      ic:'🌌', nm:'Nível 50',        rar:'lendaria', desc:'Nível máximo — o teto da casa.',        test:() => levelFromXp(pfXp()) >= 50},
+    {id:'lv35',      ic:'🛰️', nm:'Nível 35',        rar:'epica',    desc:'Alcance o nível 35 (5.780 XP).',        test:() => levelFromXp(pfXp()) >= 35},
+    {id:'lv50',      ic:'🌌', nm:'Nível 50',        rar:'lendaria', desc:'Nível máximo — 12.005 XP, o teto da casa.', test:() => levelFromXp(pfXp()) >= 50},
     // ── Marcos da jornada ──
     {id:'bronze',    ic:'🥉', nm:'Bronze',          rar:'comum',    desc:'Alcançou a etapa Bronze (300 XP).',     test:() => pfXp() >= 300},
     {id:'prata',     ic:'🥈', nm:'Prata',           rar:'rara',     desc:'Alcançou a etapa Prata (700 XP).',      test:() => pfXp() >= 700},
@@ -2574,8 +2792,10 @@ if (location.protocol === 'file:') {
     let got = 0;
     box.innerHTML = PF_BADGES.map(b => {
       const on = b.test(); if(on) got++;
-      return `<div class="pf-badge${on?'':' locked'}" data-rar="${b.rar||'comum'}" title="${escHtml(b.desc)} · ${b.rar||'comum'}${on?'':' (bloqueada)'}">
-        <span class="bic">${b.ic}</span><span class="bnm">${escHtml(b.nm)}</span>
+      const rar = b.rar || 'comum';
+      // raridade também em TEXTO (não só a cor do aro) — daltônicos e touch
+      return `<div class="pf-badge${on?'':' locked'}" data-rar="${rar}" title="${escHtml(b.desc)}${on?'':' (bloqueada)'}">
+        <span class="bic">${b.ic}</span><span class="bnm">${escHtml(b.nm)}</span><span class="brar">${rar === 'epica' ? 'épica' : rar === 'lendaria' ? 'lendária' : rar}</span>
       </div>`;
     }).join('');
     const hint = $('pfBadgesHint');
@@ -2606,14 +2826,21 @@ if (location.protocol === 'file:') {
   }
 
   /* level-up: celebração quando o nível sobe (comparado por navegador/conta) */
+  let lvlUpLastFocus = null;
   function showLevelUp(lv){
     $('lvlUpNum').textContent = lv;
     const nf = nextFrame(pfXp());
     $('lvlUpSub').textContent = nf ? `Continue assim — a moldura ${nf.name} chega aos ${nf.xp} XP.` : 'Você está no topo da casa. Moldura máxima equipável. ♠';
     $('lvlUp').classList.add('open');
     $('lvlUp').setAttribute('aria-hidden','false');
+    lvlUpLastFocus = document.activeElement;
+    $('lvlUpOk').focus();   // a11y: Enter fecha a celebração direto
   }
-  function closeLevelUp(){ $('lvlUp').classList.remove('open'); $('lvlUp').setAttribute('aria-hidden','true'); }
+  function closeLevelUp(){
+    $('lvlUp').classList.remove('open'); $('lvlUp').setAttribute('aria-hidden','true');
+    if(lvlUpLastFocus && lvlUpLastFocus.focus) lvlUpLastFocus.focus();
+    lvlUpLastFocus = null;
+  }
   $('lvlUpOk').addEventListener('click', closeLevelUp);
   $('lvlUp').addEventListener('click', e => { if(e.target === $('lvlUp')) closeLevelUp(); });
 
@@ -2650,7 +2877,12 @@ if (location.protocol === 'file:') {
         days: v.days ? Object.keys(v.days).length : 0,
         actions: v.actions ? Object.values(v.actions).reduce((a,n) => a + (+n||0), 0) : 0,
         tools: v.tools || {},
+        daily: v.daily || {},
+        missions: v.missions || {},
+        daysMap: v.days || {},
       };
+      checkMissions();
+      lbPublish();
       renderProfileProgress();
       // level-up: compara com o último nível visto NESTA conta/navegador e celebra
       try{
@@ -2699,6 +2931,8 @@ if (location.protocol === 'file:') {
     applyProgressionFrames();
     renderBadges();
     renderProfileTitles();
+    renderMissions();
+    renderActivity();
   }
   function renderProfileTitles(){
     const xp = pfXp();
@@ -2751,17 +2985,25 @@ if (location.protocol === 'file:') {
     renderProfileTag(); renderProfileProgress();
   }
 
+  let pfLastFocus = null;
   function openProfile(){
     if(!session) return;
     renderProfile();
     pfLoadStats();
     $('pfOverlay').classList.add('open');
     $('pfOverlay').setAttribute('aria-hidden','false');
+    // a11y: foco entra no drawer (senão o Tab continua passeando pela página de trás)
+    pfLastFocus = document.activeElement;
+    $('pfClose').focus();
   }
   function closeProfile(){
+    if(!$('pfOverlay').classList.contains('open')) return;
     $('pfOverlay').classList.remove('open');
     $('pfOverlay').setAttribute('aria-hidden','true');
     if(location.hash === '#perfil') history.replaceState(null,'',location.pathname);
+    // a11y: devolve o foco pra quem abriu o perfil
+    if(pfLastFocus && pfLastFocus.focus) pfLastFocus.focus();
+    pfLastFocus = null;
   }
   $('navAvatar').addEventListener('click', openProfile);
   $('pfClose').addEventListener('click', closeProfile);
@@ -2790,6 +3032,23 @@ if (location.protocol === 'file:') {
 
   // deep-link: os painéis mandam o operador pra cá com hub.html#perfil
   if(location.hash === '#perfil' && session) setTimeout(openProfile, 300);
+
+  // aviso de acesso: as áreas de admin devolvem operador comum pra cá com #sem-acesso
+  if(location.hash === '#sem-acesso'){
+    history.replaceState(null,'',location.pathname);
+    const t = document.createElement('div');
+    t.setAttribute('role','status'); t.setAttribute('aria-live','polite');
+    t.style.cssText = 'position:fixed;left:50%;bottom:30px;transform:translate(-50%,10px);z-index:99999;'+
+      'display:flex;align-items:center;gap:10px;padding:12px 20px;border-radius:99px;pointer-events:none;'+
+      'background:rgba(14,16,15,.94);border:1px solid rgba(216,181,109,.5);color:#f2ede2;'+
+      'font:600 13px/1.3 var(--text);box-shadow:0 12px 34px -10px rgba(0,0,0,.6);'+
+      'opacity:0;transition:opacity .35s var(--ease),transform .35s var(--ease)';
+    t.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#d8b56d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'+
+      '<span>Essa &aacute;rea &eacute; restrita a administradores &mdash; voc&ecirc; est&aacute; de volta ao hub.</span>';
+    document.body.appendChild(t);
+    requestAnimationFrame(() => { t.style.opacity = '1'; t.style.transform = 'translate(-50%,0)'; });
+    setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 5200);
+  }
 
   // primeiro paint (offline / antes do Firebase responder): defaults embutidos
   renderPatchNotes();

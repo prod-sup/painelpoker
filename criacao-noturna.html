@@ -13,10 +13,37 @@
 <script src="suprema-auth.js"></script>
 <script src="suprema-motion.js"></script>
 <script>
-/* motion do Suprema OS (ref. MotionSites): glow no cursor + reveal dos cards */
+/* motion do Suprema OS (ref. MotionSites): glow no cursor + reveal dos cards
+   + a atmosfera do hub (naipes à deriva) */
 SupremaMotion.glow('.card');
-document.addEventListener('DOMContentLoaded', () => SupremaMotion.reveal('.card'));
+document.addEventListener('DOMContentLoaded', () => { SupremaMotion.reveal('.card'); SupremaMotion.ambient(); });
 </script>
+<style>
+/* ── a mesma atmosfera do hub: feltro no horizonte + dourado no canto ── */
+:root{
+  --sp-tint: rgba(14,122,78,.13);
+  --sp-amb:  rgba(14,122,78,.08);
+  --sp-amb2: rgba(138,100,32,.07);
+}
+html.dark{
+  --sp-tint: rgba(216,181,109,.14);
+  --sp-amb:  rgba(24,163,107,.06);
+  --sp-amb2: rgba(216,181,109,.05);
+  color-scheme:dark;
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(120% 70% at 50% -20%, rgba(14,122,78,.08), transparent 60%),
+    radial-gradient(90% 60% at 85% 110%, rgba(138,100,32,.06), transparent 55%);
+}
+html.dark body::before{
+  background:
+    radial-gradient(120% 70% at 50% -20%, rgba(24,163,107,.10), transparent 60%),
+    radial-gradient(90% 60% at 85% 110%, rgba(216,181,109,.06), transparent 55%);
+}
+body > *{position:relative;z-index:1}
+</style>
 <style>
   /* ══════════════════════════════════════════════════════════════════
      DESIGN TOKENS — mesmos do painel (index.html), pra página conversar

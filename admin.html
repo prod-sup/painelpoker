@@ -12,16 +12,23 @@
    reconhecido volta pro hub ANTES de renderizar. ── */
 SupremaAuth.guard();
 /* admin reconhecido: some com a tela de login ANTES do primeiro paint —
-   o autoEnterFromSession (abaixo) entra direto, sem flash de login */
-if (SupremaAuth.recognize().isAdmin) document.documentElement.classList.add('admin-reconhecido');
+   o autoEnterFromSession (abaixo) entra direto, sem flash de login.
+   Operador comum NUNCA vê a tela de login daqui: esconde tudo e o
+   autoEnterFromSession devolve pro hub com o aviso de acesso (a exceção
+   é o admin por flag no Firebase, que o autoEnter confirma no banco). */
+var __rec = SupremaAuth.recognize();
+if (__rec.email) document.documentElement.classList.add('admin-reconhecido');
 </script>
 <style>html.admin-reconhecido #loginWrap{display:none !important}</style>
 <script src="suprema-motion.js"></script>
 <script>
 /* motion do Suprema OS (ref. MotionSites): glow no cursor nos cards e KPIs.
    Sem reveal aqui: o conteúdo do admin nasce dinâmico dentro de abas ocultas,
-   e reveal em elemento oculto o deixaria preso invisível até a aba abrir. */
+   e reveal em elemento oculto o deixaria preso invisível até a aba abrir.
+   busyWatch: enquanto o #loader estiver ligado, fichas caem na ponta do mouse. */
 SupremaMotion.glow('.card, .kpi');
+SupremaMotion.busyWatch('#loader', 'on');
+SupremaMotion.busyAuto();
 </script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%238f6b2d'>♠</text></svg>">
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
@@ -1761,8 +1768,19 @@ async function enterApp(email, name){
    Admin pela Criação" funcionar como uma hub real. */
 async function autoEnterFromSession(){
   const r = SupremaAuth.recognize();
-  if(!r.email || !r.isAdmin) return;               // não-admin: fica no login manual
+  if(!r.email) return;                             // não reconhecido: o guard já mandou pro hub
   const email = r.email.toLowerCase();
+  if(!r.isAdmin){
+    // reconhecido mas fora da lista fixa: pode ser admin por flag no Firebase — confirma;
+    // não sendo, volta pro hub com o aviso (operador comum não vê tela de login do admin)
+    try{
+      const snap = await db.ref(`users/${eKey(email)}`).once('value');
+      const u = snap.val();
+      if(u && u.admin) return enterApp(email, u.apelido||u.nome||email.split('@')[0]);
+    }catch(e){ /* sem leitura: trata como sem acesso */ }
+    location.replace('hub.html#sem-acesso');
+    return;
+  }
   // admin da lista da casa: entra na hora (sem esperar leitura do Firebase)
   if(SupremaAuth.isAdminEmail(email)){
     const nm = (r.session && (r.session.displayName||r.session.apelido||r.session.nome)) || email.split('@')[0];
@@ -1776,12 +1794,6 @@ async function autoEnterFromSession(){
     }
     return enterApp(email, nm);
   }
-  // admin por flag no Firebase (não está na lista fixa): confirma antes de entrar
-  try{
-    const snap = await db.ref(`users/${eKey(email)}`).once('value');
-    const u = snap.val();
-    if(u && u.admin) return enterApp(email, u.apelido||u.nome||email.split('@')[0]);
-  }catch(e){ /* fica no login manual */ }
 }
 
 function doLogout(){

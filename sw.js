@@ -12,6 +12,12 @@ const STATIC_ASSETS = [
   '/painelpoker/admin.html',
   '/painelpoker/dashboard-mesa-cash.html',
   '/painelpoker/suprema-tokens.css',
+  // camadas compartilhadas: TODOS os produtos dependem delas no <head> —
+  // sem elas no pré-cache, o primeiro acesso offline quebra a página inteira
+  '/painelpoker/suprema-auth.js',
+  '/painelpoker/suprema-motion.js',
+  '/painelpoker/painel.css',
+  '/painelpoker/manifest.json',
 ];
 
 self.addEventListener('install', e => {

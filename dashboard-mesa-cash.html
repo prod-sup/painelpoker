@@ -17,7 +17,7 @@
     var trusted = '';
     try{ trusted = (localStorage.getItem('suprema_trusted_admin') || '').toLowerCase(); }catch(e){}
     var isAdmin = ADMIN_EMAILS.indexOf(email) !== -1 || (trusted && trusted === email);
-    if(!isAdmin) location.replace('hub.html');   // operador comum não entra na Mesa Cash
+    if(!isAdmin) location.replace('hub.html#sem-acesso');   // operador comum: volta pro hub com o aviso
   }catch(e){ location.replace('hub.html'); }
 })();
 </script>

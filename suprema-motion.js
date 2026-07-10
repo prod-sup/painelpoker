@@ -34,8 +34,108 @@
       'html.sp-reveal .sp-to-reveal.sp-in{opacity:1;transform:none;' +
         'transition:opacity .65s cubic-bezier(.22,.61,.36,1),transform .65s cubic-bezier(.22,.61,.36,1);' +
         'transition-delay:var(--sp-d,0ms)}' +
-      '@media (prefers-reduced-motion:reduce){html.sp-reveal .sp-to-reveal{opacity:1;transform:none;transition:none}}';
+      '@media (prefers-reduced-motion:reduce){html.sp-reveal .sp-to-reveal{opacity:1;transform:none;transition:none}}' +
+      /* naipes à deriva no fundo (a atmosfera do hub, compartilhada) */
+      '.sp-ambient{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}' +
+      '.sp-ambient span{position:absolute;font-size:var(--fs,120px);line-height:1;user-select:none;' +
+        'color:var(--sp-amb,rgba(24,163,107,.07));animation:sp-drift 26s ease-in-out infinite}' +
+      '.sp-ambient span:nth-child(2n){color:var(--sp-amb2,rgba(216,181,109,.06))}' +
+      '@keyframes sp-drift{0%,100%{transform:translateY(0) rotate(var(--rot,0deg))}50%{transform:translateY(-26px) rotate(calc(var(--rot,0deg) + 4deg))}}' +
+      'body.win-blurred .sp-ambient span{animation-play-state:paused}' +
+      '@media (prefers-reduced-motion:reduce){.sp-ambient span{animation:none}}' +
+      /* cursor de trabalho: fichas caindo perto do ponteiro enquanto algo processa */
+      'body.sp-busy, body.sp-busy *{cursor:progress !important}' +
+      '.sp-busy-chips{position:fixed;z-index:99999;width:34px;height:44px;pointer-events:none;' +
+        'opacity:0;transition:opacity .2s ease}' +
+      '.sp-busy-chips.on{opacity:1}' +
+      '.sp-busy-chips i{position:absolute;left:50%;top:0;width:15px;height:15px;margin-left:-7.5px;border-radius:50%;' +
+        'background:radial-gradient(circle at 35% 30%, var(--sp-chip,#d8b56d), color-mix(in srgb, var(--sp-chip,#d8b56d) 60%, #000 30%));' +
+        'border:2px dashed rgba(255,255,255,.65);box-shadow:0 2px 6px rgba(0,0,0,.35);' +
+        'animation:sp-chip-fall 1s linear infinite}' +
+      '.sp-busy-chips i:nth-child(2){animation-delay:.33s;--hue:1}' +
+      '.sp-busy-chips i:nth-child(3){animation-delay:.66s}' +
+      '.sp-busy-chips i:nth-child(2){background:radial-gradient(circle at 35% 30%, #18a36b, #0c5c3f)}' +
+      '.sp-busy-chips i:nth-child(3){background:radial-gradient(circle at 35% 30%, #4f8ef7, #2a5cb8)}' +
+      '@keyframes sp-chip-fall{0%{transform:translateY(-6px) scale(.7);opacity:0}' +
+        '25%{opacity:1;transform:translateY(6px) scale(1) rotate(40deg)}' +
+        '80%{opacity:1}100%{transform:translateY(34px) scale(.9) rotate(140deg);opacity:0}}' +
+      '@media (prefers-reduced-motion:reduce){.sp-busy-chips{display:none}}';
     document.head.appendChild(s);
+  }
+
+  /* ── atmosfera: naipes à deriva atrás do conteúdo, como no hub.
+     As cores vêm de --sp-amb/--sp-amb2 (cada página define as suas). ── */
+  function ambient() {
+    injectCss();
+    if (document.querySelector('.sp-ambient')) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'sp-ambient';
+    wrap.setAttribute('aria-hidden', 'true');
+    var suits = ['♠', '♦', '♣', '♥', '♠', '♦'];
+    var pos = [
+      { l: '4%',  t: '16%', fs: 150, rot: '-14deg', d: 0 },
+      { l: '84%', t: '8%',  fs: 110, rot: '10deg',  d: 4 },
+      { l: '70%', t: '58%', fs: 170, rot: '-6deg',  d: 8 },
+      { l: '14%', t: '68%', fs: 120, rot: '14deg',  d: 12 },
+      { l: '46%', t: '30%', fs: 90,  rot: '-20deg', d: 16 },
+      { l: '32%', t: '86%', fs: 100, rot: '8deg',   d: 20 }
+    ];
+    suits.forEach(function (su, i) {
+      var p = pos[i], el = document.createElement('span');
+      el.textContent = su;
+      el.style.cssText = 'left:' + p.l + ';top:' + p.t + ';--fs:' + p.fs + 'px;--rot:' + p.rot + ';animation-delay:' + p.d + 's';
+      wrap.appendChild(el);
+    });
+    var add = function () { document.body.prepend(wrap); };
+    if (document.body) add(); else document.addEventListener('DOMContentLoaded', add);
+  }
+
+  /* ── cursor de loading: fichas caem na ponta do mouse enquanto a página
+     trabalha. busy(true/false) manual; busyAuto() liga sozinho em uploads
+     (o timeout só dispara quando a main thread libera = parse terminou);
+     busyWatch(sel, cls) espelha um loader existente (ex.: '#loader','on'). ── */
+  var busyEl = null, busyMx = 0, busyMy = 0, busyRaf = 0, busyWired = false;
+  function busyFollow() {
+    if (!busyEl) return;
+    busyEl.style.transform = 'translate(' + (busyMx + 16) + 'px,' + (busyMy + 10) + 'px)';
+    busyRaf = document.body.classList.contains('sp-busy') ? requestAnimationFrame(busyFollow) : 0;
+  }
+  function busy(on) {
+    if (!fine || calm || !document.body) return;
+    injectCss();
+    if (on && !busyEl) {
+      busyEl = document.createElement('div');
+      busyEl.className = 'sp-busy-chips';
+      busyEl.setAttribute('aria-hidden', 'true');
+      busyEl.innerHTML = '<i></i><i></i><i></i>';
+      document.body.appendChild(busyEl);
+      if (!busyWired) {
+        busyWired = true;
+        document.addEventListener('pointermove', function (e) { busyMx = e.clientX; busyMy = e.clientY; }, { passive: true });
+      }
+    }
+    document.body.classList.toggle('sp-busy', !!on);
+    if (busyEl) busyEl.classList.toggle('on', !!on);
+    if (on && !busyRaf) busyRaf = requestAnimationFrame(busyFollow);
+  }
+  function busyAuto() {
+    document.addEventListener('change', function (e) {
+      var t = e.target;
+      if (!t || t.type !== 'file' || !t.files || !t.files.length) return;
+      busy(true);
+      var t0 = Date.now();
+      var tick = function () { if (Date.now() - t0 > 700) busy(false); else setTimeout(tick, 120); };
+      setTimeout(tick, 120);
+    }, true);
+  }
+  function busyWatch(selector, className) {
+    var wire = function () {
+      var el = document.querySelector(selector);
+      if (!el || !('MutationObserver' in global)) return;
+      new MutationObserver(function () { busy(el.classList.contains(className)); })
+        .observe(el, { attributes: true, attributeFilter: ['class'] });
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
   }
 
   /* brilho que segue o cursor dentro dos cards que casam com `selector` */
@@ -83,5 +183,8 @@
     });
   }
 
-  global.SupremaMotion = { glow: glow, reveal: reveal };
+  global.SupremaMotion = {
+    glow: glow, reveal: reveal,
+    ambient: ambient, busy: busy, busyAuto: busyAuto, busyWatch: busyWatch
+  };
 })(window);

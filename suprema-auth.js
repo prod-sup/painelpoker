@@ -208,23 +208,68 @@
     return global.firebase.database().ref('users/' + emailToKey(r.email) + '/stats/' + sub);
   }
   function bump(ref) { if (ref) ref.transaction(function (n) { return (n || 0) + 1; }).catch(function(){}); }
-  function markDayActive() {
+  function todayIsoStat() {
     var d = new Date();
-    var iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-    var ref = statsRef('days/' + iso);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function markDayActive() {
+    var ref = statsRef('days/' + todayIsoStat());
     if (ref) ref.set(true).catch(function(){});
   }
+
+  /* toast de XP: o feedback imediato que fecha o loop de recompensa —
+     pílula discreta no rodapé, aria-live polite (não rouba foco), some em 3s.
+     Vários ganhos em sequência somam na mesma pílula em vez de empilhar. */
+  var xpToastEl = null, xpToastTimer = null, xpToastSum = 0;
+  function xpToast(amount, label) {
+    try {
+      if (!document.body || document.hidden) return;
+      if (!xpToastEl) {
+        var st = document.createElement('style');
+        st.textContent =
+          '.sp-xp-toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,8px);z-index:9999;' +
+            'display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:99px;pointer-events:none;' +
+            'background:rgba(14,16,15,.92);border:1px solid rgba(216,181,109,.5);color:#f2ede2;' +
+            'font:700 12.5px/1 ui-monospace,monospace;letter-spacing:.04em;' +
+            'box-shadow:0 10px 30px -10px rgba(0,0,0,.6);opacity:0;transition:opacity .3s ease,transform .3s ease}' +
+          '.sp-xp-toast.on{opacity:1;transform:translate(-50%,0)}' +
+          '.sp-xp-toast b{color:#d8b56d}' +
+          '@media (prefers-reduced-motion:reduce){.sp-xp-toast{transition:none}}';
+        document.head.appendChild(st);
+        xpToastEl = document.createElement('div');
+        xpToastEl.className = 'sp-xp-toast';
+        xpToastEl.setAttribute('role', 'status');
+        xpToastEl.setAttribute('aria-live', 'polite');
+        document.body.appendChild(xpToastEl);
+      }
+      xpToastSum += amount;
+      xpToastEl.innerHTML = '<b>+' + xpToastSum + ' XP</b> ' + (label || '');
+      xpToastEl.classList.add('on');
+      clearTimeout(xpToastTimer);
+      xpToastTimer = setTimeout(function () {
+        xpToastEl.classList.remove('on');
+        xpToastSum = 0;
+      }, 3200);
+    } catch (e) {}
+  }
+
   function trackUse(toolId) {
     try {
+      if (!statsRef('opens')) return;          // sem sessão/Firebase: não conta nem avisa
       bump(statsRef('opens'));
+      bump(statsRef('daily/' + todayIsoStat() + '/opens'));
       if (toolId) bump(statsRef('tools/' + String(toolId).replace(/[.#$/\[\]]/g, '_')));
       markDayActive();
+      xpToast(10, 'ferramenta aberta');
     } catch (e) {}
   }
   function trackAction(type) {
     try {
+      if (!statsRef('opens')) return;
       bump(statsRef('actions/' + String(type || 'acao').replace(/[.#$/\[\]]/g, '_')));
+      bump(statsRef('daily/' + todayIsoStat() + '/actions'));
       markDayActive();
+      xpToast(5, 'ação registrada');
     } catch (e) {}
   }
 
