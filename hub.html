@@ -163,6 +163,23 @@ nav{
 }
 .hero h1 .os{color:var(--gold)}
 .hero p{margin:14px 0 0;max-width:52ch;color:var(--ink-soft);font-size:16px;line-height:1.55}
+/* centro de comando: pílulas de vidro com o pulso do dia */
+.hero-ops{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.hero-ops[hidden]{display:none}
+.ho-chip{
+  display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:99px;
+  border:1px solid var(--hairline);color:var(--ink-soft);text-decoration:none;
+  background:color-mix(in srgb, var(--bg-raise) 65%, transparent);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.02em;
+  cursor:default;
+}
+.ho-chip .ho-dot{width:7px;height:7px;border-radius:99px;background:var(--felt);box-shadow:0 0 0 3px color-mix(in srgb, var(--felt) 25%, transparent)}
+.ho-chip.ho-link{cursor:pointer;transition:border-color .3s var(--ease), color .3s var(--ease), transform .3s var(--ease)}
+.ho-chip.ho-link:hover{border-color:var(--gold);color:var(--gold);transform:translateY(-1px)}
+.ho-chip b{color:var(--ink);font-weight:700}
+.ho-chip.ho-link:hover b{color:var(--gold)}
+.ho-chip .ho-ic{font-size:12px;color:var(--gold)}
 
 /* ---------- grid de produtos ---------- */
 .grid{
@@ -395,7 +412,37 @@ nav{
 #pnBoard{grid-column:2;grid-row:2;align-self:start}
 #lbBoard{grid-column:1 / -1;grid-row:3}
 #lbBoard{--tint:#5ad0ff}
-.lb-note{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint)}
+.lb-tabs{display:flex;gap:6px}
+.lb-tabs button{
+  border:1px solid var(--hairline);background:none;border-radius:99px;padding:5px 13px;cursor:pointer;
+  font-family:var(--text);font-size:11.5px;font-weight:600;color:var(--ink-soft);
+  transition:border-color .3s var(--ease), color .3s var(--ease), background .3s var(--ease);
+}
+.lb-tabs button:hover{border-color:var(--gold);color:var(--gold)}
+.lb-tabs button.on{background:var(--gold);border-color:var(--gold);color:#14100a}
+/* pódio: os 3 primeiros como cartas de campeão (2º · 1º · 3º) */
+.lb-podium{
+  display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:8px;align-items:end;
+  margin-bottom:10px;
+}
+.lb-champ{
+  position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;
+  border:1px solid var(--hairline);border-radius:14px;padding:16px 10px 12px;
+  text-align:center;
+}
+.lb-champ .lb-face{width:44px;height:44px;font-size:19px;border-radius:13px}
+.lb-champ .lc-nm{font-size:13px;letter-spacing:-.01em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb-champ .lc-xp{font-family:var(--mono);font-size:11px;font-weight:800;color:var(--gold)}
+.lb-champ .lc-pos{
+  position:absolute;top:-9px;left:50%;transform:translateX(-50%);
+  font-family:var(--mono);font-size:10px;font-weight:800;padding:2px 10px;border-radius:99px;
+}
+.lb-champ.c1{padding-top:22px;border-color:color-mix(in srgb, var(--gold) 55%, transparent);background:var(--gold-soft)}
+.lb-champ.c1 .lc-pos{background:linear-gradient(150deg,#f0d79a,#c9a84c);color:#14100a}
+.lb-champ.c2 .lc-pos{background:linear-gradient(150deg,#e8edf3,#aab4c4);color:#14100a}
+.lb-champ.c3 .lc-pos{background:linear-gradient(150deg,#b07f47,#7d5a34);color:#f2ede2}
+.lb-champ.me{box-shadow:0 0 0 2px color-mix(in srgb, var(--gold) 40%, transparent)}
+@media (max-width:640px){ .lb-podium{grid-template-columns:1fr} .lb-champ{padding-top:18px} }
 .lb-list{display:flex;flex-direction:column;gap:6px}
 .lb-row{
   display:flex;align-items:center;gap:12px;padding:9px 14px 9px 10px;
@@ -1054,9 +1101,30 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{ animati
 }
 .pf-banner-picker button:hover{ transform:scale(1.25) }
 .pf-banner-picker button.on{ border-color:#f2ede2; transform:scale(1.15) }
-.pf-banner-picker{ flex-wrap:wrap;justify-content:flex-end;max-width:220px }
-.pf-banner-picker button.locked{ opacity:.3;cursor:not-allowed }
+.pf-banner-picker button.locked{ opacity:.45;cursor:not-allowed }
 .pf-banner-picker button.locked:hover{ transform:none }
+/* galeria de banners no corpo do perfil: cartas grandes (alvo de toque ≥44px) */
+.pf-banners{
+  position:static;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+}
+.pf-banners button{
+  width:100%;height:56px;border-radius:12px;position:relative;
+  display:flex;align-items:flex-end;justify-content:flex-start;padding:7px 9px;
+  border:2px solid transparent;
+}
+.pf-banners button:hover{ transform:none }
+.pf-banners button:not(.locked):hover{ border-color:rgba(242,237,226,.55) }
+.pf-banners button.on{ border-color:var(--gold);transform:none }
+.pf-banners button .bnm{
+  font-family:var(--text);font-size:10px;font-weight:700;letter-spacing:.02em;
+  color:#f2ede2;text-shadow:0 1px 4px rgba(0,0,0,.65);
+}
+.pf-banners button .bxp{
+  position:absolute;top:6px;right:8px;
+  font-family:var(--mono);font-size:8.5px;font-weight:700;color:rgba(242,237,226,.8);
+  text-shadow:0 1px 3px rgba(0,0,0,.6);
+}
+@media (max-width:420px){ .pf-banners{grid-template-columns:repeat(2,1fr)} }
 .pf-banner-picker button[data-b="felt"]{ background:linear-gradient(150deg,#124d33,#0b2b1d) }
 .pf-banner-picker button[data-b="gold"]{ background:linear-gradient(150deg,#6b4e1e,#2b1f0c) }
 .pf-banner-picker button[data-b="crimson"]{ background:linear-gradient(150deg,#6e1f22,#26090c) }
@@ -1330,6 +1398,14 @@ footer{
   </div>
   <h1 id="heroTitle">Suprema <span class="os">OS</span></h1>
   <p>Todas as ferramentas da operação em um lugar. Escolha um produto para entrar.</p>
+
+  <!-- ── centro de comando: turno, próximo evento, missões e "continuar" ── -->
+  <div class="hero-ops" id="heroOps" hidden>
+    <span class="ho-chip" id="hoTurno"><span class="ho-dot" aria-hidden="true"></span><span id="hoTurnoTxt"></span></span>
+    <button type="button" class="ho-chip ho-link" id="hoNext" hidden></button>
+    <button type="button" class="ho-chip ho-link" id="hoMissions" hidden></button>
+    <a class="ho-chip ho-link" id="hoLast" hidden></a>
+  </div>
 </header>
 
 <main class="grid">
@@ -1467,7 +1543,10 @@ footer{
       <span class="suit" aria-hidden="true">&clubs;</span>
       <h2>Mesa dos campe&otilde;es</h2>
       <span class="spacer"></span>
-      <span class="lb-note">XP de toda a opera&ccedil;&atilde;o</span>
+      <div class="lb-tabs" id="lbTabs" role="tablist" aria-label="Per&iacute;odo do ranking">
+        <button type="button" class="on" data-mode="season">Temporada</button>
+        <button type="button" data-mode="all">Geral</button>
+      </div>
     </div>
     <div class="lb-list" id="lbList"><p class="ev-empty">Carregando a mesa&hellip;</p></div>
   </div>
@@ -1487,7 +1566,6 @@ footer{
       <div class="pf-tagline" id="pfEmail"></div>
       <span class="pf-tag-pill" id="pfTagPill" hidden>&spades; <span id="pfTagTxt"></span></span>
       <button type="button" class="pf-close" id="pfClose" aria-label="Fechar perfil">&#10005;</button>
-      <div class="pf-banner-picker" id="pfBannerPicker" aria-label="Escolher banner do cart&atilde;o"></div>
     </div>
     <div class="pf-avatar-row">
       <div class="pf-avatar" id="pfAvatar" role="button" tabindex="0" aria-label="Trocar foto de perfil"
@@ -1521,6 +1599,12 @@ footer{
         <div class="pf-card-title">Molduras <small id="pfFrameLbl"></small></div>
         <div class="pf-frames" id="pfFrames"></div>
         <p class="pf-hint">A moldura equipada aparece no seu avatar em todo o Suprema OS. Desbloqueie subindo de n&iacute;vel &mdash; e escolha qualquer uma que j&aacute; conquistou.</p>
+      </div>
+
+      <div class="pf-card">
+        <div class="pf-card-title">Banners <small id="pfBannersHint"></small></div>
+        <div class="pf-banner-picker pf-banners" id="pfBannerPicker" aria-label="Escolher banner do cart&atilde;o"></div>
+        <p class="pf-hint">O banner pinta o topo do seu cart&atilde;o. Os raros desbloqueiam com XP.</p>
       </div>
 
       <div class="pf-card">
@@ -1798,7 +1882,60 @@ if (location.protocol === 'file:') {
     $('hhEmail').textContent = session.email;
     title.innerHTML = `${name.replace(/[<>&]/g,'')} <span class="os">&spades;</span>`;
     paintAvatar();
+    try{ renderHeroOps(); }catch(e){}
   }
+  /* ── centro de comando do hero: turno, próximo evento, missões do dia e
+     "continuar de onde parou". Cada pedaço acende quando o dado chega
+     (sessão → turno; boards → evento; stats → missões; lastTool → continuar). ── */
+  let heroLastTool = null;   // users/<key>/lastTool {t, at} — alimentado pelo suprema-auth
+  const HERO_TOOL_URLS = { painel:'index.html', admin:'admin.html', gu:'criacao-noturna.html', cash:'dashboard-mesa-cash.html' };
+  function renderHeroOps(){
+    const box = $('heroOps'); if(!box) return;
+    if(!session){ box.hidden = true; return; }
+    box.hidden = false;
+
+    // turno da operação: 07–19 / 19–07 (o dia da grade é outra coisa — aqui é o turno humano)
+    const h = new Date().getHours();
+    const diurno = h >= 7 && h < 19;
+    $('hoTurnoTxt').innerHTML = `Turno <b>${diurno ? '07–19' : '19–07'}</b> em andamento`;
+
+    // próximo compromisso da agenda da casa
+    try{
+      const tIso = todayIso();
+      const evs = allEvents().filter(e => (e.endDate && e.endDate > e.date ? e.endDate : e.date) >= tIso)
+        .sort((a,b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
+      const ev = evs[0], nextEl = $('hoNext');
+      if(ev){
+        const days = Math.round((new Date(ev.date+'T12:00') - new Date(tIso+'T12:00')) / 86400000);
+        const when = days <= 0 ? (ev.time ? `hoje às ${ev.time}` : 'hoje')
+                   : days === 1 ? 'amanhã' : `em ${days} dias`;
+        nextEl.innerHTML = `<span class="ho-ic" aria-hidden="true">♠</span><b>${escHtml(ev.title.length > 34 ? ev.title.slice(0,33)+'…' : ev.title)}</b> ${when}`;
+        nextEl.hidden = false;
+        nextEl.onclick = () => $('calBoard').scrollIntoView({behavior:'smooth', block:'center'});
+      } else nextEl.hidden = true;
+    }catch(e){}
+
+    // missões do dia (clicar abre o perfil, onde elas moram)
+    try{
+      const done = Object.keys(missionsToday()).length;
+      const mEl = $('hoMissions');
+      mEl.innerHTML = `<span class="ho-ic" aria-hidden="true">♦</span>Missões de hoje <b>${done}/${MISSIONS.length}</b>${done >= MISSIONS.length ? ' ✓' : ''}`;
+      mEl.hidden = false;
+      mEl.onclick = openProfile;
+    }catch(e){}
+
+    // continuar de onde parou (última ferramenta usada, se foi nas últimas 12h)
+    const lEl = $('hoLast');
+    if(heroLastTool && heroLastTool.t && TOOL_META[heroLastTool.t] && HERO_TOOL_URLS[heroLastTool.t]
+       && Date.now() - (heroLastTool.at||0) < 12*60*60*1000){
+      const mins = Math.max(1, Math.round((Date.now() - heroLastTool.at) / 60000));
+      const ago = mins < 60 ? `há ${mins} min` : `há ${Math.round(mins/60)}h`;
+      lEl.innerHTML = `<span class="ho-ic" aria-hidden="true">→</span>Continuar na <b>${TOOL_META[heroLastTool.t].nm}</b> ${ago}`;
+      lEl.href = HERO_TOOL_URLS[heroLastTool.t];
+      lEl.hidden = false;
+    } else lEl.hidden = true;
+  }
+
   function paintAvatar(av){
     // mesmo avatar do painel: emoji escolhido (localStorage/Firebase) ou iniciais
     const el = $('hhAvatar');
@@ -2224,6 +2361,7 @@ if (location.protocol === 'file:') {
   }
 
   function renderEventList(){
+    try{ renderHeroOps(); }catch(e){}   // o "próximo compromisso" do hero usa os mesmos eventos
     const list = $('evList');
     const admin = session && isAdmin(session.email);
     const tIso = todayIso();
@@ -2404,6 +2542,10 @@ if (location.protocol === 'file:') {
     db.ref('hub/calendarHidden').on('value', s => { hiddenSeeds = s.val() || {}; renderCalendar(); renderEventList(); });
     db.ref('hub/patchNotes').on('value', s => { patchNotes = s.val(); renderPatchNotes(); });
     db.ref('hub/leaderboard').on('value', s => { lbData = s.val() || {}; renderLeaderboard(); });
+    const lbT = $('lbTabs');
+    if(lbT) lbT.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      lbMode = b.dataset.mode; renderLeaderboard();
+    }));
     db.ref('hub/links').on('value', s => { fbLinks = s.val() || {}; renderLinks(); });
     db.ref('hub/linksHidden').on('value', s => { hiddenLinks = s.val() || {}; renderLinks(); });
     loadUserPrefs(); // tema por usuário + avatar assim que a conexão nasce
@@ -2662,6 +2804,7 @@ if (location.protocol === 'file:') {
         <span class="pm-bar"><i style="transform:scaleX(${ok?1:(cur/m.target).toFixed(2)})"></i></span>
       </div>`;
     }).join('');
+    try{ renderHeroOps(); }catch(e){}
     const tot = missionsTotal();
     $('pfMissionsHint').textContent = tot
       ? `${tot} ${tot === 1 ? 'missão cumprida' : 'missões cumpridas'} até hoje · +${tot*XP_PER_MISSION} XP no total`
@@ -2695,8 +2838,23 @@ if (location.protocol === 'file:') {
       : '<p class="pf-hint" style="margin:6px 0 0">Use as ferramentas — os números aparecem aqui.</p>'}`;
   }
 
-  /* ── leaderboard: publica o próprio placar e desenha a mesa dos campeões ── */
-  let lbData = null, lbLastPub = 0;
+  /* ── leaderboard: publica o próprio placar e desenha a mesa dos campeões.
+     Temporada = XP ganho SÓ no mês corrente (derivado de stats/daily, days e
+     missions por data) — todo mês a disputa recomeça e ninguém fica pra trás. ── */
+  function seasonYm(){ return todayIso().slice(0,7); }
+  function seasonXp(){
+    const ym = seasonYm();
+    let xp = 0;
+    for(const dia in (pfStats.daily||{})){
+      if(!dia.startsWith(ym)) continue;
+      const d = pfStats.daily[dia];
+      xp += (d.opens||0)*XP_PER_OPEN + (d.actions||0)*XP_PER_ACTION;
+    }
+    for(const dia in (pfStats.daysMap||{})) if(dia.startsWith(ym)) xp += XP_PER_DAY;
+    for(const dia in (pfStats.missions||{})) if(dia.startsWith(ym)) xp += Object.keys(pfStats.missions[dia]).length*XP_PER_MISSION;
+    return xp;
+  }
+  let lbData = null, lbLastPub = 0, lbMode = 'season';
   function lbPublish(){
     if(!session || !db || !fbReady) return;
     const now = Date.now();
@@ -2705,26 +2863,52 @@ if (location.protocol === 'file:') {
     let face = '♠'; try{ face = localStorage.getItem('suprema_user_avatar_v1') || '♠'; }catch(e){}
     db.ref(`hub/leaderboard/${emailToKey(session.email)}`).set({
       name: session.displayName || session.apelido || session.nome || session.email.split('@')[0],
-      xp: pfXp(), lv: levelFromXp(pfXp()), tier: frameFromXp(pfXp()).t, face, updatedAt: now
+      xp: pfXp(), lv: levelFromXp(pfXp()), tier: frameFromXp(pfXp()).t, face, updatedAt: now,
+      season: { ym: seasonYm(), xp: seasonXp() }
     }).catch(()=>{});
   }
+  const LB_MONTHS = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
   function renderLeaderboard(){
     const list = $('lbList'); if(!list) return;
+    const tabs = $('lbTabs');
+    if(tabs){
+      const mes = LB_MONTHS[+seasonYm().slice(5,7)-1];
+      tabs.querySelector('[data-mode="season"]').textContent = `Temporada · ${mes}`;
+      tabs.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.mode === lbMode));
+    }
+    const ym = seasonYm();
+    const score = r => lbMode === 'season'
+      ? ((r.season && r.season.ym === ym) ? (r.season.xp||0) : 0)
+      : (r.xp||0);
     const rows = Object.entries(lbData || {})
       .map(([k,v]) => ({key:k, ...v})).filter(r => r && r.name)
-      .sort((a,b) => (b.xp||0) - (a.xp||0)).slice(0,10);
-    if(!rows.length){
-      list.innerHTML = '<p class="ev-empty">A mesa ainda está vazia — o primeiro a jogar leva a ponta.</p>';
+      .sort((a,b) => score(b) - score(a)).slice(0,10);
+    if(!rows.length || (lbMode === 'season' && score(rows[0]) === 0)){
+      list.innerHTML = `<p class="ev-empty">${lbMode === 'season'
+        ? 'A temporada acabou de começar — o primeiro a jogar leva a ponta.'
+        : 'A mesa ainda está vazia — o primeiro a jogar leva a ponta.'}</p>`;
       return;
     }
     const meKey = session ? emailToKey(session.email) : null;
-    list.innerHTML = rows.map((r,i) => `
+    const fmt = n => n.toLocaleString('pt-BR') + ' XP';
+    // pódio: os 3 primeiros em destaque, o resto em lista
+    const podio = rows.slice(0,3), resto = rows.slice(3);
+    const podiumHtml = `<div class="lb-podium">${[1,0,2].map(i => {
+      const r = podio[i]; if(!r) return '<span></span>';
+      return `<div class="lb-champ c${i+1}${r.key === meKey ? ' me' : ''}">
+        <span class="lb-face" ${r.tier ? `data-tier="${r.tier}"` : ''}>${escHtml(r.face || '♠')}</span>
+        <b class="lc-nm">${escHtml(r.name)}</b>
+        <span class="lc-xp">${fmt(score(r))}</span>
+        <span class="lc-pos">${i+1}º</span>
+      </div>`;
+    }).join('')}</div>`;
+    list.innerHTML = podiumHtml + resto.map((r,i) => `
       <div class="lb-row${r.key === meKey ? ' me' : ''}">
-        <span class="lb-pos p${i+1}">${i+1}</span>
+        <span class="lb-pos">${i+4}</span>
         <span class="lb-face" ${r.tier ? `data-tier="${r.tier}"` : ''}>${escHtml(r.face || '♠')}</span>
         <span class="lb-nm">${escHtml(r.name)}${r.key === meKey ? ' <small>(você)</small>' : ''}</span>
         <span class="lb-lv">Nv ${r.lv || 1}</span>
-        <span class="lb-xp">${(r.xp || 0).toLocaleString('pt-BR')} XP</span>
+        <span class="lb-xp">${fmt(score(r))}</span>
       </div>`).join('');
   }
 
@@ -2813,8 +2997,14 @@ if (location.protocol === 'file:') {
       picker.innerHTML = PF_BANNERS.map(b => {
         const locked = xp < b.xp;
         return `<button type="button" data-b="${b.id}"${locked?' class="locked" disabled':''}
-          title="${b.nm}${locked ? ` — desbloqueia aos ${b.xp} XP` : ''}" aria-label="Banner ${b.nm}"></button>`;
+          title="${b.nm}${locked ? ` — desbloqueia aos ${b.xp} XP` : ''}" aria-label="Banner ${b.nm}">
+          <span class="bnm">${b.nm}</span>
+          ${b.xp ? `<span class="bxp">${locked ? '🔒 ' : ''}${b.xp} XP</span>` : ''}
+        </button>`;
       }).join('');
+      const desbloq = PF_BANNERS.filter(b => xp >= b.xp).length;
+      const hint = $('pfBannersHint');
+      if(hint) hint.textContent = `${desbloq} de ${PF_BANNERS.length} desbloqueados`;
       picker.querySelectorAll('button:not(.locked)').forEach(bt => bt.addEventListener('click', () => {
         pfBanner = bt.dataset.b;
         try{ localStorage.setItem('suprema_user_banner_v1', pfBanner); }catch(e){}
@@ -2906,6 +3096,11 @@ if (location.protocol === 'file:') {
     db.ref(`users/${key}/banner`).on('value', s => {
       const v = s.val();
       if(v){ pfBanner = v; try{ localStorage.setItem('suprema_user_banner_v1', v); }catch(e){} paintBanner(); }
+    });
+    // "continuar de onde parou": última ferramenta usada (gravada pelo suprema-auth)
+    db.ref(`users/${key}/stats/lastTool`).on('value', s => {
+      heroLastTool = s.val();
+      try{ renderHeroOps(); }catch(e){}
     });
     // presença do dia: abrir o hub logado já conta como dia ativo
     db.ref(`users/${key}/stats/days/${todayIso()}`).set(true).catch(()=>{});
@@ -3007,6 +3202,18 @@ if (location.protocol === 'file:') {
   }
   $('navAvatar').addEventListener('click', openProfile);
   $('pfClose').addEventListener('click', closeProfile);
+  // a11y: Tab fica DENTRO do drawer enquanto ele está aberto (focus trap)
+  $('pfOverlay').addEventListener('keydown', e => {
+    if(e.key !== 'Tab') return;
+    const panel = $('pfOverlay').querySelector('.pf-panel');
+    const foc = [...panel.querySelectorAll('button:not([disabled]), a[href], input, textarea, select, [tabindex]:not([tabindex="-1"])')]
+      .filter(el => el.getClientRects().length);
+    if(!foc.length) return;
+    const first = foc[0], last = foc[foc.length-1];
+    if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+    else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+    else if(!panel.contains(document.activeElement)){ e.preventDefault(); first.focus(); }
+  });
   $('pfOverlay').addEventListener('click', e => { if(e.target === $('pfOverlay')) closeProfile(); });
   document.addEventListener('keydown', e => { if(e.key === 'Escape') closeProfile(); });
 
@@ -3114,14 +3321,20 @@ if (location.protocol === 'file:') {
       }).catch(()=>{});
     })();
     firebase.auth().signInAnonymously().then(() => {
-      const { tomorrow } = opDates();
+      const { today, tomorrow } = opDates();
 
-      // Painel: operadores online agora
-      db.ref('presence').on('value', s => {
-        const n = s.numChildren();
-        if (n > 0) show('livePainel', 'livePainelTxt', n + (n === 1 ? ' operador online' : ' operadores online'));
+      // Painel: operadores online + a grade do dia (torneios e conferidos)
+      let pOnline = 0, pTorneios = 0, pConferidos = 0;
+      const paintPainel = () => {
+        const parts = [];
+        if (pOnline > 0) parts.push(pOnline + ' online');
+        if (pTorneios > 0) parts.push(pTorneios + ' torneios' + (pConferidos > 0 ? ` · ${pConferidos} conferidos` : ''));
+        if (parts.length) show('livePainel', 'livePainelTxt', parts.join(' · '));
         else document.getElementById('livePainel').hidden = true;
-      });
+      };
+      db.ref('presence').on('value', s => { pOnline = s.numChildren(); paintPainel(); });
+      db.ref(`painel/${today}/sheet/rows`).on('value', s => { pTorneios = s.numChildren(); paintPainel(); });
+      db.ref(`painel/${today}/checklist`).on('value', s => { pConferidos = s.numChildren(); paintPainel(); });
 
       // Criação GU: progresso da noite (torneios criados / total da receita)
       const guBase = `painel/${tomorrow}/criacaoNoturna`;

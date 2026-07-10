@@ -258,7 +258,13 @@
       if (!statsRef('opens')) return;          // sem sessão/Firebase: não conta nem avisa
       bump(statsRef('opens'));
       bump(statsRef('daily/' + todayIsoStat() + '/opens'));
-      if (toolId) bump(statsRef('tools/' + String(toolId).replace(/[.#$/\[\]]/g, '_')));
+      if (toolId) {
+        var safe = String(toolId).replace(/[.#$/\[\]]/g, '_');
+        bump(statsRef('tools/' + safe));
+        // "continuar de onde parou" do hub: última ferramenta usada
+        var lt = statsRef('lastTool');
+        if (lt) lt.set({ t: safe, at: Date.now() }).catch(function(){});
+      }
       markDayActive();
       xpToast(10, 'ferramenta aberta');
     } catch (e) {}

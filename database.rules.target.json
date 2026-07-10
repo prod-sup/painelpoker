@@ -20,7 +20,8 @@
             "opens":   { ".validate": "newData.isNumber() && newData.val() >= 0" },
             "actions": { ".validate": "newData.isNumber() && newData.val() >= 0" }
           } },
-          "missions": { "$dia": { "$missao": { ".validate": "newData.val() === true" } } }
+          "missions": { "$dia": { "$missao": { ".validate": "newData.val() === true" } } },
+          "lastTool": { ".validate": "newData.hasChildren(['t','at'])" }
         }
       }
     },
