@@ -1,0 +1,26 @@
+# Vídeo de fundo (arquivo grande, manter local)
+bg.mp4
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporários
+*.tmp
+*.bak
+*~
+
+# Testes e diagnóstico (não precisam ir pro repo)
+firebase_test.html
+sync_test.html
+firebase_import.json
+
+# Config local do Claude Code
+.claude/

@@ -11,6 +11,17 @@
    caso o painel entra direto (ver autoEnterFromSession, abaixo). Quem não é
    reconhecido volta pro hub ANTES de renderizar. ── */
 SupremaAuth.guard();
+/* admin reconhecido: some com a tela de login ANTES do primeiro paint —
+   o autoEnterFromSession (abaixo) entra direto, sem flash de login */
+if (SupremaAuth.recognize().isAdmin) document.documentElement.classList.add('admin-reconhecido');
+</script>
+<style>html.admin-reconhecido #loginWrap{display:none !important}</style>
+<script src="suprema-motion.js"></script>
+<script>
+/* motion do Suprema OS (ref. MotionSites): glow no cursor nos cards e KPIs.
+   Sem reveal aqui: o conteúdo do admin nasce dinâmico dentro de abas ocultas,
+   e reveal em elemento oculto o deixaria preso invisível até a aba abrir. */
+SupremaMotion.glow('.card, .kpi');
 </script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%238f6b2d'>♠</text></svg>">
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
@@ -1676,6 +1687,10 @@ function initFb(){
     firebase.initializeApp(FB_CFG);
     // auth anônimo: exigido pelas regras do banco (firebase.rules.json)
     firebase.auth().signInAnonymously().catch(e=>console.warn('auth anônimo falhou',e));
+    // progressão do Suprema OS: abrir o admin conta XP na jornada do operador
+    firebase.auth().onAuthStateChanged(function(u){
+      if(u && !window.__spTracked){ window.__spTracked = true; try{ SupremaAuth.trackUse('admin'); }catch(e){} }
+    });
     db=firebase.database();
     fbOk=true;
   }catch(e){console.error('Firebase init',e);}

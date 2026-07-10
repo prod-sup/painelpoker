@@ -196,6 +196,38 @@
     var a = fbAuth();
     return a ? a.sendPasswordResetEmail(email) : Promise.reject(new Error('firebase-auth ausente'));
   }
+  /* ── PROGRESSÃO (XP do operador) ──
+     Todos os produtos alimentam a MESMA jornada: o hub lê users/<key>/stats e
+     converte em XP/nível/rank/molduras. trackUse(toolId) = "abri a ferramenta"
+     (chamar 1x no load, depois do firebase init); trackAction(tipo) = ação de
+     operação concluída (finalizar evento, corrigir mesa, concluir GU...).
+     Silencioso por design: sem sessão ou sem Firebase, simplesmente não conta. */
+  function statsRef(sub) {
+    var r = recognize();
+    if (!r.email || !global.firebase || !global.firebase.database) return null;
+    return global.firebase.database().ref('users/' + emailToKey(r.email) + '/stats/' + sub);
+  }
+  function bump(ref) { if (ref) ref.transaction(function (n) { return (n || 0) + 1; }).catch(function(){}); }
+  function markDayActive() {
+    var d = new Date();
+    var iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    var ref = statsRef('days/' + iso);
+    if (ref) ref.set(true).catch(function(){});
+  }
+  function trackUse(toolId) {
+    try {
+      bump(statsRef('opens'));
+      if (toolId) bump(statsRef('tools/' + String(toolId).replace(/[.#$/\[\]]/g, '_')));
+      markDayActive();
+    } catch (e) {}
+  }
+  function trackAction(type) {
+    try {
+      bump(statsRef('actions/' + String(type || 'acao').replace(/[.#$/\[\]]/g, '_')));
+      markDayActive();
+    } catch (e) {}
+  }
+
   /* onUser(cb): dispara com o usuário do Firebase Auth (ou null). Na Fase 4 os
      painéis trocam signInAnonymously por isto: sem usuário → manda pro hub. */
   function onUser(cb) {
@@ -211,6 +243,7 @@
     getSession: getSession, saveSession: saveSession, clearSession: clearSession,
     setTrustedAdmin: setTrustedAdmin, getTrustedAdmin: getTrustedAdmin,
     recognize: recognize, guard: guard, emailToKey: emailToKey,
+    trackUse: trackUse, trackAction: trackAction,
     isDarkPreferred: isDarkPreferred, setThemePref: setThemePref, wireThemeSync: wireThemeSync,
     hashPassword: hashPassword, verifyPassword: verifyPassword, validatePassword: validatePassword
   };

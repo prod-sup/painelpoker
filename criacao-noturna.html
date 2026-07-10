@@ -10,6 +10,13 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="gu-parser.js"></script>
+<script src="suprema-auth.js"></script>
+<script src="suprema-motion.js"></script>
+<script>
+/* motion do Suprema OS (ref. MotionSites): glow no cursor + reveal dos cards */
+SupremaMotion.glow('.card');
+document.addEventListener('DOMContentLoaded', () => SupremaMotion.reveal('.card'));
+</script>
 <style>
   /* ══════════════════════════════════════════════════════════════════
      DESIGN TOKENS — mesmos do painel (index.html), pra página conversar
@@ -248,11 +255,16 @@
   /* ── LAYOUT ── */
   .wrap{max-width:1240px;margin:0 auto;padding:30px 28px 90px}
   .card{
-    background:var(--card);border:1px solid var(--hairline);
+    border:1px solid var(--hairline);
     border-radius:var(--radius-lg);box-shadow:var(--shadow-md);
     padding:26px 28px;margin-bottom:22px;
     transition:background .4s var(--ease), border-color .4s;
+    /* vidro fosco (ref. MotionSites/Liquid Glass), com fallback sólido */
+    background:color-mix(in srgb, var(--card) 86%, transparent);
+    -webkit-backdrop-filter:blur(12px) saturate(150%);
+    backdrop-filter:blur(12px) saturate(150%);
   }
+  @supports not (backdrop-filter:blur(1px)){ .card{background:var(--card)} }
   .card-title{
     font-family:var(--display);font-size:16px;font-weight:750;letter-spacing:-.01em;
     display:flex;align-items:center;gap:9px;margin-bottom:6px;
@@ -1643,6 +1655,10 @@ try{
   // credencial ninguém de fora escreve no /painel. Requer "Anonymous" habilitado
   // em Authentication > Sign-in method no console do Firebase.
   firebase.auth().signInAnonymously().catch(e => console.warn('auth anônimo falhou (regras abertas ainda funcionam)', e));
+  // progressão do Suprema OS: abrir a Criação Noturna conta XP na jornada do operador
+  firebase.auth().onAuthStateChanged(u => {
+    if(u && !window.__spTracked){ window.__spTracked = true; try{ SupremaAuth.trackUse('gu'); }catch(e){} }
+  });
   fbDb = firebase.database();
   fbDb.ref('.info/connected').on('value', s => {
     if (s.val() === true) setSync('on','Sincronizado');
@@ -2362,8 +2378,12 @@ function toggleDone(key){
     if (cur){ fbDb.ref(`${FB_PATH}/done/${key}`).remove(); logEvent('desmarcou criado', key); }
     // transação: se um parceiro marcou no mesmo instante, o registro dele
     // (by/at) é preservado — retornar undefined aborta sem sobrescrever
-    else { fbDb.ref(`${FB_PATH}/done/${key}`).transaction(existing =>
-      existing ? undefined : {by: ME || 'Alguém', at: Date.now()}); logEvent('marcou criado', key); }
+    else {
+      fbDb.ref(`${FB_PATH}/done/${key}`).transaction(existing =>
+        existing ? undefined : {by: ME || 'Alguém', at: Date.now()}); logEvent('marcou criado', key);
+      // progressão: cada torneio criado na GU é uma ação da jornada do operador
+      try{ SupremaAuth.trackAction('gu_criado'); }catch(e){}
+    }
   } else {
     if (cur) delete DONE[key]; else DONE[key] = {by: ME, at: Date.now()};
     renderAll();

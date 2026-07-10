@@ -27,6 +27,14 @@
 <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script src="suprema-auth.js"></script>
+<script src="suprema-motion.js"></script>
+<script>
+/* motion do Suprema OS (ref. MotionSites): glow azul (a tinta do Cash) + reveal */
+document.documentElement.style.setProperty('--sp-tint', 'rgba(79,142,247,.14)');
+SupremaMotion.glow('.card, .kpi');
+document.addEventListener('DOMContentLoaded', () => SupremaMotion.reveal('.card, .kpi'));
+</script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -176,7 +184,15 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{animatio
 .kb.b{background:var(--dia2);color:var(--dia)}
 
 /* ── CARD ── */
-.card{background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r3);padding:20px;box-shadow:var(--sh);transition:border-color .18s var(--ease)}
+.card{
+  border:1px solid var(--bdr);border-radius:var(--r3);padding:20px;box-shadow:var(--sh);
+  transition:border-color .18s var(--ease);
+  /* vidro fosco (ref. MotionSites/Liquid Glass), com fallback sólido */
+  background:color-mix(in srgb, var(--surf) 86%, transparent);
+  -webkit-backdrop-filter:blur(12px) saturate(150%);
+  backdrop-filter:blur(12px) saturate(150%);
+}
+@supports not (backdrop-filter:blur(1px)){ .card{background:var(--surf)} }
 .card:hover{border-color:var(--bdr2)}
 .card+.card{margin-top:0}
 .ct{font-size:13px;font-weight:800;letter-spacing:-.01em;color:var(--ink);margin-bottom:2px}
@@ -1069,7 +1085,11 @@ function loginLockRemaining(user){if(!user?.loginLockUntil)return 0;return Math.
 
 let db=null,fbOk=false,_email='',_name='';
 function initFb(){
-  try{firebase.initializeApp(FB_CFG);db=firebase.database();fbOk=true;}
+  try{
+    firebase.initializeApp(FB_CFG);db=firebase.database();fbOk=true;
+    // progressão do Suprema OS: abrir o Cash Intelligence conta XP na jornada do operador
+    try{ SupremaAuth.trackUse('cash'); }catch(e){}
+  }
   catch(e){console.error('Firebase init',e);}
 }
 /* Entrada direta: a sessão do Suprema OS (validada pelo portão no <head>)

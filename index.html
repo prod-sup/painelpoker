@@ -38,6 +38,13 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script src="suprema-auth.js"></script>
+<script src="suprema-motion.js"></script>
+<script>
+/* motion do Suprema OS (ref. MotionSites): glow segue o cursor nos cards de
+   torneio — delegação, pode ligar já; o reveal daqui é o do próprio painel */
+SupremaMotion.glow('.tcard');
+</script>
 <style>
   :root{
     --bg: #fbfbfd;
@@ -6390,6 +6397,10 @@ function initFirebaseSync(){
     firebase.initializeApp(FIREBASE_CONFIG);
     // auth anônimo: exigido pelas regras do banco (firebase.rules.json)
     firebase.auth().signInAnonymously().catch(e => console.warn('auth anônimo falhou', e));
+    // progressão do Suprema OS: abrir o painel conta XP na jornada do operador
+    firebase.auth().onAuthStateChanged(u => {
+      if(u && !window.__spTracked){ window.__spTracked = true; try{ SupremaAuth.trackUse('painel'); }catch(e){} }
+    });
     fbDb    = firebase.database();
     fbReady = true;
     setSyncBadge('connecting');
@@ -6953,6 +6964,8 @@ function checklistDoneBy(itemId){
 function setChecklistItem(itemId, val){
   if (val) CHECKLIST_MAP[itemId] = { by: OPERATOR_NAME || 'Alguém', at: Date.now() };
   else delete CHECKLIST_MAP[itemId];
+  // progressão: item do checklist do turno concluído = ação na jornada do operador
+  if (val) try{ SupremaAuth.trackAction('checklist'); }catch(e){}
   saveChecklistMapLocal(CHECKLIST_MAP);
   if (fbReady){
     fbDb.ref(`${FB_BASE_PATH}/checklist/${itemId}`).set(val ? CHECKLIST_MAP[itemId] : null)
