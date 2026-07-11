@@ -884,6 +884,7 @@
     position:absolute; top:42%; right:2%; transform:translateY(-50%);
     width:430px; height:340px; z-index:0; pointer-events:none;
     display:none;
+    perspective:1150px;            /* câmera do tilt 3D (cartas ganham profundidade) */
   }
   @media (min-width:980px){ .hero-cards{ display:block; } }
   @media (min-width:1240px){ .hero-cards{ right:4%; width:480px; height:380px; } }
@@ -896,9 +897,14 @@
   .hero-cards.has-video .hero-video{ opacity:1; }
   .hero-cards.has-video .deck{ opacity:0 !important; }
 
-  /* palco: brilho verde de feltro por trás do leque */
+  /* palco: brilho verde de feltro por trás do leque.
+     Inclina em 3D seguindo o cursor (SupremaMotion.tilt define --tiltX/--tiltY);
+     preserve-3d faz cada carta parallaxar pela profundidade (--tz). */
   .deck{
     position:absolute; inset:0;
+    transform-style:preserve-3d;
+    transform:rotateX(var(--tiltX,0deg)) rotateY(var(--tiltY,0deg));
+    transition:transform .2s var(--ease-quart);   /* segue o cursor com leve suavização */
     opacity:0; animation:deck-in 1s var(--ease-expo) .25s forwards;
   }
   @keyframes deck-in{ from{opacity:0} to{opacity:1} }
@@ -931,7 +937,7 @@
       inset 0 1px 0 rgba(255,255,255,.5);
     z-index:var(--z);
     transform-origin:50% 152%;
-    transform:rotate(var(--rot));
+    transform:rotate(var(--rot)) translateZ(var(--tz,0px));
     opacity:0;
     animation:card-deal .85s var(--ease-expo) forwards;
   }
@@ -949,7 +955,7 @@
   .pcard-ace{ animation-delay:.58s; }
   @keyframes card-deal{
     from{ opacity:0; transform:rotate(0deg) translateY(26px) scale(.92); }
-    to{ opacity:1; transform:rotate(var(--rot)); }
+    to{ opacity:1; transform:rotate(var(--rot)) translateZ(var(--tz,0px)); }
   }
   .pcard{ will-change:transform; }
 
@@ -982,10 +988,11 @@
   .pcard-ace .pc-ix i{ font-size:16px; }
   .pcard-ace .pc-pip{ font-size:82px; color:var(--pc-ace); text-shadow:0 2px 6px color-mix(in srgb, var(--pc-ace) 40%, transparent); }
 
-  /* reduzir movimento: leque estático e visível, sem entrada nem respiração */
+  /* reduzir movimento: leque estático e visível, sem entrada, respiração nem tilt */
   @media (prefers-reduced-motion: reduce){
     .deck,.pcard{ opacity:1; animation:none; }
-    .pcard{ transform:rotate(var(--rot)); }
+    .deck{ transform:none; transition:none; }
+    .pcard{ transform:rotate(var(--rot)) translateZ(var(--tz,0px)); }
     .deck::before{ animation:none; }
   }
 
@@ -1867,7 +1874,17 @@
   .gc-chk svg{ width:13px; height:13px; stroke:currentColor; stroke-width:3.2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
   .gc-by{ display:block; font-size:9px; color:var(--ink-soft); font-family:var(--mono); margin-top:2px; }
   .gc-empty{ text-align:center; padding:48px 16px; color:var(--ink-soft); font-size:13px; line-height:1.6; }
-  .gc-empty .ic{ font-size:30px; display:block; margin-bottom:8px; }
+  /* marca de empty/loading: espada num disco de feltro (SVG, theme-aware) no lugar de emoji */
+  .gc-empty .ic{
+    display:grid; place-items:center; width:56px; height:56px; margin:0 auto 14px;
+    border-radius:50%; background:var(--felt-soft); color:var(--felt);
+  }
+  .gc-empty .ic svg{ width:26px; height:26px; }
+  .gc-empty .ic.gold{ background:var(--gold-soft); color:var(--gold); }
+  /* loading: a espada pulsa de leve enquanto carrega */
+  .gc-empty .ic.loading{ animation:gc-ic-pulse 1.4s ease-in-out infinite; }
+  @keyframes gc-ic-pulse{ 0%,100%{ opacity:.55; transform:scale(.96); } 50%{ opacity:1; transform:scale(1); } }
+  @media (prefers-reduced-motion: reduce){ .gc-empty .ic.loading{ animation:none; } }
 
   /* fonte da sheet em uso (arquivo/quem/quando) — vira alerta quando velha */
   .gc-src{ font-size:11.5px; color:var(--ink-soft); margin:10px 0 14px; line-height:1.5; }

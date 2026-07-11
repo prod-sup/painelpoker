@@ -642,7 +642,7 @@ document.addEventListener('DOMContentLoaded', () => SupremaMotion.ambient());
         <input type="search" class="gc-search" id="guConfSearch" placeholder="Filtrar por torneio…">
         <button class="chip" id="guConfHideDoneBtn" type="button">Ocultar conferidos</button>
       </div>
-      <div id="guConfArea"><div class="gc-empty"><span class="ic">🃏</span>Carregando a receita do dia…</div></div>
+      <div id="guConfArea"><div class="gc-empty"><span class="ic loading"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3C7 8 3 12 3 15.5A4 4 0 0 0 11 17.3C10.6 19.4 9.5 20.6 7 21.5H17C14.5 20.6 13.4 19.4 13 17.3A4 4 0 0 0 21 15.5C21 12 17 8 12 3Z"/></svg></span>Carregando a receita do dia…</div></div>
     </div>
   </aside>
 </div>
@@ -887,27 +887,27 @@ document.addEventListener('DOMContentLoaded', () => SupremaMotion.ambient());
       <!-- LEQUE DE CARTAS (HTML/CSS) — faces de baralho reais, leque em perspectiva
            com brilho verde de fundo. Adapta a light/dark por variáveis de tema. -->
       <div class="deck" role="img" aria-label="Leque de cartas de espadas">
-        <div class="pcard" style="--rot:-34deg;--z:1">
+        <div class="pcard" style="--rot:-34deg;--z:1;--tz:0px">
           <span class="pc-ix tl">10<i>&spades;</i></span>
           <span class="pc-pip">&spades;</span>
           <span class="pc-ix br">10<i>&spades;</i></span>
         </div>
-        <div class="pcard" style="--rot:-17deg;--z:2">
+        <div class="pcard" style="--rot:-17deg;--z:2;--tz:16px">
           <span class="pc-ix tl">J<i>&spades;</i></span>
           <span class="pc-pip">&spades;</span>
           <span class="pc-ix br">J<i>&spades;</i></span>
         </div>
-        <div class="pcard" style="--rot:34deg;--z:1">
+        <div class="pcard" style="--rot:34deg;--z:1;--tz:0px">
           <span class="pc-ix tl">Q<i>&spades;</i></span>
           <span class="pc-pip">&spades;</span>
           <span class="pc-ix br">Q<i>&spades;</i></span>
         </div>
-        <div class="pcard" style="--rot:17deg;--z:2">
+        <div class="pcard" style="--rot:17deg;--z:2;--tz:16px">
           <span class="pc-ix tl">K<i>&spades;</i></span>
           <span class="pc-pip">&spades;</span>
           <span class="pc-ix br">K<i>&spades;</i></span>
         </div>
-        <div class="pcard pcard-ace" style="--rot:0deg;--z:3">
+        <div class="pcard pcard-ace" style="--rot:0deg;--z:3;--tz:38px">
           <span class="pc-ix tl">A<i>&spades;</i></span>
           <span class="pc-pip">&spades;</span>
           <span class="pc-ix br">A<i>&spades;</i></span>
@@ -1271,6 +1271,10 @@ document.addEventListener('DOMContentLoaded', () => SupremaMotion.ambient());
 <script src="conf-dia.js"></script>
 <script src="suprema-onboarding.js"></script>
 <script>
+  /* motion premium: leque do hero inclina em 3D seguindo o cursor (self-guard em
+     touch e prefers-reduced-motion). O host é o hero inteiro pra dar parallax amplo. */
+  try{ if (window.SupremaMotion && SupremaMotion.tilt) SupremaMotion.tilt('.deck', { host:'.hero', max:8 }); }catch(e){}
+
   /* tour de 1ª visita — só pra quem já está logado (evita disparar no gate) */
   if (window.SupremaAuth && SupremaAuth.getSession && SupremaAuth.getSession()){
     SupremaOnboarding.start('painel', [

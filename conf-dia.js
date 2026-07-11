@@ -206,7 +206,7 @@
     const items = gcItems();
     const noIdPill = document.getElementById('guConfNoId');
     if (!items.length){
-      area.innerHTML = `<div class="gc-empty"><span class="ic">🌙</span>Nenhuma receita publicada pra hoje (${d}/${m}).<br>O turno noturno sobe a GU na página de Criação — ou carregue a <b>Global MTT</b> no botão acima que ela aparece aqui na hora.</div>`;
+      area.innerHTML = `<div class="gc-empty"><span class="ic gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></span>Nenhuma receita publicada pra hoje (${d}/${m}).<br>O turno noturno sobe a GU na página de Criação — ou carregue a <b>Global MTT</b> no botão acima que ela aparece aqui na hora.</div>`;
       document.getElementById('guConfProgress').textContent = '—';
       document.getElementById('guConfBadge').hidden = true;
       if (noIdPill) noIdPill.hidden = true;
@@ -261,7 +261,7 @@
         </div>
         <div class="gc-scroll"><table class="gc-table">${t}</table></div>`;
     });
-    area.innerHTML = html || `<div class="gc-empty"><span class="ic">🃏</span>Nada nesse filtro.</div>`;
+    area.innerHTML = html || `<div class="gc-empty"><span class="ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3C7 8 3 12 3 15.5A4 4 0 0 0 11 17.3C10.6 19.4 9.5 20.6 7 21.5H17C14.5 20.6 13.4 19.4 13 17.3A4 4 0 0 0 21 15.5C21 12 17 8 12 3Z"/></svg></span>Nada nesse filtro.</div>`;
     area.querySelectorAll('[data-gckey]').forEach(b => b.addEventListener('click', () => gcToggle(b.dataset.gckey)));
   }
   function gcAttach(){

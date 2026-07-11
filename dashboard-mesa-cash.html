@@ -22,9 +22,11 @@
 })();
 </script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%234f8ef7'>♠</text></svg>">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<!-- deps locais (sem CDN): funcionam offline e não quebram se o CDN cair -->
+<script src="vendor/chart.umd.js"></script>
+<script defer src="xlsx.full.min.js"></script>
+<link rel="stylesheet" href="vendor/phosphor/regular.css">
+<link rel="stylesheet" href="vendor/phosphor/fill.css">
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="suprema-auth.js"></script>

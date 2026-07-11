@@ -199,8 +199,44 @@
     });
   }
 
+  /* ── TILT 3D + PARALLAX (ref. MotionSites: cartas/objetos que inclinam
+     seguindo o cursor) ── aplica rotateX/rotateY no alvo conforme a posição do
+     ponteiro dentro do `host`. Filhos com translateZ ganham parallax de
+     profundidade de graça (o host precisa de transform-style:preserve-3d).
+     Perf: um rAF por alvo, vars CSS (nada de layout por frame). Desliga em
+     touch e prefers-reduced-motion. tilt('.deck', {host:'.hero', max:7}) */
+  function tilt(selector, opts) {
+    if (!fine || calm) return;
+    opts = opts || {};
+    var max = opts.max || 7;
+    wireEpoch();
+    document.querySelectorAll(selector).forEach(function (el) {
+      var host = opts.host ? (el.closest(opts.host) || document.querySelector(opts.host)) : el.parentElement;
+      if (!host || el.__spTilt) return;
+      el.__spTilt = true;
+      var raf = 0, tx = 0, ty = 0, hostRect = null, hostEpoch = -1;
+      var apply = function () {
+        raf = 0;
+        el.style.setProperty('--tiltX', tx.toFixed(2) + 'deg');
+        el.style.setProperty('--tiltY', ty.toFixed(2) + 'deg');
+      };
+      host.addEventListener('pointermove', function (e) {
+        if (!hostRect || hostEpoch !== rectEpoch) { hostRect = host.getBoundingClientRect(); hostEpoch = rectEpoch; }
+        var r = hostRect;
+        var nx = (e.clientX - r.left) / r.width - 0.5;   // -0.5 … 0.5
+        var ny = (e.clientY - r.top) / r.height - 0.5;
+        ty = nx * max * 2;      // rotateY acompanha o eixo horizontal
+        tx = -ny * max * 2;     // rotateX acompanha o vertical (invertido)
+        if (!raf) raf = requestAnimationFrame(apply);
+      }, { passive: true });
+      host.addEventListener('pointerleave', function () {
+        tx = 0; ty = 0; if (!raf) raf = requestAnimationFrame(apply);
+      }, { passive: true });
+    });
+  }
+
   global.SupremaMotion = {
-    glow: glow, reveal: reveal,
+    glow: glow, reveal: reveal, tilt: tilt,
     ambient: ambient, busy: busy, busyAuto: busyAuto, busyWatch: busyWatch
   };
 })(window);
