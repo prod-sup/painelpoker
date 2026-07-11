@@ -592,6 +592,16 @@ html.js-reveal .board.in{
   box-shadow:0 4px 12px -4px color-mix(in srgb, var(--tint) 60%, transparent);
 }
 .board-head .spacer{margin-left:auto}
+/* atalho admin (a edição mora no Admin → Conteúdo do hub) */
+.board-admin-link{
+  display:inline-flex;align-items:center;gap:4px;
+  font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.04em;
+  color:var(--ink-soft);text-decoration:none;
+  border:1px solid var(--hairline);border-radius:99px;padding:4px 11px;
+  transition:border-color .25s var(--ease), color .25s var(--ease);
+}
+.board-admin-link:hover{border-color:var(--gold);color:var(--gold)}
+.board-admin-link[hidden]{display:none}
 .board-btn{
   border:1px solid var(--hairline);background:none;border-radius:99px;padding:5px 13px;cursor:pointer;
   font-family:var(--text);font-size:11.5px;font-weight:600;color:var(--ink-soft);
@@ -1515,6 +1525,8 @@ footer{
     <div class="board-head">
       <span class="suit" aria-hidden="true">&spades;</span>
       <h2>Agenda da casa</h2>
+      <span class="spacer"></span>
+      <a class="board-admin-link" href="admin.html" hidden>Editar no Admin &#8599;</a>
     </div>
     <div class="cal-nav">
       <button type="button" id="calPrev" aria-label="M&ecirc;s anterior">&lsaquo;</button>
@@ -1524,46 +1536,16 @@ footer{
     </div>
     <div class="cal-grid" id="calGrid"></div>
     <div class="ev-list" id="evList"></div>
-    <!-- só o admin vê e usa este form; a lista é pública pra quem está logado -->
-    <form class="ev-form" id="evForm" hidden onsubmit="return false">
-      <div class="ef-row">
-        <span class="ef-field">
-          <label class="ef-label" for="evDate">In&iacute;cio</label>
-          <input type="date" id="evDate" required>
-        </span>
-        <span class="ef-field">
-          <label class="ef-label" for="evEndDate">Fim <small>(opcional)</small></label>
-          <input type="date" id="evEndDate">
-        </span>
-        <span class="ef-field">
-          <label class="ef-label" for="evTime">Hora</label>
-          <input type="time" id="evTime" value="15:00">
-        </span>
-        <label class="ef-allday" id="evAllDayWrap"><input type="checkbox" id="evAllDay"><span class="tick">&#10003;</span> Dia inteiro</label>
-      </div>
-      <div class="ef-row">
-        <span class="ef-field grow">
-          <input type="text" id="evTitle" placeholder="Nome do evento (ex: Primeiro 5M Garantidos)" maxlength="80" required>
-        </span>
-        <button type="submit" class="board-btn primary" id="evAddBtn">Adicionar</button>
-      </div>
-      <span class="ev-form-note">Modo admin: clique num dia do calend&aacute;rio pra preencher o in&iacute;cio. Pra evento de v&aacute;rios dias, preencha o fim tamb&eacute;m.</span>
-    </form>
   </div>
 
   <div class="board" id="lkBoard" data-suit="&#9829;" style="--b:1">
     <div class="board-head">
       <span class="suit" aria-hidden="true">&#9829;</span>
       <h2>Fique ligado</h2>
+      <span class="spacer"></span>
+      <a class="board-admin-link" href="admin.html" hidden>Editar no Admin &#8599;</a>
     </div>
     <div class="lk-list" id="lkList"></div>
-    <!-- só o admin vê e usa este form -->
-    <form class="lk-form" id="lkForm" hidden onsubmit="return false">
-      <input type="url" id="lkUrl" placeholder="https://..." required>
-      <input type="text" id="lkTitle" placeholder="Nome (ex: Suprema Poker Tour)" maxlength="60" required>
-      <input type="text" id="lkTag" placeholder="Etiqueta (ex: Evento Live)" maxlength="30">
-      <button type="submit" class="board-btn primary">Adicionar link</button>
-    </form>
   </div>
 
   <div class="board" id="pnBoard" data-suit="&diams;" style="--b:2">
@@ -1571,18 +1553,10 @@ footer{
       <span class="suit" aria-hidden="true">&diams;</span>
       <h2>Patch notes</h2>
       <span class="spacer"></span>
-      <button type="button" class="board-btn" id="pnEditBtn" hidden>Editar</button>
+      <a class="board-admin-link" href="admin.html" hidden>Editar no Admin &#8599;</a>
     </div>
     <div class="pn-body" id="pnBody"></div>
     <div class="pn-meta" id="pnMeta"></div>
-    <div class="pn-edit" id="pnEdit" hidden>
-      <textarea id="pnText" spellcheck="false"></textarea>
-      <p class="pn-hint">Formato: linha come&ccedil;ando com <b>##</b> vira t&iacute;tulo da vers&atilde;o (ex: <b>## v1.2 &middot; 08/07/2026</b>); linha com <b>-</b> ou <b>*</b> vira item da lista.</p>
-      <div class="row">
-        <button type="button" class="board-btn" id="pnCancelBtn">Cancelar</button>
-        <button type="button" class="board-btn primary" id="pnSaveBtn">Salvar</button>
-      </div>
-    </div>
   </div>
 
   <!-- ── Mesa dos campeões: leaderboard de XP da casa ── -->
@@ -2394,19 +2368,9 @@ if (location.protocol === 'file:') {
       const tipLines = [...(hol ? [`Feriado · ${hol}`] : []), ...evs.map(e => `${evWhen(e)} · ${e.title}`)];
       const title = tipLines.length ? ` title="${escHtml(tipLines.join('\n'))}"` : '';
       const marks = [hol?'<span class="dot hol"></span>':'', evs.length?'<span class="dot"></span>':''].filter(Boolean).join('');
-      // a11y: pro admin o dia é interativo (preenche o form) — precisa ser alcançável por Tab+Enter
-      const kbd = admin ? ` tabindex="0" role="button" aria-label="Usar ${iso} no formulário de evento"` : '';
-      html += `<span class="${cls}" data-date="${iso}"${title}${kbd}>${d.getDate()}${marks?`<span class="cal-daymarks">${marks}</span>`:''}</span>`;
+      html += `<span class="${cls}" data-date="${iso}"${title}>${d.getDate()}${marks?`<span class="cal-daymarks">${marks}</span>`:''}</span>`;
     }
     grid.innerHTML = html;
-    // admin: clicar (ou Enter/Espaço) num dia preenche a data do form
-    grid.querySelectorAll('.cal-day').forEach(el => {
-      const pick = () => { if(admin){ $('evDate').value = el.dataset.date; $('evTitle').focus(); } };
-      el.addEventListener('click', pick);
-      if(admin) el.addEventListener('keydown', e => {
-        if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); pick(); }
-      });
-    });
   }
 
   function renderEventList(){
@@ -2441,15 +2405,8 @@ if (location.protocol === 'file:') {
       return `<div class="ev-item">
         <span class="ev-date"><span class="pip ${pipCls}">${pip}</span><b${range && sameMonth ? ' class="range"' : ''}>${dayLabel}</b><span>${MONTHS_SHORT[+m-1]} ${y !== String(now0.getFullYear()) ? y : ''}</span></span>
         <span class="ev-body"><b>${escHtml(e.title)}</b><span>${evWhen(e)}</span></span>
-        ${admin ? `<button type="button" class="ev-del" data-id="${escHtml(e.id)}" data-seed="${e.seed?'1':''}" title="Apagar evento">✕</button>` : ''}
       </div>`;
     }).join('');
-    list.querySelectorAll('.ev-del').forEach(btn => btn.addEventListener('click', () => {
-      if(!boardsDb) return alert('Sem conexão com o servidor.');
-      if(!confirm('Apagar este evento?')) return;
-      if(btn.dataset.seed) boardsDb.ref(`hub/calendarHidden/${btn.dataset.id}`).set(true);
-      else boardsDb.ref(`hub/calendar/${btn.dataset.id}`).remove();
-    }));
   }
 
   /* links dos nossos eventos (campanhas, eventos live) */
@@ -2467,30 +2424,10 @@ if (location.protocol === 'file:') {
         <span class="lk-chip ${live ? 'felt' : 'gold'}" aria-hidden="true">♠</span>
         <span class="lk-body"><b>${escHtml(l.title)}</b><span>${escHtml(host)}</span></span>
         ${l.tag ? `<span class="${tagCls}">${escHtml(l.tag)}</span>` : ''}
-        ${admin ? `<button type="button" class="lk-del" data-id="${escHtml(l.id)}" data-seed="${l.seed?'1':''}" title="Remover link">✕</button>` : '<span class="lk-arrow">↗</span>'}
+        <span class="lk-arrow">↗</span>
       </a>`;
     }).join('');
-    list.querySelectorAll('.lk-del').forEach(btn => btn.addEventListener('click', ev => {
-      ev.preventDefault(); ev.stopPropagation(); // não abrir o link ao apagar
-      if(!boardsDb) return alert('Sem conexão com o servidor.');
-      if(!confirm('Remover este link?')) return;
-      if(btn.dataset.seed) boardsDb.ref(`hub/linksHidden/${btn.dataset.id}`).set(true);
-      else boardsDb.ref(`hub/links/${btn.dataset.id}`).remove();
-    }));
   }
-
-  $('lkForm').addEventListener('submit', () => {
-    if(!session || !isAdmin(session.email)) return;
-    const url = ($('lkUrl').value||'').trim(), title = ($('lkTitle').value||'').trim(), tag = ($('lkTag').value||'').trim();
-    if(!url || !title) return alert('Preencha o link e o nome.');
-    if(!/^https?:\/\//i.test(url)) return alert('O link precisa começar com https://');
-    if(!boardsDb) return alert('Sem conexão com o servidor. Tente em instantes.');
-    boardsDb.ref('hub/links').push({
-      url, title, tag: tag || null,
-      by: session.email, createdAt: firebase.database.ServerValue.TIMESTAMP,
-    });
-    $('lkUrl').value = ''; $('lkTitle').value = ''; $('lkTag').value = '';
-  });
 
   /* patch notes: "## título" vira heading, "- item" vira bullet, resto vira parágrafo */
   function renderPatchNotes(){
@@ -2559,11 +2496,11 @@ if (location.protocol === 'file:') {
     list.querySelectorAll('.av-dismiss').forEach(b => b.addEventListener('click', () => dismissAviso(b.dataset.av)));
   }
 
+  /* a edição de agenda / links / patch notes agora mora no Admin (Conteúdo do hub).
+     Aqui o hub é vitrine: só mostra pro admin um atalho "Editar no Admin". */
   function refreshBoardsAdminUI(){
     const admin = session && isAdmin(session.email);
-    $('evForm').hidden = !admin;
-    $('lkForm').hidden = !admin;
-    $('pnEditBtn').hidden = !admin;
+    document.querySelectorAll('.board-admin-link').forEach(a => a.hidden = !admin);
     renderCalendar(); renderEventList(); renderLinks();
   }
 
@@ -2586,48 +2523,7 @@ if (location.protocol === 'file:') {
   });
   paintHolToggle();
 
-  // pílula "Dia inteiro": desliga o campo de hora
-  $('evAllDay').addEventListener('change', () => {
-    const on = $('evAllDay').checked;
-    $('evAllDayWrap').classList.toggle('on', on);
-    $('evTime').disabled = on;
-  });
-
-  $('evForm').addEventListener('submit', () => {
-    if(!session || !isAdmin(session.email)) return;
-    const date = $('evDate').value, endDate = $('evEndDate').value;
-    const allDay = $('evAllDay').checked;
-    const time = allDay ? null : ($('evTime').value || null);
-    const title = ($('evTitle').value||'').trim();
-    if(!date || !title) return alert('Preencha a data de início e o nome do evento.');
-    if(endDate && endDate < date) return alert('A data de fim precisa ser depois do início.');
-    if(!boardsDb) return alert('Sem conexão com o servidor. Tente em instantes.');
-    boardsDb.ref('hub/calendar').push({
-      date, endDate: endDate && endDate > date ? endDate : null,
-      time, allDay: allDay || null, title,
-      by: session.email, createdAt: firebase.database.ServerValue.TIMESTAMP,
-    });
-    $('evTitle').value = ''; $('evEndDate').value = '';
-  });
-
-  $('pnEditBtn').addEventListener('click', () => {
-    $('pnText').value = (patchNotes && patchNotes.text) || DEFAULT_PATCH_NOTES;
-    $('pnEdit').hidden = false; $('pnBody').hidden = true; $('pnMeta').hidden = true; $('pnEditBtn').hidden = true;
-    $('pnText').focus();
-  });
-  $('pnCancelBtn').addEventListener('click', () => {
-    $('pnEdit').hidden = true; $('pnBody').hidden = false; $('pnMeta').hidden = false;
-    $('pnEditBtn').hidden = !(session && isAdmin(session.email));
-  });
-  $('pnSaveBtn').addEventListener('click', () => {
-    if(!session || !isAdmin(session.email)) return;
-    if(!boardsDb) return alert('Sem conexão com o servidor. Tente em instantes.');
-    boardsDb.ref('hub/patchNotes').set({
-      text: $('pnText').value, by: session.email,
-      updatedAt: firebase.database.ServerValue.TIMESTAMP,
-    }).then(() => $('pnCancelBtn').click())
-      .catch(() => alert('Falha ao salvar. Tente novamente.'));
-  });
+  /* edição de agenda / links / patch notes movida para o Admin (Conteúdo do hub) */
 
   function initBoards(db){
     boardsDb = db;

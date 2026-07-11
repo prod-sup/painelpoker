@@ -475,6 +475,26 @@ html.dark .lbox{border-color:var(--border)}
 }
 .btn-sm{padding:5px 11px;font-size:12px;border-radius:7px}
 
+/* ── sub-navegação do Centro de edição do hub ── */
+.hub-edit-nav{
+  display:inline-flex;gap:3px;padding:4px;margin-bottom:20px;
+  background:var(--s1);border:1px solid var(--border);border-radius:12px;flex-wrap:wrap;
+}
+.hub-edit-nav button{
+  padding:7px 15px;border:none;background:transparent;color:var(--ink2);
+  font:inherit;font-size:13px;font-weight:500;border-radius:8px;cursor:pointer;
+  transition:background .15s,color .15s;
+}
+.hub-edit-nav button:hover{color:var(--ink)}
+.hub-edit-nav button.on{background:var(--s3,var(--s2));color:var(--ink);box-shadow:var(--sh-1)}
+.hub-edit-sec[hidden]{display:none}
+/* linha de item nas listas de gestão (evento/link) */
+.he-row{display:flex;align-items:flex-start;gap:12px;padding:13px 0;border-top:1px solid var(--border)}
+.he-row:first-child{border-top:none}
+.he-row .he-main{flex:1;min-width:0}
+.he-row .he-t{font-weight:600;font-size:14px;color:var(--ink)}
+.he-row .he-s{font-size:12px;color:var(--ink3);margin-top:3px}
+
 /* ── FILTERS ─────────────────────────────────────────────────── */
 .filters{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px}
 .fld{display:flex;flex-direction:column;gap:5px}
@@ -836,7 +856,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
     <span class="nav-group">Sistema</span>
     <button class="ntab" onclick="nav('operadores',this)"><span class="ni"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>Operadores</button>
     <button class="ntab" onclick="nav('backup',this)"><span class="ni"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg></span>Backup & Arquivo</button>
-    <button class="ntab" id="navAvisos" onclick="nav('avisos',this)"><span class="ni"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>Avisos do hub</button>
+    <button class="ntab" id="navAvisos" onclick="nav('avisos',this)"><span class="ni"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>Conteúdo do hub</button>
   </nav>
 
   <!-- MAIN -->
@@ -1168,16 +1188,25 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
       </div>
     </div>
 
-    <!-- ══ AVISOS DO HUB ══ -->
+    <!-- ══ CENTRO DE EDIÇÃO DO HUB ══ -->
     <div class="page" id="pageAvisos">
       <div class="ph">
         <div>
           <div class="ph-eyebrow">Sistema</div>
-          <h1>Avisos do hub</h1>
-          <p>Erros de atualização do app e informativos — aparecem no topo do hub para todos os operadores em tempo real</p>
+          <h1>Conteúdo do hub</h1>
+          <p>Tudo que você mantém atualizado no hub em um só lugar — avisos, agenda da casa, links (Fique ligado) e patch notes. As mudanças aparecem no hub em tempo real para todos.</p>
         </div>
       </div>
 
+      <div class="hub-edit-nav" id="hubEditNav">
+        <button type="button" class="on" data-sec="secAvisos">Avisos</button>
+        <button type="button" data-sec="secAgenda">Agenda da casa</button>
+        <button type="button" data-sec="secLinks">Fique ligado</button>
+        <button type="button" data-sec="secPatch">Patch notes</button>
+      </div>
+
+      <!-- ─ AVISOS ─ -->
+      <section class="hub-edit-sec on" id="secAvisos">
       <div class="card" style="margin-bottom:18px">
         <div class="card-head">
           <div><div class="card-title" id="avFormTitle">Novo aviso</div>
@@ -1214,6 +1243,68 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
         <div class="card-head"><div><div class="card-title">Avisos publicados</div><div class="card-sub" id="avCount">—</div></div></div>
         <div id="avList" style="padding:8px 18px 18px"></div>
       </div>
+      </section>
+
+      <!-- ─ AGENDA DA CASA ─ -->
+      <section class="hub-edit-sec" id="secAgenda" hidden>
+        <div class="card" style="margin-bottom:18px">
+          <div class="card-head"><div><div class="card-title">Novo evento</div>
+               <div class="card-sub">Aparece no calendário e na lista "Agenda da casa" do hub</div></div></div>
+          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+            <div class="filters" style="gap:12px;margin:0">
+              <div class="fld"><label>Início</label><input type="date" id="agDate"></div>
+              <div class="fld"><label>Fim <span style="color:var(--ink3)">(opcional)</span></label><input type="date" id="agEnd"></div>
+              <div class="fld"><label>Hora</label><input type="time" id="agTime" value="15:00"></div>
+              <label class="fld" style="flex-direction:row;align-items:center;gap:8px;font-size:13px;color:var(--ink2);cursor:pointer;align-self:flex-end;padding-bottom:8px">
+                <input type="checkbox" id="agAllDay"> Dia inteiro
+              </label>
+            </div>
+            <div class="fld" style="min-width:240px"><label>Nome do evento</label>
+              <input type="text" id="agTitle" maxlength="80" placeholder="Ex: Primeiro 5M Garantidos">
+            </div>
+            <div><button class="btn btn-gold" onclick="saveHubEvent()">Adicionar evento</button></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div><div class="card-title">Eventos adicionados</div><div class="card-sub" id="agCount">—</div></div></div>
+          <div id="agList" style="padding:8px 18px 18px"></div>
+        </div>
+      </section>
+
+      <!-- ─ FIQUE LIGADO (LINKS) ─ -->
+      <section class="hub-edit-sec" id="secLinks" hidden>
+        <div class="card" style="margin-bottom:18px">
+          <div class="card-head"><div><div class="card-title">Novo link</div>
+               <div class="card-sub">Campanhas e eventos live que aparecem em "Fique ligado" no hub</div></div></div>
+          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+            <div class="fld"><label>Link (URL)</label><input type="url" id="lkUrlA" placeholder="https://..."></div>
+            <div class="filters" style="gap:12px;margin:0">
+              <div class="fld" style="flex:1;min-width:200px"><label>Nome</label><input type="text" id="lkTitleA" maxlength="60" placeholder="Ex: Suprema Poker Tour"></div>
+              <div class="fld" style="min-width:160px"><label>Etiqueta <span style="color:var(--ink3)">(opcional)</span></label><input type="text" id="lkTagA" maxlength="30" placeholder="Ex: Evento Live"></div>
+            </div>
+            <div><button class="btn btn-gold" onclick="saveHubLink()">Adicionar link</button></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div><div class="card-title">Links adicionados</div><div class="card-sub" id="lkCountA">—</div></div></div>
+          <div id="lkListA" style="padding:8px 18px 18px"></div>
+        </div>
+      </section>
+
+      <!-- ─ PATCH NOTES ─ -->
+      <section class="hub-edit-sec" id="secPatch" hidden>
+        <div class="card">
+          <div class="card-head"><div><div class="card-title">Patch notes</div>
+               <div class="card-sub">Novidades e correções mostradas no board "Patch notes" do hub</div></div>
+            <div class="card-actions"><span id="pnMetaA" style="font-size:11.5px;color:var(--ink3)"></span></div>
+          </div>
+          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:10px">
+            <textarea id="pnTextA" rows="12" spellcheck="false" style="width:100%;padding:12px 14px;font:inherit;font-size:13px;font-family:var(--mono);line-height:1.6;resize:vertical"></textarea>
+            <p style="font-size:11.5px;color:var(--ink3);line-height:1.6;margin:0">Formato: linha com <b>##</b> vira título da versão (ex: <b>## v1.2 · 08/07/2026</b>); linha com <b>-</b> ou <b>*</b> vira item da lista; o resto vira parágrafo.</p>
+            <div style="display:flex;gap:10px"><button class="btn btn-gold" onclick="saveHubPatch()">Salvar patch notes</button></div>
+          </div>
+        </div>
+      </section>
     </div>
 
     <!-- ══ MODAL: Log de Auditoria ══ -->
@@ -3958,11 +4049,127 @@ async function writeAdminLog(action, meta={}){
    CRUD dos avisos que aparecem no topo do hub (hub/avisos). Erros de
    atualização e informativos. Escrita restrita a admin pelas regras. */
 let _avisos = {}, _avEditId = null, _avAttached = false;
+let _hubEvents = {}, _hubLinks = {}, _hubPatch = null;
+/* patch notes default — igual ao do hub, pra o editor começar do conteúdo real
+   quando ainda não há nada salvo no Firebase */
+const HUB_DEFAULT_PATCH =
+`## v1.0 · 08/07/2026
+- Login e criação de conta agora acontecem só aqui no hub. Os produtos exigem sessão.
+- Nova Agenda da casa: o calendário de eventos importantes (admin adiciona, todo mundo vê).
+- Mesas abertas: os links das campanhas e eventos live da Suprema.
+- Nova área de Patch notes.`;
 function initAvisos(){
   if(!fbOk){ document.getElementById('avList').innerHTML = '<p style="color:var(--ink3);font-size:13px;padding:10px 0">Firebase não conectado.</p>'; return; }
+  // sub-navegação entre as seções do centro de edição
+  const nav = document.getElementById('hubEditNav');
+  if(nav && !nav.__wired){
+    nav.__wired = true;
+    nav.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      nav.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+      document.querySelectorAll('.hub-edit-sec').forEach(s => s.hidden = (s.id !== b.dataset.sec));
+    }));
+  }
   if(_avAttached) return;
   _avAttached = true;
   db.ref('hub/avisos').on('value', s => { _avisos = s.val() || {}; renderAvisosAdmin(); });
+  db.ref('hub/calendar').on('value', s => { _hubEvents = s.val() || {}; renderHubEvents(); });
+  db.ref('hub/links').on('value', s => { _hubLinks = s.val() || {}; renderHubLinks(); });
+  db.ref('hub/patchNotes').on('value', s => {
+    _hubPatch = s.val();
+    const ta = document.getElementById('pnTextA');
+    // só sobrescreve o textarea se o admin não estiver editando (sem foco)
+    if(ta && document.activeElement !== ta) ta.value = (_hubPatch && _hubPatch.text) || HUB_DEFAULT_PATCH;
+    const meta = document.getElementById('pnMetaA');
+    if(meta) meta.textContent = _hubPatch && _hubPatch.updatedAt
+      ? `Atualizado em ${new Date(_hubPatch.updatedAt).toLocaleDateString('pt-BR')} por ${String(_hubPatch.by||'').split('@')[0]}` : 'Ainda usando o texto padrão';
+  });
+}
+
+/* ── AGENDA DA CASA (hub/calendar) ── mesmo formato que o hub grava ── */
+async function saveHubEvent(){
+  if(!fbOk){ toast('Firebase não conectado.','err'); return; }
+  const date = document.getElementById('agDate').value;
+  const endDate = document.getElementById('agEnd').value;
+  const allDay = document.getElementById('agAllDay').checked;
+  const time = allDay ? null : (document.getElementById('agTime').value || null);
+  const title = document.getElementById('agTitle').value.trim();
+  if(!date || !title){ toast('Preencha a data de início e o nome do evento.','err'); return; }
+  if(endDate && endDate < date){ toast('A data de fim precisa ser depois do início.','err'); return; }
+  try{
+    await db.ref('hub/calendar').push({
+      date, endDate: endDate && endDate > date ? endDate : null,
+      time, allDay: allDay || null, title, by: _email,
+      createdAt: firebase.database.ServerValue.TIMESTAMP
+    });
+    await writeAdminLog('hub.evento.add', {title, date});
+    toast('✓ Evento adicionado à agenda do hub','ok');
+    document.getElementById('agTitle').value = ''; document.getElementById('agEnd').value = '';
+  }catch(e){ console.error(e); toast('Falha ao adicionar evento.','err'); }
+}
+async function removeHubEvent(id){
+  if(!confirm('Apagar este evento?')) return;
+  try{ await db.ref('hub/calendar/'+id).remove(); await writeAdminLog('hub.evento.remove',{id}); toast('Evento removido','ok'); }
+  catch(e){ toast('Falha ao remover.','err'); }
+}
+function renderHubEvents(){
+  const el = document.getElementById('agList'); if(!el) return;
+  const items = Object.entries(_hubEvents).map(([id,e]) => ({id, ...e}))
+    .filter(e => e && e.date && e.title).sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  document.getElementById('agCount').textContent = items.length ? `${items.length} evento(s) adicionado(s)` : 'Nenhum evento adicionado';
+  if(!items.length){ el.innerHTML = '<p style="color:var(--ink3);font-size:13px;padding:12px 0">Nenhum evento adicionado. Os eventos padrão da casa continuam no hub.</p>'; return; }
+  const fmt = d => { const [y,m,dd]=d.split('-'); return `${dd}/${m}/${y}`; };
+  el.innerHTML = items.map(e => {
+    const when = e.allDay ? 'dia inteiro' : (e.time || '');
+    const range = e.endDate ? ` — ${fmt(e.endDate)}` : '';
+    return `<div class="he-row"><div class="he-main"><div class="he-t">${esc(e.title)}</div>
+      <div class="he-s">${fmt(e.date)}${range}${when ? ' · '+esc(when) : ''}${e.by ? ' · '+esc(String(e.by).split('@')[0]) : ''}</div></div>
+      <button class="btn btn-ghost btn-sm" onclick="removeHubEvent('${e.id}')" style="color:var(--red)">Remover</button></div>`;
+  }).join('');
+}
+
+/* ── FIQUE LIGADO (hub/links) ── */
+async function saveHubLink(){
+  if(!fbOk){ toast('Firebase não conectado.','err'); return; }
+  const url = document.getElementById('lkUrlA').value.trim();
+  const title = document.getElementById('lkTitleA').value.trim();
+  const tag = document.getElementById('lkTagA').value.trim();
+  if(!url || !title){ toast('Preencha o link e o nome.','err'); return; }
+  if(!/^https?:\/\//i.test(url)){ toast('O link precisa começar com https://','err'); return; }
+  try{
+    await db.ref('hub/links').push({ url, title, tag: tag || null, by: _email, createdAt: firebase.database.ServerValue.TIMESTAMP });
+    await writeAdminLog('hub.link.add', {title, url});
+    toast('✓ Link adicionado ao Fique ligado','ok');
+    document.getElementById('lkUrlA').value = ''; document.getElementById('lkTitleA').value = ''; document.getElementById('lkTagA').value = '';
+  }catch(e){ console.error(e); toast('Falha ao adicionar link.','err'); }
+}
+async function removeHubLink(id){
+  if(!confirm('Remover este link?')) return;
+  try{ await db.ref('hub/links/'+id).remove(); await writeAdminLog('hub.link.remove',{id}); toast('Link removido','ok'); }
+  catch(e){ toast('Falha ao remover.','err'); }
+}
+function renderHubLinks(){
+  const el = document.getElementById('lkListA'); if(!el) return;
+  const items = Object.entries(_hubLinks).map(([id,l]) => ({id, ...l})).filter(l => l && l.url && l.title);
+  document.getElementById('lkCountA').textContent = items.length ? `${items.length} link(s) adicionado(s)` : 'Nenhum link adicionado';
+  if(!items.length){ el.innerHTML = '<p style="color:var(--ink3);font-size:13px;padding:12px 0">Nenhum link adicionado. Os links padrão da casa continuam no hub.</p>'; return; }
+  el.innerHTML = items.map(l => {
+    const host = (l.url||'').replace(/^https?:\/\//,'').replace(/\/$/,'');
+    return `<div class="he-row"><div class="he-main"><div class="he-t">${esc(l.title)}${l.tag ? ` <span style="font-size:11px;color:var(--gold);font-weight:500">· ${esc(l.tag)}</span>` : ''}</div>
+      <div class="he-s">${esc(host)}${l.by ? ' · '+esc(String(l.by).split('@')[0]) : ''}</div></div>
+      <button class="btn btn-ghost btn-sm" onclick="removeHubLink('${l.id}')" style="color:var(--red)">Remover</button></div>`;
+  }).join('');
+}
+
+/* ── PATCH NOTES (hub/patchNotes) ── */
+async function saveHubPatch(){
+  if(!fbOk){ toast('Firebase não conectado.','err'); return; }
+  const text = document.getElementById('pnTextA').value;
+  if(!text.trim()){ toast('Escreva o conteúdo das patch notes.','err'); return; }
+  try{
+    await db.ref('hub/patchNotes').set({ text, by: _email, updatedAt: firebase.database.ServerValue.TIMESTAMP });
+    await writeAdminLog('hub.patchNotes.save', {});
+    toast('✓ Patch notes atualizadas no hub','ok');
+  }catch(e){ console.error(e); toast('Falha ao salvar as patch notes.','err'); }
 }
 function resetAvisoForm(){
   _avEditId = null;

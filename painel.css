@@ -857,74 +857,136 @@
   @keyframes rise{ to{opacity:1; transform:translateY(0);} }
 
   
-  /* ── CENA DO HERO — tokens de material (leque de cartas + troféu + fichas) ──
-     Cartas em grafite premium nos DOIS temas (objeto físico, lê bem em qualquer
-     fundo); o AMBIENTE (halo, pódio, sombra) é que se ajusta ao tema. */
+  /* ── HERO: LEQUE DE CARTAS (HTML/CSS) — tokens de material da carta ──
+     Faces de baralho de verdade, nítidas. Light = carta marfim, naipe tinta;
+     dark = carta grafite, naipe prata-claro. O Ás ganha índice/miolo dourado. */
   :root{
-    --hs-card-1:#171b1f;   /* face da carta (base) */
-    --hs-card-2:#2b323a;   /* face da carta (topo, leve gradiente) */
-    --hs-card-edge:rgba(255,255,255,.14);
-    --hs-gold-1:#c8a04e;   /* ouro do naipe/troféu */
-    --hs-gold-2:#f0d488;
-    --hs-podium:rgba(12,92,63,.14);
-    --hs-podium-top:#e9edf0;
-    --hs-shadow:rgba(16,28,22,.16);
+    --pc-face-1:#ffffff;      /* topo da face */
+    --pc-face-2:#eef0f2;      /* base da face (leve gradiente) */
+    --pc-edge:rgba(15,23,20,.10);
+    --pc-ink:#141a24;         /* naipe / índice */
+    --pc-ink-soft:#3b4658;
+    --pc-ace:#a8842f;         /* dourado do Ás no claro (segura contraste) */
+    --pc-glow:rgba(24,163,107,.22);
+    --pc-shadow:rgba(16,28,22,.28);
   }
   html.dark{
-    --hs-card-1:#0e1114;
-    --hs-card-2:#242b31;
-    --hs-card-edge:rgba(255,255,255,.16);
-    --hs-gold-1:#cda954;
-    --hs-gold-2:#f3da8e;
-    --hs-podium:rgba(0,0,0,.5);
-    --hs-podium-top:#1a1f1d;
-    --hs-shadow:rgba(0,0,0,.55);
+    --pc-face-1:#262c35;
+    --pc-face-2:#141920;
+    --pc-edge:rgba(255,255,255,.10);
+    --pc-ink:#eef2f5;
+    --pc-ink-soft:#aeb8c2;
+    --pc-ace:#f0d488;
+    --pc-glow:rgba(34,212,126,.20);
+    --pc-shadow:rgba(0,0,0,.6);
   }
   .hero-cards{
-    position:absolute; top:40%; right:-3%; transform:translateY(-50%);
-    width:460px; height:360px; z-index:0; pointer-events:none;
+    position:absolute; top:42%; right:2%; transform:translateY(-50%);
+    width:430px; height:340px; z-index:0; pointer-events:none;
     display:none;
   }
   @media (min-width:980px){ .hero-cards{ display:block; } }
-  @media (min-width:1240px){ .hero-cards{ right:1%; width:520px; height:408px; } }
-  /* vídeo decorativo do herói: escondido até carregar de fato; quando aparece, a cena SVG some */
+  @media (min-width:1240px){ .hero-cards{ right:4%; width:480px; height:380px; } }
+  /* vídeo decorativo do herói: escondido até carregar; quando aparece, o leque some */
   .hero-video{
     position:absolute; inset:0; width:100%; height:100%;
     object-fit:contain; border-radius:16px;
-    opacity:0; transition:opacity .6s var(--ease); pointer-events:none; z-index:4;
+    opacity:0; transition:opacity .6s var(--ease); pointer-events:none; z-index:9;
   }
   .hero-cards.has-video .hero-video{ opacity:1; }
-  .hero-cards.has-video .hero-scene{ opacity:0 !important; }
+  .hero-cards.has-video .deck{ opacity:0 !important; }
 
-  .hero-scene{
-    position:absolute; inset:0; width:100%; height:100%;
-    filter:drop-shadow(0 24px 40px var(--hs-shadow));
-    opacity:0; animation:hs-in 1s var(--ease-expo) .3s forwards;
+  /* palco: brilho verde de feltro por trás do leque */
+  .deck{
+    position:absolute; inset:0;
+    opacity:0; animation:deck-in 1s var(--ease-expo) .25s forwards;
   }
-  @keyframes hs-in{ from{ opacity:0; transform:translateY(14px) scale(.97);} to{ opacity:1; transform:none;} }
+  @keyframes deck-in{ from{opacity:0} to{opacity:1} }
+  .deck::before{
+    content:""; position:absolute; left:50%; top:52%; width:78%; height:70%;
+    transform:translate(-50%,-50%);
+    background:radial-gradient(closest-side, var(--pc-glow), transparent 72%);
+    filter:blur(6px); z-index:0;
+    animation:deck-breathe 7s ease-in-out infinite;
+  }
+  @keyframes deck-breathe{ 0%,100%{opacity:.8; transform:translate(-50%,-50%) scale(1)} 50%{opacity:1; transform:translate(-50%,-50%) scale(1.06)} }
+  /* piso: sombra suave sob o leque */
+  .deck::after{
+    content:""; position:absolute; left:50%; bottom:9%; width:56%; height:26px;
+    transform:translateX(-50%);
+    background:radial-gradient(closest-side, var(--pc-shadow), transparent 72%);
+    filter:blur(3px); z-index:0;
+  }
 
-  /* halo verde pulsa devagar (respiração), fichas e troféu flutuam leve */
-  .hs-halo{ transform-origin:250px 180px; animation:hs-breathe 7s ease-in-out infinite; }
-  @keyframes hs-breathe{ 0%,100%{ opacity:.85; transform:scale(1);} 50%{ opacity:1; transform:scale(1.05);} }
-  .hs-podium-glow{ filter:blur(7px); transform-origin:220px 312px; animation:hs-breathe 7s ease-in-out infinite; }
+  /* cada carta: face real, leque em torno de um pivô baixo */
+  .pcard{
+    position:absolute; left:50%; top:16%;
+    width:132px; height:186px; margin-left:-66px;
+    border-radius:13px;
+    background:linear-gradient(158deg, var(--pc-face-1), var(--pc-face-2));
+    border:1px solid var(--pc-edge);
+    box-shadow:
+      0 1px 1px rgba(0,0,0,.16),
+      0 18px 30px -14px var(--pc-shadow),
+      inset 0 1px 0 rgba(255,255,255,.5);
+    z-index:var(--z);
+    transform-origin:50% 152%;
+    transform:rotate(var(--rot));
+    opacity:0;
+    animation:card-deal .85s var(--ease-expo) forwards;
+  }
+  html.dark .pcard{ box-shadow:0 1px 1px rgba(0,0,0,.4), 0 20px 36px -14px var(--pc-shadow), inset 0 1px 0 rgba(255,255,255,.08); }
+  /* brilho diagonal sutil na face */
+  .pcard::after{
+    content:""; position:absolute; inset:0; border-radius:13px; pointer-events:none;
+    background:linear-gradient(125deg, rgba(255,255,255,.22) 0%, transparent 34%);
+  }
+  /* stagger de entrada: abre do centro pra fora */
+  .pcard:nth-child(2){ animation-delay:.30s; } /* 10 */
+  .pcard:nth-child(3){ animation-delay:.42s; } /* J */
+  .pcard:nth-child(4){ animation-delay:.36s; } /* Q */
+  .pcard:nth-child(5){ animation-delay:.48s; } /* K */
+  .pcard-ace{ animation-delay:.58s; }
+  @keyframes card-deal{
+    from{ opacity:0; transform:rotate(0deg) translateY(26px) scale(.92); }
+    to{ opacity:1; transform:rotate(var(--rot)); }
+  }
+  .pcard{ will-change:transform; }
 
-  /* leque: cada carta "abre" na entrada (stagger), depois o Ás respira de leve */
-  .hs-card{ transform-box:fill-box; transform-origin:50% 100%; opacity:0; animation:hs-deal .8s var(--ease-expo) forwards; }
-  .hs-card-a5{ animation-delay:.45s; } .hs-card-a4{ animation-delay:.55s; }
-  .hs-card-a3{ animation-delay:.65s; } .hs-card-a2{ animation-delay:.75s; }
-  .hs-card-ace{ animation-delay:.85s; }
-  @keyframes hs-deal{ from{ opacity:0; transform:translateY(10px) rotate(-4deg) scale(.94);} to{ opacity:1; transform:none;} }
-  .hs-chips{ transform-box:fill-box; transform-origin:126px 292px; animation:hs-float 6s ease-in-out 1.4s infinite; }
-  .hs-trophy{ transform-box:fill-box; transform-origin:388px 300px; animation:hs-float 6.6s ease-in-out 1.7s infinite; }
-  @keyframes hs-float{ 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-6px);} }
-  .hs-rank{ font-family:var(--display); font-weight:700; font-size:22px; fill:var(--hs-gold-1); }
-  .hs-rank-ace{ font-size:27px; }
+  /* Ás em destaque: face marfim mais alta, borda e miolo dourados */
+  .pcard-ace{
+    height:196px; top:13%;
+    border-color:color-mix(in srgb, var(--pc-ace) 55%, var(--pc-edge));
+    box-shadow:
+      0 2px 3px rgba(0,0,0,.18),
+      0 26px 44px -16px var(--pc-shadow),
+      0 0 0 1px color-mix(in srgb, var(--pc-ace) 22%, transparent),
+      inset 0 1px 0 rgba(255,255,255,.55);
+  }
 
-  /* reduzir movimento: cena estática e visível, sem entrada nem flutuação */
+  /* índice de canto (valor + naipe pequeno) */
+  .pc-ix{
+    position:absolute; display:flex; flex-direction:column; align-items:center; line-height:.92;
+    font-family:var(--display); font-weight:750; font-size:19px; color:var(--pc-ink);
+  }
+  .pc-ix i{ font-style:normal; font-size:15px; margin-top:1px; }
+  .pc-ix.tl{ top:9px; left:11px; }
+  .pc-ix.br{ bottom:9px; right:11px; transform:rotate(180deg); }
+  /* miolo: naipe grande centralizado */
+  .pc-pip{
+    position:absolute; inset:0; display:grid; place-items:center;
+    font-size:64px; color:var(--pc-ink); line-height:1;
+    text-shadow:0 1px 1px rgba(0,0,0,.12);
+  }
+  .pcard-ace .pc-ix{ color:var(--pc-ace); font-size:21px; }
+  .pcard-ace .pc-ix i{ font-size:16px; }
+  .pcard-ace .pc-pip{ font-size:82px; color:var(--pc-ace); text-shadow:0 2px 6px color-mix(in srgb, var(--pc-ace) 40%, transparent); }
+
+  /* reduzir movimento: leque estático e visível, sem entrada nem respiração */
   @media (prefers-reduced-motion: reduce){
-    .hero-scene{ opacity:1; animation:none; }
-    .hs-card{ opacity:1; animation:none; }
-    .hs-halo,.hs-podium-glow,.hs-chips,.hs-trophy{ animation:none; }
+    .deck,.pcard{ opacity:1; animation:none; }
+    .pcard{ transform:rotate(var(--rot)); }
+    .deck::before{ animation:none; }
   }
 
   .hero-stats{
