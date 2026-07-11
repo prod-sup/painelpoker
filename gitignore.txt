@@ -21,3 +21,6 @@ desktop.ini
 firebase_test.html
 sync_test.html
 firebase_import.json
+
+# Config local do Claude Code
+.claude/

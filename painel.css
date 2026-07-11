@@ -1776,6 +1776,47 @@
   .gc-by{ display:block; font-size:9px; color:var(--ink-soft); font-family:var(--mono); margin-top:2px; }
   .gc-empty{ text-align:center; padding:48px 16px; color:var(--ink-soft); font-size:13px; line-height:1.6; }
   .gc-empty .ic{ font-size:30px; display:block; margin-bottom:8px; }
+
+  /* fonte da sheet em uso (arquivo/quem/quando) — vira alerta quando velha */
+  .gc-src{ font-size:11.5px; color:var(--ink-soft); margin:10px 0 14px; line-height:1.5; }
+  .gc-src b{ color:var(--ink); font-weight:650; }
+  .gc-src.is-stale{ color:var(--red, #c0392b); }
+  .gc-src.is-stale b{ color:inherit; }
+
+  /* contagem de torneios sem ID Pokerbyte */
+  .gc-pill-warn{ background:color-mix(in srgb, var(--red, #c0392b) 12%, transparent); color:var(--red, #c0392b); }
+  .gc-noid{ color:var(--red, #c0392b); font-weight:700; font-size:11px; }
+
+  /* filtro "Ocultar conferidos" — mesmo vocabulário do chip da Conferência de hoje */
+  #guConfHideDoneBtn{ border:1px solid var(--hairline-strong); flex:none; }
+  #guConfHideDoneBtn.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+
+  /* diff GU × versão anterior — quadro de alterações no topo da lista */
+  .gc-alerts{
+    border:1px solid color-mix(in srgb, var(--gold, #c9a84c) 45%, transparent);
+    background:color-mix(in srgb, var(--gold, #c9a84c) 8%, transparent);
+    border-radius:12px; padding:12px 14px; margin-bottom:16px;
+    font-size:12px; line-height:1.55; color:var(--ink);
+  }
+  .gc-alerts .ttl{ font-weight:700; margin-bottom:6px; }
+  .gc-alerts .row{ font-family:var(--mono); font-size:11.5px; padding:2px 0; }
+
+  /* "usar a Global compartilhada" — presente nas 3 conferências */
+  .shared-global-btn{
+    display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+    margin:10px 0 0; padding:10px 14px; border-radius:10px; cursor:pointer;
+    border:1px solid var(--hairline-strong); background:var(--bg); color:var(--ink-soft);
+    font:inherit; font-size:12.5px; line-height:1.45;
+    transition:border-color .2s var(--ease), background-color .2s var(--ease), color .2s var(--ease);
+  }
+  .shared-global-btn[hidden]{ display:none; }
+  .shared-global-btn:hover{ border-color:var(--felt); color:var(--ink); background:color-mix(in srgb, var(--felt-bright) 6%, transparent); }
+  .shared-global-btn:focus-visible{ outline:2px solid var(--felt-bright); outline-offset:2px; }
+  .shared-global-btn svg{ width:16px; height:16px; flex:none; color:var(--felt); }
+  .shared-global-btn b{ color:var(--ink); font-weight:650; }
+  .shared-global-btn.is-stale{ border-color:color-mix(in srgb, var(--red, #c0392b) 40%, transparent); }
+  .shared-global-btn.is-stale b{ color:var(--red, #c0392b); }
+
   .routine-tool-desc{ font-size:12.5px; color:var(--ink-soft); line-height:1.6; margin:0 0 16px; }
   .drawer-section-divider{ height:1px; background:var(--hairline); margin:26px 0 20px; }
   .drawer-section-title{ font-family:var(--display); font-weight:650; font-size:15px; letter-spacing:-0.01em; margin-bottom:10px; }

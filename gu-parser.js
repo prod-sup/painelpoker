@@ -32,9 +32,10 @@ function cellToHHMM(v){
   }
   return null;
 }
+/* aceita "HH:MM" e também prefixos tipo "HH:MM:SS" — o painel depende do formato permissivo */
 function timeToMinutes(hhmm){
-  if (typeof hhmm !== 'string') return null;
-  const m = hhmm.match(/^(\d{1,2}):(\d{2})$/);
+  if (hhmm === null || hhmm === undefined || hhmm === '') return null;
+  const m = String(hhmm).match(/^(\d{1,2}):(\d{2})/);
   return m ? (+m[1])*60 + (+m[2]) : null;
 }
 function readSheetMatrix(arrayBuffer, sheetNameContains){

@@ -489,13 +489,7 @@ function dataPorExtensoSP(){
   return `${dias[weekday]}, ${n.day} de ${meses[n.month - 1]} de ${n.year}`;
 }
 
-/* horário do torneio (HH:MM) -> minutos desde meia-noite, para comparar com o relógio atual */
-function timeToMinutes(hhmm){
-  if (!hhmm) return null;
-  const m = String(hhmm).match(/^(\d{1,2}):(\d{2})/);
-  if (!m) return null;
-  return parseInt(m[1],10) * 60 + parseInt(m[2],10);
-}
+/* timeToMinutes (HH:MM -> minutos) vem de gu-parser.js */
 
 /* minutos desde meia-noite -> "HH:MM", com wrap em 24h */
 function minutesToHHMM(min){
@@ -786,9 +780,7 @@ function nextCheckpoint(baseMin, direction){
   }
 }
 
-/* dias da semana — usados no parsing da Global (devem vir antes do FILE PARSING) */
-const WEEKDAYS_PT = ['DOMINGO','SEGUNDA-FEIRA','TERÇA-FEIRA','QUARTA-FEIRA','QUINTA-FEIRA','SEXTA-FEIRA','SÁBADO'];
-const WEEKDAYS_EN = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+/* WEEKDAYS_PT/EN vêm de gu-parser.js (parser compartilhado, carregado antes deste arquivo) */
 
 /* soma n dias a uma data ISO (AAAA-MM-DD). Meio-dia UTC evita borda de fuso. */
 function addDaysISO(iso, n){
@@ -882,6 +874,8 @@ document.getElementById('fileInputGlobal').addEventListener('change', async (e) 
       label.textContent = 'Carregar Global MTT'; btnEl.disabled = false;
       e.target.value = ''; return;
     }
+    // planilha válida: compartilha o arquivo com a equipe (painel/globalMtt)
+    publishSharedGlobal(arrayBuffer, file.name);
     // próximo dia da grade: a madrugada de HOJE (00:00–02:00) vive na seção de amanhã da Global —
     // esses eventos entram no quadro atual pra serem fixados com antecedência (late register)
     const nextSection = extractGlobalDaySection(matrix, weekdayPtFromISO(addDaysISO(baseDate, 1)), 1);
@@ -4824,355 +4818,9 @@ document.getElementById('shiftReportDrawerOverlay').addEventListener('click', (e
 });
 
 /* =========================================================================
-   CONFERÊNCIA DO DIA (GU) — a receita COMPLETA dos eventos de hoje, lida do
-   que o turno noturno publicou no Firebase (painel/{hoje}/criacaoNoturna/sheet).
-   Cada linha é um torneio; as colunas são os campos da GU na ordem de conferência;
-   "Action" marca conferido em …/conf (mesma base que a Criação usava) — sincroniza.
+   CONFERÊNCIA DO DIA (GU) — módulo movido para conf-dia.js (carregado
+   depois deste arquivo no index.html). Usa o gu-parser.js compartilhado.
 ========================================================================= */
-(function guConfInit(){
-  // dia operacional: antes das 05:30 a grade em vigor ainda é a de ontem (mesma regra da Criação)
-  function opTodayISO(){
-    const n = nowInSP();
-    const d = new Date(Date.UTC(n.year, n.month-1, n.day, 12));
-    if (n.hour*60 + n.minute < 330) d.setUTCDate(d.getUTCDate()-1);
-    return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
-  }
-  const DAY_ISO = opTodayISO();
-  const BASE = `painel/${DAY_ISO}/criacaoNoturna`;
-  let gcSheet = null, gcConf = {}, gcIds = {}, gcAttached = false, gcSearch = '';
-
-  const gcKey = it => `${normText(it.nome)}|${it.hora}`.replace(/[.#$\[\]\/]/g,'_');   // = itemKey da Criação
-
-  /* ── COLUNAS = MESMA LÓGICA DA CRIAÇÃO NOTURNA ──
-     Os campos da receita seguem a ordem em que se DIGITA no app (cópia do
-     creationOrderFields de criacao-noturna.html):
-     Torneio → K.O → Max. Table → Garantido → Ticket Award → Calculated Payout →
-     Payout → Buy-in → Reentry/Rebuy → Stack Reentry/Rebuy → Rebuy Condition →
-     Add-on → Stack Add-on → Break Late Reg. → Admin Fee → Structure → Chips →
-     Early game → Pós Late Reg. → Final Table → Early Bird → Time Bank.
-     Campos fora da lista entram DEPOIS, na ordem original da planilha;
-     Garantido e Buy-in aparecem UMA vez; "Num. players"/"Chat" ficam fora. */
-  const GC_CREATION_ORDER = [
-    { m: n => n === 'mtt' },                                                          // Torneio (nome interno)
-    { m: n => /(^|[^a-z])k\.?\s*o\b/.test(n) || n.includes('knock') },                // K.O (REG/PROG/OFF)
-    { m: n => n.includes('max') && n.includes('table') },                             // MAX. TABLE
-    { m: n => n.includes('prize pool') || n.includes('guarant') || n.includes('garantido'), once: true }, // Garantido (1x)
-    { m: n => n.includes('ticket') && n.includes('award') },                          // TICKET AWARD
-    { m: n => n.includes('payout') && (n.includes('calculated') || n.includes('calculado')) }, // CALCULATED PAYOUT
-    { m: n => n.includes('payout') || n.includes('premiac') },                        // PAYOUT
-    { m: n => n.includes('buy-in') || n.includes('buy in') || n === 'buyin', once: true }, // Buy-in (1x)
-    { m: n => (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) && !n.includes('stack') && !n.includes('condition') },
-    { m: n => n.includes('stack') && (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) },
-    { m: n => n.includes('rebuy') && n.includes('condition') },
-    { m: n => (n.includes('add-on') || n.includes('addon')) && !n.includes('stack') },
-    { m: n => n.includes('stack') && (n.includes('add-on') || n.includes('addon')) },
-    { m: n => n.includes('break') && n.includes('late') },                            // BREAK LATE REG.
-    { m: n => n.includes('admin') && n.includes('fee') },                             // Admin Fee
-    { m: n => n.includes('structure') || n.includes('estrutura') },                   // STRUCTURE
-    { m: n => n === 'chips' || n.includes('chip stack') || n.includes('starting stack') || n.includes('stack inicial') },
-    { m: n => n.includes('early game') },                                             // Early game (blinds)
-    { m: n => n.includes('pos late') },                                               // Pós Late Reg. (normText tira o acento)
-    { m: n => n.includes('final table') },                                            // Final Table
-    { m: n => n.includes('early bird') },                                             // Early Bird
-    { m: n => n.includes('time bank') || n === 'tb' },                                // TIME BANK
-  ];
-  // além dos campos que a Criação esconde, some o "Action" da planilha —
-  // aqui a linha Action é o botão de conferido do checklist, duplicaria
-  const GC_HIDDEN_RECIPE = /num\.?\s*(de\s*)?players|jogadores|\bchat\b|^action$/;
-  function gcOrderFields(fields){
-    const remaining = fields.slice(), out = [];
-    GC_CREATION_ORDER.forEach(slot => {
-      let claimed = false;
-      for (let i = 0; i < remaining.length; ){
-        if (slot.m(normText(remaining[i]))){
-          if (!claimed){
-            out.push(remaining[i]); remaining.splice(i, 1); claimed = true;
-            if (!slot.once) break;               // sem dedup: para no primeiro
-          } else remaining.splice(i, 1);          // duplicata de Garantido/Buy-in: fora
-        } else i++;
-      }
-    });
-    return out.concat(remaining);                 // o que sobrou vai pro fim, na ordem da planilha
-  }
-  function gcVisibleFields(){
-    return gcOrderFields(((gcSheet && gcSheet.fields) || []).filter(l => !GC_HIDDEN_RECIPE.test(normText(l))));
-  }
-  // formatação por TIPO do rótulo — cópia do fmtExtraVal da Criação (gu-parser.js)
-  function gcFmtExtra(label, v){
-    if (v === null || v === undefined || v === '') return '—';
-    const n = normText(label);
-    if (typeof v === 'number'){
-      const isPct = /fee|payout|early bird/.test(n);
-      const isTime = /late reg|hour|break|horari|early game|pos late|final table/.test(n);
-      if (v > 0 && v < 1){
-        if (isPct) return (Math.round(v*10000)/100).toLocaleString('pt-BR') + '%';
-        if (isTime) return cellToHHMM(v);
-        return (Math.round(v*100)/100).toLocaleString('pt-BR');
-      }
-      return v.toLocaleString('pt-BR', {maximumFractionDigits:2});
-    }
-    return escHtml(String(v).trim());
-  }
-  /* seções na MESMA ordem/divisão da Criação: Main Event / Side Event / Satélite */
-  function gcSections(){
-    if (!gcSheet) return [];
-    const byHora = arr => [...(arr||[])].sort((a,b) => (timeToMinutes(a.hora) ?? 9999) - (timeToMinutes(b.hora) ?? 9999));
-    return [
-      {cls:'main', suit:'♠', label:'Main Event', items: byHora(gcSheet.main)},
-      {cls:'side', suit:'♥', label:'Side Event', items: byHora(gcSheet.side)},
-      {cls:'sat',  suit:'♣', label:'Satélite',   items: byHora(gcSheet.sat)},
-    ].filter(s => s.items.length);
-  }
-  function gcItems(){ return gcSections().flatMap(s => s.items); }
-  function gcToggle(key){
-    if (!fbDb) { showToast('Sem conexão com o Firebase.', true); return; }
-    if (gcConf[key]) fbDb.ref(`${BASE}/conf/${key}`).remove();
-    else fbDb.ref(`${BASE}/conf/${key}`).set({by: OPERATOR_NAME || 'Alguém', at: Date.now()});
-  }
-  function gcRender(){
-    const area = document.getElementById('guConfArea');
-    const dayLbl = document.getElementById('guConfDayLbl');
-    const [y,m,d] = DAY_ISO.split('-');
-    dayLbl.textContent = `${d}/${m}`;
-    const items = gcItems();
-    if (!items.length){
-      area.innerHTML = `<div class="gc-empty"><span class="ic">🌙</span>Nenhuma receita publicada pra hoje (${d}/${m}).<br>O turno noturno sobe a GU na página de Criação — ou carregue a <b>Global MTT</b> no botão acima que ela aparece aqui na hora.</div>`;
-      document.getElementById('guConfProgress').textContent = '—';
-      document.getElementById('guConfBadge').hidden = true;
-      return;
-    }
-    const total = items.length, done = items.filter(it => gcConf[gcKey(it)]).length;
-    document.getElementById('guConfProgress').textContent = `${done}/${total} conferidos`;
-    document.getElementById('guConfBarFill').style.transform = `scaleX(${total ? done/total : 0})`;
-    const badge = document.getElementById('guConfBadge');
-    badge.hidden = false; badge.textContent = `${done}/${total}`;
-    const q = normText(gcSearch);
-    // TRANSPOSTO, igual à Criação: campos nas linhas, torneios nas colunas, por seção
-    let html = '';
-    gcSections().forEach(sec => {
-      const vis = q ? sec.items.filter(it => normText(it.nome).includes(q)) : sec.items;
-      if (!vis.length) return;
-      const cols = vis.map(it => {
-        const key = gcKey(it);
-        return {it, key, ok: !!gcConf[key], by: gcConf[key] && gcConf[key].by ? String(gcConf[key].by).split(' ')[0] : ''};
-      });
-      const secDone = sec.items.filter(it => gcConf[gcKey(it)]).length;
-      const cell = (fn, cls) => cols.map(c => `<td class="${c.ok ? 'gc-ok' : ''} ${cls || ''}">${fn(c)}</td>`).join('');
-      let t = `<tr class="gc-head"><th class="gc-rowlab">Torneio</th>${cell(c => escHtml(c.it.nome), 'gc-name')}</tr>`;
-      t += `<tr><th class="gc-rowlab key">Horário</th>${cell(c => escHtml(c.it.hora || '—'), 'gc-time')}</tr>`;
-      // linhas-chave destacadas: mesmos campos que a Criação põe em evidência
-      const isKeyRow = n => /admin fee|early bird|buy-?in|prize pool|guarant|garantido/.test(n);
-      gcVisibleFields().forEach(label => {
-        const n = normText(label);
-        t += `<tr><th class="gc-rowlab ${isKeyRow(n) ? 'key' : ''}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(c => gcFmtExtra(label, c.it.extra ? c.it.extra[label] : undefined), /chips|prize pool|buy-?in/.test(n) ? 'gc-num' : '')}</tr>`;
-      });
-      t += `<tr><th class="gc-rowlab">ID Pokerbyte</th>${cell(c => gcIds[c.key] ? escHtml(gcIds[c.key].val) : '—', 'gc-num')}</tr>`;
-      t += `<tr><th class="gc-rowlab key">Action</th>${cell(c =>
-        `<button class="gc-chk ${c.ok ? 'on' : ''}" data-gckey="${escHtml(c.key)}" title="${c.ok ? 'Conferido por ' + escHtml(c.by) : 'Marcar como conferido'}"><svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>${c.by ? `<span class="gc-by">${escHtml(c.by)}</span>` : ''}`, 'gc-act')}</tr>`;
-      html += `
-        <div class="gc-sec ${sec.cls}">
-          <span class="tag"><span class="suit">${sec.suit}</span>${sec.label}</span>
-          <span class="cnt">${secDone}/${sec.items.length} conferidos</span>
-          <span class="line"></span>
-        </div>
-        <div class="gc-scroll"><table class="gc-table">${t}</table></div>`;
-    });
-    area.innerHTML = html || `<div class="gc-empty"><span class="ic">🃏</span>Nada nesse filtro.</div>`;
-    area.querySelectorAll('[data-gckey]').forEach(b => b.addEventListener('click', () => gcToggle(b.dataset.gckey)));
-  }
-  function gcAttach(){
-    if (gcAttached || !fbDb) return;
-    gcAttached = true;
-    fbDb.ref(`${BASE}/sheet`).on('value', s => {
-      const v = s.val();
-      if (v && v.json){ try{ gcSheet = JSON.parse(v.json); }catch(e){ console.error('guConf: sheet corrompida', e); } }
-      gcRender();
-    });
-    fbDb.ref(`${BASE}/conf`).on('value', s => { gcConf = s.val() || {}; gcRender(); });
-    fbDb.ref(`${BASE}/ids`).on('value', s => { gcIds = s.val() || {}; gcRender(); });
-  }
-  // o fbDb só existe depois do init do Firebase — tenta já e re-tenta até conectar
-  gcAttach();
-  const gcRetry = setInterval(() => { gcAttach(); if (gcAttached) clearInterval(gcRetry); }, 2000);
-
-  /* ── UPLOAD DIRETO DA GU NO PAINEL ──
-     Fallback pra quando o turno noturno não publicou nada: lê a aba G MTTS da
-     própria Global MTT (mesma lógica do gu-parser.js da Criação Noturna), monta
-     a grade do dia OPERACIONAL de hoje (06:10 de hoje → 05:30 de amanhã) e
-     publica no MESMO caminho do Firebase que a Criação usa — a tabela aparece
-     na hora e os ✓ de Action sincronizam com a equipe do mesmo jeito. */
-  const gcWeekdayEn = iso => WEEKDAYS_EN[new Date(iso + 'T12:00:00Z').getUTCDay()];
-  // cabeçalho da G MTTS ocupa DUAS linhas — mescla as duas (cópia do gu-parser.js)
-  function gcFindHeaderCols(matrix){
-    const clean = v => typeof v === 'string' && v.trim() ? v.replace(/\s+/g,' ').trim() : '';
-    for (let i = 0; i < Math.min(matrix.length, 80); i++){
-      const row = matrix[i];
-      if (!row) continue;
-      const norm = row.map(c => typeof c === 'string' ? normText(c) : '');
-      const mttIdx = norm.findIndex(x => x === 'mtt');
-      if (mttIdx >= 0 && norm.some(x => x === 'tipo' || x === 'type') && norm.some(x => x.includes('buy'))){
-        const next = matrix[i+1] || [];
-        const merge = !clean(next[mttIdx]);
-        const width = Math.max(row.length, merge ? next.length : 0);
-        const cols = [];
-        for (let c = 0; c < width; c++){
-          const label = [clean(row[c]), merge ? clean(next[c]) : ''].filter(Boolean).join(' — ');
-          if (label) cols.push({idx: c, label});
-        }
-        return cols;
-      }
-    }
-    return null;
-  }
-  function gcIsCore(label){
-    const n = normText(label);
-    return n.includes('mtt marketing') || n === 'tipo' || n === 'type' || n === 'day' || n === 'hora' || n === 'horario' || n === 'time' || n.includes('(utc');
-  }
-  function gcGuIdx(headerCols){
-    const find = pred => { const c = headerCols.find(c => pred(normText(c.label))); return c ? c.idx : -1; };
-    const name = find(n => n.includes('mtt marketing'));
-    const shortName = find(n => n === 'mtt');
-    return {
-      hora: find(n => n === 'hora' || n === 'horario'),
-      name: name >= 0 ? name : shortName,
-      shortName,
-      tipo: find(n => n === 'type' || n === 'tipo'),
-      prize: find(n => n.includes('prize pool') || n.includes('guaranteed')),
-      buyin: find(n => n === 'buy-in' || n === 'buy in' || n === 'buyin'),
-      hourLate: find(n => n.includes('hour late') || n.includes('hora late'))
-    };
-  }
-  // cabeçalho do dia é a linha com o nome do dia NA PRÓPRIA coluna do nome (cópia do gu-parser.js)
-  function gcFindDayRange(matrix, weekdayName, nameIdx){
-    const norm = normText(weekdayName);
-    const allNames = allWeekdayNamesNorm();
-    const dayAt = row => {
-      const c = row && row[nameIdx];
-      return typeof c === 'string' && allNames.includes(normText(c)) ? normText(c) : null;
-    };
-    let startRow = -1, endRow = matrix.length;
-    for (let i = 0; i < matrix.length; i++){
-      if (dayAt(matrix[i]) === norm){ startRow = i; break; }
-    }
-    if (startRow === -1) return null;
-    for (let i = startRow+1; i < matrix.length; i++){
-      const d = dayAt(matrix[i]);
-      if (d && d !== norm){ endRow = i; break; }
-    }
-    return {startRow, endRow};
-  }
-  // extrai a seção de um dia da G MTTS com a receita completa (cópia do gu-parser.js)
-  function gcExtractDay(matrix, weekdayEn, headerCols){
-    const gi = gcGuIdx(headerCols);
-    const range = gcFindDayRange(matrix, weekdayEn, gi.name);
-    if (!range) return null;
-    const main = [], side = [], sat = [];
-    let lastGroupName = null, lastHora = null, emptyCount = 0;
-    const num = v => typeof v === 'number' ? Math.round(v*100)/100 : null;
-    const str = v => typeof v === 'string' && v.trim() ? v.replace(/\s+/g,' ').trim() : null;
-    for (let i = range.startRow; i < range.endRow; i++){
-      const row = matrix[i];
-      if (!row || row.every(v => v === null || v === undefined || v === '' || v === ' ')){
-        lastGroupName = null; lastHora = null; emptyCount++;
-        if (emptyCount >= 5) break; // vão grande de linhas vazias = fim da grade do dia
-        continue;
-      }
-      emptyCount = 0;
-      let hora = cellToHHMM(row[gi.hora]);
-      const nomeMkt = str(row[gi.name]);
-      const nomeCurto = str(row[gi.shortName]);
-      const tipo = str(row[gi.tipo]);
-      if (nomeMkt && allWeekdayNamesNorm().includes(normText(nomeMkt))) continue; // cabeçalho do dia
-      if (nomeMkt) lastGroupName = nomeMkt;
-      if (['mtt','satellite','satelite'].includes(normText(nomeMkt || '')) || ['satellite','satelite'].includes(normText(nomeCurto || ''))) continue;
-      const nome = (tipo === 'SAT' ? (nomeCurto || nomeMkt) : (nomeMkt || nomeCurto));
-      if (!nome) continue;
-      if (normText(nome) === 'suspenso') continue;
-      if (!hora && lastHora) hora = lastHora;
-      else if (hora) lastHora = hora;
-      if (!hora) continue;
-      const extra = {};
-      headerCols.forEach(({idx, label}) => {
-        if (gcIsCore(label)) return;
-        let v = row[idx];
-        if (v instanceof Date) v = cellToHHMM((v.getHours()*60 + v.getMinutes())/1440);
-        if (typeof v === 'string') v = v.trim();
-        if (v !== null && v !== undefined && v !== '') extra[label] = v;
-      });
-      const entry = {nome, hora, garantido: num(row[gi.prize]), buyin: num(row[gi.buyin]),
-        late: gi.hourLate >= 0 ? cellToHHMM(row[gi.hourLate]) : null,
-        groupHeader: tipo === 'SAT' ? lastGroupName : null, extra};
-      if (tipo === 'Main Event') main.push(entry);
-      else if (tipo === 'Side Event') side.push(entry);
-      else if (tipo === 'SAT') sat.push(entry);
-    }
-    return {main, side, sat};
-  }
-  // janela do dia operacional: ≥06:10 na seção de HOJE + ≤05:30 na seção de AMANHÃ
-  function gcBuildDay(secToday, secNext){
-    const inWin = list => (list||[]).filter(it => (timeToMinutes(it.hora) ?? -1) >= CONF_WINDOW_START_MIN);
-    const inWinNext = list => (list||[]).filter(it => { const mm = timeToMinutes(it.hora); return mm !== null && mm <= CONF_WINDOW_END_MIN; });
-    const merge = k => [...inWin(secToday && secToday[k]), ...(secNext ? inWinNext(secNext[k]) : [])];
-    return {main: merge('main'), side: merge('side'), sat: merge('sat')};
-  }
-  document.getElementById('guConfFileInput').addEventListener('change', async function(e){
-    const file = e.target.files[0];
-    if (!file) return;
-    const lbl = document.getElementById('guConfFileLabel');
-    const box = document.getElementById('guConfUploadLabel');
-    if (typeof XLSX === 'undefined'){
-      showToast('A biblioteca de planilhas ainda está carregando — aguarde 2 segundos e tente de novo.', true);
-      e.target.value = ''; return;
-    }
-    lbl.textContent = 'Lendo…';
-    // deixa o navegador pintar "Lendo…" antes do parse pesado do XLSX
-    // (com fallback de timeout: em aba oculta o requestAnimationFrame não dispara)
-    await new Promise(r => { requestAnimationFrame(() => requestAnimationFrame(r)); setTimeout(r, 200); });
-    try{
-      const matrix = readSheetMatrix(await file.arrayBuffer(), 'G MTTS');
-      const headerCols = gcFindHeaderCols(matrix);
-      if (!headerCols) throw new Error('Não encontrei o cabeçalho da aba G MTTS (MTT MARKETING / TYPE / BUY-IN…) — é a Global MTT certa?');
-      const secToday = gcExtractDay(matrix, gcWeekdayEn(DAY_ISO), headerCols);
-      if (!secToday) throw new Error(`Não encontrei a seção "${gcWeekdayEn(DAY_ISO)}" na aba G MTTS — é a Global MTT certa?`);
-      const secNext = gcExtractDay(matrix, gcWeekdayEn(addDaysISO(DAY_ISO, 1)), headerCols);
-      const sections = gcBuildDay(secToday, secNext);
-      const fields = headerCols.filter(c => !gcIsCore(c.label)).map(c => c.label);
-      const total = sections.main.length + sections.side.length + sections.sat.length;
-      if (!total) throw new Error('Nenhum torneio na janela de hoje (06:10 → 05:30) nessa planilha.');
-      // mostra na hora, mesmo sem Firebase
-      gcSheet = {...sections, fields};
-      gcRender();
-      lbl.textContent = file.name;
-      box.classList.add('is-loaded');
-      if (fbDb){
-        fbDb.ref(`${BASE}/sheet`).set({
-          json: JSON.stringify({main: sections.main, side: sections.side, sat: sections.sat, fields, fileName: file.name}),
-          by: OPERATOR_NAME || 'Alguém', at: Date.now()
-        });
-        showToast(`GU carregada — ${total} torneios de hoje, compartilhada com a equipe.`);
-      } else {
-        showToast(`GU carregada — ${total} torneios de hoje (só neste navegador, sem conexão pra compartilhar).`);
-      }
-    }catch(err){
-      console.error('guConf: erro no upload da GU', err);
-      showToast(err && err.message ? err.message : 'Erro ao ler a planilha — confira se é a Global MTT (.xlsx).', true);
-      lbl.textContent = 'Carregar Global MTT (.xlsx)';
-      box.classList.remove('is-loaded');
-    }
-    e.target.value = '';
-  });
-
-  document.getElementById('guConfToggle').addEventListener('click', () => { openDrawer('guConfDrawerOverlay'); gcAttach(); gcRender(); });
-  document.getElementById('guConfDrawerClose').addEventListener('click', () => closeDrawer('guConfDrawerOverlay'));
-  document.getElementById('guConfDrawerOverlay').addEventListener('click', (e) => {
-    if (e.target.id === 'guConfDrawerOverlay') closeDrawer('guConfDrawerOverlay');
-  });
-  let gcSearchT = null;
-  document.getElementById('guConfSearch').addEventListener('input', function(){
-    clearTimeout(gcSearchT);
-    gcSearchT = setTimeout(() => { gcSearch = this.value; gcRender(); }, 150);
-  });
-})();
 
 /* =========================================================================
    CALCULADORA DE OVERLAY
@@ -5782,30 +5430,17 @@ document.getElementById('ovcCopyBtn').addEventListener('click', () => {
   copyToClipboard(text, null, 'Resultado da calculadora copiado.');
 });
 
-/* WEEKDAYS_PT/EN movidos para antes do FILE PARSING */
-
-/* normaliza texto pra comparação: remove acento, baixa caixa, tira espaços nas pontas */
-function normText(s){
-  return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
-}
-
 /* =========================================================================
-   UTILITÁRIOS DE PLANILHA — leitura de .xlsx e localização da seção do dia da semana
-   dentro da grade fixa (usado pela Conferência de hoje)
+   UTILITÁRIOS DE PLANILHA — normText, readSheetMatrix, cellToHHMM,
+   timeToMinutes e allWeekdayNamesNorm vêm de gu-parser.js (parser
+   compartilhado com a Criação Noturna, carregado antes deste arquivo).
+   Aqui fica só o que é ESPECÍFICO da grade MTTS BRAZIL do painel.
 ========================================================================= */
-
-/* lê uma planilha .xlsx (ArrayBuffer) e devolve a matriz de células da aba pedida (ou a primeira, se não achar) */
-function readSheetMatrix(arrayBuffer, sheetNameContains){
-  const wb = XLSX.read(arrayBuffer, {type:'array', cellDates:false});
-  let sheetName = wb.SheetNames.find(n => normText(n).includes(normText(sheetNameContains)));
-  if (!sheetName) sheetName = wb.SheetNames[0];
-  const ws = wb.Sheets[sheetName];
-  return XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
-}
-
 /* acha os índices de linha onde cada dia da semana começa, na coluna A (col índice 0) —
-   mesmo padrão usado nas duas planilhas (Global e Liga Principal), só muda o idioma do nome do dia */
-function findWeekdaySectionRange(matrix, weekdayName){
+   mesmo padrão usado nas duas planilhas (Global e Liga Principal), só muda o idioma do nome do dia.
+   NOME PRÓPRIO deste arquivo: o gu-parser tem um findWeekdaySectionRange de outra assinatura
+   (por índice da coluna do nome) — este aqui é o da grade MTTS BRAZIL, colunas fixas A/C */
+function findGlobalSectionRange(matrix, weekdayName){
   const norm = normText(weekdayName);
   // linha de CABEÇALHO de seção = nome do dia na coluna A e também na coluna do nome (C) ou C vazia.
   // A coluna A sozinha não basta: a Global repete o dia ("   QUINTA-FEIRA") como rótulo decorativo
@@ -5835,25 +5470,11 @@ function findWeekdaySectionRange(matrix, weekdayName){
   return {startRow, endRow, duplicate};
 }
 
-/* converte um valor de hora vindo do SheetJS (fração de dia, Date, ou string) pra "HH:MM" */
-function cellToHHMM(v){
-  if (v === null || v === undefined || v === '') return null;
-  if (typeof v === 'number'){
-    const totalMin = Math.round(v * 24 * 60);
-    const hh = Math.floor(totalMin / 60) % 24;
-    const mm = totalMin % 60;
-    return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
-  }
-  if (typeof v === 'string'){
-    const m = v.match(/^(\d{1,2}):(\d{2})/);
-    if (m) return `${m[1].padStart(2,'0')}:${m[2]}`;
-  }
-  return null;
-}
+/* cellToHHMM (fração de dia/Date/string → "HH:MM") vem de gu-parser.js */
 
 /* extrai Main/Side/Sat da seção de um dia da Global MTT (MTTS BRAZIL), já dividido pelo multiplicador */
 function extractGlobalDaySection(matrix, weekdayName, divisor){
-  const range = findWeekdaySectionRange(matrix, weekdayName);
+  const range = findGlobalSectionRange(matrix, weekdayName);
   if (!range) return null;
   const main = [], side = [], sat = [], unknown = [], semHora = [], aposGap = [];
   let currentGroupHeader = null; // cabeçalho do grupo de satélite atual (coluna A), propagado até a próxima linha em branco
@@ -5939,9 +5560,7 @@ function extractGlobalDaySection(matrix, weekdayName, divisor){
   return {main, side, sat, unknown, semHora, aposGap, duplicateSection: range.duplicate, rowsInSection: range.endRow - range.startRow, extractedCount};
 }
 
-function allWeekdayNamesNorm(){
-  return [...WEEKDAYS_PT, ...WEEKDAYS_EN].map(normText);
-}
+/* allWeekdayNamesNorm vem de gu-parser.js */
 
 /* autoteste do parser da Global: roda uma vez por carregamento com uma mini-planilha embutida
    que reproduz as armadilhas do arquivo real — nome do dia repetido como rótulo decorativo na
@@ -6022,11 +5641,17 @@ function confHojeItemId(cat, hora, nome){
 document.getElementById('globalTodayFileInput').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
+  const arrayBuffer = await file.arrayBuffer();
+  processGlobalToday(arrayBuffer, file.name);
+  // compartilha o arquivo com a equipe (painel/globalMtt) — ninguém precisa subir de novo
+  publishSharedGlobal(arrayBuffer, file.name);
+  e.target.value = '';
+});
+function processGlobalToday(arrayBuffer, fileName){
   const label = document.getElementById('globalTodayFileLabel');
   const labelBox = label.closest('.routine-upload');
   label.textContent = 'Lendo...';
   try{
-    const arrayBuffer = await file.arrayBuffer();
     const matrix = readSheetMatrix(arrayBuffer, 'MTTS BRAZIL');
     const weekdayPt = todayWeekdayName('pt');
     const section = extractGlobalDaySection(matrix, weekdayPt, 1); // sem dividir — aqui é só conferência de presença, mostra o valor cru da Global
@@ -6071,7 +5696,7 @@ document.getElementById('globalTodayFileInput').addEventListener('change', async
       semHoraCount: section.semHora.length, duplicateNames
     };
 
-    label.textContent = file.name;
+    label.textContent = fileName;
     labelBox.classList.add('is-loaded');
     showToast(`Lista de hoje carregada — ${CONFHOJE_ITEMS.length} torneios.`);
     renderConfHojeList();
@@ -6080,7 +5705,7 @@ document.getElementById('globalTodayFileInput').addEventListener('change', async
     showToast('Não foi possível ler essa planilha.', true);
     label.textContent = 'Carregar planilha Global MTT de hoje (.xlsx)';
   }
-});
+}
 
 function renderConfHoje(){ renderConfHojeList(); }
 function renderConfHojeList(){
@@ -6168,8 +5793,7 @@ document.getElementById('confHojeHideDoneBtn').addEventListener('click', (e) => 
    Janela: do horário 06:10 de amanhã até 05:30 do dia seguinte a amanhã (cobre a madrugada
    de fechamento de turno) — Main, Side e Satélite seguem a mesma janela.
 ========================================================================= */
-const CONF_WINDOW_START_MIN = 6*60 + 10;  // 06:10
-const CONF_WINDOW_END_MIN = 5*60 + 30;    // 05:30 do dia seguinte
+/* CONF_WINDOW_START_MIN / CONF_WINDOW_END_MIN vêm de gu-parser.js */
 
 /* ponto único da regra de turno (00:00→05:30) — usado por tudo que decide "qual é o dia de amanhã":
    captura o instante UMA vez e devolve tanto o offset quanto a data já calculada, pra nada que dependa
@@ -6449,12 +6073,18 @@ function exportConfAmanhaXlsx(){
 document.getElementById('globalTomorrowFileInput').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
+  const arrayBuffer = await file.arrayBuffer();
+  processGlobalTomorrow(arrayBuffer, file.name);
+  // compartilha o arquivo com a equipe (painel/globalMtt) — ninguém precisa subir de novo
+  publishSharedGlobal(arrayBuffer, file.name);
+  e.target.value = '';
+});
+function processGlobalTomorrow(arrayBuffer, fileName){
   const label = document.getElementById('globalTomorrowFileLabel');
   const labelBox = label.closest('.routine-upload');
   const resultEl = document.getElementById('confAmanhaResult');
   label.textContent = 'Lendo...';
   try{
-    const arrayBuffer = await file.arrayBuffer();
     const matrix = readSheetMatrix(arrayBuffer, 'MTTS BRAZIL');
     // turno calculado UMA vez aqui (leitura da planilha) e reaproveitado no export — assim o nome do
     // arquivo e o dia usado pra montar as seções nunca podem divergir por causa da hora do clique
@@ -6505,7 +6135,7 @@ document.getElementById('globalTomorrowFileInput').addEventListener('change', as
       aposGapItems,
       foraJanela: sections.foraJanela
     };
-    label.textContent = file.name;
+    label.textContent = fileName;
     labelBox.classList.add('is-loaded');
     renderConfAmanha(sections, weekdayTomorrowPt, dateLabel, meta);
     showToast(`Global lida — ${sections.total} torneios na janela de amanhã.`);
@@ -6514,6 +6144,64 @@ document.getElementById('globalTomorrowFileInput').addEventListener('change', as
     showToast('Não foi possível ler essa planilha.', true);
     label.textContent = 'Carregar planilha Global MTT (.xlsx)';
   }
+}
+
+/* =========================================================================
+   GLOBAL COMPARTILHADA — o arquivo Global MTT inteiro (base64) num caminho
+   FIXO do Firebase (painel/globalMtt): um operador sobe, o resto da equipe
+   usa nas Conferências sem resubir. Mesmo padrão da planilha de Mesas Cash.
+========================================================================= */
+let SHARED_GLOBAL = null; // {buf, filename, at, by}
+window.SHARED_GLOBAL = null;
+function publishSharedGlobal(arrayBuffer, filename){
+  if (!fbReady) return;
+  try{
+    const b64 = arrayBufferToBase64(arrayBuffer);
+    fbDb.ref('painel/globalMtt').set({data: b64, filename, at: Date.now(), by: OPERATOR_NAME || 'Alguém'})
+      .catch(err => console.warn('Firebase: falha ao compartilhar a Global', err));
+  }catch(e){ console.warn('não foi possível compartilhar a Global', e); }
+}
+window.publishSharedGlobal = publishSharedGlobal;
+function sharedGlobalAge(at){
+  const h = (Date.now() - at) / 3600000;
+  return h < 1 ? `${Math.max(1, Math.round(h*60))} min` : `${Math.round(h)}h`;
+}
+/* pinta todos os botões "usar a Global compartilhada" (das 3 conferências) */
+function paintSharedGlobalBtns(){
+  document.querySelectorAll('.shared-global-btn').forEach(btn => {
+    if (!SHARED_GLOBAL){ btn.hidden = true; return; }
+    const stale = (Date.now() - SHARED_GLOBAL.at) / 3600000 >= 12;
+    btn.hidden = false;
+    btn.classList.toggle('is-stale', stale);
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v13M12 21l-4-4M12 21l4-4"/><path d="M20 16.6A5 5 0 0 0 18 7h-1.3A8 8 0 1 0 4 15.3"/></svg>`
+      + `<span>Usar a Global compartilhada — <b>${escHtml(SHARED_GLOBAL.filename)}</b> (${escHtml(SHARED_GLOBAL.by)}, há ${sharedGlobalAge(SHARED_GLOBAL.at)})`
+      + `${stale ? ' · <b>+12h, confira se há versão mais nova</b>' : ''}</span>`;
+  });
+}
+function attachSharedGlobal(){
+  if (window.__sharedGlobalAttached || !fbReady) return;
+  window.__sharedGlobalAttached = true;
+  fbDb.ref('painel/globalMtt').on('value', s => {
+    const v = s.val();
+    try{
+      SHARED_GLOBAL = (v && v.data)
+        ? {buf: base64ToArrayBuffer(v.data), filename: v.filename || 'Global MTT.xlsx', at: v.at || 0, by: v.by || 'alguém'}
+        : null;
+    }catch(e){ console.warn('Global compartilhada corrompida', e); SHARED_GLOBAL = null; }
+    window.SHARED_GLOBAL = SHARED_GLOBAL;
+    paintSharedGlobalBtns();
+  });
+}
+attachSharedGlobal();
+const sharedGlobalRetry = setInterval(() => { attachSharedGlobal(); if (window.__sharedGlobalAttached) clearInterval(sharedGlobalRetry); }, 2000);
+
+document.getElementById('confHojeSharedBtn')?.addEventListener('click', () => {
+  if (!SHARED_GLOBAL){ showToast('Nenhuma Global compartilhada disponível.', true); return; }
+  processGlobalToday(SHARED_GLOBAL.buf.slice(0), SHARED_GLOBAL.filename);
+});
+document.getElementById('confAmanhaSharedBtn')?.addEventListener('click', () => {
+  if (!SHARED_GLOBAL){ showToast('Nenhuma Global compartilhada disponível.', true); return; }
+  processGlobalTomorrow(SHARED_GLOBAL.buf.slice(0), SHARED_GLOBAL.filename);
 });
 
 /* =========================================================================

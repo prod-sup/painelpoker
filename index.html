@@ -34,10 +34,11 @@
 <meta name="description" content="Acompanhamento dos torneios Suprema Poker. Garantidos, resultados e performance, atualizados a partir da planilha diária.">
 <!-- XLSX (~900KB) só é usado em upload/exportar (ação do usuário), nunca no load:
      defer tira ele do caminho crítico → a página pinta na hora e ele carrega em paralelo. -->
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script defer src="xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script src="gu-parser.js"></script>
 <script src="suprema-auth.js"></script>
 <script src="suprema-motion.js"></script>
 <script>
@@ -187,6 +188,7 @@ document.addEventListener('DOMContentLoaded', () => SupremaMotion.ambient());
         <span id="globalTodayFileLabel">Carregar planilha Global MTT de hoje (.xlsx)</span>
         <input type="file" id="globalTodayFileInput" accept=".xlsx" hidden>
       </label>
+      <button type="button" class="shared-global-btn" id="confHojeSharedBtn" hidden></button>
       <div class="conf-progress" id="confHojeProgress" hidden>
         <span class="progress-count" id="confHojeProgressCount">0 de 0 conferidos</span>
         <div class="progress-track"><div class="progress-fill" id="confHojeProgressFill" style="width:0%"></div></div>
@@ -209,6 +211,7 @@ document.addEventListener('DOMContentLoaded', () => SupremaMotion.ambient());
         <span id="globalTomorrowFileLabel">Carregar planilha Global MTT (.xlsx)</span>
         <input type="file" id="globalTomorrowFileInput" accept=".xlsx" hidden>
       </label>
+      <button type="button" class="shared-global-btn" id="confAmanhaSharedBtn" hidden></button>
       <div id="confAmanhaResult"></div>
     </div>
   </aside>
@@ -630,10 +633,14 @@ document.addEventListener('DOMContentLoaded', () => SupremaMotion.ambient());
         <span id="guConfFileLabel">Carregar Global MTT (.xlsx)</span>
         <input type="file" id="guConfFileInput" accept=".xlsx" hidden>
       </label>
+      <button type="button" class="shared-global-btn" id="guConfSharedBtn" hidden></button>
+      <p class="gc-src" id="guConfSrc" hidden></p>
       <div class="gc-meta">
         <span class="gc-pill" id="guConfProgress">—</span>
+        <span class="gc-pill gc-pill-warn" id="guConfNoId" hidden></span>
         <div class="gc-bar"><div class="fill" id="guConfBarFill" style="transform:scaleX(0)"></div></div>
         <input type="search" class="gc-search" id="guConfSearch" placeholder="Filtrar por torneio…">
+        <button class="chip" id="guConfHideDoneBtn" type="button">Ocultar conferidos</button>
       </div>
       <div id="guConfArea"><div class="gc-empty"><span class="ic">🃏</span>Carregando a receita do dia…</div></div>
     </div>
@@ -1263,6 +1270,7 @@ document.addEventListener('DOMContentLoaded', () => SupremaMotion.ambient());
 </div>
 
 <script src="painel.js"></script>
+<script src="conf-dia.js"></script>
 
 </body>
 </html>
