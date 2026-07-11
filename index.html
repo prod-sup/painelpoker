@@ -624,7 +624,12 @@ document.addEventListener('DOMContentLoaded', () => SupremaMotion.ambient());
       <button class="drawer-close" id="guConfDrawerClose" type="button" aria-label="Fechar">✕</button>
     </div>
     <div class="drawer-body">
-      <p class="routine-tool-desc">A receita completa da <b>GU</b> dos eventos de hoje (criados pelo turno noturno) — confira coluna a coluna contra o Pokerbyte e marque <b>✓</b> em Action. Sincroniza ao vivo com a equipe.</p>
+      <p class="routine-tool-desc">A receita completa da <b>GU</b> dos eventos de hoje — confira coluna a coluna contra o Pokerbyte e marque <b>✓</b> em Action. Sincroniza ao vivo com a equipe. Vem do que o turno noturno publicou, ou suba a <b>Global MTT</b> aqui mesmo (aba G MTTS, valores em dólar).</p>
+      <label class="routine-upload" id="guConfUploadLabel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+        <span id="guConfFileLabel">Carregar Global MTT (.xlsx)</span>
+        <input type="file" id="guConfFileInput" accept=".xlsx" hidden>
+      </label>
       <div class="gc-meta">
         <span class="gc-pill" id="guConfProgress">—</span>
         <div class="gc-bar"><div class="fill" id="guConfBarFill" style="transform:scaleX(0)"></div></div>

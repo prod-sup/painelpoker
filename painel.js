@@ -4923,7 +4923,7 @@ document.getElementById('shiftReportDrawerOverlay').addEventListener('click', (e
     dayLbl.textContent = `${d}/${m}`;
     const items = gcItems();
     if (!items.length){
-      area.innerHTML = `<div class="gc-empty"><span class="ic">🌙</span>Nenhuma receita publicada pra hoje (${d}/${m}).<br>O turno noturno sobe a GU na página de Criação — assim que subir, aparece aqui.</div>`;
+      area.innerHTML = `<div class="gc-empty"><span class="ic">🌙</span>Nenhuma receita publicada pra hoje (${d}/${m}).<br>O turno noturno sobe a GU na página de Criação — ou carregue a <b>Global MTT</b> no botão acima que ela aparece aqui na hora.</div>`;
       document.getElementById('guConfProgress').textContent = '—';
       document.getElementById('guConfBadge').hidden = true;
       return;
@@ -4977,6 +4977,174 @@ document.getElementById('shiftReportDrawerOverlay').addEventListener('click', (e
   // o fbDb só existe depois do init do Firebase — tenta já e re-tenta até conectar
   gcAttach();
   const gcRetry = setInterval(() => { gcAttach(); if (gcAttached) clearInterval(gcRetry); }, 2000);
+
+  /* ── UPLOAD DIRETO DA GU NO PAINEL ──
+     Fallback pra quando o turno noturno não publicou nada: lê a aba G MTTS da
+     própria Global MTT (mesma lógica do gu-parser.js da Criação Noturna), monta
+     a grade do dia OPERACIONAL de hoje (06:10 de hoje → 05:30 de amanhã) e
+     publica no MESMO caminho do Firebase que a Criação usa — a tabela aparece
+     na hora e os ✓ de Action sincronizam com a equipe do mesmo jeito. */
+  const gcWeekdayEn = iso => WEEKDAYS_EN[new Date(iso + 'T12:00:00Z').getUTCDay()];
+  // cabeçalho da G MTTS ocupa DUAS linhas — mescla as duas (cópia do gu-parser.js)
+  function gcFindHeaderCols(matrix){
+    const clean = v => typeof v === 'string' && v.trim() ? v.replace(/\s+/g,' ').trim() : '';
+    for (let i = 0; i < Math.min(matrix.length, 80); i++){
+      const row = matrix[i];
+      if (!row) continue;
+      const norm = row.map(c => typeof c === 'string' ? normText(c) : '');
+      const mttIdx = norm.findIndex(x => x === 'mtt');
+      if (mttIdx >= 0 && norm.some(x => x === 'tipo' || x === 'type') && norm.some(x => x.includes('buy'))){
+        const next = matrix[i+1] || [];
+        const merge = !clean(next[mttIdx]);
+        const width = Math.max(row.length, merge ? next.length : 0);
+        const cols = [];
+        for (let c = 0; c < width; c++){
+          const label = [clean(row[c]), merge ? clean(next[c]) : ''].filter(Boolean).join(' — ');
+          if (label) cols.push({idx: c, label});
+        }
+        return cols;
+      }
+    }
+    return null;
+  }
+  function gcIsCore(label){
+    const n = normText(label);
+    return n.includes('mtt marketing') || n === 'tipo' || n === 'type' || n === 'day' || n === 'hora' || n === 'horario' || n === 'time' || n.includes('(utc');
+  }
+  function gcGuIdx(headerCols){
+    const find = pred => { const c = headerCols.find(c => pred(normText(c.label))); return c ? c.idx : -1; };
+    const name = find(n => n.includes('mtt marketing'));
+    const shortName = find(n => n === 'mtt');
+    return {
+      hora: find(n => n === 'hora' || n === 'horario'),
+      name: name >= 0 ? name : shortName,
+      shortName,
+      tipo: find(n => n === 'type' || n === 'tipo'),
+      prize: find(n => n.includes('prize pool') || n.includes('guaranteed')),
+      buyin: find(n => n === 'buy-in' || n === 'buy in' || n === 'buyin'),
+      hourLate: find(n => n.includes('hour late') || n.includes('hora late'))
+    };
+  }
+  // cabeçalho do dia é a linha com o nome do dia NA PRÓPRIA coluna do nome (cópia do gu-parser.js)
+  function gcFindDayRange(matrix, weekdayName, nameIdx){
+    const norm = normText(weekdayName);
+    const allNames = allWeekdayNamesNorm();
+    const dayAt = row => {
+      const c = row && row[nameIdx];
+      return typeof c === 'string' && allNames.includes(normText(c)) ? normText(c) : null;
+    };
+    let startRow = -1, endRow = matrix.length;
+    for (let i = 0; i < matrix.length; i++){
+      if (dayAt(matrix[i]) === norm){ startRow = i; break; }
+    }
+    if (startRow === -1) return null;
+    for (let i = startRow+1; i < matrix.length; i++){
+      const d = dayAt(matrix[i]);
+      if (d && d !== norm){ endRow = i; break; }
+    }
+    return {startRow, endRow};
+  }
+  // extrai a seção de um dia da G MTTS com a receita completa (cópia do gu-parser.js)
+  function gcExtractDay(matrix, weekdayEn, headerCols){
+    const gi = gcGuIdx(headerCols);
+    const range = gcFindDayRange(matrix, weekdayEn, gi.name);
+    if (!range) return null;
+    const main = [], side = [], sat = [];
+    let lastGroupName = null, lastHora = null, emptyCount = 0;
+    const num = v => typeof v === 'number' ? Math.round(v*100)/100 : null;
+    const str = v => typeof v === 'string' && v.trim() ? v.replace(/\s+/g,' ').trim() : null;
+    for (let i = range.startRow; i < range.endRow; i++){
+      const row = matrix[i];
+      if (!row || row.every(v => v === null || v === undefined || v === '' || v === ' ')){
+        lastGroupName = null; lastHora = null; emptyCount++;
+        if (emptyCount >= 5) break; // vão grande de linhas vazias = fim da grade do dia
+        continue;
+      }
+      emptyCount = 0;
+      let hora = cellToHHMM(row[gi.hora]);
+      const nomeMkt = str(row[gi.name]);
+      const nomeCurto = str(row[gi.shortName]);
+      const tipo = str(row[gi.tipo]);
+      if (nomeMkt && allWeekdayNamesNorm().includes(normText(nomeMkt))) continue; // cabeçalho do dia
+      if (nomeMkt) lastGroupName = nomeMkt;
+      if (['mtt','satellite','satelite'].includes(normText(nomeMkt || '')) || ['satellite','satelite'].includes(normText(nomeCurto || ''))) continue;
+      const nome = (tipo === 'SAT' ? (nomeCurto || nomeMkt) : (nomeMkt || nomeCurto));
+      if (!nome) continue;
+      if (normText(nome) === 'suspenso') continue;
+      if (!hora && lastHora) hora = lastHora;
+      else if (hora) lastHora = hora;
+      if (!hora) continue;
+      const extra = {};
+      headerCols.forEach(({idx, label}) => {
+        if (gcIsCore(label)) return;
+        let v = row[idx];
+        if (v instanceof Date) v = cellToHHMM((v.getHours()*60 + v.getMinutes())/1440);
+        if (typeof v === 'string') v = v.trim();
+        if (v !== null && v !== undefined && v !== '') extra[label] = v;
+      });
+      const entry = {nome, hora, garantido: num(row[gi.prize]), buyin: num(row[gi.buyin]),
+        late: gi.hourLate >= 0 ? cellToHHMM(row[gi.hourLate]) : null,
+        groupHeader: tipo === 'SAT' ? lastGroupName : null, extra};
+      if (tipo === 'Main Event') main.push(entry);
+      else if (tipo === 'Side Event') side.push(entry);
+      else if (tipo === 'SAT') sat.push(entry);
+    }
+    return {main, side, sat};
+  }
+  // janela do dia operacional: ≥06:10 na seção de HOJE + ≤05:30 na seção de AMANHÃ
+  function gcBuildDay(secToday, secNext){
+    const inWin = list => (list||[]).filter(it => (timeToMinutes(it.hora) ?? -1) >= CONF_WINDOW_START_MIN);
+    const inWinNext = list => (list||[]).filter(it => { const mm = timeToMinutes(it.hora); return mm !== null && mm <= CONF_WINDOW_END_MIN; });
+    const merge = k => [...inWin(secToday && secToday[k]), ...(secNext ? inWinNext(secNext[k]) : [])];
+    return {main: merge('main'), side: merge('side'), sat: merge('sat')};
+  }
+  document.getElementById('guConfFileInput').addEventListener('change', async function(e){
+    const file = e.target.files[0];
+    if (!file) return;
+    const lbl = document.getElementById('guConfFileLabel');
+    const box = document.getElementById('guConfUploadLabel');
+    if (typeof XLSX === 'undefined'){
+      showToast('A biblioteca de planilhas ainda está carregando — aguarde 2 segundos e tente de novo.', true);
+      e.target.value = ''; return;
+    }
+    lbl.textContent = 'Lendo…';
+    // deixa o navegador pintar "Lendo…" antes do parse pesado do XLSX
+    // (com fallback de timeout: em aba oculta o requestAnimationFrame não dispara)
+    await new Promise(r => { requestAnimationFrame(() => requestAnimationFrame(r)); setTimeout(r, 200); });
+    try{
+      const matrix = readSheetMatrix(await file.arrayBuffer(), 'G MTTS');
+      const headerCols = gcFindHeaderCols(matrix);
+      if (!headerCols) throw new Error('Não encontrei o cabeçalho da aba G MTTS (MTT MARKETING / TYPE / BUY-IN…) — é a Global MTT certa?');
+      const secToday = gcExtractDay(matrix, gcWeekdayEn(DAY_ISO), headerCols);
+      if (!secToday) throw new Error(`Não encontrei a seção "${gcWeekdayEn(DAY_ISO)}" na aba G MTTS — é a Global MTT certa?`);
+      const secNext = gcExtractDay(matrix, gcWeekdayEn(addDaysISO(DAY_ISO, 1)), headerCols);
+      const sections = gcBuildDay(secToday, secNext);
+      const fields = headerCols.filter(c => !gcIsCore(c.label)).map(c => c.label);
+      const total = sections.main.length + sections.side.length + sections.sat.length;
+      if (!total) throw new Error('Nenhum torneio na janela de hoje (06:10 → 05:30) nessa planilha.');
+      // mostra na hora, mesmo sem Firebase
+      gcSheet = {...sections, fields};
+      gcResolveCols();
+      gcRender();
+      lbl.textContent = file.name;
+      box.classList.add('is-loaded');
+      if (fbDb){
+        fbDb.ref(`${BASE}/sheet`).set({
+          json: JSON.stringify({main: sections.main, side: sections.side, sat: sections.sat, fields, fileName: file.name}),
+          by: OPERATOR_NAME || 'Alguém', at: Date.now()
+        });
+        showToast(`GU carregada — ${total} torneios de hoje, compartilhada com a equipe.`);
+      } else {
+        showToast(`GU carregada — ${total} torneios de hoje (só neste navegador, sem conexão pra compartilhar).`);
+      }
+    }catch(err){
+      console.error('guConf: erro no upload da GU', err);
+      showToast(err && err.message ? err.message : 'Erro ao ler a planilha — confira se é a Global MTT (.xlsx).', true);
+      lbl.textContent = 'Carregar Global MTT (.xlsx)';
+      box.classList.remove('is-loaded');
+    }
+    e.target.value = '';
+  });
 
   document.getElementById('guConfToggle').addEventListener('click', () => { openDrawer('guConfDrawerOverlay'); gcAttach(); gcRender(); });
   document.getElementById('guConfDrawerClose').addEventListener('click', () => closeDrawer('guConfDrawerOverlay'));
