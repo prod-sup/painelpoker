@@ -4842,63 +4842,76 @@ document.getElementById('shiftReportDrawerOverlay').addEventListener('click', (e
   let gcSheet = null, gcConf = {}, gcIds = {}, gcAttached = false, gcSearch = '';
 
   const gcKey = it => `${normText(it.nome)}|${it.hora}`.replace(/[.#$\[\]\/]/g,'_');   // = itemKey da Criação
-  const normCol = s => normText(s).replace(/[^a-z0-9]/g,'');
 
-  /* colunas na ordem pedida; keys = candidatos de match no rótulo da GU,
-     not = rótulos que NÃO podem casar (evita "Payout" pegar "Calculated Payout") */
-  const GC_COLS = [
-    {lab:'Horário',              cls:'gc-time', prop:'hora'},
-    {lab:'Admin Fee',            keys:['adminfee']},
-    {lab:'Early Bird',           keys:['earlybird']},
-    {lab:'MTT',                  keys:['mtt'], not:['mtts']},
-    {lab:'K.O',                  keys:['ko','koregprogoff','knockout']},
-    {lab:'Max. Table',           keys:['maxtable','maxtables']},
-    {lab:'Prize Pool USD',       keys:['prizepoolusd','prizepool'], prop:'garantido', money:true, cls:'gc-num'},
-    {lab:'Ticket Award',         keys:['ticketaward']},
-    {lab:'Calculated Payout',    keys:['calculatedpayout']},
-    {lab:'Payout',               keys:['payout'], not:['calculatedpayout']},
-    {lab:'Buy-in',               keys:['buyin'], prop:'buyin', money:true, cls:'gc-num'},
-    {lab:'Reentry/Rebuy',        keys:['reentryrebuy','rebuyreentry'], not:['stack','condition']},
-    {lab:'Stack Reentry/Rebuy',  keys:['stackreentryrebuy','stackreentry','stackrebuy']},
-    {lab:'Rebuy Condition',      keys:['rebuycondition']},
-    {lab:'Add-on',               keys:['addon'], not:['stackaddon']},
-    {lab:'Stack Add-on',         keys:['stackaddon']},
-    {lab:'Break Late Reg.',      keys:['breaklatereg']},
-    {lab:'Structure',            keys:['structure']},
-    {lab:'Chips',                keys:['chips'], cls:'gc-num'},
-    {lab:'Early game',           keys:['earlygame']},
-    {lab:'Pós Late Reg.',        keys:['poslatereg','postlatereg']},
-    {lab:'Final Table',          keys:['finaltable']},
-    {lab:'Time Bank',            keys:['timebank']},
-    {lab:'Game Type',            keys:['gametype']},
-    {lab:'Personalized Award',   keys:['personalizedaward']},
-    {lab:'Late Reg.',            keys:['latereg'], not:['breaklatereg','hourlate','poslatereg','postlatereg'], prop:'late'},
-    {lab:'Hour late register',   keys:['hourlateregister','hourlatereg']},
+  /* ── COLUNAS = MESMA LÓGICA DA CRIAÇÃO NOTURNA ──
+     Os campos da receita seguem a ordem em que se DIGITA no app (cópia do
+     creationOrderFields de criacao-noturna.html):
+     Torneio → K.O → Max. Table → Garantido → Ticket Award → Calculated Payout →
+     Payout → Buy-in → Reentry/Rebuy → Stack Reentry/Rebuy → Rebuy Condition →
+     Add-on → Stack Add-on → Break Late Reg. → Admin Fee → Structure → Chips →
+     Early game → Pós Late Reg. → Final Table → Early Bird → Time Bank.
+     Campos fora da lista entram DEPOIS, na ordem original da planilha;
+     Garantido e Buy-in aparecem UMA vez; "Num. players"/"Chat" ficam fora. */
+  const GC_CREATION_ORDER = [
+    { m: n => n === 'mtt' },                                                          // Torneio (nome interno)
+    { m: n => /(^|[^a-z])k\.?\s*o\b/.test(n) || n.includes('knock') },                // K.O (REG/PROG/OFF)
+    { m: n => n.includes('max') && n.includes('table') },                             // MAX. TABLE
+    { m: n => n.includes('prize pool') || n.includes('guarant') || n.includes('garantido'), once: true }, // Garantido (1x)
+    { m: n => n.includes('ticket') && n.includes('award') },                          // TICKET AWARD
+    { m: n => n.includes('payout') && (n.includes('calculated') || n.includes('calculado')) }, // CALCULATED PAYOUT
+    { m: n => n.includes('payout') || n.includes('premiac') },                        // PAYOUT
+    { m: n => n.includes('buy-in') || n.includes('buy in') || n === 'buyin', once: true }, // Buy-in (1x)
+    { m: n => (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) && !n.includes('stack') && !n.includes('condition') },
+    { m: n => n.includes('stack') && (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) },
+    { m: n => n.includes('rebuy') && n.includes('condition') },
+    { m: n => (n.includes('add-on') || n.includes('addon')) && !n.includes('stack') },
+    { m: n => n.includes('stack') && (n.includes('add-on') || n.includes('addon')) },
+    { m: n => n.includes('break') && n.includes('late') },                            // BREAK LATE REG.
+    { m: n => n.includes('admin') && n.includes('fee') },                             // Admin Fee
+    { m: n => n.includes('structure') || n.includes('estrutura') },                   // STRUCTURE
+    { m: n => n === 'chips' || n.includes('chip stack') || n.includes('starting stack') || n.includes('stack inicial') },
+    { m: n => n.includes('early game') },                                             // Early game (blinds)
+    { m: n => n.includes('pos late') },                                               // Pós Late Reg. (normText tira o acento)
+    { m: n => n.includes('final table') },                                            // Final Table
+    { m: n => n.includes('early bird') },                                             // Early Bird
+    { m: n => n.includes('time bank') || n === 'tb' },                                // TIME BANK
   ];
-
-  // resolve UMA VEZ por sheet qual rótulo da GU alimenta cada coluna
-  function gcResolveCols(){
-    const labels = (gcSheet && gcSheet.fields) || [];
-    GC_COLS.forEach(col => {
-      col.field = null;
-      if (!col.keys) return;
-      col.field = labels.find(l => col.keys.some(k => normCol(l) === k))
-        || labels.find(l => {
-             const n = normCol(l);
-             return col.keys.some(k => n.includes(k)) && !(col.not||[]).some(x => n.includes(x));
-           }) || null;
+  // além dos campos que a Criação esconde, some o "Action" da planilha —
+  // aqui a linha Action é o botão de conferido do checklist, duplicaria
+  const GC_HIDDEN_RECIPE = /num\.?\s*(de\s*)?players|jogadores|\bchat\b|^action$/;
+  function gcOrderFields(fields){
+    const remaining = fields.slice(), out = [];
+    GC_CREATION_ORDER.forEach(slot => {
+      let claimed = false;
+      for (let i = 0; i < remaining.length; ){
+        if (slot.m(normText(remaining[i]))){
+          if (!claimed){
+            out.push(remaining[i]); remaining.splice(i, 1); claimed = true;
+            if (!slot.once) break;               // sem dedup: para no primeiro
+          } else remaining.splice(i, 1);          // duplicata de Garantido/Buy-in: fora
+        } else i++;
+      }
     });
+    return out.concat(remaining);                 // o que sobrou vai pro fim, na ordem da planilha
   }
-  function gcFmtVal(col, it){
-    let v = col.field && it.extra ? it.extra[col.field] : undefined;
-    if ((v === undefined || v === null || v === '') && col.prop) v = it[col.prop];
-    if (v === undefined || v === null || v === '') return '—';
+  function gcVisibleFields(){
+    return gcOrderFields(((gcSheet && gcSheet.fields) || []).filter(l => !GC_HIDDEN_RECIPE.test(normText(l))));
+  }
+  // formatação por TIPO do rótulo — cópia do fmtExtraVal da Criação (gu-parser.js)
+  function gcFmtExtra(label, v){
+    if (v === null || v === undefined || v === '') return '—';
+    const n = normText(label);
     if (typeof v === 'number'){
-      if (col.money) return '$ ' + v.toLocaleString('pt-BR', {maximumFractionDigits:2});
-      if (v > 0 && v < 1) return (v*100).toLocaleString('pt-BR', {maximumFractionDigits:2}) + '%'; // fração da GU = percentual
+      const isPct = /fee|payout|early bird/.test(n);
+      const isTime = /late reg|hour|break|horari|early game|pos late|final table/.test(n);
+      if (v > 0 && v < 1){
+        if (isPct) return (Math.round(v*10000)/100).toLocaleString('pt-BR') + '%';
+        if (isTime) return cellToHHMM(v);
+        return (Math.round(v*100)/100).toLocaleString('pt-BR');
+      }
       return v.toLocaleString('pt-BR', {maximumFractionDigits:2});
     }
-    return escHtml(String(v));
+    return escHtml(String(v).trim());
   }
   /* seções na MESMA ordem/divisão da Criação: Main Event / Side Event / Satélite */
   function gcSections(){
@@ -4946,8 +4959,12 @@ document.getElementById('shiftReportDrawerOverlay').addEventListener('click', (e
       const secDone = sec.items.filter(it => gcConf[gcKey(it)]).length;
       const cell = (fn, cls) => cols.map(c => `<td class="${c.ok ? 'gc-ok' : ''} ${cls || ''}">${fn(c)}</td>`).join('');
       let t = `<tr class="gc-head"><th class="gc-rowlab">Torneio</th>${cell(c => escHtml(c.it.nome), 'gc-name')}</tr>`;
-      GC_COLS.forEach(col => {
-        t += `<tr><th class="gc-rowlab ${['Horário','Admin Fee','Early Bird','Buy-in','Prize Pool USD'].includes(col.lab) ? 'key' : ''}">${col.lab}</th>${cell(c => gcFmtVal(col, c.it), col.cls || '')}</tr>`;
+      t += `<tr><th class="gc-rowlab key">Horário</th>${cell(c => escHtml(c.it.hora || '—'), 'gc-time')}</tr>`;
+      // linhas-chave destacadas: mesmos campos que a Criação põe em evidência
+      const isKeyRow = n => /admin fee|early bird|buy-?in|prize pool|guarant|garantido/.test(n);
+      gcVisibleFields().forEach(label => {
+        const n = normText(label);
+        t += `<tr><th class="gc-rowlab ${isKeyRow(n) ? 'key' : ''}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(c => gcFmtExtra(label, c.it.extra ? c.it.extra[label] : undefined), /chips|prize pool|buy-?in/.test(n) ? 'gc-num' : '')}</tr>`;
       });
       t += `<tr><th class="gc-rowlab">ID Pokerbyte</th>${cell(c => gcIds[c.key] ? escHtml(gcIds[c.key].val) : '—', 'gc-num')}</tr>`;
       t += `<tr><th class="gc-rowlab key">Action</th>${cell(c =>
@@ -4968,7 +4985,7 @@ document.getElementById('shiftReportDrawerOverlay').addEventListener('click', (e
     gcAttached = true;
     fbDb.ref(`${BASE}/sheet`).on('value', s => {
       const v = s.val();
-      if (v && v.json){ try{ gcSheet = JSON.parse(v.json); gcResolveCols(); }catch(e){ console.error('guConf: sheet corrompida', e); } }
+      if (v && v.json){ try{ gcSheet = JSON.parse(v.json); }catch(e){ console.error('guConf: sheet corrompida', e); } }
       gcRender();
     });
     fbDb.ref(`${BASE}/conf`).on('value', s => { gcConf = s.val() || {}; gcRender(); });
@@ -5124,7 +5141,6 @@ document.getElementById('shiftReportDrawerOverlay').addEventListener('click', (e
       if (!total) throw new Error('Nenhum torneio na janela de hoje (06:10 → 05:30) nessa planilha.');
       // mostra na hora, mesmo sem Firebase
       gcSheet = {...sections, fields};
-      gcResolveCols();
       gcRender();
       lbl.textContent = file.name;
       box.classList.add('is-loaded');
