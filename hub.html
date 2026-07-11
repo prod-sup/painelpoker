@@ -182,6 +182,48 @@ nav{
 .ho-chip .ho-ic{font-size:12px;color:var(--gold)}
 
 /* ---------- grid de produtos ---------- */
+/* ── AVISOS DA CASA ── faixa de avisos no topo (erro / aviso / info) ── */
+.avisos{
+  position:relative;z-index:1;
+  max-width:1180px;margin:22px auto 0;padding:0 28px;
+}
+.avisos-list{display:flex;flex-direction:column;gap:10px}
+.aviso{
+  position:relative;display:flex;align-items:flex-start;gap:13px;
+  padding:14px 16px 14px 15px;border-radius:14px;
+  border:1px solid var(--av-bd);background:var(--av-bg);
+  color:var(--ink);
+  opacity:0;transform:translateY(-8px);animation:aviso-in .5s var(--ease) forwards;
+}
+@keyframes aviso-in{to{opacity:1;transform:none}}
+.aviso .av-ico{
+  flex:none;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+  background:var(--av-tint);color:var(--av-fg);
+}
+.aviso .av-ico svg{width:17px;height:17px}
+.aviso .av-body{flex:1;min-width:0}
+.aviso .av-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.aviso .av-tag{
+  font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  padding:2px 8px;border-radius:99px;background:var(--av-tint);color:var(--av-fg);
+}
+.aviso .av-title{font-family:var(--display);font-weight:650;font-size:14.5px;letter-spacing:-.01em}
+.aviso .av-text{font-size:13px;line-height:1.5;color:var(--ink-soft);margin-top:4px;white-space:pre-wrap}
+.aviso .av-time{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);margin-top:6px;display:block}
+.aviso .av-dismiss{
+  flex:none;width:26px;height:26px;border:none;border-radius:8px;cursor:pointer;
+  background:transparent;color:var(--ink-faint);font-size:15px;line-height:1;
+  display:grid;place-items:center;transition:background .2s var(--ease),color .2s var(--ease);
+}
+.aviso .av-dismiss:hover{background:var(--hairline);color:var(--ink)}
+.aviso .av-dismiss:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+/* tipos — sem faixa lateral: borda cheia + fundo tingido + ícone (evita o anti-padrão) */
+.aviso[data-tipo="erro"]{ --av-bd:color-mix(in srgb,#e85555 40%,transparent); --av-bg:color-mix(in srgb,#e85555 10%,var(--bg-raise)); --av-tint:color-mix(in srgb,#e85555 18%,transparent); --av-fg:#f0736f }
+.aviso[data-tipo="aviso"]{ --av-bd:color-mix(in srgb,var(--gold) 42%,transparent); --av-bg:color-mix(in srgb,var(--gold) 10%,var(--bg-raise)); --av-tint:var(--gold-soft); --av-fg:var(--gold) }
+.aviso[data-tipo="info"]{ --av-bd:color-mix(in srgb,var(--felt) 40%,transparent); --av-bg:color-mix(in srgb,var(--felt) 9%,var(--bg-raise)); --av-tint:color-mix(in srgb,var(--felt) 16%,transparent); --av-fg:var(--felt) }
+html.light .aviso[data-tipo="erro"]{ --av-fg:#c0392b }
+@media (max-width:600px){ .avisos{padding:0 18px} }
+
 .grid{
   position:relative;z-index:1;
   max-width:1180px;margin:26px auto 0;padding:0 28px 72px;
@@ -1408,6 +1450,12 @@ footer{
   </div>
 </header>
 
+<!-- ── AVISOS DA CASA — erros de atualização e informativos (publicados no admin) ──
+     Fica no topo pra ser visto; some sozinho quando não há aviso ativo. -->
+<section class="avisos" id="avisosSection" hidden aria-label="Avisos da casa">
+  <div class="avisos-list" id="avisosList"></div>
+</section>
+
 <main class="grid">
 
   <a class="tile t-painel" href="index.html" style="--i:0">
@@ -2255,6 +2303,7 @@ if (location.protocol === 'file:') {
   let fbLinks = {};                  // hub/links
   let hiddenLinks = {};              // hub/linksHidden
   let patchNotes = null;             // hub/patchNotes ({text, updatedAt, by}) ou null (usa default)
+  let fbAvisos = {};                 // hub/avisos ({id:{tipo,titulo,texto,ativo,at,by}})
   const now0 = new Date();
   let viewY = now0.getFullYear(), viewM = now0.getMonth();
 
@@ -2466,6 +2515,50 @@ if (location.protocol === 'file:') {
       : '';
   }
 
+  /* ── AVISOS DA CASA ── erros de atualização / informativos publicados no admin.
+     Lê hub/avisos, mostra só os ativos que o usuário ainda não dispensou (dispensa
+     é local, por navegador). Some a faixa inteira quando não há nada a mostrar. */
+  const AV_ICONS = {
+    erro:  '<path d="M12 2 22 20H2L12 2Z"/><path d="M12 9v5M12 17h.01"/>',
+    aviso: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
+    info:  '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>'
+  };
+  function avisoDismissed(id){
+    try{ return (JSON.parse(localStorage.getItem('suprema_avisos_lidos')||'[]')).includes(id); }catch(e){ return false; }
+  }
+  function dismissAviso(id){
+    try{
+      const arr = JSON.parse(localStorage.getItem('suprema_avisos_lidos')||'[]');
+      if(!arr.includes(id)){ arr.push(id); localStorage.setItem('suprema_avisos_lidos', JSON.stringify(arr.slice(-200))); }
+    }catch(e){}
+    renderAvisos();
+  }
+  function renderAvisos(){
+    const sec = $('avisosSection'), list = $('avisosList');
+    if(!sec || !list) return;
+    const items = Object.entries(fbAvisos||{})
+      .map(([id,a]) => ({id, ...a}))
+      .filter(a => a && a.ativo !== false && a.titulo && !avisoDismissed(a.id))
+      .sort((a,b) => (b.at||0) - (a.at||0));
+    if(!items.length){ sec.hidden = true; list.innerHTML = ''; return; }
+    sec.hidden = false;
+    list.innerHTML = items.map(a => {
+      const tipo = ['erro','aviso','info'].includes(a.tipo) ? a.tipo : 'info';
+      const tagTxt = tipo === 'erro' ? 'Erro' : tipo === 'aviso' ? 'Aviso' : 'Informativo';
+      const when = a.at ? new Date(a.at).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+      return `<div class="aviso" data-tipo="${tipo}" role="status">
+        <span class="av-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${AV_ICONS[tipo]}</svg></span>
+        <div class="av-body">
+          <div class="av-head"><span class="av-tag">${tagTxt}</span><span class="av-title">${escHtml(a.titulo)}</span></div>
+          ${a.texto ? `<p class="av-text">${escHtml(a.texto)}</p>` : ''}
+          ${when ? `<span class="av-time">${when}${a.by ? ' · ' + escHtml(String(a.by).split('@')[0]) : ''}</span>` : ''}
+        </div>
+        <button type="button" class="av-dismiss" data-av="${escHtml(a.id)}" aria-label="Dispensar aviso" title="Dispensar">&times;</button>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('.av-dismiss').forEach(b => b.addEventListener('click', () => dismissAviso(b.dataset.av)));
+  }
+
   function refreshBoardsAdminUI(){
     const admin = session && isAdmin(session.email);
     $('evForm').hidden = !admin;
@@ -2548,6 +2641,7 @@ if (location.protocol === 'file:') {
     }));
     db.ref('hub/links').on('value', s => { fbLinks = s.val() || {}; renderLinks(); });
     db.ref('hub/linksHidden').on('value', s => { hiddenLinks = s.val() || {}; renderLinks(); });
+    db.ref('hub/avisos').on('value', s => { fbAvisos = s.val() || {}; renderAvisos(); });
     loadUserPrefs(); // tema por usuário + avatar assim que a conexão nasce
     pfLoadStats();   // progressão do perfil (XP, títulos) — e o dia ativo de hoje
   }
@@ -3366,6 +3460,21 @@ if (location.protocol === 'file:') {
     }).catch(()=>{ /* sem auth (ex.: ambiente local), tiles ficam estáticos */ });
   } catch(e){ /* offline: hub continua funcionando como launcher */ }
 })();
+</script>
+<script src="suprema-onboarding.js"></script>
+<script>
+  /* tour de 1ª visita do hub — só pra quem já entrou (tem sessão salva) */
+  (function(){
+    var logged = false;
+    try { logged = !!JSON.parse(localStorage.getItem('suprema_session_v1')||'null'); } catch(e){}
+    if(!logged) return;
+    SupremaOnboarding.start('hub', [
+      { el:'.t-painel', title:'Suas ferramentas', text:'Cada card abre um produto da operação. O Painel do Dia é o coração: grade de torneios, GU e conferências.', side:'right' },
+      { el:'#avisosSection', title:'Avisos da casa', text:'Erros de atualização e informativos importantes aparecem aqui no topo. Você pode dispensar cada um.', side:'bottom' },
+      { el:'#themeBtn', title:'Tema claro ou escuro', text:'Alterna a aparência — e a escolha te acompanha em todos os painéis.', side:'left' },
+      { el:'#lbBoard', title:'Mesa dos campeões', text:'Quanto mais você usa o Suprema OS, mais XP e títulos desbloqueia. Acompanhe o ranking aqui.', side:'top' }
+    ], { accent:'#18a36b', label:'Suprema OS' });
+  })();
 </script>
 </body>
 </html>

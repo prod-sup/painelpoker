@@ -836,6 +836,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
     <span class="nav-group">Sistema</span>
     <button class="ntab" onclick="nav('operadores',this)"><span class="ni"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>Operadores</button>
     <button class="ntab" onclick="nav('backup',this)"><span class="ni"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg></span>Backup & Arquivo</button>
+    <button class="ntab" id="navAvisos" onclick="nav('avisos',this)"><span class="ni"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>Avisos do hub</button>
   </nav>
 
   <!-- MAIN -->
@@ -1164,6 +1165,54 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
           </div>
           <div id="sheetsStatus" style="font-size:12px;color:var(--ink3)"></div>
         </div>
+      </div>
+    </div>
+
+    <!-- ══ AVISOS DO HUB ══ -->
+    <div class="page" id="pageAvisos">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow">Sistema</div>
+          <h1>Avisos do hub</h1>
+          <p>Erros de atualização do app e informativos — aparecem no topo do hub para todos os operadores em tempo real</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
+          <div><div class="card-title" id="avFormTitle">Novo aviso</div>
+               <div class="card-sub">Publica no topo do hub; cada operador pode dispensar no navegador dele</div></div>
+        </div>
+        <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+          <div class="filters" style="gap:12px;margin:0">
+            <div class="fld"><label>Tipo</label>
+              <select id="avTipo">
+                <option value="info">Informativo</option>
+                <option value="aviso">Aviso</option>
+                <option value="erro">Erro (crítico)</option>
+              </select>
+            </div>
+            <div class="fld" style="flex:1;min-width:240px"><label>Título</label>
+              <input type="text" id="avTitulo" maxlength="90" placeholder="Ex: Instabilidade na atualização do app">
+            </div>
+          </div>
+          <div class="mf" style="margin:0">
+            <label>Texto (opcional)</label>
+            <textarea id="avTexto" rows="3" maxlength="600" placeholder="Detalhe o aviso: o que houve, o que fazer, previsão…" style="width:100%;padding:9px 12px;font:inherit;font-size:13px;resize:vertical"></textarea>
+          </div>
+          <label style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2);cursor:pointer">
+            <input type="checkbox" id="avAtivo" checked> Ativo (visível no hub)
+          </label>
+          <div style="display:flex;gap:10px">
+            <button class="btn btn-gold" id="avSaveBtn" onclick="saveAviso()">Publicar aviso</button>
+            <button class="btn btn-ghost" id="avCancelBtn" onclick="resetAvisoForm()" hidden>Cancelar edição</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div><div class="card-title">Avisos publicados</div><div class="card-sub" id="avCount">—</div></div></div>
+        <div id="avList" style="padding:8px 18px 18px"></div>
       </div>
     </div>
 
@@ -2017,6 +2066,7 @@ function nav(id,btn){
   if(id==='grade')renderGrade();
   if(id==='audit')loadAudit();
   if(id==='criacao')loadCriacao();
+  if(id==='avisos')initAvisos();
 }
 
 /* ══ AUDITORIA DA CRIAÇÃO NOTURNA (GU) ═══════════════════════════
@@ -3904,6 +3954,98 @@ async function writeAdminLog(action, meta={}){
   }catch(e){ console.warn('adminLog error:', e); }
 }
 
+/* ══ AVISOS DO HUB ═══════════════════════════════════════════════
+   CRUD dos avisos que aparecem no topo do hub (hub/avisos). Erros de
+   atualização e informativos. Escrita restrita a admin pelas regras. */
+let _avisos = {}, _avEditId = null, _avAttached = false;
+function initAvisos(){
+  if(!fbOk){ document.getElementById('avList').innerHTML = '<p style="color:var(--ink3);font-size:13px;padding:10px 0">Firebase não conectado.</p>'; return; }
+  if(_avAttached) return;
+  _avAttached = true;
+  db.ref('hub/avisos').on('value', s => { _avisos = s.val() || {}; renderAvisosAdmin(); });
+}
+function resetAvisoForm(){
+  _avEditId = null;
+  document.getElementById('avTipo').value = 'info';
+  document.getElementById('avTitulo').value = '';
+  document.getElementById('avTexto').value = '';
+  document.getElementById('avAtivo').checked = true;
+  document.getElementById('avFormTitle').textContent = 'Novo aviso';
+  document.getElementById('avSaveBtn').textContent = 'Publicar aviso';
+  document.getElementById('avCancelBtn').hidden = true;
+}
+async function saveAviso(){
+  if(!fbOk){ toast('Firebase não conectado.','err'); return; }
+  const tipo = document.getElementById('avTipo').value;
+  const titulo = document.getElementById('avTitulo').value.trim();
+  const texto = document.getElementById('avTexto').value.trim();
+  const ativo = document.getElementById('avAtivo').checked;
+  if(!titulo){ toast('Escreva um título para o aviso.','err'); return; }
+  const id = _avEditId || (Date.now()+'_'+Math.random().toString(36).slice(2,6));
+  const prev = _avisos[id] || {};
+  const data = { tipo, titulo, texto, ativo, by: _email, at: prev.at || Date.now(), updatedAt: Date.now() };
+  try{
+    await db.ref('hub/avisos/'+id).set(data);
+    await writeAdminLog(_avEditId ? 'aviso.editar' : 'aviso.publicar', {tipo, titulo});
+    toast(_avEditId ? '✓ Aviso atualizado' : '✓ Aviso publicado no hub','ok');
+    resetAvisoForm();
+  }catch(e){ console.error(e); toast('Falha ao salvar o aviso.','err'); }
+}
+function editAviso(id){
+  const a = _avisos[id]; if(!a) return;
+  _avEditId = id;
+  document.getElementById('avTipo').value = ['erro','aviso','info'].includes(a.tipo) ? a.tipo : 'info';
+  document.getElementById('avTitulo').value = a.titulo || '';
+  document.getElementById('avTexto').value = a.texto || '';
+  document.getElementById('avAtivo').checked = a.ativo !== false;
+  document.getElementById('avFormTitle').textContent = 'Editar aviso';
+  document.getElementById('avSaveBtn').textContent = 'Salvar alterações';
+  document.getElementById('avCancelBtn').hidden = false;
+  document.getElementById('pageAvisos').scrollIntoView({behavior:'smooth', block:'start'});
+}
+async function toggleAviso(id){
+  const a = _avisos[id]; if(!a) return;
+  try{ await db.ref(`hub/avisos/${id}/ativo`).set(a.ativo === false); }
+  catch(e){ toast('Falha ao alterar visibilidade.','err'); }
+}
+async function removeAviso(id){
+  if(!confirm('Remover este aviso definitivamente?')) return;
+  try{
+    await db.ref('hub/avisos/'+id).remove();
+    await writeAdminLog('aviso.remover', {id});
+    toast('Aviso removido','ok');
+    if(_avEditId === id) resetAvisoForm();
+  }catch(e){ toast('Falha ao remover.','err'); }
+}
+function renderAvisosAdmin(){
+  const el = document.getElementById('avList');
+  const count = document.getElementById('avCount');
+  const items = Object.entries(_avisos).map(([id,a]) => ({id, ...a})).sort((a,b) => (b.at||0)-(a.at||0));
+  const ativos = items.filter(a => a.ativo !== false).length;
+  count.textContent = items.length ? `${items.length} aviso(s) · ${ativos} ativo(s) no hub` : 'Nenhum aviso publicado';
+  if(!items.length){ el.innerHTML = '<p style="color:var(--ink3);font-size:13px;padding:12px 0">Nenhum aviso ainda. Publique o primeiro acima.</p>'; return; }
+  const tag = t => t==='erro'?'Erro':t==='aviso'?'Aviso':'Informativo';
+  const col = t => t==='erro'?'var(--red)':t==='aviso'?'var(--gold)':'var(--felt,#18a36b)';
+  el.innerHTML = items.map(a => {
+    const tipo = ['erro','aviso','info'].includes(a.tipo)?a.tipo:'info';
+    const inativo = a.ativo === false;
+    const when = a.at ? new Date(a.at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+    return `<div style="display:flex;align-items:flex-start;gap:12px;padding:13px 0;border-top:1px solid var(--border);${inativo?'opacity:.5':''}">
+      <span style="flex:none;margin-top:2px;font-family:var(--mono,monospace);font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:99px;background:color-mix(in srgb,${col(tipo)} 15%,transparent);color:${col(tipo)}">${tag(tipo)}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:14px">${esc(a.titulo)}${inativo?' <span style="font-size:11px;color:var(--ink3);font-weight:500">(oculto)</span>':''}</div>
+        ${a.texto?`<div style="font-size:12.5px;color:var(--ink2);line-height:1.5;margin-top:3px;white-space:pre-wrap">${esc(a.texto)}</div>`:''}
+        <div style="font-size:11px;color:var(--ink3);margin-top:5px">${when}${a.by?' · '+esc(String(a.by).split('@')[0]):''}</div>
+      </div>
+      <div style="flex:none;display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="toggleAviso('${a.id}')">${inativo?'Mostrar':'Ocultar'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="editAviso('${a.id}')">Editar</button>
+        <button class="btn btn-ghost btn-sm" onclick="removeAviso('${a.id}')" style="color:var(--red)">Remover</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 async function openAdminLog(){
   const mo = document.getElementById('moAdminLog');
   const el = document.getElementById('adminLogBody');
@@ -4407,6 +4549,16 @@ autoEnterFromSession();
   addEventListener('focus', function(){ set(false); });
   document.addEventListener('visibilitychange', function(){ set(document.hidden); });
 })();
+</script>
+<script src="suprema-onboarding.js"></script>
+<script>
+  /* tour do admin — só pra quem já tem sessão (o gate de login não aparece) */
+  if (window.SupremaAuth && SupremaAuth.getSession && SupremaAuth.getSession()){
+    SupremaOnboarding.start('admin', [
+      { el:'.sidebar', title:'Navegação do admin', text:'Auditoria, analytics e sistema. Cada seção abre no painel à direita.', side:'right' },
+      { el:'#navAvisos', title:'Avisos do hub', text:'Publique aqui erros de atualização e informativos — eles aparecem no topo do hub para todos os operadores.', side:'right' }
+    ], { accent:'#c9a84c', label:'Admin', delay:900 });
+  }
 </script>
 </body>
 </html>

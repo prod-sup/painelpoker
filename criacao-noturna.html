@@ -3437,5 +3437,15 @@ $('summaryBtn').addEventListener('click', async () => {
   document.addEventListener('visibilitychange', () => set(document.hidden));
 })();
 </script>
+<script src="suprema-onboarding.js"></script>
+<script>
+  if (window.SupremaAuth && SupremaAuth.getSession && SupremaAuth.getSession()){
+    SupremaOnboarding.start('criacao', [
+      { el:'#dropZone', title:'Suba a GU aqui', text:'Carregue a Global MTT (aba G MTTS). O sistema separa Main, Side e Satélite e divide entre a equipe automaticamente.', side:'bottom' },
+      { el:'#focusBtn', title:'Modo Foco', text:'Cria os torneios um a um, de cima pra baixo, com a receita completa de cada evento na sua frente.', side:'top' },
+      { el:'#exportBtn', title:'Arquive a noite', text:'No fim do turno, exporta o relatório completo do que foi criado em .xlsx.', side:'top' }
+    ], { accent:'#8c5cc6', label:'Criação Noturna' });
+  }
+</script>
 </body>
 </html>

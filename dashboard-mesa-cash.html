@@ -454,7 +454,7 @@ table.t td.m{color:var(--ink2)}
     </div>
     <a href="hub.html" class="theme-toggle" title="Voltar ao hub Suprema OS" style="text-decoration:none;font-size:13px">♠</a>
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Alternar tema" aria-label="Alternar tema claro/escuro"><i class="ph ph-moon"></i></button>
-    <label class="up-btn">
+    <label class="up-btn" id="cashImportBtn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
       <span>Importar</span>
       <input type="file" accept=".xlsx" style="display:none" onchange="handleUpload(this)">
@@ -2238,6 +2238,16 @@ enterFromHubSession();
   addEventListener('focus', function(){ set(false); });
   document.addEventListener('visibilitychange', function(){ set(document.hidden); });
 })();
+</script>
+<script src="suprema-onboarding.js"></script>
+<script>
+  if (window.SupremaAuth && SupremaAuth.getSession && SupremaAuth.getSession()){
+    SupremaOnboarding.start('cash', [
+      { el:'#cashImportBtn', title:'Importe a planilha cash', text:'Suba o export das mesas cash (.xlsx). O dashboard monta receita por turno, comportamento e previsão.', side:'bottom' },
+      { el:'.kpi.hero', title:'Seus números do dia', text:'Fee bruto e líquido, divisão por turno e as mesas que mais geram rake — tudo consolidado aqui em cima.', side:'bottom' },
+      { el:'#themeToggle', title:'Tema claro ou escuro', text:'Alterna a aparência do dashboard conforme sua preferência.', side:'left' }
+    ], { accent:'#4f8ef7', label:'Cash Intelligence' });
+  }
 </script>
 </body>
 </html>

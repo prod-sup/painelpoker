@@ -5495,6 +5495,12 @@ function extractGlobalDaySection(matrix, weekdayName, divisor){
         for (let j = i; j < range.endRow; j++){
           const r = matrix[j];
           if (!r) continue;
+          // início da zona de EVENTOS FUTUROS (data serial/Date na coluna A, ou o rótulo
+          // "EVENTOS FUTUROS"/"P&D"): dali pra baixo é tudo futuro, não é torneio do dia —
+          // encerra o scan sem virar aviso
+          const a = r[0];
+          if (a instanceof Date || (typeof a === 'number' && a > 40000 && a < 60000)) break;
+          if (isFutureSectionLabel(a) || isFutureSectionLabel(r[2])) break;
           const nm = r[2];
           const hr = cellToHHMM(r[1]);
           if (typeof nm === 'string' && nm.trim() && hr && !allWeekdayNamesNorm().includes(normText(nm))){
@@ -5513,6 +5519,11 @@ function extractGlobalDaySection(matrix, weekdayName, divisor){
     const garantidoRaw = row[6];
     const buyinRaw = row[7];
     const lateHH = cellToHHMM(row[17]); // coluna R da Global = fim do late register (fração de dia)
+
+    // FIM DA GRADE: o rótulo "EVENTOS FUTUROS" (ou "P&D") abre a seção de eventos futuros
+    // no rodapé da Global — dali pra baixo NADA é torneio do dia. Encerra a leitura aqui
+    // (sem virar aviso de "sem horário"/"após o vão"), igual ao P&D na aba G MTTS.
+    if (isFutureSectionLabel(colA) || isFutureSectionLabel(nome)) break;
 
     // Pular linhas onde colA é uma data (torneios especiais/futuros — não são da grade regular)
     // SheetJS representa datas como Date objects ou números seriais Excel (>40000)

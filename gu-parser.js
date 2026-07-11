@@ -20,6 +20,14 @@ const WEEKDAYS_EN = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY'
 function normText(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim(); }
 function allWeekdayNamesNorm(){ return [...WEEKDAYS_PT, ...WEEKDAYS_EN].map(normText); }
 
+/* rótulo que abre a seção de EVENTOS FUTUROS no rodapé da Global — marca o FIM
+   da grade do dia. A GU usa "P&D" na aba G MTTS e "EVENTOS FUTUROS" na MTTS BRAZIL;
+   os dois parsers reconhecem ambos pra não vazar evento futuro como aviso. */
+function isFutureSectionLabel(v){
+  const n = normText(v);
+  return n === 'p&d' || n === 'eventos futuros' || n === 'evento futuro';
+}
+
 function cellToHHMM(v){
   if (v === null || v === undefined || v === '') return null;
   if (typeof v === 'number'){
@@ -161,6 +169,8 @@ function extractGuDaySection(matrix, weekdayEn, headerCols){
           const r = matrix[j];
           if (!r) continue;
           const nm = str(r[gi.name]) || str(r[gi.shortName]);
+          // rótulo de eventos futuros também encerra o scan pós-vão: dali pra baixo é tudo futuro
+          if (isFutureSectionLabel(nm)) break;
           const hr = cellToHHMM(r[gi.hora]);
           if (nm && hr && !allWeekdayNamesNorm().includes(normText(nm))) aposGap.push({nome:nm, hora:hr});
         }
@@ -173,6 +183,10 @@ function extractGuDaySection(matrix, weekdayEn, headerCols){
     const nomeMkt = str(row[gi.name]);
     const nomeCurto = str(row[gi.shortName]);
     const tipo = str(row[gi.tipo]);
+    // "P&D" / "EVENTOS FUTUROS" — seção de eventos FUTUROS que fecha o cronograma da
+    // Global (a linha repete o rótulo em várias colunas e o que vem depois tem DATA na
+    // coluna A). Não é torneio do dia: é o FIM da grade — para aqui, sem virar aviso
+    if (isFutureSectionLabel(nomeMkt) || isFutureSectionLabel(nomeCurto)) break;
     if (nomeMkt && allWeekdayNamesNorm().includes(normText(nomeMkt))) continue; // cabeçalho do dia
     if (nomeMkt) lastGroupName = nomeMkt;
     // linha separadora "MTT / SATELLITE" que abre o bloco de satélites — não é torneio

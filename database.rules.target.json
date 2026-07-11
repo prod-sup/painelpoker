@@ -33,6 +33,7 @@
       "links":          { ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'", "$id": { ".validate": "newData.hasChildren(['url','title'])" } },
       "linksHidden":    { ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'" },
       "patchNotes":     { ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'", ".validate": "newData.hasChildren(['text'])" },
+      "avisos":         { ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'", "$id": { ".validate": "newData.hasChildren(['tipo','titulo'])" } },
       "leaderboard":    { "$userKey": {
         ".write": "auth != null && root.child('users').child($userKey).child('authUid').val() === auth.uid",
         ".validate": "newData.hasChildren(['name','xp'])"

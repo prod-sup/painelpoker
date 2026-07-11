@@ -75,6 +75,19 @@ document.addEventListener('DOMContentLoaded', () => SupremaMotion.ambient());
       <circle cx="12" cy="7.6" r="4.1"/><circle cx="7.9" cy="13.2" r="4.1"/><circle cx="16.1" cy="13.2" r="4.1"/>
       <path d="M9.6 15.6 12 21 14.4 15.6Z"/>
     </g>
+    <!-- símbolos da cena do hero (leque de cartas + troféu + fichas) -->
+    <symbol id="hs-pip" viewBox="0 0 24 24">
+      <path d="M12 3C7 8 3 12 3 15.5A4 4 0 0 0 11 17.3C10.6 19.4 9.5 20.6 7 21.5H17C14.5 20.6 13.4 19.4 13 17.3A4 4 0 0 0 21 15.5C21 12 17 8 12 3Z" fill="var(--hs-gold-1)"/>
+    </symbol>
+    <symbol id="hs-spade-lg" viewBox="0 0 24 24">
+      <path d="M12 3C7 8 3 12 3 15.5A4 4 0 0 0 11 17.3C10.6 19.4 9.5 20.6 7 21.5H17C14.5 20.6 13.4 19.4 13 17.3A4 4 0 0 0 21 15.5C21 12 17 8 12 3Z" fill="url(#hsSpade)" stroke="var(--hs-gold-2)" stroke-width="0.5"/>
+    </symbol>
+    <symbol id="hs-spade-hero" viewBox="0 0 24 24">
+      <path d="M12 3C7 8 3 12 3 15.5A4 4 0 0 0 11 17.3C10.6 19.4 9.5 20.6 7 21.5H17C14.5 20.6 13.4 19.4 13 17.3A4 4 0 0 0 21 15.5C21 12 17 8 12 3Z" fill="url(#hsSpade)" stroke="var(--hs-gold-2)" stroke-width="0.6"/>
+    </symbol>
+    <symbol id="hs-spade-sm" viewBox="0 0 24 24">
+      <path d="M12 3C7 8 3 12 3 15.5A4 4 0 0 0 11 17.3C10.6 19.4 9.5 20.6 7 21.5H17C14.5 20.6 13.4 19.4 13 17.3A4 4 0 0 0 21 15.5C21 12 17 8 12 3Z"/>
+    </symbol>
   </defs>
 </svg>
 
@@ -881,39 +894,120 @@ document.addEventListener('DOMContentLoaded', () => SupremaMotion.ambient());
 
     <div class="hero-cards" id="heroCards" aria-hidden="true">
       <!-- Vídeo decorativo opcional (gerado no DaVinci, salvo como hero.mp4 na mesma pasta).
-           Se o arquivo existir e carregar, substitui as cartas SVG; se não, as cartas continuam. -->
+           Se o arquivo existir e carregar, substitui a cena SVG; se não, a cena continua. -->
       <video class="hero-video" id="heroVideo" muted loop playsinline preload="none" aria-hidden="true"></video>
-      <!-- fichas de poker no lugar das cartas: a mesma matéria dos chips do hub
-           (aro tracejado, miolo claro, naipe da categoria) — Main ♠, casa ♦, Satélite ♣ -->
-      <svg class="hcard hchip hcard-1" viewBox="0 0 120 120">
-        <circle cx="60" cy="60" r="57" fill="var(--main)"/>
-        <circle cx="60" cy="60" r="57" fill="url(#hchipShine)" opacity=".35"/>
-        <circle cx="60" cy="60" r="47" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="3.5" stroke-dasharray="13.5 11.1" stroke-linecap="round"/>
-        <circle cx="60" cy="60" r="33" fill="#fdfbf4"/>
-        <circle cx="60" cy="60" r="33" fill="none" stroke="var(--main)" stroke-width="1" opacity=".25"/>
-        <g fill="var(--main)"><use href="#ic-suit-spade" x="43" y="43" width="34" height="34"/></g>
-      </svg>
-      <svg class="hcard hchip hcard-2" viewBox="0 0 120 120">
+
+      <!-- CENA PREMIUM (SVG, adapta a light/dark por variáveis de tema):
+           leque de cartas de espadas A-K-Q-J-10 + troféu + fichas sobre pódio
+           com halo verde. Inspirada no render 3D, mas vetorial e theme-aware. -->
+      <svg class="hero-scene" viewBox="0 0 460 360" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Cartas de espadas, troféu e fichas de poker">
         <defs>
-          <radialGradient id="hchipShine" cx="0.35" cy="0.3" r="0.9">
-            <stop offset="0" stop-color="#fff" stop-opacity=".9"/>
-            <stop offset="0.55" stop-color="#fff" stop-opacity="0"/>
+          <linearGradient id="hsCardFace" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="var(--hs-card-2)"/>
+            <stop offset="1" stop-color="var(--hs-card-1)"/>
+          </linearGradient>
+          <linearGradient id="hsSpade" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="var(--hs-gold-2)"/>
+            <stop offset="1" stop-color="var(--hs-gold-1)"/>
+          </linearGradient>
+          <linearGradient id="hsMetal" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="var(--hs-gold-2)"/>
+            <stop offset="0.5" stop-color="var(--hs-gold-1)"/>
+            <stop offset="1" stop-color="var(--hs-gold-2)"/>
+          </linearGradient>
+          <radialGradient id="hsGlow" cx="0.5" cy="0.5" r="0.5">
+            <stop offset="0" stop-color="var(--felt-bright)" stop-opacity="0.55"/>
+            <stop offset="0.6" stop-color="var(--felt-bright)" stop-opacity="0.12"/>
+            <stop offset="1" stop-color="var(--felt-bright)" stop-opacity="0"/>
+          </radialGradient>
+          <radialGradient id="hsSheen" cx="0.32" cy="0.22" r="0.85">
+            <stop offset="0" stop-color="#fff" stop-opacity="0.16"/>
+            <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
           </radialGradient>
         </defs>
-        <circle cx="60" cy="60" r="57" fill="var(--gold)"/>
-        <circle cx="60" cy="60" r="57" fill="url(#hchipShine)" opacity=".35"/>
-        <circle cx="60" cy="60" r="47" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="3.5" stroke-dasharray="13.5 11.1" stroke-linecap="round"/>
-        <circle cx="60" cy="60" r="33" fill="#fdfbf4"/>
-        <circle cx="60" cy="60" r="33" fill="none" stroke="var(--gold)" stroke-width="1" opacity=".25"/>
-        <g fill="var(--gold)"><use href="#ic-suit-diamond" x="43" y="43" width="34" height="34"/></g>
-      </svg>
-      <svg class="hcard hchip hcard-3" viewBox="0 0 120 120">
-        <circle cx="60" cy="60" r="57" fill="var(--sat)"/>
-        <circle cx="60" cy="60" r="57" fill="url(#hchipShine)" opacity=".35"/>
-        <circle cx="60" cy="60" r="47" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="3.5" stroke-dasharray="13.5 11.1" stroke-linecap="round"/>
-        <circle cx="60" cy="60" r="33" fill="#fdfbf4"/>
-        <circle cx="60" cy="60" r="33" fill="none" stroke="var(--sat)" stroke-width="1" opacity=".25"/>
-        <g fill="var(--sat)"><use href="#ic-suit-club" x="43" y="43" width="34" height="34"/></g>
+
+        <!-- halo verde de fundo -->
+        <ellipse class="hs-halo" cx="250" cy="180" rx="205" ry="150" fill="url(#hsGlow)"/>
+
+        <!-- pódio com brilho verde -->
+        <ellipse cx="220" cy="312" rx="150" ry="30" fill="var(--hs-podium)"/>
+        <ellipse class="hs-podium-glow" cx="220" cy="312" rx="120" ry="19" fill="var(--felt-bright)" opacity="0.9"/>
+        <ellipse cx="220" cy="305" rx="150" ry="26" fill="var(--hs-podium-top)"/>
+
+        <!-- leque de cartas: 10 · J · Q · K · A (A na frente) -->
+        <g class="hs-fan">
+          <g class="hs-card hs-card-a5" transform="rotate(34 250 300)">
+            <rect x="216" y="66" width="88" height="128" rx="12" fill="url(#hsCardFace)" stroke="var(--hs-card-edge)" stroke-width="1.4"/>
+            <rect x="216" y="66" width="88" height="128" rx="12" fill="url(#hsSheen)"/>
+            <use href="#hs-pip" x="226" y="76" width="17" height="17"/>
+            <text class="hs-rank" x="234.5" y="106">10</text>
+            <use href="#hs-spade-lg" x="240" y="112" width="40" height="40"/>
+          </g>
+          <g class="hs-card hs-card-a4" transform="rotate(17 250 300)">
+            <rect x="216" y="60" width="88" height="132" rx="12" fill="url(#hsCardFace)" stroke="var(--hs-card-edge)" stroke-width="1.4"/>
+            <rect x="216" y="60" width="88" height="132" rx="12" fill="url(#hsSheen)"/>
+            <use href="#hs-pip" x="226" y="70" width="17" height="17"/>
+            <text class="hs-rank" x="236" y="100">J</text>
+            <use href="#hs-spade-lg" x="240" y="108" width="40" height="40"/>
+          </g>
+          <g class="hs-card hs-card-a3">
+            <rect x="216" y="56" width="88" height="136" rx="12" fill="url(#hsCardFace)" stroke="var(--hs-card-edge)" stroke-width="1.4"/>
+            <rect x="216" y="56" width="88" height="136" rx="12" fill="url(#hsSheen)"/>
+            <use href="#hs-pip" x="226" y="66" width="17" height="17"/>
+            <text class="hs-rank" x="235" y="96">Q</text>
+            <use href="#hs-spade-lg" x="240" y="104" width="40" height="40"/>
+          </g>
+          <g class="hs-card hs-card-a2" transform="rotate(-16 250 300)">
+            <rect x="216" y="60" width="88" height="132" rx="12" fill="url(#hsCardFace)" stroke="var(--hs-card-edge)" stroke-width="1.4"/>
+            <rect x="216" y="60" width="88" height="132" rx="12" fill="url(#hsSheen)"/>
+            <use href="#hs-pip" x="226" y="70" width="17" height="17"/>
+            <text class="hs-rank" x="235" y="100">K</text>
+            <use href="#hs-spade-lg" x="240" y="108" width="40" height="40"/>
+          </g>
+          <!-- Ás na frente, em destaque -->
+          <g class="hs-card hs-card-ace" transform="rotate(-33 250 300)">
+            <rect x="212" y="52" width="96" height="144" rx="13" fill="url(#hsCardFace)" stroke="var(--hs-gold-1)" stroke-width="1.6"/>
+            <rect x="212" y="52" width="96" height="144" rx="13" fill="url(#hsSheen)"/>
+            <use href="#hs-pip" x="223" y="63" width="19" height="19"/>
+            <text class="hs-rank hs-rank-ace" x="232.5" y="96">A</text>
+            <use href="#hs-spade-hero" x="232" y="98" width="56" height="56"/>
+            <use href="#hs-pip" x="278" y="166" width="19" height="19" transform="rotate(180 287.5 175.5)"/>
+          </g>
+        </g>
+
+        <!-- troféu à direita -->
+        <g class="hs-trophy">
+          <ellipse cx="388" cy="300" rx="34" ry="7" fill="var(--hs-shadow)"/>
+          <rect x="380" y="266" width="16" height="26" rx="3" fill="url(#hsMetal)"/>
+          <rect x="366" y="290" width="44" height="9" rx="3" fill="url(#hsMetal)"/>
+          <rect x="372" y="298" width="32" height="7" rx="2.5" fill="var(--hs-gold-1)"/>
+          <path d="M360 216 h56 v10 a28 28 0 0 1 -56 0 z" fill="url(#hsMetal)"/>
+          <path d="M360 216 h56 v6 h-56 z" fill="var(--hs-gold-2)"/>
+          <path class="hs-handle" d="M360 220 q-16 2 -16 -14 q0 -8 8 -8" stroke="var(--hs-gold-1)" stroke-width="4" fill="none"/>
+          <path class="hs-handle" d="M416 220 q16 2 16 -14 q0 -8 -8 -8" stroke="var(--hs-gold-1)" stroke-width="4" fill="none"/>
+          <use href="#hs-spade-lg" x="368" y="222" width="40" height="40" opacity="0.9" class="hs-trophy-pip"/>
+        </g>
+
+        <!-- pilha de fichas à esquerda da base -->
+        <g class="hs-chips">
+          <ellipse cx="126" cy="292" rx="40" ry="9" fill="var(--hs-shadow)"/>
+          <g class="hs-chip">
+            <ellipse cx="126" cy="284" rx="34" ry="11" fill="var(--felt)"/>
+            <ellipse cx="126" cy="280" rx="34" ry="11" fill="var(--felt-bright)"/>
+            <ellipse cx="126" cy="280" rx="21" ry="6.6" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="7 5.5" opacity="0.75"/>
+          </g>
+          <g class="hs-chip" transform="translate(0 -14)">
+            <ellipse cx="126" cy="284" rx="34" ry="11" fill="var(--gold)"/>
+            <ellipse cx="126" cy="280" rx="34" ry="11" fill="var(--hs-gold-2)"/>
+            <ellipse cx="126" cy="280" rx="21" ry="6.6" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="7 5.5" opacity="0.7"/>
+          </g>
+          <g class="hs-chip" transform="translate(0 -28)">
+            <ellipse cx="126" cy="284" rx="34" ry="11" fill="var(--felt)"/>
+            <ellipse cx="126" cy="280" rx="34" ry="11" fill="var(--felt-bright)"/>
+            <ellipse cx="126" cy="280" rx="21" ry="6.6" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="7 5.5" opacity="0.75"/>
+            <use href="#hs-spade-sm" x="118" y="272" width="16" height="16" fill="#fff"/>
+          </g>
+        </g>
       </svg>
     </div>
 
@@ -1271,6 +1365,18 @@ document.addEventListener('DOMContentLoaded', () => SupremaMotion.ambient());
 
 <script src="painel.js"></script>
 <script src="conf-dia.js"></script>
+<script src="suprema-onboarding.js"></script>
+<script>
+  /* tour de 1ª visita — só pra quem já está logado (evita disparar no gate) */
+  if (window.SupremaAuth && SupremaAuth.getSession && SupremaAuth.getSession()){
+    SupremaOnboarding.start('painel', [
+      { el:'#uploadGlobalBtn', title:'Comece pela Global MTT', text:'Carregue a planilha do dia aqui — ela alimenta a grade, os resultados e as conferências automaticamente.', side:'bottom' },
+      { el:'#routineToggle', title:'Conferência de hoje', text:'A lista de todos os torneios do dia pra você ir marcando enquanto confere cada um no app da Suprema.', side:'bottom' },
+      { el:'#guConfToggle', title:'Conferência do dia (GU)', text:'A receita completa dos eventos, coluna a coluna — Admin Fee já calculada e sincronizada com a equipe.', side:'bottom' },
+      { el:'#overlayCalcToggle', title:'Calculadora de Overlay', text:'Calcula pote, rake e overlay de cada torneio na hora, com histórico do dia.', side:'bottom' }
+    ], { accent:'#18a36b', label:'Painel do Dia' });
+  }
+</script>
 
 </body>
 </html>
