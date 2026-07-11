@@ -908,14 +908,17 @@
     opacity:0; animation:deck-in 1s var(--ease-expo) .25s forwards;
   }
   @keyframes deck-in{ from{opacity:0} to{opacity:1} }
+  /* brilho já é suave pelo próprio radial-gradient (sem filter:blur — animar
+     escala num elemento borrado re-rasteriza o blur por frame e trava PC fraco).
+     A "respiração" anima só opacity (compositor puro, sem repaint). */
   .deck::before{
-    content:""; position:absolute; left:50%; top:52%; width:78%; height:70%;
+    content:""; position:absolute; left:50%; top:52%; width:82%; height:74%;
     transform:translate(-50%,-50%);
     background:radial-gradient(closest-side, var(--pc-glow), transparent 72%);
-    filter:blur(6px); z-index:0;
+    z-index:0;
     animation:deck-breathe 7s ease-in-out infinite;
   }
-  @keyframes deck-breathe{ 0%,100%{opacity:.8; transform:translate(-50%,-50%) scale(1)} 50%{opacity:1; transform:translate(-50%,-50%) scale(1.06)} }
+  @keyframes deck-breathe{ 0%,100%{opacity:.72} 50%{opacity:1} }
   /* piso: sombra suave sob o leque */
   .deck::after{
     content:""; position:absolute; left:50%; bottom:9%; width:56%; height:26px;
@@ -1186,10 +1189,17 @@
   .chip[data-cat="running"]{background:var(--felt-soft); color:var(--felt);}
   .chip[data-cat="running"].active{background:var(--felt); color:#fff;}
   .chip[data-cat="running"].active .running-dot{background:#fff;}
-  .running-dot{background:var(--felt-bright); animation:running-dot-pulse 1.6s ease-in-out 8;}
+  /* pulso do "ao vivo": anel via pseudo com transform:scale (compositor) em vez de
+     box-shadow animado (repaint por frame) — mesmo visual, custo bem menor */
+  .running-dot{background:var(--felt-bright); position:relative;}
+  .running-dot::after{
+    content:""; position:absolute; inset:0; border-radius:50%;
+    box-shadow:0 0 0 1.5px rgba(24,163,107,0.5);
+    animation:running-dot-pulse 1.6s ease-in-out 8; pointer-events:none;
+  }
   @keyframes running-dot-pulse{
-    0%, 100%{ box-shadow:0 0 0 0 rgba(24,163,107,0.45); }
-    50%{ box-shadow:0 0 0 4px rgba(24,163,107,0); }
+    0%{ transform:scale(1); opacity:.7; }
+    100%{ transform:scale(2.6); opacity:0; }
   }
 
   /* ---------- UNFIXED BANNER (top priority) ---------- */

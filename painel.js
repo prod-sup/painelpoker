@@ -1538,7 +1538,7 @@ function showJustifModal(pending, emailKey){
       animation: jm-fade .25s var(--ease);
     }
     @keyframes jm-fade{ from{opacity:0} to{opacity:1} }
-    @keyframes jm-up{ from{opacity:0;transform:translateY(22px) scale(.96);filter:blur(6px)} to{opacity:1;transform:none;filter:blur(0)} }
+    @keyframes jm-up{ from{opacity:0;transform:translateY(22px) scale(.96)} to{opacity:1;transform:none} }
     .jm-box{
       background: var(--card);
       border: 1px solid var(--hairline);
