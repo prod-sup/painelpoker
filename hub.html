@@ -1469,7 +1469,7 @@ footer{
 
 <main class="grid">
 
-  <a class="tile t-painel" href="index.html" style="--i:0">
+  <a class="tile t-painel" href="index.html" style="--i:0" data-panel="painel">
     <span class="mark" aria-hidden="true">&spades;</span>
     <h2>Painel do Dia</h2>
     <p class="desc">A grade de torneios ao vivo: agenda, GU, resultados e checklist do turno, sincronizado entre operadores.</p>
@@ -1478,14 +1478,14 @@ footer{
     </span>
   </a>
 
-  <a class="tile t-admin" href="admin.html" style="--i:1">
+  <a class="tile t-admin" href="admin.html" style="--i:1" data-panel="admin">
     <span class="mark" aria-hidden="true">&diams;</span>
     <h2>Admin</h2>
     <p class="desc">Gestão da operação: usuários, períodos, histórico e auditoria.</p>
     <span class="meta"><span class="lock-badge"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> Somente admin</span><span class="arrow-txt">&Aacute;rea restrita </span><span class="arrow">&rarr;</span></span>
   </a>
 
-  <a class="tile t-gu" href="criacao-noturna.html" style="--i:2">
+  <a class="tile t-gu" href="criacao-noturna.html" style="--i:2" data-panel="gu">
     <span class="mark" aria-hidden="true">&#9789;</span>
     <h2>Criação Noturna</h2>
     <p class="desc">A receita da GU pro dia seguinte, dividida pelas funções do turno da noite.</p>
@@ -1494,21 +1494,21 @@ footer{
     </span>
   </a>
 
-  <a class="tile t-learn" href="https://prod-sup.github.io/Learn/" style="--i:3">
+  <a class="tile t-learn" href="https://prod-sup.github.io/Learn/" style="--i:3" data-panel="learn">
     <span class="mark" aria-hidden="true">&hearts;</span>
     <h2>Poker Learn</h2>
     <p class="desc">Treinamento imersivo: domine cada posição da mesa em uma experiência 3D.</p>
     <span class="meta">Experi&ecirc;ncia 3D <span class="arrow">&rarr;</span></span>
   </a>
 
-  <a class="tile t-org" href="https://prod-sup.github.io/Org/" style="--i:4" id="orgLink">
+  <a class="tile t-org" href="https://prod-sup.github.io/Org/" style="--i:4" id="orgLink" data-panel="org">
     <span class="mark" aria-hidden="true">&#10022;</span>
     <h2>A Constela&ccedil;&atilde;o</h2>
     <p class="desc">O organograma vivo do Grupo Suprema: cada estrela &eacute; uma pessoa.</p>
     <span class="meta">Organograma WebGL <span class="arrow">&rarr;</span></span>
   </a>
 
-  <a class="tile t-cash" href="dashboard-mesa-cash.html" style="--i:5">
+  <a class="tile t-cash" href="dashboard-mesa-cash.html" style="--i:5" data-panel="cash">
     <span class="mark" aria-hidden="true">&clubs;</span>
     <div>
       <h2>Cash Intelligence</h2>
@@ -1869,25 +1869,32 @@ if (location.protocol === 'file:') {
     $('navUser').hidden = !session;
     if(session) $('navUserName').textContent = session.displayName || session.apelido || session.nome || session.email;
     paintHello();
-    gateCashTile();
+    applyPanelAccess();
     syncGateVideo();
   }
 
-  // Mesa Cash e Admin são áreas de admin: trava os tiles pro operador comum
-  // (as páginas em si também têm portão de admin — aqui é só o reflexo visual
-  // + bloqueio do clique).
-  const adminTilesWired = new Set();
-  function gateCashTile(){
-    document.querySelectorAll('.t-cash, .t-admin').forEach(tile => {
-      const admin = !!(session && isAdmin(session.email));
-      tile.classList.toggle('locked', !admin);
-      if(admin){ tile.removeAttribute('aria-disabled'); tile.title = ''; }
-      else { tile.setAttribute('aria-disabled','true'); tile.title = 'Acesso restrito a administradores'; }
-      if(!adminTilesWired.has(tile)){
-        adminTilesWired.add(tile);
-        tile.addEventListener('click', e => {
-          if(!(session && isAdmin(session.email))){ e.preventDefault(); e.stopImmediatePropagation(); }
-        }, true);   // captura: barra antes do trackOpen/navegação
+  /* ── PERMISSÃO POR PAINEL ──
+     Bloqueio por padrão: o operador só vê o card se tiver acesso liberado pelo
+     admin (users/<key>/access/<id>=true, salvo na sessão no login). Admin vê
+     tudo. Os painéis sem acesso ficam ESCONDIDOS. As páginas em si também têm
+     o portão (SupremaAuth.guard) — aqui é o reflexo no hub + trava do clique. */
+  function canAccessHub(id){
+    if(!session) return false;
+    if(isAdmin(session.email) || session.admin === true) return true;
+    if(id === 'admin') return false;                 // admin só pra admin
+    return !!(session.access && session.access[id] === true);
+  }
+  const panelTilesWired = new Set();
+  function applyPanelAccess(){
+    document.querySelectorAll('.tile[data-panel]').forEach(tile => {
+      const id = tile.dataset.panel;
+      const allowed = canAccessHub(id);
+      tile.style.display = allowed ? '' : 'none';    // esconde os sem acesso
+      if(!panelTilesWired.has(tile)){
+        panelTilesWired.add(tile);
+        tile.addEventListener('click', e => {         // defesa extra: barra o clique
+          if(!canAccessHub(tile.dataset.panel)){ e.preventDefault(); e.stopImmediatePropagation(); }
+        }, true);
       }
     });
   }
@@ -2130,7 +2137,8 @@ if (location.protocol === 'file:') {
     user = user || {};
     if(uid && user.authUid !== uid){ userRef.update({ authUid: uid }).catch(()=>{}); }
     const displayName = user.apelido || user.nome || email;
-    saveSession({ email, nome:user.nome, sobrenome:user.sobrenome, apelido:user.apelido, displayName });
+    saveSession({ email, nome:user.nome, sobrenome:user.sobrenome, apelido:user.apelido, displayName,
+      access: user.access || null, admin: (user.admin===true || user.Admin===true || isAdmin(email)) });
     if(isAdmin(email)){ try{ localStorage.setItem('suprema_trusted_admin', email); }catch(e){} }
     paintAuthState();
     startLiveTiles();
@@ -2187,7 +2195,7 @@ if (location.protocol === 'file:') {
         createdAt: firebase.database.ServerValue.TIMESTAMP,
       });
       busy(btn,'Criar conta',false);
-      saveSession({ email, nome, sobrenome, apelido: displayName, displayName });
+      saveSession({ email, nome, sobrenome, apelido: displayName, displayName, access: null, admin: isAdmin(email) });
       if(isAdmin(email)){ try{ localStorage.setItem('suprema_trusted_admin', email); }catch(e){} }
       paintAuthState();
       startLiveTiles();
@@ -3321,7 +3329,8 @@ if (location.protocol === 'file:') {
         if(!snap.exists()) return;
         const u = snap.val();
         const displayName = u.apelido || u.nome || trusted;
-        saveSession({ email:trusted, nome:u.nome, sobrenome:u.sobrenome, apelido:u.apelido, displayName });
+        saveSession({ email:trusted, nome:u.nome, sobrenome:u.sobrenome, apelido:u.apelido, displayName,
+          access: u.access || null, admin: (u.admin===true || u.Admin===true || isAdmin(trusted)) });
         paintAuthState();
         startLiveTiles();
       }).catch(()=>{});

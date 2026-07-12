@@ -1102,7 +1102,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
           <table>
             <thead><tr>
               <th>Nome</th><th>Email</th><th class="r">Fixações</th>
-              <th>Admin</th><th>Criado em</th><th></th>
+              <th>Admin</th><th>Acesso aos painéis</th><th>Criado em</th><th></th>
             </tr></thead>
             <tbody id="opBody"></tbody>
           </table>
@@ -2905,7 +2905,7 @@ function renderGrade(){
 /* ── OPERADORES ──────────────────────────────────────────────── */
 async function loadOps(){
   if(!fbOk)return;
-  document.getElementById('opBody').innerHTML=`<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--ink3)">Carregando...</td></tr>`;
+  document.getElementById('opBody').innerHTML=`<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--ink3)">Carregando...</td></tr>`;
   try{
     const snap=await db.ref('users').once('value');
     const users=snap.val()||{};
@@ -2928,13 +2928,47 @@ async function loadOps(){
           ${u.admin?'<span class="badge badge-closed">Admin</span>':'<span class="badge badge-open">Operador</span>'}
           ${suspenso?'<span class="badge badge-nf">Suspenso</span>':''}
         </td>
+        <td>${accessCell(u)}</td>
         <td class="c-ink3">${created}</td>
         <td>${suspenso
           ? `<button class="btn btn-gold btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" onclick="forceUnblockOp(this.dataset.key,this.dataset.name)">Reativar</button>`
           : `<button class="btn btn-ghost btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" onclick="blockOp(this.dataset.key,this.dataset.name)">Suspender</button>`}</td>
       </tr>`;
     }).join('');
-  }catch(e){document.getElementById('opBody').innerHTML=`<tr><td colspan="6" style="color:var(--red);padding:16px">${e.message}</td></tr>`;}
+  }catch(e){document.getElementById('opBody').innerHTML=`<tr><td colspan="7" style="color:var(--red);padding:16px">${e.message}</td></tr>`;}
+}
+
+/* ── CONTROLE DE ACESSO POR PAINEL ──
+   Bloqueio por padrão: só entra no painel quem tiver users/<key>/access/<id>=true.
+   Aqui o admin libera/retira painel por painel, por pessoa. Admin entra em tudo. */
+const ACCESS_PANELS = (window.SupremaAuth && SupremaAuth.PANELS ? SupremaAuth.PANELS : []).filter(p=>!p.adminOnly);
+const PANEL_SHORT = {painel:'Painel', gu:'GU', cash:'Cash', learn:'Learn', org:'Org'};
+function accessChipStyle(on){
+  return `font:700 10px/1 ui-monospace,monospace;padding:4px 7px;border-radius:6px;cursor:pointer;`+
+    `border:1px solid ${on?'#1f7a4d':'var(--line,#333)'};background:${on?'#1f7a4d':'transparent'};color:${on?'#fff':'var(--ink3,#888)'}`;
+}
+function accessCell(u){
+  if(u.admin) return `<span class="c-ink3" style="font-size:11px">Acesso total</span>`;
+  const acc = u.access || {};
+  return `<div style="display:flex;gap:4px;flex-wrap:wrap">`+ACCESS_PANELS.map(p=>{
+    const on = acc[p.id]===true;
+    return `<button data-key="${esc(u.key)}" data-panel="${p.id}" data-on="${on?'1':'0'}" onclick="toggleAccess(this)" `+
+      `title="${on?'Tem acesso a':'Sem acesso a'} ${esc(p.label)} — clique pra ${on?'retirar':'liberar'}" style="${accessChipStyle(on)}">${PANEL_SHORT[p.id]||p.id}</button>`;
+  }).join('')+`</div>`;
+}
+async function toggleAccess(btn){
+  if(!fbOk){ alert('Firebase não conectado.'); return; }
+  const key=btn.dataset.key, panel=btn.dataset.panel, next = btn.dataset.on!=='1';
+  btn.disabled=true;
+  try{
+    // grava true, ou remove a chave quando desliga (mantém o nó limpo)
+    await db.ref(`users/${key}/access/${panel}`).set(next?true:null);
+    btn.dataset.on = next?'1':'0';
+    btn.setAttribute('style', accessChipStyle(next));
+    const p = ACCESS_PANELS.find(x=>x.id===panel);
+    btn.title = `${next?'Tem acesso a':'Sem acesso a'} ${p?p.label:panel} — clique pra ${next?'retirar':'liberar'}`;
+  }catch(e){ alert('Falha ao salvar acesso: '+(e.message||e)); }
+  finally{ btn.disabled=false; }
 }
 
 function openAddOp(){

@@ -27,6 +27,41 @@
     return ADMIN_EMAILS.indexOf(String(email || '').toLowerCase().trim()) !== -1;
   };
 
+  /* ── PAINÉIS + PERMISSÃO DE ACESSO ──
+     Login é SÓ no hub; os painéis reconhecem a sessão e conferem se este
+     usuário pode entrar NESTE painel. A permissão é por usuário, guardada em
+     users/<key>/access/<id> = true (o <id> é o mesmo do trackUse). O hub salva
+     esse mapa na sessão no login, então o painel confere sem ir ao banco.
+     Admin entra em tudo. Learn e Org são sites externos (outra origem) — não
+     passam por esta trava aqui. */
+  var PANELS = [
+    { id: 'painel', label: 'Painel do Dia',     file: 'index.html' },
+    { id: 'gu',     label: 'Criação Noturna',   file: 'criacao-noturna.html' },
+    { id: 'cash',   label: 'Cash Intelligence', file: 'dashboard-mesa-cash.html' },
+    { id: 'learn',  label: 'Poker Learn',       url: 'https://prod-sup.github.io/Learn/', external: true },
+    { id: 'org',    label: 'A Constelação',     url: 'https://prod-sup.github.io/Org/',   external: true },
+    { id: 'admin',  label: 'Admin',             file: 'admin.html', adminOnly: true }
+  ];
+  function panelById(id) {
+    for (var i = 0; i < PANELS.length; i++) if (PANELS[i].id === id) return PANELS[i];
+    return null;
+  }
+  /* pode o usuário reconhecido AGORA entrar neste painel? */
+  function canAccess(panelId) {
+    var r = recognize();
+    if (!r.email) return false;
+    var s = getSession();
+    // admin (por e-mail OU flag na sessão) entra em tudo, inclusive painéis restritos.
+    // As duas checagens vêm JUNTAS e ANTES do adminOnly — senão o admin-por-flag
+    // era barrado do próprio painel Admin.
+    if (r.isAdmin || (s && s.admin === true)) return true;
+    var p = panelById(panelId);
+    if (p && p.adminOnly) return false;                 // painel restrito, e não é admin
+    // BLOQUEIO POR PADRÃO: sem liberação explícita, ninguém entra. O admin libera
+    // painel por painel na aba Operadores (grava users/<key>/access/<id> = true).
+    return !!(s && s.access && s.access[panelId] === true);
+  }
+
   /* ── sessão (365 dias, compartilhada entre todos os produtos) ── */
   function getSession() {
     try {
@@ -85,6 +120,11 @@
     var r = recognize();
     if (!r.email) { location.replace(opts.redirect || 'hub.html'); return r; }
     if (opts.adminOnly && !r.isAdmin) { location.replace(opts.redirect || 'hub.html'); return r; }
+    // permissão por painel: sem acesso a ESTE painel → volta pro hub com aviso
+    if (opts.panel && !canAccess(opts.panel)) {
+      location.replace((opts.redirect || 'hub.html') + '?denied=' + encodeURIComponent(opts.panel));
+      return r;
+    }
     return r;
   }
 
@@ -294,6 +334,7 @@
     getSession: getSession, saveSession: saveSession, clearSession: clearSession,
     setTrustedAdmin: setTrustedAdmin, getTrustedAdmin: getTrustedAdmin,
     recognize: recognize, guard: guard, emailToKey: emailToKey,
+    PANELS: PANELS, panelById: panelById, canAccess: canAccess,
     trackUse: trackUse, trackAction: trackAction,
     isDarkPreferred: isDarkPreferred, setThemePref: setThemePref, wireThemeSync: wireThemeSync,
     hashPassword: hashPassword, verifyPassword: verifyPassword, validatePassword: validatePassword
