@@ -22,5 +22,12 @@ firebase_test.html
 sync_test.html
 firebase_import.json
 
+# Credenciais / contas — NUNCA versionar (repo é público)
+brian_account.json
+*account*.json
+*_secret*
+*.pem
+*.key
+
 # Config local do Claude Code
 .claude/
