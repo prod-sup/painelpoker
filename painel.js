@@ -2457,13 +2457,21 @@ function initFirebaseSync(){
     });
 
     // ── Mesas cash ────────────────────────────────────────────────────────
-    fbDb.ref('mesasCash').on('value', snap => {
-      const data = snap.val();
-      if(!data || !data.data) return;
-      const key = `${data.uploadedAt}`;
+    // ECONOMIA DE BANDA: observa só o timestamp (uploadedAt, um número). O arquivo
+    // (XLSX em base64, pesado) só é baixado com .once() QUANDO muda. Antes, o
+    // .on('value') no nó inteiro rebaixava o XLSX a cada reconexão/tab-wake — foi o
+    // que estourou a cota de download do Firebase (10GB/mês).
+    fbDb.ref('mesasCash/uploadedAt').on('value', snap => {
+      const at = snap.val();
+      if(!at) return;
+      const key = `${at}`;
       if(window._lastMesasCashKey === key) return;
-      window._lastMesasCashKey = key;
-      loadMesasCashFromB64(data.data, data.filename || '', data.uploadedAt, /*fromRemote=*/true, data.uploadedBy || '');
+      fbDb.ref('mesasCash').once('value').then(s => {
+        const data = s.val();
+        if(!data || !data.data) return;
+        window._lastMesasCashKey = key;
+        loadMesasCashFromB64(data.data, data.filename || '', data.uploadedAt, /*fromRemote=*/true, data.uploadedBy || '');
+      }).catch(()=>{});
     });
 
     // ── Presença ─────────────────────────────────────────────────────────
@@ -6197,15 +6205,25 @@ function paintSharedGlobalBtns(){
 function attachSharedGlobal(){
   if (window.__sharedGlobalAttached || !fbReady) return;
   window.__sharedGlobalAttached = true;
-  fbDb.ref('painel/globalMtt').on('value', s => {
-    const v = s.val();
-    try{
-      SHARED_GLOBAL = (v && v.data)
-        ? {buf: base64ToArrayBuffer(v.data), filename: v.filename || 'Global MTT.xlsx', at: v.at || 0, by: v.by || 'alguém'}
-        : null;
-    }catch(e){ console.warn('Global compartilhada corrompida', e); SHARED_GLOBAL = null; }
-    window.SHARED_GLOBAL = SHARED_GLOBAL;
-    paintSharedGlobalBtns();
+  // ECONOMIA DE BANDA: observa só o timestamp (at). O arquivo (base64 pesado) só é
+  // baixado com .once() QUANDO muda. Antes, .on('value') no nó inteiro rebaixava a
+  // Global inteira a cada reconexão — parte do que estourou a cota de download.
+  fbDb.ref('painel/globalMtt/at').on('value', s => {
+    const at = s.val();
+    if (!at){ SHARED_GLOBAL = null; window.SHARED_GLOBAL = null; paintSharedGlobalBtns(); return; }
+    const key = `${at}`;
+    if (window._lastSharedGlobalKey === key) return;
+    fbDb.ref('painel/globalMtt').once('value').then(snap => {
+      const v = snap.val();
+      try{
+        SHARED_GLOBAL = (v && v.data)
+          ? {buf: base64ToArrayBuffer(v.data), filename: v.filename || 'Global MTT.xlsx', at: v.at || 0, by: v.by || 'alguém'}
+          : null;
+      }catch(e){ console.warn('Global compartilhada corrompida', e); SHARED_GLOBAL = null; }
+      window._lastSharedGlobalKey = key;
+      window.SHARED_GLOBAL = SHARED_GLOBAL;
+      paintSharedGlobalBtns();
+    }).catch(()=>{});
   });
 }
 attachSharedGlobal();
