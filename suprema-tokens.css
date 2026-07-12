@@ -66,3 +66,29 @@
 html.dark{
   --gold: #c9a84c;
 }
+
+/* ============================================================
+   MODO LEVE (html.lite) — ligado por scripts/lite.js em PC/rede
+   fraca (pouca RAM, saveData, 2g) ou manualmente (?lite=1).
+   Corta os dois efeitos que mais custam GPU sem quebrar o layout:
+   · backdrop-filter (o "vidro fosco") — o maior custo de composição;
+     o fundo translúcido do elemento continua, só o blur some.
+   · animação/transição contínua — congela pulsos, brilhos e loops
+     que repintam pra sempre. Elementos que "animam pra aparecer"
+     saltam direto pro estado final (visível), então nada some.
+   Cores, sombras e raios ficam: o visual continua o mesmo, só mais
+   barato de compor. Vale em todos os produtos de uma vez.
+   (A redução manual de sombras/blur pesados no Admin/Hub é outro
+   passo, no CSS de cada painel — este bloco é o interruptor global.)
+   ============================================================ */
+html.lite *,
+html.lite *::before,
+html.lite *::after{
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  animation-duration: .001ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .001ms !important;
+}
+html.lite{ scroll-behavior: auto !important; }
