@@ -3375,6 +3375,7 @@ $('exportBtn').addEventListener('click', () => {
   if (!DATA){ showToast('Carregue a Global primeiro.', true); return; }
   const cur = CURRENCY === 'usd' ? '$' : 'R$';
   const conv = v => v === null || v === undefined ? null : (CURRENCY === 'usd' ? v : Math.round(v * BRL_RATE * 100) / 100);
+  const asg = computeAssignments(); // itemKey -> operador da divisão
 
   // main e side já vêm em ordem cronológica do gu-parser (buildSections); sat vem
   // na ordem de leitura da Global, agrupado por groupHeader — igual à Conferência de amanhã
@@ -3390,8 +3391,8 @@ $('exportBtn').addEventListener('click', () => {
   sat.forEach(it => { const k = it.groupHeader || it.nome; if (!satMap[k]){ satMap[k] = []; satOrder.push(k); } satMap[k].push(it); });
   const satGroups = satOrder.map(k => satMap[k]);
 
-  const rows = [['Torneio', 'Horário', `Garantido (${cur})`, `Buy in (${cur})`]];
-  const pushRow = it => rows.push([it.nome, it.hora, conv(it.garantido), conv(it.buyin)]);
+  const rows = [['Torneio', 'Horário', `Garantido (${cur})`, `Buy in (${cur})`, 'ID', 'Operador']];
+  const pushRow = it => { const key = itemKey(it); rows.push([it.nome, it.hora, conv(it.garantido), conv(it.buyin), idVal(key), asg[key] || '']); };
   const blankRow = () => rows.push([]);
 
   main.forEach(pushRow); if (main.length) blankRow();
@@ -3401,7 +3402,7 @@ $('exportBtn').addEventListener('click', () => {
   if (unknown.length){
     blankRow();
     rows.push(['TIPO NÃO RECONHECIDO — verificar coluna TYPE na Global antes de fechar']);
-    unknown.forEach(it => rows.push([it.nome, it.hora, conv(it.garantido), conv(it.buyin), it.tipo ?? '']));
+    unknown.forEach(it => { const key = itemKey(it); rows.push([it.nome, it.hora, conv(it.garantido), conv(it.buyin), idVal(key), asg[key] || '', it.tipo ?? '']); });
   }
 
   // rodapé de checagem: quem receber a planilha confere se nada foi cortado
@@ -3409,7 +3410,7 @@ $('exportBtn').addEventListener('click', () => {
   rows.push([`Total: ${total} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length}) — ${WEEKDAY_TOMORROW} ${refToLabel(TURNO.refTomorrow)}`]);
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{wch:30},{wch:10},{wch:14},{wch:12}];
+  ws['!cols'] = [{wch:30},{wch:10},{wch:14},{wch:12},{wch:16},{wch:18}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, (WEEKDAY_TOMORROW || 'Criação Noturna').slice(0,31));
   XLSX.writeFile(wb, `CriacaoNoturna_${TOMORROW_ISO}.xlsx`);
