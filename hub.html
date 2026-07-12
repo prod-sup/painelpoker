@@ -2169,9 +2169,17 @@ if (location.protocol === 'file:') {
         uid = cred.user.uid;
       }catch(e){
         busy(btn,'Criar conta',false);
-        if(e && e.code === 'auth/email-already-in-use') return err('gCadErr','Este email já possui cadastro. Faça login.');
-        if(e && e.code === 'auth/operation-not-allowed')  return err('gCadErr','Cadastro indisponível no momento. Avise o admin.');
-        return err('gCadErr','Falha ao criar conta. Verifique sua conexão.');
+        const code = e && e.code || '';
+        // mensagens específicas — antes um genérico "verifique sua conexão" escondia
+        // a causa real (ex.: criação de conta desativada no Console)
+        if(code === 'auth/email-already-in-use') return err('gCadErr','Este email já possui cadastro. Faça login.');
+        if(code === 'auth/operation-not-allowed') return err('gCadErr','Provedor Email/Senha desativado no Firebase. Avise o admin.');
+        if(code === 'auth/admin-restricted-operation') return err('gCadErr','Criação de conta desativada no Firebase (Authentication → Settings → User actions → habilitar "Enable create"). Avise o admin.');
+        if(code === 'auth/weak-password') return err('gCadErr','Senha muito fraca — use pelo menos 6 caracteres.');
+        if(code === 'auth/invalid-email') return err('gCadErr','Email inválido.');
+        if(code === 'auth/network-request-failed') return err('gCadErr','Sem conexão com o servidor. Tente de novo.');
+        console.error('Cadastro falhou:', code, e && e.message);
+        return err('gCadErr', 'Falha ao criar conta (' + (code || 'erro desconhecido') + ').');
       }
       // grava o perfil (sem pwHash — a senha agora vive no Firebase Auth)
       await userRef.set({

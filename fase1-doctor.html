@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Fase 1 — Diagnóstico de Autenticação</title>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<style>
+  :root{
+    --bg:#0e0d0b; --panel:#171512; --panel2:#1f1c17; --line:#2c2820;
+    --ink:#ece7dd; --soft:#c3bbab; --muted:#968c78; --gold:#c9a44c;
+    --good:#43b581; --bad:#e5484d; --warn:#f0883e; --info:#5a9bd8;
+    --good-bg:rgba(67,181,129,.12); --bad-bg:rgba(229,72,77,.12); --warn-bg:rgba(240,136,62,.12); --info-bg:rgba(90,155,216,.10);
+    --mono:ui-monospace,"Cascadia Code",Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif;
+  }
+  @media (prefers-color-scheme:light){
+    :root{--bg:#f6f3ec;--panel:#fffdf8;--panel2:#f1ece0;--line:#e2dccd;--ink:#231f18;--soft:#4c453a;--muted:#7a7060;--gold:#8f6b2d;
+      --good-bg:rgba(67,150,110,.10);--bad-bg:rgba(229,72,77,.09);--warn-bg:rgba(240,136,62,.10);--info-bg:rgba(60,120,190,.09);}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:clamp(20px,4vw,48px) clamp(16px,4vw,28px)}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin:0 0 10px}
+  h1{font-size:clamp(26px,4.5vw,36px);letter-spacing:-.02em;margin:0 0 8px;font-weight:800}
+  .lede{color:var(--soft);margin:0 0 8px;max-width:60ch}
+  .host{font-family:var(--mono);font-size:12.5px;color:var(--muted);margin:0 0 26px}
+  .host b{color:var(--soft)}
+
+  .banner{border-radius:14px;padding:18px 20px;margin:0 0 24px;border:1px solid var(--line);display:flex;gap:14px;align-items:flex-start}
+  .banner .ico{font-size:22px;line-height:1.2}
+  .banner.good{background:var(--good-bg);border-color:var(--good)}
+  .banner.bad{background:var(--bad-bg);border-color:var(--bad)}
+  .banner.wait{background:var(--info-bg)}
+  .banner h2{margin:0 0 3px;font-size:17px}
+  .banner p{margin:0;color:var(--soft);font-size:14px}
+
+  .check{background:var(--panel);border:1px solid var(--line);border-left-width:4px;border-radius:10px;padding:14px 16px;margin:0 0 10px}
+  .check.good{border-left-color:var(--good)} .check.bad{border-left-color:var(--bad)} .check.wait{border-left-color:var(--muted)}
+  .check .top{display:flex;align-items:center;gap:10px}
+  .badge{font-family:var(--mono);font-weight:700;font-size:11px;letter-spacing:.06em;padding:3px 8px;border-radius:999px;white-space:nowrap}
+  .badge.good{background:var(--good-bg);color:var(--good)} .badge.bad{background:var(--bad-bg);color:var(--bad)} .badge.wait{background:var(--panel2);color:var(--muted)}
+  .check .name{font-weight:650;font-size:15.5px}
+  .check .fix{margin:10px 0 0;padding:10px 12px;background:var(--panel2);border-radius:8px;font-size:13.5px;color:var(--soft)}
+  .check .fix b{color:var(--ink)} .check .fix code{font-family:var(--mono);font-size:12px;color:var(--gold)}
+  .check[hidden]{display:none}
+
+  h3{margin:34px 0 12px;font-size:15px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted);font-family:var(--mono);font-weight:600}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  input{flex:1;min-width:160px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:11px 13px;color:var(--ink);font-size:14px;font-family:var(--sans)}
+  input:focus{outline:2px solid var(--gold);outline-offset:1px}
+  button{background:var(--gold);color:#1a1510;border:none;border-radius:9px;padding:11px 18px;font-weight:700;font-size:14px;cursor:pointer}
+  button:disabled{opacity:.5;cursor:default}
+  button.ghost{background:transparent;color:var(--soft);border:1px solid var(--line)}
+  .result{font-size:13.5px;margin-top:4px;min-height:20px}
+  .result.good{color:var(--good)} .result.bad{color:var(--bad)}
+  .note{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:6px}
+  code.raw{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+  footer{border-top:1px solid var(--line);margin-top:38px;padding-top:16px;color:var(--muted);font-size:12.5px}
+  a{color:var(--gold)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Suprema OS · Migração de Auth</p>
+  <h1>Diagnóstico da Fase 1</h1>
+  <p class="lede">Confirma se o Firebase Authentication está ligado corretamente no Console — sem criar conta nem gravar nada. Faz uma tentativa de login inválida e lê o código do erro pra deduzir o que falta.</p>
+  <p class="host">Rodando em: <b id="host">—</b> · projeto <b>design-1-53c00</b></p>
+
+  <div class="banner wait" id="banner">
+    <span class="ico" id="bIco">⏳</span>
+    <div><h2 id="bTitle">Verificando…</h2><p id="bMsg">Rodando o diagnóstico.</p></div>
+  </div>
+
+  <div class="check wait" id="c1"><div class="top"><span class="badge wait" id="b1">…</span><span class="name">SDK do Firebase carregado</span></div>
+    <div class="fix" id="f1" hidden></div></div>
+
+  <div class="check wait" id="c2"><div class="top"><span class="badge wait" id="b2">…</span><span class="name">Authentication inicializado no Console</span></div>
+    <div class="fix" id="f2" hidden><b>Falta ligar o serviço.</b> Console → <b>Authentication → Começar</b>. Erro recebido: <code>auth/configuration-not-found</code>.</div></div>
+
+  <div class="check wait" id="c3"><div class="top"><span class="badge wait" id="b3">…</span><span class="name">Provedor Email/Senha habilitado</span></div>
+    <div class="fix" id="f3" hidden><b>O provedor está desligado.</b> Console → Authentication → <b>Sign-in method</b> → habilitar <b>Email/Senha</b>. Erro: <code>auth/operation-not-allowed</code>.</div></div>
+
+  <div class="check wait" id="c4"><div class="top"><span class="badge wait" id="b4">…</span><span class="name">Domínio autorizado</span></div>
+    <div class="fix" id="f4" hidden><b>Este domínio não está autorizado.</b> Console → Authentication → <b>Settings → Authorized domains</b> → adicionar <code id="f4host">este domínio</code> (e <code>localhost</code>). Erro: <code>auth/unauthorized-domain</code>.</div></div>
+
+  <h3>Teste de login real (opcional)</h3>
+  <p class="lede" style="font-size:14px">Depois de tudo verde, teste com o <b>usuário de teste</b> (<code class="raw">teste@suprema.group</code>) ou uma conta real. Só faz login — não altera nada.</p>
+  <div class="row">
+    <input id="tEmail" type="email" placeholder="email@suprema.group" autocomplete="off">
+    <input id="tPw" type="password" placeholder="senha" autocomplete="off">
+  </div>
+  <div class="row">
+    <button id="tBtn">Testar login</button>
+    <button class="ghost" id="rerun">Rodar diagnóstico de novo</button>
+  </div>
+  <div class="result" id="tResult"></div>
+
+  <footer>
+    Ferramenta temporária da migração — <b>apague este arquivo após a Fase 4</b>. Não expõe nada novo: a config do Firebase já é pública em todos os painéis (a segurança vem das regras, não da chave). Passo a passo completo no <code class="raw">PLANO-AUTENTICACAO.md</code>.
+  </footer>
+</div>
+
+<script>
+  const CFG = {
+    apiKey: "AIzaSyAFy1GtRaJE3LHC1Rjtmq0uw2JC8bviXes",
+    authDomain: "design-1-53c00.firebaseapp.com",
+    databaseURL: "https://design-1-53c00-default-rtdb.firebaseio.com",
+    projectId: "design-1-53c00",
+    storageBucket: "design-1-53c00.firebasestorage.app",
+    messagingSenderId: "140511032441",
+    appId: "1:140511032441:web:dcf970125bbf5eec53d0a8"
+  };
+  const $ = id => document.getElementById(id);
+  $('host').textContent = location.hostname || '(arquivo local)';
+  $('f4host').textContent = location.hostname || 'este domínio';
+
+  function setCheck(n, state, showFix){
+    const c = $('c'+n), b = $('b'+n), f = $('f'+n);
+    c.className = 'check ' + state;
+    b.className = 'badge ' + state;
+    b.textContent = state === 'good' ? '✓ OK' : state === 'bad' ? '✕ FALTA' : '…';
+    if (f) f.hidden = !showFix;
+  }
+  function banner(state, ico, title, msg){
+    $('banner').className = 'banner ' + state;
+    $('bIco').textContent = ico; $('bTitle').textContent = title; $('bMsg').textContent = msg;
+  }
+
+  let auth = null;
+  try{
+    firebase.initializeApp(CFG);
+    auth = firebase.auth();
+    setCheck(1, 'good', false);
+  }catch(e){
+    setCheck(1, 'bad', false);
+    banner('bad', '✕', 'SDK do Firebase não carregou', 'Sem internet ou os scripts do gstatic foram bloqueados. Recarregue com conexão.');
+  }
+
+  // Sonda read-only: um login inválido cujo CÓDIGO de erro revela o estado do Console.
+  async function runProbe(){
+    if(!auth) return;
+    [2,3,4].forEach(n => setCheck(n, 'wait', false));
+    banner('wait', '⏳', 'Verificando…', 'Consultando o servidor de autenticação.');
+    let code = 'ok';
+    try{
+      await auth.signInWithEmailAndPassword('diagnostico-sonda-'+Date.now()+'@suprema.group', 'senha-invalida-de-teste');
+      // logar de verdade seria absurdo aqui; se acontecer, o Auth claramente está ligado
+      await auth.signOut().catch(()=>{});
+    }catch(e){ code = e.code || 'desconhecido'; }
+
+    const configMissing = code === 'auth/configuration-not-found' || code === 'auth/api-key-not-valid' || code === 'auth/api-key-not-valid.-please-pass-a-valid-api-key.';
+    const providerOff   = code === 'auth/operation-not-allowed';
+    const domainBad     = code === 'auth/unauthorized-domain';
+    const network       = code === 'auth/network-request-failed';
+    // qualquer um destes = o Auth ATENDEU (chegou no servidor, só recusou a credencial) → tudo ligado
+    const authWorking   = ['auth/user-not-found','auth/wrong-password','auth/invalid-credential',
+                           'auth/invalid-login-credentials','auth/invalid-email','ok'].includes(code);
+
+    if(network){
+      banner('bad', '✕', 'Sem rede', 'Falha de conexão com o servidor de autenticação. Cheque a internet e tente de novo.');
+      [2,3,4].forEach(n => setCheck(n, 'wait', false));
+      return;
+    }
+
+    // Check 2 — Auth inicializado
+    setCheck(2, configMissing ? 'bad' : 'good', configMissing);
+    // Check 3 — provedor Email/Senha
+    if(configMissing) setCheck(3, 'wait', false);
+    else setCheck(3, providerOff ? 'bad' : 'good', providerOff);
+    // Check 4 — domínio autorizado
+    if(configMissing || providerOff) setCheck(4, 'wait', false);
+    else setCheck(4, domainBad ? 'bad' : 'good', domainBad);
+
+    if(authWorking){
+      banner('good', '✓', 'Tudo pronto para a Fase 1', 'O Firebase Auth está ligado, o provedor Email/Senha ativo e este domínio autorizado. Pode publicar o hub.html com a Fase 1 e testar o login real abaixo.');
+    }else if(configMissing){
+      banner('bad', '①', 'Falta ligar o Authentication', 'É o primeiro passo: Console → Authentication → Começar. Depois rode de novo.');
+    }else if(providerOff){
+      banner('bad', '②', 'Falta habilitar Email/Senha', 'Console → Authentication → Sign-in method → Email/Senha → Ativar. Depois rode de novo.');
+    }else if(domainBad){
+      banner('bad', '③', 'Falta autorizar este domínio', 'Console → Authentication → Settings → Authorized domains → adicionar ' + (location.hostname||'o domínio') + '. Depois rode de novo.');
+    }else{
+      banner('wait', '?', 'Estado inesperado', 'Código retornado: ' + code + '. Verifique o Console manualmente.');
+    }
+  }
+
+  $('rerun').addEventListener('click', runProbe);
+
+  $('tBtn').addEventListener('click', async () => {
+    const email = ($('tEmail').value||'').trim().toLowerCase();
+    const pw = $('tPw').value||'';
+    const r = $('tResult');
+    if(!email || !pw){ r.className='result bad'; r.textContent='Preencha email e senha.'; return; }
+    if(!auth){ r.className='result bad'; r.textContent='Firebase não inicializado.'; return; }
+    $('tBtn').disabled = true; r.className='result'; r.textContent='Testando…';
+    try{
+      const cred = await auth.signInWithEmailAndPassword(email, pw);
+      r.className='result good';
+      r.textContent = '✓ Login OK — uid ' + cred.user.uid.slice(0,8) + '…  Este usuário já está no Firebase Auth.';
+      await auth.signOut().catch(()=>{});
+    }catch(e){
+      r.className='result bad';
+      const map = {
+        'auth/user-not-found':'Usuário não existe no Firebase Auth ainda (é legado — vai migrar no 1º login pelo hub).',
+        'auth/wrong-password':'Senha incorreta (mas o usuário existe no Auth).',
+        'auth/invalid-credential':'Credencial inválida — senha errada ou usuário ainda não migrado.',
+        'auth/invalid-login-credentials':'Credencial inválida — senha errada ou usuário ainda não migrado.',
+        'auth/too-many-requests':'Muitas tentativas — aguarde e tente de novo.',
+        'auth/operation-not-allowed':'Provedor Email/Senha desligado no Console.',
+        'auth/configuration-not-found':'Authentication não inicializado no Console.',
+        'auth/unauthorized-domain':'Domínio não autorizado no Console.'
+      };
+      r.textContent = '✕ ' + (map[e.code] || e.code || 'Falha') ;
+    }finally{ $('tBtn').disabled = false; }
+  });
+
+  // roda ao abrir
+  if(auth) runProbe();
+</script>
+</body>
+</html>
