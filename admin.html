@@ -1837,8 +1837,9 @@ function loginLockRemaining(user){
 function initFb(){
   try{
     firebase.initializeApp(FB_CFG);
-    // auth anônimo: exigido pelas regras do banco (firebase.rules.json)
-    firebase.auth().signInAnonymously().catch(e=>console.warn('auth anônimo falhou',e));
+    // Cutover email/senha (Fase 4): sem login anônimo. O token de acesso vem da
+    // sessão real do Firebase Auth (email/senha) que o hub deixa persistida por
+    // origem — quem logou no hub já chega autenticado aqui.
     // progressão do Suprema OS: abrir o admin conta XP na jornada do operador
     firebase.auth().onAuthStateChanged(function(u){
       if(u && !window.__spTracked){ window.__spTracked = true; try{ SupremaAuth.trackUse('admin'); }catch(e){} }

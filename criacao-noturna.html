@@ -1682,10 +1682,9 @@ function setSync(state, label){
 }
 try{
   firebase.initializeApp(FIREBASE_CONFIG);
-  // auth anônimo: exigido pelas regras do banco (firebase.rules.json) — sem
-  // credencial ninguém de fora escreve no /painel. Requer "Anonymous" habilitado
-  // em Authentication > Sign-in method no console do Firebase.
-  firebase.auth().signInAnonymously().catch(e => console.warn('auth anônimo falhou (regras abertas ainda funcionam)', e));
+  // Cutover email/senha (Fase 4): sem login anônimo. O token de acesso vem da
+  // sessão real do Firebase Auth (email/senha) que o hub deixa persistida por
+  // origem — quem logou no hub já chega autenticado aqui.
   // progressão do Suprema OS: abrir a Criação Noturna conta XP na jornada do operador
   firebase.auth().onAuthStateChanged(u => {
     if(u && !window.__spTracked){ window.__spTracked = true; try{ SupremaAuth.trackUse('gu'); }catch(e){} }

@@ -3326,7 +3326,10 @@ if (location.protocol === 'file:') {
         startLiveTiles();
       }).catch(()=>{});
     })();
-    firebase.auth().signInAnonymously().then(() => {
+    // Cutover email/senha (Fase 4): sem login anônimo. Os tiles ao vivo rodam
+    // direto — antes ficavam presos no .then() do anônimo (que falhava e deixava
+    // os tiles estáticos). O token de leitura vem da sessão email/senha do hub.
+    (function loadLiveTiles(){
       const { today, tomorrow } = opDates();
 
       // Painel: operadores online + a grade do dia (torneios e conferidos)
@@ -3362,7 +3365,7 @@ if (location.protocol === 'file:') {
         } catch(e){} }
       });
       db.ref(`${guBase}/done`).on('value', s => { guDone = s.numChildren(); paintGu(); });
-    }).catch(()=>{ /* sem auth (ex.: ambiente local), tiles ficam estáticos */ });
+    })();
   } catch(e){ /* offline: hub continua funcionando como launcher */ }
 })();
 </script>
