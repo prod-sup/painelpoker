@@ -150,6 +150,19 @@ function fmtExtraVal(label, v){
   return String(v).trim();
 }
 
+/* classifica a coluna TYPE de forma TOLERANTE — a GU digita a mão e varia a grafia
+   ("Main event", "MAIN", "Satelite" sem acento, "Satellite", "SAT", "Side"...). Em vez de
+   casar string exata (que jogava tudo pra "tipo não reconhecido"), normaliza e procura o
+   radical. Mesma lógica do classify() do painel.js — mantidas em sincronia de propósito. */
+function classifyGuTipo(tipo){
+  const t = normText(tipo);
+  if (!t) return null;
+  if (t.includes('main')) return 'main';
+  if (t.includes('side')) return 'side';
+  if (t.includes('sat'))  return 'sat'; // cobre SAT, satélite, satelite, satellite
+  return null;
+}
+
 function extractGuDaySection(matrix, weekdayEn, headerCols){
   const gi = guIdx(headerCols);
   const range = findWeekdaySectionRange(matrix, weekdayEn, gi.name);
@@ -183,6 +196,7 @@ function extractGuDaySection(matrix, weekdayEn, headerCols){
     const nomeMkt = str(row[gi.name]);
     const nomeCurto = str(row[gi.shortName]);
     const tipo = str(row[gi.tipo]);
+    const cat = classifyGuTipo(tipo); // 'main' | 'side' | 'sat' | null (tolerante à grafia)
     // "P&D" / "EVENTOS FUTUROS" — seção de eventos FUTUROS que fecha o cronograma da
     // Global (a linha repete o rótulo em várias colunas e o que vem depois tem DATA na
     // coluna A). Não é torneio do dia: é o FIM da grade — para aqui, sem virar aviso
@@ -191,7 +205,7 @@ function extractGuDaySection(matrix, weekdayEn, headerCols){
     if (nomeMkt) lastGroupName = nomeMkt;
     // linha separadora "MTT / SATELLITE" que abre o bloco de satélites — não é torneio
     if (['mtt','satellite','satelite'].includes(normText(nomeMkt || '')) || ['satellite','satelite'].includes(normText(nomeCurto || ''))) continue;
-    const nome = (tipo === 'SAT' ? (nomeCurto || nomeMkt) : (nomeMkt || nomeCurto));
+    const nome = (cat === 'sat' ? (nomeCurto || nomeMkt) : (nomeMkt || nomeCurto));
     if (!nome) continue;
     if (normText(nome) === 'suspenso') continue;
     if (!hora && lastHora) hora = lastHora;
@@ -210,11 +224,11 @@ function extractGuDaySection(matrix, weekdayEn, headerCols){
       if (typeof v === 'string') v = v.trim();
       if (v !== null && v !== undefined && v !== '') extra[label] = v;
     });
-    const entry = {nome, hora, garantido, buyin, late:lateHH, groupHeader: tipo === 'SAT' ? lastGroupName : null, extra};
-    if (tipo === 'Main Event') main.push(entry);
-    else if (tipo === 'Side Event') side.push(entry);
-    else if (tipo === 'SAT') sat.push(entry);
-    else if (tipo) unknown.push({...entry, tipo});
+    const entry = {nome, hora, garantido, buyin, late:lateHH, groupHeader: cat === 'sat' ? lastGroupName : null, extra};
+    if (cat === 'main') main.push(entry);
+    else if (cat === 'side') side.push(entry);
+    else if (cat === 'sat') sat.push(entry);
+    else if (tipo) unknown.push({...entry, tipo}); // tipo preenchido mas fora dos radicais conhecidos
     // tipo vazio + nome presente: linha decorativa/rótulo — ignorada em silêncio só se não tiver valores
     else if (garantido !== null || buyin !== null) unknown.push({...entry, tipo: tipo ?? ''});
   }

@@ -63,6 +63,25 @@ ok(sec.aposGap.length === 1 && sec.aposGap[0].nome === 'Depois do vão', 'linha 
 ok(sec.main[0].extra['FEE'] === 0.10 && sec.main[0].extra['EARLY BIRD'] === 0.2, 'receita completa preservada (extra)');
 ok(!('MTT MARKETING' in sec.main[0].extra), 'colunas core não duplicam na receita');
 
+console.log('classificação tolerante da coluna TYPE (grafias que a GU digita a mão)');
+const variantes = [
+  ['G MTTS'], [],
+  H1, H2,
+  [null, null, 'WEDNESDAY', null],
+  ['09:00', '#V1', 'Main minúsculo',  'main event', 10000, 20, null, 0.10, null, null, 10000, 8],
+  ['10:00', '#V2', 'Main caixa alta', 'MAIN EVENT',  10000, 20, null, 0.10, null, null, 10000, 8],
+  ['11:00', '#V3', 'Side sem "event"','Side',        1000,  10, null, 0.10, null, null, 10000, 8],
+  ['12:00', 'SAT V4', 'Satelite sem acento', 'Satelite', 100, 5, null, 0.10, null, null, 10000, 5],
+  ['13:00', 'SAT V5', 'Satellite EN',        'Satellite',100, 5, null, 0.10, null, null, 10000, 5],
+  ['14:00', '#V6', 'Tipo de verdade estranho', 'Bounty', 500, 5, null, 0.10, null, null, 10000, 5]
+];
+const vcols = api.findHeaderCols(variantes);
+const vsec = api.extractGuDaySection(variantes, 'WEDNESDAY', vcols);
+ok(vsec.main.length === 2, '"main event" e "MAIN EVENT" caem em Main, não em desconhecido');
+ok(vsec.side.length === 1 && vsec.side[0].nome === 'Side sem "event"', '"Side" (sem "event") cai em Side');
+ok(vsec.sat.length === 2, '"Satelite" e "Satellite" caem em Satélite');
+ok(vsec.unknown.length === 1 && vsec.unknown[0].tipo === 'Bounty', 'só tipo realmente fora dos radicais fica em desconhecido');
+
 console.log('buildSections (janela 06:10 → 05:30)');
 const secTue = api.extractGuDaySection(matrix, 'TUESDAY', cols);
 const built = api.buildSections(sec, secTue);

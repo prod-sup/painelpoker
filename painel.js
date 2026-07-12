@@ -5560,9 +5560,13 @@ function extractGlobalDaySection(matrix, weekdayName, divisor){
     const garantido = typeof garantidoRaw === 'number' ? Math.round((garantidoRaw / divisor) * 100) / 100 : null;
     const buyin = typeof buyinRaw === 'number' ? Math.round((buyinRaw / divisor) * 100) / 100 : null;
     const entry = {nome: nome.trim(), hora, garantido, buyin, late: lateHH || null, groupHeader: currentGroupHeader};
-    if (tipo === 'Main Event') main.push(entry);
-    else if (tipo === 'Side Event') side.push(entry);
-    else if (tipo === 'SAT') sat.push(entry);
+    // classificação TOLERANTE por radical (a Global é digitada a mão: "Main event", "MAIN",
+    // "Satelite" sem acento, "Satellite", "SAT"...). Casar string exata jogava tudo isso pra
+    // "unknown" e o torneio sumia do relatório. Só um tipo realmente fora dos radicais vira unknown.
+    const tipoNorm = normText(tipo);
+    if (tipoNorm.includes('main')) main.push(entry);
+    else if (tipoNorm.includes('side')) side.push(entry);
+    else if (tipoNorm.includes('sat')) sat.push(entry);
     // tipo não bate com nenhuma categoria conhecida (typo na Global, coluna deslocada etc.) — não descartar
     // em silêncio: guarda como "unknown" pra quem chamou poder avisar que um torneio ficou de fora
     else unknown.push({...entry, tipo});

@@ -3365,17 +3365,60 @@ $('currencySeg').querySelectorAll('button').forEach(b => b.addEventListener('cli
   $('currencySeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.cur === CURRENCY));
 })();
 
-/* ── export xlsx com a coluna Operador ── */
+/* ── export xlsx da divisão — mesmo formato visual do Relatório de Acompanhamento
+   do Painel: cada categoria vira um bloco com cabeçalho colorido, linha de
+   cabeçalho de colunas, total por grupo e um sumário geral no fim. As cores
+   batem com as do acompanhamento (Main=verde, Side=azul, Satélite=roxo). ── */
+const EXPORT_CAT_COLORS = {
+  main: { header:'1A472A', sub:'2D6A4F', soft:'C8E6C9' }, // ♠ verde
+  side: { header:'1A3A5C', sub:'2E5984', soft:'BBDEFB' }, // ♥♦ azul
+  sat:  { header:'4A1A6B', sub:'6A2F9B', soft:'E1BEE7' }, // ♣ roxo
+};
+/* classe visual de cada bloco → paleta (side c/ e s/ Admin compartilham o azul) */
+function exportColorKey(cat){ return cat.key === 'main' ? 'main' : cat.key === 'sat' ? 'sat' : 'side'; }
+
 $('exportBtn').addEventListener('click', () => {
   if (!DATA){ showToast('Carregue a Global primeiro.', true); return; }
   const asg = computeAssignments();
   const cur = CURRENCY === 'usd' ? '$' : 'R$';
   const conv = v => v === null || v === undefined ? null : (CURRENCY === 'usd' ? v : Math.round(v * BRL_RATE * 100) / 100);
+  const fmtCur = v => v === null || v === undefined ? '—' : `${cur} ${Number(v).toLocaleString('pt-BR', {maximumFractionDigits:2})}`;
   const fields = recipeFields();
-  const rows = [[`Criação Noturna — ${WEEKDAY_TOMORROW} ${refToLabel(TURNO.refTomorrow)} — valores em ${cur}`],[],
-    ['Função','Torneio','Horário',`Garantido (${cur})`,`Buy-in (${cur})`,'Admin Fee (Rake/Fee + Admin)','Early Bird (% fichas)','Campanha','Conferir','Late reg','Operador (divisão)','ID Cadastrado','Criado','Criado por (operador)','Tempo (min)', ...fields]];
-  SECTIONS.forEach(cat => {
-    catItems(cat).forEach(it => {
+  // a categoria já é dada pelo cabeçalho colorido do bloco — não repetimos "Função" por linha
+  const COLS = ['Torneio','Horário',`Garantido (${cur})`,`Buy-in (${cur})`,'Admin Fee (Rake/Fee + Admin)','Early Bird (% fichas)','Campanha','Conferir','Late reg','Operador (divisão)','ID Cadastrado','Criado','Criado por (operador)','Tempo (min)', ...fields];
+  const NCOL = COLS.length;
+  const blank = () => new Array(NCOL).fill('');
+
+  const aoa = [];
+  const styleMap = {}; // addr → estilo (aplicado no fim, igual ao acompanhamento)
+  const S = (r, c, style) => { styleMap[XLSX.utils.encode_cell({r, c})] = style; };
+
+  // título do dia (linha mesclada)
+  aoa.push([`CRIAÇÃO NOTURNA — ${WEEKDAY_TOMORROW} ${refToLabel(TURNO.refTomorrow)} — valores em ${cur}`]);
+  aoa.push([]);
+
+  // ordem Main → Side (c/ e s/ Admin) → Satélite, espelhando o acompanhamento
+  const exportOrder = [CAT_MAIN, CAT_SIDE_A, CAT_SIDE_B, CAT_SAT];
+  let anyRow = false, allGar = 0, allBuyin = 0, allCount = 0, allDone = 0;
+
+  exportOrder.forEach(cat => {
+    const items = catItems(cat);
+    if (!items.length) return;
+    anyRow = true;
+    const cc = EXPORT_CAT_COLORS[exportColorKey(cat)];
+
+    // cabeçalho do grupo
+    const gHeaderRow = aoa.length;
+    aoa.push([`${cat.suit} ${cat.label.toUpperCase()}`]);
+    S(gHeaderRow, 0, {font:{bold:true,color:{rgb:'FFFFFF'},sz:13},fill:{fgColor:{rgb:cc.header}}});
+
+    // cabeçalho de colunas
+    const colHeaderRow = aoa.length;
+    aoa.push(COLS.slice());
+    for (let c = 0; c < NCOL; c++) S(colHeaderRow, c, {font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:cc.sub}},alignment:{horizontal:'center'}});
+
+    let sumGar = 0, sumBuyin = 0, count = 0, doneCount = 0;
+    items.forEach(it => {
       const key = itemKey(it);
       const af = adminFeeParts(it), e = earlyParts(it), c = campInfo(it);
       const extras = fields.map(label => {
@@ -3383,19 +3426,68 @@ $('exportBtn').addEventListener('click', () => {
         return v === undefined || v === null || v === '' ? '' : fmtExtraVal(label, v);
       });
       const dur = DONE[key] && typeof DONE[key].dur === 'number' ? Math.round(DONE[key].dur / 60000 * 10) / 10 : '';
-      rows.push([cat.label, it.nome, it.hora, conv(it.garantido), conv(it.buyin),
+      aoa.push([it.nome, it.hora, conv(it.garantido), conv(it.buyin),
         af ? `${af.main}${af.sub ? ' ' + af.sub : ''}` : '', e ? `${e.main}${e.sub ? ' ' + e.sub : ''}` : '', hasCampaign(it) ? (c ? c.disp : 'sim') : '',
         validateItem(it, cat).join(' · '), it.late || '', asg[key] || '', idVal(key),
         DONE[key] ? '✓' : '', DONE[key] ? (DONE[key].by || '') : '', dur, ...extras]);
+      count++;
+      if (typeof it.garantido === 'number') sumGar += it.garantido;
+      if (typeof it.buyin === 'number') sumBuyin += it.buyin;
+      if (DONE[key]) doneCount++;
     });
-    rows.push([]);
+
+    // total do grupo
+    const totalRow = aoa.length;
+    const totRow = blank();
+    totRow[0] = `Total (${count})`;
+    totRow[2] = fmtCur(conv(sumGar));
+    totRow[3] = fmtCur(conv(sumBuyin));
+    totRow[11] = `${doneCount}/${count} criados`;
+    aoa.push(totRow);
+    S(totalRow, 0, {font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:cc.sub}}});
+    for (let c = 1; c < NCOL; c++) S(totalRow, c, {font:{bold:true},fill:{fgColor:{rgb:cc.soft}}});
+
+    aoa.push([]);
+    allGar += sumGar; allBuyin += sumBuyin; allCount += count; allDone += doneCount;
   });
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{wch:22},{wch:34},{wch:9},{wch:14},{wch:12},{wch:22},{wch:18},{wch:12},{wch:22},{wch:9},{wch:16},{wch:14},{wch:8},{wch:20},{wch:11}, ...fields.map(() => ({wch:14}))];
+
+  // torneios com tipo não reconhecido — não somem do arquivo (defensivo; o parser já
+  // tolera as grafias comuns, mas um tipo realmente novo cai aqui em vez de sumir)
+  const unk = (DATA.unknown || []);
+  if (unk.length){
+    const gHeaderRow = aoa.length;
+    aoa.push(['⚠ TIPO NÃO RECONHECIDO — confira a coluna TYPE na Global']);
+    S(gHeaderRow, 0, {font:{bold:true,color:{rgb:'FFFFFF'},sz:12},fill:{fgColor:{rgb:'8A6D00'}}});
+    const colHeaderRow = aoa.length;
+    aoa.push(['Torneio','Horário',`Garantido (${cur})`,`Buy-in (${cur})`,'Tipo lido', ...new Array(Math.max(0, NCOL-5)).fill('')]);
+    for (let c = 0; c < 5; c++) S(colHeaderRow, c, {font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'B9960C'}},alignment:{horizontal:'center'}});
+    unk.forEach(it => { const r = blank(); r[0]=it.nome; r[1]=it.hora; r[2]=conv(it.garantido); r[3]=conv(it.buyin); r[4]=it.tipo || ''; aoa.push(r); });
+    aoa.push([]);
+  }
+
+  if (!anyRow && !unk.length){ showToast('Nada para exportar.', true); return; }
+
+  // sumário geral
+  const sumHeaderRow = aoa.length;
+  aoa.push(['SUMÁRIO']);
+  S(sumHeaderRow, 0, {font:{bold:true,color:{rgb:'FFFFFF'},sz:12},fill:{fgColor:{rgb:'1A472A'}}});
+  aoa.push(['Torneios na divisão', allCount]);
+  aoa.push(['Criados', `${allDone}/${allCount}`]);
+  aoa.push([`Garantido total (${cur})`, fmtCur(conv(allGar))]);
+  aoa.push([`Buy-in total (${cur})`, fmtCur(conv(allBuyin))]);
+  const avg = avgDurMin();
+  if (avg) aoa.push(['Tempo médio por torneio', avg < 1 ? `${Math.round(avg*60)}s` : `${avg.toFixed(1)} min`]);
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:34},{wch:9},{wch:15},{wch:13},{wch:22},{wch:18},{wch:12},{wch:24},{wch:9},{wch:18},{wch:16},{wch:9},{wch:20},{wch:11}, ...fields.map(() => ({wch:14}))];
+  ws['!merges'] = [{s:{r:0,c:0},e:{r:0,c:NCOL-1}}];
+  Object.entries(styleMap).forEach(([addr, style]) => { if (!ws[addr]) ws[addr] = {t:'s', v:''}; ws[addr].s = style; });
+  if (ws['A1']) ws['A1'].s = {font:{bold:true,color:{rgb:'FFFFFF'},sz:14},fill:{fgColor:{rgb:'0A3D27'}},alignment:{horizontal:'center'}};
+
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Criação Noturna');
   XLSX.writeFile(wb, `CriacaoNoturna_${TOMORROW_ISO}.xlsx`);
-  showToast('Divisão exportada.');
+  showToast(`Divisão exportada — ${allCount} torneios em ${exportOrder.filter(c => catItems(c).length).length} grupos.`);
 });
 
 /* ── resumo pra colar no grupo ── */
