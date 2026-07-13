@@ -2590,6 +2590,7 @@ if (location.protocol === 'file:') {
   const levelFromXp = xp => Math.min(50, 1 + Math.floor(Math.sqrt(xp/5)));
   const xpForLevel = lv => 5*(lv-1)*(lv-1);
   let pfStats = { opens:0, days:0, actions:0, tools:{} };
+  let pfStatsLoaded = false; // só true após uma leitura BEM-SUCEDIDA de users/<key>/stats
   let pfTag = null;
 
   function pfXp(){ return pfStats.opens*XP_PER_OPEN + pfStats.days*XP_PER_DAY + pfStats.actions*XP_PER_ACTION + missionsTotal()*XP_PER_MISSION; }
@@ -2871,6 +2872,7 @@ if (location.protocol === 'file:') {
   let lbData = null, lbLastPub = 0, lbMode = 'season';
   function lbPublish(){
     if(!session || !db || !fbReady) return;
+    if(!pfStatsLoaded) return;   // nunca publica XP=0 antes de ler stats (evita zerar o leaderboard)
     const now = Date.now();
     if(now - lbLastPub < 30000) return;   // no máx. a cada 30s
     lbLastPub = now;
@@ -3076,6 +3078,7 @@ if (location.protocol === 'file:') {
     const key = emailToKey(session.email);
     db.ref(`users/${key}/stats`).on('value', s => {
       const v = s.val() || {};
+      pfStatsLoaded = true;   // leitura autorizada e concluída — XP/nível agora são confiáveis
       pfStats = {
         opens: v.opens||0,
         days: v.days ? Object.keys(v.days).length : 0,
@@ -3096,6 +3099,11 @@ if (location.protocol === 'file:') {
         if(prev > 0 && lv > prev) showLevelUp(lv);
         localStorage.setItem(lvKey, String(lv));
       }catch(e){}
+    }, err => {
+      // Leitura negada = sessão sem Firebase Auth vivo (ex.: login antigo só no localStorage).
+      // NÃO mostramos 0 nem publicamos no leaderboard: o dado está intacto, falta re-login.
+      pfStatsLoaded = false;
+      console.warn('stats read negado — refaça login no hub para restaurar XP/nível.', err && err.code);
     });
     db.ref(`users/${key}/tag`).on('value', s => { pfTag = s.val(); renderProfileTag(); renderProfileTitles(); });
     // moldura equipada e banner seguem a CONTA (o localStorage só evita piscar no load)
