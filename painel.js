@@ -2260,6 +2260,19 @@ function registerSheetListener(){
   });
 }
 
+/* Roda cb assim que houver usuário do Firebase Auth (agora, se já restaurou; senão
+   quando restaurar). Serve pra NÃO anexar listeners que exigem auth antes do token
+   existir: numa recarga, o token demora um instante e, se o listener sobe antes, o
+   RTDB nega a leitura e CANCELA o listener — a premiação vinha "0 fechados" até
+   religar por acaso. Espelha o guard que o hub já tem. */
+function whenAuthed(cb){
+  try{
+    var a = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth() : null;
+    if(!a || a.currentUser){ cb(); return; }
+    var off = a.onAuthStateChanged(function(u){ if(u){ if(off) off(); cb(); } });
+  }catch(e){ try{ cb(); }catch(_){ } }
+}
+
 function initFirebaseSync(){
   try{
     if(typeof firebase === 'undefined'){ setSyncBadge('offline'); return; }
@@ -2298,6 +2311,9 @@ function initFirebaseSync(){
     registerSheetListener();
 
     // ── Premiação ─────────────────────────────────────────────────────────
+    // só anexa com auth viva: senão, numa recarga, o RTDB nega a leitura e cancela
+    // o listener — e a premiação some ("0 fechados") até religar por acaso.
+    whenAuthed(() => {
     fbDb.ref(`${FB_BASE_PATH}/premiacao`).on('value', snap => {
       const data = snap.val() || {};
       let changed = false;
@@ -2345,6 +2361,7 @@ function initFirebaseSync(){
         if(!isTypingInCard() && !window._suppressRenderUpcoming) renderUpcoming();
       }
     });
+    });  // fim do whenAuthed (premiação)
 
     // ── Fixados ───────────────────────────────────────────────────────────
     fbDb.ref(`${FB_BASE_PATH}/fixed`).on('value', snap => {
@@ -7599,7 +7616,8 @@ function reinitDayListeners(){
     }
   });
 
-  // Premiação
+  // Premiação — só anexa com auth viva (mesmo motivo do listener do load)
+  whenAuthed(() => {
   fbDb.ref(`${FB_BASE_PATH}/premiacao`).on('value', snap => {
     const data = snap.val() || {};
     let changed = false;
@@ -7624,6 +7642,7 @@ function reinitDayListeners(){
       if(!isTypingInCard() && !window._suppressRenderUpcoming) scheduleRenderAll();
     }
   });
+  });  // fim do whenAuthed (premiação)
 
   // Fixados
   fbDb.ref(`${FB_BASE_PATH}/fixed`).on('value', snap => {
