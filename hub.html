@@ -2595,6 +2595,44 @@ if (location.protocol === 'file:') {
 
   function pfXp(){ return pfStats.opens*XP_PER_OPEN + pfStats.days*XP_PER_DAY + pfStats.actions*XP_PER_ACTION + missionsTotal()*XP_PER_MISSION; }
 
+  /* transforma o snapshot cru de users/<key>/stats no shape que o perfil usa */
+  function pfSetStatsFromSnap(v){
+    pfStats = {
+      opens: v.opens||0,
+      days: v.days ? Object.keys(v.days).length : 0,
+      actions: v.actions ? Object.values(v.actions).reduce((a,n) => a + (+n||0), 0) : 0,
+      tools: v.tools || {},
+      daily: v.daily || {},
+      missions: v.missions || {},
+      daysMap: v.days || {},
+    };
+  }
+
+  /* Retrato local do XP/nível: cache do último stats lido com sucesso. Serve pra
+     pintar o card na hora — mesmo numa volta rápida (bfcache) ou enquanto o Firebase
+     Auth restaura — em vez de mostrar o default Nível 1, que o operador lê como
+     "resetado". É só EXIBIÇÃO: não liga pfStatsLoaded (não publica no leaderboard
+     nem dispara level-up); o dado ao vivo, quando chega, sobrescreve. */
+  function pfCacheKey(){ try{ return session ? 'suprema_pfstats_v1_' + emailToKey(session.email) : null; }catch(e){ return null; } }
+  function pfSaveCache(){
+    const k = pfCacheKey(); if(!k) return;
+    try{ localStorage.setItem(k, JSON.stringify(pfStats)); }catch(e){}
+  }
+  function pfLoadCacheAndPaint(){
+    if(pfStatsLoaded) return;            // já temos dado ao vivo — não sobrescreve
+    const k = pfCacheKey(); if(!k) return;
+    try{
+      const v = JSON.parse(localStorage.getItem(k) || 'null');
+      if(v && typeof v === 'object'){
+        pfStats = {
+          opens: v.opens||0, days: v.days||0, actions: v.actions||0,
+          tools: v.tools||{}, daily: v.daily||{}, missions: v.missions||{}, daysMap: v.daysMap||{},
+        };
+        renderProfileProgress();
+      }
+    }catch(e){}
+  }
+
   /* ── Molduras de progressão: a jornada completa do operador, do Novato ao
      Suprema. Cada faixa de XP libera um aro melhor no avatar. ── */
   const FRAME_TIERS = [
@@ -3074,6 +3112,9 @@ if (location.protocol === 'file:') {
   let pfStatsWired = false, pfStatsWaitingAuth = false;
   function pfLoadStats(){
     if(pfStatsWired || !session || !db || !fbReady) return;
+    // Pinta o card com o retrato local JÁ: enquanto o Auth restaura (ou numa volta
+    // rápida), o operador vê o nível certo em vez do default Nível 1 ("resetado").
+    pfLoadCacheAndPaint();
     // Numa navegação de volta ao hub, o token do Firebase Auth ainda não restaurou
     // quando esta função roda. Ler users/<key>/stats cedo dá permission_denied e o
     // RTDB CANCELA o listener (não re-tenta) — o nível ficava "resetado". Então
@@ -3089,15 +3130,8 @@ if (location.protocol === 'file:') {
     db.ref(`users/${key}/stats`).on('value', s => {
       const v = s.val() || {};
       pfStatsLoaded = true;   // leitura autorizada e concluída — XP/nível agora são confiáveis
-      pfStats = {
-        opens: v.opens||0,
-        days: v.days ? Object.keys(v.days).length : 0,
-        actions: v.actions ? Object.values(v.actions).reduce((a,n) => a + (+n||0), 0) : 0,
-        tools: v.tools || {},
-        daily: v.daily || {},
-        missions: v.missions || {},
-        daysMap: v.days || {},
-      };
+      pfSetStatsFromSnap(v);
+      pfSaveCache();          // retrato local pra próxima abertura/volta não aparecer "resetada"
       checkMissions();
       lbPublish();
       renderProfileProgress();
@@ -3267,6 +3301,25 @@ if (location.protocol === 'file:') {
     clearSession();
     try{ localStorage.removeItem('suprema_trusted_admin'); }catch(e){}
     location.reload();
+  });
+
+  // bfcache: ao voltar pelo botão "voltar", o navegador restaura a página CONGELADA
+  // sem re-rodar os scripts e com a conexão do Firebase possivelmente morta. Se o
+  // operador saiu pro painel antes do XP carregar, o card ficava preso no Nível 1 e
+  // só o F5 corrigia. No pageshow persistido: repinta do cache na hora e puxa o valor
+  // ao vivo uma vez, pra o nível voltar ao certo sem precisar recarregar.
+  window.addEventListener('pageshow', function(e){
+    if(!e.persisted || !session) return;
+    pfLoadCacheAndPaint();
+    if(db && fbReady && firebase.auth().currentUser){
+      db.ref(`users/${emailToKey(session.email)}/stats`).once('value').then(function(s){
+        pfStatsLoaded = true;
+        pfSetStatsFromSnap(s.val() || {});
+        pfSaveCache();
+        renderProfileProgress();
+        lbPublish();
+      }).catch(function(){});
+    }
   });
 
   // deep-link: os painéis mandam o operador pra cá com hub.html#perfil
