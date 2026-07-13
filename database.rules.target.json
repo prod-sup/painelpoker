@@ -54,7 +54,18 @@
 
     "snapshots": { ".read": "auth != null", ".write": false },
 
+    "auditoria": {
+      ".read":  "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'",
+      ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'"
+    },
+
+    "relatorios": {
+      ".read":  "auth != null",
+      ".write": "auth != null"
+    },
+
     "userNotifs": {
+      ".read": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'",
       "$opKey": {
         ".read": "auth != null && (root.child('users').child($opKey).child('authUid').val() === auth.uid || auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group')",
         ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'"
