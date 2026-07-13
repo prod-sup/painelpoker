@@ -1695,15 +1695,22 @@ try{
     if (s.val() === true) setSync('on','Sincronizado');
     else setSync('','Conectando…');
   });
-  fbDb.ref(`${FB_PATH}/sheet`).on('value', s => {
-    const v = s.val();
-    if (v && v.json){
-      try{
-        DATA = JSON.parse(v.json);
-        DATA.by = v.by; DATA.at = v.at;
-        onDataReady(true);
-      }catch(e){ console.error('sheet corrompida no Firebase', e); }
-    }
+  // ECONOMIA DE BANDA: observa só o timestamp; baixa a grade (json pesado) com
+  // .once() SÓ quando muda — antes o .on('value') rebaixava a grade a cada reconexão.
+  fbDb.ref(`${FB_PATH}/sheet/at`).on('value', tsSnap => {
+    const at = tsSnap.val();
+    if (!at || `${at}` === `${window._cnSheetLastTs}`) return;
+    window._cnSheetLastTs = `${at}`;
+    fbDb.ref(`${FB_PATH}/sheet`).once('value').then(s => {
+      const v = s.val();
+      if (v && v.json){
+        try{
+          DATA = JSON.parse(v.json);
+          DATA.by = v.by; DATA.at = v.at;
+          onDataReady(true);
+        }catch(e){ console.error('sheet corrompida no Firebase', e); }
+      }
+    }).catch(()=>{ window._cnSheetLastTs = null; });
   });
   fbDb.ref(`${FB_PATH}/ops`).on('value', s => {
     const v = s.val();
@@ -1976,6 +1983,8 @@ async function handleFile(file){
     if (fbDb){
       fbDb.ref(`${FB_PATH}/sheet`).set({
         json: JSON.stringify({main:sections.main, side:sections.side, sat:sections.sat, unknown:sections.unknown, fields, warnings, changes, fileName:file.name}),
+        // count pequeno pra o hub contar sem baixar a grade inteira (economia de banda)
+        count: sections.main.length + sections.side.length + sections.sat.length,
         by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP
       });
     }

@@ -267,15 +267,22 @@
   function gcAttach(){
     if (gcAttached || !fbDb) return;
     gcAttached = true;
-    fbDb.ref(`${BASE}/sheet`).on('value', s => {
-      const v = s.val();
-      if (v && v.json){
-        try{
-          gcSheet = JSON.parse(v.json);
-          gcSrc = {fileName: gcSheet.fileName || '', by: v.by || '', at: v.at || 0};
-        }catch(e){ console.error('guConf: sheet corrompida', e); }
-      }
-      gcRender();
+    // ECONOMIA DE BANDA: observa só o timestamp; baixa a grade (json pesado) com
+    // .once() SÓ quando muda — antes o .on('value') rebaixava a grade a cada reconexão.
+    fbDb.ref(`${BASE}/sheet/at`).on('value', tsSnap => {
+      const at = tsSnap.val();
+      if (!at || `${at}` === `${window._gcSheetLastTs}`) return;
+      window._gcSheetLastTs = `${at}`;
+      fbDb.ref(`${BASE}/sheet`).once('value').then(s => {
+        const v = s.val();
+        if (v && v.json){
+          try{
+            gcSheet = JSON.parse(v.json);
+            gcSrc = {fileName: gcSheet.fileName || '', by: v.by || '', at: v.at || 0};
+          }catch(e){ console.error('guConf: sheet corrompida', e); }
+        }
+        gcRender();
+      }).catch(()=>{ window._gcSheetLastTs = null; });
     });
     fbDb.ref(`${BASE}/conf`).on('value', s => { gcConf = s.val() || {}; gcRender(); });
     fbDb.ref(`${BASE}/ids`).on('value', s => { gcIds = s.val() || {}; gcRender(); });

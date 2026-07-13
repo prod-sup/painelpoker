@@ -2217,9 +2217,17 @@ function setSyncBadge(state){
 let SHEET_LISTENER_PATH = null; // path onde o listener está registrado agora, pra poder desligar
 function registerSheetListener(){
   if(!fbReady || !fbDb) return;
-  if(SHEET_LISTENER_PATH) fbDb.ref(`${SHEET_LISTENER_PATH}/sheet`).off();
+  if(SHEET_LISTENER_PATH) fbDb.ref(`${SHEET_LISTENER_PATH}/sheet/uploadedAt`).off();
+  if(SHEET_LISTENER_PATH !== FB_BASE_PATH) window._painelSheetLastTs = null; // trocou de dia
   SHEET_LISTENER_PATH = FB_BASE_PATH;
-  fbDb.ref(`${FB_BASE_PATH}/sheet`).on('value', snap => {
+  // ECONOMIA DE BANDA: observa só o timestamp (uploadedAt, um número); baixa a grade
+  // (rows, pesada) com .once() SÓ quando muda. Antes o .on('value') no nó inteiro
+  // rebaixava a grade toda a cada reconexão. A dedup por assinatura continua igual.
+  fbDb.ref(`${FB_BASE_PATH}/sheet/uploadedAt`).on('value', tsSnap => {
+    const ts = tsSnap.val();
+    if(!ts || `${ts}` === `${window._painelSheetLastTs}`) return;
+    window._painelSheetLastTs = `${ts}`;
+    fbDb.ref(`${FB_BASE_PATH}/sheet`).once('value').then(snap => {
     const data = snap.val();
     if(!data || !Array.isArray(data.rows) || !data.rows.length) return;
     const sig = `${data.uploadedAt}|${data.rows.length}`;
@@ -2248,6 +2256,7 @@ function registerSheetListener(){
     if(!MY_LAST_UPLOAD_AT || Math.abs(data.uploadedAt - MY_LAST_UPLOAD_AT) > 15000){
       showToast(`Planilha "${data.filename || 'Global'}" recebida (${data.rows.length} torneios)`);
     }
+    }).catch(()=>{ window._painelSheetLastTs = null; });
   });
 }
 

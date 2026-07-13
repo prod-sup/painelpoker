@@ -3365,13 +3365,15 @@ if (location.protocol === 'file:') {
       const paintGu = () => {
         if (guTotal > 0) show('liveGu', 'liveGuTxt', `${guDone}/${guTotal} criados · ${Math.round(guDone/guTotal*100)}%`);
       };
-      db.ref(`${guBase}/sheet`).on('value', s => {
-        const v = s.val();
-        if (v && v.json) { try {
-          const d = JSON.parse(v.json);
-          guTotal = (d.main||[]).length + (d.side||[]).length + (d.sat||[]).length;
-          paintGu();
-        } catch(e){} }
+      // ECONOMIA DE BANDA: lê só o contador (um número), não a grade inteira. Antes
+      // baixava todo o JSON da GU a cada reconexão só pra contar torneios. Fallback
+      // pra grades antigas (gravadas antes do campo count): baixa o json 1x.
+      db.ref(`${guBase}/sheet/count`).on('value', s => {
+        const c = s.val();
+        if (typeof c === 'number') { guTotal = c; paintGu(); }
+        else db.ref(`${guBase}/sheet/json`).once('value').then(js => {
+          try { const d = JSON.parse(js.val()); guTotal = (d.main||[]).length + (d.side||[]).length + (d.sat||[]).length; paintGu(); } catch(e){}
+        });
       });
       db.ref(`${guBase}/done`).on('value', s => { guDone = s.numChildren(); paintGu(); });
     })();
