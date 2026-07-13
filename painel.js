@@ -3298,6 +3298,33 @@ function migrateOrphanedWork(newRows){
   return migrated;
 }
 
+/* Re-sincroniza a premiação salva no Firebase com as linhas recém-carregadas.
+   Sem isto havia uma corrida de ORDEM: o listener de premiação podia disparar ANTES
+   de a planilha existir (RAW_ROWS vazio) — os valores não tinham em qual linha entrar
+   e o .on('value') não re-dispara só porque a planilha chegou depois. Resultado: o
+   painel mostrava "0 fechados" mesmo com as premiações salvas e com as chaves certas.
+   Chamado ao fim de todo ingest (carregou planilha → puxa a premiação de novo). */
+function resyncPremiacaoFromFirebase(){
+  whenAuthed(() => {
+    if(!fbReady || !fbDb || !RAW_ROWS.length) return;
+    fbDb.ref(`${FB_BASE_PATH}/premiacao`).once('value').then(s => {
+      const data = s.val() || {};
+      let ch = false;
+      RAW_ROWS.forEach(r => {
+        if(data[r._key] != null && r.premiacao !== data[r._key]){ r.premiacao = data[r._key]; ch = true; }
+      });
+      if(ch){
+        RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
+        UPCOMING = [...RAW_ROWS];
+        UNFIXED  = computeUnfixed();
+        const el = document.getElementById('statUnfixed'); if(el) el.textContent = UNFIXED.length;
+        computeStats(); updateProgress(); renderResults();
+        if(!isTypingInCard() && !window._suppressRenderUpcoming) renderUpcoming();
+      }
+    }).catch(()=>{});
+  });
+}
+
 function ingest(rows, filename, fromRemote=false){
   // Proteção: ignorar sheets com menos de 5 torneios (provavelmente corrompida ou parcial)
   if(!rows || rows.length < 5){
@@ -3308,6 +3335,8 @@ function ingest(rows, filename, fromRemote=false){
   const _migrated = migrateOrphanedWork(rows);
   if (_migrated) logActivity(`♻️ Re-upload: ${_migrated} torneio${_migrated>1?'s':''} já trabalhado${_migrated>1?'s':''} tiveram o vínculo preservado (fix/ID/valores migrados pra planilha nova)`);
   RAW_ROWS = rows.map(r => ({...r, _key: rowKey(r)}));
+  // planilha carregada → re-puxa a premiação salva no Firebase (corrige a corrida de ordem)
+  resyncPremiacaoFromFirebase();
   // Persistir sheet + dados dos cards no localStorage (restauração imediata ao recarregar)
   try {
     const storeKey = 'suprema_sheet_v1_' + todayPathSP();
