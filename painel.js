@@ -2323,8 +2323,12 @@ function initFirebaseSync(){
           renderCardOverlayPreview(key, row, val, getField(key));
         }
       });
-      // Remover premiações apagadas pelo parceiro
-      RAW_ROWS.forEach(r => {
+      // Remover premiações apagadas pelo parceiro — mas SÓ quando o nó tem dados.
+      // Nó vazio (dia novo/virada, ou ainda não populado) NÃO significa "tudo apagado":
+      // antes, isso zerava as premiações que vieram da própria planilha (elas apareciam
+      // e sumiam). "Ausente" só conta como exclusão quando há um mapa real no Firebase.
+      const premHasData = Object.keys(data).length > 0;
+      if(premHasData) RAW_ROWS.forEach(r => {
         if(r.premiacao != null && data[r._key] == null){ r.premiacao = null; changed = true; }
       });
       if(changed || RAW_ROWS.length){
@@ -7610,7 +7614,10 @@ function reinitDayListeners(){
         renderCardOverlayPreview(key, row, val, getField(key));
       }
     });
-    RAW_ROWS.forEach(r => { if(r.premiacao!=null && data[r._key]==null){ r.premiacao=null; changed=true; } });
+    // só reconcilia exclusões quando o nó tem dados (ver comentário no listener gêmeo):
+    // nó vazio não é "tudo apagado", senão zera as premiações vindas da planilha
+    const premHasData = Object.keys(data).length > 0;
+    if(premHasData) RAW_ROWS.forEach(r => { if(r.premiacao!=null && data[r._key]==null){ r.premiacao=null; changed=true; } });
     if(changed||RAW_ROWS.length){
       RESULTS  = RAW_ROWS.filter(r=>r.premiacao!==null&&r.premiacao!==undefined);
       UPCOMING = [...RAW_ROWS];
