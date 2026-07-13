@@ -3663,6 +3663,20 @@ async function initBackup(){
   });
 }
 
+// ── Helper: adicionar aba com nome sempre válido ──
+// Excel proíbe : \ / ? * [ ] e nomes >31 chars ou duplicados. Isso normaliza tudo.
+function appendSheetSafe(wb, ws, name){
+  let base = String(name).replace(/[:\\/?*\[\]]/g,'-').trim().slice(0,31) || 'Aba';
+  let final = base, i = 2;
+  const used = (wb.SheetNames||[]).map(n=>n.toLowerCase());
+  while(used.includes(final.toLowerCase())){
+    const suf = ' ('+i+')';
+    final = base.slice(0,31-suf.length)+suf;
+    i++;
+  }
+  XLSX.utils.book_append_sheet(wb, ws, final);
+}
+
 // ── 1. EXPORT MENSAL ──
 async function exportMonthXlsx(){
   const month = document.getElementById('bkMonth').value;
@@ -3676,12 +3690,12 @@ async function exportMonthXlsx(){
   const wb = XLSX.utils.book_new();
   dates.forEach(date => {
     const ws = buildDaySheet(date);
-    if(ws) XLSX.utils.book_append_sheet(wb, ws, date.slice(5).replace('-','/'));
+    if(ws) appendSheetSafe(wb, ws, date.slice(5));
   });
 
   // Aba de resumo do mês
   const sumWs = buildMonthSummary(dates, month);
-  XLSX.utils.book_append_sheet(wb, sumWs, 'Resumo');
+  appendSheetSafe(wb, sumWs, 'Resumo');
 
   const [y,m] = month.split('-');
   const label = new Date(y,m-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
@@ -3715,11 +3729,11 @@ async function exportAllTimeXlsx(){
   Object.entries(byMonth).sort().forEach(([month, mDates]) => {
     mDates.forEach(date => {
       const ws = buildDaySheet(date);
-      if(ws) XLSX.utils.book_append_sheet(wb, ws, date.replace(/-/g,'/').slice(2));
+      if(ws) appendSheetSafe(wb, ws, date.slice(2));
     });
     const sumWs = buildMonthSummary(mDates, month);
     const [y,m] = month.split('-');
-    XLSX.utils.book_append_sheet(wb, sumWs, `${m}/${y.slice(2)} Resumo`);
+    appendSheetSafe(wb, sumWs, `Resumo ${m}-${y.slice(2)}`);
   });
 
   XLSX.writeFile(wb, `Suprema_HistoricoCompleto_${nowSP()}.xlsx`);
