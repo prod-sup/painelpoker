@@ -27,7 +27,7 @@
     },
 
     "hub": {
-      ".read": "auth != null",
+      ".read": true,
       "calendar":       { ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'", "$id": { ".validate": "newData.hasChildren(['date','title'])" } },
       "calendarHidden": { ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'" },
       "links":          { ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'", "$id": { ".validate": "newData.hasChildren(['url','title'])" } },
