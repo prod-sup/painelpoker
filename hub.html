@@ -3071,9 +3071,19 @@ if (location.protocol === 'file:') {
     if(ext) t.addEventListener('click', () => trackOpen(EXTERNAL_TILES[ext]));
   });
 
-  let pfStatsWired = false;
+  let pfStatsWired = false, pfStatsWaitingAuth = false;
   function pfLoadStats(){
     if(pfStatsWired || !session || !db || !fbReady) return;
+    // Numa navegação de volta ao hub, o token do Firebase Auth ainda não restaurou
+    // quando esta função roda. Ler users/<key>/stats cedo dá permission_denied e o
+    // RTDB CANCELA o listener (não re-tenta) — o nível ficava "resetado". Então
+    // esperamos o usuário do Auth existir antes de anexar os listeners.
+    if(!firebase.auth().currentUser){
+      if(pfStatsWaitingAuth) return;
+      pfStatsWaitingAuth = true;
+      firebase.auth().onAuthStateChanged(function(u){ if(u){ pfStatsWaitingAuth = false; pfLoadStats(); } });
+      return;
+    }
     pfStatsWired = true;
     const key = emailToKey(session.email);
     db.ref(`users/${key}/stats`).on('value', s => {
@@ -3358,14 +3368,8 @@ if (location.protocol === 'file:') {
         if (parts.length) show('livePainel', 'livePainelTxt', parts.join(' · '));
         else document.getElementById('livePainel').hidden = true;
       };
+      // presence é leitura pública — pode anexar já
       db.ref('presence').on('value', s => { pOnline = s.numChildren(); paintPainel(); });
-      // lê só o contador (barato); planilhas antigas sem `count` caem no fallback de 1 leitura das rows
-      db.ref(`painel/${today}/sheet/count`).on('value', s => {
-        const n = s.val();
-        if(typeof n === 'number'){ pTorneios = n; paintPainel(); }
-        else db.ref(`painel/${today}/sheet/rows`).once('value').then(r => { pTorneios = r.numChildren(); paintPainel(); });
-      });
-      db.ref(`painel/${today}/checklist`).on('value', s => { pConferidos = s.numChildren(); paintPainel(); });
 
       // Criação GU: progresso da noite (torneios criados / total da receita)
       const guBase = `painel/${tomorrow}/criacaoNoturna`;
@@ -3373,17 +3377,31 @@ if (location.protocol === 'file:') {
       const paintGu = () => {
         if (guTotal > 0) show('liveGu', 'liveGuTxt', `${guDone}/${guTotal} criados · ${Math.round(guDone/guTotal*100)}%`);
       };
-      // ECONOMIA DE BANDA: lê só o contador (um número), não a grade inteira. Antes
-      // baixava todo o JSON da GU a cada reconexão só pra contar torneios. Fallback
-      // pra grades antigas (gravadas antes do campo count): baixa o json 1x.
-      db.ref(`${guBase}/sheet/count`).on('value', s => {
-        const c = s.val();
-        if (typeof c === 'number') { guTotal = c; paintGu(); }
-        else db.ref(`${guBase}/sheet/json`).once('value').then(js => {
-          try { const d = JSON.parse(js.val()); guTotal = (d.main||[]).length + (d.side||[]).length + (d.sat||[]).length; paintGu(); } catch(e){}
+
+      // painel/criacaoNoturna exigem auth (regras estritas). Numa volta ao hub o token
+      // do Firebase Auth ainda não restaurou; anexar cedo dá permission_denied e o RTDB
+      // CANCELA o listener, deixando os tiles vazios. Só anexamos com usuário autenticado.
+      const wirePainelTiles = () => {
+        // lê só o contador (barato); planilhas antigas sem `count` caem no fallback de 1 leitura das rows
+        db.ref(`painel/${today}/sheet/count`).on('value', s => {
+          const n = s.val();
+          if(typeof n === 'number'){ pTorneios = n; paintPainel(); }
+          else db.ref(`painel/${today}/sheet/rows`).once('value').then(r => { pTorneios = r.numChildren(); paintPainel(); });
         });
-      });
-      db.ref(`${guBase}/done`).on('value', s => { guDone = s.numChildren(); paintGu(); });
+        db.ref(`painel/${today}/checklist`).on('value', s => { pConferidos = s.numChildren(); paintPainel(); });
+        // ECONOMIA DE BANDA: lê só o contador (um número), não a grade inteira. Fallback
+        // pra grades antigas (sem o campo count): baixa o json 1x.
+        db.ref(`${guBase}/sheet/count`).on('value', s => {
+          const c = s.val();
+          if (typeof c === 'number') { guTotal = c; paintGu(); }
+          else db.ref(`${guBase}/sheet/json`).once('value').then(js => {
+            try { const d = JSON.parse(js.val()); guTotal = (d.main||[]).length + (d.side||[]).length + (d.sat||[]).length; paintGu(); } catch(e){}
+          });
+        });
+        db.ref(`${guBase}/done`).on('value', s => { guDone = s.numChildren(); paintGu(); });
+      };
+      if(firebase.auth().currentUser) wirePainelTiles();
+      else { let wired = false; firebase.auth().onAuthStateChanged(function(u){ if(u && !wired){ wired = true; wirePainelTiles(); } }); }
     })();
   } catch(e){ /* offline: hub continua funcionando como launcher */ }
 })();
