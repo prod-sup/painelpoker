@@ -651,6 +651,10 @@
     animation:presence-pop .4s var(--ease) backwards;
   }
   .presence-avatar:first-child{ margin-left:0; }
+  /* quando o operador escolheu um emoji, mostra o emoji em vez das iniciais —
+     fundo claro + anel sutil pra manter o look de "ficha" dos avatares de iniciais */
+  .presence-avatar.has-emoji{ background:var(--felt-soft) !important; box-shadow:0 2px 5px rgba(12,30,22,0.18), inset 0 0 0 1px rgba(12,30,22,0.06); }
+  .presence-emoji{ font-size:16px; line-height:1; }
   .presence-more{ background:var(--ink-soft) !important; }
   @keyframes presence-pop{ from{ transform:scale(0); opacity:0; } to{ transform:scale(1); opacity:1; } }
   @media (max-width:680px){ .presence-wrap{ display:none; } }

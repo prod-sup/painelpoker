@@ -1707,6 +1707,9 @@ function finishLogin(email, user, displayName){
   saveSession({ email, nome:user.nome, sobrenome:user.sobrenome, apelido:user.apelido, displayName });
   _session = getSession();
   OPERATOR_NAME = displayName;
+  // traz o ícone escolhido (salvo no perfil no Firebase) pro localStorage, pra seguir o
+  // operador em qualquer dispositivo — assim a barra de presença mostra o mesmo avatar.
+  if(user.avatar){ try{ localStorage.setItem(UP_AVATAR_KEY, user.avatar); }catch(e){} }
   document.getElementById('operatorBadge').textContent = displayName;
   document.getElementById('operatorOverlay').classList.remove('open');
   refreshMyPresenceName();
@@ -2016,6 +2019,8 @@ function upSetEmoji(e){
   showToast('Ícone atualizado!');
   // atualiza badge na nav
   document.getElementById('operatorBadge').textContent = OPERATOR_NAME;
+  // reescreve a presença já com o novo ícone, pra aparecer na barra pros outros na hora
+  refreshMyPresenceName();
 }
 
 /* Sair/Trocar conta: o login mora no hub (hub.html) — limpa a sessão e volta pra lá */
@@ -2561,6 +2566,14 @@ function initFirebaseSync(){
 ========================================================================= */
 const PRESENCE_SESSION_ID = 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
 const PRESENCE_STALE_MS = 3 * 60 * 1000; // sessão sem heartbeat há mais de 3min é considerada offline
+// payload de presença: leva também o ícone que o operador escolheu no card dele,
+// pra barra de presença mostrar o mesmo avatar (emoji) em vez de só as iniciais.
+function myPresencePayload(){
+  const p = { name: OPERATOR_NAME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP };
+  const av = getUserAvatar();
+  if (av) p.avatar = av;
+  return p;
+}
 function initPresence(){
   if (!fbReady) return;
   const myRef = fbDb.ref(`presence/${PRESENCE_SESSION_ID}`);
@@ -2568,7 +2581,7 @@ function initPresence(){
   window._onConnected = window._onConnected || [];
   window._onConnected.push(() => {
     myRef.onDisconnect().remove();
-    myRef.set({ name: OPERATOR_NAME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP });
+    myRef.set(myPresencePayload());
   });
   // atualiza o nome registrado se o operador trocar o nome no meio da sessão
   // presence listener centralizado em initFirebaseSync
@@ -2581,7 +2594,7 @@ function initPresence(){
 }
 function refreshMyPresenceName(){
   if (!fbReady) return;
-  fbDb.ref(`presence/${PRESENCE_SESSION_ID}`).set({ name: OPERATOR_NAME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP });
+  fbDb.ref(`presence/${PRESENCE_SESSION_ID}`).set(myPresencePayload());
 }
 function renderPresence(all){
   const wrap = document.getElementById('presenceWrap');
@@ -2607,22 +2620,27 @@ function renderPresence(all){
     if(!card) return;
     const badge = document.createElement('div');
     badge.className = 'card-editing-badge';
-    badge.innerHTML = `<span class="ceb-avatar">${name.charAt(0).toUpperCase()}</span><span class="ceb-text">${name} está preenchendo...</span>`;
+    const icon = v.avatar || name.charAt(0).toUpperCase();
+    badge.innerHTML = `<span class="ceb-avatar">${icon}</span><span class="ceb-text">${name} está preenchendo...</span>`;
     card.appendChild(badge);
   });
 
-  // agrupa por nome para o nav
+  // agrupa por nome para o nav — guarda o ícone escolhido pelo operador (emoji), se houver
   const byName = {};
   sessions.forEach(([id, v]) => {
     const name = (v && v.name) || 'Alguém';
-    if (!byName[name]) byName[name] = true;
+    if (!byName[name]) byName[name] = { avatar: (v && v.avatar) || null };
+    else if (v && v.avatar && !byName[name].avatar) byName[name].avatar = v.avatar;
   });
   const names = Object.keys(byName);
   const colors = ['var(--main-bright)','var(--side-bright)','var(--sat-bright)','var(--felt-bright)','var(--gold)'];
   wrap.innerHTML = names.slice(0,5).map((name, i) => {
+    const av = byName[name].avatar;
     const initials = name.trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
     const color = colors[i % colors.length];
-    return `<span class="presence-avatar" style="background:${color}" title="${name} está no painel agora">${initials}</span>`;
+    // se o operador escolheu um emoji, mostra ele; senão cai nas iniciais
+    const content = av ? `<span class="presence-emoji">${av}</span>` : initials;
+    return `<span class="presence-avatar${av ? ' has-emoji' : ''}" style="background:${color}" title="${name} está no painel agora">${content}</span>`;
   }).join('') + (names.length > 5 ? `<span class="presence-avatar presence-more">+${names.length-5}</span>` : '');
 }
 // reavalia staleness periodicamente mesmo sem nenhuma mudança no Firebase — senão uma sessão que
