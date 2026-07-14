@@ -41,14 +41,29 @@
     },
 
     "painel": {
-      ".read": "auth != null",
-      ".write": "auth != null",
+      ".read":  "auth != null && (auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group' || root.child('users').child(root.child('uidIndex').child(auth.uid).val()).child('access').child('painel').val() === true)",
+      "globalMtt": {
+        ".read":  "auth != null && (auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group' || root.child('users').child(root.child('uidIndex').child(auth.uid).val()).child('access').child('painel').val() === true || root.child('users').child(root.child('uidIndex').child(auth.uid).val()).child('access').child('gu').val() === true)",
+        ".write": "auth != null && (auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group' || root.child('users').child(root.child('uidIndex').child(auth.uid).val()).child('access').child('painel').val() === true)"
+      },
       "$dia": {
+        ".write": "auth != null && (auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group' || root.child('users').child(root.child('uidIndex').child(auth.uid).val()).child('access').child('painel').val() === true)",
         "criacaoNoturna": {
+          ".read":  "auth != null && (auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group' || root.child('users').child(root.child('uidIndex').child(auth.uid).val()).child('access').child('gu').val() === true)",
+          ".write": "auth != null && (auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group' || root.child('users').child(root.child('uidIndex').child(auth.uid).val()).child('access').child('gu').val() === true)",
           "done":     { "$key": { ".validate": "newData.hasChild('by')" } },
           "ids":      { "$key": { ".validate": "newData.hasChild('val')" } },
           "presence": { "$sid": { ".validate": "newData.hasChild('name')" } }
         }
+      }
+    },
+
+    "uidIndex": {
+      ".read": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'",
+      "$uid": {
+        ".read":  "auth != null && (auth.uid === $uid || auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group')",
+        ".write": "auth != null && ((auth.uid === $uid && root.child('users').child(newData.val()).child('authUid').val() === auth.uid) || auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group')",
+        ".validate": "newData.isString() && root.child('users').child(newData.val()).child('authUid').val() === auth.uid || auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'"
       }
     },
 

@@ -2151,7 +2151,17 @@ if (location.protocol === 'file:') {
      e reconhece o admin neste navegador. NÃO remove `pwHash` (só na Fase 4). */
   async function afterAuthLogin(email, uid, userRef, user){
     user = user || {};
-    if(uid && user.authUid !== uid){ userRef.update({ authUid: uid }).catch(()=>{}); }
+    // Índice uid→key que as REGRAS do RTDB usam pra gatear acesso por painel
+    // (regras só olham por auth.uid; não convertem email→key). Populado no login,
+    // amarrado ao authUid — impossível apontar pra outra conta. As regras do
+    // uidIndex validam contra o authUid, então ele SÓ pode ser gravado depois que
+    // o authUid assentar — daí o encadeamento (senão a 1ª vez perde a corrida).
+    if(uid){
+      const claim = (user.authUid === uid)
+        ? Promise.resolve()
+        : userRef.update({ authUid: uid });
+      claim.then(() => firebase.database().ref('uidIndex/' + uid).set(userRef.key)).catch(()=>{});
+    }
     const displayName = user.apelido || user.nome || email;
     saveSession({ email, nome:user.nome, sobrenome:user.sobrenome, apelido:user.apelido, displayName,
       access: user.access || null, admin: (user.admin===true || user.Admin===true || isAdmin(email)) });

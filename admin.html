@@ -1091,6 +1091,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
           <p>Contas cadastradas com acesso ao painel</p>
         </div>
         <div class="ph-actions">
+          <button class="btn" onclick="backfillUidIndex(this)" title="Popula uidIndex/<uid> a partir de users/<key>/authUid. Rode 1x antes de publicar as regras de acesso por painel, pra ninguém precisar logar de novo.">Sincronizar acessos (regras)</button>
           <button class="btn btn-gold" onclick="openAddOp()">+ Novo operador</button>
         </div>
       </div>
@@ -2969,6 +2970,29 @@ async function toggleAccess(btn){
     btn.title = `${next?'Tem acesso a':'Sem acesso a'} ${p?p.label:panel} — clique pra ${next?'retirar':'liberar'}`;
   }catch(e){ alert('Falha ao salvar acesso: '+(e.message||e)); }
   finally{ btn.disabled=false; }
+}
+
+/* ── BACKFILL uidIndex ──
+   As regras de acesso por painel leem users/<key>/access via um índice
+   uidIndex/<uid>=<key>. O hub popula esse índice a cada login, mas operadores
+   que não logarem de novo ficariam trancados quando as regras entrarem no ar.
+   Este botão preenche o índice de uma vez, a partir do authUid já gravado em
+   cada conta migrada. Rodar 1x ANTES de publicar as regras novas. */
+async function backfillUidIndex(btn){
+  if(!fbOk){ alert('Firebase não conectado.'); return; }
+  if(btn){ btn.disabled=true; btn.textContent='Sincronizando…'; }
+  try{
+    const snap = await db.ref('users').once('value');
+    const users = snap.val() || {};
+    const updates = {}; let n=0, skip=0;
+    Object.entries(users).forEach(([key,u])=>{
+      if(u && u.authUid){ updates['uidIndex/'+u.authUid] = key; n++; }
+      else skip++;
+    });
+    if(n) await db.ref().update(updates);
+    alert(`Índice sincronizado: ${n} conta(s) migrada(s).`+(skip?` ${skip} sem authUid (logam depois — o hub cuida).`:''));
+  }catch(e){ alert('Falha ao sincronizar: '+(e.message||e)); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='Sincronizar acessos (regras)'; } }
 }
 
 function openAddOp(){
