@@ -28,6 +28,10 @@
 <link rel="stylesheet" href="vendor/phosphor/regular.css">
 <link rel="stylesheet" href="vendor/phosphor/fill.css">
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<!-- Auth é obrigatório: sem ele o RTDB conecta com auth==null e as regras estritas
+     (Fase 4, já publicadas) negam tudo. A sessão email/senha que o hub deixou
+     persistida por origem carimba o token nas leituras/escritas daqui. -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="suprema-auth.js"></script>
 <script>/* portão: login mora no hub; exige acesso liberado a ESTE painel */ SupremaAuth.guard({ panel:'cash' });</script>

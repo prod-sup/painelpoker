@@ -52,7 +52,12 @@
       }
     },
 
-    "snapshots": { ".read": "auth != null", ".write": false },
+    "snapshots": { ".read": "auth != null", ".write": "auth != null" },
+
+    "mesasCashHistory": {
+      ".read":  "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'",
+      ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'"
+    },
 
     "auditoria": {
       ".read":  "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'",
@@ -68,7 +73,14 @@
       ".read": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'",
       "$opKey": {
         ".read": "auth != null && (root.child('users').child($opKey).child('authUid').val() === auth.uid || auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group')",
-        ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'"
+        ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'",
+        "$notifId": {
+          "seen":          { ".write": "auth != null && (root.child('users').child($opKey).child('authUid').val() === auth.uid || auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group')", ".validate": "newData.isBoolean()" },
+          "justified":     { ".write": "auth != null && (root.child('users').child($opKey).child('authUid').val() === auth.uid || auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group')", ".validate": "newData.isBoolean()" },
+          "justification": { ".write": "auth != null && (root.child('users').child($opKey).child('authUid').val() === auth.uid || auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group')", ".validate": "newData.isString()" },
+          "justifiedAt":   { ".write": "auth != null && (root.child('users').child($opKey).child('authUid').val() === auth.uid || auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group')", ".validate": "newData.isNumber()" },
+          "justifiedBy":   { ".write": "auth != null && (root.child('users').child($opKey).child('authUid').val() === auth.uid || auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group')", ".validate": "newData.isString()" }
+        }
       }
     },
 
