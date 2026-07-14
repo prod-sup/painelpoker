@@ -2505,7 +2505,17 @@ function initFirebaseSync(){
     });
 
     // ── Presença ─────────────────────────────────────────────────────────
-    fbDb.ref('presence').on('value', snap => renderPresence(snap.val() || {}));
+    // ECONOMIA DE BANDA: em vez de .on('value') no nó inteiro (que rebaixa TODAS
+    // as sessões a cada heartbeat de qualquer um — tráfego O(N²) do nó cheio),
+    // ouvimos por filho. Cada evento traz só a sessão que mudou (~100 bytes),
+    // mantido num cache local; a renderização (avatares + badges "está
+    // preenchendo") é idêntica e chega na mesma hora.
+    window._presenceCache = window._presenceCache || {};
+    const _presRef = fbDb.ref('presence');
+    const _presUpsert = snap => { window._presenceCache[snap.key] = snap.val(); renderPresence(window._presenceCache); };
+    _presRef.on('child_added',   _presUpsert);
+    _presRef.on('child_changed', _presUpsert);
+    _presRef.on('child_removed', snap => { delete window._presenceCache[snap.key]; renderPresence(window._presenceCache); });
 
     // ── Digitação no relatório ────────────────────────────────────────────
     fbDb.ref('relatorioTurno/typing').on('value', snap => {
@@ -2620,7 +2630,13 @@ function renderPresence(all){
 // Pausa enquanto a aba está oculta (só afeta os avatares na tela, ninguém perde nada esperando)
 setVisibilityAwareInterval(() => {
   if (!fbReady) return;
-  fbDb.ref('presence').once('value').then(snap => renderPresence(snap.val() || {})).catch(() => {});
+  // Sem rede: reavalia staleness com o cache mantido pelos listeners por filho.
+  // (renderPresence filtra por PRESENCE_STALE_MS, então sessões que morreram em
+  // silêncio somem da tela sozinhas.) Poda entradas velhas pra o cache não crescer.
+  const cache = window._presenceCache || (window._presenceCache = {});
+  const cutoff = Date.now() - PRESENCE_STALE_MS;
+  for (const id in cache) { const v = cache[id]; if (!v || typeof v.at !== 'number' || v.at < cutoff) delete cache[id]; }
+  renderPresence(cache);
 }, 60*1000);
 
 /* =========================================================================

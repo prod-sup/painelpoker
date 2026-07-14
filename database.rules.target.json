@@ -69,6 +69,14 @@
 
     "snapshots": { ".read": "auth != null", ".write": "auth != null" },
 
+    "presence": {
+      ".read": "auth != null",
+      "$sid": {
+        ".write": "auth != null",
+        ".validate": "newData.hasChild('name')"
+      }
+    },
+
     "mesasCashHistory": {
       ".read":  "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'",
       ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'"
