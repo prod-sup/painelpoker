@@ -1742,13 +1742,17 @@
   .offline-banner svg{ width:15px; height:15px; flex:none; }
 
   /* toast */
+  /* superfície escura FIXA nos dois temas — antes usava var(--ink), que no dark
+     vira claro (#e8ede9) e deixava o texto branco ilegível. Toast sempre escuro. */
   .toast{
     position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(20px);
-    background:var(--ink); color:#fff; font-size:13px; font-weight:560;
+    background:#17211c; color:#f2f5f2; font-size:13px; font-weight:560;
+    border:1px solid rgba(255,255,255,0.10);
     padding:13px 22px; border-radius:99px; display:flex; align-items:center; gap:10px;
-    box-shadow:0 14px 30px -10px rgba(0,0,0,0.35);
+    box-shadow:0 18px 40px -12px rgba(0,0,0,0.55);
     opacity:0; pointer-events:none; transition:background-color .4s var(--ease),border-color .4s var(--ease),color .4s var(--ease),transform .4s var(--ease),box-shadow .4s var(--ease),opacity .4s var(--ease); z-index:400;
   }
+  .toast.error{ background:#2a1614; border-color:rgba(224,102,90,0.32); }
   .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
   .toast svg{width:15px; height:15px; color:var(--felt-bright); flex:none;}
   .toast.error svg{color:#e0665a;}
