@@ -651,11 +651,31 @@
     animation:presence-pop .4s var(--ease) backwards;
   }
   .presence-avatar:first-child{ margin-left:0; }
+  .presence-avatar{ position:relative; }
   /* quando o operador escolheu um emoji, mostra o emoji em vez das iniciais —
      fundo claro + anel sutil pra manter o look de "ficha" dos avatares de iniciais */
   .presence-avatar.has-emoji{ background:var(--felt-soft) !important; box-shadow:0 2px 5px rgba(12,30,22,0.18), inset 0 0 0 1px rgba(12,30,22,0.06); }
   .presence-emoji{ font-size:16px; line-height:1; }
   .presence-more{ background:var(--ink-soft) !important; }
+
+  /* MOLDURA CONQUISTADA — a mesma progressão de tier do hub (0→7), aqui como um aro
+     estático em volta do avatar de presença. Técnica de máscara: gradiente só no aro. */
+  .presence-avatar[data-tier]{ --frameAngle:120deg; }
+  .presence-avatar[data-tier]::before{
+    content:"";position:absolute;inset:-3px;border-radius:inherit;pointer-events:none;z-index:1;
+    padding:2px;
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor; mask-composite:exclude;
+  }
+  .presence-avatar[data-tier="0"]::before{ background:linear-gradient(150deg,#3b3e44,#2a2c31); }
+  .presence-avatar[data-tier="1"]::before{ background:conic-gradient(from var(--frameAngle),#4a4e56,#5c626c 22%,#7d848f 36%,#9aa1ac 44%,#6d737e 56%,#51555e 74%,#4a4e56); }
+  .presence-avatar[data-tier="2"]::before{ background:conic-gradient(from var(--frameAngle),#6e4d29,#9a6d3a 18%,#c99a5f 34%,#f0d29a 42%,#c99a5f 50%,#7d5a34 68%,#8a6236 84%,#6e4d29); }
+  .presence-avatar[data-tier="3"]::before{ background:conic-gradient(from var(--frameAngle),#7e8896,#aab4c4 20%,#eef3fa 33%,#aab4c4 46%,#8b95a4 62%,#dfe7f1 80%,#7e8896); }
+  .presence-avatar[data-tier="4"]::before{ background:conic-gradient(from var(--frameAngle),#a97a2e,#e3c176 16%,#fff3cf 26%,#d8b56d 40%,#8f6b2d 55%,#f6e6b8 72%,#fff6dc 80%,#c9a84c 90%,#a97a2e); }
+  .presence-avatar[data-tier="5"]::before{ background:conic-gradient(from var(--frameAngle),#9fb0c6,#ffffff 14%,#c7d4e6 30%,#eef4fb 44%,#aebccf 58%,#ffffff 72%,#dce6f2 86%,#9fb0c6); }
+  .presence-avatar[data-tier="6"]::before{ background:conic-gradient(from var(--frameAngle),#d8b56d,#22d47e 18%,#9ff0c8 28%,#5ad0ff 40%,#b98cff 56%,#ffd98a 70%,#fff3cf 78%,#22d47e 88%,#d8b56d); }
+  .presence-avatar[data-tier="7"]::before{ background:conic-gradient(from var(--frameAngle),#8f6b2d,#ffe9b0 10%,#fffdf4 16%,#d8b56d 26%,#0f7a4e 38%,#22d47e 46%,#9ff0c8 52%,#d8b56d 62%,#b98cff 72%,#fff3cf 82%,#e8c778 92%,#8f6b2d); }
   @keyframes presence-pop{ from{ transform:scale(0); opacity:0; } to{ transform:scale(1); opacity:1; } }
   @media (max-width:680px){ .presence-wrap{ display:none; } }
   .nav-time{font-family:var(--mono); font-size:11px; color:var(--ink-soft); letter-spacing:0.02em; white-space:nowrap;}

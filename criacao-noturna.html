@@ -1670,7 +1670,6 @@ let IDS = {};             // key -> {val, by, at} — ID do evento no Pokerbyte
 let ROLES = {};           // roleKey(op) -> 'mainSat' | 'sideAdmin' | 'sideNoAdmin'
 let OVERRIDES = {};       // itemKey -> opName — reatribuições manuais (handoff) vencem a divisão
 let MAP = {};             // fieldKey -> rótulo da coluna (mapeamento manual vence a auto-detecção)
-let PRESENCE = {};        // sessionId -> {name, at}
 let AUDIT = {};           // itemKey -> {status:'erro', motivo, by, at} — marcado pelo Admin
 let SEARCH = '';
 let CURRENCY = localStorage.getItem('cn_currency') || 'usd';
@@ -1747,10 +1746,7 @@ try{
     renderAll();
     renderFocus();
   });
-  fbDb.ref(`${FB_PATH}/presence`).on('value', s => {
-    PRESENCE = s.val() || {};
-    renderPresence();
-  });
+  // presença ao vivo agora é global e compartilhada (suprema-presence.js) — ver rodapé
   // erros de criação marcados pela auditoria (admin.html → Criação GU)
   fbDb.ref(`${FB_PATH}/audit`).on('value', s => {
     const before = Object.keys(AUDIT).filter(k => AUDIT[k] && AUDIT[k].status === 'erro').length;
@@ -1878,32 +1874,13 @@ if ('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
-/* ── presença ao vivo: heartbeat por sessão, some sozinho ao fechar a aba ── */
-const SESSION_ID = 's' + Math.random().toString(36).slice(2, 10);
-function presenceBeat(){
-  if (!fbDb || !ME) return;
-  const ref = fbDb.ref(`${FB_PATH}/presence/${SESSION_ID}`);
-  ref.set({name: ME, at: firebase.database.ServerValue.TIMESTAMP});
-  ref.onDisconnect().remove();
-}
-setInterval(presenceBeat, 60000);
-presenceBeat();
-function renderPresence(){
-  const wrap = $('presenceWrap');
-  const cutoff = Date.now() - 3*60*1000; // sem heartbeat há 3 min = saiu
-  const online = Object.values(PRESENCE).filter(p => p && p.at > cutoff);
-  const uniq = [...new Map(online.map(p => [normText(p.name), p])).values()];
-  wrap.hidden = uniq.length === 0;
-  wrap.innerHTML = uniq.slice(0, 6).map(p =>
-    `<span class="pv" style="background:${opColor(p.name)}" title="${escHtml(p.name)} online">${escHtml(p.name.trim()[0].toUpperCase())}</span>`
-  ).join('');
-  wrap.title = 'Online agora: ' + uniq.map(p => p.name).join(', ');
-}
+/* ── presença ao vivo: agora vem do módulo compartilhado suprema-presence.js
+   (node global presence/, com ícone + moldura + título — igual ao Painel do Dia).
+   Incluído no rodapé da página; nada mais a fazer aqui. ── */
 
 $('opBadge').addEventListener('click', () => {
   if (confirm(`Sair da conta ${SESSION.email}?\n(Também desloga do Painel e do Admin — é a mesma sessão.)`)){
     clearSession();
-    if (fbDb) fbDb.ref(`${FB_PATH}/presence/${SESSION_ID}`).remove();
     location.replace('index.html'); // sem sessão não se fica aqui — volta pro Painel logar
   }
 });
@@ -3466,6 +3443,7 @@ $('summaryBtn').addEventListener('click', async () => {
   document.addEventListener('visibilitychange', () => set(document.hidden));
 })();
 </script>
+<script src="suprema-presence.js"></script>
 <script src="suprema-onboarding.js"></script>
 <script>
   if (window.SupremaAuth && SupremaAuth.getSession && SupremaAuth.getSession()){

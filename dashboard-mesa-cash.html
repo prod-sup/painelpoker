@@ -456,6 +456,7 @@ table.t td.m{color:var(--ink2)}
     <button class="nt" onclick="pg('validar',this)">Validar Dados</button>
   </nav>
   <div class="hdr-r">
+    <div class="presence-wrap" id="presenceWrap" title="Operadores online agora" hidden></div>
     <div class="shift-chip dia" id="shiftChip">
       <span class="pulse dia" id="shiftPulse"></span>
       <span id="shiftLabel">Turno Dia</span>
@@ -2247,6 +2248,7 @@ enterFromHubSession();
   document.addEventListener('visibilitychange', function(){ set(document.hidden); });
 })();
 </script>
+<script src="suprema-presence.js"></script>
 <script src="suprema-onboarding.js"></script>
 <script>
   if (window.SupremaAuth && SupremaAuth.getSession && SupremaAuth.getSession()){

@@ -824,6 +824,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
       <span class="admin-chip">ADMIN</span>
     </div>
     <div class="tb-right">
+      <div class="presence-wrap" id="presenceWrap" title="Operadores online agora" hidden></div>
       <div class="tb-user">
         <span class="tb-dot"></span>
         <span id="adminName">—</span>
@@ -4831,6 +4832,7 @@ autoEnterFromSession();
   document.addEventListener('visibilitychange', function(){ set(document.hidden); });
 })();
 </script>
+<script src="suprema-presence.js"></script>
 <script src="suprema-onboarding.js"></script>
 <script>
   /* tour do admin — só pra quem já tem sessão (o gate de login não aparece) */

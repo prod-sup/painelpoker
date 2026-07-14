@@ -1710,9 +1710,21 @@ function finishLogin(email, user, displayName){
   // traz o ícone escolhido (salvo no perfil no Firebase) pro localStorage, pra seguir o
   // operador em qualquer dispositivo — assim a barra de presença mostra o mesmo avatar.
   if(user.avatar){ try{ localStorage.setItem(UP_AVATAR_KEY, user.avatar); }catch(e){} }
+  // conquistas do hub: título equipado (tag) e moldura equipada (frame), pra espelhar na presença
+  try{
+    if(user.tag != null) localStorage.setItem(UP_TITLE_KEY, user.tag); else localStorage.removeItem(UP_TITLE_KEY);
+    if(user.frame != null) localStorage.setItem(UP_TIER_KEY, String(user.frame));
+  }catch(e){}
   document.getElementById('operatorBadge').textContent = displayName;
   document.getElementById('operatorOverlay').classList.remove('open');
   refreshMyPresenceName();
+  // sem moldura equipada explícita? usa o tier já calculado pelo hub no leaderboard (a mais alta desbloqueada)
+  if(user.frame == null && fbReady){
+    fbDb.ref(`hub/leaderboard/${emailToKey(email)}/tier`).once('value').then(s => {
+      const t = s.val();
+      if(t != null){ try{ localStorage.setItem(UP_TIER_KEY, String(t)); }catch(e){} refreshMyPresenceName(); }
+    }).catch(()=>{});
+  }
   showWelcomeBack(displayName, user);
   setTimeout(maybeShowNotifBanner, 2000);
   setTimeout(initUserNotifListener, 1000);
@@ -1910,6 +1922,24 @@ function getUserAvatar(){
 function setUserAvatar(v){
   try{ localStorage.setItem(UP_AVATAR_KEY, v); }catch(e){}
   if(fbReady && _session) fbDb.ref(`users/${emailToKey(_session.email)}/avatar`).set(v);
+}
+
+/* Progressão do operador (conquistas) — a experiência mora no hub, mas o painel
+   espelha o TÍTULO (tag equipada) e a MOLDURA (tier de XP) pra mostrar na presença.
+   Só leitura: nada aqui altera o progresso, só reflete o que o hub já calculou. */
+const UP_TITLE_KEY = 'suprema_user_title_v1'; // id da tag equipada (ex.: 'grinder')
+const UP_TIER_KEY  = 'suprema_user_frame_v1'; // tier da moldura (0..7) — mesmo nome que o hub usa
+const OPERATOR_TITLES = {
+  novato:'Novato na mesa', regular:'Regular', operador:'Operador', grinder:'Grinder',
+  tubarao:'Tubarão', especialista:'Especialista', highroller:'High Roller', controlador:'Controlador',
+  arquiteto:'Arquiteto', mestremesas:'Mestre das Mesas', supervisor:'Supervisor', veterano:'Veterano',
+  lenda:'Lenda da casa', imortal:'Imortal', tita:'Titã Suprema'
+};
+function getUserTitle(){ // nome legível da tag equipada, ou null
+  try{ const id = localStorage.getItem(UP_TITLE_KEY); return id ? (OPERATOR_TITLES[id] || null) : null; }catch(e){ return null; }
+}
+function getUserTier(){ // 0..7, ou null se ainda não sabemos
+  try{ const v = localStorage.getItem(UP_TIER_KEY); return v == null || v === '' ? null : Math.max(0, Math.min(7, +v)); }catch(e){ return null; }
 }
 
 function openUserProfile(){
@@ -2572,6 +2602,10 @@ function myPresencePayload(){
   const p = { name: OPERATOR_NAME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP };
   const av = getUserAvatar();
   if (av) p.avatar = av;
+  const tier = getUserTier();
+  if (tier != null) p.tier = tier;      // moldura conquistada (0..7)
+  const title = getUserTitle();
+  if (title) p.title = title;           // título equipado (nome legível)
   return p;
 }
 function initPresence(){
@@ -2625,22 +2659,29 @@ function renderPresence(all){
     card.appendChild(badge);
   });
 
-  // agrupa por nome para o nav — guarda o ícone escolhido pelo operador (emoji), se houver
+  // agrupa por nome para o nav — guarda ícone (emoji), moldura (tier) e título do operador
   const byName = {};
   sessions.forEach(([id, v]) => {
     const name = (v && v.name) || 'Alguém';
-    if (!byName[name]) byName[name] = { avatar: (v && v.avatar) || null };
-    else if (v && v.avatar && !byName[name].avatar) byName[name].avatar = v.avatar;
+    if (!byName[name]) byName[name] = { avatar:null, tier:null, title:null };
+    const e = byName[name];
+    if (v && v.avatar && !e.avatar) e.avatar = v.avatar;
+    if (v && typeof v.tier === 'number' && e.tier == null) e.tier = v.tier;
+    if (v && v.title && !e.title) e.title = v.title;
   });
   const names = Object.keys(byName);
   const colors = ['var(--main-bright)','var(--side-bright)','var(--sat-bright)','var(--felt-bright)','var(--gold)'];
   wrap.innerHTML = names.slice(0,5).map((name, i) => {
-    const av = byName[name].avatar;
+    const e = byName[name];
+    const av = e.avatar;
     const initials = name.trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
     const color = colors[i % colors.length];
     // se o operador escolheu um emoji, mostra ele; senão cai nas iniciais
     const content = av ? `<span class="presence-emoji">${av}</span>` : initials;
-    return `<span class="presence-avatar${av ? ' has-emoji' : ''}" style="background:${color}" title="${name} está no painel agora">${content}</span>`;
+    // moldura conquistada (tier) vira a borda do avatar; título aparece no hover
+    const tierAttr = e.tier != null ? ` data-tier="${e.tier}"` : '';
+    const tip = e.title ? `${name} · ${e.title} — no painel agora` : `${name} está no painel agora`;
+    return `<span class="presence-avatar${av ? ' has-emoji' : ''}"${tierAttr} style="background:${color}" title="${escHtml(tip).replace(/"/g,'&quot;')}">${content}</span>`;
   }).join('') + (names.length > 5 ? `<span class="presence-avatar presence-more">+${names.length-5}</span>` : '');
 }
 // reavalia staleness periodicamente mesmo sem nenhuma mudança no Firebase — senão uma sessão que
