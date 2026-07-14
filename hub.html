@@ -3461,23 +3461,29 @@ if (location.protocol === 'file:') {
       // do Firebase Auth ainda não restaurou; anexar cedo dá permission_denied e o RTDB
       // CANCELA o listener, deixando os tiles vazios. Só anexamos com usuário autenticado.
       const wirePainelTiles = () => {
-        // lê só o contador (barato); planilhas antigas sem `count` caem no fallback de 1 leitura das rows
-        db.ref(`painel/${today}/sheet/count`).on('value', s => {
-          const n = s.val();
-          if(typeof n === 'number'){ pTorneios = n; paintPainel(); }
-          else db.ref(`painel/${today}/sheet/rows`).once('value').then(r => { pTorneios = r.numChildren(); paintPainel(); });
-        });
-        db.ref(`painel/${today}/checklist`).on('value', s => { pConferidos = s.numChildren(); paintPainel(); });
-        // ECONOMIA DE BANDA: lê só o contador (um número), não a grade inteira. Fallback
-        // pra grades antigas (sem o campo count): baixa o json 1x.
-        db.ref(`${guBase}/sheet/count`).on('value', s => {
-          const c = s.val();
-          if (typeof c === 'number') { guTotal = c; paintGu(); }
-          else db.ref(`${guBase}/sheet/json`).once('value').then(js => {
-            try { const d = JSON.parse(js.val()); guTotal = (d.main||[]).length + (d.side||[]).length + (d.sat||[]).length; paintGu(); } catch(e){}
+        // As regras gateiam painel/criacaoNoturna por acesso — só assina o que este
+        // usuário PODE ler, senão o RTDB devolve permission_denied e cancela o listener.
+        if(canAccessHub('painel')){
+          // lê só o contador (barato); planilhas antigas sem `count` caem no fallback de 1 leitura das rows
+          db.ref(`painel/${today}/sheet/count`).on('value', s => {
+            const n = s.val();
+            if(typeof n === 'number'){ pTorneios = n; paintPainel(); }
+            else db.ref(`painel/${today}/sheet/rows`).once('value').then(r => { pTorneios = r.numChildren(); paintPainel(); });
           });
-        });
-        db.ref(`${guBase}/done`).on('value', s => { guDone = s.numChildren(); paintGu(); });
+          db.ref(`painel/${today}/checklist`).on('value', s => { pConferidos = s.numChildren(); paintPainel(); });
+        }
+        if(canAccessHub('gu')){
+          // ECONOMIA DE BANDA: lê só o contador (um número), não a grade inteira. Fallback
+          // pra grades antigas (sem o campo count): baixa o json 1x.
+          db.ref(`${guBase}/sheet/count`).on('value', s => {
+            const c = s.val();
+            if (typeof c === 'number') { guTotal = c; paintGu(); }
+            else db.ref(`${guBase}/sheet/json`).once('value').then(js => {
+              try { const d = JSON.parse(js.val()); guTotal = (d.main||[]).length + (d.side||[]).length + (d.sat||[]).length; paintGu(); } catch(e){}
+            });
+          });
+          db.ref(`${guBase}/done`).on('value', s => { guDone = s.numChildren(); paintGu(); });
+        }
       };
       if(firebase.auth().currentUser) wirePainelTiles();
       else { let wired = false; firebase.auth().onAuthStateChanged(function(u){ if(u && !wired){ wired = true; wirePainelTiles(); } }); }
