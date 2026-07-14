@@ -641,22 +641,43 @@
     nav, .nav-inner{ transition:none; }
   }
   .nav-right{display:flex; align-items:center; gap:9px; min-width:0;}
-  .presence-wrap{ display:flex; align-items:center; }
+  /* chip de vidro com pulso "ao vivo" — mesmo desenho do suprema-presence.js
+     (hub/admin/cash/criação); o painel renderiza a própria presença, então o
+     visual mora aqui, com os tokens locais (--card/--hairline/--felt) */
+  .presence-wrap{
+    display:flex; align-items:center;
+    padding:3px 10px 3px 5px; border-radius:99px;
+    border:1px solid var(--hairline);
+    background:color-mix(in srgb, var(--card) 55%, transparent);
+  }
+  .presence-wrap::after{
+    content:""; width:6px; height:6px; border-radius:99px; flex:none; margin-left:9px;
+    background:var(--felt-bright, var(--felt));
+    box-shadow:0 0 0 3px color-mix(in srgb, var(--felt) 22%, transparent);
+    animation:presence-pulse 2.6s ease-in-out infinite;
+  }
+  @keyframes presence-pulse{ 0%,100%{opacity:.55} 50%{opacity:1} }
   .presence-avatar{
+    position:relative;
     width:26px; height:26px; border-radius:50%; flex:none;
     display:flex; align-items:center; justify-content:center;
     font-family:var(--text); font-size:10px; font-weight:700; color:#fff;
-    border:2px solid var(--bg); margin-left:-8px;
-    box-shadow:0 2px 5px rgba(12,30,22,0.18);
+    border:2px solid var(--card); margin-left:-7px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.22);
     animation:presence-pop .4s var(--ease) backwards;
+    transition:transform .25s var(--ease);
   }
   .presence-avatar:first-child{ margin-left:0; }
-  .presence-avatar{ position:relative; }
-  /* quando o operador escolheu um emoji, mostra o emoji em vez das iniciais —
-     fundo claro + anel sutil pra manter o look de "ficha" dos avatares de iniciais */
-  .presence-avatar.has-emoji{ background:var(--felt-soft) !important; box-shadow:0 2px 5px rgba(12,30,22,0.18), inset 0 0 0 1px rgba(12,30,22,0.06); }
-  .presence-emoji{ font-size:16px; line-height:1; }
-  .presence-more{ background:var(--ink-soft) !important; }
+  /* hover: o avatar levanta e sobe na pilha — dá pra ver quem é */
+  .presence-avatar:hover{ transform:translateY(-2px) scale(1.12); z-index:3; }
+  /* emoji no lugar das iniciais: feltro da casa, funciona nos dois temas */
+  .presence-avatar.has-emoji{ background:linear-gradient(145deg,#1d7a52,#0f4a31) !important; }
+  .presence-emoji{ font-size:15px; line-height:1; }
+  .presence-more{ background:var(--ink-soft) !important; font-size:9px; }
+  @media (prefers-reduced-motion: reduce){
+    .presence-avatar{ animation:none; transition:none; }
+    .presence-wrap::after{ animation:none; }
+  }
 
   /* MOLDURA CONQUISTADA — a mesma progressão de tier do hub (0→7), aqui como um aro
      estático em volta do avatar de presença. Técnica de máscara: gradiente só no aro. */

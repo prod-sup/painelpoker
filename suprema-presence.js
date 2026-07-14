@@ -97,19 +97,38 @@
     var st = document.createElement('style');
     st.id = 'sp-presence-css';
     st.textContent =
-      '#presenceWrap{display:flex;align-items:center}' +
+      /* chip de vidro: o cluster vira um objeto intencional na nav, com pulso
+         "ao vivo". Cada painel nomeia seus tokens de um jeito (hub: --bg-raise;
+         painel/criação: --card; admin: --s1; cash: --surf) — a cadeia de
+         fallbacks resolve a superfície/linha/verde certos em QUALQUER painel,
+         nos dois temas, sem cor fixa que quebre no claro. */
+      '#presenceWrap{' +
+        '--sp-surf:var(--bg-raise,var(--card,var(--s1,var(--surf,var(--bg,#111412)))));' +
+        '--sp-line:var(--hairline,var(--border,var(--bdr,rgba(128,128,128,.16))));' +
+        '--sp-live:var(--felt,var(--green,#18a36b));' +
+        'display:flex;align-items:center;gap:0;' +
+        'padding:3px 10px 3px 5px;border-radius:99px;' +
+        'border:1px solid var(--sp-line);' +
+        'background:color-mix(in srgb, var(--sp-surf) 55%, transparent)}' +
+      '#presenceWrap::after{content:"";width:6px;height:6px;border-radius:99px;flex:none;margin-left:9px;' +
+        'background:var(--sp-live);box-shadow:0 0 0 3px color-mix(in srgb, var(--sp-live) 22%, transparent);' +
+        'animation:sp-pulse 2.6s ease-in-out infinite}' +
       '#presenceWrap[hidden]{display:none}' +
       '.sp-av{position:relative;width:26px;height:26px;border-radius:50%;flex:none;' +
         'display:flex;align-items:center;justify-content:center;' +
         'font:700 10px/1 system-ui,sans-serif;color:#fff;' +
-        'border:2px solid var(--bg,#0f1512);margin-left:-8px;' +
-        'box-shadow:0 2px 5px rgba(12,30,22,.18);animation:sp-pop .4s cubic-bezier(.2,.8,.2,1) backwards}' +
+        'border:2px solid var(--sp-surf);margin-left:-7px;' +
+        'box-shadow:0 2px 6px rgba(0,0,0,.22);animation:sp-pop .4s cubic-bezier(.2,.8,.2,1) backwards;' +
+        'transition:transform .25s cubic-bezier(.2,.8,.2,1)}' +
       '.sp-av:first-child{margin-left:0}' +
-      '.sp-av.emoji{background:var(--felt-soft,#1b2a22) !important;box-shadow:0 2px 5px rgba(12,30,22,.18),inset 0 0 0 1px rgba(12,30,22,.08)}' +
-      '.sp-emoji{font-size:16px;line-height:1}' +
-      '.sp-more{background:#6b7280 !important}' +
+      /* hover: o avatar levanta e sobe na pilha — dá pra ver quem é */
+      '.sp-av:hover{transform:translateY(-2px) scale(1.12);z-index:3}' +
+      '.sp-av.emoji{background:linear-gradient(145deg,#1d7a52,#0f4a31) !important}' +
+      '.sp-emoji{font-size:15px;line-height:1}' +
+      '.sp-more{background:#6b7280 !important;font-size:9px}' +
       '@keyframes sp-pop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}' +
-      '@media (prefers-reduced-motion:reduce){.sp-av{animation:none}}' +
+      '@keyframes sp-pulse{0%,100%{opacity:.55}50%{opacity:1}}' +
+      '@media (prefers-reduced-motion:reduce){.sp-av{animation:none;transition:none}#presenceWrap::after{animation:none}}' +
       /* molduras conquistadas (tier 0..7) — aro por máscara, estático */
       '.sp-av[data-tier]{--fa:120deg}' +
       '.sp-av[data-tier]::before{content:"";position:absolute;inset:-3px;border-radius:inherit;pointer-events:none;z-index:1;padding:2px;' +
