@@ -78,8 +78,13 @@
     },
 
     "mesasCashHistory": {
-      ".read":  "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'",
-      ".write": "auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'"
+      ".read":  "auth != null && (auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group' || root.child('users').child(root.child('uidIndex').child(auth.uid).val()).child('access').child('cash').val() === true)",
+      ".write": "auth != null && (auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group' || root.child('users').child(root.child('uidIndex').child(auth.uid).val()).child('access').child('cash').val() === true)"
+    },
+
+    "mesasCashData": {
+      ".read":  "auth != null && (auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group' || root.child('users').child(root.child('uidIndex').child(auth.uid).val()).child('access').child('cash').val() === true)",
+      ".write": "auth != null && (auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group' || root.child('users').child(root.child('uidIndex').child(auth.uid).val()).child('access').child('cash').val() === true)"
     },
 
     "auditoria": {

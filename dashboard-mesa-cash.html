@@ -458,6 +458,94 @@ table.t td.m{color:var(--ink2)}
 .app-hdr-user{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--ink3);padding:4px 8px}
 .logout-btn{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;color:var(--ink3);transition:color .12s,background .12s;flex-shrink:0}
 .logout-btn:hover{color:var(--red);background:var(--red2)}
+
+/* ══════════════ MODO TV (telão) ══════════════
+   Sempre escuro (independe do tema), tipografia gigante p/ leitura a distância,
+   cenas em rotação com crossfade. Ambience só com transform/opacity — nunca
+   animar blur/backdrop-filter (custo de GPU). */
+#tvMode{
+  position:fixed;inset:0;z-index:900;display:none;flex-direction:column;overflow:hidden;
+  background:#0b0d0c;color:#f2ede2;font-family:var(--sans);
+  --tv-dia:#4f8ef7;--tv-noite:#a78bfa;--tv-green:#34d399;--tv-gold:#d8b56d;--tv-red:#f87171;
+  --tv-ink2:#9ba19c;--tv-ink3:#6a706a;--tv-bdr:rgba(242,237,226,.09);
+}
+body.tv-on #tvMode{display:flex}
+body.tv-on{overflow:hidden}
+/* ambience: dois glows derivando + spade watermark (transform-only) */
+.tv-bg{position:absolute;inset:0;pointer-events:none}
+.tv-blob{position:absolute;width:60vw;height:60vw;border-radius:50%;opacity:.5;will-change:transform}
+.tv-blob.b1{left:-18vw;top:-22vw;background:radial-gradient(circle,rgba(79,142,247,.14) 0%,transparent 62%);animation:tvDrift1 46s ease-in-out infinite alternate}
+.tv-blob.b2{right:-20vw;bottom:-26vw;background:radial-gradient(circle,rgba(167,139,250,.12) 0%,transparent 62%);animation:tvDrift2 58s ease-in-out infinite alternate}
+@keyframes tvDrift1{from{transform:translate(0,0) scale(1)}to{transform:translate(9vw,7vh) scale(1.18)}}
+@keyframes tvDrift2{from{transform:translate(0,0) scale(1.12)}to{transform:translate(-8vw,-6vh) scale(.96)}}
+.tv-spade{position:absolute;right:-4vw;top:50%;font-size:56vh;line-height:1;color:rgba(242,237,226,.028);transform:translateY(-50%) rotate(12deg);user-select:none}
+/* topo */
+.tv-top{display:flex;align-items:center;gap:20px;padding:28px 44px 0;position:relative;z-index:2}
+.tv-brand{display:flex;align-items:center;gap:12px;font-size:20px;font-weight:800;letter-spacing:-.02em}
+.tv-brand .tv-ico{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#4f8ef7,#a78bfa);display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;box-shadow:0 6px 22px rgba(79,142,247,.35)}
+.tv-live{display:flex;align-items:center;gap:7px;padding:5px 13px;border-radius:999px;border:1px solid rgba(52,211,153,.3);background:rgba(52,211,153,.09);color:var(--tv-green);font-size:12px;font-weight:800;letter-spacing:.09em}
+.tv-live .pulse{background:var(--tv-green)}
+.tv-date{margin-left:auto;font-size:16px;font-weight:700;color:var(--tv-ink2)}
+.tv-clock{font-family:var(--mono);font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+/* palco */
+.tv-stage{flex:1;position:relative;z-index:2;display:flex;align-items:center;justify-content:center;padding:0 44px;min-height:0}
+.tv-scene{width:100%;max-width:1720px;opacity:0;transform:translateY(22px) scale(.992)}
+.tv-scene.in{opacity:1;transform:none;transition:opacity .65s var(--ease),transform .65s var(--ease)}
+.tv-scene.out{opacity:0;transform:translateY(-18px) scale(.995);transition:opacity .3s ease,transform .3s ease}
+.tv-kicker{font-size:15px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--tv-ink3);margin-bottom:10px}
+.tv-h{font-size:clamp(26px,3vw,44px);font-weight:800;letter-spacing:-.03em;line-height:1.05;text-wrap:balance}
+.tv-hero-num{font-size:clamp(84px,12.5vw,196px);font-weight:850;letter-spacing:-.045em;line-height:.98;font-variant-numeric:tabular-nums;margin:14px 0 6px}
+.tv-hero-num .cur{font-size:.36em;font-weight:800;color:var(--tv-ink2);vertical-align:.62em;margin-right:.14em;letter-spacing:-.02em}
+.tv-hero-sub{font-size:clamp(17px,1.5vw,24px);color:var(--tv-ink2);font-weight:600}
+.tv-hero-sub b{color:#f2ede2}
+.tv-row{display:flex;gap:clamp(20px,3.4vw,64px);margin-top:clamp(22px,4vh,52px);flex-wrap:wrap}
+.tv-stat .l{font-size:14px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--tv-ink3);margin-bottom:6px}
+.tv-stat .v{font-size:clamp(30px,3.4vw,54px);font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1}
+.tv-stat .s{font-size:14px;color:var(--tv-ink2);margin-top:6px;font-weight:600}
+.tv-stat .v.g{color:var(--tv-green)} .tv-stat .v.r{color:var(--tv-red)}
+.tv-stat .v.dia{color:var(--tv-dia)} .tv-stat .v.noite{color:var(--tv-noite)} .tv-stat .v.gold{color:var(--tv-gold)}
+/* turnos: duas colunas + barra de share */
+.tv-duel{display:grid;grid-template-columns:1fr 1fr;gap:clamp(24px,4vw,72px);margin-top:26px}
+.tv-share{height:14px;border-radius:999px;background:rgba(242,237,226,.07);overflow:hidden;margin-top:26px}
+.tv-share>div{height:100%;border-radius:999px;transform-origin:left center;transform:scaleX(0);transition:transform 1.4s var(--ease) .35s}
+.tv-scene.in .tv-share>div{transform:scaleX(1)}
+/* barras horizontais (stakes / top mesas) */
+.tv-bars{display:flex;flex-direction:column;gap:clamp(12px,2vh,22px);margin-top:26px}
+.tv-bar{display:grid;grid-template-columns:minmax(150px,240px) 1fr minmax(150px,auto);gap:20px;align-items:center;opacity:0;transform:translateX(-26px)}
+.tv-scene.in .tv-bar{opacity:1;transform:none;transition:opacity .6s var(--ease),transform .6s var(--ease)}
+.tv-bar .n{font-size:clamp(17px,1.6vw,26px);font-weight:800;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tv-bar .n small{display:block;font-size:.58em;color:var(--tv-ink3);font-weight:700}
+.tv-bar .track{height:clamp(18px,2.6vh,30px);border-radius:8px;background:rgba(242,237,226,.06);overflow:hidden}
+.tv-bar .fill{height:100%;border-radius:8px;transform-origin:left center;transform:scaleX(0);transition:transform 1.2s var(--ease) .25s}
+.tv-scene.in .tv-bar .fill{transform:scaleX(1)}
+.tv-bar .val{font-size:clamp(19px,1.9vw,30px);font-weight:800;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.tv-bar .val small{color:var(--tv-ink3);font-size:.6em;font-weight:700;margin-left:8px}
+/* gráfico */
+.tv-chartwrap{height:min(52vh,560px);margin-top:26px;position:relative}
+/* rodapé: progresso + ticker */
+.tv-progress{height:3px;background:rgba(242,237,226,.07);position:relative;z-index:2}
+.tv-progress>div{height:100%;background:linear-gradient(90deg,var(--tv-dia),var(--tv-noite));transform-origin:left center;transform:scaleX(0)}
+.tv-progress>div.run{animation:tvProg var(--tv-dur,14s) linear forwards}
+@keyframes tvProg{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.tv-ticker{height:58px;border-top:1px solid var(--tv-bdr);display:flex;align-items:center;overflow:hidden;position:relative;z-index:2;background:rgba(11,13,12,.6)}
+.tv-ticker-in{display:flex;gap:64px;white-space:nowrap;font-size:17px;font-weight:700;color:var(--tv-ink2);animation:tvTicker 60s linear infinite;padding-left:24px;will-change:transform}
+.tv-ticker-in .sep{color:var(--tv-gold)}
+@keyframes tvTicker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.tv-dots{position:absolute;top:34px;left:50%;transform:translateX(-50%);display:flex;gap:9px;z-index:3}
+.tv-dots span{width:8px;height:8px;border-radius:50%;background:rgba(242,237,226,.18);transition:background .3s,transform .3s var(--ease)}
+.tv-dots span.on{background:#f2ede2;transform:scale(1.25)}
+.tv-exit{position:absolute;top:26px;right:44px;z-index:4;padding:9px 16px;border-radius:9px;border:1px solid var(--tv-bdr);background:rgba(242,237,226,.05);color:var(--tv-ink2);font-size:13px;font-weight:700;opacity:0;transition:opacity .3s}
+#tvMode:hover .tv-exit{opacity:1}
+.tv-exit:hover{color:#f2ede2;background:rgba(242,237,226,.1)}
+/* o congelamento de animação por janela sem foco NÃO vale pro telão:
+   a TV normalmente fica numa janela sem foco e precisa continuar viva */
+body.tv-on.win-blurred #tvMode *,body.tv-on.win-blurred #tvMode *::before,body.tv-on.win-blurred #tvMode *::after{animation-play-state:running!important}
+@media (prefers-reduced-motion:reduce){
+  .tv-blob,.tv-ticker-in{animation:none!important}
+  .tv-scene,.tv-scene.in,.tv-scene.out{transition:opacity .3s ease;transform:none}
+  .tv-bar,.tv-scene.in .tv-bar{transition:opacity .3s ease;transform:none}
+  .tv-share>div,.tv-bar .fill,.tv-scene.in .tv-share>div,.tv-scene.in .tv-bar .fill{transition:none;transform:scaleX(1)}
+}
 </style>
 <script src="scripts/lite.js"></script>
 <link rel="stylesheet" href="suprema-tokens.css">
@@ -493,6 +581,7 @@ table.t td.m{color:var(--ink2)}
     </div>
     <a href="hub.html" class="theme-toggle" title="Voltar ao hub Suprema OS" style="text-decoration:none;font-size:13px">♠</a>
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Alternar tema" aria-label="Alternar tema claro/escuro"><i class="ph ph-moon"></i></button>
+    <button class="theme-toggle" id="tvBtn" onclick="tvEnter()" title="Modo TV — telão em tela cheia com rotação automática" aria-label="Modo TV"><i class="ph ph-monitor-play"></i></button>
     <select id="daySel" title="Dia exibido no dashboard" onchange="onDaySel(this.value)"
       style="height:32px;border-radius:8px;padding:0 10px;font-size:11px;font-weight:700;background:var(--surf);color:var(--ink);border:1px solid var(--bdr);cursor:pointer;max-width:190px">
       <option value="__demo__">Demonstração (22/06)</option>
@@ -1508,46 +1597,61 @@ function buildTop10(){
 
 // ══════════════════════════════ RECS
 // ══════════════════════════════ RECOMMENDATION ENGINE (Overview)
+// Cada recomendação só entra se os dados que ela usa existem no dia carregado
+// (dia pequeno pode não ter mesas nos dois turnos, ante, VHigh etc. — antes
+// isso derrubava o renderAll inteiro e o dashboard "não atualizava").
 function computeOverviewRecs(){
   const recs=[];
   const totalGameFee=D.gametypes.reduce((a,g)=>a+g.fee,0);
-  const top=D.gametypes.reduce((a,b)=>b.fee>a.fee?b:a);
-  const topShare=top.fee/totalGameFee*100;
-  const bestDiaSlot=D.slots30.filter(s=>s.turno==='dia').reduce((a,b)=>b.fee>(a?a.fee:0)?b:a,null);
-  const bestNoiteSlot=D.slots30.filter(s=>s.turno==='noite').reduce((a,b)=>b.fee>(a?a.fee:0)?b:a,null);
-  recs.push({i:ic('fire',1),c:'g',t:`${top.type} domina ${f(topShare,1)}% do rake`,
-    b:`R$ ${f(top.fee,0)} em ${top.tables} mesas. Priorizar abertura em ${bestDiaSlot.slot} (Dia) e ${bestNoiteSlot.slot} (Noite) — os melhores slots de cada turno.`,sh:'dia'});
+  if(D.gametypes.length&&totalGameFee>0){
+    const top=D.gametypes.reduce((a,b)=>b.fee>a.fee?b:a);
+    const topShare=top.fee/totalGameFee*100;
+    const bestDiaSlot=D.slots30.filter(s=>s.turno==='dia'&&s.tables).reduce((a,b)=>b.fee>(a?a.fee:0)?b:a,null);
+    const bestNoiteSlot=D.slots30.filter(s=>s.turno==='noite'&&s.tables).reduce((a,b)=>b.fee>(a?a.fee:0)?b:a,null);
+    const slotsTxt=[bestDiaSlot&&`${bestDiaSlot.slot} (Dia)`,bestNoiteSlot&&`${bestNoiteSlot.slot} (Noite)`].filter(Boolean).join(' e ');
+    recs.push({i:ic('fire',1),c:'g',t:`${top.type} domina ${f(topShare,1)}% do rake`,
+      b:`R$ ${f(top.fee,0)} em ${top.tables} mesas.${slotsTxt?` Priorizar abertura em ${slotsTxt} — os melhores slots de cada turno.`:''}`,sh:'dia'});
+  }
 
-  const diaFpm=KPI_DEMO.feeDia/KPI_DEMO.tablesDia, noiteFpm=KPI_DEMO.feeNoite/KPI_DEMO.tablesNoite;
-  const shiftUp=noiteFpm>=diaFpm?'noite':'dia', shiftDown=shiftUp==='dia'?'noite':'dia';
-  const shiftGap=(Math.abs(noiteFpm-diaFpm)/Math.min(diaFpm,noiteFpm)*100);
-  recs.push({i:ic(shiftUp==='noite'?'moon-stars':'sun',1),c:'i',t:`Turno ${shiftUp==='dia'?'Dia':'Noite'}: fee/mesa ${f(shiftGap,0)}% maior`,
-    b:`R$ ${f(Math.max(diaFpm,noiteFpm),1)} vs R$ ${f(Math.min(diaFpm,noiteFpm),1)} no Turno ${shiftDown==='dia'?'Dia':'Noite'}. A diferença de eficiência por mesa é o principal sinal de qualidade de player entre turnos.`,sh:shiftUp});
+  if(KPI_DEMO.tablesDia>0&&KPI_DEMO.tablesNoite>0){
+    const diaFpm=KPI_DEMO.feeDia/KPI_DEMO.tablesDia, noiteFpm=KPI_DEMO.feeNoite/KPI_DEMO.tablesNoite;
+    const shiftUp=noiteFpm>=diaFpm?'noite':'dia', shiftDown=shiftUp==='dia'?'noite':'dia';
+    const minFpm=Math.min(diaFpm,noiteFpm);
+    const shiftGap=minFpm>0?(Math.abs(noiteFpm-diaFpm)/minFpm*100):0;
+    recs.push({i:ic(shiftUp==='noite'?'moon-stars':'sun',1),c:'i',t:`Turno ${shiftUp==='dia'?'Dia':'Noite'}: fee/mesa ${f(shiftGap,0)}% maior`,
+      b:`R$ ${f(Math.max(diaFpm,noiteFpm),1)} vs R$ ${f(minFpm,1)} no Turno ${shiftDown==='dia'?'Dia':'Noite'}. A diferença de eficiência por mesa é o principal sinal de qualidade de player entre turnos.`,sh:shiftUp});
+  }
 
-  const anteMult=KPI_DEMO.anteFph/KPI_DEMO.noAnteFph;
-  recs.push({i:ic('lightning',1),c:'g',t:`Ante ${f(anteMult,1)}x mais fee/mão`,
-    b:`Mesas com ante: R$ ${f(KPI_DEMO.anteFph,2)}/mão vs R$ ${f(KPI_DEMO.noAnteFph,2)} sem ante, em ${KPI_DEMO.anteTables} mesas com ante contra ${KPI_DEMO.noAnteTables} sem. Expandir a estrutura de ante é a maior alavanca de receita disponível hoje.`,sh:''});
+  if(KPI_DEMO.anteTables>0&&KPI_DEMO.noAnteTables>0&&KPI_DEMO.noAnteFph>0){
+    const anteMult=KPI_DEMO.anteFph/KPI_DEMO.noAnteFph;
+    recs.push({i:ic('lightning',1),c:'g',t:`Ante ${f(anteMult,1)}x mais fee/mão`,
+      b:`Mesas com ante: R$ ${f(KPI_DEMO.anteFph,2)}/mão vs R$ ${f(KPI_DEMO.noAnteFph,2)} sem ante, em ${KPI_DEMO.anteTables} mesas com ante contra ${KPI_DEMO.noAnteTables} sem. Expandir a estrutura de ante é a maior alavanca de receita disponível hoje.`,sh:''});
+  }
 
   const vhigh=D.tiers.find(t=>t.tier==='VHigh');
   const totalTierFee=D.tiers.reduce((a,t)=>a+t.fee,0), totalTierTables=D.tiers.reduce((a,t)=>a+t.tables,0);
-  const vhighFeeShare=vhigh.fee/totalTierFee*100, vhighTableShare=vhigh.tables/totalTierTables*100;
-  recs.push({i:ic('diamond',1),c:'g',t:`VHigh: R$ ${f(vhigh.fee,0)} com ${vhigh.tables} mesas`,
-    b:`${f(vhighFeeShare,1)}% do rake concentrado em apenas ${f(vhighTableShare,1)}% das mesas. Concentração extrema — proteger esses jogadores é missão crítica.`,sh:''});
+  if(vhigh&&totalTierFee>0&&totalTierTables>0){
+    const vhighFeeShare=vhigh.fee/totalTierFee*100, vhighTableShare=vhigh.tables/totalTierTables*100;
+    recs.push({i:ic('diamond',1),c:'g',t:`VHigh: R$ ${f(vhigh.fee,0)} com ${vhigh.tables} mesas`,
+      b:`${f(vhighFeeShare,1)}% do rake concentrado em apenas ${f(vhighTableShare,1)}% das mesas. Concentração extrema — proteger esses jogadores é missão crítica.`,sh:''});
+  }
 
-  recs.push({i:ic('chart-bar',1),c:KPI_DEMO.conc1pct>30?'w':'i',t:`Top 1% gera ${f(KPI_DEMO.conc1pct,1)}% do rake`,
+  if(KPI_DEMO.conc1Tables>0)recs.push({i:ic('chart-bar',1),c:KPI_DEMO.conc1pct>30?'w':'i',t:`Top 1% gera ${f(KPI_DEMO.conc1pct,1)}% do rake`,
     b:`${KPI_DEMO.conc1Tables} mesas geram R$ ${f(KPI_DEMO.conc1Fee,0)}. Com crescimento de base, criar alertas para sessões anômalas automaticamente reduz o risco de churn concentrado.`,sh:''});
 
-  const worstBucket=D.duration.reduce((a,b)=>b.ret<a.ret?b:a);
-  const worstAbandon=100-worstBucket.ret;
-  recs.push({i:ic('warning',1),c:'w',t:`${worstBucket.bucket}: ${f(worstAbandon,1)}% de abandono`,
-    b:`${worstBucket.tables} mesas nessa faixa de duração, ${worstBucket.dead} sem retenção. Investigar horários e tipos com maior abandono para intervenção direcionada.`,sh:''});
+  if(D.duration.length){
+    const worstBucket=D.duration.reduce((a,b)=>b.ret<a.ret?b:a);
+    const worstAbandon=100-worstBucket.ret;
+    recs.push({i:ic('warning',1),c:'w',t:`${worstBucket.bucket}: ${f(worstAbandon,1)}% de abandono`,
+      b:`${worstBucket.tables} mesas nessa faixa de duração, ${worstBucket.dead} sem retenção. Investigar horários e tipos com maior abandono para intervenção direcionada.`,sh:''});
+  }
 
   let bestSlot=null,bestSlotEff=0;
   D.slots30.forEach(s=>{if(!s.tables)return;const eff=s.fee/(s.tables*0.5);if(eff>bestSlotEff){bestSlotEff=eff;bestSlot=s;}});
-  recs.push({i:ic('sun-horizon',1),c:'i',t:`${bestSlot.slot}: slot mais eficiente (R$ ${f(bestSlotEff,1)}/mesa/h)`,
+  if(bestSlot)recs.push({i:ic('sun-horizon',1),c:'i',t:`${bestSlot.slot}: slot mais eficiente (R$ ${f(bestSlotEff,1)}/mesa/h)`,
     b:`O melhor slot de toda a operação, no Turno ${bestSlot.turno==='dia'?'Dia':'Noite'}. Garantir cobertura operacional máxima nesse horário.`,sh:bestSlot.turno});
 
-  recs.push({i:ic('arrows-clockwise',1),c:'w',t:`${f(KPI_DEMO.crossShift)} sessões cruzam a virada de turno`,
+  if(KPI_DEMO.crossShift>0)recs.push({i:ic('arrows-clockwise',1),c:'w',t:`${f(KPI_DEMO.crossShift)} sessões cruzam a virada de turno`,
     b:`${f(KPI_DEMO.crossShiftPct,1)}% das sessões diárias. Handoff crítico às 07h e 19h — rastrear quais salas geram mais mesas órfãs nesse momento.`,sh:''});
 
   return recs;
@@ -1975,49 +2079,145 @@ async function buildHist(){
 const RTDB_NODE='mesasCashHistory';
 const RTDB_DATA='mesasCashData';
 function labelToRtdbKey(dateStr){const[dd,mm,yy]=dateStr.split('/');return`${yy}-${mm}-${dd}`;}
+// ── Serialização segura p/ RTDB ──
+// O RTDB proíbe . # $ / [ ] em chaves. O dataset bruto usa mapas com chaves
+// vindas da planilha (big blind "0.05", nomes de sala/jogo), então o set()
+// inteiro era rejeitado e o dia importado nunca chegava ao Firebase — os
+// painéis não atualizavam ao recarregar. fbPack codifica as chaves (percent-
+// encoding) antes de gravar; fbUnpack decodifica na leitura.
+function fbEncKey(k){return String(k).replace(/%/g,'%25').replace(/[.#$/\[\]]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());}
+function fbDecKey(k){try{return decodeURIComponent(k);}catch(_){return k;}}
+function fbPack(v){
+  if(Array.isArray(v))return v.map(fbPack);
+  if(v&&typeof v==='object'){const o={};for(const k in v)o[fbEncKey(k)]=fbPack(v[k]);return o;}
+  return v;
+}
+function fbUnpack(v){
+  if(Array.isArray(v))return v.map(fbUnpack);
+  if(v&&typeof v==='object'){const o={};for(const k in v)o[fbDecKey(k)]=fbUnpack(v[k]);return o;}
+  return v;
+}
+// O RTDB descarta objetos/arrays vazios ao gravar — na leitura, reconstrói a
+// forma completa de newRaw() pra finalizeDataset/mergeRaws nunca quebrarem.
+function hydrateRaw(R){
+  if(!R)return null;
+  const out=Object.assign(newRaw(null),R);
+  out.dates=R.dates||[];
+  out.slots=Array.from({length:48},(_,i)=>Object.assign({tables:0,fee:0,players:0,hands:0,dead:0},(R.slots&&R.slots[i])||{}));
+  out.end=Array.from({length:48},(_,i)=>(R.end&&R.end[i])||0);
+  out.conc=Array.from({length:24},(_,i)=>(R.conc&&R.conc[i])||0);
+  ['gt','op','room','blind','dur','tier','feeRate'].forEach(k=>out[k]=R[k]||{});
+  ['hu','multi'].forEach(k=>out[k]=Object.assign({tables:0,fee:0,hands:0,buyin:0,players:0,durSum:0,retained:0},R[k]||{}));
+  ['ante','noante'].forEach(k=>out[k]=Object.assign({tables:0,fee:0,hands:0,retained:0},R[k]||{}));
+  const ev=R.ev||{};
+  out.ev={
+    live:Object.assign({n:0,fee:0,buyin:0,players:0,hands:0},ev.live||{}),
+    hg:Object.assign({n:0,fee:0,buyin:0,players:0,hands:0},ev.hg||{}),
+    byType:ev.byType||{}, list:ev.list||[]
+  };
+  out.hphList=R.hphList||[]; out.feeList=R.feeList||[]; out.topN=R.topN||[];
+  return out;
+}
+function localRaws(){try{return JSON.parse(localStorage.getItem('cashData')||'{}');}catch(_){return{};}}
+function setLocalRaws(all){try{localStorage.setItem('cashData',JSON.stringify(all));}catch(e){console.error('localStorage cashData',e);}}
+// Estratégia: localStorage é SEMPRE gravado (cache/offline); o Firebase é a
+// fonte compartilhada. Na leitura, mescla os dois (Firebase vence) e re-envia
+// em background dias que só existem localmente (ex.: gravações que falharam
+// antes da correção de chaves). saveRaw devolve 'cloud' ou 'local' pra UI
+// avisar o operador quando o dado NÃO chegou ao Firebase.
+// Espera o Firebase Auth restaurar a sessão (1º onAuthStateChanged) antes de
+// qualquer leitura/gravação protegida por regra — sem isso a 1ª leitura no
+// load corre contra o restore do token, toma permission_denied e o dashboard
+// abre na demo mesmo com dias importados (mesma corrida já vista no painel).
+let _authReady=null;
+function whenAuthReady(timeoutMs){
+  if(_authReady)return _authReady;
+  _authReady=new Promise(res=>{
+    if(!fbOk||!firebase.auth){res();return;}
+    let done=false; const fin=()=>{if(!done){done=true;res();}};
+    try{const off=firebase.auth().onAuthStateChanged(()=>{fin();off();});}catch(_){fin();}
+    setTimeout(fin,timeoutMs||4000);
+  });
+  return _authReady;
+}
 const Store={
   async list(){
+    await whenAuthReady();
+    let fb=null;
     if(fbOk&&db){
-      try{
-        const snap=await db.ref(RTDB_NODE).once('value');
-        const val=snap.val()||{};
-        return Object.values(val);
-      }catch(e){console.error('Store.list (Firebase)',e);}
+      try{fb=(await db.ref(RTDB_NODE).once('value')).val()||{};}
+      catch(e){console.error('Store.list (Firebase)',e);}
     }
-    return JSON.parse(localStorage.getItem('cashHistory')||'[]');
+    let local=[];try{local=JSON.parse(localStorage.getItem('cashHistory')||'[]');}catch(_){ }
+    if(fb===null)return local;
+    const merged={};
+    local.forEach(d=>{if(d&&d.date)merged[labelToRtdbKey(d.date)]=d;});
+    Object.entries(fb).forEach(([k,v])=>{merged[k]=v;});
+    return Object.values(merged);
   },
   async upsert(dateStr,summary){
+    await whenAuthReady();
     const record={date:dateStr,...summary,updatedAt:Date.now(),updatedBy:_email||''};
+    try{
+      const hist=JSON.parse(localStorage.getItem('cashHistory')||'[]').filter(d=>d.date!==dateStr);
+      hist.push(record);
+      localStorage.setItem('cashHistory',JSON.stringify(hist));
+    }catch(e){console.error('Store.upsert (local)',e);}
     if(fbOk&&db){
-      try{await db.ref(`${RTDB_NODE}/${labelToRtdbKey(dateStr)}`).set(record);return;}
+      try{await db.ref(`${RTDB_NODE}/${labelToRtdbKey(dateStr)}`).set(record);return 'cloud';}
       catch(e){console.error('Store.upsert (Firebase)',e);}
     }
-    const hist=JSON.parse(localStorage.getItem('cashHistory')||'[]').filter(d=>d.date!==dateStr);
-    hist.push(record);
-    localStorage.setItem('cashHistory',JSON.stringify(hist));
+    return 'local';
   },
   async remove(dateStr){
+    try{
+      const hist=JSON.parse(localStorage.getItem('cashHistory')||'[]').filter(d=>d.date!==dateStr);
+      localStorage.setItem('cashHistory',JSON.stringify(hist));
+    }catch(_){ }
     if(fbOk&&db){
-      try{await db.ref(`${RTDB_NODE}/${labelToRtdbKey(dateStr)}`).remove();return;}
+      try{await db.ref(`${RTDB_NODE}/${labelToRtdbKey(dateStr)}`).remove();}
       catch(e){console.error('Store.remove (Firebase)',e);}
     }
-    const hist=JSON.parse(localStorage.getItem('cashHistory')||'[]').filter(d=>d.date!==dateStr);
-    localStorage.setItem('cashHistory',JSON.stringify(hist));
   },
   // ── dataset bruto completo por dia (alimenta o dashboard inteiro) ──
   async saveRaw(dateStr,raw){
+    await whenAuthReady();
     const key=labelToRtdbKey(dateStr);
-    if(fbOk&&db){ try{await db.ref(`${RTDB_DATA}/${key}`).set(raw);return;}catch(e){console.error('Store.saveRaw',e);} }
-    const all=JSON.parse(localStorage.getItem('cashData')||'{}'); all[key]=raw; localStorage.setItem('cashData',JSON.stringify(all));
+    const all=localRaws(); all[key]=raw; setLocalRaws(all);
+    if(fbOk&&db){
+      try{await db.ref(`${RTDB_DATA}/${key}`).set(fbPack(raw));return 'cloud';}
+      catch(e){console.error('Store.saveRaw (Firebase)',e);}
+    }
+    return 'local';
   },
   async listRaw(){
-    if(fbOk&&db){ try{const s=await db.ref(RTDB_DATA).once('value');return s.val()||{};}catch(e){console.error('Store.listRaw',e);} }
-    return JSON.parse(localStorage.getItem('cashData')||'{}');
+    await whenAuthReady();
+    let fb=null;
+    if(fbOk&&db){
+      try{fb=fbUnpack((await db.ref(RTDB_DATA).once('value')).val()||{});}
+      catch(e){console.error('Store.listRaw (Firebase)',e);}
+    }
+    const local=localRaws();
+    const merged={...local,...(fb||{})};
+    // re-sync: dias presos só no localStorage sobem pro Firebase em background
+    if(fb!==null&&fbOk&&db){
+      Object.keys(local).filter(k=>!(k in fb)).forEach(k=>{
+        db.ref(`${RTDB_DATA}/${k}`).set(fbPack(local[k]))
+          .then(()=>console.info('Store.listRaw: dia re-sincronizado →',k))
+          .catch(e=>console.error('Store.listRaw re-sync',k,e));
+      });
+    }
+    const out={};
+    Object.entries(merged).forEach(([k,v])=>{const h=hydrateRaw(v);if(h)out[k]=h;});
+    return out;
   },
   async removeRaw(dateStr){
     const key=labelToRtdbKey(dateStr);
-    if(fbOk&&db){ try{await db.ref(`${RTDB_DATA}/${key}`).remove();return;}catch(e){console.error('Store.removeRaw',e);} }
-    const all=JSON.parse(localStorage.getItem('cashData')||'{}'); delete all[key]; localStorage.setItem('cashData',JSON.stringify(all));
+    const all=localRaws(); delete all[key]; setLocalRaws(all);
+    if(fbOk&&db){
+      try{await db.ref(`${RTDB_DATA}/${key}`).remove();}
+      catch(e){console.error('Store.removeRaw (Firebase)',e);}
+    }
   }
 };
 
@@ -2368,14 +2568,17 @@ function buildEventos(){
 }
 
 // ══════════════════════════════ APLICAÇÃO / SELETOR DE DIA
+// Cada painel roda isolado: se um quebrar num dia atípico (poucas sessões,
+// turno vazio…), os outros continuam renderizando em vez de travar tudo.
+function safeBuild(fn){try{fn();}catch(e){console.error('render '+(fn.name||'?'),e);}}
 function renderAll(){
-  renderShiftStats();
-  buildTimeline();buildHrChart();buildLifecycle();buildModal();buildOpDiv();buildTop10();buildRecs();
-  buildBestSlots();buildShiftFee();buildForecast();buildConcurrent();buildOpShiftTable();buildShiftRecs();
-  buildTierCharts();buildConc();buildHuMulti();buildJP();buildFPP();
-  buildRooms();buildRR();buildBlindBars();buildBubble();
-  buildRet();buildDurFee();buildHM();buildHist();
-  buildResumo();buildEventos();
+  [renderShiftStats,
+   buildTimeline,buildHrChart,buildLifecycle,buildModal,buildOpDiv,buildTop10,buildRecs,
+   buildBestSlots,buildShiftFee,buildForecast,buildConcurrent,buildOpShiftTable,buildShiftRecs,
+   buildTierCharts,buildConc,buildHuMulti,buildJP,buildFPP,
+   buildRooms,buildRR,buildBlindBars,buildBubble,
+   buildRet,buildDurFee,buildHM,buildHist,
+   buildResumo,buildEventos].forEach(safeBuild);
 }
 function applyDataset(ds){
   // destrói os gráficos antigos antes de repintar (Chart.js recusa recriar sobre canvas em uso)
@@ -2437,11 +2640,15 @@ async function handleUpload(input){
     const summary=summaryFromKpi(ds.kpi);
     const saved=await upsertWithDuplicateCheck(label,summary);
     if(!saved)return;
-    await Store.saveRaw(label,raw);
+    const where=await Store.saveRaw(label,raw);
     setBtnLoading(lbl,true,'Montando dashboard…');
     await refreshDaySelector(labelToRtdbKey(label));
     applyDataset(ds);
-    alert(`${fl.name} importado.\n\n${label}: ${ds.kpi.sessions} sessões cash · R$ ${f(ds.kpi.feeGross,0)} fee bruto.\n\nO dashboard agora mostra este dia.`);
+    await buildHist();
+    const aviso=where==='local'
+      ?'\n\n⚠ ATENÇÃO: não consegui gravar no Firebase (offline/erro). O dia ficou salvo só neste navegador e será re-sincronizado automaticamente na próxima leitura com conexão.'
+      :'';
+    alert(`${fl.name} importado.\n\n${label}: ${ds.kpi.sessions} sessões cash · R$ ${f(ds.kpi.feeGross,0)} fee bruto.\n\nO dashboard agora mostra este dia.${aviso}`);
   }catch(err){
     alert('Erro ao ler o arquivo: '+err.message);
   }finally{
@@ -2494,20 +2701,20 @@ async function confirmarSemana(){
   if(btn){btn.disabled=true;btn.style.opacity='.6';}
   status.innerHTML=`${ic('spinner',1)} Gravando…`;
   const keys=Object.keys(_weekRowsByDate).sort();
-  let lastLabel=null;
+  let localOnly=0;
   for(const k of keys){
     const rs=_weekRowsByDate[k];
     const label=dateLabel(rs[0].startTime);
     const raw=computeRaw(rs,label);
     if(!raw.n)continue; // dia só com torneios/SNG: sem dados cash
     await Store.upsert(label,summaryFromKpi(finalizeDataset(raw,label).kpi));
-    await Store.saveRaw(label,raw);
-    lastLabel=label;
+    if(await Store.saveRaw(label,raw)==='local')localOnly++;
   }
   await buildHist();
   await refreshDaySelector('__all__');
   await onDaySel('__all__');
-  status.innerHTML=`${ic('check-circle',1)} ${keys.length} dia(s) gravados · dashboard mostrando "Todos os dias".`;
+  status.innerHTML=`${ic('check-circle',1)} ${keys.length} dia(s) gravados · dashboard mostrando "Todos os dias".`
+    +(localOnly?` <span class="tag to">${ic('warning')} ${localOnly} dia(s) só neste navegador — Firebase indisponível, re-sync automático depois.</span>`:'');
   if(btn){btn.disabled=false;btn.style.opacity='';}
   _weekRowsByDate=null;
 }
@@ -2566,7 +2773,7 @@ function buildForecast(){
   const ctx2=document.getElementById('cFcStake');if(!ctx2)return;
   new Chart(ctx2,{type:'doughnut',
     data:{labels:['VHigh (BB>5)','High (BB 1-5)','Mid (BB 0.2-1)','Low (BB<0.2)','Micro'],
-      datasets:[{data:[D.tiers[4].fee,D.tiers[3].fee,D.tiers[2].fee,D.tiers[1].fee,D.tiers[0].fee],backgroundColor:['#d4a853','#fbbf24','#4f8ef7','#a78bfa',CMUTE],borderWidth:0,hoverOffset:8}]},
+      datasets:[{data:['VHigh','High','Mid','Low','Micro'].map(t=>(D.tiers.find(x=>x.tier===t)||{}).fee||0),backgroundColor:['#d4a853','#fbbf24','#4f8ef7','#a78bfa',CMUTE],borderWidth:0,hoverOffset:8}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
       plugins:{legend:{position:'right',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:8}},
         tooltip:{...CTOP,callbacks:{label:c=>` R$ ${f(c.parsed,0)} (${(c.parsed/KPI_DEMO.feeGross*100).toFixed(1)}%)`}}}
@@ -2646,8 +2853,9 @@ function buildForecast(){
   }
   const deadGain10=lostFeeDelta(10), deadGain20=lostFeeDelta(20);
   const jpMonthly=KPI_DEMO.jackpot*30;
-  const micro=D.tiers.find(t=>t.tier==='Micro'), high=D.tiers.find(t=>t.tier==='High'), vhigh2=D.tiers.find(t=>t.tier==='VHigh');
-  const fphMult=high.avg_fph/micro.avg_fph;
+  const _tb=t=>D.tiers.find(x=>x.tier===t)||{tier:t,fee:0,avg_fph:0,tables:0};
+  const micro=_tb('Micro'), high=_tb('High'), vhigh2=_tb('VHigh');
+  const fphMult=micro.avg_fph?high.avg_fph/micro.avg_fph:0;
   const mixDaily=(D.gametypes.reduce((a,g)=>a+g.hands,0)*0.05)*(high.avg_fph-micro.avg_fph);
   const yearAgg=aggDay*365, yearBase=baseDay*365;
   const yearDelta=yearAgg-yearBase, yearGainPct=(yearAgg/yearBase-1)*100;
@@ -2747,8 +2955,8 @@ function buildResumo(){
   set('rsSub',`${f(KPI_DEMO.sessions)} sessões · R$ ${f(KPI_DEMO.feeGross,0)} bruto · take rate ${f(KPI_DEMO.takeRate,2)}% · Turno ${melhorTurno} lidera em fee/mesa · ${f(KPI_DEMO.deadPct,1)}% de mesas mortas é o maior vazamento.`);
 
   // ── KPIs essenciais (reaproveita os cards .kpi)
-  const topRoom=[...D.rooms].sort((a,b)=>b.fee-a.fee)[0];
-  const topTier=[...D.tiers].sort((a,b)=>b.fee-a.fee)[0];
+  const topRoom=[...D.rooms].sort((a,b)=>b.fee-a.fee)[0]||{name:'—',fee:0,tables:0,rake_rate:0};
+  const topTier=[...D.tiers].sort((a,b)=>b.fee-a.fee)[0]||{tier:'—',fee:0,tables:0,avg_fph:0};
   const kpis=[
     {cls:'hero',l:'Fee bruto do dia',v:'R$ '+f(KPI_DEMO.feeGross,0),s:'líquido R$ '+f(KPI_DEMO.feeNet,0)+' após JP'},
     {cls:'c-dia',l:'Turno Dia (07–19h)',v:'R$ '+f(g.dia.fee,0),s:f(pctD,1)+'% do rake · '+f(g.dia.tables)+' mesas'},
@@ -2803,7 +3011,9 @@ function buildResumo(){
   if(rrel)rrel.innerHTML=risks.map(r=>`<div class="rs-line"><div class="rs-ic dn">${ic(r.ic,1)}</div><div class="rs-tx"><div class="rs-tt">${r.tt}</div><div class="rs-sb">${r.sb}</div></div><div class="rs-vl dn">${r.vl}</div></div>`).join('');
 
   // ── Análise inteligente priorizada (cards) — a ação do dia
-  const micro=D.tiers[0], high=D.tiers[3], vhigh=D.tiers[4];
+  // Busca por NOME do tier (dia pequeno pode não ter todos os 5 buckets)
+  const tierBy=t=>D.tiers.find(x=>x.tier===t)||{tier:t,fee:0,avg_fph:0};
+  const micro=tierBy('Micro'), high=tierBy('High'), vhigh=tierBy('VHigh');
   const fphMult=high.avg_fph/(micro.avg_fph||1);
   const intel=[
     {type:'gold',icon:ic('crown',1),tag:'Prioridade 1',
@@ -2840,9 +3050,222 @@ function startApp(){
 }
 enterFromHubSession();
 
-/* pausa as animações quando a janela sai de foco / fica oculta (fluidez p/ os outros apps) */
+// ══════════════════════════════ MODO TV (telão)
+// Overlay fullscreen com CENAS em rotação automática sobre o dataset ATIVO
+// (o dia do seletor, inclusive "Todos os dias"). Dados re-sincronizam do
+// Firebase a cada 5 min — a TV nunca fica estática nem desatualizada.
+const TV={on:false,scene:0,rot:null,clock:null,chart:null,refresh:null,dur:14000};
+const TV_RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function tvEl(){
+  let el=document.getElementById('tvMode');
+  if(el)return el;
+  el=document.createElement('div');el.id='tvMode';
+  el.innerHTML=`
+    <div class="tv-bg"><div class="tv-blob b1"></div><div class="tv-blob b2"></div><div class="tv-spade">♠</div></div>
+    <header class="tv-top">
+      <div class="tv-brand"><span class="tv-ico">♠</span> Suprema Cash</div>
+      <div class="tv-live"><span class="pulse dia"></span> AO VIVO</div>
+      <div class="tv-date" id="tvDate"></div>
+      <div class="tv-clock" id="tvClock">--:--:--</div>
+    </header>
+    <div class="tv-dots" id="tvDots"></div>
+    <button class="tv-exit" onclick="tvExit()">✕ sair (Esc)</button>
+    <main class="tv-stage"><div class="tv-scene" id="tvScene"></div></main>
+    <div class="tv-progress"><div id="tvProg"></div></div>
+    <footer class="tv-ticker"><div class="tv-ticker-in" id="tvTicker"></div></footer>`;
+  document.body.appendChild(el);
+  return el;
+}
+// count-up easeOutExpo — em reduced-motion escreve o valor final direto
+function tvCount(el,val,dec,prefix,suffix){
+  if(!el)return; prefix=prefix||''; suffix=suffix||'';
+  if(TV_RM){el.innerHTML=prefix+f(val,dec)+suffix;return;}
+  // setTimeout (não rAF): rAF é estrangulado em janela sem foco — cenário
+  // padrão do telão — e congelava o count-up no zero
+  const t0=performance.now(),DUR=1300;
+  (function step(){
+    const p=Math.min(1,(performance.now()-t0)/DUR), e=1-Math.pow(2,-10*p);
+    el.innerHTML=prefix+f(val*e,dec)+suffix;
+    if(p<1&&TV.on)setTimeout(step,24); else el.innerHTML=prefix+f(val,dec)+suffix;
+  })();
+  // garantia: mesmo com timers estrangulados (janela oculta), o valor final entra
+  setTimeout(()=>{if(el.isConnected)el.innerHTML=prefix+f(val,dec)+suffix;},DUR+150);
+}
+const tvStat=(l,v,s,cls,id)=>`<div class="tv-stat"><div class="l">${l}</div><div class="v ${cls||''}" ${id?`id="${id}"`:''}>${v}</div><div class="s">${s}</div></div>`;
+// ── cenas (só entram as que têm dados no dia carregado) ──
+function tvSceneList(){
+  const K=KPI_DEMO,list=[];
+  list.push({name:'Resumo',html(){return`
+    <div class="tv-kicker">Resumo do dia · ${K.date}</div>
+    <div class="tv-h">Fee bruto da operação cash</div>
+    <div class="tv-hero-num" id="tvHeroFee"><span class="cur">R$</span>0</div>
+    <div class="tv-hero-sub">líquido <b>R$ ${f(K.feeNet,0)}</b> após jackpot · take rate <b>${f(K.takeRate,2)}%</b></div>
+    <div class="tv-row">
+      ${tvStat('Sessões','0','mesas abertas no dia','','tvcSess')}
+      ${tvStat('Jogadores','0','entradas somadas','','tvcPlayers')}
+      ${tvStat('Buyin total','0','R$ em jogo','gold','tvcBuyin')}
+      ${tvStat('Mesas mortas',f(K.deadPct,1)+'%',f(K.deadTables)+' sem retenção',K.deadPct>25?'r':'g')}
+      ${tvStat('Fee/mão','R$ '+f(K.feePerHand,2),'eficiência por mão','dia')}
+    </div>`;},run(){
+    tvCount(document.getElementById('tvHeroFee'),K.feeGross,0,'<span class="cur">R$</span>');
+    tvCount(document.getElementById('tvcSess'),K.sessions,0);
+    tvCount(document.getElementById('tvcPlayers'),K.playersTotal,0);
+    tvCount(document.getElementById('tvcBuyin'),K.buyinTotal,0,'R$ ');
+  }});
+  if(K.tablesDia>0||K.tablesNoite>0){
+    const fpmD=K.tablesDia?K.feeDia/K.tablesDia:0, fpmN=K.tablesNoite?K.feeNoite/K.tablesNoite:0;
+    list.push({name:'Turnos',html(){return`
+      <div class="tv-kicker">Divisão de turnos · 07h—19h—07h</div>
+      <div class="tv-h">${fpmN>=fpmD?'Noite':'Dia'} lidera em eficiência por mesa</div>
+      <div class="tv-duel">
+        <div>
+          ${tvStat('☀ Turno Dia','0',f(K.tablesDia)+' mesas · '+f(K.feeDiaPct,1)+'% do rake','dia','tvcFeeD')}
+          <div class="tv-hero-sub" style="margin-top:14px">R$ <b>${f(fpmD,1)}</b> por mesa · ${f(K.deadDia)} mortas</div>
+        </div>
+        <div>
+          ${tvStat('☾ Turno Noite','0',f(K.tablesNoite)+' mesas · '+f(K.feeNoitePct,1)+'% do rake','noite','tvcFeeN')}
+          <div class="tv-hero-sub" style="margin-top:14px">R$ <b>${f(fpmN,1)}</b> por mesa · ${f(K.deadNoite)} mortas</div>
+        </div>
+      </div>
+      <div class="tv-share"><div style="width:${f(K.feeDiaPct,1)}%;background:linear-gradient(90deg,#4f8ef7,#6ba3f8)"></div></div>
+      <div class="tv-hero-sub" style="margin-top:10px">${f(K.crossShift)} sessões cruzam a virada de turno (${f(K.crossShiftPct,1)}%)</div>`;},run(){
+      tvCount(document.getElementById('tvcFeeD'),K.feeDia,0,'R$ ');
+      tvCount(document.getElementById('tvcFeeN'),K.feeNoite,0,'R$ ');
+    }});
+  }
+  if(D.slots30&&D.slots30.some(s=>s.fee>0)){
+    list.push({name:'Ritmo',html(){return`
+      <div class="tv-kicker">Ritmo do dia · fee por janela de 30 minutos</div>
+      <div class="tv-h">Pico às <span style="color:var(--tv-gold)">${K.bestSlot||'—'}</span> · ${K.peakConcurrent} mesas simultâneas no auge (${K.peakHour})</div>
+      <div class="tv-chartwrap"><canvas id="tvChart"></canvas></div>`;},run(){
+      const ctx=document.getElementById('tvChart');if(!ctx)return;
+      if(TV.chart){try{TV.chart.destroy()}catch(_){}TV.chart=null;}
+      TV.chart=new Chart(ctx,{type:'bar',
+        data:{labels:D.slots30.map(s=>s.slot),datasets:[{data:D.slots30.map(s=>s.fee),
+          backgroundColor:D.slots30.map(s=>s.turno==='dia'?'rgba(79,142,247,.85)':'rgba(167,139,250,.85)'),borderRadius:5,borderSkipped:false}]},
+        options:{responsive:true,maintainAspectRatio:false,animation:TV_RM?false:{duration:1100,easing:'easeOutQuart'},
+          plugins:{legend:{display:false},tooltip:{enabled:false}},
+          scales:{x:{grid:{display:false},ticks:{font:{size:15,weight:700},color:'#6a706a',maxTicksLimit:12},border:{display:false}},
+                  y:{grid:{color:'rgba(242,237,226,.06)'},ticks:{font:{size:15,weight:700},color:'#6a706a',callback:v=>'R$ '+fK(v)},border:{display:false}}}}});
+    }});
+  }
+  if(D.tiers&&D.tiers.length){
+    const mx=Math.max(...D.tiers.map(t=>t.fee),1);
+    const tc={Micro:'#5a5f5a',Low:'#a78bfa',Mid:'#4f8ef7',High:'#fbbf24',VHigh:'#d8b56d'};
+    list.push({name:'Stakes',html(){return`
+      <div class="tv-kicker">Stakes · rake por faixa de blind</div>
+      <div class="tv-h">Onde o dinheiro está hoje</div>
+      <div class="tv-bars">${D.tiers.slice().sort((a,b)=>b.fee-a.fee).map((t,i)=>`
+        <div class="tv-bar" style="transition-delay:${i*90}ms">
+          <div class="n">${t.tier}<small>${f(t.tables)} mesas · ret ${f(t.ret_pct,0)}%</small></div>
+          <div class="track"><div class="fill" style="width:${t.fee/mx*100}%;background:${tc[t.tier]||'#4f8ef7'};transition-delay:${.25+i*.09}s"></div></div>
+          <div class="val">R$ ${f(t.fee,0)}<small>${f(t.fee/(KPI_DEMO.feeGross||1)*100,0)}%</small></div>
+        </div>`).join('')}</div>`;},run(){}});
+  }
+  if(D.top10&&D.top10.length){
+    const top=D.top10.slice(0,6),mx=Math.max(...top.map(t=>t.fee),1);
+    list.push({name:'Top mesas',html(){return`
+      <div class="tv-kicker">As mesas que pagam o dia</div>
+      <div class="tv-h">Top ${top.length} em rake gerado</div>
+      <div class="tv-bars">${top.map((t,i)=>`
+        <div class="tv-bar" style="transition-delay:${i*90}ms">
+          <div class="n">${t.name}<small>${t.type} · ${t.players} players · ${f(t.dur,1)}h</small></div>
+          <div class="track"><div class="fill" style="width:${t.fee/mx*100}%;background:linear-gradient(90deg,#d8b56d,#fbbf24);transition-delay:${.25+i*.09}s"></div></div>
+          <div class="val">R$ ${f(t.fee,0)}</div>
+        </div>`).join('')}</div>`;},run(){}});
+  }
+  if(D.events&&D.events.total&&D.events.total.n){
+    const ev=D.events,tot=KPI_DEMO.feeGross+ev.total.fee;
+    list.push({name:'Eventos',html(){return`
+      <div class="tv-kicker">Eventos · torneios [LIVE] e [HG]</div>
+      <div class="tv-h">Operação combinada: cash + eventos</div>
+      <div class="tv-hero-num" style="font-size:clamp(64px,9vw,150px)" id="tvcEvTot"><span class="cur">R$</span>0</div>
+      <div class="tv-hero-sub">fee total da operação · eventos são <b>${f(tot?ev.total.fee/tot*100:0,1)}%</b></div>
+      <div class="tv-row">
+        ${tvStat('[LIVE] ao vivo','R$ '+f(ev.live.fee,0),f(ev.live.n)+' torneios · '+f(ev.live.players)+' entradas','dia')}
+        ${tvStat('[HG] home games','R$ '+f(ev.hg.fee,0),f(ev.hg.n)+' torneios · '+f(ev.hg.players)+' entradas','gold')}
+        ${tvStat('Cash','R$ '+f(KPI_DEMO.feeGross,0),f(KPI_DEMO.sessions)+' sessões','green')}
+      </div>`;},run(){
+      tvCount(document.getElementById('tvcEvTot'),tot,0,'<span class="cur">R$</span>');
+    }});
+  }
+  return list;
+}
+function tvTickerFill(){
+  const el=document.getElementById('tvTicker');if(!el)return;
+  let items=[];
+  try{items=computeOverviewRecs().map(r=>r.t);}catch(_){ }
+  const K=KPI_DEMO;
+  items.push(`Fee bruto R$ ${f(K.feeGross,0)} · líquido R$ ${f(K.feeNet,0)}`,
+    `Top 1% das mesas = ${f(K.conc1pct,1)}% do rake`,
+    `${f(K.sessions)} sessões · ${f(K.playersTotal)} jogadores · take rate ${f(K.takeRate,2)}%`);
+  const seq=items.map(t=>`<span>${t}</span>`).join('<span class="sep">♠</span>');
+  el.innerHTML=seq+'<span class="sep">♠</span>'+seq; // duplicado p/ loop contínuo
+}
+function tvShow(i){
+  const scenes=tvSceneList(); if(!scenes.length)return;
+  TV.scene=((i%scenes.length)+scenes.length)%scenes.length;
+  const sc=scenes[TV.scene], el=document.getElementById('tvScene');
+  const dots=document.getElementById('tvDots');
+  if(dots)dots.innerHTML=scenes.map((s,k)=>`<span class="${k===TV.scene?'on':''}" title="${s.name}"></span>`).join('');
+  if(TV.chart){try{TV.chart.destroy()}catch(_){}TV.chart=null;}
+  el.classList.remove('in');el.classList.add('out');
+  setTimeout(()=>{
+    if(!TV.on)return;
+    el.innerHTML=sc.html();
+    el.classList.remove('out');
+    void el.offsetWidth; // força reflow p/ a transição disparar
+    setTimeout(()=>{if(TV.on){el.classList.add('in');sc.run();}},30);
+    const pr=document.getElementById('tvProg');
+    if(pr){pr.classList.remove('run');void pr.offsetWidth;pr.style.setProperty('--tv-dur',TV.dur+'ms');pr.classList.add('run');}
+  },TV_RM?60:320);
+  clearTimeout(TV.rot);
+  TV.rot=setTimeout(()=>{if(TV.on)tvShow(TV.scene+1);},TV.dur);
+}
+function tvEnter(){
+  if(TV.on)return;
+  tvEl(); TV.on=true;
+  document.body.classList.add('tv-on');
+  document.body.classList.remove('win-blurred');
+  const dEl=document.getElementById('tvDate'); if(dEl)dEl.textContent=KPI_DEMO.date||'';
+  const tick=()=>{const c=document.getElementById('tvClock');if(c)c.textContent=new Date().toLocaleTimeString('pt-BR');};
+  tick(); TV.clock=setInterval(tick,1000);
+  tvTickerFill(); tvShow(0);
+  try{document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().catch(()=>{});}catch(_){ }
+  // re-sincroniza o dataset a cada 5 min (novos imports aparecem sozinhos no telão)
+  TV.refresh=setInterval(async()=>{
+    try{
+      const sel=document.getElementById('daySel');
+      if(sel&&sel.value!=='__demo__'){await onDaySel(sel.value);}
+      if(TV.on){const d2=document.getElementById('tvDate');if(d2)d2.textContent=KPI_DEMO.date||'';tvTickerFill();tvShow(TV.scene);}
+    }catch(e){console.error('tv refresh',e);}
+  },5*60*1000);
+  if(location.hash!=='#tv')try{history.replaceState(null,'','#tv');}catch(_){ }
+}
+function tvExit(){
+  if(!TV.on)return;
+  TV.on=false;
+  clearTimeout(TV.rot);clearInterval(TV.clock);clearInterval(TV.refresh);
+  if(TV.chart){try{TV.chart.destroy()}catch(_){}TV.chart=null;}
+  document.body.classList.remove('tv-on');
+  try{document.fullscreenElement&&document.exitFullscreen().catch(()=>{});}catch(_){ }
+  if(location.hash==='#tv')try{history.replaceState(null,'',location.pathname);}catch(_){ }
+}
+addEventListener('keydown',e=>{
+  if(!TV.on)return;
+  if(e.key==='Escape')tvExit();
+  else if(e.key==='ArrowRight')tvShow(TV.scene+1);
+  else if(e.key==='ArrowLeft')tvShow(TV.scene-1);
+});
+// telão dedicado: abrir dashboard-mesa-cash.html#tv já entra direto no Modo TV
+if(location.hash==='#tv'){
+  const wait=setInterval(()=>{if(_appStarted){clearInterval(wait);setTimeout(tvEnter,600);}},250);
+}
+
+/* pausa as animações quando a janela sai de foco / fica oculta (fluidez p/ os outros apps)
+   — exceto no Modo TV, que vive justamente numa janela sem foco (telão) */
 (function freezeWhenBlurred(){
-  var set = function(b){ document.body.classList.toggle('win-blurred', b); };
+  var set = function(b){ document.body.classList.toggle('win-blurred', b && !TV.on); };
   addEventListener('blur', function(){ set(true); });
   addEventListener('focus', function(){ set(false); });
   document.addEventListener('visibilitychange', function(){ set(document.hidden); });
