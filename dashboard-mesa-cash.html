@@ -43,19 +43,26 @@ SupremaMotion.glow('.card, .kpi');
 document.addEventListener('DOMContentLoaded', () => SupremaMotion.reveal('.card, .kpi'));
 </script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+/* Tipografia unificada do Suprema OS (mesma stack do hub/painel) — sem CDN,
+   funciona offline; era 'Inter' via Google Fonts, o que destoava do resto. */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0e0e11;
-  --bg2:#141418;
-  --bg3:#1a1a1f;
-  --surf:#1f1f25;
-  --surf2:#252530;
-  --bdr:rgba(255,255,255,.06);
-  --bdr2:rgba(255,255,255,.04);
-  --ink:#f0f0f5;
-  --ink2:#8888a0;
-  --ink3:#55556a;
+  --sans:"SF Pro Display",-apple-system,BlinkMacSystemFont,"Helvetica Neue","Inter",sans-serif;
+  --mono:"SF Mono","IBM Plex Mono",ui-monospace,"Roboto Mono",monospace;
+}
+:root{
+  /* superfícies alinhadas ao feltro-escuro do Suprema OS (hub/painel) — antes eram
+     um cinza-azulado frio (#0e0e11/#1f1f25) que destoava do resto do sistema */
+  --bg:#0f1110;
+  --bg2:#141614;
+  --bg3:#1a1d1a;
+  --surf:#181b19;
+  --surf2:#1f2420;
+  --bdr:rgba(242,237,226,.08);
+  --bdr2:rgba(242,237,226,.05);
+  --ink:#f2ede2;
+  --ink2:#8f9490;
+  --ink3:#5a5f5a;
   --dia:#4f8ef7;
   --dia2:rgba(79,142,247,.12);
   --noite:#a78bfa;
@@ -66,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => SupremaMotion.reveal('.card,
   --red2:rgba(248,113,113,.1);
   --amber:#fbbf24;
   --amber2:rgba(251,191,36,.1);
-  --gold:#d4a853;
+  --gold:#d8b56d;
   --r:10px;--r2:16px;--r3:20px;
   --sh:0 2px 10px rgba(0,0,0,.35),0 1px 1px rgba(0,0,0,.2);
   --sh2:0 12px 40px rgba(0,0,0,.45);
@@ -79,11 +86,11 @@ html[data-theme="light"]{
   --bg3:#e4e6ec;
   --surf:#ffffff;
   --surf2:#f1f2f6;
-  --bdr:rgba(15,15,25,.08);
-  --bdr2:rgba(15,15,25,.05);
+  --bdr:rgba(15,15,25,.1);
+  --bdr2:rgba(15,15,25,.06);
   --ink:#14141a;
-  --ink2:#54546a;
-  --ink3:#8a8a9c;
+  --ink2:#474a55;
+  --ink3:#5e626c;   /* escurecido: o #8a8a9c antigo dava ~2,8:1 no branco (ilegível) */
   --dia2:rgba(79,142,247,.1);
   --noite2:rgba(139,110,230,.12);
   --green2:rgba(16,150,105,.1);
@@ -93,9 +100,9 @@ html[data-theme="light"]{
   --sh2:0 8px 24px rgba(20,20,30,.1);
   --hdr-bg:rgba(255,255,255,.85);
 }
-:root{--hdr-bg:rgba(14,14,17,.92)}
+:root{--hdr-bg:rgba(15,17,16,.92)}
 html{font-size:13px;-webkit-font-smoothing:antialiased;color-scheme:dark}
-body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;line-height:1.4}
+body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:100vh;line-height:1.4;-webkit-font-smoothing:antialiased}
 a,button{font-family:inherit;cursor:pointer;text-decoration:none;color:inherit;border:none;background:none}
 ::-webkit-scrollbar{width:3px;height:3px}
 ::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:2px}
@@ -348,6 +355,27 @@ table.t td.m{color:var(--ink2)}
 .theme-toggle{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;color:var(--ink3);transition:color .12s,background .12s;flex-shrink:0}
 .theme-toggle:hover{color:var(--ink);background:var(--bdr)}
 
+/* ── RESUMO EXECUTIVO ── */
+.rs-range{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:12px}
+@media(max-width:820px){.rs-range{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:420px){.rs-range{grid-template-columns:1fr}}
+.rs-scen{border:1px solid var(--bdr);border-radius:13px;padding:13px 14px;position:relative;overflow:hidden;background:var(--surf2)}
+.rs-scen::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--sc,var(--ink3))}
+.rs-scen .rs-nm{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--sc,var(--ink3));margin-bottom:6px}
+.rs-scen .rs-mo{font-size:19px;font-weight:900;letter-spacing:-.04em;color:var(--ink);line-height:1}
+.rs-scen .rs-dl{font-size:9px;color:var(--ink3);margin-top:4px}
+.rs-line{display:flex;gap:11px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--bdr2)}
+.rs-line:last-child{border-bottom:0}
+.rs-line .rs-ic{width:30px;height:30px;flex:none;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px}
+.rs-line .rs-ic.up{background:rgba(212,168,83,.12);color:var(--gold)}
+.rs-line .rs-ic.dn{background:var(--red2);color:var(--red)}
+.rs-line .rs-tx{min-width:0;flex:1}
+.rs-line .rs-tt{font-size:11px;font-weight:800;color:var(--ink);letter-spacing:-.01em;line-height:1.3}
+.rs-line .rs-sb{font-size:10px;color:var(--ink3);line-height:1.5;margin-top:2px}
+.rs-line .rs-vl{font-size:13px;font-weight:900;letter-spacing:-.03em;flex:none;text-align:right}
+.rs-line .rs-vl.up{color:var(--gold)}
+.rs-line .rs-vl.dn{color:var(--red)}
+
 /* ── INTEL CARDS (shift recs) ── */
 .intel-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 @media(max-width:1100px){.intel-grid{grid-template-columns:repeat(2,1fr)}}
@@ -446,7 +474,8 @@ table.t td.m{color:var(--ink2)}
   </div>
   <div class="brand-sep"></div>
   <nav class="nav">
-    <button class="nt on" onclick="pg('dash',this)">Overview</button>
+    <button class="nt on" onclick="pg('resumo',this)">Resumo</button>
+    <button class="nt" onclick="pg('dash',this)">Overview</button>
     <button class="nt" onclick="pg('turnos',this)">Turnos</button>
     <button class="nt" onclick="pg('stakes',this)">Stakes</button>
     <button class="nt" onclick="pg('salas',this)">Salas</button>
@@ -475,12 +504,49 @@ table.t td.m{color:var(--ink2)}
 
 <div class="wrap">
 
+<!-- ═══════════════ RESUMO EXECUTIVO ═══ -->
+<div id="pg-resumo" class="pg on">
+  <div class="pgh">
+    <div class="pgh-label"><i class="ph-fill ph-spade"></i> Resumo Executivo · <span id="rsDate">22/06/2026</span></div>
+    <div class="pgh-title">O dia em uma tela</div>
+    <div class="pgh-sub" id="rsSub">As melhores informações do dia e as análises inteligentes que exigem ação — consolidadas para decisão rápida.</div>
+  </div>
+
+  <!-- FAIXA DE KPIs ESSENCIAIS -->
+  <div class="kg" id="rsKpis"></div>
+
+  <!-- FAIXA DE CENÁRIOS (inclui o pessimista) -->
+  <div class="card" style="margin:2px 0 14px">
+    <div class="ct">Amplitude de cenários — receita mensal projetada</div>
+    <div class="cs">Do downside (pessimista) ao teto (agressivo) · base linear = R$ <span id="rsBaseDay"></span>/dia</div>
+    <div class="rs-range" id="rsRange"></div>
+  </div>
+
+  <!-- DUAS COLUNAS: destaques + riscos -->
+  <div class="g2" style="margin-bottom:14px">
+    <div class="card">
+      <div class="ct"><i class="ph-fill ph-trophy" style="color:var(--gold)"></i> Onde está o dinheiro</div>
+      <div class="cs">Os focos que mais geram rake agora</div>
+      <div id="rsHighlights" style="margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <div class="ct"><i class="ph-fill ph-warning" style="color:var(--amber)"></i> Riscos e vazamentos</div>
+      <div class="cs">O que está custando receita e precisa de atenção</div>
+      <div id="rsRisks" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+  <!-- ANÁLISE INTELIGENTE PRIORIZADA -->
+  <div style="font-size:11px;font-weight:800;color:var(--ink);margin-bottom:10px;letter-spacing:-.01em">Análise inteligente — prioridades do dia</div>
+  <div class="intel-grid" id="rsIntel"></div>
+</div>
+
 <!-- ═══════════════ OVERVIEW ═══ -->
-<div id="pg-dash" class="pg on">
+<div id="pg-dash" class="pg">
   <div class="pgh">
     <div class="pgh-label"><i class="ph-fill ph-spade"></i> Suprema Cash Intelligence · 22/06/2026</div>
     <div class="pgh-title">Dashboard de Mesa Cash</div>
-    <div class="pgh-sub">2.965 sessões cash · Turno Dia R$ 641.410 (58,1%) · Turno Noite R$ 463.030 (41,9%) · 570 sessões cruzaram a virada de turno · Top 1% das mesas gera 32,6% do rake</div>
+    <div class="pgh-sub" id="ovSub">2.965 sessões cash · Turno Dia R$ 641.410 (58,1%) · Turno Noite R$ 463.030 (41,9%) · 570 sessões cruzaram a virada de turno · Top 1% das mesas gera 32,6% do rake</div>
   </div>
 
   <div class="kg">
@@ -490,14 +556,14 @@ table.t td.m{color:var(--ink2)}
       <div class="ks">Fee líquido R$ 1.013.225 após JP</div>
     </div>
     <div class="kpi c-dia">
-      <div class="kl">Turno Dia <i class="ph-fill ph-sun"></i></div>
-      <div class="kv">R$ 641.410</div>
-      <div class="ks">1.899 mesas · R$ 337,7/mesa</div>
+      <div class="kl">Turno Dia (07–19h) <i class="ph-fill ph-sun"></i></div>
+      <div class="kv" id="ovDiaFee">R$ 641.410</div>
+      <div class="ks" id="ovDiaSub">1.899 mesas · R$ 337,7/mesa</div>
     </div>
     <div class="kpi c-noite">
-      <div class="kl">Turno Noite <i class="ph-fill ph-moon-stars"></i></div>
-      <div class="kv">R$ 463.030</div>
-      <div class="ks">1.066 mesas · R$ 434,4/mesa</div>
+      <div class="kl">Turno Noite (19–07h) <i class="ph-fill ph-moon-stars"></i></div>
+      <div class="kv" id="ovNoiteFee">R$ 463.030</div>
+      <div class="ks" id="ovNoiteSub">1.066 mesas · R$ 434,4/mesa</div>
     </div>
     <div class="kpi c-green">
       <div class="kl">Buyin total</div>
@@ -508,7 +574,7 @@ table.t td.m{color:var(--ink2)}
       <div class="kb a">24,5%</div>
       <div class="kl">Mesas mortas</div>
       <div class="kv">726</div>
-      <div class="ks">463 Dia · 263 Noite</div>
+      <div class="ks" id="ovDeadSub">463 Dia · 263 Noite</div>
     </div>
     <div class="kpi c-gold">
       <div class="kb b">VIP</div>
@@ -555,8 +621,8 @@ table.t td.m{color:var(--ink2)}
     <div class="cs">Cada segmento = 30 min · intensidade = fee gerado · azul = Turno Dia · roxo = Turno Noite · hover para detalhes</div>
     <div class="tl-wrap" id="timeline"></div>
     <div class="tl-legend">
-      <span class="tl-li"><span class="tl-dot" style="background:var(--dia)"></span>Turno Dia (08–20h)</span>
-      <span class="tl-li"><span class="tl-dot" style="background:var(--noite)"></span>Turno Noite (20–08h)</span>
+      <span class="tl-li"><span class="tl-dot" style="background:var(--dia)"></span>Turno Dia (07–19h)</span>
+      <span class="tl-li"><span class="tl-dot" style="background:var(--noite)"></span>Turno Noite (19–07h)</span>
       <span class="tl-li"><span class="tl-dot" style="background:rgba(255,255,255,.06)"></span>Sem atividade</span>
     </div>
   </div>
@@ -612,7 +678,7 @@ table.t td.m{color:var(--ink2)}
   <div class="pgh">
     <div class="pgh-label"><i class="ph ph-circle-half"></i> Análise de Turnos</div>
     <div class="pgh-title">Turno Dia vs Turno Noite</div>
-    <div class="pgh-sub">Brian 08h–20h · Noturno 20h–08h · O Turno Noite tem fee/mesa 28% superior apesar de 44% menos sessões abertas</div>
+    <div class="pgh-sub" id="turnosSub">Dia 07h–19h · Noturno 19h–07h · comparativo de rake, eficiência e ociosidade por turno</div>
   </div>
 
   <div class="shift-pair">
@@ -621,18 +687,17 @@ table.t td.m{color:var(--ink2)}
         <div class="scard-ico dia"><i class="ph-fill ph-sun"></i></div>
         <div>
           <div class="scard-title">Turno Dia</div>
-          <div class="scard-sub">08:00 — 20:00 · Brian</div>
+          <div class="scard-sub">07:00 — 19:00 · Dia</div>
         </div>
       </div>
-      <div class="scard-big dia">R$ 641.410</div>
-      <div class="sr"><span class="sr-l">Sessões abertas</span><span class="sr-v">1.899</span></div>
-      <div class="sr"><span class="sr-l">Jogadores</span><span class="sr-v">24.407</span></div>
-      <div class="sr"><span class="sr-l">Mãos jogadas</span><span class="sr-v">187.745</span></div>
-      <div class="sr"><span class="sr-l">Mesas mortas</span><span class="sr-v a">463 (24,4%)</span></div>
-      <div class="sr"><span class="sr-l">Fee por mão</span><span class="sr-v b">R$ 3,415</span></div>
-      <div class="sr"><span class="sr-l">Fee por mesa</span><span class="sr-v b">R$ 338,0</span></div>
-      <div class="sr"><span class="sr-l">Duração média</span><span class="sr-v">2h 58m</span></div>
-      <div class="sr"><span class="sr-l">Participação no rake</span><span class="sr-v">58,1%</span></div>
+      <div class="scard-big dia" id="sDiaFee">R$ 641.410</div>
+      <div class="sr"><span class="sr-l">Sessões abertas</span><span class="sr-v" id="sDiaTables">1.899</span></div>
+      <div class="sr"><span class="sr-l">Jogadores</span><span class="sr-v" id="sDiaPlayers">24.407</span></div>
+      <div class="sr"><span class="sr-l">Mãos jogadas</span><span class="sr-v" id="sDiaHands">187.745</span></div>
+      <div class="sr"><span class="sr-l">Mesas mortas</span><span class="sr-v a" id="sDiaDead">463 (24,4%)</span></div>
+      <div class="sr"><span class="sr-l">Fee por mão</span><span class="sr-v b" id="sDiaFph">R$ 3,415</span></div>
+      <div class="sr"><span class="sr-l">Fee por mesa</span><span class="sr-v b" id="sDiaFpm">R$ 338,0</span></div>
+      <div class="sr"><span class="sr-l">Participação no rake</span><span class="sr-v" id="sDiaPct">58,1%</span></div>
       <div style="margin-top:12px;font-size:9px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px">Melhores slots (30min)</div>
       <div id="diaBestSlots"></div>
     </div>
@@ -641,18 +706,17 @@ table.t td.m{color:var(--ink2)}
         <div class="scard-ico noite"><i class="ph-fill ph-moon-stars"></i></div>
         <div>
           <div class="scard-title">Turno Noite</div>
-          <div class="scard-sub">20:00 — 08:00 · Noturno</div>
+          <div class="scard-sub">19:00 — 07:00 · Noturno</div>
         </div>
       </div>
-      <div class="scard-big noite">R$ 463.030</div>
-      <div class="sr"><span class="sr-l">Sessões abertas</span><span class="sr-v">1.066</span></div>
-      <div class="sr"><span class="sr-l">Jogadores</span><span class="sr-v">13.370</span></div>
-      <div class="sr"><span class="sr-l">Mãos jogadas</span><span class="sr-v">102.309</span></div>
-      <div class="sr"><span class="sr-l">Mesas mortas</span><span class="sr-v a">263 (24,7%)</span></div>
-      <div class="sr"><span class="sr-l">Fee por mão</span><span class="sr-v g">R$ 4,525</span></div>
-      <div class="sr"><span class="sr-l">Fee por mesa</span><span class="sr-v g">R$ 434,5</span></div>
-      <div class="sr"><span class="sr-l">Duração média</span><span class="sr-v">2h 53m</span></div>
-      <div class="sr"><span class="sr-l">Participação no rake</span><span class="sr-v">41,9%</span></div>
+      <div class="scard-big noite" id="sNoiteFee">R$ 463.030</div>
+      <div class="sr"><span class="sr-l">Sessões abertas</span><span class="sr-v" id="sNoiteTables">1.066</span></div>
+      <div class="sr"><span class="sr-l">Jogadores</span><span class="sr-v" id="sNoitePlayers">13.370</span></div>
+      <div class="sr"><span class="sr-l">Mãos jogadas</span><span class="sr-v" id="sNoiteHands">102.309</span></div>
+      <div class="sr"><span class="sr-l">Mesas mortas</span><span class="sr-v a" id="sNoiteDead">263 (24,7%)</span></div>
+      <div class="sr"><span class="sr-l">Fee por mão</span><span class="sr-v g" id="sNoiteFph">R$ 4,525</span></div>
+      <div class="sr"><span class="sr-l">Fee por mesa</span><span class="sr-v g" id="sNoiteFpm">R$ 434,5</span></div>
+      <div class="sr"><span class="sr-l">Participação no rake</span><span class="sr-v" id="sNoitePct">41,9%</span></div>
       <div style="margin-top:12px;font-size:9px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px">Melhores slots (30min)</div>
       <div id="nBestSlots"></div>
     </div>
@@ -972,7 +1036,7 @@ table.t td.m{color:var(--ink2)}
   <div class="g2">
     <div class="card">
       <div class="ct">Curva de projeção acumulada — 12 meses</div>
-      <div class="cs">3 cenários: base linear · otimista (−20% mortas, +15% sessões) · agressivo (−30% mortas, +30% sessões)</div>
+      <div class="cs">Cenários: pessimista (+30% mortas, −18% sessões) · base linear · otimista (−20% mortas, +15% sessões) · agressivo (−30% mortas, +30% sessões)</div>
       <div class="cw" style="height:240px"><canvas id="cFcCurve" role="img" aria-label="Curva de projeção"></canvas></div>
     </div>
     <div class="card">
@@ -986,7 +1050,7 @@ table.t td.m{color:var(--ink2)}
   <div class="card" style="margin-bottom:12px">
     <div class="ct">Simulador de cenários — impacto financeiro mensal</div>
     <div class="cs">Quanto cada alavanca operacional gera de receita adicional por mês · base: R$ 1.104.440/dia</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:4px" id="scenGrid"></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:4px" id="scenGrid"></div>
   </div>
 
   <!-- ALAVANCAS + PROJEÇÃO TURNO -->
@@ -1181,14 +1245,37 @@ D.tiers.forEach(t=>{t.fee*=GU_TO_BRL;t.buyin*=GU_TO_BRL;t.avg_fph*=GU_TO_BRL;t.a
 D.fpp.forEach(x=>x.fpp*=GU_TO_BRL);
 
 // ══════════════════════════════ HELPERS
+// (shiftOf definido logo abaixo; a normalização de turnos roda após ele)
 const f=(n,d=0)=>n==null?'—':Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const fK=n=>n>=1e6?f(n/1e6,1)+'M':n>=1e3?f(n/1e3,1)+'k':f(n,0);
 const fKR=n=>'R$ '+fK(n);
-const shiftOf=h=>(h>=8&&h<20)?'dia':'noite';
+/* TURNOS operacionais: Dia 07h–19h · Noite 19h–07h. Tudo deriva desta função —
+   os slots de 30min têm o turno recalculado abaixo e os totais de turno são
+   somados a partir deles, então mudar a fronteira aqui propaga pro dashboard todo. */
+const shiftOf=h=>(h>=7&&h<19)?'dia':'noite';
+/* Normaliza TODA a divisão de turno a partir de shiftOf (fonte única). Os slots de
+   30min recebem o turno recalculado e os totais/percentuais de turno são somados
+   deles — assim a fronteira 07/19 vale no dashboard inteiro sem números soltos. */
+D.slots30.forEach(s=>{ s.turno=shiftOf(parseInt(s.slot,10)); });
+(function recomputeShiftTotals(){
+  let fd=0,fn=0,td=0,tn=0,dd=0,dn=0;
+  D.slots30.forEach(s=>{ if(s.turno==='dia'){fd+=s.fee;td+=s.tables;dd+=s.dead;} else {fn+=s.fee;tn+=s.tables;dn+=s.dead;} });
+  KPI_DEMO.feeDia=Math.round(fd); KPI_DEMO.feeNoite=Math.round(fn);
+  KPI_DEMO.tablesDia=td; KPI_DEMO.tablesNoite=tn;
+  KPI_DEMO.deadDia=dd; KPI_DEMO.deadNoite=dn;
+  const tot=fd+fn||1;
+  KPI_DEMO.feeDiaPct=+(fd/tot*100).toFixed(1);
+  KPI_DEMO.feeNoitePct=+(fn/tot*100).toFixed(1);
+})();
 const tagCls=t=>t.startsWith('PLO')?'tp':t.startsWith('NLH')?'tn':t==='OFC'?'to':'t6';
-const CTOP={backgroundColor:'#0e0e11',titleColor:'#f0f0f5',bodyColor:'rgba(240,240,245,.6)',padding:10,cornerRadius:8,borderColor:'rgba(255,255,255,.08)',borderWidth:1};
-const CGRID='rgba(255,255,255,.04)';
-const CTEXT='rgba(240,240,245,.35)';
+const CTOP={backgroundColor:'#181b19',titleColor:'#f2ede2',bodyColor:'rgba(242,237,226,.6)',padding:10,cornerRadius:8,borderColor:'rgba(242,237,226,.1)',borderWidth:1};
+/* Cores neutras dos gráficos em CINZA MÉDIO — os gráficos são criados uma vez e o
+   tema alterna em runtime, então valores quase-brancos sumiam no modo claro. Cinza
+   médio é legível tanto no fundo escuro quanto no claro. */
+const CGRID='rgba(130,132,142,.16)';
+const CTEXT='rgba(120,122,134,.92)';
+const CTXTB='rgba(96,98,110,.95)';   /* variante forte p/ rótulos de eixo em destaque */
+const CMUTE='rgba(130,132,142,.32)'; /* preenchimento neutro de barras/fatias de baixo valor */
 
 // ══════════════════════════════ ICON HELPER
 const ic=(name,fill)=>`<i class="ph${fill?'-fill':''} ph-${name}"></i>`;
@@ -1257,7 +1344,7 @@ function detectShift(){
   const lb=document.getElementById('shiftLabel');
   chip.className='shift-chip '+s;
   pl.className='pulse '+s;
-  lb.textContent=s==='dia'?'Turno Dia (08–20)':'Turno Noite (20–08)';
+  lb.textContent=s==='dia'?'Turno Dia (07–19)':'Turno Noite (19–07)';
 }
 detectShift();
 
@@ -1265,8 +1352,21 @@ detectShift();
 function pg(id,btn){
   document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nt').forEach(b=>b.classList.remove('on'));
-  document.getElementById('pg-'+id).classList.add('on');
-  btn.classList.add('on');
+  const page=document.getElementById('pg-'+id);
+  page.classList.add('on');
+  if(btn)btn.classList.add('on');
+  // Os gráficos são todos criados de uma vez com as páginas ocultas (display:none),
+  // então o Chart.js os mede com largura 0. Ao revelar a página, forçamos um resize
+  // pra cada canvas remedir o container agora visível — sem isso a troca de aba fazia
+  // os gráficos "pularem"/reanimarem torto. Dois rAF: espera o layout assentar.
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    page.querySelectorAll('canvas').forEach(cv=>{
+      const ch=(window.Chart&&Chart.getChart)?Chart.getChart(cv):null;
+      if(ch)ch.resize();
+    });
+  }));
+  page.scrollTop=0;
+  try{window.scrollTo({top:0,behavior:'instant'});}catch(e){window.scrollTo(0,0);}
 }
 
 // ══════════════════════════════ TIMELINE
@@ -1298,7 +1398,7 @@ function buildHrChart(){
   hrC=new Chart(document.getElementById('cHour'),{
     type:'bar',
     data:{labels:hrLabels,datasets:[
-      {type:'line',data:hrFee,borderColor:'rgba(255,255,255,.5)',borderWidth:1.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:4,yAxisID:'y',order:1},
+      {type:'line',data:hrFee,borderColor:CTXTB,borderWidth:1.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:4,yAxisID:'y',order:1},
       {type:'bar',data:hrFee,backgroundColor:hrBg,borderColor:hrBd,borderWidth:1,borderRadius:4,yAxisID:'y',order:2}
     ]},
     options:{responsive:true,maintainAspectRatio:false,
@@ -1339,7 +1439,7 @@ function buildModal(){
     data:{labels:d.map(x=>x.type),datasets:[{label:'Fee',data:d.map(x=>x.fee),backgroundColor:cols,borderRadius:5,borderSkipped:false}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},tooltip:{...CTOP,callbacks:{label:c=>` R$ ${f(c.parsed.x,0)} · rake ${d[c.dataIndex].rake_rate}%`}}},
-      scales:{x:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>fK(v)},border:{display:false}},y:{grid:{display:false},ticks:{font:{size:10},color:'rgba(240,240,245,.7)',font:{weight:'700'}},border:{display:false}}}
+      scales:{x:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>fK(v)},border:{display:false}},y:{grid:{display:false},ticks:{font:{size:10},color:CTXTB,font:{weight:'700'}},border:{display:false}}}
     }
   });
 }
@@ -1427,7 +1527,7 @@ function computeOverviewRecs(){
     b:`O melhor slot de toda a operação, no Turno ${bestSlot.turno==='dia'?'Dia':'Noite'}. Garantir cobertura operacional máxima nesse horário.`,sh:bestSlot.turno});
 
   recs.push({i:ic('arrows-clockwise',1),c:'w',t:`${f(KPI_DEMO.crossShift)} sessões cruzam a virada de turno`,
-    b:`${f(KPI_DEMO.crossShiftPct,1)}% das sessões diárias. Handoff crítico às 08h e 20h — rastrear quais salas geram mais mesas órfãs nesse momento.`,sh:''});
+    b:`${f(KPI_DEMO.crossShiftPct,1)}% das sessões diárias. Handoff crítico às 07h e 19h — rastrear quais salas geram mais mesas órfãs nesse momento.`,sh:''});
 
   return recs;
 }
@@ -1451,7 +1551,7 @@ function buildBestSlots(){
     document.getElementById(elId).innerHTML=arr.map(s=>`
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
         <span style="font-size:10px;font-weight:800;width:40px;color:${col}">${s.slot}</span>
-        <div style="flex:1;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden">
+        <div style="flex:1;height:5px;background:rgba(130,132,142,.18);border-radius:3px;overflow:hidden">
           <div style="width:${(s.fee/maxF*100).toFixed(0)}%;height:100%;background:${col};border-radius:3px"></div>
         </div>
         <span style="font-size:9px;font-weight:700;color:${col};width:60px;text-align:right">R$ ${fK(s.fee)}</span>
@@ -1470,8 +1570,8 @@ function buildShiftFee(){
     type:'bar',
     data:{labels:Array.from({length:Math.max(dia.length,noite.length)},(_,i)=>i),
       datasets:[
-        {label:'Dia (08-20h)',data:dia.map(s=>s.fee),backgroundColor:'rgba(79,142,247,.3)',borderColor:'#4f8ef7',borderWidth:1,borderRadius:4},
-        {label:'Noite (20-08h)',data:noite.map(s=>s.fee),backgroundColor:'rgba(167,139,250,.3)',borderColor:'#a78bfa',borderWidth:1,borderRadius:4}
+        {label:'Dia (07-19h)',data:dia.map(s=>s.fee),backgroundColor:'rgba(79,142,247,.3)',borderColor:'#4f8ef7',borderWidth:1,borderRadius:4},
+        {label:'Noite (19-07h)',data:noite.map(s=>s.fee),backgroundColor:'rgba(167,139,250,.3)',borderColor:'#a78bfa',borderWidth:1,borderRadius:4}
       ]},
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{position:'bottom',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:10}},tooltip:{...CTOP,callbacks:{title:c=>c[0].datasetIndex===0?dia[c[0].dataIndex]?.slot:noite[c[0].dataIndex]?.slot}}},
@@ -1550,8 +1650,9 @@ function buildShiftRecs(){
 
   const lostDeadFee=Math.round((diaDeadPct/100)*diaFee+(noiteDeadPct/100)*noiteFee);
 
-  const noite7hSlot=noiteSlots.find(s=>s.slot==='07:00');
-  const noiteRank=[...noiteSlots].sort((a,b)=>b.fee-a.fee).findIndex(s=>s.slot==='07:00')+1;
+  // slot de chegada logo antes da virada às 07h (06:30 é o último bloco do Noite)
+  const noite7hSlot=noiteSlots.find(s=>s.slot==='06:30');
+  const noiteRank=[...noiteSlots].sort((a,b)=>b.fee-a.fee).findIndex(s=>s.slot==='06:30')+1;
 
   const cards=[
     {
@@ -1593,7 +1694,7 @@ function buildShiftRecs(){
       type:'alert', icon:ic('arrows-clockwise',1),
       tag:'Risco operacional',
       title:`${f(crossing)} sessões ativas na virada de turno — ${f(crossPct,1)}% das mesas não têm dono claro`,
-      body:`Às 08:00 e 20:00 há ${f(crossing)} mesas em andamento que foram abertas no turno anterior. Com crescimento da base, esse número vai aumentar. Sem protocolo de handoff, jogadores nessas mesas ficam sem suporte. Criar SLA de transferência é urgente.`,
+      body:`Às 07:00 e 19:00 há ${f(crossing)} mesas em andamento que foram abertas no turno anterior. Com crescimento da base, esse número vai aumentar. Sem protocolo de handoff, jogadores nessas mesas ficam sem suporte. Criar SLA de transferência é urgente.`,
       metric:{val:f(crossPct,1)+'%', cls:'r', label:'das sessões diárias cruzam a fronteira de turno'},
       action:{cls:'a', text:'Implementar protocolo de handoff'}
     },
@@ -1613,9 +1714,9 @@ function buildShiftRecs(){
     cards.push({
       type:'noite', icon:ic('rocket-launch',1),
       tag:'Underdog do Noite',
-      title:`07:00 é o slot surpresa — R$ ${f(noite7hSlot.fee,0)} ignorado nos relatórios convencionais`,
-      body:`O bloco das 7h gera R$ ${f(noite7hSlot.fee,0)} — mais que a maioria dos slots do Turno Dia. É o "pico de chegada" de jogadores que entram antes da virada às 08h. Abrir mesas premium nesse slot adianta receita que normalmente seria contada como Dia.`,
-      metric:{val:'R$ '+f(noite7hSlot.fee,0), cls:'noite', label:`gerados no slot 07:00 — ${noiteRank}° melhor do Turno Noite`},
+      title:`06:30 é o slot surpresa — R$ ${f(noite7hSlot.fee,0)} ignorado nos relatórios convencionais`,
+      body:`O bloco das 06h30 gera R$ ${f(noite7hSlot.fee,0)} — mais que a maioria dos slots do Turno Noite tardio. É o "pico de chegada" de jogadores logo antes da virada às 07h. Abrir mesas premium nesse slot adianta receita da transição de turno.`,
+      metric:{val:'R$ '+f(noite7hSlot.fee,0), cls:'noite', label:`gerados no slot 06:30 — ${noiteRank}° melhor do Turno Noite`},
       action:{cls:'noite', text:'Abrir grade premium às 06:30'}
     });
   }
@@ -1649,7 +1750,7 @@ function buildConc(){
     <div class="conc-seg" style="width:26.8%;background:linear-gradient(135deg,#4f8ef7,#60a5fa)" title="1%-5%: 26,8%">2–5%</div>
     <div class="conc-seg" style="width:15.1%;background:linear-gradient(135deg,#34d399,#6ee7b7)" title="5%-10%: 15,1%">6–10%</div>
     <div class="conc-seg" style="width:13.9%;background:linear-gradient(135deg,#a78bfa,#c084fc)" title="10%-20%: 13,9%">11–20%</div>
-    <div class="conc-seg" style="flex:1;background:rgba(255,255,255,.08)" title="Resto 80%: 11,6%">80%</div>
+    <div class="conc-seg" style="flex:1;background:rgba(130,132,142,.2)" title="Resto 80%: 11,6%">80%</div>
   </div>
   <div class="conc-labels"><span style="color:var(--gold)">Top 1% · 32,6%</span><span style="color:var(--dia)">1–5% · 26,8%</span><span style="color:var(--green)">5–10% · 15,1%</span><span style="color:var(--noite)">10–20% · 13,9%</span><span>Demais · 11,6%</span></div>`;
 }
@@ -1685,7 +1786,7 @@ function buildFPP(){
   el.innerHTML=D.fpp.map(d=>`
     <div class="mb">
       <span class="mb-l">${d.type}</span>
-      <div class="mb-t"><div class="mb-f" style="width:${(d.fpp/max*100).toFixed(0)}%;background:${d.fpp>20?'#d4a853':d.fpp>8?'#4f8ef7':'rgba(255,255,255,.2)'}"></div></div>
+      <div class="mb-t"><div class="mb-f" style="width:${(d.fpp/max*100).toFixed(0)}%;background:${d.fpp>20?'#d4a853':d.fpp>8?'#4f8ef7':CMUTE}"></div></div>
       <span class="mb-v">R$ ${d.fpp.toFixed(2)}</span>
     </div>`).join('');
 }
@@ -1711,7 +1812,7 @@ function buildRR(){
     data:{labels:d.map(x=>x.name),datasets:[{label:'Rake rate %',data:d.map(x=>x.rake_rate),backgroundColor:d.map(x=>x.rake_rate>15?'rgba(248,113,113,.8)':x.rake_rate>10?'rgba(251,191,36,.8)':'rgba(79,142,247,.7)'),borderRadius:5,borderSkipped:false}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},tooltip:{...CTOP,callbacks:{label:c=>` ${c.parsed.x}% rake rate`}}},
-      scales:{x:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>v+'%'},border:{display:false}},y:{grid:{display:false},ticks:{font:{size:9},color:'rgba(240,240,245,.7)'},border:{display:false}}}
+      scales:{x:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>v+'%'},border:{display:false}},y:{grid:{display:false},ticks:{font:{size:9},color:CTXTB},border:{display:false}}}
     }
   });
 }
@@ -1723,7 +1824,7 @@ function buildBlindBars(){
   el.innerHTML=D.blinds.map(b=>`
     <div class="mb">
       <span class="mb-l">BB ${b.bb} GU</span>
-      <div class="mb-t"><div class="mb-f" style="width:${(b.tables/max*100).toFixed(0)}%;background:${b.fee>40000?'#d4a853':b.fee>15000?'#4f8ef7':'rgba(255,255,255,.2)'}"></div></div>
+      <div class="mb-t"><div class="mb-f" style="width:${(b.tables/max*100).toFixed(0)}%;background:${b.fee>40000?'#d4a853':b.fee>15000?'#4f8ef7':CMUTE}"></div></div>
       <span class="mb-v">${b.tables} <span style="font-weight:400;color:var(--ink3)">mesas</span></span>
     </div>
     <div style="font-size:8px;color:var(--ink3);margin:-4px 0 8px 84px">Fee R$ ${f(b.fee,0)}</div>`).join('');
@@ -1762,7 +1863,7 @@ function buildDurFee(){
   const ctx=document.getElementById('cDurFee');if(!ctx)return;
   const total=D.duration.reduce((a,b)=>a+b.fee,0);
   new Chart(ctx,{type:'doughnut',
-    data:{labels:D.duration.map(x=>x.bucket),datasets:[{data:D.duration.map(x=>x.fee),backgroundColor:['rgba(255,255,255,.1)','rgba(79,142,247,.5)','rgba(167,139,250,.7)','#a78bfa'],borderWidth:0,hoverOffset:6}]},
+    data:{labels:D.duration.map(x=>x.bucket),datasets:[{data:D.duration.map(x=>x.fee),backgroundColor:[CMUTE,'rgba(79,142,247,.5)','rgba(167,139,250,.7)','#a78bfa'],borderWidth:0,hoverOffset:6}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'65%',
       plugins:{legend:{position:'right',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:8}},tooltip:{...CTOP,callbacks:{label:c=>` R$ ${f(c.parsed,0)} (${(c.parsed/total*100).toFixed(1)}%)`}}}
     }
@@ -1780,11 +1881,13 @@ function buildHM(){
     {mod:'OFC',cols:[null,{r:65,n:54},{r:90,n:31},null,null],total:289,ret:'66.1%'},
   ];
   const hd=['30-60m','1-2h','2-4h','4h+'];
-  const bg=r=>{if(!r)return'rgba(255,255,255,.04)';const a=.06+(r/100)*.89;return`rgba(52,211,153,${a.toFixed(2)})`};
-  const cl=r=>r>55?'#0d1f17':'rgba(240,240,245,.9)';
+  // Cores OPACAS (não dependem do fundo da página): verde claro→profundo conforme a
+  // retenção. Assim o contraste do texto é previsível no tema claro e no escuro.
+  const bg=r=>{if(!r)return CMUTE;const t=Math.min(1,r/100),lp=(a,b)=>Math.round(a+(b-a)*t);return`rgb(${lp(214,15)},${lp(240,122)},${lp(226,78)})`};
+  const cl=r=>r>48?'#eafff5':'#123a29';
   const t=document.getElementById('hmTbl');if(!t)return;
   t.innerHTML=`<thead><tr><th>Mod.</th>${hd.map(c=>`<th>${c}</th>`).join('')}<th style="text-align:right">Total</th><th style="text-align:right">Ret.</th></tr></thead><tbody>`+
-  rows.map(row=>`<tr><td>${row.mod}</td>`+row.cols.map(c=>c?`<td style="background:${bg(c.r)};color:${cl(c.r)}"><div class="hv">${c.r}%</div><div class="hn">${c.n}</div></td>`:`<td style="background:rgba(255,255,255,.03);color:var(--ink3)"><div class="hv">—</div></td>`).join('')+`<td class="e">${row.total}</td><td class="e b">${row.ret}</td></tr>`).join('')+'</tbody>';
+  rows.map(row=>`<tr><td>${row.mod}</td>`+row.cols.map(c=>c?`<td style="background:${bg(c.r)};color:${cl(c.r)}"><div class="hv">${c.r}%</div><div class="hn">${c.n}</div></td>`:`<td style="background:rgba(130,132,142,.07);color:var(--ink3)"><div class="hv">—</div></td>`).join('')+`<td class="e">${row.total}</td><td class="e b">${row.ret}</td></tr>`).join('')+'</tbody>';
 }
 
 // ══════════════════════════════ HISTORY
@@ -2066,15 +2169,16 @@ function buildForecast(){
   // ── Projection curve (12 months)
   const ctx1=document.getElementById('cFcCurve');if(!ctx1)return;
   const baseDay=KPI_DEMO.feeGross, netDay=KPI_DEMO.feeNet;
-  const optDay=237611*GU_TO_BRL, aggDay=308247*GU_TO_BRL;
+  const optDay=237611*GU_TO_BRL, aggDay=308247*GU_TO_BRL, badDay=baseDay*0.74;
   const months=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  const cumBase=[], cumOpt=[], cumAgg=[], cumNet=[];
-  for(let i=1;i<=12;i++){cumBase.push(baseDay*30*i);cumNet.push(netDay*30*i);cumOpt.push(optDay*30*i);cumAgg.push(aggDay*30*i);}
+  const cumBase=[], cumOpt=[], cumAgg=[], cumNet=[], cumBad=[];
+  for(let i=1;i<=12;i++){cumBase.push(baseDay*30*i);cumNet.push(netDay*30*i);cumOpt.push(optDay*30*i);cumAgg.push(aggDay*30*i);cumBad.push(badDay*30*i);}
   new Chart(ctx1,{type:'line',
     data:{labels:months,datasets:[
       {label:'Agressivo',data:cumAgg,borderColor:'#d4a853',borderWidth:2,fill:false,tension:.4,pointRadius:3,pointBackgroundColor:'#d4a853',borderDash:[6,3]},
       {label:'Otimista',data:cumOpt,borderColor:'#4f8ef7',borderWidth:2,fill:false,tension:.4,pointRadius:3,pointBackgroundColor:'#4f8ef7'},
-      {label:'Base linear',data:cumBase,borderColor:'rgba(240,240,245,.4)',borderWidth:1.5,fill:false,tension:.4,pointRadius:0,borderDash:[4,4]},
+      {label:'Base linear',data:cumBase,borderColor:CMUTE,borderWidth:1.5,fill:false,tension:.4,pointRadius:0,borderDash:[4,4]},
+      {label:'Pessimista',data:cumBad,borderColor:'#f87171',borderWidth:2,fill:false,tension:.4,pointRadius:0,borderDash:[6,3]},
       {label:'Líquido (base)',data:cumNet,borderColor:'#34d399',borderWidth:1.5,fill:true,backgroundColor:'rgba(52,211,153,.05)',tension:.4,pointRadius:0,borderDash:[4,4]},
     ]},
     options:{responsive:true,maintainAspectRatio:false,
@@ -2091,21 +2195,21 @@ function buildForecast(){
   const ctx2=document.getElementById('cFcStake');if(!ctx2)return;
   new Chart(ctx2,{type:'doughnut',
     data:{labels:['VHigh (BB>5)','High (BB 1-5)','Mid (BB 0.2-1)','Low (BB<0.2)','Micro'],
-      datasets:[{data:[D.tiers[4].fee,D.tiers[3].fee,D.tiers[2].fee,D.tiers[1].fee,D.tiers[0].fee],backgroundColor:['#d4a853','#fbbf24','#4f8ef7','#a78bfa','rgba(255,255,255,.12)'],borderWidth:0,hoverOffset:8}]},
+      datasets:[{data:[D.tiers[4].fee,D.tiers[3].fee,D.tiers[2].fee,D.tiers[1].fee,D.tiers[0].fee],backgroundColor:['#d4a853','#fbbf24','#4f8ef7','#a78bfa',CMUTE],borderWidth:0,hoverOffset:8}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
       plugins:{legend:{position:'right',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:8}},
         tooltip:{...CTOP,callbacks:{label:c=>` R$ ${f(c.parsed,0)} (${(c.parsed/KPI_DEMO.feeGross*100).toFixed(1)}%)`}}}
     }
   });
 
-  // ── Scenarios grid
+  // ── Scenarios grid — inclui o CENÁRIO RUIM (pessimista) pra dimensionar o downside
   const scens=[
+    {label:'Pessimista',color:'rgba(248,113,113,.12)',colorTxt:'var(--red)',desc:'+30% mortas · −18% sessões · fuga de VHigh',day:KPI_DEMO.feeGross*0.74,assumptions:['2.431 sessões/dia','31,9% de mortas','−R$ 287.154/dia']},
     {label:'Base linear',color:'rgba(255,255,255,.08)',colorTxt:CTEXT,desc:'Sem mudanças operacionais',day:KPI_DEMO.feeGross,assumptions:['2.965 sessões/dia','24,5% de mortas','fee/mão R$ 3,80']},
     {label:'Conservador',color:'rgba(79,142,247,.12)',colorTxt:'var(--dia)',desc:'−10% mortas · +5% sessões',day:237611*GU_TO_BRL,assumptions:['3.113 sessões/dia','22,0% de mortas','+R$ 83.615/dia']},
     {label:'Otimista',color:'rgba(52,211,153,.1)',colorTxt:'var(--green)',desc:'−20% mortas · +15% sessões',day:266460*GU_TO_BRL,assumptions:['3.410 sessões/dia','19,6% de mortas','+R$ 227.860/dia']},
     {label:'Agressivo',color:'rgba(212,168,83,.12)',colorTxt:'var(--gold)',desc:'−30% mortas · +30% sessões · +ante',day:308247*GU_TO_BRL,assumptions:['3.854 sessões/dia','17,1% de mortas','+R$ 436.795/dia']},
   ];
-  // Remove 4th scenario on mobile if needed – we show 3 base+otimista+agressivo
   const el=document.getElementById('scenGrid');if(!el)return;
   el.innerHTML=scens.map(s=>`
     <div style="background:${s.color};border:1px solid var(--bdr);border-radius:14px;padding:16px;position:relative;overflow:hidden">
@@ -2114,7 +2218,7 @@ function buildForecast(){
       <div style="font-size:22px;font-weight:900;letter-spacing:-.04em;color:var(--ink);margin-bottom:2px">R$ ${fK(s.day*30)}</div>
       <div style="font-size:9px;color:var(--ink3);margin-bottom:12px">por mês · R$ ${fK(s.day)}/dia</div>
       <div style="border-top:1px solid var(--bdr2);padding-top:10px">${s.assumptions.map(a=>`<div style="font-size:9px;color:var(--ink3);margin-bottom:3px;display:flex;align-items:center;gap:5px"><span style="color:${s.colorTxt}">→</span>${a}</div>`).join('')}</div>
-      ${s.label!=='Base linear'?`<div style="margin-top:8px;font-size:10px;font-weight:800;color:${s.colorTxt}">+R$ ${fK((s.day-KPI_DEMO.feeGross)*30)}/mês vs base</div>`:''}
+      ${s.label!=='Base linear'?(()=>{const d=(s.day-KPI_DEMO.feeGross)*30;return `<div style="margin-top:8px;font-size:10px;font-weight:800;color:${s.colorTxt}">${d>=0?'+':'−'}R$ ${fK(Math.abs(d))}/mês vs base</div>`;})():''}
     </div>`).join('');
 
   // ── Lever bars
@@ -2228,15 +2332,134 @@ function buildForecast(){
   renderIntelCards('fcIntel',intel);
 }
 
+// ══════════════════════════════ RESUMO POR TURNO (derivado dos slots de 30min)
+// Fonte única: soma slots30 pelo turno recalculado (07/19). Preenche os cards do
+// Overview e da aba Turnos — assim a fronteira nova é coerente em todo o painel.
+function shiftAgg(){
+  const g={dia:{fee:0,tables:0,players:0,hands:0,dead:0},noite:{fee:0,tables:0,players:0,hands:0,dead:0}};
+  D.slots30.forEach(s=>{const t=g[s.turno];t.fee+=s.fee;t.tables+=s.tables;t.players+=s.players;t.hands+=s.hands;t.dead+=s.dead;});
+  return g;
+}
+let SHIFT=null;
+function renderShiftStats(){
+  SHIFT=shiftAgg();
+  const g=SHIFT, tot=g.dia.fee+g.noite.fee||1;
+  const pctD=g.dia.fee/tot*100, pctN=g.noite.fee/tot*100;
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  const fpm=t=>t.tables?t.fee/t.tables:0, fph=t=>t.hands?t.fee/t.hands:0, dpct=t=>t.tables?t.dead/t.tables*100:0;
+  // Overview
+  set('ovDiaFee','R$ '+f(g.dia.fee,0)); set('ovDiaSub',`${f(g.dia.tables)} mesas · R$ ${f(fpm(g.dia),0)}/mesa`);
+  set('ovNoiteFee','R$ '+f(g.noite.fee,0)); set('ovNoiteSub',`${f(g.noite.tables)} mesas · R$ ${f(fpm(g.noite),0)}/mesa`);
+  set('ovDeadSub',`${f(g.dia.dead)} Dia · ${f(g.noite.dead)} Noite`);
+  set('ovSub',`${f(KPI_DEMO.sessions)} sessões cash · Turno Dia R$ ${f(g.dia.fee,0)} (${f(pctD,1)}%) · Turno Noite R$ ${f(g.noite.fee,0)} (${f(pctN,1)}%) · ${f(KPI_DEMO.crossShift)} sessões cruzaram a virada · Top 1% das mesas gera 32,6% do rake`);
+  // Aba Turnos
+  set('sDiaFee','R$ '+f(g.dia.fee,0)); set('sDiaTables',f(g.dia.tables)); set('sDiaPlayers',f(g.dia.players));
+  set('sDiaHands',f(g.dia.hands)); set('sDiaDead',`${f(g.dia.dead)} (${f(dpct(g.dia),1)}%)`);
+  set('sDiaFph','R$ '+f(fph(g.dia),3)); set('sDiaFpm','R$ '+f(fpm(g.dia),1)); set('sDiaPct',f(pctD,1)+'%');
+  set('sNoiteFee','R$ '+f(g.noite.fee,0)); set('sNoiteTables',f(g.noite.tables)); set('sNoitePlayers',f(g.noite.players));
+  set('sNoiteHands',f(g.noite.hands)); set('sNoiteDead',`${f(g.noite.dead)} (${f(dpct(g.noite),1)}%)`);
+  set('sNoiteFph','R$ '+f(fph(g.noite),3)); set('sNoiteFpm','R$ '+f(fpm(g.noite),1)); set('sNoitePct',f(pctN,1)+'%');
+}
+
+// ══════════════════════════════ RESUMO EXECUTIVO (a aba de abertura)
+// Reúne as melhores informações do dia + a amplitude de cenários + as análises
+// inteligentes já priorizadas. Deriva tudo de KPI_DEMO/D/SHIFT — nada hardcoded.
+function buildResumo(){
+  if(!document.getElementById('pg-resumo'))return;
+  const g=SHIFT||shiftAgg();
+  const tot=g.dia.fee+g.noite.fee||1;
+  const pctD=g.dia.fee/tot*100, pctN=g.noite.fee/tot*100;
+  const melhorTurno=g.noite.fee/((g.noite.tables)||1) > g.dia.fee/((g.dia.tables)||1) ? 'Noite' : 'Dia';
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  set('rsDate',KPI_DEMO.date);
+  set('rsBaseDay',f(KPI_DEMO.feeGross,0));
+  set('rsSub',`${f(KPI_DEMO.sessions)} sessões · R$ ${f(KPI_DEMO.feeGross,0)} bruto · take rate ${f(KPI_DEMO.takeRate,2)}% · Turno ${melhorTurno} lidera em fee/mesa · ${f(KPI_DEMO.deadPct,1)}% de mesas mortas é o maior vazamento.`);
+
+  // ── KPIs essenciais (reaproveita os cards .kpi)
+  const topRoom=[...D.rooms].sort((a,b)=>b.fee-a.fee)[0];
+  const topTier=[...D.tiers].sort((a,b)=>b.fee-a.fee)[0];
+  const kpis=[
+    {cls:'hero',l:'Fee bruto do dia',v:'R$ '+f(KPI_DEMO.feeGross,0),s:'líquido R$ '+f(KPI_DEMO.feeNet,0)+' após JP'},
+    {cls:'c-dia',l:'Turno Dia (07–19h)',v:'R$ '+f(g.dia.fee,0),s:f(pctD,1)+'% do rake · '+f(g.dia.tables)+' mesas'},
+    {cls:'c-noite',l:'Turno Noite (19–07h)',v:'R$ '+f(g.noite.fee,0),s:f(pctN,1)+'% do rake · '+f(g.noite.tables)+' mesas'},
+    {cls:'c-gold',l:'Concentração top 1%',v:f(KPI_DEMO.conc1pct,1)+'%',s:KPI_DEMO.conc1Tables+' mesas = R$ '+f(KPI_DEMO.conc1Fee,0)},
+    {cls:'c-amber',l:'Mesas mortas',v:f(KPI_DEMO.deadTables),s:f(KPI_DEMO.deadPct,1)+'% do total · receita parada'},
+    {cls:'c-green',l:'Take rate médio',v:f(KPI_DEMO.takeRate,2)+'%',s:'fee ÷ R$ '+fK(KPI_DEMO.buyinTotal)+' em buyins'},
+  ];
+  const kel=document.getElementById('rsKpis');
+  if(kel)kel.innerHTML=kpis.map(k=>`<div class="kpi ${k.cls}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div><div class="ks">${k.s}</div></div>`).join('');
+
+  // ── Amplitude de cenários (mesma base do simulador da aba Previsão)
+  const base=KPI_DEMO.feeGross;
+  const scen=[
+    {nm:'Pessimista',day:base*0.74,c:'var(--red)'},
+    {nm:'Base',day:base,c:'var(--ink3)'},
+    {nm:'Conservador',day:237611*GU_TO_BRL,c:'var(--dia)'},
+    {nm:'Otimista',day:266460*GU_TO_BRL,c:'var(--green)'},
+    {nm:'Agressivo',day:308247*GU_TO_BRL,c:'var(--gold)'},
+  ];
+  const rel=document.getElementById('rsRange');
+  if(rel)rel.innerHTML=scen.map(s=>{
+    const d=(s.day-base)*30, dl=s.nm==='Base'?'referência':`${d>=0?'+':'−'}R$ ${fK(Math.abs(d))} vs base`;
+    return `<div class="rs-scen" style="--sc:${s.c}"><div class="rs-nm">${s.nm}</div><div class="rs-mo">R$ ${fK(s.day*30)}</div><div class="rs-dl">${dl}</div></div>`;
+  }).join('');
+
+  // ── Onde está o dinheiro (destaques positivos)
+  const highlights=[
+    {ic:'crown',tt:`${topTier.tier} é o motor do rake`,sb:`R$ ${f(topTier.fee,0)} com ${f(topTier.tables)} mesas · fee/mão R$ ${f(topTier.avg_fph,3)}`,vl:(topTier.fee/tot*100).toFixed(0)+'%'},
+    {ic:'buildings',tt:`Sala campeã: ${topRoom.name}`,sb:`R$ ${f(topRoom.fee,0)} de fee · take rate ${f(topRoom.rake_rate,2)}%`,vl:'R$ '+fK(topRoom.fee)},
+    {ic:'moon-stars',tt:`Turno ${melhorTurno} rende mais por mesa`,sb:`fee/mesa R$ ${f(g.noite.fee/(g.noite.tables||1),0)} no Noite vs R$ ${f(g.dia.fee/(g.dia.tables||1),0)} no Dia`,vl:'+'+f((g.noite.fee/(g.noite.tables||1))/(g.dia.fee/(g.dia.tables||1))*100-100,0)+'%'},
+    {ic:'target',tt:'Top 1% das mesas concentra o rake',sb:`${KPI_DEMO.conc1Tables} mesas geram R$ ${f(KPI_DEMO.conc1Fee,0)} — proteger esses jogadores é prioridade`,vl:f(KPI_DEMO.conc1pct,1)+'%'},
+  ];
+  const hel=document.getElementById('rsHighlights');
+  if(hel)hel.innerHTML=highlights.map(h=>`<div class="rs-line"><div class="rs-ic up">${ic(h.ic,1)}</div><div class="rs-tx"><div class="rs-tt">${h.tt}</div><div class="rs-sb">${h.sb}</div></div><div class="rs-vl up">${h.vl}</div></div>`).join('');
+
+  // ── Riscos e vazamentos (o lado ruim — inclui o downside do cenário pessimista)
+  const deadFee=Math.round((KPI_DEMO.deadPct/100)*KPI_DEMO.feeGross);
+  const badLoss=Math.round(base*0.26*30);
+  const risks=[
+    {ic:'skull',tt:`${f(KPI_DEMO.deadPct,1)}% das mesas estão mortas`,sb:`${f(KPI_DEMO.deadTables)} mesas sem retenção · custo estimado R$ ${f(deadFee,0)}/dia em receita parada`,vl:'R$ '+fK(deadFee)},
+    {ic:'trend-down',tt:'Cenário pessimista corrói o mês',sb:'+30% mortas e −18% sessões (fuga de VHigh) derrubam a receita mensal',vl:'−R$ '+fK(badLoss)},
+    {ic:'arrows-left-right',tt:`${f(KPI_DEMO.crossShift)} sessões cruzam a virada de turno`,sb:'sem SLA de handoff às 07h/19h, jogadores dessas mesas ficam sem suporte',vl:f(KPI_DEMO.crossShiftPct,1)+'%'},
+    {ic:'warning',tt:'Receita dependente de poucos',sb:`só ${KPI_DEMO.conc1Tables} mesas seguram ${f(KPI_DEMO.conc1pct,1)}% do rake — perda de 1 VIP é sensível`,vl:'risco'},
+  ];
+  const rrel=document.getElementById('rsRisks');
+  if(rrel)rrel.innerHTML=risks.map(r=>`<div class="rs-line"><div class="rs-ic dn">${ic(r.ic,1)}</div><div class="rs-tx"><div class="rs-tt">${r.tt}</div><div class="rs-sb">${r.sb}</div></div><div class="rs-vl dn">${r.vl}</div></div>`).join('');
+
+  // ── Análise inteligente priorizada (cards) — a ação do dia
+  const micro=D.tiers[0], high=D.tiers[3], vhigh=D.tiers[4];
+  const fphMult=high.avg_fph/(micro.avg_fph||1);
+  const intel=[
+    {type:'gold',icon:ic('crown',1),tag:'Prioridade 1',
+      title:`Proteger e expandir ${topTier.tier}: R$ ${f(topTier.fee,0)} vêm daqui`,
+      body:`${topTier.tier} gera ${(topTier.fee/tot*100).toFixed(0)}% do rake com fee/mão R$ ${f(topTier.avg_fph,3)}. Blindar esses jogadores (suporte dedicado, mesas premium abertas) e abrir mais mesas VHigh é o maior ROI imediato.`,
+      metric:{val:'R$ '+fK(vhigh.fee),cls:'gold',label:'rake do topo de stakes hoje'},
+      action:{cls:'g',text:'Grade premium sempre aberta para VHigh'}},
+    {type:'alert',icon:ic('skull',1),tag:'Vazamento crítico',
+      title:`${f(KPI_DEMO.deadPct,1)}% de mesas mortas custam ~R$ ${f(deadFee,0)}/dia`,
+      body:`São ${f(KPI_DEMO.deadTables)} mesas abertas sem retenção. Fechar mesa ociosa mais rápido e realocar dealers reduz custo sem tocar em receita. Reduzir mortas em 20% já devolve receita significativa.`,
+      metric:{val:f(KPI_DEMO.deadTables),cls:'alert',label:'mesas mortas no dia'},
+      action:{cls:'a',text:'SLA de fechamento de mesa ociosa'}},
+    {type:'dia',icon:ic('trend-up',1),tag:'Mix de stakes',
+      title:`Migrar 5% de Micro/Low para Mid/High multiplica o fee/mão em ${f(fphMult,0)}x`,
+      body:`Micro rende R$ ${f(micro.avg_fph,3)}/mão; High rende R$ ${f(high.avg_fph,3)}/mão. Promoções e incentivos de upgrade de stake têm retorno sem depender de novos jogadores.`,
+      metric:{val:f(fphMult,0)+'x',cls:'dia',label:'fee/mão High vs Micro'},
+      action:{cls:'dia',text:'Programa de upgrade de stakes'}},
+  ];
+  renderIntelCards('rsIntel',intel);
+}
+
 // ══════════════════════════════ INIT (chamado após login bem-sucedido)
 let _appStarted=false;
 function startApp(){
   if(_appStarted)return;_appStarted=true;
+  renderShiftStats();
   buildTimeline();buildHrChart();buildLifecycle();buildModal();buildOpDiv();buildTop10();buildRecs();
   buildBestSlots();buildShiftFee();buildForecast();buildConcurrent();buildOpShiftTable();buildShiftRecs();
   buildTierCharts();buildConc();buildHuMulti();buildJP();buildFPP();
   buildRooms();buildRR();buildBlindBars();buildBubble();
   buildRet();buildDurFee();buildHM();buildHist();
+  buildResumo();
 }
 enterFromHubSession();
 

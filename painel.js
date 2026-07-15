@@ -2725,7 +2725,7 @@ const SERVER_DATA = [
   {liga:'New Union', id:131, moeda:''},
   {liga:'Suprema Asia', id:132, moeda:'Dolar 0.8'},
   {liga:'Suprema Poker', id:135, moeda:'Dolar 0.8'},
-  {liga:'Suprema México', id:136, moeda:'Dolar 0.8'},
+  {liga:'Suprema México', id:136, moeda:'Dolar 18'},
   {liga:'Suprema Argentina', id:137, moeda:'Dolar 0.8'},
   {liga:'Suprema Panama', id:145, moeda:'Dolar 0.8'},
   {liga:'Suprema Colombia', id:147, moeda:'Reais'},
