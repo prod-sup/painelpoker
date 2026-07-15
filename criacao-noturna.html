@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Criação Noturna GU · Suprema OS</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%238c5cc6'>♠</text></svg>">
-<script defer src="xlsx.full.min.js" onerror="window.__xlsxFail=true"></script>
+<script defer src="suprema-xlsx.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
@@ -1915,11 +1915,10 @@ dz.addEventListener('drop', e => {
 $('fileInput').addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
 
 async function handleFile(file){
-  // CDN do SheetJS pode ter caído no meio do turno — avisa em vez de morrer em silêncio
-  if (typeof XLSX === 'undefined'){
-    showToast(window.__xlsxFail
-      ? 'A biblioteca de planilhas não carregou (CDN fora do ar?) — verifique a internet e recarregue a página.'
-      : 'A biblioteca de planilhas ainda está carregando — aguarde 2 segundos e tente de novo.', true);
+  // SheetJS sob demanda: baixa na 1ª importação. Se o arquivo cair, avisa em vez de morrer em silêncio.
+  try{ await ensureXLSX(); }
+  catch(_){
+    showToast('A biblioteca de planilhas não carregou (sem internet?) — verifique a conexão e recarregue a página.', true);
     return;
   }
   $('dzTitle').textContent = 'Lendo planilha…';
@@ -3358,8 +3357,9 @@ $('currencySeg').querySelectorAll('button').forEach(b => b.addEventListener('cli
    ordem cronológica, linha em branco, Satélites agrupados por grupo (linha em
    branco entre grupos), e o total no rodapé. Sem subdivisão por Admin Fee, sem
    colunas de operador, sem cores — igual à planilha que a operação usa no dia. ── */
-$('exportBtn').addEventListener('click', () => {
+$('exportBtn').addEventListener('click', async () => {
   if (!DATA){ showToast('Carregue a Global primeiro.', true); return; }
+  try{ await ensureXLSX(); }catch(_){ showToast('A biblioteca de planilhas não carregou — recarregue a página.', true); return; }
   const cur = CURRENCY === 'usd' ? '$' : 'R$';
   const conv = v => v === null || v === undefined ? null : (CURRENCY === 'usd' ? v : Math.round(v * BRL_RATE * 100) / 100);
   const asg = computeAssignments(); // itemKey -> operador da divisão

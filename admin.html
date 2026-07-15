@@ -1644,7 +1644,7 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
-<script src="xlsx.full.min.js"></script>
+<script defer src="suprema-xlsx.js"></script>
 <script>
 /* ══════════════════════════════════════════════════════════════
    SUPREMA POKER — Admin (standalone, premium rebuild)
@@ -2363,7 +2363,8 @@ function clearCnError(i){
   r.audit = null; renderCn();
   toast('Erro desfeito','ok');
 }
-function exportCnXlsx(){
+async function exportCnXlsx(){
+  await ensureXLSX();                 // SheetJS sob demanda
   const rows = cnFiltered();
   if(!rows.length){ toast('Nada pra exportar','err'); return; }
   const aoa = [['Data','Torneio','Categoria','Horário','Criado por','Quando','Tempo (min)','ID Pokerbyte','Auditoria','Motivo do erro','Marcado por'],
@@ -3542,7 +3543,8 @@ function enrichWithAudit(rows){
 }
 
 /* ── EXPORTS ─────────────────────────────────────────────────── */
-function exportAuditXlsx(){
+async function exportAuditXlsx(){
+  await ensureXLSX();                 // SheetJS sob demanda
   if(!_auditRows.length){toast('Carregue os dados primeiro','err');return;}
   const byDate={};
   _auditRows.forEach(r=>{if(!byDate[r.date])byDate[r.date]=[];byDate[r.date].push(r);});
@@ -3636,7 +3638,8 @@ function exportAuditXlsx(){
   }
 }
 
-function exportGradeXlsx(){
+async function exportGradeXlsx(){
+  await ensureXLSX();                 // SheetJS sob demanda
   if(!_gradeRows.length){toast('Carregue os dados','err');return;}
   const aoa=[['Torneio','Categoria','Rodadas','GTD Médio','Pool Médio','Perf%','Overlay Total']];
   _gradeRows.forEach(r=>aoa.push([r.nome,catLabel(r.cat),
@@ -3704,6 +3707,7 @@ function appendSheetSafe(wb, ws, name){
 
 // ── 1. EXPORT MENSAL ──
 async function exportMonthXlsx(){
+  await ensureXLSX();                 // SheetJS sob demanda
   const month = document.getElementById('bkMonth').value;
   if(!month){ toast('Selecione um mês','err'); return; }
   const status = document.getElementById('bkMonthStatus');
@@ -3731,6 +3735,7 @@ async function exportMonthXlsx(){
 
 // ── EXPORT TUDO ──
 async function exportAllTimeXlsx(){
+  await ensureXLSX();                 // SheetJS sob demanda
   const dates = Object.keys(_allData).sort();
   const BIG_EXPORT_THRESHOLD = 90; // ~3 meses — acima disso o XLSX fica pesado pro navegador gerar
   const big = dates.length > BIG_EXPORT_THRESHOLD;
@@ -4784,7 +4789,8 @@ function buildAuditSummary(){
   `;
 }
 
-function exportAuditSummaryXlsx(){
+async function exportAuditSummaryXlsx(){
+  await ensureXLSX();                 // SheetJS sob demanda
   const from = document.getElementById('sumFrom').value || dago(6);
   const to   = document.getElementById('sumTo').value   || nowSP();
   const entries = [];

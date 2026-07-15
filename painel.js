@@ -851,6 +851,7 @@ document.getElementById('fileInputGlobal').addEventListener('change', async (e) 
   btnEl.disabled = true;
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   try {
+    await ensureXLSX();               // SheetJS sob demanda
     const arrayBuffer = await file.arrayBuffer();
     const matrix = readSheetMatrix(arrayBuffer, 'MTTS BRAZIL');
     if (!matrix) throw new Error('Aba "MTTS BRAZIL" não encontrada.');
@@ -997,6 +998,7 @@ fileInput.addEventListener('change', async (e) => {
   if (!file) return;
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   try {
+    await ensureXLSX();               // SheetJS sob demanda: baixa só na 1ª importação
     const rows = await parseFile(file);
     if (!rows.length) {
       showToast('Não encontramos torneios nesse arquivo.', true);
@@ -1461,7 +1463,9 @@ function loadMesasCashFromB64(b64, filename, uploadedAt, fromRemote, uploadedBy)
   if(!b64) return;
   if(CASH_TABLE_LAST_LOADED_AT && CASH_TABLE_LAST_LOADED_AT === uploadedAt) return; // já carregada
   CASH_TABLE_LAST_LOADED_AT = uploadedAt;
-  try {
+  // SheetJS sob demanda: esta carga vem de um listener do Firebase (não de um
+  // gesto do usuário), então garantimos o XLSX aqui dentro antes de ler.
+  ensureXLSX().then(() => {
     const arrayBuffer = base64ToArrayBuffer(b64);
     const wb = XLSX.read(arrayBuffer, {type:'array', cellDates:false});
     CASH_TABLE_WORKBOOK = wb;
@@ -1482,9 +1486,10 @@ function loadMesasCashFromB64(b64, filename, uploadedAt, fromRemote, uploadedBy)
     }
     populateCashServerSelect();
     if(CASH_TABLE_WORKBOOK) runCashTableSearch(); // se já tinha modalidade/blind preenchidos, busca na hora com a planilha recém-chegada
-  } catch(e){
+  }).catch(e => {
+    CASH_TABLE_LAST_LOADED_AT = null;   // deixa tentar de novo quando o XLSX chegar
     console.error('Erro ao carregar mesas cash do Firebase:', e);
-  }
+  });
 }
 
 /* ── Listener de notificações do usuário logado (erros, avisos, mensagens do admin) ── */
@@ -4510,7 +4515,7 @@ function checkDayComplete(){
 }
 
 /* Exportação legacy */
-function exportResultsXlsx(){ exportAcompanhamentoXlsx(); }
+async function exportResultsXlsx(){ await ensureXLSX(); exportAcompanhamentoXlsx(); }
 document.getElementById('exportResultsBtn').addEventListener('click', exportResultsXlsx);
 document.getElementById('snapshotBtn')?.addEventListener('click', () => saveSnapshotToFirebase('manual'));
 document.getElementById('saveReportBtn')?.addEventListener('click', () => saveReportToFirebase(false));
@@ -5799,6 +5804,7 @@ function confHojeItemId(cat, hora, nome){
 document.getElementById('globalTodayFileInput').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
+  await ensureXLSX();                 // SheetJS sob demanda
   const arrayBuffer = await file.arrayBuffer();
   processGlobalToday(arrayBuffer, file.name);
   // compartilha o arquivo com a equipe (painel/globalMtt) — ninguém precisa subir de novo
@@ -6163,7 +6169,8 @@ function renderConfAmanha(sections, weekdayLabel, dateLabel, meta){
    Main Events, depois Side Events, depois Satélites com linha em branco separando cada grupo —
    igual ao formato da planilha "Conferência 2026" real que o operador cola no dia a dia */
 
-function exportConfAmanhaXlsx(){
+async function exportConfAmanhaXlsx(){
+  await ensureXLSX();                 // SheetJS sob demanda
   if (!LAST_CONF_AMANHA || !LAST_CONF_AMANHA.sections.total){
     showToast('Carregue a Global e gere a Conferência de amanhã primeiro.', true);
     return;
@@ -6231,6 +6238,7 @@ function exportConfAmanhaXlsx(){
 document.getElementById('globalTomorrowFileInput').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
+  await ensureXLSX();                 // SheetJS sob demanda
   const arrayBuffer = await file.arrayBuffer();
   processGlobalTomorrow(arrayBuffer, file.name);
   // compartilha o arquivo com a equipe (painel/globalMtt) — ninguém precisa subir de novo
@@ -6363,12 +6371,14 @@ function attachSharedGlobal(){
 attachSharedGlobal();
 const sharedGlobalRetry = setInterval(() => { attachSharedGlobal(); if (window.__sharedGlobalAttached) clearInterval(sharedGlobalRetry); }, 2000);
 
-document.getElementById('confHojeSharedBtn')?.addEventListener('click', () => {
+document.getElementById('confHojeSharedBtn')?.addEventListener('click', async () => {
   if (!SHARED_GLOBAL){ showToast('Nenhuma Global compartilhada disponível.', true); return; }
+  await ensureXLSX();                 // SheetJS sob demanda
   processGlobalToday(SHARED_GLOBAL.buf.slice(0), SHARED_GLOBAL.filename);
 });
-document.getElementById('confAmanhaSharedBtn')?.addEventListener('click', () => {
+document.getElementById('confAmanhaSharedBtn')?.addEventListener('click', async () => {
   if (!SHARED_GLOBAL){ showToast('Nenhuma Global compartilhada disponível.', true); return; }
+  await ensureXLSX();                 // SheetJS sob demanda
   processGlobalTomorrow(SHARED_GLOBAL.buf.slice(0), SHARED_GLOBAL.filename);
 });
 
@@ -6435,6 +6445,7 @@ document.getElementById('cashTablesFileInput').addEventListener('change', async 
   // 23 abas, pode ser bem pesada) — mesmo princípio aplicado no upload da planilha do dia
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   try{
+    await ensureXLSX();               // SheetJS sob demanda
     const arrayBuffer = await file.arrayBuffer();
     CASH_TABLE_WORKBOOK = XLSX.read(arrayBuffer, {type:'array', cellDates:false});
     CASH_TABLE_MATRIX_CACHE = {};
@@ -8016,7 +8027,8 @@ async function loadMultiDayData(){
   }
 }
 
-function exportMultiDay(){
+async function exportMultiDay(){
+  await ensureXLSX();                 // SheetJS sob demanda
   const dates = Object.keys(_mdrData).sort();
   if(!dates.length){ showToast('Carregue os dados primeiro', true); return; }
 

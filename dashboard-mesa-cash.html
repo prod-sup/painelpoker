@@ -24,7 +24,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%234f8ef7'>♠</text></svg>">
 <!-- deps locais (sem CDN): funcionam offline e não quebram se o CDN cair -->
 <script src="vendor/chart.umd.js"></script>
-<script defer src="xlsx.full.min.js"></script>
+<script defer src="suprema-xlsx.js"></script>
 <link rel="stylesheet" href="vendor/phosphor/regular.css">
 <link rel="stylesheet" href="vendor/phosphor/fill.css">
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
@@ -1992,7 +1992,8 @@ function validateColumns(firstRow){
 
 // ══════════════════════════════ REAL XLSX PARSING
 function readRowsFromFile(file){
-  return new Promise((resolve,reject)=>{
+  // SheetJS sob demanda: baixa só quando o operador importa a 1ª planilha
+  return ensureXLSX().then(()=> new Promise((resolve,reject)=>{
     const reader=new FileReader();
     reader.onerror=()=>reject(reader.error);
     reader.onload=e=>{
@@ -2006,7 +2007,7 @@ function readRowsFromFile(file){
       }catch(err){reject(err)}
     };
     reader.readAsArrayBuffer(file);
-  });
+  }));
 }
 function toDate(v){
   if(v==null)return null;

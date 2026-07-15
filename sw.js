@@ -10,6 +10,7 @@ const STATIC_ASSETS = [
   '/painelpoker/gu-parser.js',
   '/painelpoker/conf-dia.js',
   '/painelpoker/scripts/lite.js',
+  '/painelpoker/suprema-xlsx.js',
   '/painelpoker/xlsx.full.min.js',
   '/painelpoker/suprema-onboarding.js',
   '/painelpoker/hub.html',
