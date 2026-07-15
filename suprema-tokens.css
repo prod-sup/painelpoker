@@ -68,6 +68,28 @@ html.dark{
 }
 
 /* ============================================================
+   FOCO DE TECLADO + COLOR-SCHEME — compartilhado por todos os
+   produtos. Antes só o hub tinha :focus-visible; os outros painéis
+   ficavam sem indicação de foco (a11y + operador rápido no teclado).
+   Um anel só, na cor do produto quando ela existe, cinza-marca no
+   fallback. :focus-visible (não :focus) pra não aparecer no clique
+   de mouse. color-scheme evita o flash de tema errado no 1º paint
+   (form controls nativos, scrollbar) mesmo antes do JS rodar.
+   ============================================================ */
+:root{ color-scheme: light; --sup-focus: var(--sup-felt-bright); }
+html.dark{ color-scheme: dark; --sup-focus: var(--gold); }
+
+:where(a, button, input, select, textarea, summary, [tabindex], [role="button"], [role="tab"], [role="link"]):focus-visible{
+  outline: 2px solid var(--sup-focus, #18a36b);
+  outline-offset: 2px;
+  border-radius: var(--sup-radius-sm);
+}
+/* No modo leve o foco continua — é a11y, não enfeite */
+html.lite :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible{
+  outline: 2px solid var(--sup-focus, #18a36b) !important;
+}
+
+/* ============================================================
    MODO LEVE (html.lite) — ligado por scripts/lite.js em PC/rede
    fraca (pouca RAM, saveData, 2g) ou manualmente (?lite=1).
    Corta os dois efeitos que mais custam GPU sem quebrar o layout:
