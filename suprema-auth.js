@@ -62,6 +62,41 @@
     return !!(s && s.access && s.access[panelId] === true);
   }
 
+  /* ── REVALIDAÇÃO DE ACESSO (fecha a brecha da revogação) ──
+     guard() confia no snapshot da sessão (localStorage). Se o admin REVOGA o
+     acesso de um operador, ele continuaria entrando até a sessão expirar (365
+     dias). revalidateAccess() relê users/<key>/access do banco assim que o
+     Firebase estiver pronto e autenticado, atualiza a sessão e, se ESTE painel
+     não é mais permitido (e o usuário não é admin), manda de volta pro hub.
+     Chame 1x no load do painel, logo depois de guard(). Silenciosa sem
+     Firebase/sessão — nunca trava a página se o banco não responder. */
+  function revalidateAccess(panelId, opts) {
+    opts = opts || {};
+    var s = getSession();
+    if (!s || !s.email) return;               // sem sessão: guard já cuidou
+    if (isAdminEmail(s.email)) return;         // admin entra em tudo: nada a revalidar
+    var tries = 0;
+    (function waitDb() {
+      var fb = global.firebase;
+      if (!fb || !fb.database || !fb.auth || !fb.auth().currentUser) {
+        if (tries++ > 100) return;            // ~20s esperando o Firebase: desiste em silêncio
+        return setTimeout(waitDb, 200);
+      }
+      fb.database().ref('users/' + emailToKey(s.email) + '/access').once('value')
+        .then(function (snap) {
+          var cur = getSession();
+          if (!cur) return;
+          cur.access = snap.val() || {};       // reflete a permissão real do banco na sessão
+          saveSession(cur);
+          if (panelId && !canAccess(panelId)) {
+            location.replace((opts.redirect || 'hub.html') +
+              '?denied=' + encodeURIComponent(panelId) + '&revoked=1');
+          }
+        })
+        .catch(function () {});
+    })();
+  }
+
   /* ── sessão (365 dias, compartilhada entre todos os produtos) ── */
   function getSession() {
     try {
@@ -333,7 +368,7 @@
     ADMIN_EMAILS: ADMIN_EMAILS, isAdminEmail: isAdminEmail,
     getSession: getSession, saveSession: saveSession, clearSession: clearSession,
     setTrustedAdmin: setTrustedAdmin, getTrustedAdmin: getTrustedAdmin,
-    recognize: recognize, guard: guard, emailToKey: emailToKey,
+    recognize: recognize, guard: guard, revalidateAccess: revalidateAccess, emailToKey: emailToKey,
     PANELS: PANELS, panelById: panelById, canAccess: canAccess,
     trackUse: trackUse, trackAction: trackAction,
     isDarkPreferred: isDarkPreferred, setThemePref: setThemePref, wireThemeSync: wireThemeSync,

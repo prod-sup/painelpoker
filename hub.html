@@ -1978,82 +1978,25 @@ if (location.protocol === 'file:') {
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<!-- fonte ÚNICA de sessão/hash/admin/tema do Suprema OS: o hub agora consome o
+     mesmo módulo dos painéis em vez de reimplementar tudo inline (evita divergir
+     a cada correção). Precisa vir ANTES do IIFE do gate, que só delega pra ele. -->
+<script src="suprema-auth.js"></script>
 <script>
 (function(){
-  /* ── Sessão compartilhada do Suprema OS (mesma dos painéis) ── */
-  const AUTH_STORE_KEY = 'suprema_session_v1';
-  function getSession(){
-    try{
-      const s = JSON.parse(localStorage.getItem(AUTH_STORE_KEY) || 'null');
-      if(!s || !s.email || !s.expiresAt) return null;
-      if(Date.now() > s.expiresAt){ localStorage.removeItem(AUTH_STORE_KEY); return null; }
-      return s;
-    }catch(e){ return null; }
-  }
-  function saveSession(data){
-    try{ localStorage.setItem(AUTH_STORE_KEY, JSON.stringify({...data, expiresAt: Date.now() + 365*24*60*60*1000})); }catch(e){}
-  }
-  function clearSession(){ try{ localStorage.removeItem(AUTH_STORE_KEY); }catch(e){} }
-  function emailToKey(email){ return email.toLowerCase().trim().replace(/\./g,'_dot_').replace(/@/g,'_at_'); }
-
-  /* ── Hash de senha: protocolo idêntico ao do painel (PBKDF2v2 +
-        verificação/migração dos formatos legados já salvos no Firebase) ── */
-  const PBKDF2_ITER = 150000;
-  const bufToHex = buf => [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
-  function hexToBytes(hex){
-    const bytes = new Uint8Array(hex.length/2);
-    for(let i=0;i<bytes.length;i++) bytes[i] = parseInt(hex.substr(i*2,2),16);
-    return bytes;
-  }
-  async function hashPassword(pw, saltHex){
-    saltHex = saltHex || bufToHex(crypto.getRandomValues(new Uint8Array(16)));
-    const enc = new TextEncoder();
-    const keyMat = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
-    const bits = await crypto.subtle.deriveBits({name:'PBKDF2', salt:hexToBytes(saltHex), iterations:PBKDF2_ITER, hash:'SHA-256'}, keyMat, 256);
-    return `pbkdf2v2$${PBKDF2_ITER}$${saltHex}$${bufToHex(bits)}`;
-  }
-  async function hashPasswordLegacySalt(pw, saltHex){
-    const enc = new TextEncoder();
-    const keyMat = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
-    const bits = await crypto.subtle.deriveBits({name:'PBKDF2', salt:enc.encode(saltHex), iterations:PBKDF2_ITER, hash:'SHA-256'}, keyMat, 256);
-    return `pbkdf2$${PBKDF2_ITER}$${saltHex}$${bufToHex(bits)}`;
-  }
-  function legacyHashPassword(pw){
-    let h = 5381;
-    for(let i=0;i<pw.length;i++){ h = ((h<<5)+h) ^ pw.charCodeAt(i); h |= 0; }
-    const salt = 'suprema2024';
-    let h2 = h;
-    for(let i=0;i<salt.length;i++){ h2 = ((h2<<5)+h2) ^ salt.charCodeAt(i); h2 |= 0; }
-    return 'h2_' + Math.abs(h).toString(36) + '_' + Math.abs(h2).toString(36);
-  }
-  async function verifyPassword(pw, storedHash, onMigrate){
-    if(!storedHash) return true;
-    if(storedHash.startsWith('pbkdf2v2$')){
-      const [,,saltHex] = storedHash.split('$');
-      return (await hashPassword(pw, saltHex)) === storedHash;
-    }
-    if(storedHash.startsWith('pbkdf2$')){
-      const [,,saltHex] = storedHash.split('$');
-      const ok = (await hashPasswordLegacySalt(pw, saltHex)) === storedHash;
-      if(ok && onMigrate) onMigrate(await hashPassword(pw));
-      return ok;
-    }
-    if(/^[0-9a-f]{64}$/i.test(storedHash)){
-      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
-      const ok = bufToHex(digest) === storedHash.toLowerCase();
-      if(ok && onMigrate) onMigrate(await hashPassword(pw));
-      return ok;
-    }
-    const ok = storedHash === legacyHashPassword(pw);
-    if(ok && onMigrate) onMigrate(await hashPassword(pw));
-    return ok;
-  }
-  function validatePassword(pw){
-    if(pw.length < 6) return 'A senha precisa ter pelo menos 6 caracteres.';
-    if(!/[a-z]/.test(pw)) return 'A senha precisa ter pelo menos 1 letra minúscula.';
-    if(!/[^a-zA-Z0-9]/.test(pw)) return 'A senha precisa ter pelo menos 1 caractere especial (ex: @, #, !, %).';
-    return null;
-  }
+  /* ── Sessão + hash: FONTE ÚNICA no suprema-auth.js (carregado acima) ──
+     Antes o hub reimplementava sessão, emailToKey, PBKDF2 e verificação inline —
+     divergindo dos painéis a cada correção. Agora delega pro módulo compartilhado;
+     os aliases locais preservam intactas todas as chamadas já existentes abaixo.
+     Bônus: saveSession/clearSession do módulo também tratam o "admin confiável"
+     deste navegador (os painéis liberam sem novo login). */
+  const getSession       = SupremaAuth.getSession;
+  const saveSession      = SupremaAuth.saveSession;
+  const clearSession     = SupremaAuth.clearSession;
+  const emailToKey       = SupremaAuth.emailToKey;
+  const hashPassword     = SupremaAuth.hashPassword;
+  const verifyPassword   = SupremaAuth.verifyPassword;
+  const validatePassword = SupremaAuth.validatePassword;
   const LOGIN_MAX_ATTEMPTS = 5, LOGIN_LOCK_MS = 5*60*1000;
   const loginLockRemaining = user => user && user.loginLockUntil ? Math.max(0, user.loginLockUntil - Date.now()) : 0;
 
@@ -2472,12 +2415,8 @@ if (location.protocol === 'file:') {
      Dados no Firebase: hub/calendar (eventos), hub/calendarHidden
      (tombstones dos eventos padrão apagados) e hub/patchNotes.
      Todo mundo logado vê; só admin adiciona/edita/apaga. */
-  const ADMIN_EMAILS = [
-    'brian@suprema.group',
-    'admin@suprema.group',
-    'brian.rodrigues@suprema.group',
-  ];
-  const isAdmin = email => ADMIN_EMAILS.includes((email||'').toLowerCase());
+  /* lista de admins: fonte única no suprema-auth.js (não repetir aqui) */
+  const isAdmin = SupremaAuth.isAdminEmail;
 
   // Eventos padrão embutidos: aparecem mesmo antes de qualquer escrita no Firebase.
   // Apagar um deles (admin) grava tombstone em hub/calendarHidden/<id>.

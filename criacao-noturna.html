@@ -11,7 +11,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="gu-parser.js"></script>
 <script src="suprema-auth.js"></script>
-<script>/* portão: login mora no hub; exige acesso liberado a ESTE painel */ SupremaAuth.guard({ panel:'gu' });</script>
+<script>/* portão: login mora no hub; exige acesso liberado a ESTE painel */ SupremaAuth.guard({ panel:'gu' }); SupremaAuth.revalidateAccess('gu');</script>
 <script src="suprema-motion.js"></script>
 <script>
 /* motion do Suprema OS (ref. MotionSites): glow no cursor + reveal dos cards

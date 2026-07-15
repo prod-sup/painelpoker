@@ -34,7 +34,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="suprema-auth.js"></script>
-<script>/* portão: login mora no hub; exige acesso liberado a ESTE painel */ SupremaAuth.guard({ panel:'cash' });</script>
+<script>/* portão: login mora no hub; exige acesso liberado a ESTE painel */ SupremaAuth.guard({ panel:'cash' }); SupremaAuth.revalidateAccess('cash');</script>
 <script src="suprema-motion.js"></script>
 <script>
 /* motion do Suprema OS (ref. MotionSites): glow azul (a tinta do Cash) + reveal */
