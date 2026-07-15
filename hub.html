@@ -2318,8 +2318,13 @@ if (location.protocol === 'file:') {
   async function cadFlow({ nome, sobrenome, apelido, email, pw, btn }){
     const userRef = db.ref(`users/${emailToKey(email)}`);
     try{
-      const snap = await userRef.once('value');
-      if(snap.exists()){ busy(btn,'Criar conta',false); return err('gCadErr','Este email já possui cadastro. Faça login.'); }
+      // checagem prévia é só cortesia: se as regras do banco exigirem auth para
+      // ler users/, este read falha — não derruba o cadastro, o createUser abaixo
+      // ainda barra duplicados com auth/email-already-in-use.
+      try{
+        const snap = await userRef.once('value');
+        if(snap.exists()){ busy(btn,'Criar conta',false); return err('gCadErr','Este email já possui cadastro. Faça login.'); }
+      }catch(preErr){ console.warn('Pré-checagem de email indisponível:', preErr && preErr.code); }
       busy(btn,'Criando conta...',true);
       const displayName = apelido || nome;
       // cria no Firebase Auth
@@ -2352,7 +2357,17 @@ if (location.protocol === 'file:') {
       paintAuthState();
       startLiveTiles();
     }catch(e){
-      busy(btn,'Criar conta',false); err('gCadErr','Sem conexão com o servidor. Tente novamente.');
+      busy(btn,'Criar conta',false);
+      const code = (e && e.code) || '';
+      const msg  = (e && e.message) || '';
+      console.error('Cadastro falhou (fluxo):', code, msg, e);
+      // permission_denied = a conta foi criada no Auth, mas a regra do Realtime
+      // Database barrou a gravação em users/. Não é falta de conexão.
+      if(code === 'PERMISSION_DENIED' || /permission_denied/i.test(msg))
+        return err('gCadErr','Conta criada, mas o banco recusou a gravação do perfil (regras do Realtime Database). Avise o admin.');
+      if(code === 'auth/network-request-failed' || /network/i.test(msg))
+        return err('gCadErr','Sem conexão com o servidor. Tente novamente.');
+      err('gCadErr', 'Falha ao criar conta (' + (code || msg || 'erro desconhecido') + ').');
     }
   }
 
