@@ -2325,14 +2325,15 @@ async function refreshDaySelector(preferKey){
   sel.innerHTML=html;
   if(preferKey && (preferKey==='__demo__'||preferKey==='__all__'||raws[preferKey]))sel.value=preferKey;
 }
-// No load: se já há dias importados, mostra o mais recente; senão, a demo.
+// No load: se já há dias importados, abre na visão COMBINADA (todos os dias
+// juntos, com as análises inteligentes sobre o agregado); senão, a demo.
 async function initDayView(){
   try{
     const raws=await Store.listRaw(); const keys=Object.keys(raws).sort();
     if(!keys.length)return; // segue na demo já renderizada
-    const latest=keys[keys.length-1];
-    await refreshDaySelector(latest);
-    await onDaySel(latest);
+    const start=keys.length>1?'__all__':keys[keys.length-1];
+    await refreshDaySelector(start);
+    await onDaySel(start);
   }catch(e){console.error('initDayView',e);}
 }
 
