@@ -479,6 +479,7 @@ table.t td.m{color:var(--ink2)}
     <button class="nt" onclick="pg('turnos',this)">Turnos</button>
     <button class="nt" onclick="pg('stakes',this)">Stakes</button>
     <button class="nt" onclick="pg('salas',this)">Salas</button>
+    <button class="nt" onclick="pg('eventos',this)">Eventos</button>
     <button class="nt" onclick="pg('player',this)">Comportamento</button>
     <button class="nt" onclick="pg('hist',this)">Histórico</button>
     <button class="nt" onclick="pg('forecast',this)">Previsão</button>
@@ -901,6 +902,16 @@ table.t td.m{color:var(--ink2)}
       <div class="cw" style="height:260px"><canvas id="cBubble" role="img" aria-label="Bubble"></canvas></div>
     </div>
   </div>
+</div>
+
+<!-- ═══════════════ EVENTOS [LIVE]/[HG] ═══ -->
+<div id="pg-eventos" class="pg">
+  <div class="pgh">
+    <div class="pgh-label"><i class="ph ph-confetti"></i> Eventos [LIVE] / [HG]</div>
+    <div class="pgh-title">Torneios ao vivo e Home Games</div>
+    <div class="pgh-sub">Torneios marcados com [LIVE] e [HG] no nome — lidos à parte do cash, com resumo próprio e a visão combinada (cash + eventos).</div>
+  </div>
+  <div id="evBody"></div>
 </div>
 
 <!-- ═══════════════ COMPORTAMENTO ═══ -->
@@ -2105,8 +2116,14 @@ function setBtnLoading(labelEl,loading,loadingText){
 // RODEO) são descartados. Fluxo: computeRaw(linhas) → bag aditivo por dia →
 // mergeRaws([bags]) combina dias → finalizeDataset(bag) → {kpi, d} pronto.
 // Valores monetários já saem em BRL (Fee/Buyin da planilha são GU → ×GU_TO_BRL).
-const CASH_EXCLUDE=/^(SNG|TLT)/i;
+// Cash = SÓ ring games. Torneios (SNG, MTT, TLT) e RODEO ficam de fora do cash.
+// Antes o MTT não era excluído e torneios contavam como cash indevidamente.
+const CASH_EXCLUDE=/^(SNG|MTT|TLT)/i;
 function isCashType(t){ t=String(t||'').trim(); return t && !CASH_EXCLUDE.test(t) && t.toUpperCase()!=='RODEO'; }
+// Eventos marcados no Game Name: [LIVE] (ao vivo) e [HG] (home game). Lidos
+// SEMPRE, separados do cash, com resumo próprio e combinável com o cash.
+function eventTag(name){ var s=String(name||''); if(/^\s*\[LIVE\]/i.test(s))return 'live'; if(/^\s*\[HG\]/i.test(s))return 'hg'; return null; }
+function cleanEventName(name){ return String(name||'').replace(/^\s*\[(LIVE|HG)\]\s*/i,'').replace(/\s*\(\d+\)\s*$/,'').trim()||'—'; }
 function slotIdx(d){ return d.getHours()*2 + (d.getMinutes()>=30?1:0); }
 function slotLabel(i){ return String(Math.floor(i/2)).padStart(2,'0')+':'+(i%2?'30':'00'); }
 // Tier por Big Blind em GU (mesma régua da UI: Micro BB≤0.05 … VHigh BB>5 = R$25)
@@ -2129,7 +2146,9 @@ function newRaw(dateStr){
     ante:{tables:0,fee:0,hands:0,retained:0}, noante:{tables:0,fee:0,hands:0,retained:0},
     cross:0, tables4h:0, fee4h:0, more100:0, more500:0,
     feeDia:0,feeNoite:0,tablesDia:0,tablesNoite:0,deadDia:0,deadNoite:0,handsDia:0,handsNoite:0,
-    hphList:[], feeList:[], topN:[]
+    hphList:[], feeList:[], topN:[],
+    // eventos [LIVE]/[HG] — torneios marcados, separados do cash
+    ev:{ live:{n:0,fee:0,buyin:0,players:0,hands:0}, hg:{n:0,fee:0,buyin:0,players:0,hands:0}, byType:{}, list:[] }
   };
 }
 const DURB=['30-60m','1-2h','2-4h','4h+'];
@@ -2138,7 +2157,18 @@ function rateBucket(rr){ return rr<3?'0–3%':rr<6?'3–6%':rr<9?'6–9%':rr<12?
 
 function computeRaw(allRows, dateStr){
   const GU=GU_TO_BRL, R=newRaw(dateStr);
-  const rows=allRows.filter(r=>r.startTime && isCashType(r.gameType));
+  // ── eventos [LIVE]/[HG] (torneios marcados no Game Name) — sempre lidos,
+  //    agregados à parte do cash ──
+  for(const r of allRows){
+    if(!r.startTime)continue;
+    const tag=eventTag(r.gameName); if(!tag)continue;
+    const fee=(r.fee||0)*GU, buyin=(r.buyin||0)*GU;
+    const bag=R.ev[tag]; bag.n++; bag.fee+=fee; bag.buyin+=buyin; bag.players+=r.players||0; bag.hands+=r.hands||0;
+    const bt=R.ev.byType[r.gameType]||(R.ev.byType[r.gameType]={n:0,fee:0,buyin:0}); bt.n++; bt.fee+=fee; bt.buyin+=buyin;
+    R.ev.list.push({name:cleanEventName(r.gameName),tag:tag,type:r.gameType,players:r.players||0,buyin:Math.round(buyin),fee:Math.round(fee),start_h:r.startTime.getHours()});
+  }
+  // cash = ring games, excluindo os eventos marcados
+  const rows=allRows.filter(r=>r.startTime && isCashType(r.gameType) && !eventTag(r.gameName));
   for(const r of rows){
     const fee=(r.fee||0)*GU, buyin=(r.buyin||0)*GU, jp=(r.jackpotFee||0)*GU;
     const isDead=(r.hands||0)<DEAD_HANDS_THRESHOLD, ret=isDead?0:1;
@@ -2213,6 +2243,10 @@ function mergeRaws(list){
     ['hu','multi'].forEach(b=>['tables','fee','hands','buyin','players','durSum','retained'].forEach(p=>M[b][p]+=R[b][p]));
     ['ante','noante'].forEach(b=>['tables','fee','hands','retained'].forEach(p=>M[b][p]+=R[b][p]));
     M.hphList=M.hphList.concat(R.hphList); M.feeList=M.feeList.concat(R.feeList); M.topN=M.topN.concat(R.topN);
+    // eventos [LIVE]/[HG]
+    ['live','hg'].forEach(b=>['n','fee','buyin','players','hands'].forEach(p=>M.ev[b][p]+=R.ev[b][p]));
+    addMap(M.ev.byType,R.ev.byType,()=>({n:0,fee:0,buyin:0}));
+    M.ev.list=M.ev.list.concat(R.ev.list);
     // preserva rótulos op/blind ao mesclar
     for(const k in R.op){M.op[k].op=R.op[k].op;M.op[k].turno=R.op[k].turno;}
     for(const k in R.blind){M.blind[k].bb=R.blind[k].bb;}
@@ -2284,7 +2318,53 @@ function finalizeDataset(R, label){
   const fpp=Object.entries(R.gt).map(([type,g])=>({type,fpp:+safe(g.fee,g.players).toFixed(2),tables:g.tables})).sort((a,b)=>b.fpp-a.fpp).slice(0,8);
   const top10=R.topN.slice(0,10).map(t=>({name:t.name,type:t.type,players:t.players,hands:t.hands,fee:Math.round(t.fee),buyin:Math.round(t.buyin),dur:t.dur,start_h:t.start_h}));
   const concurrent=concAvg;
-  return {kpi, d:{slots30,end30,concurrent,gametypes,opShift,rooms,blinds,duration,top10,tiers,fpp}};
+  // ── eventos [LIVE]/[HG]: resumo próprio + combinável com o cash ──
+  const ev=R.ev;
+  const events={
+    live:{n:ev.live.n,fee:Math.round(ev.live.fee),buyin:Math.round(ev.live.buyin),players:ev.live.players,hands:ev.live.hands},
+    hg:{n:ev.hg.n,fee:Math.round(ev.hg.fee),buyin:Math.round(ev.hg.buyin),players:ev.hg.players,hands:ev.hg.hands},
+    total:{n:ev.live.n+ev.hg.n,fee:Math.round(ev.live.fee+ev.hg.fee),buyin:Math.round(ev.live.buyin+ev.hg.buyin),players:ev.live.players+ev.hg.players,hands:ev.live.hands+ev.hg.hands},
+    byType:Object.entries(ev.byType).map(function(e){return {type:e[0],n:e[1].n,fee:Math.round(e[1].fee),buyin:Math.round(e[1].buyin)};}).sort(function(a,b){return b.fee-a.fee;}),
+    list:ev.list.slice().sort(function(a,b){return b.fee-a.fee;}).slice(0,50)
+  };
+  return {kpi, d:{slots30,end30,concurrent,gametypes,opShift,rooms,blinds,duration,top10,tiers,fpp,events}};
+}
+
+// ══════════════════════════════ ABA EVENTOS [LIVE]/[HG]
+function buildEventos(){
+  const host=document.getElementById('evBody'); if(!host)return;
+  const ev=D.events;
+  if(!ev || !ev.total || !ev.total.n){
+    host.innerHTML='<div class="card" style="text-align:center;padding:44px 16px">'
+      +'<div style="font-size:28px;color:var(--ink3);margin-bottom:10px"><i class="ph ph-confetti"></i></div>'
+      +'<div style="font-size:12px;color:var(--ink3)">Nenhum torneio [LIVE] ou [HG] nos dias selecionados.<br>Importe uma planilha que contenha esses eventos.</div></div>';
+    return;
+  }
+  const cashFee=KPI_DEMO.feeGross||0, cashSess=KPI_DEMO.sessions||0;
+  const totFee=cashFee+ev.total.fee, totCount=cashSess+ev.total.n;
+  const kc=(cls,l,v,s)=>`<div class="kpi ${cls}"><div class="kl">${l}</div><div class="kv">${v}</div><div class="ks">${s}</div></div>`;
+  const kpis=[
+    kc('hero','Fee eventos','R$ '+f(ev.total.fee,0),`${f(ev.total.n)} torneios · buyin R$ ${fK(ev.total.buyin)}`),
+    kc('c-dia','[LIVE] ao vivo','R$ '+f(ev.live.fee,0),`${f(ev.live.n)} torneios · ${f(ev.live.players)} entradas`),
+    kc('c-gold','[HG] home games','R$ '+f(ev.hg.fee,0),`${f(ev.hg.n)} torneios · ${f(ev.hg.players)} entradas`),
+    kc('','Entradas totais',f(ev.total.players),'jogadores nos eventos')
+  ].join('');
+  const combined=`<div class="card"><div class="ct">Cash + Eventos — operação combinada</div>
+    <div class="cs">Soma do rake das mesas cash com o fee dos torneios [LIVE]/[HG]</div>
+    <div class="kg" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">
+      ${kc('','Fee cash','R$ '+f(cashFee,0),f(cashSess)+' sessões')}
+      ${kc('','Fee eventos','R$ '+f(ev.total.fee,0),f(ev.total.n)+' torneios')}
+      ${kc('hero','Fee total da operação','R$ '+f(totFee,0),f(totCount)+' partidas · eventos = '+(totFee?(ev.total.fee/totFee*100).toFixed(1):0)+'%')}
+    </div></div>`;
+  const byType=`<div class="card"><div class="ct">Eventos por tipo de jogo</div><div class="tw"><table class="t">
+    <thead><tr><th>Tipo</th><th class="r">Torneios</th><th class="r">Fee</th><th class="r">Buyin</th></tr></thead><tbody>`
+    +ev.byType.map(t=>`<tr><td class="b">${t.type}</td><td class="r m">${f(t.n)}</td><td class="r b">R$ ${f(t.fee,0)}</td><td class="r m">R$ ${f(t.buyin,0)}</td></tr>`).join('')
+    +`</tbody></table></div></div>`;
+  const list=`<div class="card"><div class="ct">Torneios [LIVE] / [HG] (top ${ev.list.length})</div><div class="tw"><table class="t">
+    <thead><tr><th>Evento</th><th>Marca</th><th>Tipo</th><th class="r">Entradas</th><th class="r">Buyin</th><th class="r">Fee</th></tr></thead><tbody>`
+    +ev.list.map(e=>`<tr><td class="b">${e.name}</td><td><span class="tag ${e.tag==='live'?'tn':'to'}">${e.tag.toUpperCase()}</span></td><td class="m">${e.type}</td><td class="r m">${f(e.players)}</td><td class="r m">R$ ${f(e.buyin,0)}</td><td class="r b">R$ ${f(e.fee,0)}</td></tr>`).join('')
+    +`</tbody></table></div></div>`;
+  host.innerHTML=`<div class="kg" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">${kpis}</div>`+combined+`<div class="g2">${byType}${list}</div>`;
 }
 
 // ══════════════════════════════ APLICAÇÃO / SELETOR DE DIA
@@ -2295,7 +2375,7 @@ function renderAll(){
   buildTierCharts();buildConc();buildHuMulti();buildJP();buildFPP();
   buildRooms();buildRR();buildBlindBars();buildBubble();
   buildRet();buildDurFee();buildHM();buildHist();
-  buildResumo();
+  buildResumo();buildEventos();
 }
 function applyDataset(ds){
   // destrói os gráficos antigos antes de repintar (Chart.js recusa recriar sobre canvas em uso)
@@ -2699,7 +2779,12 @@ function buildResumo(){
   const highlights=[
     {ic:'crown',tt:`${topTier.tier} é o motor do rake`,sb:`R$ ${f(topTier.fee,0)} com ${f(topTier.tables)} mesas · fee/mão R$ ${f(topTier.avg_fph,3)}`,vl:(topTier.fee/tot*100).toFixed(0)+'%'},
     {ic:'buildings',tt:`Sala campeã: ${topRoom.name}`,sb:`R$ ${f(topRoom.fee,0)} de fee · take rate ${f(topRoom.rake_rate,2)}%`,vl:'R$ '+fK(topRoom.fee)},
-    {ic:'moon-stars',tt:`Turno ${melhorTurno} rende mais por mesa`,sb:`fee/mesa R$ ${f(g.noite.fee/(g.noite.tables||1),0)} no Noite vs R$ ${f(g.dia.fee/(g.dia.tables||1),0)} no Dia`,vl:'+'+f((g.noite.fee/(g.noite.tables||1))/(g.dia.fee/(g.dia.tables||1))*100-100,0)+'%'},
+    (function(){
+      const fmD=g.dia.fee/(g.dia.tables||1), fmN=g.noite.fee/(g.noite.tables||1);
+      const lead=Math.max(fmD,fmN), other=Math.min(fmD,fmN)||1;
+      return {ic:melhorTurno==='Dia'?'sun':'moon-stars',tt:`Turno ${melhorTurno} rende mais por mesa`,
+        sb:`fee/mesa R$ ${f(fmD,0)} no Dia vs R$ ${f(fmN,0)} no Noite`,vl:'+'+f(lead/other*100-100,0)+'%'};
+    })(),
     {ic:'target',tt:'Top 1% das mesas concentra o rake',sb:`${KPI_DEMO.conc1Tables} mesas geram R$ ${f(KPI_DEMO.conc1Fee,0)} — proteger esses jogadores é prioridade`,vl:f(KPI_DEMO.conc1pct,1)+'%'},
   ];
   const hel=document.getElementById('rsHighlights');
@@ -2750,7 +2835,7 @@ function startApp(){
   buildTierCharts();buildConc();buildHuMulti();buildJP();buildFPP();
   buildRooms();buildRR();buildBlindBars();buildBubble();
   buildRet();buildDurFee();buildHM();buildHist();
-  buildResumo();
+  buildResumo();buildEventos();
   initDayView(); // se há dias importados, troca a demo pelo dia mais recente
 }
 enterFromHubSession();
