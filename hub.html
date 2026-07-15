@@ -35,7 +35,6 @@
   --p-learn:   #e8933d;
   --p-org:     #d8b56d;
   --p-cash:    #4f8ef7;
-  --p-pipefy:  #eca045;
 
   --display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", sans-serif;
   --text:    "SF Pro Text", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", sans-serif;
@@ -333,12 +332,6 @@ html.light .aviso[data-tipo="erro"]{ --av-fg:#c0392b }
 .t-cash .desc{margin:4px 0 0}
 .t-cash .meta{margin:0 0 0 auto}
 .t-cash .mark{font-size:120px;top:-24px}
-/* Pipefy: faixa horizontal do fluxo de criação de eventos */
-.t-pipefy{grid-column:span 6;min-height:120px;--tint:var(--p-pipefy);flex-direction:row;align-items:center;gap:22px}
-.t-pipefy h2{font-size:20px}
-.t-pipefy .desc{margin:4px 0 0}
-.t-pipefy .meta{margin:0 0 0 auto}
-.t-pipefy .mark{font-size:120px;top:-24px}
 /* tile bloqueado (Mesa Cash é só admin) — visível, mas travado pra operador comum */
 .tile.locked{cursor:not-allowed;filter:saturate(.55)}
 .tile.locked h2,.tile.locked .desc{opacity:.5}
@@ -1607,8 +1600,8 @@ footer{
   .t-painel,.t-admin{grid-column:span 6}
   .t-gu,.t-learn,.t-org{grid-column:span 6}
   .tile{min-height:200px}
-  .t-cash,.t-pipefy{flex-direction:column;align-items:flex-start;gap:8px}
-  .t-cash .meta,.t-pipefy .meta{margin:10px 0 0}
+  .t-cash{flex-direction:column;align-items:flex-start;gap:8px}
+  .t-cash .meta{margin:10px 0 0}
   .hero{padding-top:40px}
 }
 </style>
@@ -1710,14 +1703,6 @@ footer{
     <span class="meta"><span class="lock-badge"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> Somente admin</span><span class="arrow-txt">An&aacute;lise de dados </span><span class="arrow">&rarr;</span></span>
   </a>
 
-  <a class="tile t-pipefy" href="https://design-1-53c00.web.app/" style="--i:6" data-panel="pipefy">
-    <span class="mark" aria-hidden="true">&#9638;</span>
-    <div>
-      <h2>Cria&ccedil;&atilde;o de Eventos</h2>
-      <p class="desc">O fluxo Kanban dos torneios no Pipefy: da caixa de entrada &agrave; publica&ccedil;&atilde;o no lobby.</p>
-    </div>
-    <span class="meta">Fluxo Pipefy <span class="arrow">&rarr;</span></span>
-  </a>
 
 </main>
 
