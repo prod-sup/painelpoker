@@ -492,6 +492,10 @@ table.t td.m{color:var(--ink2)}
     </div>
     <a href="hub.html" class="theme-toggle" title="Voltar ao hub Suprema OS" style="text-decoration:none;font-size:13px">♠</a>
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Alternar tema" aria-label="Alternar tema claro/escuro"><i class="ph ph-moon"></i></button>
+    <select id="daySel" title="Dia exibido no dashboard" onchange="onDaySel(this.value)"
+      style="height:32px;border-radius:8px;padding:0 10px;font-size:11px;font-weight:700;background:var(--surf);color:var(--ink);border:1px solid var(--bdr);cursor:pointer;max-width:190px">
+      <option value="__demo__">Demonstração (22/06)</option>
+    </select>
     <label class="up-btn" id="cashImportBtn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
       <span>Importar</span>
@@ -1267,6 +1271,10 @@ D.slots30.forEach(s=>{ s.turno=shiftOf(parseInt(s.slot,10)); });
   KPI_DEMO.feeDiaPct=+(fd/tot*100).toFixed(1);
   KPI_DEMO.feeNoitePct=+(fn/tot*100).toFixed(1);
 })();
+/* Snapshot do dia de DEMONSTRAÇÃO (já em BRL, turnos normalizados). É o dataset
+   base do seletor "Demonstração"; datasets reais importados substituem o conteúdo
+   de KPI_DEMO/D em runtime via applyDataset(), então guardamos a demo intacta. */
+const DEMO_DS={kpi:JSON.parse(JSON.stringify(KPI_DEMO)), d:JSON.parse(JSON.stringify(D))};
 const tagCls=t=>t.startsWith('PLO')?'tp':t.startsWith('NLH')?'tn':t==='OFC'?'to':'t6';
 const CTOP={backgroundColor:'#181b19',titleColor:'#f2ede2',bodyColor:'rgba(242,237,226,.6)',padding:10,cornerRadius:8,borderColor:'rgba(242,237,226,.1)',borderWidth:1};
 /* Cores neutras dos gráficos em CINZA MÉDIO — os gráficos são criados uma vez e o
@@ -1389,12 +1397,14 @@ function buildTimeline(){
 }
 
 // ══════════════════════════════ HOUR CHART
-let hrC;const hrByH={};
-D.slots30.forEach(s=>{const h=parseInt(s.slot);if(!hrByH[h]){hrByH[h]={fee:0,players:0,hands:0,tables:0,concurrent:0}}hrByH[h].fee+=s.fee;hrByH[h].players+=s.players;hrByH[h].hands+=s.hands;hrByH[h].tables+=s.tables;});
-D.concurrent.forEach(c=>{if(hrByH[c.h])hrByH[c.h].concurrent=c.open;});
-const hrLabels=[];const hrFee=[];const hrPl=[];const hrHd=[];const hrTb=[];const hrCc=[];const hrBg=[];const hrBd=[];
-for(let h=0;h<24;h++){hrLabels.push(String(h).padStart(2,'0')+'h');const d=hrByH[h]||{fee:0,players:0,hands:0,tables:0,concurrent:0};hrFee.push(d.fee);hrPl.push(d.players);hrHd.push(d.hands);hrTb.push(d.tables);hrCc.push(d.concurrent);hrBg.push(shiftOf(h)==='dia'?'rgba(79,142,247,.2)':'rgba(167,139,250,.2)');hrBd.push(shiftOf(h)==='dia'?'#4f8ef7':'#a78bfa');}
+let hrC;
 function buildHrChart(){
+  // recomputa por hora a partir do D ATIVO (recalculado a cada troca de dataset)
+  const hrByH={};
+  D.slots30.forEach(s=>{const h=parseInt(s.slot);if(!hrByH[h]){hrByH[h]={fee:0,players:0,hands:0,tables:0,concurrent:0}}hrByH[h].fee+=s.fee;hrByH[h].players+=s.players;hrByH[h].hands+=s.hands;hrByH[h].tables+=s.tables;});
+  D.concurrent.forEach(c=>{if(hrByH[c.h])hrByH[c.h].concurrent=c.open;});
+  const hrLabels=[],hrFee=[],hrPl=[],hrHd=[],hrTb=[],hrCc=[],hrBg=[],hrBd=[];
+  for(let h=0;h<24;h++){hrLabels.push(String(h).padStart(2,'0')+'h');const d=hrByH[h]||{fee:0,players:0,hands:0,tables:0,concurrent:0};hrFee.push(d.fee);hrPl.push(d.players);hrHd.push(d.hands);hrTb.push(d.tables);hrCc.push(d.concurrent);hrBg.push(shiftOf(h)==='dia'?'rgba(79,142,247,.2)':'rgba(167,139,250,.2)');hrBd.push(shiftOf(h)==='dia'?'#4f8ef7':'#a78bfa');}
   hrC=new Chart(document.getElementById('cHour'),{
     type:'bar',
     data:{labels:hrLabels,datasets:[
@@ -1952,6 +1962,7 @@ async function buildHist(){
 // barra em path. Cai para localStorage se o Firebase não estiver disponível
 // (offline, bloqueado, etc.) para nunca travar o uso do dashboard.
 const RTDB_NODE='mesasCashHistory';
+const RTDB_DATA='mesasCashData';
 function labelToRtdbKey(dateStr){const[dd,mm,yy]=dateStr.split('/');return`${yy}-${mm}-${dd}`;}
 const Store={
   async list(){
@@ -1981,6 +1992,21 @@ const Store={
     }
     const hist=JSON.parse(localStorage.getItem('cashHistory')||'[]').filter(d=>d.date!==dateStr);
     localStorage.setItem('cashHistory',JSON.stringify(hist));
+  },
+  // ── dataset bruto completo por dia (alimenta o dashboard inteiro) ──
+  async saveRaw(dateStr,raw){
+    const key=labelToRtdbKey(dateStr);
+    if(fbOk&&db){ try{await db.ref(`${RTDB_DATA}/${key}`).set(raw);return;}catch(e){console.error('Store.saveRaw',e);} }
+    const all=JSON.parse(localStorage.getItem('cashData')||'{}'); all[key]=raw; localStorage.setItem('cashData',JSON.stringify(all));
+  },
+  async listRaw(){
+    if(fbOk&&db){ try{const s=await db.ref(RTDB_DATA).once('value');return s.val()||{};}catch(e){console.error('Store.listRaw',e);} }
+    return JSON.parse(localStorage.getItem('cashData')||'{}');
+  },
+  async removeRaw(dateStr){
+    const key=labelToRtdbKey(dateStr);
+    if(fbOk&&db){ try{await db.ref(`${RTDB_DATA}/${key}`).remove();return;}catch(e){console.error('Store.removeRaw',e);} }
+    const all=JSON.parse(localStorage.getItem('cashData')||'{}'); delete all[key]; localStorage.setItem('cashData',JSON.stringify(all));
   }
 };
 
@@ -2073,6 +2099,243 @@ function setBtnLoading(labelEl,loading,loadingText){
   else{if(labelEl.dataset.origText)labelEl.textContent=labelEl.dataset.origText;labelEl.closest('label,button')?.removeAttribute('aria-busy');}
 }
 
+// ══════════════════════════════ PIPELINE DE DADOS REAIS
+// Reconstrói TODO o dataset do dashboard (mesma forma de KPI_DEMO + D) a partir
+// das linhas cruas da planilha. O painel é CASH-ONLY: torneios (SNG-*, TLT-*,
+// RODEO) são descartados. Fluxo: computeRaw(linhas) → bag aditivo por dia →
+// mergeRaws([bags]) combina dias → finalizeDataset(bag) → {kpi, d} pronto.
+// Valores monetários já saem em BRL (Fee/Buyin da planilha são GU → ×GU_TO_BRL).
+const CASH_EXCLUDE=/^(SNG|TLT)/i;
+function isCashType(t){ t=String(t||'').trim(); return t && !CASH_EXCLUDE.test(t) && t.toUpperCase()!=='RODEO'; }
+function slotIdx(d){ return d.getHours()*2 + (d.getMinutes()>=30?1:0); }
+function slotLabel(i){ return String(Math.floor(i/2)).padStart(2,'0')+':'+(i%2?'30':'00'); }
+// Tier por Big Blind em GU (mesma régua da UI: Micro BB≤0.05 … VHigh BB>5 = R$25)
+function tierOf(bb){ bb=+bb||0; return bb<=0.05?'Micro':bb<=0.5?'Low':bb<=2?'Mid':bb<=5?'High':'VHigh'; }
+const TIER_ORDER=['Micro','Low','Mid','High','VHigh'];
+// Nome da SALA = Game Name sem os sufixos "(n)" / "(id)" finais
+function roomName(gn){ let c=String(gn||'').trim(); c=c.replace(/\s*\(\d+\)\s*$/,'').replace(/\s*\(\d+\)\s*$/,''); return c||'—'; }
+function durHours(r){ return (r.endTime&&r.startTime)?Math.max(0,(r.endTime-r.startTime)/36e5):0; }
+
+function newRaw(dateStr){
+  return {
+    dates:dateStr?[dateStr]:[], days:1,
+    n:0, feeGross:0, buyin:0, players:0, hands:0, jackpot:0, dead:0, jackpotTables:0,
+    slots:Array.from({length:48},()=>({tables:0,fee:0,players:0,hands:0,dead:0})),
+    end:Array.from({length:48},()=>0),
+    conc:Array.from({length:24},()=>0),
+    gt:{}, op:{}, room:{}, blind:{}, dur:{}, tier:{}, feeRate:{},
+    hu:{tables:0,fee:0,hands:0,buyin:0,players:0,durSum:0,retained:0},
+    multi:{tables:0,fee:0,hands:0,buyin:0,players:0,durSum:0,retained:0},
+    ante:{tables:0,fee:0,hands:0,retained:0}, noante:{tables:0,fee:0,hands:0,retained:0},
+    cross:0, tables4h:0, fee4h:0, more100:0, more500:0,
+    feeDia:0,feeNoite:0,tablesDia:0,tablesNoite:0,deadDia:0,deadNoite:0,handsDia:0,handsNoite:0,
+    hphList:[], feeList:[], topN:[]
+  };
+}
+const DURB=['30-60m','1-2h','2-4h','4h+'];
+function durBucket(h){ return h<1?'30-60m':h<2?'1-2h':h<4?'2-4h':'4h+'; }
+function rateBucket(rr){ return rr<3?'0–3%':rr<6?'3–6%':rr<9?'6–9%':rr<12?'9–12%':'12%+'; }
+
+function computeRaw(allRows, dateStr){
+  const GU=GU_TO_BRL, R=newRaw(dateStr);
+  const rows=allRows.filter(r=>r.startTime && isCashType(r.gameType));
+  for(const r of rows){
+    const fee=(r.fee||0)*GU, buyin=(r.buyin||0)*GU, jp=(r.jackpotFee||0)*GU;
+    const isDead=(r.hands||0)<DEAD_HANDS_THRESHOLD, ret=isDead?0:1;
+    const dh=durHours(r), sh=shiftOf(r.startTime.getHours());
+    R.n++; R.feeGross+=fee; R.buyin+=buyin; R.players+=r.players||0; R.hands+=r.hands||0; R.jackpot+=jp;
+    if(isDead)R.dead++; if(jp)R.jackpotTables++;
+    // slots de início (30min)
+    const si=slotIdx(r.startTime), sl=R.slots[si];
+    sl.tables++; sl.fee+=fee; sl.players+=r.players||0; sl.hands+=r.hands||0; if(isDead)sl.dead++;
+    if(r.endTime)R.end[slotIdx(r.endTime)]++;
+    // concorrência: horas que a sessão cobre
+    if(r.endTime){ let h0=r.startTime.getHours(), h1=r.endTime.getHours(); let span=(h1-h0+24)%24;
+      for(let k=0;k<=span&&k<24;k++)R.conc[(h0+k)%24]++; } else R.conc[r.startTime.getHours()]++;
+    // turno
+    if(sh==='dia'){R.feeDia+=fee;R.tablesDia++;R.handsDia+=r.hands||0;if(isDead)R.deadDia++;}
+    else{R.feeNoite+=fee;R.tablesNoite++;R.handsNoite+=r.hands||0;if(isDead)R.deadNoite++;}
+    if(r.endTime && sh!==shiftOf(r.endTime.getHours()))R.cross++;
+    // game type
+    const g=R.gt[r.gameType]||(R.gt[r.gameType]={tables:0,fee:0,buyin:0,players:0,hands:0,durSum:0});
+    g.tables++;g.fee+=fee;g.buyin+=buyin;g.players+=r.players||0;g.hands+=r.hands||0;g.durSum+=dh;
+    // operador × turno (Creator Name)
+    const opk=(r.sala||'—')+'|'+sh, o=R.op[opk]||(R.op[opk]={op:r.sala||'—',turno:sh,tables:0,fee:0,players:0,dead:0});
+    o.tables++;o.fee+=fee;o.players+=r.players||0;if(isDead)o.dead++;
+    // sala
+    const rn=roomName(r.gameName), rm=R.room[rn]||(R.room[rn]={tables:0,fee:0,buyin:0,players:0,hands:0});
+    rm.tables++;rm.fee+=fee;rm.buyin+=buyin;rm.players+=r.players||0;rm.hands+=r.hands||0;
+    // blind
+    const bk=String(r.bigBlind||0), bl=R.blind[bk]||(R.blind[bk]={bb:+r.bigBlind||0,tables:0,fee:0});
+    bl.tables++;bl.fee+=fee;
+    // duração
+    const dbk=durBucket(dh), db=R.dur[dbk]||(R.dur[dbk]={tables:0,fee:0,dead:0,retained:0});
+    db.tables++;db.fee+=fee;if(isDead)db.dead++;db.retained+=ret;
+    if(dh>=4){R.tables4h++;R.fee4h+=fee;}
+    // tier
+    const tk=tierOf(r.bigBlind), tr=R.tier[tk]||(R.tier[tk]={tables:0,fee:0,buyin:0,players:0,hands:0,dead:0,retained:0});
+    tr.tables++;tr.fee+=fee;tr.buyin+=buyin;tr.players+=r.players||0;tr.hands+=r.hands||0;if(isDead)tr.dead++;tr.retained+=ret;
+    // HU × Multi
+    const bag=(r.players||0)<=2?R.hu:R.multi;
+    bag.tables++;bag.fee+=fee;bag.hands+=r.hands||0;bag.buyin+=buyin;bag.players+=r.players||0;bag.durSum+=dh;bag.retained+=ret;
+    // Ante × sem ante
+    const ab=(r.ante||0)>0?R.ante:R.noante; ab.tables++;ab.fee+=fee;ab.hands+=r.hands||0;ab.retained+=ret;
+    // fee rate bucket
+    const rr=buyin>0?fee/buyin*100:0, frk=rateBucket(rr), fr=R.feeRate[frk]||(R.feeRate[frk]={tables:0,fee:0});
+    fr.tables++;fr.fee+=fee;
+    if(fee>100)R.more100++; if(fee>500)R.more500++;
+    if(dh>0)R.hphList.push((r.hands||0)/dh);
+    R.feeList.push(fee);
+    R.topN.push({name:r.gameName,type:r.gameType,players:r.players||0,hands:r.hands||0,fee,buyin,dur:+dh.toFixed(2),start_h:r.startTime.getHours()});
+  }
+  // mantém só o topo pra caber no armazenamento (concentração usa feeList inteiro)
+  R.feeList.sort((a,b)=>b-a);
+  R.topN.sort((a,b)=>b.fee-a.fee); R.topN=R.topN.slice(0,60);
+  return R;
+}
+
+function mergeRaws(list){
+  const M=newRaw(null); M.days=0; M.dates=[];
+  const addMap=(dst,src,init)=>{for(const k in src){const a=dst[k]||(dst[k]=init());for(const p in src[k])a[p]+=src[k][p];}};
+  for(const R of list){
+    M.dates=M.dates.concat(R.dates); M.days+=R.days||1;
+    ['n','feeGross','buyin','players','hands','jackpot','dead','jackpotTables','cross','tables4h','fee4h','more100','more500',
+     'feeDia','feeNoite','tablesDia','tablesNoite','deadDia','deadNoite','handsDia','handsNoite'].forEach(k=>M[k]+=R[k]);
+    for(let i=0;i<48;i++){['tables','fee','players','hands','dead'].forEach(p=>M.slots[i][p]+=R.slots[i][p]); M.end[i]+=R.end[i];}
+    for(let i=0;i<24;i++)M.conc[i]+=R.conc[i];
+    addMap(M.gt,R.gt,()=>({tables:0,fee:0,buyin:0,players:0,hands:0,durSum:0}));
+    addMap(M.op,R.op,()=>({op:'',turno:'',tables:0,fee:0,players:0,dead:0}));
+    addMap(M.room,R.room,()=>({tables:0,fee:0,buyin:0,players:0,hands:0}));
+    addMap(M.blind,R.blind,()=>({bb:0,tables:0,fee:0}));
+    addMap(M.dur,R.dur,()=>({tables:0,fee:0,dead:0,retained:0}));
+    addMap(M.tier,R.tier,()=>({tables:0,fee:0,buyin:0,players:0,hands:0,dead:0,retained:0}));
+    addMap(M.feeRate,R.feeRate,()=>({tables:0,fee:0}));
+    ['hu','multi'].forEach(b=>['tables','fee','hands','buyin','players','durSum','retained'].forEach(p=>M[b][p]+=R[b][p]));
+    ['ante','noante'].forEach(b=>['tables','fee','hands','retained'].forEach(p=>M[b][p]+=R[b][p]));
+    M.hphList=M.hphList.concat(R.hphList); M.feeList=M.feeList.concat(R.feeList); M.topN=M.topN.concat(R.topN);
+    // preserva rótulos op/blind ao mesclar
+    for(const k in R.op){M.op[k].op=R.op[k].op;M.op[k].turno=R.op[k].turno;}
+    for(const k in R.blind){M.blind[k].bb=R.blind[k].bb;}
+  }
+  M.feeList.sort((a,b)=>b-a); M.topN.sort((a,b)=>b.fee-a.fee); M.topN=M.topN.slice(0,60);
+  return M;
+}
+
+function finalizeDataset(R, label){
+  const days=R.days||1, pct=(a,b)=>b?+(a/b*100).toFixed(1):0, safe=(a,b)=>b?a/b:0;
+  const conc=p=>{const k=Math.max(1,Math.ceil(R.n*p/100)); let s=0; for(let i=0;i<k&&i<R.feeList.length;i++)s+=R.feeList[i];
+    return {tables:k,fee:Math.round(s),pct:pct(s,R.feeGross)};};
+  const c1=conc(1),c5=conc(5),c10=conc(10),c20=conc(20);
+  // Jackpot Fee pode vir NEGATIVO na planilha (contribuição p/ o pool). O que
+  // importa é a magnitude deduzida do fee bruto → feeNet = bruto − |jackpot|.
+  const jkAbs=Math.abs(R.jackpot);
+  const perc=(arr,p)=>{if(!arr.length)return 0;const a=arr.slice().sort((x,y)=>x-y);return +a[Math.min(a.length-1,Math.floor(a.length*p))].toFixed(1);};
+  const kpi={
+    date: label || R.dates.slice().sort().join(' + ') || '—',
+    sessions:R.n, playersTotal:R.players, buyinTotal:Math.round(R.buyin),
+    feeGross:Math.round(R.feeGross), feeNet:Math.round(R.feeGross-jkAbs),
+    jackpot:Math.round(jkAbs), jackpotPct:pct(jkAbs,R.feeGross), jackpotTables:R.jackpotTables,
+    takeRate:+pct(R.feeGross,R.buyin).toFixed(2),
+    feeDia:Math.round(R.feeDia), feeNoite:Math.round(R.feeNoite),
+    feeDiaPct:pct(R.feeDia,R.feeGross), feeNoitePct:pct(R.feeNoite,R.feeGross),
+    tablesDia:R.tablesDia, tablesNoite:R.tablesNoite,
+    deadTables:R.dead, deadPct:pct(R.dead,R.n), deadDia:R.deadDia, deadNoite:R.deadNoite,
+    feePerHand:+safe(R.feeGross,R.hands).toFixed(2),
+    feePerHandDia:+safe(R.feeDia,R.handsDia).toFixed(2), feePerHandNoite:+safe(R.feeNoite,R.handsNoite).toFixed(2),
+    feePerActiveTable:+safe(R.feeGross,R.n-R.dead).toFixed(1),
+    crossShift:R.cross, crossShiftPct:pct(R.cross,R.n),
+    conc1pct:c1.pct,conc1Fee:c1.fee,conc1Tables:c1.tables,
+    conc5pct:c5.pct,conc5Fee:c5.fee,conc5Tables:c5.tables,
+    conc10pct:c10.pct,conc10Fee:c10.fee,conc10Tables:c10.tables,
+    conc20pct:c20.pct,conc20Fee:c20.fee,conc20Tables:c20.tables,
+    huTables:R.hu.tables,huFee:Math.round(R.hu.fee),huFph:+safe(R.hu.fee,R.hu.hands).toFixed(3),
+    huRet:pct(R.hu.retained,R.hu.tables),huBpp:+safe(R.hu.buyin,R.hu.players).toFixed(1),huHph:+safe(R.hu.hands,R.hu.durSum).toFixed(1),
+    multiTables:R.multi.tables,multiFee:Math.round(R.multi.fee),multiFph:+safe(R.multi.fee,R.multi.hands).toFixed(3),
+    multiRet:pct(R.multi.retained,R.multi.tables),multiBpp:+safe(R.multi.buyin,R.multi.players).toFixed(1),multiHph:+safe(R.multi.hands,R.multi.durSum).toFixed(1),
+    multiRetTables:Math.round(R.multi.retained),
+    anteTables:R.ante.tables,anteFee:Math.round(R.ante.fee),anteFph:+safe(R.ante.fee,R.ante.hands).toFixed(3),anteRet:pct(R.ante.retained,R.ante.tables),
+    noAnteTables:R.noante.tables,noAnteFee:Math.round(R.noante.fee),noAnteFph:+safe(R.noante.fee,R.noante.hands).toFixed(3),noAnteRet:pct(R.noante.retained,R.noante.tables),
+    tables4hPlus:R.tables4h,fee4hPlus:Math.round(R.fee4h),fee4hPct:pct(R.fee4h,R.feeGross),
+    tablesMoreThan100:R.more100,tablesMoreThan500:R.more500,
+    handsPerHourP25:perc(R.hphList,.25),handsPerHourP50:perc(R.hphList,.50),handsPerHourP90:perc(R.hphList,.90),
+    feeRateB:['0–3%','3–6%','6–9%','9–12%','12%+'].map(r=>({r,t:(R.feeRate[r]||{}).tables||0,fee:Math.round((R.feeRate[r]||{}).fee||0)})),
+    peakConcurrent:0,peakHour:'',bestSlot:'',bestSlotEff:0
+  };
+  // concorrência média por hora (somada entre dias → média)
+  const concAvg=R.conc.map((v,h)=>({h,open:Math.round(v/days)}));
+  const pk=concAvg.reduce((a,b)=>b.open>a.open?b:a,{open:0,h:0});
+  kpi.peakConcurrent=pk.open; kpi.peakHour=pk.h+'h';
+  // slots (média por dia p/ combinação; 1 dia = valores do dia)
+  const slots30=R.slots.map((s,i)=>({slot:slotLabel(i),turno:shiftOf(Math.floor(i/2)),
+    tables:Math.round(s.tables/days),fee:Math.round(s.fee/days),players:Math.round(s.players/days),hands:Math.round(s.hands/days),dead:Math.round(s.dead/days)}));
+  const best=slots30.reduce((a,b)=>b.fee>a.fee?b:a,{fee:-1}); kpi.bestSlot=best.slot||'';
+  kpi.bestSlotEff=best.tables?+((1-best.dead/best.tables)*100).toFixed(1):0;
+  const end30=R.end.map((t,i)=>({slot:slotLabel(i),tables:Math.round(t/days)}));
+  const gametypes=Object.entries(R.gt).map(([type,g])=>({type,tables:g.tables,fee:Math.round(g.fee),buyin:Math.round(g.buyin),
+    players:g.players,hands:g.hands,avg_dur:+safe(g.durSum,g.tables).toFixed(2),rake_rate:+pct(g.fee,g.buyin).toFixed(2)})).sort((a,b)=>b.fee-a.fee);
+  const opShift=Object.values(R.op).map(o=>({op:o.op,turno:o.turno,tables:o.tables,fee:Math.round(o.fee),players:o.players,dead:o.dead}));
+  const rooms=Object.entries(R.room).map(([name,r])=>({name,tables:r.tables,fee:Math.round(r.fee),buyin:Math.round(r.buyin),
+    players:r.players,hands:r.hands,rake_rate:+pct(r.fee,r.buyin).toFixed(2)})).sort((a,b)=>b.fee-a.fee).slice(0,15);
+  const blinds=Object.values(R.blind).map(b=>({bb:b.bb,tables:b.tables,fee:Math.round(b.fee)})).sort((a,b)=>b.tables-a.tables).slice(0,8);
+  const duration=DURB.filter(b=>R.dur[b]).map(b=>{const d=R.dur[b];return {bucket:b,tables:d.tables,fee:Math.round(d.fee),dead:d.dead,ret:+pct(d.retained,d.tables).toFixed(1)};});
+  const tiers=TIER_ORDER.filter(t=>R.tier[t]).map(t=>{const x=R.tier[t];return {tier:t,tables:x.tables,fee:Math.round(x.fee),buyin:Math.round(x.buyin),
+    players:x.players,hands:x.hands,dead:x.dead,ret_pct:+pct(x.retained,x.tables).toFixed(1),
+    avg_fph:+safe(x.fee,x.hands).toFixed(4),avg_fpp:+safe(x.fee,x.players).toFixed(2),avg_bpp:+safe(x.buyin,x.players).toFixed(1),rake_rate:+pct(x.fee,x.buyin).toFixed(2)};});
+  const fpp=Object.entries(R.gt).map(([type,g])=>({type,fpp:+safe(g.fee,g.players).toFixed(2),tables:g.tables})).sort((a,b)=>b.fpp-a.fpp).slice(0,8);
+  const top10=R.topN.slice(0,10).map(t=>({name:t.name,type:t.type,players:t.players,hands:t.hands,fee:Math.round(t.fee),buyin:Math.round(t.buyin),dur:t.dur,start_h:t.start_h}));
+  const concurrent=concAvg;
+  return {kpi, d:{slots30,end30,concurrent,gametypes,opShift,rooms,blinds,duration,top10,tiers,fpp}};
+}
+
+// ══════════════════════════════ APLICAÇÃO / SELETOR DE DIA
+function renderAll(){
+  renderShiftStats();
+  buildTimeline();buildHrChart();buildLifecycle();buildModal();buildOpDiv();buildTop10();buildRecs();
+  buildBestSlots();buildShiftFee();buildForecast();buildConcurrent();buildOpShiftTable();buildShiftRecs();
+  buildTierCharts();buildConc();buildHuMulti();buildJP();buildFPP();
+  buildRooms();buildRR();buildBlindBars();buildBubble();
+  buildRet();buildDurFee();buildHM();buildHist();
+  buildResumo();
+}
+function applyDataset(ds){
+  // destrói os gráficos antigos antes de repintar (Chart.js recusa recriar sobre canvas em uso)
+  document.querySelectorAll('canvas').forEach(cv=>{const ch=(window.Chart&&Chart.getChart)?Chart.getChart(cv):null; if(ch)ch.destroy();});
+  Object.keys(KPI_DEMO).forEach(k=>delete KPI_DEMO[k]); Object.assign(KPI_DEMO, JSON.parse(JSON.stringify(ds.kpi)));
+  Object.keys(D).forEach(k=>delete D[k]); Object.assign(D, JSON.parse(JSON.stringify(ds.d)));
+  renderAll();
+  detectShift();
+}
+async function onDaySel(val){
+  if(val==='__demo__'){ applyDataset(DEMO_DS); return; }
+  const raws=await Store.listRaw();
+  if(val==='__all__'){
+    const list=Object.values(raws); if(!list.length){applyDataset(DEMO_DS);return;}
+    applyDataset(finalizeDataset(mergeRaws(list),`Todos os dias (${list.length})`)); return;
+  }
+  const R=raws[val]; if(!R){applyDataset(DEMO_DS);return;}
+  applyDataset(finalizeDataset(R, R.dates&&R.dates[0]||val));
+}
+async function refreshDaySelector(preferKey){
+  const sel=document.getElementById('daySel'); if(!sel)return;
+  const raws=await Store.listRaw();
+  const keys=Object.keys(raws).sort().reverse(); // yyyy-mm-dd desc
+  let html='<option value="__demo__">Demonstração (22/06)</option>';
+  if(keys.length>1)html+=`<option value="__all__">Todos os dias (${keys.length})</option>`;
+  html+=keys.map(k=>`<option value="${k}">${(raws[k].dates&&raws[k].dates[0])||k}</option>`).join('');
+  sel.innerHTML=html;
+  if(preferKey && (preferKey==='__demo__'||preferKey==='__all__'||raws[preferKey]))sel.value=preferKey;
+}
+// No load: se já há dias importados, mostra o mais recente; senão, a demo.
+async function initDayView(){
+  try{
+    const raws=await Store.listRaw(); const keys=Object.keys(raws).sort();
+    if(!keys.length)return; // segue na demo já renderizada
+    const latest=keys[keys.length-1];
+    await refreshDaySelector(latest);
+    await onDaySel(latest);
+  }catch(e){console.error('initDayView',e);}
+}
+
 // ══════════════════════════════ DAILY UPLOAD
 async function handleUpload(input){
   const fl=input.files[0];if(!fl)return;
@@ -2085,18 +2348,31 @@ async function handleUpload(input){
     rows.forEach(r=>{const k=dateKey(r.startTime);(byDate[k]=byDate[k]||[]).push(r);});
     const dates=Object.keys(byDate).sort();
     const mainKey=dates.reduce((a,b)=>byDate[b].length>byDate[a].length?b:a);
-    const summary=summarizeDay(byDate[mainKey]);
     const label=dateLabel(byDate[mainKey][0].startTime);
+    // dataset cash-only completo do dia principal → alimenta o dashboard inteiro
+    const raw=computeRaw(byDate[mainKey],label);
+    if(!raw.n){alert('Nenhuma sessão CASH encontrada nesse arquivo (só torneios/SNG?).');return;}
+    const ds=finalizeDataset(raw,label);
+    const summary=summaryFromKpi(ds.kpi);
     const saved=await upsertWithDuplicateCheck(label,summary);
     if(!saved)return;
-    await buildHist();
-    alert(`${fl.name} importado.\n\n${label}: ${summary.sessions} sessões · R$ ${f(summary.fee,0)} fee bruto.`);
+    await Store.saveRaw(label,raw);
+    setBtnLoading(lbl,true,'Montando dashboard…');
+    await refreshDaySelector(labelToRtdbKey(label));
+    applyDataset(ds);
+    alert(`${fl.name} importado.\n\n${label}: ${ds.kpi.sessions} sessões cash · R$ ${f(ds.kpi.feeGross,0)} fee bruto.\n\nO dashboard agora mostra este dia.`);
   }catch(err){
     alert('Erro ao ler o arquivo: '+err.message);
   }finally{
     setBtnLoading(lbl,false);
     input.value='';
   }
+}
+
+// resumo do histórico (gráfico de tendência) derivado do dataset cash-only
+function summaryFromKpi(kpi){
+  return {sessions:kpi.sessions,fee:kpi.feeGross,netFee:kpi.feeNet,buyin:kpi.buyinTotal,
+    players:kpi.playersTotal,feePerHand:kpi.feePerHand,deadPct:kpi.deadPct,takeRate:kpi.takeRate,shift:'Dia + Noite'};
 }
 
 // ══════════════════════════════ WEEKLY VALIDATION
@@ -2137,12 +2413,20 @@ async function confirmarSemana(){
   if(btn){btn.disabled=true;btn.style.opacity='.6';}
   status.innerHTML=`${ic('spinner',1)} Gravando…`;
   const keys=Object.keys(_weekRowsByDate).sort();
+  let lastLabel=null;
   for(const k of keys){
     const rs=_weekRowsByDate[k];
-    await Store.upsert(dateLabel(rs[0].startTime),summarizeDay(rs));
+    const label=dateLabel(rs[0].startTime);
+    const raw=computeRaw(rs,label);
+    if(!raw.n)continue; // dia só com torneios/SNG: sem dados cash
+    await Store.upsert(label,summaryFromKpi(finalizeDataset(raw,label).kpi));
+    await Store.saveRaw(label,raw);
+    lastLabel=label;
   }
   await buildHist();
-  status.innerHTML=`${ic('check-circle',1)} ${keys.length} dia(s) gravados/substituídos no histórico.`;
+  await refreshDaySelector('__all__');
+  await onDaySel('__all__');
+  status.innerHTML=`${ic('check-circle',1)} ${keys.length} dia(s) gravados · dashboard mostrando "Todos os dias".`;
   if(btn){btn.disabled=false;btn.style.opacity='';}
   _weekRowsByDate=null;
 }
@@ -2161,7 +2445,12 @@ async function exportHistory(){
 async function removeHistoryDay(dateStr){
   if(!confirm(`Remover o registro de ${dateStr} do histórico?`))return;
   await Store.remove(dateStr);
+  await Store.removeRaw(dateStr);
+  const sel=document.getElementById('daySel');
+  const wasViewing=sel && sel.value===labelToRtdbKey(dateStr);
   await buildHist();
+  await refreshDaySelector(wasViewing?'__demo__':(sel&&sel.value));
+  if(wasViewing)await onDaySel(document.getElementById('daySel').value);
 }
 
 
@@ -2461,6 +2750,7 @@ function startApp(){
   buildRooms();buildRR();buildBlindBars();buildBubble();
   buildRet();buildDurFee();buildHM();buildHist();
   buildResumo();
+  initDayView(); // se há dias importados, troca a demo pelo dia mais recente
 }
 enterFromHubSession();
 
