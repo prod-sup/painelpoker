@@ -1145,6 +1145,7 @@ function rowsFromMatrix(matrix, sheet){
 
     const premiacaoRaw = idx.premiacao > -1 ? r[idx.premiacao] : null;
     const isExplicitNF = typeof premiacaoRaw === 'string' && premiacaoRaw.trim().toUpperCase() === 'NF';
+    const premNum = isExplicitNF ? null : (idx.premiacao > -1 ? toNumber(premiacaoRaw) : null);
     const tipoVal = idx.tipo > -1 ? (r[idx.tipo] ? String(r[idx.tipo]).trim() : null) : null;
     const blue = isBlueFill(sheet, i, idx.nome);
     const horaVal = idx.hora > -1 ? excelTimeToString(r[idx.hora]) : null;
@@ -1165,7 +1166,11 @@ function rowsFromMatrix(matrix, sheet){
       late: idx.late > -1 ? excelTimeToString(r[idx.late]) : null,
       garantido: garantidoVal,
       buyin: idx.buyin > -1 ? toNumber(r[idx.buyin]) : null,
-      premiacao: isExplicitNF ? null : (idx.premiacao > -1 ? toNumber(premiacaoRaw) : null),
+      premiacao: premNum,
+      // premiação que veio da COLUNA da planilha (nunca é escrita no nó premiacao do FB).
+      // A reconciliação do listener não pode anulá-la só porque a chave não está no nó —
+      // era isso que fazia o total "aparecer e ir baixando até zerar" no F5.
+      premFromSheet: premNum != null,
       explicitNF: isExplicitNF,
       overlay: idx.overlay > -1 ? toNumber(r[idx.overlay]) : null,
       field: idx.field > -1 ? toNumber(r[idx.field]) : null,
@@ -2396,7 +2401,8 @@ function initFirebaseSync(){
       // e sumiam). "Ausente" só conta como exclusão quando há um mapa real no Firebase.
       const premHasData = Object.keys(data).length > 0;
       if(premHasData) RAW_ROWS.forEach(r => {
-        if(r.premiacao != null && data[r._key] == null){ r.premiacao = null; changed = true; }
+        // nunca anular premiação vinda da planilha — ela não vive no nó FB, então "ausente" não é "apagada"
+        if(r.premiacao != null && !r.premFromSheet && data[r._key] == null){ r.premiacao = null; changed = true; }
       });
       if(changed || RAW_ROWS.length){
         RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
@@ -7761,7 +7767,7 @@ function reinitDayListeners(){
     // só reconcilia exclusões quando o nó tem dados (ver comentário no listener gêmeo):
     // nó vazio não é "tudo apagado", senão zera as premiações vindas da planilha
     const premHasData = Object.keys(data).length > 0;
-    if(premHasData) RAW_ROWS.forEach(r => { if(r.premiacao!=null && data[r._key]==null){ r.premiacao=null; changed=true; } });
+    if(premHasData) RAW_ROWS.forEach(r => { if(r.premiacao!=null && !r.premFromSheet && data[r._key]==null){ r.premiacao=null; changed=true; } });
     if(changed||RAW_ROWS.length){
       RESULTS  = RAW_ROWS.filter(r=>r.premiacao!==null&&r.premiacao!==undefined);
       UPCOMING = [...RAW_ROWS];
