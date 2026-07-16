@@ -59,7 +59,32 @@
       '@keyframes sp-chip-fall{0%{transform:translateY(-6px) scale(.7);opacity:0}' +
         '25%{opacity:1;transform:translateY(6px) scale(1) rotate(40deg)}' +
         '80%{opacity:1}100%{transform:translateY(34px) scale(.9) rotate(140deg);opacity:0}}' +
-      '@media (prefers-reduced-motion:reduce){.sp-busy-chips{display:none}}';
+      '@media (prefers-reduced-motion:reduce){.sp-busy-chips{display:none}}' +
+      /* barra de progresso de leitura no topo (dashboards longos) */
+      '.sp-progress{position:fixed;top:0;left:0;right:0;height:3px;z-index:9999;pointer-events:none;' +
+        'transform:scaleX(0);transform-origin:0 50%;will-change:transform;' +
+        'background:linear-gradient(90deg,var(--sp-prog,var(--sp-tint,#d8b56d)),' +
+        'color-mix(in srgb, var(--sp-prog, #d8b56d) 55%, #fff 25%))}' +
+      /* botão magnético: só a volta é suave; enquanto puxa, é inline sem transição */
+      '.sp-magnetic{transition:transform .3s cubic-bezier(.22,1,.36,1)}' +
+      '.sp-magnetic.sp-mag-on{transition:none}' +
+      /* aurora: mesh de gradiente lento atrás do hero, na tinta do produto */
+      '.sp-aurora{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;border-radius:inherit}' +
+      '.sp-aurora::before,.sp-aurora::after{content:"";position:absolute;inset:-45%;filter:blur(48px);' +
+        'background:radial-gradient(closest-side,var(--sp-au1,rgba(79,142,247,.22)),transparent 70%);' +
+        'animation:sp-aurora 20s ease-in-out infinite;will-change:transform}' +
+      '.sp-aurora::after{background:radial-gradient(closest-side,var(--sp-au2,rgba(216,181,109,.18)),transparent 70%);' +
+        'animation-duration:27s;animation-direction:reverse}' +
+      '@keyframes sp-aurora{0%,100%{transform:translate(-8%,-6%) scale(1)}50%{transform:translate(10%,9%) scale(1.18)}}' +
+      'body.win-blurred .sp-aurora::before,body.win-blurred .sp-aurora::after{animation-play-state:paused}' +
+      '@media (prefers-reduced-motion:reduce){.sp-aurora::before,.sp-aurora::after{animation:none}}' +
+      /* skeleton shimmer: percepção de velocidade enquanto os dados chegam */
+      '.sp-shimmer{position:relative;overflow:hidden;background:color-mix(in srgb, var(--ink-faint, #888) 16%, transparent);border-radius:8px}' +
+      '.sp-shimmer::after{content:"";position:absolute;inset:0;transform:translateX(-100%);' +
+        'background:linear-gradient(90deg,transparent,color-mix(in srgb, var(--ink, #fff) 12%, transparent),transparent);' +
+        'animation:sp-shimmer 1.4s ease-in-out infinite}' +
+      '@keyframes sp-shimmer{100%{transform:translateX(100%)}}' +
+      '@media (prefers-reduced-motion:reduce){.sp-shimmer::after{animation:none}}';
     document.head.appendChild(s);
   }
 
@@ -235,8 +260,135 @@
     });
   }
 
+  /* ── COUNT-UP (ref. MotionSites / dashboards premium): os números "rolam"
+     de 0 até o valor quando entram na tela, UMA vez. Lê o texto final do próprio
+     elemento (ex.: "R$ 12.345", "56%", "1,2k"), preserva prefixo/sufixo e o
+     formato pt-BR. SEGURANÇA: o último frame reescreve o texto ORIGINAL
+     literalmente — se o parse falhar, o elemento fica intacto (nada é animado).
+     Perf: um rAF curto por elemento, dispara uma vez via IntersectionObserver. */
+  function parseNum(txt){
+    var m = String(txt).match(/-?[\d.,]*\d/);
+    if(!m) return null;
+    var token = m[0];
+    var core = token.replace(/\./g,'').replace(',', '.');   // pt-BR: '.' milhar, ',' decimal
+    var val = parseFloat(core);
+    if(!isFinite(val)) return null;
+    var dec = (token.split(',')[1] || '').length;
+    return { val: val, dec: dec, i: m.index, len: token.length };
+  }
+  function countUp(selector, opts){
+    if(calm || !('IntersectionObserver' in global)) return;   // reduced-motion: mostra o valor final direto
+    opts = opts || {};
+    var dur = opts.duration || 900;
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if(!en.isIntersecting) return;
+        var el = en.target; io.unobserve(el);
+        if(el.__spCount) return; el.__spCount = true;
+        var original = el.textContent;
+        var p = parseNum(original);
+        if(!p){ return; }                                   // sem número → deixa como está
+        var prefix = original.slice(0, p.i), suffix = original.slice(p.i + p.len);
+        var fmt = new Intl.NumberFormat('pt-BR', { minimumFractionDigits:p.dec, maximumFractionDigits:p.dec });
+        var t0 = 0;
+        function step(ts){
+          if(!t0) t0 = ts;
+          var k = Math.min(1, (ts - t0) / dur);
+          var eased = 1 - Math.pow(1 - k, 3);               // easeOutCubic
+          if(k >= 1){ el.textContent = original; return; }  // frame final = texto original, exato
+          el.textContent = prefix + fmt.format(p.val * eased) + suffix;
+          requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+      });
+    }, { rootMargin:'0px 0px -8% 0px' });
+    document.querySelectorAll(selector).forEach(function(el){
+      if(el.getClientRects().length) io.observe(el);
+    });
+  }
+
+  /* ── BOTÃO MAGNÉTICO (clássico MotionSites): o alvo é atraído levemente pro
+     cursor no hover; solta com mola ao sair. Perf: rAF só durante o hover,
+     transform inline (nada de layout). Desliga em touch e reduced-motion. */
+  function magnetic(selector, opts){
+    if(!fine || calm) return;
+    opts = opts || {};
+    var strength = opts.strength || 0.35, max = opts.max || 14;
+    document.querySelectorAll(selector).forEach(function(el){
+      if(el.__spMag) return; el.__spMag = true;
+      el.classList.add('sp-magnetic');
+      var raf = 0, tx = 0, ty = 0, rect = null;
+      var apply = function(){ raf = 0; el.style.transform = 'translate(' + tx.toFixed(1) + 'px,' + ty.toFixed(1) + 'px)'; };
+      el.addEventListener('pointerenter', function(){ rect = el.getBoundingClientRect(); el.classList.add('sp-mag-on'); });
+      el.addEventListener('pointermove', function(e){
+        if(!rect) rect = el.getBoundingClientRect();
+        var dx = e.clientX - (rect.left + rect.width/2);
+        var dy = e.clientY - (rect.top + rect.height/2);
+        tx = Math.max(-max, Math.min(max, dx * strength));
+        ty = Math.max(-max, Math.min(max, dy * strength));
+        if(!raf) raf = requestAnimationFrame(apply);
+      }, { passive:true });
+      el.addEventListener('pointerleave', function(){
+        rect = null; tx = 0; ty = 0; el.classList.remove('sp-mag-on'); el.style.transform = '';
+      });
+    });
+  }
+
+  /* ── BARRA DE PROGRESSO DE SCROLL (ref. reading progress): fita fina no topo.
+     Perf: listener passivo + transform:scaleX. tint via --sp-prog. ── */
+  function scrollProgress(opts){
+    injectCss();
+    if(document.querySelector('.sp-progress')) return;
+    opts = opts || {};
+    var bar = document.createElement('div');
+    bar.className = 'sp-progress'; bar.setAttribute('aria-hidden','true');
+    if(opts.tint) bar.style.setProperty('--sp-prog', opts.tint);
+    var add = function(){ document.body.appendChild(bar); };
+    if(document.body) add(); else document.addEventListener('DOMContentLoaded', add);
+    var raf = 0;
+    function upd(){
+      raf = 0;
+      var h = document.documentElement;
+      var max = h.scrollHeight - h.clientHeight;
+      bar.style.transform = 'scaleX(' + (max > 0 ? (h.scrollTop / max) : 0).toFixed(4) + ')';
+    }
+    addEventListener('scroll', function(){ if(!raf) raf = requestAnimationFrame(upd); }, { passive:true });
+    addEventListener('resize', function(){ if(!raf) raf = requestAnimationFrame(upd); }, { passive:true });
+  }
+
+  /* ── AURORA: mesh de gradiente lento atrás de um hero, na tinta do produto.
+     Injeta uma camada .sp-aurora como primeiro filho do alvo (o conteúdo fica
+     por cima). Perf: 100% CSS/GPU, pausa em blur, estático em reduced-motion.
+     aurora('.hero', { tint1:'rgba(...)', tint2:'rgba(...)' }) ── */
+  function aurora(selector, opts){
+    injectCss();
+    opts = opts || {};
+    document.querySelectorAll(selector).forEach(function(host){
+      if(host.__spAurora) return; host.__spAurora = true;
+      if(getComputedStyle(host).position === 'static') host.style.position = 'relative';
+      var layer = document.createElement('div');
+      layer.className = 'sp-aurora'; layer.setAttribute('aria-hidden','true');
+      if(opts.tint1) layer.style.setProperty('--sp-au1', opts.tint1);
+      if(opts.tint2) layer.style.setProperty('--sp-au2', opts.tint2);
+      host.prepend(layer);
+      // garante que o conteúdo do hero fique acima da camada
+      [].forEach.call(host.children, function(c){
+        if(c !== layer && getComputedStyle(c).position === 'static') c.style.position = 'relative';
+      });
+    });
+  }
+
+  /* ── SKELETON: marca/desmarca shimmer de carregamento num elemento. ── */
+  function skeleton(el, on){
+    injectCss();
+    if(typeof el === 'string'){ document.querySelectorAll(el).forEach(function(e){ skeleton(e, on); }); return; }
+    if(el) el.classList.toggle('sp-shimmer', on !== false);
+  }
+
   global.SupremaMotion = {
     glow: glow, reveal: reveal, tilt: tilt,
-    ambient: ambient, busy: busy, busyAuto: busyAuto, busyWatch: busyWatch
+    ambient: ambient, busy: busy, busyAuto: busyAuto, busyWatch: busyWatch,
+    countUp: countUp, magnetic: magnetic, scrollProgress: scrollProgress,
+    aurora: aurora, skeleton: skeleton
   };
 })(window);

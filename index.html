@@ -48,7 +48,11 @@
    busyAuto = fichas caindo na ponta do mouse enquanto uma planilha processa */
 SupremaMotion.glow('.tcard');
 SupremaMotion.busyAuto();
-document.addEventListener('DOMContentLoaded', () => SupremaMotion.ambient());
+document.addEventListener('DOMContentLoaded', () => {
+  SupremaMotion.ambient();
+  SupremaMotion.magnetic('.opj-btn-primary');
+  SupremaMotion.aurora('.hero', { tint1:'rgba(24,163,107,.26)', tint2:'rgba(216,181,109,.16)' });
+});
 </script>
 <link rel="stylesheet" href="painel.css">
   <script src="scripts/lite.js"></script>
