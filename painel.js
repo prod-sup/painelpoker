@@ -131,6 +131,15 @@ let GARANTIDO_MAP                = {};
 // ou premiação reatada por nome+hora após o garantido mudar a chave — não é "apagada",
 // só "não vive no nó". Sem isso, o total aparecia e ia baixando até zerar no F5.
 let PREM_FB_KEYS_SEEN            = new Set();
+/* TORNEIOS MANUAIS — eventos criados às pressas que não estão na Global.
+   Vivem em nó PRÓPRIO (painel/<data>/manualRows) e são fundidos na planilha a cada ingest.
+   Nó próprio (em vez de só gravar dentro do sheet) porque um re-upload da Global SUBSTITUI
+   o sheet inteiro — os manuais sumiriam junto. Assim eles sobrevivem e voltam no merge.
+   Depois do merge o caminho é IDÊNTICO ao da planilha: card, KPI, snapshot, parceiro e
+   auditoria (o admin lê painel/<data>/sheet.rows, e o setSharedSheet publica o conjunto fundido). */
+let MANUAL_ROWS                  = {};   // { id: row }
+let LAST_SHEET_ROWS              = [];   // planilha PURA (sem manuais) — base pro merge
+let LAST_SHEET_FILENAME          = '';
 let CHECKLIST_MAP                = {};
 let CONFHOJE_MAP                 = {};
 let LAST_APPLIED_SHEET_SIGNATURE = null;
@@ -2456,6 +2465,16 @@ function initFirebaseSync(){
       if(RAW_ROWS.length) renderResults();
     });
 
+    // ── Torneios manuais ──────────────────────────────────────────────────
+    // Nó próprio pra sobreviver ao re-upload da Global (que substitui o sheet inteiro).
+    // Ao chegar/mudar, refunde a grade — assim o parceiro vê o torneio na hora e o F5
+    // não perde nada. fromRemote=true no reingest: NÃO republica (evitaria eco infinito).
+    fbDb.ref(`${FB_BASE_PATH}/manualRows`).on('value', snap => {
+      MANUAL_ROWS = snap.val() || {};
+      reingestComManuais();
+      renderManualList();
+    });
+
     // ── IDs dos eventos ───────────────────────────────────────────────────
     fbDb.ref(`${FB_BASE_PATH}/ids`).on('value', snap => {
       ID_MAP = snap.val() || {};
@@ -3485,12 +3504,115 @@ function recoverPremiacaoFromSnapshot(applyRerender){
   }).catch(()=>{});
 }
 
+/* =========================================================================
+   TORNEIOS MANUAIS — adicionar evento que não está na Global
+========================================================================= */
+
+/* identidade estável de um torneio (mesma usada no resgate de premiação):
+   nome+hora. NÃO usar rowKey aqui — o hash inclui garantido/buy-in, que mudam. */
+function manualIdent(r){
+  return `${String(r?.nome || '').trim().toUpperCase()}|${r?.hora || ''}`;
+}
+
+/* Funde os torneios manuais na planilha. Idempotente: se o torneio já existe na grade
+   (mesmo nome+hora), NÃO duplica — cobre tanto o reingest do conjunto já publicado quanto
+   o caso do evento manual entrar na Global depois (aí a planilha vence e o manual some da
+   lista sem virar linha dupla). */
+function mergeManualRows(rows){
+  const manuais = Object.values(MANUAL_ROWS || {}).filter(m => m && m.nome);
+  if (!manuais.length) return rows;
+  const jaTem = new Set(rows.map(manualIdent));
+  const extras = manuais.filter(m => !jaTem.has(manualIdent(m)));
+  return extras.length ? rows.concat(extras) : rows;
+}
+
+/* Republica a grade (planilha + manuais) pro Firebase. É isto que faz o torneio manual
+   aparecer pro parceiro E na auditoria do admin (que lê painel/<data>/sheet.rows). */
+function publishGradeComManuais(){
+  if (!LAST_SHEET_ROWS.length) return;         // sem planilha carregada não há o que publicar
+  setSharedSheet(mergeManualRows(LAST_SHEET_ROWS), LAST_SHEET_FILENAME);
+}
+
+/* Reprocessa a grade a partir da planilha pura + manuais atuais (sem republicar). */
+function reingestComManuais(){
+  if (!LAST_SHEET_ROWS.length) return;
+  ingest(LAST_SHEET_ROWS.slice(), LAST_SHEET_FILENAME, /*fromRemote=*/true);
+}
+
+/* Monta a row do torneio manual com a MESMA forma de uma linha parseada da planilha
+   (ver o out.push do parser) — qualquer campo faltando aqui vira `undefined` lá na frente. */
+function buildManualRow({nome, hora, garantido, buyin, tipo}){
+  return {
+    nome: String(nome).trim(),
+    hora: hora || null,
+    late: null,
+    garantido: garantido != null ? garantido : null,
+    buyin: buyin != null ? buyin : null,
+    premiacao: null,
+    premFromSheet: false,
+    explicitNF: false,
+    overlay: null,
+    field: null,
+    acoes: null,
+    perf: null,
+    check: null,
+    tipo: tipo || null,          // vazio => classify() deduz por nome/garantido
+    highlighted: false,
+    _manual: true,               // marca a origem (separa a planilha pura no ingest)
+    _by: (typeof OPERATOR_NAME !== 'undefined' && OPERATOR_NAME) ? OPERATOR_NAME : '',
+    _at: Date.now(),
+  };
+}
+
+/* Adiciona um torneio manual. Grava no nó próprio, funde na grade e republica. */
+async function addManualTournament(dados){
+  const row = buildManualRow(dados);
+  const id = 'm_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  MANUAL_ROWS[id] = row;                       // otimista: a UI responde na hora
+  reingestComManuais();
+  publishGradeComManuais();
+  renderManualList();
+  if (fbReady && fbDb) {
+    try { await fbDb.ref(`${FB_BASE_PATH}/manualRows/${id}`).set(row); }
+    catch(e){
+      delete MANUAL_ROWS[id];                  // não conseguiu gravar → desfaz pra não mentir
+      reingestComManuais(); renderManualList();
+      throw e;
+    }
+  }
+  logActivity(`➕ <b>${escHtml(row._by || 'Alguém')}</b> adicionou o torneio manual <b>${escHtml(row.nome)}</b> (${escHtml(row.hora || '--:--')})`, '➕');
+  return id;
+}
+
+/* Remove um torneio manual (adicionado por engano). O trabalho já feito no card
+   (premiação/ID/fixado) fica órfão no Firebase, inofensivo — a linha some da grade. */
+async function removeManualTournament(id){
+  const row = MANUAL_ROWS[id];
+  if (!row) return;
+  delete MANUAL_ROWS[id];
+  reingestComManuais();
+  publishGradeComManuais();
+  renderManualList();
+  if (fbReady && fbDb) {
+    try { await fbDb.ref(`${FB_BASE_PATH}/manualRows/${id}`).remove(); } catch(e){}
+  }
+  logActivity(`➖ Torneio manual <b>${escHtml(row.nome)}</b> removido da grade`, '➖');
+}
+
 function ingest(rows, filename, fromRemote=false){
   // Proteção: ignorar sheets com menos de 5 torneios (provavelmente corrompida ou parcial)
   if(!rows || rows.length < 5){
     console.warn('ingest: sheet ignorada (menos de 5 rows)', rows?.length);
     return;
   }
+  // Torneios manuais entram AQUI e daqui pra frente são indistinguíveis dos da planilha.
+  // Guardamos a planilha PURA (sem manuais) como base: o `rows` que chega pode já vir com os
+  // manuais dentro (o setSharedSheet publica o conjunto fundido, e o parceiro reingere isso).
+  // Separar por `_manual` mantém o merge idempotente — não duplica e não cresce a cada ciclo.
+  if (filename) LAST_SHEET_FILENAME = filename;
+  LAST_SHEET_ROWS = rows.filter(r => !(r && r._manual));
+  rows = mergeManualRows(LAST_SHEET_ROWS);
+
   // re-upload do mesmo dia com valores ajustados: transfere o trabalho já feito pras chaves novas
   const _migrated = migrateOrphanedWork(rows);
   if (_migrated) logActivity(`♻️ Re-upload: ${_migrated} torneio${_migrated>1?'s':''} já trabalhado${_migrated>1?'s':''} tiveram o vínculo preservado (fix/ID/valores migrados pra planilha nova)`);
@@ -3747,6 +3869,7 @@ function renderUnfixed(){
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
         <span class="cat-pill" style="background:var(--${cat}-soft); color:var(--${cat})">${crownHtml}<span class="cat-suit">${CAT_SUIT[cat]}</span>${CAT_LABEL[cat]}</span>
         ${cat === 'side' && !r.highlighted && r.garantido >= 3000 ? `<span style="font-size:9px;font-weight:700;letter-spacing:.05em;padding:2px 7px;border-radius:99px;background:rgba(201,168,76,.12);color:var(--gold);border:1px solid rgba(201,168,76,.2)">GTD R$ ${fmtBRL(r.garantido)}</span>` : ''}
+        ${r._manual ? `<span class="tcard-manual-badge" title="Torneio adicionado à mão — não veio da Global">MANUAL</span>` : ''}
         ${r.premiacao != null ? `<span class="tcard-prem-badge">✓ R$ ${fmtBRL(r.premiacao, r.premiacao % 1 === 0 ? 0 : 2)}</span>` : ''}
       </div>
       <div class="nm">${r.nome}</div>
@@ -3933,6 +4056,7 @@ function renderUpcoming(){
 
       const catTd   = '<td style="width:4px;padding:0"><span class="ctr-cat-bar" style="background:'+catColor+'"></span></td>';
       const nomeTd  = '<td class="ctr-nome" title="'+escHtml(t.nome||'')+'">'+escHtml(t.nome||'\u2014')
+                    + (t._manual ? ' <span class="tcard-manual-badge" title="Adicionado \u00e0 m\u00e3o \u2014 n\u00e3o veio da Global">MANUAL</span>' : '')
                     + (t.proxCronograma ? ' <span style="font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px;background:rgba(96,165,250,.14);color:#60a5fa;letter-spacing:.04em">PR\u00d3X. CRONOGRAMA</span>' : '')
                     + '</td>';
       const horaTd  = '<td class="ctr-hora">'+(t.hora||'\u2014')+'</td>';
@@ -4017,7 +4141,7 @@ function renderUpcoming(){
       ${nfBannerHtml}
       <div class="tcard-top">
         <div>
-          <div class="tcard-name-row">${crownHtml}<div class="tcard-name">${t.nome}</div>${nfBadgeHtml}${t.proxCronograma ? '<span class="tcard-campanha-badge" style="background:rgba(96,165,250,.14);color:#60a5fa" title="Evento da madrugada — pertence à seção do próximo dia na Global, fixar com antecedência (late register)">PRÓX. CRONOGRAMA</span>' : ''}${buildHistTooltip(t.nome)}</div>
+          <div class="tcard-name-row">${crownHtml}<div class="tcard-name">${t.nome}</div>${nfBadgeHtml}${t._manual ? '<span class="tcard-manual-badge" title="Torneio adicionado à mão — criado às pressas, não veio da Global">MANUAL</span>' : ''}${t.proxCronograma ? '<span class="tcard-campanha-badge" style="background:rgba(96,165,250,.14);color:#60a5fa" title="Evento da madrugada — pertence à seção do próximo dia na Global, fixar com antecedência (late register)">PRÓX. CRONOGRAMA</span>' : ''}${buildHistTooltip(t.nome)}</div>
           <span class="cat-tag ${cat}"><span class="cat-suit">${CAT_SUIT[cat]}</span>${CAT_LABEL[cat]}</span>
           ${runningHtml}${flagHtml}${notNeededHtml}
         </div>
@@ -4939,6 +5063,108 @@ document.getElementById('routineToggle').addEventListener('click', () => openDra
 document.getElementById('routineDrawerClose').addEventListener('click', () => closeDrawer('routineDrawerOverlay'));
 document.getElementById('routineDrawerOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'routineDrawerOverlay') closeDrawer('routineDrawerOverlay');
+});
+
+/* ── Drawer: adicionar torneio manual ─────────────────────────────────── */
+document.getElementById('addTorneioToggle')?.addEventListener('click', () => {
+  openDrawer('addTorneioDrawerOverlay');
+  renderManualList();
+  setTimeout(() => document.getElementById('addtNome')?.focus(), 80);
+});
+document.getElementById('addTorneioDrawerClose')?.addEventListener('click', () => closeDrawer('addTorneioDrawerOverlay'));
+document.getElementById('addTorneioDrawerOverlay')?.addEventListener('click', (e) => {
+  if (e.target.id === 'addTorneioDrawerOverlay') closeDrawer('addTorneioDrawerOverlay');
+});
+
+/* aceita "50.000", "50000", "R$ 1.500,50" — mesma tolerância do input de premiação */
+function parseValorBRL(s){
+  s = String(s || '').trim().replace(/R\$\s*/g, '');
+  if (!s) return null;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, ''); // "50.000" = milhar, não decimal
+  const n = parseFloat(s);
+  return isNaN(n) || n < 0 ? null : Math.round(n * 100) / 100;
+}
+
+function addtMsg(txt, cls){
+  const el = document.getElementById('addtMsg');
+  if (!el) return;
+  el.textContent = txt || '';
+  el.className = 'addt-msg' + (cls ? ' ' + cls : '');
+}
+
+function renderManualList(){
+  const list = document.getElementById('addtList');
+  const count = document.getElementById('addtCount');
+  const badge = document.getElementById('addTorneioBadge');
+  if (!list) return;
+  const entries = Object.entries(MANUAL_ROWS || {})
+    .filter(([, r]) => r && r.nome)
+    .sort((a, b) => String(a[1].hora || '').localeCompare(String(b[1].hora || '')));
+  if (count) count.textContent = entries.length;
+  if (badge){ badge.textContent = entries.length; badge.hidden = entries.length === 0; }
+  if (!entries.length){
+    list.innerHTML = '<div class="addt-empty">Nenhum torneio manual hoje. Os que você adicionar aparecem aqui.</div>';
+    return;
+  }
+  list.innerHTML = entries.map(([id, r]) => {
+    const gtd = r.garantido != null ? 'GTD R$ ' + fmtBRL(r.garantido, 0) : 'sem GTD';
+    const bi  = r.buyin != null ? 'BI R$ ' + fmtBRL(r.buyin, r.buyin % 1 ? 2 : 0) : 'sem BI';
+    return `<div class="addt-item">
+      <div class="addt-item-main">
+        <div class="addt-item-nome">${escHtml(r.nome)}</div>
+        <div class="addt-item-meta">${escHtml(r.hora || '--:--')} · ${gtd} · ${bi}</div>
+        ${r._by ? `<div class="addt-item-by">por ${escHtml(r._by)}</div>` : ''}
+      </div>
+      <button type="button" class="addt-remove" data-mid="${escHtml(id)}">Remover</button>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('.addt-remove').forEach(b => {
+    b.addEventListener('click', () => {
+      const r = MANUAL_ROWS[b.dataset.mid];
+      if (!r) return;
+      if (!confirm(`Remover "${r.nome}" (${r.hora || '--:--'}) da grade de hoje?`)) return;
+      removeManualTournament(b.dataset.mid);
+    });
+  });
+}
+
+document.getElementById('addTorneioForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const $ = id => document.getElementById(id);
+  const nomeEl = $('addtNome'), horaEl = $('addtHora');
+  const nome = nomeEl.value.trim();
+  const hora = horaEl.value;
+  const garantido = parseValorBRL($('addtGarantido').value);
+  const buyin = parseValorBRL($('addtBuyin').value);
+  const tipo = $('addtTipo').value;
+
+  [nomeEl, horaEl].forEach(el => el.classList.remove('addt-invalid'));
+  if (!nome){ nomeEl.classList.add('addt-invalid'); nomeEl.focus(); return addtMsg('Dê um nome ao evento.', 'err'); }
+  if (!hora){ horaEl.classList.add('addt-invalid'); horaEl.focus(); return addtMsg('Informe o horário.', 'err'); }
+
+  // a grade precisa existir: os manuais são fundidos NA planilha do dia
+  if (!LAST_SHEET_ROWS.length) return addtMsg('Carregue a Global MTT de hoje antes de adicionar torneios.', 'err');
+
+  // nome+hora é a identidade do torneio no painel inteiro — duplicar quebraria o casamento
+  // da premiação e a auditoria (dois eventos indistinguíveis)
+  const ident = manualIdent({nome, hora});
+  if (RAW_ROWS.some(r => manualIdent(r) === ident))
+    return addtMsg('Já existe um torneio com esse nome e horário na grade de hoje.', 'err');
+
+  const btn = $('addtSubmit');
+  btn.disabled = true; addtMsg('adicionando…');
+  try{
+    await addManualTournament({nome, hora, garantido, buyin, tipo});
+    addtMsg(`✓ "${nome}" entrou na grade das ${hora}.`, 'ok');
+    showToast(`✓ Torneio "${nome}" adicionado à grade de hoje`);
+    document.getElementById('addTorneioForm').reset();
+    nomeEl.focus(); // pronto pro próximo (o operador costuma adicionar mais de um)
+  }catch(err){
+    addtMsg('Falha ao salvar: ' + (err?.message || 'sem conexão'), 'err');
+  }finally{
+    btn.disabled = false;
+  }
 });
 
 /* =========================================================================
@@ -6920,7 +7146,7 @@ document.getElementById('cashTablesDrawerOverlay').addEventListener('click', (e)
    tudo de uma vez se houver mais de um aberto). Ctrl/Cmd+F foca a busca por nome da Agenda
    em vez de abrir a busca nativa do navegador — mais útil nesse contexto de uso o turno inteiro.
 ========================================================================= */
-const ALL_DRAWER_OVERLAY_IDS = ['checklistDrawerOverlay', 'serversDrawerOverlay', 'routineDrawerOverlay', 'overlayCalcDrawerOverlay', 'overlayProjDrawerOverlay', 'cashTablesDrawerOverlay', 'shiftReportDrawerOverlay', 'guConfDrawerOverlay'];
+const ALL_DRAWER_OVERLAY_IDS = ['checklistDrawerOverlay', 'serversDrawerOverlay', 'routineDrawerOverlay', 'overlayCalcDrawerOverlay', 'overlayProjDrawerOverlay', 'cashTablesDrawerOverlay', 'shiftReportDrawerOverlay', 'guConfDrawerOverlay', 'addTorneioDrawerOverlay'];
 
 /* =========================================================================
    HISTÓRICO DE TORNEIOS
@@ -7795,8 +8021,16 @@ function reinitDayListeners(){
 
   // Remover listeners antigos do dia anterior antes de re-registrar
   // (evita duplicação de listeners ao virar o dia)
-  ['premiacao','fixed','premBy','ids','field','garantido','checklist','confhoje','rolledTo'].forEach(node => {
+  ['premiacao','fixed','premBy','ids','field','garantido','checklist','confhoje','rolledTo','manualRows'].forEach(node => {
     fbDb.ref(`${FB_BASE_PATH}/${node}`).off();
+  });
+
+  // Torneios manuais do dia novo (os de ontem não vêm junto — o nó é por data)
+  MANUAL_ROWS = {};
+  fbDb.ref(`${FB_BASE_PATH}/manualRows`).on('value', snap => {
+    MANUAL_ROWS = snap.val() || {};
+    reingestComManuais();
+    renderManualList();
   });
 
   // Sheet — re-registra no novo path (o listener antigo ficava preso no nó do dia anterior
