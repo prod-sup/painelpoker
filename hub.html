@@ -405,6 +405,19 @@ if (location.protocol === 'file:') {
      mesmo módulo dos painéis em vez de reimplementar tudo inline (evita divergir
      a cada correção). Precisa vir ANTES do IIFE do gate, que só delega pra ele. -->
 <script defer src="suprema-auth.js"></script>
+<script defer src="suprema-motion.js"></script>
+<script>
+/* rede de nós atrás do hero (Network Hero, estreada no Radar de Eventos).
+   Deferred scripts rodam antes do DOMContentLoaded, então SupremaMotion já existe.
+   O hub é escuro por padrão e marca o CLARO com html.light — daí o isDark próprio. */
+document.addEventListener('DOMContentLoaded', function(){
+  if (!window.SupremaMotion) return;
+  SupremaMotion.network('.hero', {
+    c1:'#8f6b2d', c2:'#18a36b', c1Dark:'#c9a84c', c2Dark:'#18a36b',
+    isDark: function(){ return !document.documentElement.classList.contains('light'); }
+  });
+});
+</script>
 <script defer src="hub.js"></script>
 <script defer src="suprema-onboarding.js"></script>
 <script defer src="hub-onboarding.js"></script>

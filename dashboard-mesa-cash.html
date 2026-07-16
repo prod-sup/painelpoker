@@ -46,6 +46,8 @@ document.addEventListener('DOMContentLoaded', () => {
   SupremaMotion.scrollProgress({ tint:'#4f8ef7' });          // dashboard longo: progresso no topo
   SupremaMotion.magnetic('.btn-p, .up-btn');                 // CTAs magnéticos (ref. MotionSites)
   SupremaMotion.aurora('.kpi.hero', { tint1:'rgba(79,142,247,.28)', tint2:'rgba(167,139,250,.20)' });
+  /* rede de nós no KPI-hero (Network Hero) — denso não: o card é pequeno */
+  SupremaMotion.network('.kpi.hero', { c1:'#4f8ef7', c2:'#a78bfa', maxNodes:36, linkDist:100 });
 });
 </script>
 <link rel="stylesheet" href="dashboard-mesa-cash.css">

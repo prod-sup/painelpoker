@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
   SupremaMotion.scrollProgress({ tint:'#b3475d' });
   SupremaMotion.magnetic('.btn');
   SupremaMotion.aurora('.hero', { tint1:'rgba(179,71,93,.20)', tint2:'rgba(201,168,76,.14)' });
+  SupremaMotion.network('.hero', { c1:'#b3475d', c2:'#8f6b2d', c1Dark:'#ef7d93', c2Dark:'#c9a84c' });
 });
 </script>
 <link rel="stylesheet" href="eventos.css">
@@ -59,7 +60,6 @@ document.addEventListener('DOMContentLoaded', () => {
 </nav>
 
 <header class="hero">
-  <canvas id="heroCanvas" aria-hidden="true"></canvas>
   <div class="hero-inner">
     <span class="hero-kicker"><span class="k-dot" id="liveDot"></span>A grade da semana, ao vivo</span>
     <h1>Todo evento tem um <span class="grad">caminho até a mesa</span>.</h1>

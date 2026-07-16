@@ -84,7 +84,9 @@
         'background:linear-gradient(90deg,transparent,color-mix(in srgb, var(--ink, #fff) 12%, transparent),transparent);' +
         'animation:sp-shimmer 1.4s ease-in-out infinite}' +
       '@keyframes sp-shimmer{100%{transform:translateX(100%)}}' +
-      '@media (prefers-reduced-motion:reduce){.sp-shimmer::after{animation:none}}';
+      '@media (prefers-reduced-motion:reduce){.sp-shimmer::after{animation:none}}' +
+      /* rede de nós (Network Hero): canvas atrás do conteúdo do hero */
+      '.sp-network{position:absolute;inset:0;z-index:0;pointer-events:none;width:100%;height:100%}';
     document.head.appendChild(s);
   }
 
@@ -385,10 +387,111 @@
     if(el) el.classList.toggle('sp-shimmer', on !== false);
   }
 
+  /* ── REDE DE NÓS (ref. MotionSites "Network Hero", estreada no Radar de
+     Eventos): partículas à deriva que se conectam por proximidade, num canvas
+     atrás do conteúdo do hero. Cada produto passa as SUAS cores (hex):
+       SupremaMotion.network('.hero', { c1:'#18a36b', c2:'#8f6b2d',
+                                        c1Dark:'#2bd393', c2Dark:'#c9a84c' });
+     Perf/craft: um rAF por host, pausado quando a aba perde o foco E quando o
+     hero sai da tela (IntersectionObserver); densidade proporcional à área;
+     desliga em prefers-reduced-motion e no modo leve (html.lite). ── */
+  function hexRgb(hex){
+    var h = String(hex || '').replace('#', '');
+    if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    var n = parseInt(h, 16);
+    return isFinite(n) ? [ (n>>16)&255, (n>>8)&255, n&255 ] : [136,136,136];
+  }
+  function network(selector, opts){
+    if (calm) return;
+    injectCss();
+    opts = opts || {};
+    var boot = function(){
+      if (document.documentElement.classList.contains('lite')) return;
+      document.querySelectorAll(selector).forEach(function(host){
+        if (host.__spNet) return; host.__spNet = true;
+        if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+        var cv = document.createElement('canvas');
+        cv.className = 'sp-network'; cv.setAttribute('aria-hidden', 'true');
+        host.prepend(cv);
+        [].forEach.call(host.children, function(c){
+          if (c !== cv && getComputedStyle(c).position === 'static') c.style.position = 'relative';
+        });
+        var ctx = cv.getContext('2d');
+        var dpr = Math.min(2, global.devicePixelRatio || 1);
+        var light = [ hexRgb(opts.c1 || '#8f6b2d'), hexRgb(opts.c2 || '#18a36b') ];
+        var dark  = [ hexRgb(opts.c1Dark || opts.c1 || '#c9a84c'), hexRgb(opts.c2Dark || opts.c2 || '#2bd393') ];
+        var W = 0, H = 0, nodes = [], raf = 0, visible = true, focused = !document.hidden;
+        var LINK = (opts.linkDist || 130) * dpr;
+        function size(){
+          var r = host.getBoundingClientRect();
+          W = cv.width = Math.max(1, Math.floor(r.width * dpr));
+          H = cv.height = Math.max(1, Math.floor(r.height * dpr));
+          var n = Math.min(opts.maxNodes || 70, Math.max(14, Math.floor((r.width * r.height) / 16000)));
+          nodes = [];
+          for (var i = 0; i < n; i++) nodes.push({
+            x: Math.random()*W, y: Math.random()*H,
+            vx: (Math.random()-.5)*.14*dpr, vy: (Math.random()-.5)*.14*dpr,
+            r: (Math.random()*1.5+.8)*dpr
+          });
+        }
+        function frame(){
+          raf = 0;
+          if (!visible || !focused) return;
+          /* cada página marca o tema do seu jeito (.dark, [data-theme], ou .light
+             invertido no hub) — opts.isDark deixa o chamador mandar na regra */
+          var darkNow = opts.isDark
+            ? !!opts.isDark()
+            : (document.documentElement.classList.contains('dark') ||
+               document.documentElement.getAttribute('data-theme') === 'dark');
+          var pal = darkNow ? dark : light;
+          var p1 = 'rgba(' + pal[0].join(',') + ',', p2 = 'rgba(' + pal[1].join(',') + ',';
+          ctx.clearRect(0, 0, W, H);
+          var i, j, a, b, dx, dy, d;
+          for (i = 0; i < nodes.length; i++){
+            a = nodes[i];
+            a.x += a.vx; a.y += a.vy;
+            if (a.x < 0 || a.x > W) a.vx *= -1;
+            if (a.y < 0 || a.y > H) a.vy *= -1;
+          }
+          ctx.lineWidth = dpr * .7;
+          for (i = 0; i < nodes.length; i++){
+            for (j = i+1; j < nodes.length; j++){
+              a = nodes[i]; b = nodes[j];
+              dx = a.x-b.x; dy = a.y-b.y; d = dx*dx + dy*dy;
+              if (d < LINK*LINK){
+                ctx.strokeStyle = p1 + (0.12 * (1 - Math.sqrt(d)/LINK)).toFixed(3) + ')';
+                ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+              }
+            }
+          }
+          for (i = 0; i < nodes.length; i++){
+            a = nodes[i];
+            ctx.fillStyle = (i % 3 ? p1 : p2) + '.45)';
+            ctx.beginPath(); ctx.arc(a.x, a.y, a.r, 0, Math.PI*2); ctx.fill();
+          }
+          raf = requestAnimationFrame(frame);
+        }
+        function wake(){ if (!raf && visible && focused) raf = requestAnimationFrame(frame); }
+        if ('IntersectionObserver' in global){
+          new IntersectionObserver(function(en){ visible = en[0].isIntersecting; wake(); }).observe(host);
+        }
+        global.addEventListener('blur',  function(){ focused = false; }, { passive:true });
+        global.addEventListener('focus', function(){ focused = true; wake(); }, { passive:true });
+        document.addEventListener('visibilitychange', function(){ focused = !document.hidden; wake(); });
+        var rsz = 0;
+        global.addEventListener('resize', function(){
+          clearTimeout(rsz); rsz = setTimeout(function(){ size(); wake(); }, 150);
+        }, { passive:true });
+        size(); wake();
+      });
+    };
+    if (document.body) boot(); else document.addEventListener('DOMContentLoaded', boot);
+  }
+
   global.SupremaMotion = {
     glow: glow, reveal: reveal, tilt: tilt,
     ambient: ambient, busy: busy, busyAuto: busyAuto, busyWatch: busyWatch,
     countUp: countUp, magnetic: magnetic, scrollProgress: scrollProgress,
-    aurora: aurora, skeleton: skeleton
+    aurora: aurora, skeleton: skeleton, network: network
   };
 })(window);

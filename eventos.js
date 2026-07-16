@@ -708,63 +708,6 @@ function renderFutures(){
   SupremaMotion.tilt('.fut-card', { max: 4 });
 }
 
-/* ═══════════════════ hero: rede de nós no canvas (Network Hero) ═══════════════════ */
-function heroNetwork(){
-  const cv = document.getElementById('heroCanvas');
-  if (!cv || matchMedia('(prefers-reduced-motion: reduce)').matches ||
-      document.documentElement.classList.contains('lite')) return;
-  const ctx = cv.getContext('2d');
-  let W, H, nodes = [], raf = 0, running = true;
-  const N = Math.min(70, Math.floor(innerWidth / 22));
-  function size(){
-    const r = cv.parentElement.getBoundingClientRect();
-    W = cv.width = Math.floor(r.width * devicePixelRatio);
-    H = cv.height = Math.floor(r.height * devicePixelRatio);
-  }
-  function seed(){
-    nodes = Array.from({length: N}, () => ({
-      x: Math.random()*W, y: Math.random()*H,
-      vx: (Math.random()-.5)*.14*devicePixelRatio, vy: (Math.random()-.5)*.14*devicePixelRatio,
-      r: (Math.random()*1.5+.8)*devicePixelRatio,
-    }));
-  }
-  function tint(){
-    return document.documentElement.classList.contains('dark')
-      ? ['rgba(239,125,147,', 'rgba(201,168,76,'] : ['rgba(179,71,93,', 'rgba(143,107,45,'];
-  }
-  const LINK_D = 130*devicePixelRatio;
-  function frame(){
-    if (!running) return;
-    ctx.clearRect(0,0,W,H);
-    const [c1, c2] = tint();
-    nodes.forEach(n => {
-      n.x += n.vx; n.y += n.vy;
-      if (n.x < 0 || n.x > W) n.vx *= -1;
-      if (n.y < 0 || n.y > H) n.vy *= -1;
-    });
-    for (let i = 0; i < nodes.length; i++){
-      for (let j = i+1; j < nodes.length; j++){
-        const a = nodes[i], b = nodes[j];
-        const dx = a.x-b.x, dy = a.y-b.y, d = Math.hypot(dx,dy);
-        if (d < LINK_D){
-          ctx.strokeStyle = c1 + (0.12*(1-d/LINK_D)).toFixed(3) + ')';
-          ctx.lineWidth = devicePixelRatio*.7;
-          ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
-        }
-      }
-    }
-    nodes.forEach((n,i) => {
-      ctx.fillStyle = (i%3 ? c1 : c2) + '.45)';
-      ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI*2); ctx.fill();
-    });
-    raf = requestAnimationFrame(frame);
-  }
-  size(); seed(); frame();
-  addEventListener('resize', () => { size(); seed(); }, { passive:true });
-  addEventListener('blur',  () => { running = false; cancelAnimationFrame(raf); });
-  addEventListener('focus', () => { if (!running){ running = true; frame(); } });
-}
-
 /* ═══════════════════ chrome: relógio, tema, operador ═══════════════════ */
 function tickClock(){
   const n = spNow();
@@ -793,6 +736,5 @@ setInterval(() => { if (MODEL){ renderHero(); renderNow(); } }, 60000);
 /* ═══════════════════ boot ═══════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
   wireFilters();
-  heroNetwork();
   initData();
 });

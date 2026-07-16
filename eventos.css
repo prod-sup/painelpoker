@@ -82,7 +82,7 @@ nav{
   position:relative; min-height:78vh; display:flex; align-items:center;
   padding:120px 22px 56px; overflow:hidden; isolation:isolate;
 }
-#heroCanvas{ position:absolute; inset:0; width:100%; height:100%; z-index:0; opacity:.9 }
+.hero .sp-network{ opacity:.9 }
 .hero::after{ /* vinheta que assenta o canvas no fundo */
   content:""; position:absolute; inset:0; z-index:1; pointer-events:none;
   background:radial-gradient(120% 90% at 50% 10%, transparent 40%, var(--bg) 96%);
