@@ -307,14 +307,25 @@ const state = { camp:'all', cat:'all', q:'', day:null };
 let _lastAt = null;
 function initData(){
   if (!window.SupremaDB || !SupremaDB.init()){ setTimeout(initData, 300); return; }
-  SupremaDB.watch('painel/globalMtt/at', snap => {
-    const at = snap.val();
-    if (!at || `${at}` === `${_lastAt}`) return;
-    _lastAt = `${at}`;
-    loadSharedGlobal();
+  /* ESPERAR o Firebase Auth restaurar a sessão ANTES de anexar qualquer listener:
+     listener anexado sem token leva permission_denied e o RTDB o CANCELA em
+     silêncio — a página ficava presa no "Distribuindo as cartas…" pra sempre
+     (mesma armadilha documentada no hub.js). requireUser também manda re-logar
+     no hub (?reauth=1) se a sessão do Firebase não existir mais. */
+  SupremaDB.Auth.requireUser(() => {
+    SupremaDB.watch('painel/globalMtt/at', snap => {
+      const at = snap.val();
+      if (!at){ showEmpty(); return; }         // nó vazio: ninguém subiu a Global ainda
+      if (`${at}` === `${_lastAt}`) return;
+      _lastAt = `${at}`;
+      loadSharedGlobal();
+    });
+    SupremaDB.onConnection(ok => setSync(ok));
+    /* rede lenta/regra negada: depois de 12s sem dado, troca o loading pelo
+       estado vazio (que tem o fallback de ler o arquivo local) */
+    setTimeout(() => { if (!MODEL) showEmpty(); }, 12000);
   });
   setSync(true);
-  SupremaDB.onConnection(ok => setSync(ok));
 }
 
 function b64ToBuf(b64){

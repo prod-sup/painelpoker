@@ -35,6 +35,9 @@ html.dark{
 }
 
 *{ box-sizing:border-box; margin:0; padding:0 }
+/* displays próprios (inline-flex etc.) não podem atropelar o atributo hidden —
+   sem isto o sourceMeta aparecia como uma pílula vazia antes dos dados */
+[hidden]{ display:none !important }
 html{ scroll-behavior:smooth }
 body{
   font-family:var(--sup-text, -apple-system, sans-serif);
