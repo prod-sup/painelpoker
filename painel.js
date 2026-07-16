@@ -3418,16 +3418,64 @@ function resyncPremiacaoFromFirebase(){
       RAW_ROWS.forEach(r => {
         if(data[r._key] != null && r.premiacao !== data[r._key]){ r.premiacao = data[r._key]; ch = true; }
       });
-      if(ch){
+      const applyRerender = () => {
         RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
         UPCOMING = [...RAW_ROWS];
         UNFIXED  = computeUnfixed();
         const el = document.getElementById('statUnfixed'); if(el) el.textContent = UNFIXED.length;
         computeStats(); updateProgress(); renderResults();
         if(!isTypingInCard() && !window._suppressRenderUpcoming) renderUpcoming();
-      }
+      };
+      if(ch) applyRerender();
+      // RESGATE POR SNAPSHOT: uma grade nova subida no meio do dia muda o rowKey (depende de
+      // garantido/buy-in) e orfana as premiações já preenchidas (guardadas sob a chave antiga) →
+      // "R$ 0 / 0 fechados". O snapshot automático (snapshots/<data>) guarda cada torneio com
+      // nome+hora+premiacao: reatamos pela identidade estável e RE-GRAVAMOS na chave nova pra
+      // persistir (não some no próximo F5). Só roda quando ainda há linhas órfãs, casamento
+      // nome+hora inequívoco (1 candidato de cada lado), e nunca sobrescreve valor já preenchido.
+      recoverPremiacaoFromSnapshot(applyRerender);
     }).catch(()=>{});
   });
+}
+
+function recoverPremiacaoFromSnapshot(applyRerender){
+  if(!fbReady || !fbDb || !RAW_ROWS.length) return;
+  const orphans = RAW_ROWS.filter(r => r.premiacao == null && !r.explicitNF);
+  if(!orphans.length) return; // nada órfão → não busca snapshot (economiza banda)
+  const date = (FB_BASE_PATH.split('/')[1]) || todayPathSP();
+  const norm = (nome, hora) => `${String(nome||'').trim().toUpperCase()}|${hora||''}`;
+  fbDb.ref(`snapshots/${date}`).once('value').then(s => {
+    const snap = s.val();
+    if(!snap || !snap.rows) return;
+    const snapRows = Array.isArray(snap.rows) ? snap.rows : Object.values(snap.rows);
+    // índice nome+hora → premiação do snapshot; marca ambíguos (mesma identidade repetida) como null
+    const byIdent = new Map();
+    snapRows.forEach(sr => {
+      if(sr.premiacao == null) return;
+      const id = norm(sr.nome, sr.hora);
+      byIdent.set(id, byIdent.has(id) ? null : sr.premiacao);
+    });
+    if(!byIdent.size) return;
+    // linhas atuais com identidade duplicada também são ambíguas → não arrisca
+    const curCount = new Map();
+    RAW_ROWS.forEach(r => { const id = norm(r.nome, r.hora); curCount.set(id, (curCount.get(id)||0)+1); });
+    let recovered = 0;
+    orphans.forEach(r => {
+      const id = norm(r.nome, r.hora);
+      if(curCount.get(id) !== 1) return;      // duplicado no quadro atual → ambíguo
+      const val = byIdent.get(id);
+      if(val == null) return;                 // sem match único no snapshot
+      r.premiacao = val; recovered++;
+      try{ const pm = JSON.parse(localStorage.getItem('suprema_prem_v1')||'{}'); pm[r._key] = val; localStorage.setItem('suprema_prem_v1', JSON.stringify(pm)); }catch(e){}
+      // re-grava na CHAVE NOVA pra persistir (a antiga fica órfã, inofensiva; a reconciliação
+      // por SEEN não a anula porque a chave nova nunca "sumiu" do nó)
+      try{ fbDb.ref(`${FB_BASE_PATH}/premiacao/${r._key}`).set(val); }catch(e){}
+    });
+    if(recovered){
+      logActivity(`♻️ ${recovered} premiaç${recovered>1?'ões':'ão'} reatada${recovered>1?'s':''} do snapshot após a grade nova (vínculo restaurado por nome+hora)`, '💾');
+      if(typeof applyRerender === 'function') applyRerender();
+    }
+  }).catch(()=>{});
 }
 
 function ingest(rows, filename, fromRemote=false){
@@ -7937,6 +7985,23 @@ async function saveSnapshotToFirebase(trigger='manual'){
     rows: Object.fromEntries(rows.map((r,i) => [r.id || `t${i}`, r])),
   };
   try {
+    // SALVAGUARDA: o snapshot é a rede de recuperação das premiações (reatadas por nome+hora
+    // quando uma grade nova troca as chaves). Premiação preenchida não DIMINUI ao longo do dia —
+    // uma queda significa que os cards estão órfãos (bug da chave volátil). Nunca deixar um
+    // snapshot automático gravar MENOS premiação por cima de um mais rico, ou perderíamos a fonte.
+    // Só o manual força (o operador decide conscientemente).
+    if(trigger !== 'manual'){
+      const novoQtd = rows.filter(r => r.premiacao != null).length;
+      const prev = (await fbDb.ref(`snapshots/${date}`).once('value')).val();
+      if(prev && prev.rows){
+        const prevRows = Array.isArray(prev.rows) ? prev.rows : Object.values(prev.rows);
+        const prevQtd = prevRows.filter(r => r && r.premiacao != null).length;
+        if(prevQtd > novoQtd){
+          console.warn(`[snapshot] ignorado (${trigger}): teria reduzido premiações de ${prevQtd} → ${novoQtd}. Preservando a fonte de recuperação.`);
+          return;
+        }
+      }
+    }
     await fbDb.ref(`snapshots/${date}`).set(snapshot);
     if(trigger === 'manual') showToast(`✓ Snapshot salvo — ${rows.length} torneios`);
   } catch(e){
