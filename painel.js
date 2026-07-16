@@ -2275,16 +2275,27 @@ function registerSheetListener(){
     LAST_APPLIED_SHEET_SIGNATURE = sig;
     if(data.uploadedAt) window.SHEET_UPLOAD_DATE = new Date(data.uploadedAt)
       .toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
-    // Backup das premiações antes de recarregar a sheet
-    const premBackup = {};
-    RAW_ROWS.forEach(r => { if(r.premiacao != null) premBackup[r._key] = r.premiacao; });
+    // Backup das premiações antes de recarregar a sheet — por _key E por nome|hora.
+    // O _key é um hash de nome|hora|buyin|garantido (ver rowKey): corrigir o garantido
+    // depois de fechar o pote MUDA a chave e orfanava a premiação já preenchida — o que
+    // zerava "Pago em premiações"/"fechados". O fallback por nome+hora (identidade estável)
+    // reata o vínculo. Em memória só (sem regravar no FB) pra não arriscar premiar o torneio
+    // errado num eventual empate de nome+hora.
+    const premBackup = {}, premByNH = {};
+    RAW_ROWS.forEach(r => {
+      if(r.premiacao != null){
+        premBackup[r._key] = r.premiacao;
+        if(r.nome && r.hora) premByNH[`${r.nome}|${r.hora}`] = r.premiacao;
+      }
+    });
     ingest(data.rows, data.filename || '', true);
     // Restaurar premiações após ingest (não perder dados já preenchidos)
     let premChanged = false;
     RAW_ROWS.forEach(r => {
-      if(premBackup[r._key] != null && r.premiacao == null){
-        r.premiacao = premBackup[r._key]; premChanged = true;
-      }
+      if(r.premiacao != null) return;
+      let val = premBackup[r._key];                                   // 1) mesma chave
+      if(val == null && r.nome && r.hora) val = premByNH[`${r.nome}|${r.hora}`]; // 2) garantido mudou → nome+hora
+      if(val != null){ r.premiacao = val; premChanged = true; }
     });
     if(premChanged){
       RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
