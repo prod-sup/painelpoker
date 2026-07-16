@@ -269,6 +269,7 @@ async function enterApp(email, name){
     await loadAll();
     initDates();
     await loadAudit();   // a aba inicial (Acompanhamento) precisa disto
+    watchLiveGrade();    // acompanha em tempo real o dia atual + amanhã (GU)
   }catch(e){
     console.error('enterApp/load', e);
     try{ toast('Falha ao carregar. Verifique sua conexão e o login no hub.','err'); }catch(_){}
@@ -359,9 +360,21 @@ async function loadAll(fullHistory){
     snapQ.once('value'),
     painelQ.once('value'),
   ]);
+  // parse dia-a-dia via helper compartilhado (mesma lógica p/ carga inicial e live)
   const snapRaw  = snapSnap.val()||{};
-  Object.entries(snapRaw).forEach(([date,snap])=>{
-    if(!snap?.rows||typeof snap.rows!=='object')return;
+  Object.entries(snapRaw).forEach(([date,snap])=> mergeDayInto(date, snap, null));
+  const painelRaw = painelSnapPar.val()||{};
+  Object.entries(painelRaw).forEach(([date,day])=> mergeDayInto(date, null, day));
+}
+
+/* Faz o merge de UM dia (snapshot + painel) dentro de _allData[date]. É a MESMA
+   lógica que o loadAll usava inline — extraída pra ser reusada pelo refresh ao
+   vivo (que reprocessa só o dia que mudou, sem rebaixar os 60 dias). `snap` é o
+   nó snapshots/<date> ({rows}); `day` é o nó painel/<date> ({sheet,premiacao,…}).
+   Chamável com um ou ambos (null pula a parte correspondente). */
+function mergeDayInto(date, snap, day){
+  // 1. snapshot (rows prontas) — só cria o dia se houver rows válidas (como no original)
+  if(snap && snap.rows && typeof snap.rows==='object'){
     if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{}};
     Object.entries(snap.rows).forEach(([k,r])=>{
       if(!r||typeof r!=='object')return;
@@ -371,14 +384,11 @@ async function loadAll(fullHistory){
       if(r.id)              _allData[date].ids[k]={val:r.id,by:r.fixadoPor||''};
       if(r.fixadoPor)       _allData[date].fixed[k]={by:r.fixadoPor,at:r.fixadoEm||0};
     });
-  });
+  }
 
-  // 2. Complementar com painel — já carregado em paralelo
-  const painelRaw  = painelSnapPar.val()||{};
-  Object.entries(painelRaw).forEach(([date,day])=>{
-    if(typeof day!=='object')return;
+  // 2. painel ao vivo — complementa/sobrepõe o snapshot
+  if(day && typeof day==='object'){
     if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{}};
-
     // sheet.rows é ARRAY — converter para objeto com rk_ keys
     // Merge por nome+hora (não recalcula hash) para evitar duplicar o mesmo torneio
     // quando o garantido muda entre o snapshot e o painel ao vivo (hash diferente)
@@ -415,37 +425,55 @@ async function loadAll(fullHistory){
     });
 
     // Dados preenchidos — sobrepor o que veio do snapshot
-    // premiacao: {rk: valor_numerico}
     Object.entries(day.premiacao||{}).forEach(([k,v])=>{
       if(v!=null) _allData[date].prem[k]=v;
       if(_allData[date].rows[k]) _allData[date].rows[k].premiacao=v;
     });
-
-    // fixed: {rk: {at, by}} ou true
     Object.entries(day.fixed||{}).forEach(([k,v])=>{
       if(v) _allData[date].fixed[k]=typeof v==='object'?v:{by:'',at:0};
     });
-
-    // ids: {rk: "string"} ou {rk: {val,by,at}}
     Object.entries(day.ids||{}).forEach(([k,v])=>{
       if(v!=null) _allData[date].ids[k]=typeof v==='object'?v:{val:v,by:''};
     });
-
-    // field: {rk: numero}
     Object.entries(day.field||{}).forEach(([k,v])=>{
       if(v!=null){
         _allData[date].field[k]=v;
         if(_allData[date].rows[k]) _allData[date].rows[k].field=v;
       }
     });
-
-    // garantido sobrescrito
     Object.entries(day.garantido||{}).forEach(([k,v])=>{
       if(v!=null) _allData[date].guar[k]=v;
     });
+  }
+}
+
+/* ── GRADE AO VIVO (tempo real, cost-safe) ──────────────────────────────────
+   O admin agora ACOMPANHA em tempo real o que os operadores preenchem — mas SÓ
+   no dia atual e no de amanhã (a GU da noite). O histórico de 60 dias segue via
+   .once (raramente muda). Assim o admin fica ao vivo sem rebaixar 60 dias a cada
+   tecla (o egress que estourou antes — ver o cuidado no painel.js). Um listener
+   por nó-dia (pequeno), debounce, e re-render só da aba de Acompanhamento. */
+let _liveWired = false; const _liveT = {};
+function refreshDayLive(date, painelVal){
+  clearTimeout(_liveT[date]);
+  _liveT[date] = setTimeout(async () => {
+    if(!fbOk) return;
+    try{
+      // snapshots/<date> costuma nem existir durante o dia (é escrito no fecho) — leitura barata
+      const snapS = await db.ref('snapshots/'+date).once('value');
+      delete _allData[date];                      // reprocessa o dia do zero (evita lixo de chaves antigas)
+      mergeDayInto(date, snapS.val(), painelVal);
+      // re-renderiza só se a tela de Acompanhamento estiver aberta (é a "grade")
+      if(document.getElementById('pageAudit')?.classList.contains('active')) loadAudit();
+    }catch(e){ /* negado/offline: mantém o que já tem */ }
+  }, 1000);
+}
+function watchLiveGrade(){
+  if(_liveWired || !fbOk) return; _liveWired = true;
+  // hoje + amanhã (dago(-1) = +1 dia): cobre a operação do dia e a GU da noite
+  [nowSP(), dago(-1)].forEach(date => {
+    db.ref('painel/'+date).on('value', snap => refreshDayLive(date, snap.val()));
   });
-
-
 }
 
 function rowKey(r){
