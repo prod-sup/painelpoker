@@ -125,6 +125,12 @@ let PREM_BY_MAP                  = {}; // quem preencheu premiação/field de ca
 let ID_MAP                       = {};
 let FIELD_MAP                    = {};
 let GARANTIDO_MAP                = {};
+// Chaves de premiação que JÁ apareceram no nó `premiacao` do Firebase nesta sessão.
+// A reconciliação só pode anular uma premiação cuja chave FOI vista e depois SUMIU
+// (exclusão real do operador). Uma chave que nunca esteve no nó — premiação da planilha,
+// ou premiação reatada por nome+hora após o garantido mudar a chave — não é "apagada",
+// só "não vive no nó". Sem isso, o total aparecia e ia baixando até zerar no F5.
+let PREM_FB_KEYS_SEEN            = new Set();
 let CHECKLIST_MAP                = {};
 let CONFHOJE_MAP                 = {};
 let LAST_APPLIED_SHEET_SIGNATURE = null;
@@ -2401,9 +2407,11 @@ function initFirebaseSync(){
       // e sumiam). "Ausente" só conta como exclusão quando há um mapa real no Firebase.
       const premHasData = Object.keys(data).length > 0;
       if(premHasData) RAW_ROWS.forEach(r => {
-        // nunca anular premiação vinda da planilha — ela não vive no nó FB, então "ausente" não é "apagada"
-        if(r.premiacao != null && !r.premFromSheet && data[r._key] == null){ r.premiacao = null; changed = true; }
+        // só anula se a chave JÁ esteve no nó e agora sumiu (exclusão real do operador).
+        // planilha (premFromSheet) ou reatada por nome+hora nunca estiveram no nó → não tocar.
+        if(r.premiacao != null && !r.premFromSheet && PREM_FB_KEYS_SEEN.has(r._key) && data[r._key] == null){ r.premiacao = null; changed = true; }
       });
+      Object.keys(data).forEach(k => PREM_FB_KEYS_SEEN.add(k));
       if(changed || RAW_ROWS.length){
         RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
         UPCOMING = [...RAW_ROWS];
@@ -7767,7 +7775,8 @@ function reinitDayListeners(){
     // só reconcilia exclusões quando o nó tem dados (ver comentário no listener gêmeo):
     // nó vazio não é "tudo apagado", senão zera as premiações vindas da planilha
     const premHasData = Object.keys(data).length > 0;
-    if(premHasData) RAW_ROWS.forEach(r => { if(r.premiacao!=null && !r.premFromSheet && data[r._key]==null){ r.premiacao=null; changed=true; } });
+    if(premHasData) RAW_ROWS.forEach(r => { if(r.premiacao!=null && !r.premFromSheet && PREM_FB_KEYS_SEEN.has(r._key) && data[r._key]==null){ r.premiacao=null; changed=true; } });
+    Object.keys(data).forEach(k => PREM_FB_KEYS_SEEN.add(k));
     if(changed||RAW_ROWS.length){
       RESULTS  = RAW_ROWS.filter(r=>r.premiacao!==null&&r.premiacao!==undefined);
       UPCOMING = [...RAW_ROWS];
