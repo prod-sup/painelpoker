@@ -2311,6 +2311,7 @@ function registerSheetListener(){
     if(premChanged){
       RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
       UPCOMING = [...RAW_ROWS];
+      computeStats(); updateProgress(); // sem isto os KPIs ficavam no valor velho (R$ 0) com RESULTS já cheio
       renderResults();
       if(!isTypingInCard() && !window._suppressRenderUpcoming) renderUpcoming();
     }
@@ -5321,6 +5322,7 @@ function applyPremiacaoValue(key, premiacaoVal, activityMsg){
   UPCOMING = [...RAW_ROWS];
   UNFIXED  = computeUnfixed();
   document.getElementById('statUnfixed').textContent = UNFIXED.length;
+  computeStats(); // o operador digitar uma premiação precisa refletir em "Pago em premiações"/Overlay na hora
   updateProgress();
   renderUnfixed();
   // Atualizar card in-place — sem remover do DOM
@@ -7772,8 +7774,12 @@ function scheduleRenderAll(){
     document.getElementById('statUnfixed').textContent = UNFIXED.length;
     computeStats(); updateProgress();
     renderUnfixed(); renderResults();
-    // Só renderUpcoming se não há campo de card em foco
-    if(!isTypingInCard()) renderUpcoming();
+    // O eco da própria escrita (suppressUpcomingEcho) e o foco num card só podem barrar o
+    // REBUILD dos cards — nunca os KPIs. Antes o `_suppressRenderUpcoming` era testado lá fora
+    // e pulava o scheduleRenderAll INTEIRO: no load, o listener de premiação caía dentro da
+    // janela de 4s, RESULTS virava 74 mas o computeStats nunca rodava e "Pago em premiações"
+    // congelava em R$ 0 pra sempre (com o dado certo na memória). Os números agora sempre atualizam.
+    if(!isTypingInCard() && !window._suppressRenderUpcoming) renderUpcoming();
   }, 150);
 }
 
@@ -7828,7 +7834,9 @@ function reinitDayListeners(){
     if(changed||RAW_ROWS.length){
       RESULTS  = RAW_ROWS.filter(r=>r.premiacao!==null&&r.premiacao!==undefined);
       UPCOMING = [...RAW_ROWS];
-      if(!isTypingInCard() && !window._suppressRenderUpcoming) scheduleRenderAll();
+      // SEMPRE re-renderiza: o próprio scheduleRenderAll decide o que barrar (só o rebuild
+      // dos cards respeita foco/eco). Gatear aqui fora congelava os KPIs em R$ 0.
+      scheduleRenderAll();
     }
   });
   });  // fim do whenAuthed (premiação)
@@ -7969,51 +7977,6 @@ function buildSnapshotRows(){
                    ? 'NF' : (prem != null ? 'Fechado' : 'Aberto'),
     };
   });
-}
-
-/* ── DIAGNÓSTICO DE PREMIAÇÃO (?diag=1) — mostra o estado real na TELA, sem console.
-   Remover depois de fechar o caso. Lê o nó premiacao e compara com RAW_ROWS/RESULTS. */
-if(/[?&]diag=1/.test(location.search)){
-  const runDiag = async () => {
-    const box = document.createElement('div');
-    box.style.cssText = 'position:fixed;inset:auto 12px 12px 12px;z-index:999999;background:#0a100d;color:#e8f0ea;border:2px solid #c9a24b;border-radius:12px;padding:14px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;max-height:70vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.6)';
-    const line = t => { const d=document.createElement('div'); d.textContent=t; box.appendChild(d); };
-    document.body.appendChild(box);
-    line('⏳ Diagnóstico de premiação (aguardando 4s pra tudo carregar)…');
-    await new Promise(r=>setTimeout(r,4000));
-    box.innerHTML='';
-    try{
-      line('FB_BASE_PATH = '+FB_BASE_PATH);
-      const _u = (typeof firebase!=='undefined'&&firebase.auth)?firebase.auth().currentUser:null;
-      line('fbReady='+fbReady+'  auth='+(_u?_u.email:'—'));
-      line('RAW_ROWS = '+RAW_ROWS.length+'  | com premiação em memória = '+RAW_ROWS.filter(r=>r.premiacao!=null).length);
-      line('RESULTS = '+RESULTS.length);
-      const statEl = document.getElementById('statPremiacao');
-      line('stat na tela = '+(statEl?statEl.textContent:'(sem elemento)'));
-      const snap = await fbDb.ref(`${FB_BASE_PATH}/premiacao`).once('value');
-      const data = snap.val()||{};
-      const keys = Object.keys(data);
-      const sum = Object.values(data).reduce((s,v)=>s+(+v||0),0);
-      line('nó premiacao = '+keys.length+' chaves | soma R$ '+sum.toFixed(2));
-      const rk = new Set(RAW_ROWS.map(r=>r._key));
-      const match = keys.filter(k=>rk.has(k));
-      line('chaves do nó que BATEM com RAW_ROWS._key = '+match.length+' / '+keys.length);
-      if(match.length < keys.length){
-        line('── exemplos de chave do nó que NÃO bate: '+keys.filter(k=>!rk.has(k)).slice(0,3).join(', '));
-        line('── exemplos de RAW_ROWS._key: '+RAW_ROWS.slice(0,3).map(r=>r._key).join(', '));
-      }
-      // aplica manualmente e vê o que dá
-      let manual=0; RAW_ROWS.forEach(r=>{ if(data[r._key]!=null) manual+=data[r._key]; });
-      line('SE aplicar data[_key] agora → somaria R$ '+manual.toFixed(2));
-      line(match.length===keys.length && RAW_ROWS.filter(r=>r.premiacao!=null).length===0
-        ? '🔴 CHAVES BATEM mas as linhas estão SEM premiação → algo ANULA/não aplica no load'
-        : match.length<keys.length
-          ? '🔴 CHAVES NÃO BATEM → rowKey do painel diverge do nó'
-          : '🟢 linhas têm premiação — o problema seria só de render/stat');
-      line('▲ tire um print desta caixa e mande.');
-    }catch(e){ line('ERRO no diag: '+(e&&e.message||e)); }
-  };
-  if(document.readyState==='complete') runDiag(); else window.addEventListener('load', runDiag);
 }
 
 async function saveSnapshotToFirebase(trigger='manual'){
