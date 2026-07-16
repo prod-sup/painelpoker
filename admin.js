@@ -241,6 +241,20 @@ async function doLogin(){
   }catch(e){err.textContent='Erro: '+e.message;btn.disabled=false;btn.textContent='Entrar';}
 }
 
+/* espera o Firebase Auth RESTAURAR a sessão antes da 1ª leitura. Sem isso, no
+   mobile (restauração mais lenta) o db.ref().once() corria na frente do token,
+   as regras estritas (Fase 4) negavam e o loader ficava girando pra sempre.
+   Mesmo gate que o painel.js já usa. Fallback de 4s pra nunca travar. */
+function authReady(){
+  return new Promise(function(resolve){
+    var a = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth() : null;
+    if(!a || a.currentUser) return resolve();
+    var done = false;
+    var off = a.onAuthStateChanged(function(u){ if(u){ done = true; if(off) off(); resolve(); } });
+    setTimeout(function(){ if(!done){ if(off) off(); resolve(); } }, 4000);
+  });
+}
+
 /* entra no painel admin (caminho único de sucesso: login manual ou sessão) */
 async function enterApp(email, name){
   _email=email;_name=name;
@@ -248,10 +262,19 @@ async function enterApp(email, name){
   document.getElementById('loginWrap').style.display='none';
   document.getElementById('app').style.display='block';
   document.getElementById('loader').classList.add('on');
-  await loadAll();
-  document.getElementById('loader').classList.remove('on');
-  initDates();
-  await loadAudit();   // a aba inicial (Acompanhamento) precisa disto
+  // try/finally: o loader SEMPRE desliga, mesmo se a leitura falhar (senão fica
+  // "carregando" pra sempre). authReady() garante o token antes de ler.
+  try{
+    await authReady();
+    await loadAll();
+    initDates();
+    await loadAudit();   // a aba inicial (Acompanhamento) precisa disto
+  }catch(e){
+    console.error('enterApp/load', e);
+    try{ toast('Falha ao carregar. Verifique sua conexão e o login no hub.','err'); }catch(_){}
+  }finally{
+    document.getElementById('loader').classList.remove('on');
+  }
   // o resto sai do caminho crítico: a primeira tela já está de pé,
   // operadores/usuários/notificações carregam quando a thread sobrar
   const idle = window.requestIdleCallback || (fn => setTimeout(fn, 350));
@@ -270,6 +293,7 @@ async function autoEnterFromSession(){
     // reconhecido mas fora da lista fixa: pode ser admin por flag no Firebase — confirma;
     // não sendo, volta pro hub com o aviso (operador comum não vê tela de login do admin)
     try{
+      await authReady();   // token pronto: senão a regra nega e um admin-por-flag cairia como "sem acesso"
       const snap = await db.ref(`users/${eKey(email)}`).once('value');
       const u = snap.val();
       if(u && u.admin) return enterApp(email, u.apelido||u.nome||email.split('@')[0]);
@@ -282,6 +306,7 @@ async function autoEnterFromSession(){
     const nm = (r.session && (r.session.displayName||r.session.apelido||r.session.nome)) || email.split('@')[0];
     if(r.trustedOnly){ // sem sessão viva: reconstrói do Firebase pra manter tudo em sincronia
       try{
+        await authReady();
         const snap = await db.ref(`users/${eKey(email)}`).once('value');
         const u = snap.val() || {};
         SupremaAuth.saveSession({ email, nome:u.nome, sobrenome:u.sobrenome, apelido:u.apelido, displayName:u.apelido||u.nome||email });

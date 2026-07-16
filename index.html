@@ -1,17 +1,4 @@
-<!DOC
-
-<!-- Botão de log de atividade -->
-<button class="activity-btn" id="activityBtn" onclick="toggleActivityLog()" title="Log de atividade do turno">
-  📋 Atividade
-  <span class="activity-badge">0</span>
-</button>
-<div id="activityLog">
-  <div class="activity-head">
-    <span class="activity-head-title">📋 Log do turno</span>
-    <span class="activity-close" onclick="toggleActivityLog()">✕</span>
-  </div>
-  <div class="activity-items"></div>
-</div>TYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -65,6 +52,18 @@ document.addEventListener('DOMContentLoaded', () => {
 </head>
 <body>
 
+<!-- Botão de log de atividade -->
+<button class="activity-btn" id="activityBtn" onclick="toggleActivityLog()" title="Log de atividade do turno">
+  📋 Atividade
+  <span class="activity-badge">0</span>
+</button>
+<div id="activityLog">
+  <div class="activity-head">
+    <span class="activity-head-title">📋 Log do turno</span>
+    <span class="activity-close" onclick="toggleActivityLog()">✕</span>
+  </div>
+  <div class="activity-items"></div>
+</div>
 
 <div class="progress-bar" id="progressBar"></div>
 

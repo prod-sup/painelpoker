@@ -3218,3 +3218,14 @@ html.dark .routine-tool-desc b{ color:var(--felt-bright); }
 .tcard{ content-visibility:auto; contain-intrinsic-size:auto 230px; }
 .learn-card{ content-visibility:auto; contain-intrinsic-size:auto 260px; }
 .ev-item, .checklist-item{ content-visibility:auto; contain-intrinsic-size:auto 64px; }
+
+/* ── FIX MOBILE: content-visibility:auto podia deixar os cards de torneio em
+   branco em alguns navegadores mobile (offscreen sem altura → nunca renderizam).
+   No mobile são poucos cards por vez — o ganho de pular render é pequeno, então
+   desligamos a otimização e garantimos que TUDO aparece. Desktop mantém o boost. */
+@media (max-width:820px){
+  .tcard, .learn-card, .ev-item, .checklist-item, .ucard{
+    content-visibility:visible !important;
+    contain-intrinsic-size:auto !important;
+  }
+}
