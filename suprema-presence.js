@@ -65,7 +65,8 @@
      módulo precisa saber os nomes por conta própria pros tooltips "em <painel>". */
   var EXTRA_LABELS = {
     hub: 'Suprema OS', painel: 'Painel do Dia', gu: 'Criação Noturna',
-    cash: 'Cash Intelligence', admin: 'Admin', learn: 'Poker Learn', org: 'A Constelação'
+    cash: 'Cash Intelligence', admin: 'Admin', learn: 'Poker Learn', org: 'A Constelação',
+    eventos: 'Radar de Eventos'
   };
 
   /* qual painel é este? deriva do arquivo atual via SupremaAuth.PANELS (file->label) */

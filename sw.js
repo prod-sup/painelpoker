@@ -1,7 +1,7 @@
 // Suprema Poker — Service Worker
 // IMPORTANTE: incremente SW_VERSION a cada deploy — é isso que faz as abas abertas
 // receberem o aviso de "nova versão disponível" e ninguém operar com código velho
-const SW_VERSION = '3.6.5';
+const SW_VERSION = '3.7.0';
 const CACHE_NAME = `suprema-painel-v${SW_VERSION}`;
 const STATIC_ASSETS = [
   '/painelpoker/',
@@ -19,6 +19,9 @@ const STATIC_ASSETS = [
   '/painelpoker/hub.html',
   '/painelpoker/admin.html',
   '/painelpoker/dashboard-mesa-cash.html',
+  '/painelpoker/eventos.html',
+  '/painelpoker/eventos.css',
+  '/painelpoker/eventos.js',
   '/painelpoker/suprema-tokens.css',
   // PWA: manifest + ícones precisam existir offline pro app instalado abrir sem rede
   '/painelpoker/manifest.json',

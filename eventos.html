@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Radar de Eventos · Suprema OS</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%23b3475d'>♦</text></svg>">
+<script defer src="suprema-xlsx.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script src="gu-parser.js"></script>
+<script src="suprema-auth.js"></script>
+<script>
+/* portão: login mora no hub; exige acesso liberado a ESTE painel.
+   anti-flash: aplica o tema salvo antes do primeiro paint. */
+SupremaAuth.guard({ panel:'eventos' }); SupremaAuth.revalidateAccess('eventos');
+if (SupremaAuth.isDarkPreferred()) document.documentElement.classList.add('dark');
+</script>
+<script src="suprema-motion.js"></script>
+<script>
+/* motion do Suprema OS (ref. MotionSites: Network Hero + Spotlight + reveals) */
+SupremaMotion.glow('.ev-card, .stat, .fut-card, .node');
+document.addEventListener('DOMContentLoaded', () => {
+  SupremaMotion.reveal('.stat, .section-head');
+  SupremaMotion.scrollProgress({ tint:'#b3475d' });
+  SupremaMotion.magnetic('.btn');
+  SupremaMotion.aurora('.hero', { tint1:'rgba(179,71,93,.20)', tint2:'rgba(201,168,76,.14)' });
+});
+</script>
+<link rel="stylesheet" href="eventos.css">
+<script src="scripts/lite.js"></script>
+<link rel="stylesheet" href="suprema-tokens.css">
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 2.6 19 12l-7 9.4L5 12z" stroke="#b3475d" stroke-width="1.7" stroke-linejoin="round"/>
+        <path d="M12 7.2 15.6 12 12 16.8 8.4 12z" fill="#b3475d" opacity=".55"/>
+      </svg>
+      <span class="brand-text">Suprema Poker</span>
+      <span class="brand-sub">Radar de Eventos · Marketing &amp; Atendimento</span>
+    </div>
+    <div class="nav-links">
+      <a href="hub.html" title="Voltar ao hub Suprema OS">♠ OS</a>
+      <a href="index.html">Painel do Dia</a>
+    </div>
+    <div class="nav-right">
+      <span class="presence-wrap" id="presenceWrap" title="Quem está online agora" hidden></span>
+      <span class="sync-status" id="syncStatus"><span class="sync-dot"></span><span class="sync-label">Conectando…</span></span>
+      <span class="nav-time" id="navTime" title="Horário de São Paulo"></span>
+      <button class="op-badge" id="opBadge" title="Sessão ativa"><span class="avatar" id="opAvatar">?</span><span id="opName">—</span></button>
+      <button class="icon-btn" id="darkToggle" title="Alternar modo claro/escuro">☀️</button>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <canvas id="heroCanvas" aria-hidden="true"></canvas>
+  <div class="hero-inner">
+    <span class="hero-kicker"><span class="k-dot" id="liveDot"></span>A grade da semana, ao vivo</span>
+    <h1>Todo evento tem um <span class="grad">caminho até a mesa</span>.</h1>
+    <p class="hero-sub">A Global MTT traduzida pra quem fala com o jogador: o que está rolando <b>agora</b>,
+      o que vem na <b>semana</b>, os <b>eventos futuros</b> em P&amp;D — e qual satélite premia
+      o <b>ticket</b> que dá acesso a cada torneio.</p>
+    <span class="source-meta" id="sourceMeta" hidden></span>
+    <div class="hero-stats">
+      <div class="stat s-live"><span class="n" id="statLive">0</span><span class="l">rolando agora</span></div>
+      <div class="stat"><span class="n" id="statToday">0</span><span class="l">eventos hoje</span></div>
+      <div class="stat s-gtd"><span class="n" id="statGtd">—</span><span class="l">garantidos na semana</span></div>
+      <div class="stat s-fut"><span class="n" id="statFut">0</span><span class="l">eventos futuros</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="filters">
+  <div class="filters-inner">
+    <div class="chip-group" id="campChips">
+      <span class="lbl">Campanha</span>
+      <button class="chip on" data-camp="all">Todas</button>
+      <button class="chip" data-camp="AS">✦ #AS</button>
+      <button class="chip" data-camp="SPS">✦ +SPS</button>
+      <button class="chip" data-camp="SPT">✦ +SPT</button>
+      <button class="chip" data-camp="none">Sem campanha</button>
+    </div>
+    <div class="chip-group" id="catChips">
+      <span class="lbl">Categoria</span>
+      <button class="chip on" data-cat="all">Tudo</button>
+      <button class="chip" data-cat="main">♠ Main</button>
+      <button class="chip" data-cat="side">♣ Side</button>
+      <button class="chip" data-cat="sat">♦ Satélite</button>
+    </div>
+    <label class="search">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="searchInput" type="search" placeholder="Buscar torneio…" autocomplete="off">
+    </label>
+  </div>
+</div>
+
+<div id="loading" class="state-block">
+  <div class="loader-cards"><i></i><i></i><i></i></div>
+  <h3>Distribuindo as cartas…</h3>
+  <p>Buscando a Global MTT compartilhada pela operação.</p>
+</div>
+
+<div id="emptyState" class="state-block" hidden>
+  <span class="icon">🃏</span>
+  <h3>Nenhuma Global compartilhada ainda</h3>
+  <p>Quando a operação subir a Global MTT no Painel do Dia, a semana inteira aparece aqui sozinha.
+     Se você tem o arquivo em mãos, dá pra ler direto — só neste navegador, sem publicar nada.</p>
+  <button class="btn" data-local-upload>📂 Ler minha Global (.xlsx)</button>
+</div>
+
+<main id="content" hidden>
+
+  <section class="section" id="nowSection">
+    <div class="section-head">
+      <h2><span class="suit">♠</span> Acontecendo agora</h2>
+      <span class="hint">em andamento ou começando nas próximas 2 horas</span>
+    </div>
+    <p class="section-empty" id="nowEmpty" hidden>Mesa limpa por enquanto — nada rolando nem começando em breve com esses filtros.</p>
+    <div id="nowGrid"></div>
+  </section>
+
+  <section class="section" id="weekSection">
+    <div class="section-head">
+      <h2><span class="suit">♣</span> A semana</h2>
+      <span class="hint">clique num evento pra ver o caminho dele na constelação</span>
+    </div>
+    <div id="weekWrap"></div>
+  </section>
+
+  <section class="section" id="graphSection">
+    <div class="section-head">
+      <h2><span class="suit">♦</span> A constelação dos tickets</h2>
+      <span class="hint">satélite → ticket → torneio-alvo · passe o mouse ou clique pra dar spotlight</span>
+    </div>
+    <div class="graph-bar">
+      <div id="dayPills"></div>
+      <span class="graph-hint">O ticket no meio da linha mostra o valor da entrada que o satélite premia.</span>
+    </div>
+    <p class="section-empty" id="graphEmpty" hidden>Nenhum evento neste dia com os filtros atuais.</p>
+    <div id="graphStage"></div>
+  </section>
+
+  <section class="section" id="futSection">
+    <div class="section-head">
+      <h2><span class="suit">✦</span> Eventos futuros</h2>
+      <span class="hint">a seção P&amp;D da Global — o que vem depois de domingo</span>
+    </div>
+    <p class="section-empty" id="futEmpty" hidden>A Global atual não traz eventos futuros anunciados.</p>
+    <div id="futGrid"></div>
+  </section>
+
+</main>
+
+<footer>
+  <b>Radar de Eventos</b> · Suprema OS — leitura viva da Global MTT. Dúvidas sobre a grade? Fale com a operação no Painel do Dia.
+  <input type="file" id="localFile" accept=".xlsx,.xls" hidden>
+</footer>
+
+<script src="suprema-db.js"></script>
+<script src="suprema-presence.js"></script>
+<script src="eventos.js"></script>
+</body>
+</html>

@@ -59,6 +59,7 @@
   --sup-p-learn:  #e8933d;
   --sup-p-org:    #d8b56d;                 /* exclusivo do Organograma — não usar como chrome */
   --sup-p-cash:   #4f8ef7;
+  --sup-p-eventos:#b3475d;                 /* framboesa do Radar de Eventos (Marketing) */
 
   /* -- pontes pros nomes que cada app já usa ---------------- */
   /* Painel / Criação GU */
@@ -83,6 +84,8 @@ html[data-theme="dark"]{
   --gold: var(--sup-gold-dark);
   /* o acento do Admin É o dourado da marca, então acompanha junto */
   --sup-p-admin: var(--sup-gold-dark);
+  /* o framboesa do claro não segura contraste no escuro — mesmo modelo do dourado */
+  --sup-p-eventos: #ef7d93;
 }
 
 /* ============================================================

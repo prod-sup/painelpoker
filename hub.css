@@ -25,6 +25,7 @@
   --p-learn:   var(--sup-p-learn);
   --p-org:     var(--sup-p-org);
   --p-cash:    var(--sup-p-cash);
+  --p-eventos: var(--sup-p-eventos);
 
   --display: var(--sup-display);
   --text:    var(--sup-text);
@@ -322,6 +323,12 @@ html.light .aviso[data-tipo="erro"]{ --av-fg:#c0392b }
 .t-cash .desc{margin:4px 0 0}
 .t-cash .meta{margin:0 0 0 auto}
 .t-cash .mark{font-size:120px;top:-24px}
+/* Radar de Eventos: faixa horizontal irmã da Cash, no framboesa do Marketing */
+.t-eventos{grid-column:span 6;min-height:120px;--tint:var(--p-eventos);flex-direction:row;align-items:center;gap:22px}
+.t-eventos h2{font-size:20px}
+.t-eventos .desc{margin:4px 0 0}
+.t-eventos .meta{margin:0 0 0 auto}
+.t-eventos .mark{font-size:120px;top:-24px}
 /* tile bloqueado (Mesa Cash é só admin) — visível, mas travado pra operador comum */
 .tile.locked{cursor:not-allowed;filter:saturate(.55)}
 .tile.locked h2,.tile.locked .desc{opacity:.5}
@@ -1590,7 +1597,7 @@ footer{
   .t-painel,.t-admin{grid-column:span 6}
   .t-gu,.t-learn,.t-org{grid-column:span 6}
   .tile{min-height:200px}
-  .t-cash{flex-direction:column;align-items:flex-start;gap:8px}
-  .t-cash .meta{margin:10px 0 0}
+  .t-cash,.t-eventos{flex-direction:column;align-items:flex-start;gap:8px}
+  .t-cash .meta,.t-eventos .meta{margin:10px 0 0}
   .hero{padding-top:40px}
 }

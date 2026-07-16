@@ -1,0 +1,413 @@
+/* =========================================================================
+   RADAR DE EVENTOS — CSS. Identidade Suprema OS (chrome igual, UM acento por
+   produto): o acento daqui é o FRAMBOESA do Marketing (--ev), com o dourado
+   da marca como cor de apoio (tickets). Hero cinematográfico (ref. MotionSites
+   Network Hero + Spotlight), vidro fosco e a constelação satélite → alvo.
+========================================================================= */
+
+:root{
+  --ev:        #b3475d;                /* framboesa Marketing — superfícies claras */
+  --ev-ink:    #9c3a4f;
+  --ev-soft:   rgba(179,71,93,.10);
+  --ev-line:   rgba(179,71,93,.28);
+  --bg:        #fbfbfd;
+  --bg-raise:  #ffffff;
+  --ink:       #1d1d1f;
+  --ink-soft:  #6e6e73;
+  --hairline:  rgba(0,0,0,.08);
+  --glass:     rgba(255,255,255,.72);
+  --shadow:    0 10px 34px rgba(24,18,20,.10);
+  --sp-tint:   rgba(179,71,93,.13);    /* tinta do glow da suprema-motion */
+}
+html.dark{
+  --ev:        #ef7d93;                /* framboesa em superfície escura (contraste AA) */
+  --ev-ink:    #f492a5;
+  --ev-soft:   rgba(239,125,147,.10);
+  --ev-line:   rgba(239,125,147,.30);
+  --bg:        #0b0d0c;
+  --bg-raise:  #14161a;
+  --ink:       #f4f4f6;
+  --ink-soft:  #9a9aa2;
+  --hairline:  rgba(255,255,255,.09);
+  --glass:     rgba(18,20,24,.62);
+  --shadow:    0 14px 44px rgba(0,0,0,.5);
+  --sp-tint:   rgba(239,125,147,.13);
+}
+
+*{ box-sizing:border-box; margin:0; padding:0 }
+html{ scroll-behavior:smooth }
+body{
+  font-family:var(--sup-text, -apple-system, sans-serif);
+  background:var(--bg); color:var(--ink);
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  transition:background .35s ease, color .35s ease;
+}
+button{ font:inherit; color:inherit; background:none; border:0; cursor:pointer }
+svg{ display:block }
+::selection{ background:var(--ev-soft) }
+
+/* ── NAV (o chrome do OS) ─────────────────────────────────────────────── */
+nav{
+  position:fixed; inset:0 0 auto 0; z-index:60;
+  backdrop-filter:blur(18px) saturate(160%); -webkit-backdrop-filter:blur(18px) saturate(160%);
+  background:var(--glass); border-bottom:1px solid var(--hairline);
+}
+.nav-inner{
+  max-width:1380px; margin:0 auto; padding:10px 22px;
+  display:flex; align-items:center; gap:16px;
+}
+.brand{ display:flex; align-items:center; gap:9px; white-space:nowrap }
+.brand-mark{ width:22px; height:22px }
+.brand-text{ font-family:var(--sup-display); font-weight:700; letter-spacing:-.01em }
+.brand-sub{ color:var(--ink-soft); font-size:12.5px; border-left:1px solid var(--hairline); padding-left:9px }
+.nav-links{ display:flex; gap:14px; font-size:13px }
+.nav-links a{ color:var(--ink-soft); text-decoration:none; transition:color .2s }
+.nav-links a:hover{ color:var(--ev) }
+.nav-right{ margin-left:auto; display:flex; align-items:center; gap:12px }
+.nav-time{ font-family:var(--sup-mono); font-size:12.5px; color:var(--ink-soft); font-variant-numeric:tabular-nums }
+.sync-status{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-soft) }
+.sync-dot{ width:7px; height:7px; border-radius:50%; background:#18a36b; box-shadow:0 0 8px rgba(24,163,107,.6) }
+.sync-status.off .sync-dot{ background:#e0a03c; box-shadow:none }
+.op-badge{ display:flex; align-items:center; gap:7px; font-size:13px; color:var(--ink-soft) }
+.op-badge .avatar{
+  width:24px; height:24px; border-radius:50%; display:grid; place-items:center;
+  background:var(--ev-soft); color:var(--ev); font-size:12px; font-weight:700;
+}
+.icon-btn{ font-size:15px; padding:4px; border-radius:10px; transition:transform .25s var(--sup-ease) }
+.icon-btn:hover{ transform:rotate(18deg) scale(1.12) }
+.presence-wrap{ display:flex; align-items:center }
+
+/* ── HERO cinematográfico ─────────────────────────────────────────────── */
+.hero{
+  position:relative; min-height:78vh; display:flex; align-items:center;
+  padding:120px 22px 56px; overflow:hidden; isolation:isolate;
+}
+#heroCanvas{ position:absolute; inset:0; width:100%; height:100%; z-index:0; opacity:.9 }
+.hero::after{ /* vinheta que assenta o canvas no fundo */
+  content:""; position:absolute; inset:0; z-index:1; pointer-events:none;
+  background:radial-gradient(120% 90% at 50% 10%, transparent 40%, var(--bg) 96%);
+}
+.hero-inner{ position:relative; z-index:2; max-width:1380px; margin:0 auto; width:100% }
+.hero-kicker{
+  display:inline-flex; align-items:center; gap:9px; font-size:12.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--ev); font-weight:700; margin-bottom:18px;
+}
+.hero-kicker .k-dot{ width:8px; height:8px; border-radius:50%; background:var(--ink-soft); opacity:.4 }
+.hero-kicker .k-dot.has-live{ background:#e5484d; opacity:1; animation:ev-pulse 1.6s ease-in-out infinite }
+h1{
+  font-family:var(--sup-display); font-weight:800; letter-spacing:-.035em; line-height:1.02;
+  font-size:clamp(42px, 7vw, 92px); max-width:13ch;
+}
+h1 .grad{
+  background:linear-gradient(96deg, var(--ev) 10%, var(--gold, #8f6b2d) 90%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.hero-sub{
+  margin-top:18px; max-width:56ch; font-size:clamp(15px, 1.6vw, 18px);
+  color:var(--ink-soft); line-height:1.55;
+}
+.source-meta{
+  margin-top:16px; display:inline-flex; align-items:center; gap:8px; font-size:12.5px;
+  color:var(--ink-soft); border:1px solid var(--hairline); border-radius:999px; padding:6px 14px;
+  background:var(--glass); backdrop-filter:blur(10px);
+}
+.source-meta svg{ width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:2 }
+
+.hero-stats{
+  margin-top:44px; display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; max-width:1000px;
+}
+.stat{
+  position:relative; overflow:hidden; padding:20px 22px; border-radius:var(--sup-radius-md, 18px);
+  background:var(--glass); border:1px solid var(--hairline); backdrop-filter:blur(14px);
+  box-shadow:var(--shadow);
+}
+.stat .n{
+  font-family:var(--sup-display); font-weight:800; letter-spacing:-.02em;
+  font-size:clamp(26px, 3vw, 38px); font-variant-numeric:tabular-nums;
+}
+.stat .l{ margin-top:4px; font-size:12.5px; color:var(--ink-soft); letter-spacing:.02em }
+.stat.s-live .n{ color:#e5484d }
+.stat.s-gtd .n{ color:var(--gold, #8f6b2d) }
+.stat.s-fut .n{ color:var(--ev) }
+
+/* ── barra de filtros (vidro, gruda sob a nav) ────────────────────────── */
+.filters{
+  position:sticky; top:49px; z-index:50; border-block:1px solid var(--hairline);
+  background:var(--glass); backdrop-filter:blur(18px) saturate(160%);
+}
+.filters-inner{
+  max-width:1380px; margin:0 auto; padding:11px 22px;
+  display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+}
+.chip-group{ display:flex; align-items:center; gap:7px; flex-wrap:wrap }
+.chip-group .lbl{ font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-soft); margin-right:2px }
+.chip{
+  padding:6px 14px; border-radius:999px; font-size:13px; font-weight:600;
+  border:1px solid var(--hairline); color:var(--ink-soft);
+  transition:all .22s var(--sup-ease); transform:translateZ(0);
+}
+.chip:hover{ border-color:var(--ev-line); color:var(--ev); transform:translateY(-1px) }
+.chip:active{ transform:scale(.95) }
+.chip.on{
+  background:var(--ev); border-color:var(--ev); color:#fff;
+  box-shadow:0 6px 18px var(--ev-soft);
+}
+html.dark .chip.on{ color:#14161a }
+.search{
+  margin-left:auto; display:flex; align-items:center; gap:8px;
+  border:1px solid var(--hairline); border-radius:999px; padding:7px 14px; min-width:220px;
+  background:var(--bg-raise); transition:border-color .2s;
+}
+.search:focus-within{ border-color:var(--ev-line) }
+.search svg{ width:14px; height:14px; stroke:var(--ink-soft); fill:none; stroke-width:2 }
+.search input{ border:0; outline:0; background:none; color:var(--ink); font:inherit; font-size:13.5px; width:100% }
+
+/* ── seções ───────────────────────────────────────────────────────────── */
+main{ max-width:1380px; margin:0 auto; padding:0 22px 90px }
+.section{ margin-top:74px }
+.section-head{ display:flex; align-items:baseline; gap:14px; margin-bottom:22px }
+.section-head h2{
+  font-family:var(--sup-display); font-weight:800; letter-spacing:-.025em;
+  font-size:clamp(24px, 3vw, 36px);
+}
+.section-head .suit{ color:var(--ev); font-size:.8em }
+.section-head .hint{ font-size:13px; color:var(--ink-soft) }
+.section-empty, .g-none{ color:var(--ink-soft); font-size:14px; padding:26px 0 }
+
+/* ── cards de evento ──────────────────────────────────────────────────── */
+#nowGrid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(310px, 1fr)); gap:16px }
+.ev-card{
+  position:relative; overflow:hidden; padding:18px 20px; cursor:pointer;
+  border-radius:var(--sup-radius-md, 18px); background:var(--bg-raise);
+  border:1px solid var(--hairline); box-shadow:var(--shadow);
+  transition:transform .3s var(--sup-ease), border-color .3s, box-shadow .3s;
+}
+.ev-card:hover{ transform:translateY(-4px); border-color:var(--ev-line) }
+.ev-card.live{ border-color:rgba(229,72,77,.4) }
+.ev-card.past{ opacity:.55; filter:saturate(.6) }
+.ev-top{ display:flex; align-items:center; gap:10px; margin-bottom:10px; min-height:20px }
+.ev-hora{
+  margin-left:auto; font-family:var(--sup-mono); font-size:13px; font-weight:600;
+  color:var(--ink-soft); font-variant-numeric:tabular-nums;
+}
+.ev-nome{ font-family:var(--sup-display); font-size:16.5px; font-weight:700; letter-spacing:-.01em; line-height:1.28 }
+.ev-badges{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px }
+.badge{
+  display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700;
+  letter-spacing:.04em; padding:3.5px 9px; border-radius:999px; border:1px solid var(--hairline);
+  color:var(--ink-soft); text-transform:uppercase;
+}
+.badge .suit{ font-size:12px }
+.b-cat.c-main{ color:var(--gold, #8f6b2d); border-color:color-mix(in srgb, var(--gold, #8f6b2d) 40%, transparent) }
+.b-cat.c-side{ color:#18a36b; border-color:rgba(24,163,107,.4) }
+.b-cat.c-sat{ color:#4f8ef7; border-color:rgba(79,142,247,.4) }
+.b-camp{
+  color:var(--ev); border-color:var(--ev-line); background:var(--ev-soft);
+}
+.b-camp .spark{ animation:ev-spark 2.4s ease-in-out infinite }
+.b-day, .b-hora{ font-family:var(--sup-mono) }
+@keyframes ev-spark{ 0%,100%{ opacity:.6; transform:scale(.9) } 50%{ opacity:1; transform:scale(1.15) } }
+
+.ev-nums{ display:flex; gap:22px; margin-top:14px }
+.num .k{ display:block; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-soft) }
+.num .v{
+  display:block; margin-top:2px; font-family:var(--sup-display); font-weight:800;
+  font-size:17px; letter-spacing:-.01em; font-variant-numeric:tabular-nums;
+}
+.num .v.big{ font-size:22px; color:var(--gold, #8f6b2d) }
+
+.live-tag{
+  display:inline-flex; align-items:center; gap:6px; font-size:10.5px; font-weight:800;
+  letter-spacing:.1em; color:#e5484d;
+}
+.live-tag .pulse{
+  width:7px; height:7px; border-radius:50%; background:#e5484d;
+  animation:ev-pulse 1.4s ease-in-out infinite;
+}
+@keyframes ev-pulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(229,72,77,.5) } 55%{ box-shadow:0 0 0 6px rgba(229,72,77,0) } }
+.soon-tag{
+  font-size:11px; font-weight:800; letter-spacing:.06em; color:var(--ev);
+  text-transform:uppercase;
+}
+
+/* faixa do ticket dentro do card (satélite → alvo) */
+.ticket-strip{
+  margin-top:14px; padding:9px 12px; border-radius:12px; font-size:12.5px;
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap; line-height:1.35;
+  background:color-mix(in srgb, var(--gold, #8f6b2d) 9%, transparent);
+  border:1px dashed color-mix(in srgb, var(--gold, #8f6b2d) 45%, transparent);
+}
+.ticket-strip .tk{ display:inline-flex; align-items:center; gap:6px; font-weight:800; color:var(--gold, #8f6b2d); white-space:nowrap }
+.ticket-strip .tk svg{ width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2 }
+.ticket-strip .arrow{ color:var(--ink-soft) }
+.ticket-strip .tgt{ font-weight:600 }
+.ticket-strip .tgt small{ color:var(--ink-soft); font-family:var(--sup-mono) }
+.mini-ticket{
+  margin-top:12px; font-size:12px; font-weight:600; color:var(--gold, #8f6b2d);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.mini-ticket.in{ color:var(--ink-soft) }
+.mini-ticket.dim{ color:var(--ink-soft); opacity:.7 }
+
+/* ── SEMANA ───────────────────────────────────────────────────────────── */
+.day-block{ margin-bottom:30px }
+.day-block.past{ opacity:.6 }
+.day-head{ display:flex; align-items:baseline; gap:12px; margin-bottom:12px }
+.day-name{
+  font-family:var(--sup-display); font-weight:800; font-size:19px; letter-spacing:-.01em;
+  display:flex; align-items:center; gap:9px;
+}
+.today-tag{
+  font-size:10px; font-weight:800; letter-spacing:.14em; color:#fff; background:var(--ev);
+  border-radius:999px; padding:3px 9px;
+}
+html.dark .today-tag{ color:#14161a }
+.day-sub{ font-size:12.5px; color:var(--ink-soft) }
+.day-block.today .day-name{ color:var(--ev) }
+.day-strip{
+  display:grid; grid-auto-flow:column; grid-auto-columns:290px; gap:13px;
+  overflow-x:auto; padding:4px 4px 14px; scroll-snap-type:x proximity;
+  scrollbar-width:thin; scrollbar-color:var(--ev-line) transparent;
+}
+.day-strip::-webkit-scrollbar{ height:7px }
+.day-strip::-webkit-scrollbar-thumb{ background:var(--ev-line); border-radius:99px }
+.ev-card.mini{ scroll-snap-align:start; padding:15px 17px }
+.ev-card.mini .ev-nome{ font-size:14.5px; min-height:2.6em }
+.ev-card.mini .ev-nums{ margin-top:11px; gap:16px }
+.ev-card.mini .num .v{ font-size:15px }
+.ev-card.mini.c-main{ border-top:2.5px solid color-mix(in srgb, var(--gold, #8f6b2d) 65%, transparent) }
+.ev-card.mini.c-side{ border-top:2.5px solid rgba(24,163,107,.6) }
+.ev-card.mini.c-sat{ border-top:2.5px solid rgba(79,142,247,.6) }
+
+/* ── CONSTELAÇÃO ──────────────────────────────────────────────────────── */
+.graph-bar{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:20px }
+#dayPills{ display:flex; gap:7px; flex-wrap:wrap }
+.pill{
+  position:relative; padding:7px 15px; border-radius:12px; font-size:13px; font-weight:700;
+  border:1px solid var(--hairline); color:var(--ink-soft); font-family:var(--sup-mono);
+  transition:all .22s var(--sup-ease);
+}
+.pill:hover:not(:disabled){ border-color:var(--ev-line); color:var(--ev) }
+.pill:disabled{ opacity:.35; cursor:default }
+.pill.on{ background:var(--ev); border-color:var(--ev); color:#fff; box-shadow:0 6px 18px var(--ev-soft) }
+html.dark .pill.on{ color:#14161a }
+.pill .dot{
+  position:absolute; top:5px; right:5px; width:5px; height:5px; border-radius:50%;
+  background:currentColor; opacity:.7;
+}
+.graph-hint{ font-size:12.5px; color:var(--ink-soft) }
+
+#graphStage{
+  position:relative; display:grid; grid-template-columns:1fr 1fr; gap:16px 220px;
+  padding:26px; border-radius:var(--sup-radius-lg, 28px);
+  background:
+    radial-gradient(700px 340px at 78% 0%, var(--ev-soft), transparent 70%),
+    radial-gradient(600px 300px at 8% 100%, color-mix(in srgb, var(--gold, #8f6b2d) 7%, transparent), transparent 70%),
+    var(--bg-raise);
+  border:1px solid var(--hairline); box-shadow:var(--shadow); overflow:hidden;
+}
+#graphSvg{ position:absolute; inset:0; z-index:1; pointer-events:none }
+.g-link{
+  fill:none; stroke:color-mix(in srgb, var(--gold, #8f6b2d) 55%, transparent); stroke-width:1.6;
+  stroke-dasharray:7 6; animation:ev-dash 1.4s linear infinite;
+  transition:opacity .3s, stroke .3s;
+}
+@keyframes ev-dash{ to{ stroke-dashoffset:-13 } }
+@media (prefers-reduced-motion:reduce){ .g-link{ animation:none } }
+.g-col{ position:relative; z-index:2; display:flex; flex-direction:column; gap:13px; min-width:0 }
+.g-col-label{
+  font-size:11px; font-weight:800; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--ink-soft); margin-bottom:4px;
+}
+.g-targets .g-col-label{ text-align:right }
+.node{ cursor:pointer }
+.node.unlinked{ border-style:dashed }
+#ticketChips{ position:absolute; inset:0; z-index:3; pointer-events:none }
+.ticket-chip{
+  position:absolute; transform:translate(-50%,-50%); pointer-events:auto; cursor:default;
+  font-size:11.5px; font-weight:800; white-space:nowrap; padding:4px 10px; border-radius:999px;
+  color:var(--gold, #8f6b2d);
+  background:color-mix(in srgb, var(--bg-raise) 88%, var(--gold, #8f6b2d) 12%);
+  border:1px solid color-mix(in srgb, var(--gold, #8f6b2d) 45%, transparent);
+  box-shadow:0 4px 14px rgba(0,0,0,.12);
+  transition:opacity .3s, transform .3s var(--sup-ease);
+}
+/* spotlight: focar num nó apaga o resto (ref. MotionSites Spotlight) */
+#graphStage.focusing .node:not(.on),
+#graphStage.focusing .ticket-chip:not(.on){ opacity:.18; filter:saturate(.4) }
+#graphStage.focusing .g-link{ opacity:.06 }
+#graphStage.focusing .g-link.on{
+  opacity:1; stroke:var(--ev); stroke-width:2.2;
+  filter:drop-shadow(0 0 6px var(--ev-soft));
+}
+#graphStage.focusing .ticket-chip.on{ transform:translate(-50%,-50%) scale(1.12) }
+#graphStage .node{ transition:opacity .3s, filter .3s, transform .3s var(--sup-ease), border-color .3s }
+#graphStage .node.on{ border-color:var(--ev-line) }
+
+/* ── FUTUROS ──────────────────────────────────────────────────────────── */
+#futGrid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:16px }
+.fut-card{
+  display:flex; gap:18px; padding:20px; cursor:default; position:relative; overflow:hidden;
+  border-radius:var(--sup-radius-md, 18px); background:var(--bg-raise);
+  border:1px solid var(--hairline); box-shadow:var(--shadow);
+  transform:perspective(700px) rotateX(var(--tiltX, 0)) rotateY(var(--tiltY, 0));
+  transition:border-color .3s;
+}
+.fut-card:hover{ border-color:var(--ev-line) }
+.fut-date{
+  flex:0 0 76px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:2px; border-radius:14px; padding:12px 6px; text-align:center;
+  background:linear-gradient(165deg, var(--ev-soft), color-mix(in srgb, var(--gold, #8f6b2d) 8%, transparent));
+  border:1px solid var(--ev-line);
+}
+.fut-date .d{ font-family:var(--sup-display); font-weight:800; font-size:28px; line-height:1; color:var(--ev) }
+.fut-date .m{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--ink-soft) }
+.fut-date .count{ margin-top:5px; font-size:10px; font-weight:700; color:var(--ev); letter-spacing:.04em }
+.fut-body{ min-width:0 }
+.fut-body .ev-nome{ font-size:16px }
+
+/* ── estados de carga ─────────────────────────────────────────────────── */
+.state-block{ padding:120px 22px; text-align:center }
+.state-block .icon{ font-size:44px; display:block; margin-bottom:16px }
+.state-block h3{ font-family:var(--sup-display); font-size:22px; letter-spacing:-.01em }
+.state-block p{ margin-top:8px; color:var(--ink-soft); font-size:14px; max-width:52ch; margin-inline:auto; line-height:1.6 }
+.btn{
+  display:inline-flex; align-items:center; gap:8px; margin-top:20px; padding:11px 22px;
+  border-radius:999px; font-weight:700; font-size:14px;
+  background:var(--ev); color:#fff; transition:transform .25s var(--sup-ease), box-shadow .25s;
+  box-shadow:0 10px 26px var(--ev-soft);
+}
+html.dark .btn{ color:#14161a }
+.btn:hover{ transform:translateY(-2px) }
+.loader-cards{ display:flex; gap:10px; justify-content:center; margin-bottom:22px }
+.loader-cards i{
+  width:34px; height:48px; border-radius:6px; background:var(--bg-raise);
+  border:1px solid var(--ev-line); display:block; animation:ev-deal 1.3s ease-in-out infinite;
+}
+.loader-cards i:nth-child(2){ animation-delay:.15s }
+.loader-cards i:nth-child(3){ animation-delay:.3s }
+@keyframes ev-deal{ 0%,100%{ transform:translateY(0) rotate(0) } 50%{ transform:translateY(-10px) rotate(4deg) } }
+
+footer{
+  border-top:1px solid var(--hairline); padding:28px 22px 40px; text-align:center;
+  color:var(--ink-soft); font-size:12.5px;
+}
+footer b{ color:var(--ev) }
+
+/* ── responsivo ───────────────────────────────────────────────────────── */
+@media (max-width: 1020px){
+  #graphStage{ gap:16px 120px }
+}
+@media (max-width: 860px){
+  .brand-sub, .nav-links, .nav-time{ display:none }
+  .hero{ min-height:auto; padding-top:96px }
+  .hero-stats{ grid-template-columns:repeat(2, 1fr) }
+  .filters{ top:45px }
+  .search{ min-width:150px; flex:1 }
+  /* constelação vira lista: as linhas somem, os cards já contam o vínculo em texto */
+  #graphStage{ grid-template-columns:1fr; gap:20px; padding:18px }
+  #graphSvg, #ticketChips{ display:none }
+  .g-targets .g-col-label{ text-align:left }
+  .day-strip{ grid-auto-columns:255px }
+  #nowGrid, #futGrid{ grid-template-columns:1fr }
+}
