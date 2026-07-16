@@ -38,11 +38,11 @@ body > *{position:relative;z-index:1}
     --hairline: rgba(0,0,0,0.08);
     --hairline-strong: rgba(0,0,0,0.13);
 
-    --felt: #0c5c3f;
-    --felt-bright: #18a36b;
+    --felt: var(--sup-felt);
+    --felt-bright: var(--sup-felt-bright);
     --felt-soft: #e7f5ee;
 
-    --gold: #8f6b2d; /* escurecido no tema claro pra manter 4,5:1 sobre o gold-soft */
+    --gold: var(--sup-gold); /* dourado da marca — fonte única em suprema-tokens.css */
     --gold-soft: #f6efe1;
 
     --red: #c0392b;
@@ -92,7 +92,7 @@ body > *{position:relative;z-index:1}
     --felt:        #0e6b40;
     --felt-bright: #22d47e;
     --felt-soft:   rgba(14,107,64,0.18);
-    --gold:      #c9a84c;
+    --gold:      var(--sup-gold-dark);
     --gold-soft: rgba(201,168,76,0.14);
     --red:       #e85555;
     --red-soft:  rgba(232,85,85,0.14);

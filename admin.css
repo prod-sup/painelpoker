@@ -17,7 +17,7 @@
 
   /* Accent — Apple system blue */
   /* dourado da casa — o MESMO --gold do painel/criação (azul ficou só semântico) */
-  --gold:    #8f6b2d;
+  --gold:    var(--sup-gold);
   --gold2:   #ad8a4e;
   --goldf:   rgba(143,107,45,.09);
   --goldb:   rgba(143,107,45,.28);
@@ -87,7 +87,7 @@ html.dark{
   --border:  rgba(255,255,255,.10);
   --border2: rgba(255,255,255,.055);
 
-  --gold:    #c9a84c;
+  --gold:    var(--sup-gold-dark);
   --gold2:   #e0c06a;
   --goldf:   rgba(201,168,76,.14);
   --goldb:   rgba(201,168,76,.35);

@@ -137,6 +137,9 @@ let PREM_FB_KEYS_SEEN            = new Set();
    o sheet inteiro — os manuais sumiriam junto. Assim eles sobrevivem e voltam no merge.
    Depois do merge o caminho é IDÊNTICO ao da planilha: card, KPI, snapshot, parceiro e
    auditoria (o admin lê painel/<data>/sheet.rows, e o setSharedSheet publica o conjunto fundido). */
+/* "estamos online AGORA?" — lido pelo diagnóstico. undefined até o 1º handshake do
+   Firebase (não é offline: é "ainda não sei"), pra não acusar queda em todo carregamento. */
+let FB_CONNECTED                 = undefined;
 let MANUAL_ROWS                  = {};   // { id: row }
 let LAST_SHEET_ROWS              = [];   // planilha PURA (sem manuais) — base pro merge
 let LAST_SHEET_FILENAME          = '';
@@ -2376,11 +2379,17 @@ function initFirebaseSync(){
           (window._onConnected || []).forEach(fn => { try{ fn(); }catch(e){} });
           window._onConnected = [];
         }
+        FB_CONNECTED = true;
         setSyncBadge('online');
       } else if(_connected){
         // Só mostra reconectando se já esteve online (não no false inicial)
+        FB_CONNECTED = false;
         setSyncBadge('connecting');
       }
+      // o `_connected` acima é block-scoped (e mistura "já conectou uma vez" com "está online
+      // agora"); o FB_CONNECTED é de módulo e só responde "estamos online?" — é o que o
+      // diagnóstico lê. Fica `undefined` até o 1º handshake, pra não acusar queda no load.
+      if(typeof scheduleDiagnostico === 'function') scheduleDiagnostico();
     });
     // Timeout: se não conectar em 15s marca offline
     setTimeout(() => { if(!_connected) setSyncBadge('offline'); }, 15000);
@@ -3760,6 +3769,10 @@ function computeStats(){
   updateProgress();
 
   renderYesterdayComparison({garantidoTotal, premiacaoTotal, overlayTotal});
+
+  // o diagnóstico olha exatamente o mesmo estado que acabou de virar número na tela;
+  // pendurar aqui (com debounce) garante que ele nunca fique falando de dados velhos
+  if(typeof scheduleDiagnostico === 'function') scheduleDiagnostico();
 }
 
 /* =========================================================================
@@ -5063,6 +5076,114 @@ document.getElementById('routineToggle').addEventListener('click', () => openDra
 document.getElementById('routineDrawerClose').addEventListener('click', () => closeDrawer('routineDrawerOverlay'));
 document.getElementById('routineDrawerOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'routineDrawerOverlay') closeDrawer('routineDrawerOverlay');
+});
+
+/* =========================================================================
+   DIAGNÓSTICO — liga o motor (suprema-insights.js) ao painel
+
+   O motor é PURO: não conhece Firebase nem DOM. Aqui a gente só tira o retrato do
+   estado e desenha o resultado. Toda a lógica de "o que é problema" mora lá, testada
+   no Node — porque regra que fala de dinheiro não pode depender de eu abrir o navegador.
+========================================================================= */
+let DIAG_ACHADOS = [];
+
+function diagContexto(){
+  return {
+    rows: RAW_ROWS,
+    historico: _historico,
+    idMap: ID_MAP,
+    avisosPlanilha: LAST_PARSE_WARNINGS,
+    // _connected só vira true depois do 1º handshake; undefined = ainda não sabemos
+    // (não é "offline", senão o painel acusaria queda em todo carregamento)
+    conectado: FB_CONNECTED,
+    nowMin: nowMinutesSP(),
+    garantidoEfetivo: r => getGarantidoEffective(r._key) ?? r.garantido ?? null,
+    estaFixado: r => isFixed(r._key),
+  };
+}
+
+function runDiagnostico(){
+  if (typeof SupremaInsights === 'undefined') return;   // defer: pode não ter chegado ainda
+  DIAG_ACHADOS = SupremaInsights.analisar(diagContexto());
+  const r = SupremaInsights.resumo(DIAG_ACHADOS);
+  const badge = document.getElementById('diagBadge');
+  if (badge){
+    const n = r.critico + r.atencao;                    // "info" não puxa a atenção do turno
+    badge.textContent = n;
+    badge.hidden = n === 0;
+    badge.classList.toggle('has-critico', r.critico > 0);
+  }
+  if (document.getElementById('diagDrawerOverlay')?.classList.contains('open')) renderDiagnostico();
+}
+/* re-analisa sem custo: colado nos mesmos momentos em que os números já mudam */
+const scheduleDiagnostico = debounce(runDiagnostico, 400);
+
+const DIAG_CAT_LABEL = { operacional:'Operação', tecnico:'Técnico', preditivo:'Antecipação' };
+const DIAG_SEV_LABEL = { critico:'Crítico', atencao:'Atenção', info:'Info' };
+
+function renderDiagnostico(){
+  const list = document.getElementById('diagList');
+  const sum  = document.getElementById('diagSummary');
+  if (!list) return;
+  const r = (typeof SupremaInsights !== 'undefined') ? SupremaInsights.resumo(DIAG_ACHADOS) : {total:0,critico:0,atencao:0,info:0};
+
+  sum.innerHTML = r.total
+    ? ['critico','atencao','info'].filter(s => r[s]).map(s =>
+        `<span class="diag-chip ${s}"><span class="n">${r[s]}</span> ${DIAG_SEV_LABEL[s]}</span>`).join('')
+    : '<span class="diag-chip limpo">✓ Nada pendente</span>';
+
+  if (!r.total){
+    list.innerHTML = `<div class="diag-empty">
+      <div class="t">✓ Tudo em ordem</div>
+      <div class="s">Nenhum evento aberto fora de hora, nenhuma premiação fora da faixa, nenhum ID repetido e nada no histórico pedindo atenção agora. Isto atualiza sozinho — se algo sair do lugar, o número aparece no botão do topo.</div>
+    </div>`;
+    return;
+  }
+
+  // agrupa por categoria preservando a ordem por severidade que o motor já devolveu
+  const porCat = {};
+  DIAG_ACHADOS.forEach(a => (porCat[a.cat] = porCat[a.cat] || []).push(a));
+  list.innerHTML = ['operacional','tecnico','preditivo'].filter(c => porCat[c]).map(cat => `
+    <div class="diag-cat">${DIAG_CAT_LABEL[cat]}</div>
+    ${porCat[cat].map(a => `
+      <div class="diag-item ${a.sev}">
+        <div class="diag-head">
+          <span class="diag-sev ${a.sev}">${DIAG_SEV_LABEL[a.sev]}</span>
+          <span class="diag-titulo">${escHtml(a.titulo)}</span>
+        </div>
+        <div class="diag-porque">${escHtml(a.porque)}</div>
+        <div class="diag-acao">${escHtml(a.acao)}</div>
+        ${a.key ? `<button type="button" class="diag-goto" data-goto="${escHtml(a.key)}">Ver o card</button>` : ''}
+      </div>`).join('')}
+  `).join('');
+
+  list.querySelectorAll('.diag-goto').forEach(b => {
+    b.addEventListener('click', () => diagIrParaCard(b.dataset.goto));
+  });
+}
+
+/* leva até o card e pisca — sem isso o achado vira "procure agulha no palheiro" */
+function diagIrParaCard(key){
+  closeDrawer('diagDrawerOverlay');
+  setTimeout(() => {
+    const el = document.querySelector(`.tcard[data-key="${key}"], .ucard[data-key="${key}"], tr[data-key="${key}"]`);
+    if (!el){ showToast('O card não está na visão atual — troque o filtro da Agenda.', true); return; }
+    el.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'center' });
+    el.classList.remove('diag-target');
+    void el.offsetWidth;                      // reinicia a animação se clicarem duas vezes
+    el.classList.add('diag-target');
+    setTimeout(() => el.classList.remove('diag-target'), 2600);
+  }, 260);
+}
+
+document.getElementById('diagToggle')?.addEventListener('click', () => {
+  runDiagnostico();
+  renderDiagnostico();
+  openDrawer('diagDrawerOverlay');
+});
+document.getElementById('diagDrawerClose')?.addEventListener('click', () => closeDrawer('diagDrawerOverlay'));
+document.getElementById('diagDrawerOverlay')?.addEventListener('click', (e) => {
+  if (e.target.id === 'diagDrawerOverlay') closeDrawer('diagDrawerOverlay');
 });
 
 /* ── Drawer: adicionar torneio manual ─────────────────────────────────── */
@@ -7146,7 +7267,7 @@ document.getElementById('cashTablesDrawerOverlay').addEventListener('click', (e)
    tudo de uma vez se houver mais de um aberto). Ctrl/Cmd+F foca a busca por nome da Agenda
    em vez de abrir a busca nativa do navegador — mais útil nesse contexto de uso o turno inteiro.
 ========================================================================= */
-const ALL_DRAWER_OVERLAY_IDS = ['checklistDrawerOverlay', 'serversDrawerOverlay', 'routineDrawerOverlay', 'overlayCalcDrawerOverlay', 'overlayProjDrawerOverlay', 'cashTablesDrawerOverlay', 'shiftReportDrawerOverlay', 'guConfDrawerOverlay', 'addTorneioDrawerOverlay'];
+const ALL_DRAWER_OVERLAY_IDS = ['checklistDrawerOverlay', 'serversDrawerOverlay', 'routineDrawerOverlay', 'overlayCalcDrawerOverlay', 'overlayProjDrawerOverlay', 'cashTablesDrawerOverlay', 'shiftReportDrawerOverlay', 'guConfDrawerOverlay', 'addTorneioDrawerOverlay', 'diagDrawerOverlay'];
 
 /* =========================================================================
    HISTÓRICO DE TORNEIOS

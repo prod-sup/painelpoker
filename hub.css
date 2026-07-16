@@ -11,24 +11,27 @@
   --ink-soft:  rgba(242,237,226,.58);
   --ink-faint: rgba(242,237,226,.46);   /* subido de .34: legibilidade AA nos textos "faint" */
   --hairline:  rgba(242,237,226,.10);
-  --gold:      #d8b56d;
-  --gold-soft: rgba(216,181,109,.12);
-  --felt:      #18a36b;
+  /* dourado da marca (suprema-tokens). O hub usava #d8b56d, que é o acento do ORGANOGRAMA
+     (--sup-p-org): o chrome da casa vestia a cor de um produto. Agora é o dourado do OS. */
+  --gold:      var(--sup-gold-dark);
+  --gold-soft: rgba(201,168,76,.12);
+  --felt:      var(--sup-felt-bright);
 
-  /* cor de cada produto (a identidade que cada app já tem) */
-  --p-painel:  #18a36b;
-  --p-admin:   #c9a35c;
-  --p-gu:      #8c5cc6;
-  --p-learn:   #e8933d;
-  --p-org:     #d8b56d;
-  --p-cash:    #4f8ef7;
+  /* cor de cada produto — FONTE ÚNICA no suprema-tokens.css.
+     Aqui só apelidamos. Antes eram cópias e o admin já tinha divergido (#c9a35c vs #8f6b2d). */
+  --p-painel:  var(--sup-p-painel);
+  --p-admin:   var(--sup-p-admin);
+  --p-gu:      var(--sup-p-gu);
+  --p-learn:   var(--sup-p-learn);
+  --p-org:     var(--sup-p-org);
+  --p-cash:    var(--sup-p-cash);
 
-  --display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", sans-serif;
-  --text:    "SF Pro Text", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", sans-serif;
-  --mono:    "SF Mono", "IBM Plex Mono", ui-monospace, "Roboto Mono", monospace;
+  --display: var(--sup-display);
+  --text:    var(--sup-text);
+  --mono:    var(--sup-mono);
 
-  --radius: 18px;
-  --ease: cubic-bezier(.22,1,.36,1);
+  --radius: var(--sup-radius-md);
+  --ease: var(--sup-ease);
 }
 /* tema claro: segue a preferência salva dos painéis (suprema_dark_mode).
    Não é um "dark invertido": é a sala de dia — luz natural na mesa de feltro,
@@ -40,8 +43,8 @@ html.light{
   --ink-soft:  #545b56;
   --ink-faint: #6b726c;   /* escurecido: contraste sobre papel claro */
   --hairline:  rgba(23,26,24,.10);
-  --gold:      #8a6420;   /* bronze: dourado que segura contraste no claro */
-  --gold-soft: rgba(138,100,32,.10);
+  --gold:      var(--sup-gold);   /* dourado da marca no claro (#8f6b2d, 4,72:1 — AA) */
+  --gold-soft: rgba(143,107,45,.10);
   --felt:      #0e7a4e;   /* feltro um tom mais fundo pra ler sobre claro */
 }
 /* de dia a luz entra pela janela: feltro no horizonte, mais presente que no dark */
@@ -69,7 +72,7 @@ html.light .t-learn{background:linear-gradient(160deg, rgba(232,147,61,.12), var
 /* A Constelação é uma experiência dark: o tile mantém o céu dela nos dois temas */
 html.light .t-org{color:#f2ede2;border-color:rgba(0,0,0,.18)}
 html.light .t-org .desc{color:rgba(242,237,226,.58)}
-html.light .t-org .meta{color:#d8b56d}
+html.light .t-org .meta{color:var(--p-org)}
 /* boards de dia: papel elevado com sombra suave; feltro do calendário mais vivo */
 html.light .board{
   border-color:rgba(23,26,24,.08);
@@ -101,7 +104,7 @@ body::before{
   content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
   background:
     radial-gradient(120% 70% at 50% -20%, rgba(24,163,107,.10), transparent 60%),
-    radial-gradient(90% 60% at 85% 110%, rgba(216,181,109,.06), transparent 55%);
+    radial-gradient(90% 60% at 85% 110%, rgba(201,168,76,.06), transparent 55%);
 }
 
 /* ---------- nav ---------- */
@@ -139,7 +142,7 @@ nav{
   display:flex;align-items:center;justify-content:center;
   font-family:var(--display);font-size:22px;font-weight:700;color:#f2ede2;
   background:linear-gradient(145deg,#1d7a52,#0f4a31);
-  border:1px solid rgba(216,181,109,.45);
+  border:1px solid rgba(201,168,76,.45);
   box-shadow:0 8px 22px -8px rgba(24,163,107,.55);
 }
 .hh-txt{font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
@@ -340,7 +343,7 @@ html.light .aviso[data-tipo="erro"]{ --av-fg:#c0392b }
 .gate{
   --bg-raise:#111412; --ink:#f2ede2; --ink-soft:rgba(242,237,226,.58);
   --ink-faint:rgba(242,237,226,.46); --hairline:rgba(242,237,226,.12);
-  --gold:#d8b56d; --gold-soft:rgba(216,181,109,.14);
+  --gold:var(--sup-gold-dark); --gold-soft:rgba(201,168,76,.14);
   position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
   background:#0b0d0c;color:var(--ink);color-scheme:dark;
   padding:24px;overflow-y:auto;
@@ -369,7 +372,7 @@ html.light .aviso[data-tipo="erro"]{ --av-fg:#c0392b }
 /* linha dourada de mesa no topo do cartão */
 .gate-card::before{
   content:"";position:absolute;top:0;left:22px;right:22px;height:1px;
-  background:linear-gradient(90deg, transparent, rgba(216,181,109,.55), transparent);
+  background:linear-gradient(90deg, transparent, rgba(201,168,76,.55), transparent);
 }
 .gate-brand{display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:22px;text-align:center}
 .gate-brand .suit{color:var(--gold);font-size:34px;line-height:1}
@@ -828,9 +831,9 @@ html.light .ev-form input[type=date],html.light .ev-form input[type=time]{color-
 .pf-hero{
   position:relative;height:148px;color:#f2ede2;overflow:hidden;
   background:
-    radial-gradient(120% 100% at 80% -20%, rgba(216,181,109,.25), transparent 60%),
+    radial-gradient(120% 100% at 80% -20%, rgba(201,168,76,.25), transparent 60%),
     linear-gradient(150deg,#124d33,#0b2b1d 70%);
-  border-bottom:1px solid rgba(216,181,109,.28);
+  border-bottom:1px solid rgba(201,168,76,.28);
 }
 /* vinheta + fade pro corpo: o banner assenta em vez de terminar seco */
 .pf-hero::after{
@@ -842,7 +845,7 @@ html.light .ev-form input[type=date],html.light .ev-form input[type=time]{color-
 /* fio interno, acabamento de carta premium */
 .pf-hero::before{
   content:"";position:absolute;inset:9px;pointer-events:none;z-index:1;border-radius:10px;
-  border:1px solid rgba(216,181,109,.22);
+  border:1px solid rgba(201,168,76,.22);
   -webkit-mask:linear-gradient(to bottom,#000 62%,transparent);
           mask:linear-gradient(to bottom,#000 62%,transparent);
 }
@@ -852,7 +855,7 @@ html.light .ev-form input[type=date],html.light .ev-form input[type=time]{color-
   font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;
   color:rgba(242,237,226,.78);text-shadow:0 1px 6px rgba(0,0,0,.5);
 }
-.pf-hero .pf-eyebrow .suit{color:#d8b56d;font-size:12px;letter-spacing:0}
+.pf-hero .pf-eyebrow .suit{color:var(--gold);font-size:12px;letter-spacing:0}
 .pf-close{
   position:absolute;top:16px;right:16px;z-index:2;
   border:1px solid rgba(242,237,226,.28);border-radius:99px;
@@ -861,7 +864,7 @@ html.light .ev-form input[type=date],html.light .ev-form input[type=time]{color-
   width:30px;height:30px;cursor:pointer;color:#f2ede2;font-size:13px;line-height:1;
   transition:border-color .25s var(--ease), color .25s var(--ease), transform .25s var(--ease);
 }
-.pf-close:hover{border-color:#d8b56d;color:#d8b56d;transform:rotate(90deg)}
+.pf-close:hover{border-color:var(--gold);color:var(--gold);transform:rotate(90deg)}
 /* avatar sobre a borda do banner — o brasão do cartão */
 .pf-avatar-row{display:flex;justify-content:center;margin-top:-46px;position:relative;z-index:2}
 .pf-avatar{
@@ -869,7 +872,7 @@ html.light .ev-form input[type=date],html.light .ev-form input[type=time]{color-
   display:flex;align-items:center;justify-content:center;
   font-family:var(--display);font-size:38px;font-weight:700;color:#f2ede2;
   background:linear-gradient(145deg,#1d7a52,#0f4a31);
-  border:2px solid rgba(216,181,109,.55);
+  border:2px solid rgba(201,168,76,.55);
   box-shadow:0 20px 44px -14px rgba(0,0,0,.75), 0 10px 30px -12px rgba(24,163,107,.5);
   transition:transform .3s var(--ease);
 }
@@ -1009,7 +1012,7 @@ html.light .ev-form input[type=date],html.light .ev-form input[type=time]{color-
 .pf-btn.danger:hover{border-color:#e85555;color:#e85555}
 /* avatar clicável na nav */
 .nav-user .nav-avatar{
-  width:30px;height:30px;border-radius:9px;border:1px solid rgba(216,181,109,.45);
+  width:30px;height:30px;border-radius:9px;border:1px solid rgba(201,168,76,.45);
   display:flex;align-items:center;justify-content:center;cursor:pointer;
   font-family:var(--display);font-size:13px;font-weight:700;color:#f2ede2;
   background:linear-gradient(145deg,#1d7a52,#0f4a31);padding:0;
@@ -1103,7 +1106,7 @@ html.light .ev-form input[type=date],html.light .ev-form input[type=time]{color-
 .hh-avatar[data-tier="5"]::after,.pf-avatar[data-tier="5"]::after{
   background:radial-gradient(closest-side, transparent 60%, rgba(206,222,242,.9) 82%, transparent 100%); }
 .hh-avatar[data-tier="6"]::after,.pf-avatar[data-tier="6"]::after{
-  background:radial-gradient(closest-side, transparent 58%, rgba(34,212,126,.55) 74%, rgba(216,181,109,.8) 86%, transparent 100%); }
+  background:radial-gradient(closest-side, transparent 58%, rgba(34,212,126,.55) 74%, rgba(201,168,76,.8) 86%, transparent 100%); }
 .hh-avatar[data-tier="7"]::after,.pf-avatar[data-tier="7"]::after{
   inset:-13px;animation-duration:2.4s;
   background:radial-gradient(closest-side, transparent 54%, rgba(34,212,126,.45) 68%, rgba(255,233,176,.9) 82%, rgba(185,140,255,.5) 92%, transparent 100%); }
@@ -1125,9 +1128,9 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{ animati
 /* ═══ CARTÃO DO OPERADOR AAA — banners, molduras, badges, level-up ═══ */
 
 /* banners do cartão (escolhíveis) — o feltro é o padrão */
-.pf-hero[data-banner="felt"]{ background:radial-gradient(120% 100% at 80% -20%, rgba(216,181,109,.25), transparent 60%), linear-gradient(150deg,#124d33,#0b2b1d 70%); }
+.pf-hero[data-banner="felt"]{ background:radial-gradient(120% 100% at 80% -20%, rgba(201,168,76,.25), transparent 60%), linear-gradient(150deg,#124d33,#0b2b1d 70%); }
 .pf-hero[data-banner="gold"]{ background:radial-gradient(120% 100% at 80% -20%, rgba(255,246,220,.28), transparent 60%), linear-gradient(150deg,#6b4e1e,#2b1f0c 70%); }
-.pf-hero[data-banner="crimson"]{ background:radial-gradient(120% 100% at 80% -20%, rgba(216,181,109,.2), transparent 60%), linear-gradient(150deg,#6e1f22,#26090c 70%); }
+.pf-hero[data-banner="crimson"]{ background:radial-gradient(120% 100% at 80% -20%, rgba(201,168,76,.2), transparent 60%), linear-gradient(150deg,#6e1f22,#26090c 70%); }
 .pf-hero[data-banner="night"]{ background:radial-gradient(120% 100% at 80% -20%, rgba(90,168,255,.18), transparent 60%), linear-gradient(150deg,#122036,#070d18 70%); }
 .pf-hero[data-banner="royal"]{ background:radial-gradient(120% 100% at 80% -20%, rgba(185,140,255,.2), transparent 60%), linear-gradient(150deg,#3a2260,#150a2a 70%); }
 /* banners raros — desbloqueiam com XP; cada um conta uma história */
@@ -1136,8 +1139,8 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{ animati
   repeating-linear-gradient(-45deg, rgba(0,0,0,.35) 0 2px, transparent 2px 8px),
   linear-gradient(150deg,#23262b,#101215 70%); }
 .pf-hero[data-banner="darkgrid"]{ background:
-  repeating-linear-gradient(0deg, rgba(216,181,109,.08) 0 1px, transparent 1px 22px),
-  repeating-linear-gradient(90deg, rgba(216,181,109,.08) 0 1px, transparent 1px 22px),
+  repeating-linear-gradient(0deg, rgba(201,168,76,.08) 0 1px, transparent 1px 22px),
+  repeating-linear-gradient(90deg, rgba(201,168,76,.08) 0 1px, transparent 1px 22px),
   linear-gradient(150deg,#15161a,#08090b 70%); }
 .pf-hero[data-banner="aurora"]{ background:
   radial-gradient(90% 70% at 20% -10%, rgba(34,212,126,.4), transparent 60%),
@@ -1153,7 +1156,7 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{ animati
   radial-gradient(120% 100% at 50% -20%, rgba(34,212,126,.22), transparent 60%),
   linear-gradient(180deg,#04140c,#020a06 70%); }
 .pf-hero[data-banner="blackgold"]{ background:
-  radial-gradient(120% 100% at 80% -20%, rgba(216,181,109,.4), transparent 55%),
+  radial-gradient(120% 100% at 80% -20%, rgba(201,168,76,.4), transparent 55%),
   linear-gradient(150deg,#1a150c,#060503 70%); }
 .pf-hero[data-banner="neural"]{ background:
   radial-gradient(circle at 18% 30%, rgba(90,168,255,.35) 0 2px, transparent 3px),
@@ -1176,7 +1179,7 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{ animati
 .pf-hero[data-banner="core"]{ background:
   radial-gradient(70% 90% at 50% -20%, rgba(255,233,176,.45), transparent 55%),
   radial-gradient(100% 80% at 15% 100%, rgba(34,212,126,.25), transparent 55%),
-  repeating-linear-gradient(90deg, rgba(216,181,109,.1) 0 1px, transparent 1px 26px),
+  repeating-linear-gradient(90deg, rgba(201,168,76,.1) 0 1px, transparent 1px 26px),
   linear-gradient(150deg,#241b08,#0a0703 70%); }
 /* banners raros ANIMADOS (ref. MotionSites: Aurora Drift, Digital Rain, Cosmic
    Drift...): o gradiente deriva devagar via background-position — barato, e
@@ -1481,20 +1484,20 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{ animati
 .lvlup-card{
   position:relative;text-align:center;color:#f2ede2;padding:52px 64px;overflow:hidden;
   background:linear-gradient(160deg,#12352394,#0b1f1594);
-  border:1px solid rgba(216,181,109,.5);border-radius:26px;
+  border:1px solid rgba(201,168,76,.5);border-radius:26px;
   transform:scale(.82) translateY(16px);
   transition:transform .55s var(--ease);
 }
 .lvlup.open .lvlup-card{ transform:none }
 .lvlup-rays{
   position:absolute;inset:-70%;pointer-events:none;opacity:.5;
-  background:conic-gradient(from 0deg, transparent 0 14deg, rgba(216,181,109,.14) 14deg 22deg, transparent 22deg 40deg, rgba(216,181,109,.1) 40deg 46deg, transparent 46deg 78deg, rgba(216,181,109,.14) 78deg 86deg, transparent 86deg 120deg, rgba(216,181,109,.1) 120deg 127deg, transparent 127deg 168deg, rgba(216,181,109,.13) 168deg 176deg, transparent 176deg 220deg, rgba(216,181,109,.1) 220deg 227deg, transparent 227deg 268deg, rgba(216,181,109,.14) 268deg 276deg, transparent 276deg 318deg, rgba(216,181,109,.1) 318deg 325deg, transparent 325deg);
+  background:conic-gradient(from 0deg, transparent 0 14deg, rgba(201,168,76,.14) 14deg 22deg, transparent 22deg 40deg, rgba(201,168,76,.1) 40deg 46deg, transparent 46deg 78deg, rgba(201,168,76,.14) 78deg 86deg, transparent 86deg 120deg, rgba(201,168,76,.1) 120deg 127deg, transparent 127deg 168deg, rgba(201,168,76,.13) 168deg 176deg, transparent 176deg 220deg, rgba(201,168,76,.1) 220deg 227deg, transparent 227deg 268deg, rgba(201,168,76,.14) 268deg 276deg, transparent 276deg 318deg, rgba(201,168,76,.1) 318deg 325deg, transparent 325deg);
   animation:lvlup-spin 14s linear infinite;
 }
 @keyframes lvlup-spin{ to{transform:rotate(360deg)} }
 .lvlup-eyebrow{
   position:relative;font-family:var(--mono);font-size:11px;letter-spacing:.3em;
-  text-transform:uppercase;color:var(--gold,#d8b56d);
+  text-transform:uppercase;color:var(--gold);
 }
 .lvlup-num{
   position:relative;font-family:var(--display);font-size:96px;font-weight:800;line-height:1;
@@ -1505,13 +1508,13 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{ animati
 .lvlup-sub{ position:relative;font-size:13px;color:rgba(242,237,226,.75);max-width:300px;margin:0 auto }
 .lvlup-ok{
   position:relative;margin-top:22px;border:0;border-radius:99px;padding:11px 30px;cursor:pointer;
-  font-weight:800;font-size:13px;background:var(--gold,#d8b56d);color:#14100a;
+  font-weight:800;font-size:13px;background:var(--gold);color:#14100a;
   transition:transform .2s var(--ease);
 }
 .lvlup-ok:hover{ transform:translateY(-1px) scale(1.03) }
 /* naipes que sobem da base do cartão (one-shot ao abrir) */
 .lvlup-suits span{
-  position:absolute;bottom:-30px;font-size:20px;opacity:0;pointer-events:none;color:var(--gold,#d8b56d);
+  position:absolute;bottom:-30px;font-size:20px;opacity:0;pointer-events:none;color:var(--gold);
 }
 .lvlup.open .lvlup-suits span{ animation:lvlup-rise 2.4s var(--ease) forwards }
 .lvlup-suits span:nth-child(1){ left:12%;animation-delay:.15s }
