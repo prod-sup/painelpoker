@@ -1073,3 +1073,6 @@ body > *{position:relative;z-index:1}
     .focus-id-row input{font-size:16px}
   }
   @media (prefers-reduced-motion:reduce){ *{transition:none !important;animation:none !important} }
+
+/* mobile: trava o scroll horizontal acidental (a tabela da GU rola no próprio wrapper) */
+html,body{overflow-x:hidden;max-width:100%}
