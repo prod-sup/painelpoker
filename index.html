@@ -145,6 +145,10 @@ document.addEventListener('DOMContentLoaded', () => {
       <button class="clear-btn" id="shiftReportToggle" title="Relatório de Turno">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4a1 1 0 0 0-1 1v1a3 3 0 0 0 3 3M17 6h3a1 1 0 0 1 1 1v1a3 3 0 0 1-3 3"/></svg>
       </button>
+      <button class="clear-btn" id="addTorneioToggle" title="Adicionar torneio manual — evento criado às pressas que não está na Global">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2.2"/><path d="M8 2.5v3M16 2.5v3M3 9.5h18"/><path d="M12 13v5M9.5 15.5h5"/></svg>
+        <span id="addTorneioBadge" class="checklist-badge" hidden>0</span>
+      </button>
       <button class="upload-btn" id="uploadGlobalBtn" title="Carregar Global MTT (.xlsx) → alimenta o painel direto" style="background:var(--gold);color:#000;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
         <span id="uploadGlobalBtnLabel">Global MTT</span>
@@ -181,6 +185,55 @@ document.addEventListener('DOMContentLoaded', () => {
         <input type="text" id="serverSearchInput" placeholder="Buscar liga, ID ou moeda..." autocomplete="off">
       </div>
       <div class="server-table" id="serverTable"></div>
+    </div>
+  </aside>
+</div>
+
+<div class="drawer-overlay" id="addTorneioDrawerOverlay">
+  <aside class="drawer drawer-wide" id="addTorneioDrawer" role="dialog" aria-modal="true" aria-label="Adicionar torneio manual">
+    <div class="drawer-head">
+      <div class="drawer-title">Adicionar torneio</div>
+      <button class="drawer-close" id="addTorneioDrawerClose" type="button" aria-label="Fechar">✕</button>
+    </div>
+    <div class="drawer-body">
+      <p class="routine-tool-desc">Pra evento criado às pressas que <b>não está na Global</b>. O torneio entra na grade de hoje como se tivesse vindo da planilha: gera card, conta nos totais, aparece pro seu parceiro e entra na auditoria do dia. <b>Sobrevive a um re-upload da Global.</b></p>
+
+      <form class="addt-form" id="addTorneioForm" autocomplete="off">
+        <div class="addt-field addt-field-wide">
+          <label for="addtNome">Nome do evento</label>
+          <input type="text" id="addtNome" placeholder="Ex: Mystery Bounty Especial" required maxlength="120">
+        </div>
+        <div class="addt-field">
+          <label for="addtHora">Horário</label>
+          <input type="time" id="addtHora" required>
+        </div>
+        <div class="addt-field">
+          <label for="addtTipo">Tipo</label>
+          <select id="addtTipo">
+            <option value="">Automático</option>
+            <option value="Main Event">Main Event</option>
+            <option value="Side Event">Side Event</option>
+            <option value="Satélite">Satélite</option>
+          </select>
+        </div>
+        <div class="addt-field">
+          <label for="addtGarantido">Garantido (R$)</label>
+          <input type="text" id="addtGarantido" inputmode="decimal" placeholder="50.000">
+        </div>
+        <div class="addt-field">
+          <label for="addtBuyin">Buy-in (R$)</label>
+          <input type="text" id="addtBuyin" inputmode="decimal" placeholder="55">
+        </div>
+        <div class="addt-actions">
+          <button type="submit" class="addt-submit" id="addtSubmit">Adicionar torneio</button>
+          <span class="addt-msg" id="addtMsg" role="status" aria-live="polite"></span>
+        </div>
+      </form>
+
+      <div class="addt-list-head">
+        Torneios manuais de hoje <span class="addt-count" id="addtCount">0</span>
+      </div>
+      <div class="addt-list" id="addtList"></div>
     </div>
   </aside>
 </div>
