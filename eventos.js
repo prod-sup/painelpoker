@@ -29,6 +29,10 @@
 ========================================================================= */
 'use strict';
 
+/* carimbo de versão: primeiro a rodar — se este log não aparecer no console,
+   o navegador está servindo um eventos.js antigo (cache/upload pendente) */
+console.info('[Radar] eventos.js v1.2 — requireUser + fallback de 12s');
+
 /* ═══════════════════ utilidades ═══════════════════ */
 
 function escHtml(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -312,9 +316,12 @@ function initData(){
      silêncio — a página ficava presa no "Distribuindo as cartas…" pra sempre
      (mesma armadilha documentada no hub.js). requireUser também manda re-logar
      no hub (?reauth=1) se a sessão do Firebase não existir mais. */
-  SupremaDB.Auth.requireUser(() => {
+  console.info('[Radar] aguardando o Firebase Auth restaurar a sessão…');
+  SupremaDB.requireUser(() => {
+    console.info('[Radar] auth ok — anexando listener da Global compartilhada');
     SupremaDB.watch('painel/globalMtt/at', snap => {
       const at = snap.val();
+      console.info('[Radar] painel/globalMtt/at =', at);
       if (!at){ showEmpty(); return; }         // nó vazio: ninguém subiu a Global ainda
       if (`${at}` === `${_lastAt}`) return;
       _lastAt = `${at}`;
@@ -351,6 +358,7 @@ async function loadSharedGlobal(){
 function applyMatrix(matrix){
   if (!matrix){ showEmpty(); return; }
   MODEL = buildModel(parseGlobalWeek(matrix));
+  console.info(`[Radar] Global aplicada — ${MODEL.events.length} eventos na semana, ${MODEL.futures.length} futuros`);
   if (!MODEL.events.length && !MODEL.futures.length){ showEmpty(); return; }
   if (!state.day) state.day = WEEKDAYS_PT[isoWeekdayIdx(gradeTodayISO())];
   document.getElementById('loading').hidden = true;
