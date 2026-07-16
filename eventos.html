@@ -19,14 +19,14 @@ if (SupremaAuth.isDarkPreferred()) document.documentElement.classList.add('dark'
 </script>
 <script src="suprema-motion.js"></script>
 <script>
-/* motion do Suprema OS (ref. MotionSites: Network Hero + Spotlight + reveals) */
-SupremaMotion.glow('.ev-card, .stat, .fut-card, .node');
+/* motion enxuto (ref. MotionSites Network Hero): a rede de nós que dá vida ao
+   hero + glow por delegação nos cards. Sem reveal em conteúdo re-renderizado
+   (evita flicker) e sem efeitos que exijam medir o DOM. */
+SupremaMotion.glow('.stat, .fut-card, .route');
 document.addEventListener('DOMContentLoaded', () => {
-  SupremaMotion.reveal('.stat, .section-head');
-  SupremaMotion.scrollProgress({ tint:'#b3475d' });
   SupremaMotion.magnetic('.btn');
-  SupremaMotion.aurora('.hero', { tint1:'rgba(179,71,93,.20)', tint2:'rgba(201,168,76,.14)' });
-  SupremaMotion.network('.hero', { c1:'#b3475d', c2:'#8f6b2d', c1Dark:'#ef7d93', c2Dark:'#c9a84c' });
+  SupremaMotion.aurora('.hero', { tint1:'rgba(179,71,93,.14)', tint2:'rgba(201,168,76,.10)' });
+  SupremaMotion.network('.hero', { c1:'#b3475d', c2:'#8f6b2d', c1Dark:'#ef7d93', c2Dark:'#c9a84c', maxNodes:55 });
 });
 </script>
 <link rel="stylesheet" href="eventos.css">
@@ -61,12 +61,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 <header class="hero">
   <div class="hero-inner">
-    <span class="hero-kicker"><span class="k-dot" id="liveDot"></span>A grade da semana, ao vivo</span>
-    <h1>Todo evento tem um <span class="grad">caminho até a mesa</span>.</h1>
-    <p class="hero-sub">A Global MTT traduzida pra quem fala com o jogador: o que está rolando <b>agora</b>,
-      o que vem na <b>semana</b>, os <b>eventos futuros</b> em P&amp;D — e qual satélite premia
-      o <b>ticket</b> que dá acesso a cada torneio.</p>
-    <span class="source-meta" id="sourceMeta" hidden></span>
+    <div class="hero-copy">
+      <span class="hero-kicker"><span class="k-dot" id="liveDot"></span>A grade da semana, ao vivo</span>
+      <h1>Todo evento tem um <span class="grad">caminho até a mesa</span>.</h1>
+      <p class="hero-sub">A Global MTT pra quem fala com o jogador: a agenda de cada dia,
+        qual satélite premia o <b>ticket</b> de qual torneio, e os eventos futuros em P&amp;D.</p>
+      <span class="source-meta" id="sourceMeta" hidden></span>
+    </div>
     <div class="hero-stats">
       <div class="stat s-live"><span class="n" id="statLive">0</span><span class="l">rolando agora</span></div>
       <div class="stat"><span class="n" id="statToday">0</span><span class="l">eventos hoje</span></div>
@@ -76,27 +77,32 @@ document.addEventListener('DOMContentLoaded', () => {
   </div>
 </header>
 
-<div class="filters">
-  <div class="filters-inner">
-    <div class="chip-group" id="campChips">
-      <span class="lbl">Campanha</span>
-      <button class="chip on" data-camp="all">Todas</button>
-      <button class="chip" data-camp="AS">✦ #AS</button>
-      <button class="chip" data-camp="SPS">✦ +SPS</button>
-      <button class="chip" data-camp="SPT">✦ +SPT</button>
-      <button class="chip" data-camp="none">Sem campanha</button>
+<div class="controls">
+  <div class="controls-inner">
+    <div class="controls-row">
+      <div id="dayBar" role="tablist" aria-label="Dia da semana"></div>
+      <label class="search">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="searchInput" type="search" placeholder="Buscar torneio…" autocomplete="off">
+      </label>
     </div>
-    <div class="chip-group" id="catChips">
-      <span class="lbl">Categoria</span>
-      <button class="chip on" data-cat="all">Tudo</button>
-      <button class="chip" data-cat="main">♠ Main</button>
-      <button class="chip" data-cat="side">♣ Side</button>
-      <button class="chip" data-cat="sat">♦ Satélite</button>
+    <div class="controls-row">
+      <div class="chip-group" id="campChips">
+        <span class="lbl">Campanha</span>
+        <button class="chip on" data-camp="all">Todas</button>
+        <button class="chip" data-camp="AS">✦ #AS</button>
+        <button class="chip" data-camp="SPS">✦ +SPS</button>
+        <button class="chip" data-camp="SPT">✦ +SPT</button>
+        <button class="chip" data-camp="none">Sem campanha</button>
+      </div>
+      <div class="chip-group" id="catChips">
+        <span class="lbl">Categoria</span>
+        <button class="chip on" data-cat="all">Tudo</button>
+        <button class="chip" data-cat="main">♠ Main</button>
+        <button class="chip" data-cat="side">♣ Side</button>
+        <button class="chip" data-cat="sat">♦ Satélite</button>
+      </div>
     </div>
-    <label class="search">
-      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input id="searchInput" type="search" placeholder="Buscar torneio…" autocomplete="off">
-    </label>
   </div>
 </div>
 
@@ -116,34 +122,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
 <main id="content" hidden>
 
-  <section class="section" id="nowSection">
-    <div class="section-head">
-      <h2><span class="suit">♠</span> Acontecendo agora</h2>
-      <span class="hint">em andamento ou começando nas próximas 2 horas</span>
-    </div>
-    <p class="section-empty" id="nowEmpty" hidden>Mesa limpa por enquanto — nada rolando nem começando em breve com esses filtros.</p>
-    <div id="nowGrid"></div>
+  <section class="section" id="agendaSection">
+    <div id="agendaHead"></div>
+    <div id="agendaList"></div>
+    <p class="ah-sub" style="margin-top:9px">♠ Main · ♣ Side · ♦ Satélite — clique numa linha com 🎟 pra ver a rota do ticket.</p>
   </section>
 
-  <section class="section" id="weekSection">
+  <section class="section" id="routesSection">
     <div class="section-head">
-      <h2><span class="suit">♣</span> A semana</h2>
-      <span class="hint">clique num evento pra ver o caminho dele na constelação</span>
+      <h2><span class="suit">🎟</span> Rotas de ticket do dia</h2>
+      <span class="hint">satélite → ticket → torneio-alvo (o valor no meio é a entrada que o ticket paga)</span>
     </div>
-    <div id="weekWrap"></div>
-  </section>
-
-  <section class="section" id="graphSection">
-    <div class="section-head">
-      <h2><span class="suit">♦</span> A constelação dos tickets</h2>
-      <span class="hint">satélite → ticket → torneio-alvo · passe o mouse ou clique pra dar spotlight</span>
-    </div>
-    <div class="graph-bar">
-      <div id="dayPills"></div>
-      <span class="graph-hint">O ticket no meio da linha mostra o valor da entrada que o satélite premia.</span>
-    </div>
-    <p class="section-empty" id="graphEmpty" hidden>Nenhum evento neste dia com os filtros atuais.</p>
-    <div id="graphStage"></div>
+    <p class="section-empty" id="routesEmpty" hidden>Nenhum satélite neste dia com os filtros atuais.</p>
+    <div id="routesWrap"></div>
   </section>
 
   <section class="section" id="futSection">

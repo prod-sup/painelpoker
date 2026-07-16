@@ -1,37 +1,32 @@
 /* =========================================================================
    RADAR DE EVENTOS — a vitrine da grade pro Marketing e pro Atendimento.
 
-   O QUE É
-   -------
-   Uma visão SEMANAL da Global MTT (aba "MTTS BRAZIL"): o que está rolando
-   agora, o que vem ao longo da semana e os eventos futuros (a seção
-   "EVENTOS FUTUROS"/P&D depois de domingo). Ninguém aqui edita nada — é
-   leitura pura, bonita e filtrável (campanha #AS/+SPS/+SPT, categoria).
+   MODELO MENTAL (v2, redesenho): escolha o DIA → a AGENDA do dia em linhas
+   verticais (hora | evento | números | status, com o divisor "AGORA") →
+   as ROTAS DE TICKET (satélite → 🎟 → torneio-alvo, um card por alvo) →
+   os EVENTOS FUTUROS (a seção P&D depois de domingo). Nada se repete em
+   três lugares; só o dia selecionado vai pro DOM.
 
    DE ONDE VÊM OS DADOS
    --------------------
    Do arquivo Global compartilhado que a operação já sobe no Painel do Dia
    (painel/globalMtt, base64 no Firebase via SupremaDB). Um operador sobe,
-   o Marketing vê — sem planilha por e-mail. Há também um fallback local
-   ("ler minha Global") que parseia no navegador sem publicar nada.
+   o Marketing vê — sem planilha por e-mail. Fallback local ("ler minha
+   Global") parseia no navegador sem publicar nada.
 
-   A CONSTELAÇÃO (ref. MotionSites "Network Hero")
-   -----------------------------------------------
-   Satélites premiam TICKET pro torneio-alvo. O vínculo é inferido por
-   heurística de nome (tokens do nome do satélite + cabeçalho do grupo na
-   coluna A vs. nomes dos Main/Side do dia e da semana) e desenhado como um
-   grafo: nós conectados por curvas, com o ticket (valor = buy-in do alvo)
-   pendurado no meio da linha. Hover/clique dá spotlight no caminho.
+   VÍNCULO SATÉLITE → ALVO: heurística de tokens do nome + cabeçalho do
+   grupo (coluna A, propaga até linha em branco) + hora citada no nome
+   ("19H"). Ticket = buy-in do alvo.
 
    Depende de: gu-parser.js (normText, cellToHHMM, timeToMinutes,
-   readSheetMatrix, isFutureSectionLabel, WEEKDAYS_PT), suprema-db.js,
+   readSheetMatrix, isFutureSectionLabel, WEEKDAYS_PT/EN), suprema-db.js,
    suprema-auth.js, suprema-motion.js, ensureXLSX (suprema-xlsx.js).
 ========================================================================= */
 'use strict';
 
 /* carimbo de versão: primeiro a rodar — se este log não aparecer no console,
    o navegador está servindo um eventos.js antigo (cache/upload pendente) */
-console.info('[Radar] eventos.js v1.2 — requireUser + fallback de 12s');
+console.info('[Radar] eventos.js v2.0 — agenda por dia + rotas de ticket');
 
 /* ═══════════════════ utilidades ═══════════════════ */
 
@@ -60,8 +55,7 @@ function spNow(){
 }
 function isoAddDays(iso, n){
   const [y,m,d] = iso.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m-1, d + n));
-  return dt.toISOString().slice(0,10);
+  return new Date(Date.UTC(y, m-1, d + n)).toISOString().slice(0,10);
 }
 function isoDayNumber(iso){ const [y,m,d] = iso.split('-').map(Number); return Date.UTC(y, m-1, d) / 86400000; }
 /* minuto absoluto (dias desde epoch × 1440 + minuto do dia) — permite comparar
@@ -281,11 +275,12 @@ function buildModel(parsed){
   events.sort((a,b) => a.abs - b.abs);
   linkSatellites(events);
 
+  const byId = new Map(events.map(e => [e.id, e]));
   const futures = parsed.futures
     .map(f => ({ ...f, camp: campOf(f.nome) }))
     .filter((f, i, arr) => arr.findIndex(x => x.nome === f.nome && x.dateISO === f.dateISO) === i)
     .sort((a,b) => String(a.dateISO||'9999').localeCompare(String(b.dateISO||'9999')));
-  return { events, futures, dates };
+  return { events, futures, dates, byId };
 }
 
 function statusOf(ev){
@@ -301,12 +296,15 @@ function statusOf(ev){
   }
   return { k:'past' };
 }
+function fmtIn(min){
+  return min >= 60 ? `${Math.floor(min/60)}h${String(min%60).padStart(2,'0')}` : `${min} min`;
+}
 
 /* ═══════════════════ estado + dados ═══════════════════ */
 
-let MODEL = null;                                    // {events, futures, dates}
+let MODEL = null;                                    // {events, futures, dates, byId}
 let META = null;                                     // {filename, at, by}
-const state = { camp:'all', cat:'all', q:'', day:null };
+const state = { camp:'all', cat:'all', q:'', day:null, open:null };
 
 let _lastAt = null;
 function initData(){
@@ -350,11 +348,12 @@ async function loadSharedGlobal(){
     const matrix = readSheetMatrix(b64ToBuf(v.data), 'MTTS BRAZIL');
     applyMatrix(matrix);
   }catch(err){
-    console.error('Radar: falha ao carregar a Global compartilhada', err);
+    console.error('[Radar] falha ao carregar a Global compartilhada', err);
     showEmpty();
   }
 }
 
+let _firstRender = true;
 function applyMatrix(matrix){
   if (!matrix){ showEmpty(); return; }
   MODEL = buildModel(parseGlobalWeek(matrix));
@@ -365,6 +364,7 @@ function applyMatrix(matrix){
   document.getElementById('emptyState').hidden = true;
   document.getElementById('content').hidden = false;
   renderAll();
+  if (_firstRender){ _firstRender = false; scrollAgendaToNow(); }
 }
 
 /* fallback: ler um arquivo local sem publicar nada */
@@ -385,7 +385,7 @@ document.querySelectorAll('[data-local-upload]').forEach(b =>
 
 function showEmpty(){
   document.getElementById('loading').hidden = true;
-  if (!MODEL){ document.getElementById('emptyState').hidden = false; }
+  if (!MODEL) document.getElementById('emptyState').hidden = false;
 }
 
 function setSync(ok){
@@ -409,42 +409,39 @@ function wireFilters(){
   document.querySelectorAll('#campChips .chip').forEach(ch => ch.addEventListener('click', () => {
     state.camp = ch.dataset.camp;
     document.querySelectorAll('#campChips .chip').forEach(c => c.classList.toggle('on', c === ch));
-    renderAll();
+    renderContent();
   }));
   document.querySelectorAll('#catChips .chip').forEach(ch => ch.addEventListener('click', () => {
     state.cat = ch.dataset.cat;
     document.querySelectorAll('#catChips .chip').forEach(c => c.classList.toggle('on', c === ch));
-    renderAll();
+    renderContent();
   }));
   let qTimer = null;
   document.getElementById('searchInput').addEventListener('input', (e) => {
     clearTimeout(qTimer);
-    qTimer = setTimeout(() => { state.q = e.target.value.trim(); renderAll(); }, 180);
+    qTimer = setTimeout(() => { state.q = e.target.value.trim(); renderContent(); }, 180);
   });
 }
 
 /* ═══════════════════ render ═══════════════════ */
 
-function campBadge(ev){
-  return ev.camp ? `<span class="badge b-camp"><span class="spark">✦</span>${CAMP_LABEL[ev.camp]}</span>` : '';
-}
-function catBadge(cat){
-  const m = CAT_META[cat];
-  return `<span class="badge b-cat ${m.cls}"><span class="suit">${m.suit}</span>${m.label}</span>`;
-}
-
 function renderAll(){
   if (!MODEL) return;
   renderMeta();
   renderHero();
-  renderNow();
-  renderWeek();
-  renderDayPills();
-  renderGraph();
+  renderDayBar();
+  renderContent();
+}
+/* o que muda com filtro/dia — hero e barra de dias ficam de fora */
+function renderContent(){
+  state.open = null;
+  renderAgenda();
+  renderRoutes();
   renderFutures();
-  /* motion nos elementos recém-criados */
-  SupremaMotion.glow('.ev-card, .fut-card, .node');
-  SupremaMotion.reveal('.ev-card, .fut-card, .day-block');
+}
+
+function campBadge(camp){
+  return camp ? `<span class="badge b-camp">✦ ${CAMP_LABEL[camp]}</span>` : '';
 }
 
 function renderMeta(){
@@ -463,231 +460,180 @@ function renderHero(){
   const live = evs.filter(e => statusOf(e).k === 'live').length;
   const hoje = evs.filter(e => e.weekday === today).length;
   const gtdWeek = evs.reduce((s,e) => s + (e.garantido || 0), 0);
-  const els = { statLive: live, statToday: hoje, statFut: MODEL.futures.length };
-  Object.keys(els).forEach(id => { document.getElementById(id).textContent = NF_INT.format(els[id]); });
+  document.getElementById('statLive').textContent = NF_INT.format(live);
+  document.getElementById('statToday').textContent = NF_INT.format(hoje);
+  document.getElementById('statFut').textContent = NF_INT.format(MODEL.futures.length);
   document.getElementById('statGtd').textContent = fmtMoney(gtdWeek);
   document.getElementById('liveDot').classList.toggle('has-live', live > 0);
   if (!renderHero._counted){ renderHero._counted = true; SupremaMotion.countUp('#statLive, #statToday, #statFut'); }
 }
 
-/* ── AGORA: rolando + começa em breve ── */
-function renderNow(){
-  const wrap = document.getElementById('nowGrid');
-  const rows = MODEL.events.filter(matches).map(e => ({ e, st: statusOf(e) }))
-    .filter(x => x.st.k === 'live' || x.st.k === 'soon')
-    .sort((a,b) => (a.st.k === 'live' ? 0 : 1) - (b.st.k === 'live' ? 0 : 1) || a.e.abs - b.e.abs);
-  document.getElementById('nowEmpty').hidden = rows.length > 0;
-  wrap.innerHTML = rows.map(({e, st}) => {
-    const target = e.targetId ? MODEL.events.find(t => t.id === e.targetId) : null;
-    const stHtml = st.k === 'live'
-      ? `<span class="live-tag"><span class="pulse"></span>EM ANDAMENTO${e.late ? ` · late até ${e.late}` : ''}</span>`
-      : `<span class="soon-tag">começa em ${st.inMin >= 60 ? Math.floor(st.inMin/60)+'h'+String(st.inMin%60).padStart(2,'0') : st.inMin + ' min'}</span>`;
-    return `<article class="ev-card ${st.k}" data-id="${e.id}">
-      <div class="ev-top">${stHtml}<span class="ev-hora">${e.hora}</span></div>
-      <h3 class="ev-nome">${escHtml(e.nome)}</h3>
-      <div class="ev-badges">${catBadge(e.cat)}${campBadge(e)}</div>
-      <div class="ev-nums">
-        ${e.garantido != null ? `<div class="num"><span class="k">GTD</span><span class="v">${fmtMoney(e.garantido)}</span></div>` : ''}
-        ${e.buyin != null ? `<div class="num"><span class="k">Buy-in</span><span class="v">${fmtMoneyFull(e.buyin)}</span></div>` : ''}
-      </div>
-      ${target ? ticketStrip(target) : (e.cat !== 'sat' && e.satCount ? feederStrip(e) : '')}
-    </article>`;
-  }).join('');
-  wireCardClicks(wrap);
-}
-
-function ticketStrip(target){
-  return `<div class="ticket-strip" title="Este satélite premia ticket para ${escHtml(target.nome)}">
-    <span class="tk"><svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2 2 2 0 0 0 0 4 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2 2 2 0 0 0 0-4z"/><path d="M15 6v12"/></svg>
-    Ticket ${target.buyin != null ? fmtMoneyFull(target.buyin) : ''}</span>
-    <span class="arrow">→</span>
-    <span class="tgt">${escHtml(target.nome)} <small>${WEEKDAY_SHORT[isoWeekdayIdx(target.dateISO)]} ${target.hora}</small></span>
-  </div>`;
-}
-function feederStrip(ev){
-  return `<div class="ticket-strip in" title="Satélites que premiam ticket para este evento">
-    <span class="tk"><svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2 2 2 0 0 0 0 4 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2 2 2 0 0 0 0-4z"/><path d="M15 6v12"/></svg>
-    ${ev.satCount} satélite${ev.satCount > 1 ? 's' : ''} classificam</span></div>`;
-}
-
-/* ── SEMANA: um bloco por dia, strip horizontal ── */
+/* ── barra de dias: a navegação principal ── */
 const WEEK_ORDER = ['SEGUNDA-FEIRA','TERÇA-FEIRA','QUARTA-FEIRA','QUINTA-FEIRA','SEXTA-FEIRA','SÁBADO','DOMINGO'];
-function renderWeek(){
-  const wrap = document.getElementById('weekWrap');
+function renderDayBar(){
+  const wrap = document.getElementById('dayBar');
   const today = WEEKDAYS_PT[isoWeekdayIdx(gradeTodayISO())];
-  const nowAbs = (() => { const n = spNow(); return absMin(n.iso, n.minutes); })();
   wrap.innerHTML = WEEK_ORDER.map(day => {
     const iso = MODEL.dates[day];
-    const evs = MODEL.events.filter(e => e.weekday === day && matches(e));
-    if (!evs.length) return '';
-    const gtd = evs.reduce((s,e) => s + (e.garantido || 0), 0);
-    const isPast = evs.every(e => statusOf(e).k === 'past');
-    const isToday = day === today;
-    return `<section class="day-block ${isToday ? 'today' : ''} ${isPast ? 'past' : ''}" id="day-${day}">
-      <header class="day-head">
-        <div class="day-name">${day.replace('-FEIRA','')}${isToday ? '<span class="today-tag">HOJE</span>' : ''}</div>
-        <div class="day-sub">${fmtDateShort(iso)} · ${evs.length} evento${evs.length > 1 ? 's' : ''} · <b>${fmtMoney(gtd)}</b> GTD</div>
-      </header>
-      <div class="day-strip">${evs.map(e => {
-        const st = statusOf(e);
-        const target = e.targetId ? MODEL.events.find(t => t.id === e.targetId) : null;
-        return `<article class="ev-card mini ${st.k} ${CAT_META[e.cat].cls}" data-id="${e.id}" data-day="${e.weekday}">
-          <div class="ev-top"><span class="ev-hora">${e.hora}</span>${st.k === 'live' ? '<span class="live-tag"><span class="pulse"></span>AO VIVO</span>' : ''}</div>
-          <h4 class="ev-nome">${escHtml(e.nome)}</h4>
-          <div class="ev-badges">${catBadge(e.cat)}${campBadge(e)}</div>
-          <div class="ev-nums">
-            ${e.garantido != null ? `<div class="num"><span class="k">GTD</span><span class="v">${fmtMoney(e.garantido)}</span></div>` : ''}
-            ${e.buyin != null ? `<div class="num"><span class="k">Buy-in</span><span class="v">${fmtMoneyFull(e.buyin)}</span></div>` : ''}
-          </div>
-          ${target ? `<div class="mini-ticket">🎟 → ${escHtml(target.nome)}</div>` :
-            (e.satCount ? `<div class="mini-ticket in">🎟 ${e.satCount} sat${e.satCount > 1 ? 's' : ''} classificam</div>` : '')}
-        </article>`;
-      }).join('')}</div>
-    </section>`;
-  }).join('') || '<p class="section-empty">Nenhum evento passa nos filtros atuais.</p>';
-  wireCardClicks(wrap);
-}
-
-/* clicar num card leva pra constelação do dia com o nó em spotlight */
-function wireCardClicks(root){
-  root.querySelectorAll('.ev-card[data-id]').forEach(card => card.addEventListener('click', () => {
-    const ev = MODEL.events.find(e => e.id === card.dataset.id);
-    if (!ev) return;
-    state.day = ev.weekday;
-    renderDayPills();
-    renderGraph(ev.id);
-    document.getElementById('graphSection').scrollIntoView({ behavior:'smooth', block:'start' });
-  }));
-}
-
-/* ── pills de dia (controlam a constelação) ── */
-function renderDayPills(){
-  const wrap = document.getElementById('dayPills');
-  const today = WEEKDAYS_PT[isoWeekdayIdx(gradeTodayISO())];
-  wrap.innerHTML = WEEK_ORDER.map(day => {
     const n = MODEL.events.filter(e => e.weekday === day).length;
-    return `<button class="pill ${day === state.day ? 'on' : ''}" data-day="${day}" ${n ? '' : 'disabled'}>
-      ${WEEKDAY_SHORT[isoWeekdayIdx(MODEL.dates[day])]}${day === today ? '<i class="dot"></i>' : ''}</button>`;
+    return `<button class="day-pill ${day === state.day ? 'on' : ''} ${day === today ? 'is-today' : ''}"
+      data-day="${day}" ${n ? '' : 'disabled'} aria-label="${day}, ${n} eventos">
+      <span class="dp-wd">${WEEKDAY_SHORT[isoWeekdayIdx(iso)]}</span>
+      <span class="dp-d">${+iso.slice(8)}</span>
+      <span class="dp-n">${n || '·'}</span>
+    </button>`;
   }).join('');
-  wrap.querySelectorAll('.pill').forEach(p => p.addEventListener('click', () => {
+  wrap.querySelectorAll('.day-pill').forEach(p => p.addEventListener('click', () => {
+    if (state.day === p.dataset.day) return;
     state.day = p.dataset.day;
-    renderDayPills();
-    renderGraph();
+    renderDayBar();
+    renderContent();
   }));
 }
 
-/* ── CONSTELAÇÃO: satélites → alvos com curvas e ticket no meio ── */
-function renderGraph(focusId){
-  const stage = document.getElementById('graphStage');
+/* ── AGENDA do dia: linhas verticais, divisor AGORA, ao vivo aceso ── */
+function renderAgenda(){
   const day = state.day;
-  const sats = MODEL.events.filter(e => e.weekday === day && e.cat === 'sat' && matches(e));
-  const targetIds = new Set(sats.map(s => s.targetId).filter(Boolean));
-  /* alvos: os do dia (main/side) + alvos de outros dias referenciados pelos sats */
-  const targets = MODEL.events.filter(e =>
-    e.cat !== 'sat' && (targetIds.has(e.id) || (e.weekday === day && matches(e))));
-  /* ordena alvos por hora; sats agrupados na ordem dos alvos (linhas curtas) */
-  targets.sort((a,b) => a.abs - b.abs);
-  const order = new Map(targets.map((t,i) => [t.id, i]));
-  sats.sort((a,b) => (order.get(a.targetId) ?? 99) - (order.get(b.targetId) ?? 99) || a.abs - b.abs);
+  const iso = MODEL.dates[day];
+  const evs = MODEL.events.filter(e => e.weekday === day && matches(e));
+  const all = MODEL.events.filter(e => e.weekday === day);
+  const gtd = evs.reduce((s,e) => s + (e.garantido || 0), 0);
+  const today = day === WEEKDAYS_PT[isoWeekdayIdx(gradeTodayISO())];
+  const now = spNow();
+  const nowAbs = absMin(now.iso, now.minutes);
 
-  document.getElementById('graphEmpty').hidden = sats.length + targets.length > 0;
-  stage.innerHTML = `
-    <svg id="graphSvg" aria-hidden="true"></svg>
-    <div class="g-col g-sats">
-      <div class="g-col-label">♦ Satélites — o caminho barato</div>
-      ${sats.map(s => nodeHtml(s, 'sat')).join('') || '<p class="g-none">Sem satélites neste dia.</p>'}
-    </div>
-    <div class="g-col g-targets">
-      <div class="g-col-label">♠ Torneios-alvo — onde o ticket entra</div>
-      ${targets.map(t => nodeHtml(t, 'target')).join('') || '<p class="g-none">Sem Main/Side neste dia.</p>'}
-    </div>
-    <div id="ticketChips"></div>`;
-  requestAnimationFrame(() => drawGraphLines(sats, targets, focusId));
+  const head = document.getElementById('agendaHead');
+  head.innerHTML = `
+    <h2>${escHtml(day.replace('-FEIRA',''))}<span class="ah-date">${fmtDateShort(iso)}</span>
+      ${today ? '<span class="today-tag">HOJE</span>' : ''}</h2>
+    <span class="ah-sub">${evs.length}${evs.length !== all.length ? ` de ${all.length}` : ''} evento${evs.length === 1 ? '' : 's'} · <b>${fmtMoney(gtd)}</b> garantidos</span>`;
 
-  stage.querySelectorAll('.node').forEach(node => {
-    node.addEventListener('mouseenter', () => spotlight(node.dataset.id, true));
-    node.addEventListener('mouseleave', () => spotlight(null, false));
-    node.addEventListener('click', () => spotlight(node.dataset.id, true, true));
+  const list = document.getElementById('agendaList');
+  if (!evs.length){
+    list.innerHTML = `<p class="section-empty">Nenhum evento ${all.length ? 'passa nos filtros atuais' : 'neste dia'}.</p>`;
+    return;
+  }
+  let html = '', nowMarkPlaced = !today;
+  evs.forEach(e => {
+    const st = statusOf(e);
+    if (!nowMarkPlaced && e.abs > nowAbs){
+      html += nowDividerHtml(now);
+      nowMarkPlaced = true;
+    }
+    html += rowHtml(e, st);
   });
-  if (focusId) spotlight(focusId, true, true);
+  if (!nowMarkPlaced) html += nowDividerHtml(now);
+  list.innerHTML = html;
 }
-
-function nodeHtml(e, kind){
-  const st = statusOf(e);
-  const otherDay = e.weekday !== state.day ? `<span class="badge b-day">${WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)]}</span>` : '';
-  return `<article class="node n-${kind} ${CAT_META[e.cat].cls} ${st.k} ${(!e.targetId && kind === 'sat') ? 'unlinked' : ''}" data-id="${e.id}">
-    <div class="ev-top"><span class="ev-hora">${e.hora}</span>${st.k === 'live' ? '<span class="live-tag"><span class="pulse"></span>AO VIVO</span>' : ''}${otherDay}</div>
-    <h4 class="ev-nome">${escHtml(e.nome)}</h4>
-    <div class="ev-badges">${catBadge(e.cat)}${campBadge(e)}</div>
-    <div class="ev-nums">
-      ${e.garantido != null ? `<div class="num"><span class="k">GTD</span><span class="v">${fmtMoney(e.garantido)}</span></div>` : ''}
-      ${e.buyin != null ? `<div class="num"><span class="k">Buy-in</span><span class="v">${fmtMoneyFull(e.buyin)}</span></div>` : ''}
+function nowDividerHtml(now){
+  const hh = String(Math.floor(now.minutes/60)).padStart(2,'0'), mm = String(now.minutes%60).padStart(2,'0');
+  return `<div class="now-divider" id="nowDivider" aria-label="Agora são ${hh}:${mm}"><i></i><span>AGORA · ${hh}:${mm}</span><i></i></div>`;
+}
+function rowHtml(e, st){
+  const target = e.targetId ? MODEL.byId.get(e.targetId) : null;
+  const hasDetail = !!(target || e.satCount);
+  const statusHtml =
+    st.k === 'live' ? `<span class="r-live"><i class="pulse"></i>AO VIVO${e.late ? `<small>late até ${e.late}</small>` : ''}</span>` :
+    st.k === 'soon' ? `<span class="r-soon">em ${fmtIn(st.inMin)}</span>` : '';
+  const link =
+    target ? `<span class="r-ticket" title="Premia ticket para ${escHtml(target.nome)}">🎟 → ${escHtml(target.nome)}</span>` :
+    e.satCount ? `<span class="r-ticket in">🎟 ${e.satCount} satélite${e.satCount > 1 ? 's' : ''} classificam</span>` : '';
+  return `<article class="row ${st.k} ${CAT_META[e.cat].cls} ${hasDetail ? 'has-detail' : ''}" data-id="${e.id}">
+    <span class="r-time">${e.hora}</span>
+    <span class="r-suit" title="${CAT_META[e.cat].label}">${CAT_META[e.cat].suit}</span>
+    <div class="r-main">
+      <div class="r-name">${escHtml(e.nome)}${campBadge(e.camp)}</div>
+      ${link ? `<div class="r-link">${link}</div>` : ''}
     </div>
-    ${kind === 'sat' && !e.targetId ? '<div class="mini-ticket dim">🎟 alvo a confirmar</div>' : ''}
-    ${kind === 'target' && e.satCount ? `<div class="mini-ticket in">🎟 ${e.satCount} caminho${e.satCount > 1 ? 's' : ''} de satélite</div>` : ''}
+    <div class="r-nums">
+      <span class="r-gtd">${e.garantido != null ? fmtMoney(e.garantido) : ''}</span>
+      <span class="r-buyin">${e.buyin != null ? fmtMoneyFull(e.buyin) : ''}</span>
+    </div>
+    ${statusHtml}
+    ${hasDetail ? '<span class="r-chev" aria-hidden="true">›</span>' : ''}
   </article>`;
 }
 
-let GRAPH_LINKS = [];
-function drawGraphLines(sats, targets, focusId){
-  const stage = document.getElementById('graphStage');
-  const svg = document.getElementById('graphSvg');
-  const chips = document.getElementById('ticketChips');
-  if (!stage || !svg) return;
-  const sr = stage.getBoundingClientRect();
-  svg.setAttribute('viewBox', `0 0 ${sr.width} ${stage.scrollHeight}`);
-  svg.setAttribute('width', sr.width); svg.setAttribute('height', stage.scrollHeight);
-  GRAPH_LINKS = [];
-  let paths = '', chipHtml = '';
-  sats.forEach(s => {
-    if (!s.targetId) return;
-    const a = stage.querySelector(`.node[data-id="${s.id}"]`);
-    const b = stage.querySelector(`.node[data-id="${s.targetId}"]`);
-    if (!a || !b) return;
-    const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
-    const x1 = ar.right - sr.left, y1 = ar.top - sr.top + ar.height/2 + stage.scrollTop;
-    const x2 = br.left - sr.left,  y2 = br.top - sr.top + br.height/2 + stage.scrollTop;
-    const mx = (x1 + x2) / 2;
-    const target = MODEL.events.find(t => t.id === s.targetId);
-    paths += `<path class="g-link" data-sat="${s.id}" data-target="${s.targetId}"
-      d="M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}"/>`;
-    chipHtml += `<span class="ticket-chip" data-sat="${s.id}" data-target="${s.targetId}"
-      style="left:${mx}px;top:${(y1+y2)/2}px"
-      title="${escHtml(s.nome)} premia ticket de ${target && target.buyin != null ? fmtMoneyFull(target.buyin) : 'entrada'} para ${escHtml(target ? target.nome : '')}">
-      🎟${target && target.buyin != null ? ' ' + fmtMoney(target.buyin) : ''}</span>`;
-    GRAPH_LINKS.push({ sat: s.id, target: s.targetId });
-  });
-  svg.innerHTML = paths;
-  chips.innerHTML = chipHtml;
-  if (focusId) spotlight(focusId, true, true);
-}
-
-let _pinned = null;
-function spotlight(id, on, pin){
-  const stage = document.getElementById('graphStage');
-  if (!stage) return;
-  if (pin) _pinned = (_pinned === id) ? null : id;
-  const active = on ? id : _pinned;
-  stage.classList.toggle('focusing', !!active);
-  if (!active){
-    stage.querySelectorAll('.on').forEach(el => el.classList.remove('on'));
-    return;
-  }
-  const related = new Set([active]);
-  GRAPH_LINKS.forEach(l => {
-    if (l.sat === active) related.add(l.target);
-    if (l.target === active) related.add(l.sat);
-  });
-  stage.querySelectorAll('.node').forEach(n => n.classList.toggle('on', related.has(n.dataset.id)));
-  stage.querySelectorAll('.g-link, .ticket-chip').forEach(el =>
-    el.classList.toggle('on', el.dataset.sat === active || el.dataset.target === active));
-}
-
-let _graphResizeTimer = null;
-window.addEventListener('resize', () => {
-  clearTimeout(_graphResizeTimer);
-  _graphResizeTimer = setTimeout(() => { if (MODEL) renderGraph(); }, 200);
+/* clique numa linha com vínculo → expande a rota do ticket ali mesmo */
+document.getElementById('agendaList').addEventListener('click', (e) => {
+  const row = e.target.closest('.row.has-detail');
+  if (!row || !MODEL) return;
+  const id = row.dataset.id;
+  const existing = document.getElementById('rowDetail');
+  if (existing) existing.remove();
+  document.querySelectorAll('.row.open').forEach(r => r.classList.remove('open'));
+  if (state.open === id){ state.open = null; return; }
+  state.open = id;
+  row.classList.add('open');
+  row.insertAdjacentHTML('afterend', `<div class="row-detail" id="rowDetail">${detailHtml(MODEL.byId.get(id))}</div>`);
 });
+function detailHtml(e){
+  if (!e) return '';
+  if (e.cat === 'sat' && e.targetId){
+    const t = MODEL.byId.get(e.targetId);
+    return `<div class="rd-flow">
+      <span class="rd-node">♦ ${escHtml(shortName(e.nome))}<small>${WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)]} ${e.hora} · buy-in ${fmtMoneyFull(e.buyin)}</small></span>
+      <span class="rd-arrow"><span class="ticket-chip">🎟 ${t.buyin != null ? fmtMoney(t.buyin) : 'ticket'}</span></span>
+      <span class="rd-node tgt">${CAT_META[t.cat].suit} ${escHtml(t.nome)}<small>${WEEKDAY_SHORT[isoWeekdayIdx(t.dateISO)]} ${t.hora} · GTD ${fmtMoney(t.garantido)}</small></span>
+    </div>
+    <p class="rd-note">Quem vencer o satélite ganha o ticket de <b>${t.buyin != null ? fmtMoneyFull(t.buyin) : 'entrada'}</b> — acesso direto ao torneio-alvo.</p>`;
+  }
+  const sats = MODEL.events.filter(s => s.targetId === e.id);
+  if (!sats.length) return '';
+  return `<div class="rd-flow">
+    <span class="rd-sats">${sats.map(s =>
+      `<span class="rd-node">♦ ${escHtml(shortName(s.nome))}<small>${WEEKDAY_SHORT[isoWeekdayIdx(s.dateISO)]} ${s.hora} · ${fmtMoneyFull(s.buyin)}</small></span>`).join('')}</span>
+    <span class="rd-arrow"><span class="ticket-chip">🎟 ${e.buyin != null ? fmtMoney(e.buyin) : 'ticket'}</span></span>
+    <span class="rd-node tgt">${CAT_META[e.cat].suit} ${escHtml(e.nome)}<small>${WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)]} ${e.hora} · GTD ${fmtMoney(e.garantido)}</small></span>
+  </div>
+  <p class="rd-note">${sats.length} caminho${sats.length > 1 ? 's' : ''} barato${sats.length > 1 ? 's' : ''} até este torneio — o ticket vale <b>${e.buyin != null ? fmtMoneyFull(e.buyin) : 'a entrada'}</b>.</p>`;
+}
+function shortName(nome){
+  return nome.length > 44 ? nome.slice(0, 42).trimEnd() + '…' : nome;
+}
+
+function scrollAgendaToNow(){
+  const el = document.getElementById('nowDivider');
+  if (el) el.scrollIntoView({ block:'center' });
+}
+
+/* ── ROTAS DE TICKET: um card por alvo, conexão em CSS puro ── */
+function renderRoutes(){
+  const day = state.day;
+  const sats = MODEL.events.filter(e => e.weekday === day && e.cat === 'sat' && matches(e));
+  const byTarget = new Map();                        // targetId → sats[]
+  const orphans = [];
+  sats.forEach(s => {
+    if (s.targetId){
+      if (!byTarget.has(s.targetId)) byTarget.set(s.targetId, []);
+      byTarget.get(s.targetId).push(s);
+    } else orphans.push(s);
+  });
+  const targets = [...byTarget.keys()].map(id => MODEL.byId.get(id)).sort((a,b) => a.abs - b.abs);
+
+  const wrap = document.getElementById('routesWrap');
+  document.getElementById('routesEmpty').hidden = targets.length > 0 || orphans.length > 0;
+  wrap.innerHTML = targets.map(t => {
+    const list = byTarget.get(t.id).sort((a,b) => a.abs - b.abs);
+    const otherDay = t.weekday !== day ? `<span class="badge b-day">${WEEKDAY_SHORT[isoWeekdayIdx(t.dateISO)]}</span>` : '';
+    return `<article class="route">
+      <div class="rt-sats">
+        ${list.map(s => `<div class="rt-sat" title="${escHtml(s.nome)}">
+          <span class="rt-hora">${s.hora}</span>
+          <span class="rt-nome">${escHtml(shortName(s.nome))}</span>
+          <span class="rt-buyin">${s.buyin != null ? fmtMoneyFull(s.buyin) : ''}</span>
+        </div>`).join('')}
+      </div>
+      <div class="rt-link" aria-hidden="true"><span class="ticket-chip">🎟 ${t.buyin != null ? fmtMoney(t.buyin) : 'ticket'}</span></div>
+      <div class="rt-target ${CAT_META[t.cat].cls}">
+        <div class="rt-tname">${CAT_META[t.cat].suit} ${escHtml(t.nome)}${campBadge(t.camp)}${otherDay}</div>
+        <div class="rt-tsub">${t.hora} · GTD <b>${fmtMoney(t.garantido)}</b>${t.buyin != null ? ` · Buy-in ${fmtMoneyFull(t.buyin)}` : ''}</div>
+      </div>
+    </article>`;
+  }).join('') + (orphans.length ? `
+    <p class="rt-orphans">♦ ${orphans.length} satélite${orphans.length > 1 ? 's' : ''} sem alvo identificado na planilha:
+      ${orphans.map(s => `<span class="rt-orphan" title="${escHtml(s.nome)}">${s.hora} ${escHtml(shortName(s.nome))}</span>`).join('')}</p>` : '');
+}
 
 /* ── FUTUROS (P&D depois de domingo) ── */
 function renderFutures(){
@@ -708,23 +654,18 @@ function renderFutures(){
     return `<article class="fut-card">
       <div class="fut-date">
         ${f.dateISO ? `<span class="d">${+d}</span><span class="m">${MONTHS_PT[+m-1]}</span>` : '<span class="d">?</span>'}
-        <span class="count">${when}</span>
       </div>
       <div class="fut-body">
-        <h3 class="ev-nome">${escHtml(f.nome)}</h3>
-        <div class="ev-badges">
-          ${f.tipo ? `<span class="badge b-cat">${escHtml(f.tipo)}</span>` : ''}
-          ${f.camp ? `<span class="badge b-camp"><span class="spark">✦</span>${CAMP_LABEL[f.camp]}</span>` : ''}
-          ${f.hora ? `<span class="badge b-hora">${f.hora}</span>` : ''}
-        </div>
-        <div class="ev-nums">
-          ${f.garantido != null ? `<div class="num"><span class="k">GTD</span><span class="v big">${fmtMoney(f.garantido)}</span></div>` : ''}
-          ${f.buyin != null ? `<div class="num"><span class="k">Buy-in</span><span class="v">${fmtMoneyFull(f.buyin)}</span></div>` : ''}
+        <div class="fut-when">${when}${f.hora ? ` · ${f.hora}` : ''}</div>
+        <h3 class="fut-nome">${escHtml(f.nome)}${campBadge(f.camp)}</h3>
+        <div class="fut-nums">
+          ${f.garantido != null ? `<span class="fn-gtd">GTD <b>${fmtMoney(f.garantido)}</b></span>` : ''}
+          ${f.buyin != null ? `<span>Buy-in ${fmtMoneyFull(f.buyin)}</span>` : ''}
+          ${f.tipo ? `<span>${escHtml(f.tipo)}</span>` : ''}
         </div>
       </div>
     </article>`;
   }).join('');
-  SupremaMotion.tilt('.fut-card', { max: 4 });
 }
 
 /* ═══════════════════ chrome: relógio, tema, operador ═══════════════════ */
@@ -733,10 +674,11 @@ function tickClock(){
   const el = document.getElementById('navTime');
   if (el) el.textContent =
     `${String(Math.floor(n.minutes/60)).padStart(2,'0')}:${String(n.minutes%60).padStart(2,'0')}:${String(n.seconds).padStart(2,'0')}`;
-  /* status "AO VIVO" muda com o relógio — re-render leve por minuto */
 }
 setInterval(tickClock, 1000); tickClock();
-setInterval(() => { if (MODEL){ renderHero(); renderNow(); } }, 60000);
+/* status "AO VIVO"/divisor AGORA acompanham o relógio — refresh leve por minuto,
+   só das partes que mudam (hero + agenda do dia; rotas/futuros não têm status) */
+setInterval(() => { if (MODEL){ renderHero(); renderAgenda(); } }, 60000);
 
 (function themeAndUser(){
   const html = document.documentElement;
