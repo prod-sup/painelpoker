@@ -1,16 +1,26 @@
-# Vídeo de fundo (arquivo grande, manter local)
-bg.mp4
+# ATENÇÃO: este repositório É o site publicado (GitHub Pages serve prod-sup.github.io/painelpoker).
+# Tudo que fica versionado vai PRO AR e é PÚBLICO. Antes de adicionar arquivo, pergunte:
+# "posso publicar isto na internet?" — se não, ignore aqui.
+#
+# NÃO ignore bg.mp4: o hub (hub.html/hub.css/hub.js) e o painel usam o vídeo em produção.
+# Ele estava nesta lista por engano — por isso "só existia no remoto" e sumia do repo local.
 
 # Sistema
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Editor
+# Editor / ferramentas
 .vscode/
 .idea/
 *.swp
 *.swo
+.claude/
+
+# Dependências e temporários de build
+node_modules/
+_*.js
+_*.html
 
 # Temporários
 *.tmp
@@ -22,12 +32,14 @@ firebase_test.html
 sync_test.html
 firebase_import.json
 
-# Credenciais / contas — NUNCA versionar (repo é público)
+# Credenciais / contas — NUNCA versionar (o repo é PÚBLICO)
+# Obs: brian_account.json já vazou no HISTÓRICO — ignorar aqui NÃO o remove do passado.
 brian_account.json
 *account*.json
 *_secret*
 *.pem
 *.key
-
-# Config local do Claude Code
-.claude/
+serviceAccount*.json
+.env
+.env.*
+!.env.example

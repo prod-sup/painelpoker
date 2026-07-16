@@ -282,10 +282,16 @@ const fmtCompact = (v) => {
   return "R$ " + fmtBRL(v);
 };
 
-/* vídeo decorativo do herói: tenta carregar hero.mp4 da mesma pasta. Se o arquivo existir e
-   carregar, mostra e esconde as cartas SVG; se não existir (404) ou falhar, as cartas continuam.
-   Robusto offline: erro no vídeo nunca quebra o painel. */
+/* Vídeo decorativo do herói (opcional). Quando há arquivo, ele substitui o leque de cartas SVG;
+   quando não há, o leque continua — o erro nunca quebra o painel.
+
+   PRA LIGAR: exporte o vídeo, salve na mesma pasta e ponha o nome aqui (ex: 'hero.mp4'/'hero.webm').
+   Com null (padrão) NENHUMA requisição é feita. Antes o src era fixo em 'hero.mp4' e o arquivo
+   nunca existiu: todo carregamento, de todo operador, gastava um request e sujava o console
+   com um 404 — por nada. */
+const HERO_VIDEO_SRC = null;
 (function initHeroVideo(){
+  if(!HERO_VIDEO_SRC) return;
   const video = document.getElementById('heroVideo');
   const wrap  = document.getElementById('heroCards');
   if(!video || !wrap) return;
@@ -294,7 +300,7 @@ const fmtCompact = (v) => {
     video.play().catch(() => {}); // autoplay mudo é permitido; se bloquear, sem problema
   }, {once:true});
   video.addEventListener('error', () => { wrap.classList.remove('has-video'); }, {once:true});
-  video.src = 'hero.mp4'; // troque a extensão aqui se exportar como .webm
+  video.src = HERO_VIDEO_SRC;
 })();
 
 /* respeita a preferência do sistema por menos movimento — usada pelas animações feitas em JS

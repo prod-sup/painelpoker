@@ -256,8 +256,18 @@
      Helpers finos usados na migração (Fase 1) e pelos painéis na Fase 4.
      Só funcionam com firebase-app + firebase-auth compat carregados e o
      provedor Email/Senha ligado no Console. Guardam contra ausência do SDK. */
+  /* IMPORTANTE: ter o SDK carregado (`firebase.auth` existe) NÃO significa que o app foi
+     inicializado. Chamar firebase.auth() antes do initializeApp LANÇA "No Firebase App
+     '[DEFAULT]' has been created". Este arquivo roda no <head> (o guard é inline, anti-flash),
+     mas o initializeApp mora no painel.js/hub.js — carregados no FIM do body. Ou seja: durante
+     o <head> o app ainda não existe e a chamada estourava um Uncaught FirebaseError em TODO
+     carregamento. Checar `firebase.apps.length` é o mesmo teste que o suprema-db.js já faz. */
   function fbAuth() {
-    return (global.firebase && global.firebase.auth) ? global.firebase.auth() : null;
+    try {
+      if (!global.firebase || !global.firebase.auth) return null;
+      if (!global.firebase.apps || !global.firebase.apps.length) return null; // app ainda não inicializado
+      return global.firebase.auth();
+    } catch (e) { return null; }
   }
   function signInEmail(email, pw) {
     var a = fbAuth();
@@ -280,7 +290,10 @@
   function statsRef(sub) {
     var r = recognize();
     if (!r.email || !global.firebase || !global.firebase.database) return null;
-    return global.firebase.database().ref('users/' + emailToKey(r.email) + '/stats/' + sub);
+    if (!global.firebase.apps || !global.firebase.apps.length) return null; // mesmo motivo do fbAuth()
+    try {
+      return global.firebase.database().ref('users/' + emailToKey(r.email) + '/stats/' + sub);
+    } catch (e) { return null; }
   }
   function bump(ref) { if (ref) ref.transaction(function (n) { return (n || 0) + 1; }).catch(function(){}); }
   function todayIsoStat() {

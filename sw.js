@@ -11,12 +11,19 @@ const STATIC_ASSETS = [
   '/painelpoker/conf-dia.js',
   '/painelpoker/scripts/lite.js',
   '/painelpoker/suprema-xlsx.js',
-  '/painelpoker/xlsx.full.min.js',
+  // NÃO precache o xlsx.full.min.js (861KB): o suprema-xlsx.js existe justamente pra baixá-lo
+  // só na PRIMEIRA importação/exportação. Precachear aqui trazia os 861KB na instalação do SW
+  // pra todo operador, inclusive quem nunca exporta — anulando o carregamento sob demanda.
+  // Quem usar a exportação baixa uma vez e o runtime cache (network-first, abaixo) guarda.
   '/painelpoker/suprema-onboarding.js',
   '/painelpoker/hub.html',
   '/painelpoker/admin.html',
   '/painelpoker/dashboard-mesa-cash.html',
   '/painelpoker/suprema-tokens.css',
+  // PWA: manifest + ícones precisam existir offline pro app instalado abrir sem rede
+  '/painelpoker/manifest.json',
+  '/painelpoker/icon-192.png',
+  '/painelpoker/icon-512.png',
   // shell do "OS": os módulos compartilhados precisam existir offline, senão o
   // gate/sessão/presença/tema não sobem sem rede e a promessa de OS se quebra
   '/painelpoker/suprema-auth.js',
