@@ -7,25 +7,28 @@
 :root{
   /* Surfaces (Sonoma window chrome) */
   --black:   #1d1d1f;            /* primary text */
-  --bg:      #fbfbfd;            /* app background — mesmo do painel */
+  /* FONTE ÚNICA: apelidos apontando pros tokens compartilhados (suprema-tokens.css)
+     onde existe equivalente — o valor mora LÁ. Quando a marca ajustar cor/fonte,
+     o admin acompanha em vez de ficar pra trás (já aconteceu com o dourado). */
+  --bg:      var(--sup-bg);      /* app background — mesmo do painel */
   --s1:      #ffffff;            /* card / sidebar surface */
   --s2:      #f5f5f7;            /* subtle inset */
   --s3:      #ececef;            /* hover / chip */
 
-  --border:  rgba(0,0,0,.08);
+  --border:  var(--sup-hairline);
   --border2: rgba(0,0,0,.05);
 
   /* Accent — Apple system blue */
   /* dourado da casa — o MESMO --gold do painel/criação (azul ficou só semântico) */
   --gold:    var(--sup-gold);
-  --gold2:   #ad8a4e;
+  --gold2:   var(--sup-gold-bright);
   --goldf:   rgba(143,107,45,.09);
   --goldb:   rgba(143,107,45,.28);
 
-  /* Ink hierarchy */
-  --ink:     #1d1d1f;
-  --ink2:    #6e6e73;
-  --ink3:    #86868b;
+  /* Ink hierarchy — tokens compartilhados (mesmos valores de sempre) */
+  --ink:     var(--sup-ink);
+  --ink2:    var(--sup-ink-soft);
+  --ink3:    var(--sup-ink-faint);
 
   /* Semantic */
   --green:   #2ec27e;
@@ -39,9 +42,9 @@
   --purple:  #bf5af2;
   --purplef: rgba(191,90,242,.10);
 
-  /* Type */
-  --mono: 'SF Mono','JetBrains Mono','Menlo','Consolas',ui-monospace,monospace;
-  --sans: -apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Inter','Segoe UI',sans-serif;
+  /* Type — pilhas compartilhadas da casa */
+  --mono: var(--sup-mono);
+  --sans: var(--sup-text);
 
   /* Geometry */
   --r:  10px;
@@ -799,3 +802,24 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
   .ph-actions .btn{flex:1 1 auto;justify-content:center}
   .page{padding:16px 12px 64px}
 }
+
+/* ── lista de avisos do hub (Conteúdo do hub) ──
+   Antes era inline no admin.js — qualquer ajuste visual virava caça no JS. */
+.av-empty{color:var(--ink3);font-size:13px;padding:12px 0}
+.av-item{display:flex;align-items:flex-start;gap:12px;padding:13px 0;border-top:1px solid var(--border)}
+.av-item.off{opacity:.5}
+.av-item{--av-c:var(--felt,#18a36b)}
+.av-item.tp-aviso{--av-c:var(--gold)}
+.av-item.tp-erro{--av-c:var(--red)}
+.av-item-tag{
+  flex:none;margin-top:2px;font-family:var(--mono);font-size:9.5px;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:99px;
+  background:color-mix(in srgb,var(--av-c) 15%,transparent);color:var(--av-c);
+}
+.av-item-body{flex:1;min-width:0}
+.av-item-title{font-weight:600;font-size:14px}
+.av-item-hidden{font-size:11px;color:var(--ink3);font-weight:500}
+.av-item-text{font-size:12.5px;color:var(--ink2);line-height:1.5;margin-top:3px;white-space:pre-wrap}
+.av-item-meta{font-size:11px;color:var(--ink3);margin-top:5px}
+.av-item-actions{flex:none;display:flex;gap:6px}
+.av-item-rm{color:var(--red)}

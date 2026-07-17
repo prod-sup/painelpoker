@@ -169,5 +169,19 @@ document.addEventListener('DOMContentLoaded', () => {
 <script src="suprema-db.js"></script>
 <script src="suprema-presence.js"></script>
 <script src="eventos.js"></script>
+<script src="suprema-onboarding.js"></script>
+<script>
+/* tour de primeira visita — mesmo dispositivo dos outros painéis (1× por
+   navegador; SupremaOnboarding.restart('eventos', …) pra rever) */
+document.addEventListener('DOMContentLoaded', () => {
+  if (!window.SupremaOnboarding) return;
+  SupremaOnboarding.start('eventos', [
+    { el:'#dayBar', title:'A semana inteira', text:'Navegue pelos dias — as mini-barras mostram o peso de garantidos de cada um, nas cores de Main, Side e Satélite.', side:'bottom' },
+    { el:'#agendaSection', title:'Agenda do dia', text:'Cada linha traz horário, categoria, buy-in e garantido. Hoje, a premiação AO VIVO aparece e acende quando bate o GTD. Clique numa linha pra abrir a rota do ticket.', side:'top' },
+    { el:'#routesSection', title:'Rotas de ticket', text:'De qual satélite se chega em cada torneio — com a régua de saúde dos vínculos no topo e alerta de satélites sem destino.', side:'top' },
+    { el:'#agendaHead', title:'Ferramentas do dia', text:'Exporte o dia em CSV pro Excel ou baixe os cards de divulgação dos maiores garantidos de uma vez.', side:'bottom' },
+  ], { accent:'#b3475d', label:'Radar de Eventos' });
+});
+</script>
 </body>
 </html>

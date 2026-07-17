@@ -794,3 +794,16 @@ html.dark .lh-part.ok{color:var(--felt-bright)}
   font-size:14px;padding:2px 6px;border-radius:8px;
 }
 .gd-close:hover{color:var(--ink);background:var(--hairline)}
+
+/* ── reduced-motion: quem pediu menos movimento é atendido aqui também ──
+   Pulsos infinitos (AO VIVO), a carta do loading e a entrada dos detalhes
+   param; transições viram cortes. O anel de foco global (suprema-tokens)
+   não é afetado — a11y não é enfeite. */
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .hero-kicker .k-dot.has-live,
+  .r-live .pulse,
+  .row-detail,
+  .loader-cards i{animation:none}
+  *{transition-duration:.01ms !important}
+}

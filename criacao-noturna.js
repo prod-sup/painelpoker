@@ -1400,7 +1400,13 @@ function renderList(){
   area.innerHTML = html;
 
   area.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
-  area.querySelectorAll('[data-focus]').forEach(el => el.addEventListener('click', () => openFocusAt(el.dataset.focus)));
+  area.querySelectorAll('[data-focus]').forEach(el => {
+    el.addEventListener('click', () => openFocusAt(el.dataset.focus));
+    /* teclado: o nome é role="button" — Enter/Espaço abrem o modo foco */
+    el.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openFocusAt(el.dataset.focus); }
+    });
+  });
   // ID Pokerbyte: grava ao sair do campo ou no Enter (não a cada tecla, pra não ecoar no parceiro)
   area.querySelectorAll('.id-inp').forEach(inp => {
     inp.addEventListener('change', () => setId(inp.dataset.idkey, inp.value));
@@ -1446,7 +1452,7 @@ function renderVertical(items, cat, asg){
     <div class="vwrap"><table class="vtable">
       <tr class="trow-head"><th class="rowlab">Torneio</th>${cell(c => {
         const m = mttKicker(c.it), urg = urgency(c.it);
-        return `<span class="vgo" data-focus="${c.key}" title="Abrir este torneio no modo foco">${escHtml(c.it.nome)}</span>` + campBadgeHtml(c.it) + valBadge(c.it, cat) + changeBadge(c.it) + auditBadge(c.it)
+        return `<span class="vgo" data-focus="${c.key}" role="button" tabindex="0" title="Abrir este torneio no modo foco" aria-label="Abrir ${escHtml(c.it.nome)} no modo foco">${escHtml(c.it.nome)}</span>` + campBadgeHtml(c.it) + valBadge(c.it, cat) + changeBadge(c.it) + auditBadge(c.it)
           + (auditErr(c.it) && auditErr(c.it).motivo ? `<br><span style="font-size:10.5px;color:var(--red);font-weight:600">↳ ${escHtml(auditErr(c.it).motivo)}</span>` : '')
           + (urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(c.it)}</span>` : '')
           + (m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : '');
@@ -1483,7 +1489,9 @@ function renderVertical(items, cat, asg){
       <tr><th class="rowlab">Operador</th>${cell(c => opTagHtml(c.op))}</tr>
       <tr><th class="rowlab">ID Pokerbyte</th>${cell(c => idInputHtml(c.key, 'width:110px'))}</tr>
       <tr><th class="rowlab">Criado</th>${cell(c => `
-        <button class="chk ${c.done ? 'on' : ''}" data-done="${c.key}" title="${c.done ? `Criado por ${escHtml((DONE[c.key]||{}).by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
+        <button class="chk ${c.done ? 'on' : ''}" data-done="${c.key}" role="checkbox" aria-checked="${c.done ? 'true' : 'false'}"
+          aria-label="${c.done ? `Criado por ${escHtml((DONE[c.key]||{}).by || '—')} — desmarcar` : `Marcar ${escHtml(c.it.nome)} como criado`}"
+          title="${c.done ? `Criado por ${escHtml((DONE[c.key]||{}).by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
         <button class="copy-btn" data-copy="${escHtml(recipeText(c.it, cat.label))}" title="Copiar receita" style="margin-left:6px;display:inline-grid;vertical-align:middle"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>`)}</tr>
     </table></div>`;
 }

@@ -2733,24 +2733,25 @@ function renderAvisosAdmin(){
   const items = Object.entries(_avisos).map(([id,a]) => ({id, ...a})).sort((a,b) => (b.at||0)-(a.at||0));
   const ativos = items.filter(a => a.ativo !== false).length;
   count.textContent = items.length ? `${items.length} aviso(s) · ${ativos} ativo(s) no hub` : 'Nenhum aviso publicado';
-  if(!items.length){ el.innerHTML = '<p style="color:var(--ink3);font-size:13px;padding:12px 0">Nenhum aviso ainda. Publique o primeiro acima.</p>'; return; }
+  if(!items.length){ el.innerHTML = '<p class="av-empty">Nenhum aviso ainda. Publique o primeiro acima.</p>'; return; }
   const tag = t => t==='erro'?'Erro':t==='aviso'?'Aviso':'Informativo';
-  const col = t => t==='erro'?'var(--red)':t==='aviso'?'var(--gold)':'var(--felt,#18a36b)';
+  /* estilo mora em admin.css (.av-item e família) — inline aqui era caça ao
+     tesouro pra qualquer ajuste visual */
   el.innerHTML = items.map(a => {
     const tipo = ['erro','aviso','info'].includes(a.tipo)?a.tipo:'info';
     const inativo = a.ativo === false;
     const when = a.at ? new Date(a.at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
-    return `<div style="display:flex;align-items:flex-start;gap:12px;padding:13px 0;border-top:1px solid var(--border);${inativo?'opacity:.5':''}">
-      <span style="flex:none;margin-top:2px;font-family:var(--mono,monospace);font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:99px;background:color-mix(in srgb,${col(tipo)} 15%,transparent);color:${col(tipo)}">${tag(tipo)}</span>
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:600;font-size:14px">${esc(a.titulo)}${inativo?' <span style="font-size:11px;color:var(--ink3);font-weight:500">(oculto)</span>':''}</div>
-        ${a.texto?`<div style="font-size:12.5px;color:var(--ink2);line-height:1.5;margin-top:3px;white-space:pre-wrap">${esc(a.texto)}</div>`:''}
-        <div style="font-size:11px;color:var(--ink3);margin-top:5px">${when}${a.by?' · '+esc(String(a.by).split('@')[0]):''}</div>
+    return `<div class="av-item tp-${tipo}${inativo?' off':''}">
+      <span class="av-item-tag">${tag(tipo)}</span>
+      <div class="av-item-body">
+        <div class="av-item-title">${esc(a.titulo)}${inativo?' <span class="av-item-hidden">(oculto)</span>':''}</div>
+        ${a.texto?`<div class="av-item-text">${esc(a.texto)}</div>`:''}
+        <div class="av-item-meta">${when}${a.by?' · '+esc(String(a.by).split('@')[0]):''}</div>
       </div>
-      <div style="flex:none;display:flex;gap:6px">
+      <div class="av-item-actions">
         <button class="btn btn-ghost btn-sm" onclick="toggleAviso('${a.id}')">${inativo?'Mostrar':'Ocultar'}</button>
         <button class="btn btn-ghost btn-sm" onclick="editAviso('${a.id}')">Editar</button>
-        <button class="btn btn-ghost btn-sm" onclick="removeAviso('${a.id}')" style="color:var(--red)">Remover</button>
+        <button class="btn btn-ghost btn-sm av-item-rm" onclick="removeAviso('${a.id}')">Remover</button>
       </div>
     </div>`;
   }).join('');
