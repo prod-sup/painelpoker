@@ -108,18 +108,29 @@ body{
 }
 .scene.in .kw{transform:none}
 /* elementos com --i entram em cascata */
-.tv-chip,.tv-stat,.tv-row,.rank-row,.tv-route,.tv-fut,.maker,.gu-progress,.sc-kicker,.b-sub,.tv-credits,.tv-day,.tv-camp-group{
+.tv-chip,.tv-stat,.tv-row,.rank-row,.tv-route,.tv-fut,.tv-fut-hero,.tv-aviso,.tv-record,.giant-rank,.giant-cat,.maker,.gu-progress,.sc-kicker,.b-sub,.tv-credits,.tv-day,.tv-camp-group{
   opacity:0;transform:translateY(26px);
   transition:opacity .6s var(--ease), transform .7s var(--ease);
   transition-delay:calc(var(--i,0) * 110ms);
 }
-.scene.in :is(.tv-chip,.tv-stat,.tv-row,.rank-row,.tv-route,.tv-fut,.maker,.gu-progress,.sc-kicker,.b-sub,.tv-credits,.tv-day,.tv-camp-group){
+.scene.in :is(.tv-chip,.tv-stat,.tv-row,.rank-row,.tv-route,.tv-fut,.tv-fut-hero,.tv-aviso,.tv-record,.giant-rank,.giant-cat,.maker,.gu-progress,.sc-kicker,.b-sub,.tv-credits,.tv-day,.tv-camp-group){
   opacity:1;transform:none;
 }
 @media (prefers-reduced-motion:reduce){
   .kw,.scene{transition:none;transform:none;opacity:1}
-  .tv-chip,.tv-stat,.tv-row,.rank-row,.tv-route,.tv-fut,.maker,.gu-progress,.sc-kicker,.b-sub,.tv-credits,.tv-day,.tv-camp-group{transition:none;transform:none;opacity:1}
+  .tv-chip,.tv-stat,.tv-row,.rank-row,.tv-route,.tv-fut,.tv-fut-hero,.tv-aviso,.tv-record,.giant-rank,.giant-cat,.maker,.gu-progress,.sc-kicker,.b-sub,.tv-credits,.tv-day,.tv-camp-group{transition:none;transform:none;opacity:1}
 }
+
+/* ── etiqueta de categoria (Main/Side/Satélite) ──
+   O naipe grande + a palavra pequena embaixo dele: a cor faz o reconhecimento à
+   distância, a palavra tira a dúvida de perto. Vive em toda linha do canal. */
+.cat-tag{
+  display:inline-flex;align-items:center;gap:.5em;flex:0 0 auto;
+  font-weight:800;line-height:1;white-space:nowrap;
+}
+.cat-tag i{font-style:normal;font-size:1.15em}
+.cat-tag b{font-size:.5em;letter-spacing:.14em;font-weight:800}
+.cat-tag.c-main{color:var(--main-c)} .cat-tag.c-side{color:var(--side-c)} .cat-tag.c-sat{color:var(--sat-c)}
 
 /* ── vinheta da marca ── */
 .s-brand{align-items:center;text-align:center}
@@ -346,41 +357,59 @@ body{
   .dn-perf,.dn-by{grid-column:3 / -1;flex-direction:row;justify-content:flex-start;gap:.6em}
 }
 
-/* ── a seguir hoje ── */
-.tv-rows{display:flex;flex-direction:column;gap:1.4vh;max-width:1500px}
+/* ── a seguir hoje ──
+   Grid, não flex: com buy-in e categoria na linha, as colunas precisam ALINHAR
+   entre as linhas (o buy-in de uma embaixo do buy-in da outra) — flex baseline
+   deixava cada linha respirar sozinha e a leitura de coluna sumia. */
+.tv-rows{display:flex;flex-direction:column;gap:1.2vh;max-width:1600px}
 .tv-row{
-  display:flex;align-items:baseline;gap:1.6vw;
+  display:grid;align-items:center;gap:0 1.5vw;
+  grid-template-columns:3.4em 8.4em 1fr auto auto 6.8em;
   font-size:clamp(17px,1.9vw,30px);
   padding:1.1vh 0;border-bottom:1px solid rgba(255,255,255,.07);
 }
-.tr-hora{font-family:var(--mono);font-weight:800;color:var(--gold-hi);flex:0 0 3.6em}
-.tr-suit{flex:0 0 auto}
-.tr-suit.c-main{color:var(--main-c)} .tr-suit.c-side{color:var(--side-c)} .tr-suit.c-sat{color:var(--sat-c)}
-.tr-nome{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650}
+.tr-hora{font-family:var(--mono);font-weight:800;color:var(--gold-hi)}
+.tr-nome{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650}
 .tr-camp{font-style:normal;font-size:.6em;font-weight:800;color:var(--camp);letter-spacing:.08em;vertical-align:.25em}
-.tr-gtd{font-family:var(--mono);font-weight:800;color:var(--ink);flex:0 0 auto}
+.tr-buyin{font-family:var(--mono);font-size:.58em;font-weight:700;color:var(--ink-soft);white-space:nowrap;text-align:right}
+.tr-gtd{font-family:var(--mono);font-weight:800;color:var(--ink);text-align:right;white-space:nowrap}
 /* nowrap + folga: "em 40 min" em caixa alta com tracking não cabia em 5.5em e
    quebrava em duas linhas, empurrando a altura da linha inteira */
-.tr-in{flex:0 0 7em;text-align:right;white-space:nowrap;font-size:.62em;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--felt)}
+.tr-in{text-align:right;white-space:nowrap;font-size:.62em;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--felt)}
 
-/* ── campanhas em destaque ── */
-.tv-camps{display:flex;flex-direction:column;gap:2.8vh;max-width:1500px}
-.tv-camp-group{display:flex;flex-direction:column;gap:1vh}
+/* ── campanhas em destaque ──
+   Dois níveis de agrupamento: a CAMPANHA (#AS / +SPS / +SPT, a tag rosa da casa)
+   e, dentro dela, a CATEGORIA (Main / Side / Satélite, na cor da família). O
+   buy-in entra na linha. A hierarquia visual segue a hierarquia da informação. */
+.tv-camps{display:flex;flex-direction:column;gap:3vh;max-width:1600px}
+.tv-camp-group{
+  display:flex;flex-direction:column;gap:1.4vh;
+  padding:2vh 2vw;border-radius:22px;
+  border:1px solid rgba(244,169,186,.22);
+  background:linear-gradient(165deg,rgba(216,96,122,.09),rgba(255,255,255,.015));
+}
 .tc-tag{
-  display:inline-flex;align-self:flex-start;font-size:clamp(14px,1.5vw,22px);font-weight:800;
-  letter-spacing:.1em;color:var(--camp);border:1.5px solid rgba(244,169,186,.4);
-  background:rgba(216,96,122,.12);padding:.5em 1.1em;border-radius:99px;margin-bottom:.6vh;
+  display:inline-flex;align-items:baseline;gap:.7em;align-self:flex-start;
+  font-size:clamp(16px,1.7vw,26px);font-weight:800;letter-spacing:.06em;color:var(--camp);
 }
-.tc-list{display:flex;flex-direction:column;gap:.9vh;padding-left:1.6vw}
+.tc-tag em{font-style:normal;font-size:.6em;font-weight:700;letter-spacing:.04em;color:var(--ink-soft)}
+.tc-cats{display:flex;flex-direction:column;gap:1.4vh}
+.tc-cat{padding-left:1.2vw;border-left:none}
+.tc-cat-head{
+  display:flex;align-items:center;gap:1em;margin-bottom:.5vh;
+  font-size:clamp(15px,1.5vw,23px);
+}
+.tc-cat-n{font-size:.56em;font-weight:700;color:var(--ink-soft);letter-spacing:.04em}
+.tc-list{display:flex;flex-direction:column;gap:.5vh}
 .tc-row{
-  display:flex;align-items:baseline;gap:1.4vw;
-  font-size:clamp(15px,1.6vw,25px);padding:.8vh 0;
+  display:grid;align-items:center;gap:0 1.4vw;
+  grid-template-columns:3.4em 1fr auto auto;
+  font-size:clamp(15px,1.6vw,25px);padding:.6vh 0;
 }
-.tc-hora{font-family:var(--mono);font-weight:800;color:var(--gold-hi);flex:0 0 3.4em}
-.tc-suit{flex:0 0 auto}
-.tc-suit.c-main{color:var(--main-c)} .tc-suit.c-side{color:var(--side-c)} .tc-suit.c-sat{color:var(--sat-c)}
-.tc-nome{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650}
-.tc-gtd{font-family:var(--mono);font-weight:800;color:var(--ink);flex:0 0 auto}
+.tc-hora{font-family:var(--mono);font-weight:800;color:var(--gold-hi)}
+.tc-nome{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650}
+.tc-buyin{font-family:var(--mono);font-size:.56em;font-weight:700;color:var(--ink-soft);white-space:nowrap;text-align:right}
+.tc-gtd{font-family:var(--mono);font-weight:800;color:var(--ink);text-align:right;white-space:nowrap}
 
 /* ── gigantes da semana ── */
 .tv-rank{display:flex;flex-direction:column;gap:1.6vh;max-width:1500px}
@@ -409,22 +438,72 @@ body{
 .rk-sub{display:block;margin-top:.3vh;font-size:clamp(11px,1.1vw,17px);color:var(--ink-soft);font-variant-numeric:tabular-nums}
 .rk-gtd{font-family:var(--mono);font-weight:800;font-size:clamp(20px,2.6vw,44px);color:var(--gold-hi);flex:0 0 auto}
 .rank-row.first .rk-gtd{font-size:clamp(24px,3.2vw,54px)}
+/* a etiqueta de categoria dentro do subtítulo do tier alinha com o texto ao lado */
+.rk-sub{display:flex;align-items:center;gap:.5em;flex-wrap:wrap}
+.rk-sub .cat-tag{gap:.35em}
 
-/* ── a semana inteira ── */
-.tv-week{display:flex;gap:1.4vw;max-width:1600px}
-.tv-day{
-  flex:1;display:flex;flex-direction:column;align-items:center;gap:.8vh;
-  padding:2.6vh 1vw;border-radius:20px;
-  border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);
+/* ── gigante da semana (holofote solo) ──
+   Cada um dos maiores garantidos ganha o telão inteiro, um por um, antes do
+   tier. Reaproveita a linguagem do holofote AO VIVO (título gigante, stats na
+   base), mas com a cabeça dourada de "gigante" no lugar do "AO VIVO". */
+.s-giant{justify-content:center}
+.s-giant.c-main .suit-mark{color:var(--main-c)}
+.s-giant.c-side .suit-mark{color:var(--side-c)}
+.s-giant.c-sat .suit-mark{color:var(--sat-c)}
+.giant-rank{
+  display:flex;align-items:baseline;gap:.7em;margin-bottom:2.2vh;
 }
-.tv-day.is-today{border-color:rgba(201,168,76,.5);background:rgba(201,168,76,.09)}
-.td-wd{font-size:clamp(12px,1.2vw,17px);font-weight:800;letter-spacing:.16em;color:var(--ink-soft)}
+.giant-rank b{
+  font-family:var(--mono);font-weight:800;font-size:clamp(30px,4vw,64px);
+  color:var(--gold-hi);line-height:1;
+}
+.giant-rank span{
+  font-size:clamp(13px,1.3vw,20px);font-weight:800;letter-spacing:.26em;
+  text-transform:uppercase;color:var(--ink-soft);
+}
+.giant-title{margin-bottom:2vh}
+.giant-cat{display:flex;align-items:center;gap:1em;margin-bottom:3.4vh;font-size:clamp(20px,2.2vw,36px)}
+.giant-cat .tr-camp{font-size:.5em;vertical-align:.3em}
+.tv-stat.s-when .v{font-size:clamp(26px,3.4vw,58px);color:var(--ink)}
+
+/* ── a semana inteira ──
+   Deixou de ser sete cartões com um tracinho de barra e virou um GRÁFICO DE
+   COLUNAS: a altura de cada dia é o garantido dele contra o maior da semana, e
+   a coluna é EMPILHADA na cor da família (quanto de Main, Side, Satélite). Num
+   relance, do outro lado da sala, dá pra ver qual é o dia forte e de que é feito. */
+.tv-week{
+  display:flex;align-items:flex-end;gap:1.2vw;max-width:1600px;width:100%;
+  height:44vh;
+}
+.tv-day{
+  flex:1;height:100%;display:flex;flex-direction:column;align-items:center;
+  justify-content:flex-end;gap:.7vh;position:relative;
+}
+.td-live{
+  position:absolute;top:-3vh;font-size:clamp(10px,.9vw,14px);font-weight:800;
+  letter-spacing:.16em;color:#0b0c10;background:linear-gradient(135deg,var(--gold-hi),var(--gold));
+  padding:.35em .8em;border-radius:99px;
+}
+.td-gtd{font-family:var(--mono);font-weight:800;font-size:clamp(12px,1.25vw,19px);color:var(--gold-hi);white-space:nowrap}
+.tv-day:not(.is-today) .td-gtd{color:var(--ink-soft)}
+/* a PISTA dá altura definida pra barra em % crescer contra o teto da semana sem
+   empurrar os rótulos de baixo */
+.td-track{flex:1;min-height:0;width:100%;display:flex;align-items:flex-end;justify-content:center}
+/* a coluna: cresce em altura (o dado macro) e é fatiada por categoria (o mix) */
+.td-bar{
+  display:flex;flex-direction:column-reverse;width:min(72%,84px);
+  min-height:6px;border-radius:10px 10px 4px 4px;overflow:hidden;
+  background:rgba(255,255,255,.05);
+}
+.td-bar b{display:block;width:100%;min-height:0}
+.td-bar b.c-main{background:linear-gradient(180deg,var(--main-c),color-mix(in srgb,var(--main-c) 60%,#000))}
+.td-bar b.c-side{background:linear-gradient(180deg,var(--side-c),color-mix(in srgb,var(--side-c) 60%,#000))}
+.td-bar b.c-sat {background:linear-gradient(180deg,var(--sat-c), color-mix(in srgb,var(--sat-c) 60%,#000))}
+.tv-day.is-today .td-bar{box-shadow:0 0 40px -8px rgba(201,168,76,.6);outline:2px solid rgba(201,168,76,.45);outline-offset:2px}
+.td-n{font-size:clamp(10px,.95vw,15px);color:var(--ink-soft);white-space:nowrap}
+.td-wd{font-size:clamp(11px,1.15vw,16px);font-weight:800;letter-spacing:.12em;color:var(--ink-soft)}
 .tv-day.is-today .td-wd{color:var(--gold-hi)}
-.td-d{font-family:var(--mono);font-weight:800;font-size:clamp(22px,2.6vw,42px)}
-.td-n{font-size:clamp(11px,1vw,15px);color:var(--ink-soft)}
-.td-bar{display:block;width:80%;height:6px;border-radius:99px;overflow:hidden;background:rgba(255,255,255,.08);margin:.4vh 0}
-.td-bar b{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--gold),var(--gold-hi))}
-.td-gtd{font-family:var(--mono);font-weight:800;font-size:clamp(13px,1.3vw,19px);color:var(--gold-hi)}
+.td-d{font-family:var(--mono);font-weight:800;font-size:clamp(18px,2.2vw,34px)}
 
 /* ── rotas de ticket ── */
 .tv-routes{display:flex;flex-direction:column;gap:2.4vh;max-width:1500px}
@@ -433,8 +512,10 @@ body{
   padding:1.6vh 2vw;border-radius:20px;
   border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);
 }
-.tvr-from{color:var(--sat-c);font-weight:650;flex:0 0 auto}
-.tvr-from b{color:var(--ink)}
+.tvr-from{display:flex;flex-direction:column;gap:.2vh;flex:0 0 auto;min-width:9em}
+.tvr-sat{color:var(--sat-c);font-weight:750}
+.tvr-buy{font-size:.62em;font-weight:600;color:var(--ink-soft)}
+.tvr-buy b{color:var(--gold-hi);font-family:var(--mono);font-weight:800}
 .tvr-arrow{display:flex;align-items:center;gap:.6vw;color:var(--gold-hi);font-size:1.2em;flex:0 0 auto}
 .tvr-arrow i{
   display:block;width:3.4vw;border-top:2.5px dashed rgba(201,168,76,.55);
@@ -442,20 +523,45 @@ body{
 }
 @keyframes dash-slide{to{transform:translateX(6px)}}
 .tvr-to{flex:1;min-width:0;font-weight:750}
+.tvr-to-top{display:flex;align-items:center;gap:.7em;min-width:0}
+.tvr-nome{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tvr-to small{display:block;font-size:.62em;font-weight:600;color:var(--ink-soft);margin-top:.3vh}
 
-/* ── vem aí ── */
-.tv-futs{display:flex;gap:2.4vw;max-width:1600px}
-.tv-fut{
-  flex:1;display:flex;flex-direction:column;gap:1vh;
-  padding:3.4vh 2.2vw;border-radius:26px;
-  border:1px solid rgba(201,168,76,.3);
-  background:linear-gradient(165deg,rgba(216,96,122,.09),rgba(201,168,76,.07));
+/* ── vem aí ──
+   O mais próximo é o HERÓI: ocupa a coluna maior, com o "AMANHÃ / EM 3 DIAS" e o
+   garantido em corpo grande. Os outros dois vêm ao lado, empilhados e menores.
+   Antes eram três cartões idênticos — não havia hierarquia entre "amanhã" e
+   "daqui a duas semanas". */
+.tv-futs{display:grid;grid-template-columns:1.35fr 1fr;gap:2vw;max-width:1600px;width:100%}
+.tv-futs.solo{grid-template-columns:1fr;max-width:1100px;margin:0 auto}
+.tv-fut-hero{
+  display:flex;flex-direction:column;align-items:flex-start;gap:1.2vh;
+  padding:4vh 2.6vw;border-radius:30px;
+  border:1px solid rgba(201,168,76,.4);
+  background:linear-gradient(155deg,rgba(216,96,122,.14),rgba(201,168,76,.1) 60%,rgba(255,255,255,.02));
+  box-shadow:0 0 80px -30px rgba(201,168,76,.5);
 }
-.tf-when{font-size:clamp(12px,1.1vw,17px);font-weight:800;letter-spacing:.2em;color:var(--camp)}
-.tf-nome{font-size:clamp(19px,1.9vw,32px);font-weight:750;line-height:1.2;min-height:2.4em}
-.tf-gtd{font-family:var(--mono);font-weight:800;font-size:clamp(30px,3.4vw,58px);color:var(--gold-hi);line-height:1}
-.tf-gl{font-size:clamp(11px,1vw,15px);font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft)}
+.tfh-when{display:flex;align-items:baseline;gap:.7em;color:var(--camp)}
+.tfh-when b{font-size:clamp(24px,2.8vw,48px);font-weight:800;letter-spacing:.04em;line-height:1}
+.tfh-when span{font-size:clamp(12px,1.1vw,17px);font-weight:700;letter-spacing:.16em;color:var(--ink-soft)}
+.tfh-nome{font-size:clamp(26px,3vw,52px);font-weight:800;line-height:1.1;letter-spacing:-.01em;text-wrap:balance}
+.tfh-meta{display:flex;align-items:center;gap:1em;font-size:clamp(16px,1.7vw,26px);margin:.4vh 0}
+.tfh-buy{font-family:var(--mono);font-size:.62em;font-weight:700;color:var(--ink-soft)}
+.tfh-gtd{font-family:var(--mono);font-weight:800;font-size:clamp(40px,5vw,86px);color:var(--gold-hi);line-height:1;margin-top:auto}
+.tfh-gl{font-size:clamp(11px,1vw,16px);font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft)}
+.tv-fut-rest{display:flex;flex-direction:column;gap:2vh}
+.tv-fut{
+  flex:1;display:flex;flex-direction:column;gap:.8vh;justify-content:center;
+  padding:2.6vh 2vw;border-radius:22px;
+  border:1px solid rgba(201,168,76,.24);
+  background:linear-gradient(165deg,rgba(216,96,122,.07),rgba(255,255,255,.015));
+}
+.tf-when{font-size:clamp(12px,1.1vw,17px);font-weight:800;letter-spacing:.16em;color:var(--camp)}
+.tf-nome{font-size:clamp(18px,1.8vw,30px);font-weight:750;line-height:1.15}
+.tf-meta{display:flex;align-items:center;gap:.8em;font-size:clamp(14px,1.4vw,22px)}
+.tf-buy{font-family:var(--mono);font-size:.6em;font-weight:700;color:var(--ink-soft)}
+.tf-gtd{font-family:var(--mono);font-weight:800;font-size:clamp(24px,2.6vw,42px);color:var(--gold-hi);line-height:1}
+.tf-gl{font-size:clamp(10px,.95vw,14px);font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft)}
 
 /* ── quem construiu a noite ── */
 .tv-makers{display:flex;flex-wrap:wrap;gap:1.6vw;max-width:1500px}
@@ -594,17 +700,34 @@ body.tv-awake .tv-btn{opacity:.6;pointer-events:auto}
 }
 .rec-sub{font-size:clamp(12px,1.15vw,18px);color:var(--ink-soft)}
 
-/* ── 📣 avisos da casa ── */
-.tv-avisos{display:flex;flex-direction:column;gap:2vh;max-width:1300px}
+/* ── 📣 avisos da casa ──
+   O tipo do aviso pinta a borda e o ícone: alerta é vermelho, promo/novidade
+   puxam o dourado da casa, o resto fica neutro. A tag do tipo entra em caixa
+   alta acima do título — quem lê de longe já sabe se é recado, alerta ou festa. */
+.tv-avisos{display:flex;flex-direction:column;gap:1.8vh;max-width:1400px;width:100%}
 .tv-aviso{
+  --av-accent:rgba(255,255,255,.4);
   display:flex;align-items:flex-start;gap:1.6vw;
-  padding:2.2vh 2vw;border-radius:20px;
-  border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);
+  padding:2.4vh 2.2vw;border-radius:22px;
+  border:1px solid rgba(255,255,255,.1);
+  background:linear-gradient(120deg,color-mix(in srgb,var(--av-accent) 8%,transparent),rgba(255,255,255,.02));
+  box-shadow:inset 3px 0 0 0 color-mix(in srgb,var(--av-accent) 70%,transparent);
 }
-.av-ico{font-size:clamp(24px,2.4vw,40px);line-height:1.15}
-.av-body{min-width:0}
-.av-body b{display:block;font-size:clamp(18px,2vw,32px);font-weight:750;line-height:1.25}
-.av-body small{display:block;margin-top:.6vh;font-size:clamp(13px,1.3vw,20px);color:var(--ink-soft);line-height:1.45}
+.tv-aviso.tp-alerta{--av-accent:var(--live)}
+.tv-aviso.tp-promo,.tv-aviso.tp-novidade{--av-accent:var(--gold-hi)}
+.tv-aviso.tp-evento{--av-accent:var(--side-c)}
+.av-ico{
+  font-size:clamp(26px,2.6vw,44px);line-height:1;flex:0 0 auto;
+  display:grid;place-items:center;width:1.6em;height:1.6em;border-radius:16px;
+  background:color-mix(in srgb,var(--av-accent) 14%,transparent);
+}
+.av-body{min-width:0;display:flex;flex-direction:column;gap:.4vh}
+.av-tag{
+  font-size:clamp(11px,1vw,15px);font-weight:800;letter-spacing:.18em;
+  color:color-mix(in srgb,var(--av-accent) 80%,var(--ink));
+}
+.av-body b{font-size:clamp(19px,2.1vw,34px);font-weight:750;line-height:1.2}
+.av-body small{font-size:clamp(13px,1.35vw,21px);color:var(--ink-soft);line-height:1.45}
 
 /* ── 📌 destaque fixado + chip de pausa ── */
 .pin-tag{
@@ -657,6 +780,18 @@ html.remote #stage{position:static;padding:86px 18px 40px}
 @media (max-width:900px){
   .tv-tag,.tv-today{display:none}
   .scene{padding:12vh 6vw 12vh}
-  .tv-futs,.tv-records,.tv-week{flex-direction:column}
+  .tv-records{flex-direction:column}
+  .tv-futs,.tv-futs.solo{grid-template-columns:1fr;max-width:none;margin:0}
+  .tv-fut-hero{padding:3vh 6vw}
+  /* o gráfico de colunas fica apertado num retrato — vira lista de dias */
+  .tv-week{height:auto;flex-direction:column;align-items:stretch;gap:1vh}
+  .tv-day{height:auto;flex-direction:row;justify-content:space-between;align-items:center;gap:1.2em;padding:1.2vh 0;border-bottom:1px solid rgba(255,255,255,.08)}
+  .td-live{position:static}
+  .td-track{display:none}
   .suit-mark{font-size:40vh}
+  /* linhas densas soltam as colunas da direita pra baixo do nome */
+  .tv-row{grid-template-columns:3.4em auto 1fr;row-gap:.3vh}
+  .tr-buyin,.tr-gtd,.tr-in{grid-column:2 / -1;text-align:left}
+  .tc-row{grid-template-columns:3.4em 1fr auto}
+  .tc-buyin{grid-column:2 / -1;text-align:left}
 }

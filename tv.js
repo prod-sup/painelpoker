@@ -248,6 +248,25 @@ function creditHtml(e, lv){
 function suitWatermark(suit){
   return `<span class="suit-mark" aria-hidden="true">${suit}</span>`;
 }
+/* ── etiqueta de categoria ──
+   A casa pede que TODA linha diga, em palavra, se é Main / Side / Satélite — não
+   só a cor do naipe. A 3-6 metros de distância a cor sozinha não classifica; o
+   nome curto ao lado do naipe classifica. É o mesmo naipe+cor da família que a
+   operação já lê no Radar, agora com rótulo. */
+const CAT_SHORT = { main:'MAIN EVENT', side:'SIDE EVENT', sat:'SATÉLITE' };
+function catTag(cat){
+  const m = CAT_META[cat]; if (!m) return '';
+  return `<span class="cat-tag ${m.cls}"><i>${m.suit}</i><b>${CAT_SHORT[cat]}</b></span>`;
+}
+/* os eventos FUTUROS chegam com `tipo` cru (a Global não normaliza a coluna de
+   tipo no rodapé) — mesma regra do parser: radical decide, desconhecido vira side */
+function catFromTipo(tipo){
+  const t = normText(tipo);
+  if (t.includes('main')) return 'main';
+  if (t.includes('sat'))  return 'sat';
+  if (t.includes('side')) return 'side';
+  return t ? 'side' : null;
+}
 /* duração da cena por VOLUME DE CONTEÚDO, não fixa — era a causa raiz do "muito
    rápido": uma lista de 7 linhas cortava no mesmo relógio que um holofote com
    1 número. Conta palavras do HTML (aproxima o esforço de leitura) e escala
@@ -374,8 +393,9 @@ function composeScenes(){
       <div class="tv-scroll"><div class="tv-rows tv-roll">${upcoming.map(({e, st}, i) => `
         <div class="tv-row" style="--i:${iCap(i+1)}">
           <span class="tr-hora">${e.hora}</span>
-          <span class="tr-suit ${CAT_META[e.cat].cls}">${CAT_META[e.cat].suit}</span>
+          ${catTag(e.cat)}
           <span class="tr-nome">${escHtml(shortName(e.nome))}${e.camp ? ` <em class="tr-camp">✦ ${CAMP_LABEL[e.camp]}</em>` : ''}</span>
+          <span class="tr-buyin">${e.buyin != null ? 'buy-in ' + fmtMoneyFull(e.buyin) : ''}</span>
           <span class="tr-gtd">${e.garantido != null ? fmtMoney(e.garantido) : ''}</span>
           <span class="tr-in">${st.k === 'soon' ? 'em ' + fmtIn(st.inMin) : ''}</span>
         </div>`).join('')}</div></div>`;
@@ -439,31 +459,60 @@ function composeScenes(){
       <div class="tv-scroll"><div class="tv-camps tv-roll">${order.map((c, gi) => {
         const evs = groups[c].sort((a,b) => a.abs - b.abs);
         const gtd = evs.reduce((s,e) => s + (e.garantido || 0), 0);
+        /* dentro da campanha, a categoria manda: Main na frente, depois Side,
+           depois Satélite — a mesma ordem de leitura do resto do canal */
+        const byCat = {};
+        evs.forEach(e => { (byCat[e.cat] = byCat[e.cat] || []).push(e); });
+        const cats = ['main','side','sat'].filter(k => byCat[k]);
         return `<div class="tv-camp-group" style="--i:${iCap(gi+1)}">
-          <div class="tc-tag">✦ ${CAMP_LABEL[c]} · ${conta(evs.length, 'evento', 'eventos')} · ${fmtMoney(gtd)} GTD</div>
-          <div class="tc-list">${evs.map(e => `
-            <div class="tc-row">
-              <span class="tc-hora">${e.hora}</span>
-              <span class="tc-suit ${CAT_META[e.cat].cls}">${CAT_META[e.cat].suit}</span>
-              <span class="tc-nome">${escHtml(shortName(e.nome))}</span>
-              ${e.garantido != null ? `<span class="tc-gtd">${fmtMoney(e.garantido)}</span>` : ''}
+          <div class="tc-tag">✦ ${CAMP_LABEL[c]}<em>${conta(evs.length, 'evento', 'eventos')} · ${fmtMoney(gtd)} GTD</em></div>
+          <div class="tc-cats">${cats.map(k => `
+            <div class="tc-cat ${CAT_META[k].cls}">
+              <div class="tc-cat-head">${catTag(k)}<span class="tc-cat-n">${conta(byCat[k].length, 'evento', 'eventos')}</span></div>
+              <div class="tc-list">${byCat[k].map(e => `
+                <div class="tc-row">
+                  <span class="tc-hora">${e.hora}</span>
+                  <span class="tc-nome">${escHtml(shortName(e.nome))}</span>
+                  <span class="tc-buyin">${e.buyin != null ? 'buy-in ' + fmtMoneyFull(e.buyin) : ''}</span>
+                  <span class="tc-gtd">${e.garantido != null ? fmtMoney(e.garantido) : ''}</span>
+                </div>`).join('')}</div>
             </div>`).join('')}</div>
         </div>`;
       }).join('')}</div></div>`;
-    segments.push({ cls:'s-camps s-roll', dur: sceneDuration(html, 9000, 16000), accent:'#f4a9ba', html });
+    segments.push({ cls:'s-camps s-roll', dur: sceneDuration(html, 9000, 18000), accent:'#f4a9ba', html });
   }
 
-  /* 4 — os gigantes da semana (top 5 GTD) */
+  /* 4 — os gigantes da semana (top 5 GTD)
+     Cada gigante ganha o TELÃO INTEIRO, um por um (holofote com nome, GTD, dia,
+     buy-in e categoria), e no fim entra o tier completo com os cinco. Antes eram
+     só cinco linhas de lista — os maiores torneios da semana mereciam palco. */
   const top5 = [...MODEL.events].filter(e => e.garantido != null)
     .sort((a,b) => b.garantido - a.garantido).slice(0, 5);
+  const GIANTS_SOLO = 3;                              // top 3 no holofote; o resto só no tier
+  top5.slice(0, GIANTS_SOLO).forEach((e, i) => {
+    const html = `${suitWatermark(CAT_META[e.cat].suit)}
+      <div class="giant-rank" style="--i:0"><b>Nº ${i+1}</b><span>GIGANTE DA SEMANA</span></div>
+      <h1 class="spot-title giant-title">${kinetic(e.nome, 1)}</h1>
+      <div class="giant-cat" style="--i:3">${catTag(e.cat)}${e.camp ? ` <span class="tr-camp">✦ ${CAMP_LABEL[e.camp]}</span>` : ''}</div>
+      <div class="tv-stats">
+        ${statHtml('garantido', fmtMoney(e.garantido), 's-gtd', 4)}
+        ${e.buyin != null ? statHtml('buy-in', fmtMoneyFull(e.buyin), '', 5) : ''}
+        <div class="tv-stat s-when" style="--i:6">
+          <span class="v">${WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)]} · ${e.hora}</span>
+          <span class="l">quando</span></div>
+      </div>`;
+    segments.push({ cls:'s-giant ' + CAT_META[e.cat].cls, dur: sceneDuration(html, 8000, 11000),
+                    accent: CAT_ACCENT[e.cat], html });
+  });
   if (top5.length){
     const html = `${suitWatermark('♥')}
-      <h2 class="sc-kicker" style="--i:0">OS GIGANTES DA SEMANA</h2>
+      <h2 class="sc-kicker gold" style="--i:0">O TIER DA SEMANA
+        <em class="sc-cnt">os ${top5.length} maiores garantidos</em></h2>
       <div class="tv-rank">${top5.map((e, i) => `
         <div class="rank-row ${i === 0 ? 'first' : ''}" style="--i:${i+1}">
           <span class="rk-pos">${i+1}</span>
           <span class="rk-body"><span class="rk-nome">${escHtml(shortName(e.nome))}</span>
-            <span class="rk-sub">${WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)]} · ${e.hora}${e.buyin != null ? ' · buy-in ' + fmtMoneyFull(e.buyin) : ''}</span></span>
+            <span class="rk-sub">${catTag(e.cat)} · ${WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)]} · ${e.hora}${e.buyin != null ? ' · buy-in ' + fmtMoneyFull(e.buyin) : ''}</span></span>
           <span class="rk-gtd tv-count">${fmtMoney(e.garantido)}</span>
         </div>`).join('')}</div>`;
     segments.push({ cls:'s-week', dur: sceneDuration(html, 10000, 18000), accent:GOLD, html });
@@ -472,24 +521,39 @@ function composeScenes(){
   /* 4b — a semana inteira (visão macro que faltava: até aqui só "hoje" tinha
      cena própria — um canal precisa dar contexto do que vem nos outros dias) */
   {
-    const gtdByDay = {}; let gtdMax = 0;
+    /* a barra de cada dia deixa de ser um bloco dourado só de tamanho: agora ela
+       mostra a COMPOSIÇÃO do dia (quanto de GTD é Main, Side, Satélite), na cor
+       da família. A altura ainda diz "que dia é o maior"; a cor diz "de quê". */
+    const gtdByDay = {}, mixByDay = {}; let gtdMax = 0, gtdWeek = 0, nWeek = 0;
     WEEK_ORDER.forEach(day => {
-      const g = MODEL.events.filter(e => e.weekday === day).reduce((s,e) => s + (e.garantido || 0), 0);
-      gtdByDay[day] = g;
+      const evs = MODEL.events.filter(e => e.weekday === day);
+      const mix = { main:0, side:0, sat:0 };
+      evs.forEach(e => { mix[e.cat] += (e.garantido || 0); });
+      const g = mix.main + mix.side + mix.sat;
+      gtdByDay[day] = g; mixByDay[day] = mix; gtdWeek += g; nWeek += evs.length;
       if (g > gtdMax) gtdMax = g;
     });
     const html = `${suitWatermark('♥')}
-      <h2 class="sc-kicker" style="--i:0">A SEMANA INTEIRA</h2>
+      <h2 class="sc-kicker gold" style="--i:0">A SEMANA INTEIRA
+        <em class="sc-cnt">${conta(nWeek, 'evento', 'eventos')} · ${fmtMoney(gtdWeek)} garantidos</em></h2>
       <div class="tv-week">${WEEK_ORDER.map((day, i) => {
         const iso = MODEL.dates[day];
         const n = MODEL.events.filter(e => e.weekday === day).length;
-        const pct = gtdMax > 0 ? Math.round((gtdByDay[day] / gtdMax) * 100) : 0;
+        const h = gtdMax > 0 ? Math.max(6, Math.round((gtdByDay[day] / gtdMax) * 100)) : 0;
+        const mix = mixByDay[day], g = gtdByDay[day] || 1;
         return `<div class="tv-day ${day === today ? 'is-today' : ''}" style="--i:${i+1}">
+          ${day === today ? '<span class="td-live">HOJE</span>' : ''}
+          <span class="td-gtd">${gtdByDay[day] ? fmtMoney(gtdByDay[day]) : '—'}</span>
+          <i class="td-track" aria-hidden="true">
+            <i class="td-bar" style="height:${h}%">
+              <b class="c-main" style="flex:${mix.main / g}"></b>
+              <b class="c-side" style="flex:${mix.side / g}"></b>
+              <b class="c-sat"  style="flex:${mix.sat / g}"></b>
+            </i>
+          </i>
+          <span class="td-n">${conta(n, 'evento', 'eventos')}</span>
           <span class="td-wd">${WEEKDAY_SHORT[isoWeekdayIdx(iso)]}</span>
           <span class="td-d">${+iso.slice(8)}</span>
-          <span class="td-n">${conta(n, 'evento', 'eventos')}</span>
-          <i class="td-bar" aria-hidden="true"><b style="width:${pct}%"></b></i>
-          <span class="td-gtd">${fmtMoney(gtdByDay[day])}</span>
         </div>`;
       }).join('')}</div>`;
     segments.push({ cls:'s-grid', dur: sceneDuration(html, 10000, 16000), accent:GOLD, html });
@@ -527,42 +591,73 @@ function composeScenes(){
         const sats = MODEL.events.filter(s => s.targetId === t.id).sort((a,b) => (a.buyin??Infinity) - (b.buyin??Infinity));
         const cheap = sats[0];
         return `<div class="tv-route" style="--i:${iCap(i+1)}">
-          <span class="tvr-from">♦ ${conta(sats.length, 'satélite', 'satélites')}${cheap && cheap.buyin != null ? ` · desde <b>${fmtMoneyFull(cheap.buyin)}</b>` : ''}</span>
+          <span class="tvr-from">
+            <span class="tvr-sat">♦ ${conta(sats.length, 'satélite', 'satélites')}</span>
+            ${cheap && cheap.buyin != null ? `<span class="tvr-buy">buy-in de <b>${fmtMoneyFull(cheap.buyin)}</b></span>` : ''}
+          </span>
           <span class="tvr-arrow"><i></i>🎟<i></i></span>
-          <span class="tvr-to">${CAT_META[t.cat].suit} ${escHtml(shortName(t.nome))}<small>${t.hora}${t.garantido != null ? ' · GTD ' + fmtMoney(t.garantido) : ''}</small></span>
+          <span class="tvr-to">
+            <span class="tvr-to-top">${catTag(t.cat)}<span class="tvr-nome">${escHtml(shortName(t.nome))}</span></span>
+            <small>${t.hora}${t.garantido != null ? ' · GTD ' + fmtMoney(t.garantido) : ''}${t.buyin != null ? ' · buy-in ' + fmtMoneyFull(t.buyin) : ''}</small></span>
         </div>`;
       }).join('')}</div></div>`;
     /* rota de ticket é assunto de SATÉLITE — a névoa vai pro violeta da família */
     segments.push({ cls:'s-routes s-roll', dur: sceneDuration(html, 9000, 15000), accent: CAT_ACCENT.sat, html });
   }
 
-  /* 7 — vem aí (eventos futuros, P&D) */
+  /* 7 — vem aí (eventos futuros, P&D)
+     O primeiro futuro é o HERÓI da cena — o que está mais perto de acontecer
+     ganha metade do telão, com contagem regressiva grande. Os outros dois entram
+     como cartas menores ao lado. Antes eram três cartões iguais; "vem aí" pede um
+     que puxe o olho. */
   const futs = MODEL.futures.slice(0, 3);
   if (futs.length){
     const todayISO = gradeTodayISO();
+    const whenOf = f => {
+      const days = f.dateISO ? isoDayNumber(f.dateISO) - isoDayNumber(todayISO) : null;
+      const rel = days == null ? 'EM BREVE' : days <= 0 ? 'HOJE' : days === 1 ? 'AMANHÃ' : 'EM ' + days + ' DIAS';
+      return { rel, days };
+    };
+    const [hero, ...rest] = futs;
+    const hw = whenOf(hero); const hcat = catFromTipo(hero.tipo);
+    const heroHtml = `<div class="tv-fut-hero" style="--i:1">
+      <span class="tfh-when"><b>${hw.rel}</b>${hero.dateISO ? `<span>${fmtDateShort(hero.dateISO).toUpperCase()}</span>` : ''}</span>
+      <span class="tfh-nome">${escHtml(hero.nome)}</span>
+      <div class="tfh-meta">${hcat ? catTag(hcat) : ''}${hero.buyin != null ? `<span class="tfh-buy">buy-in ${fmtMoneyFull(hero.buyin)}</span>` : ''}</div>
+      ${hero.garantido != null ? `<span class="tfh-gtd tv-count">${fmtMoney(hero.garantido)}</span><span class="tfh-gl">garantidos</span>` : ''}
+    </div>`;
+    const restHtml = rest.length ? `<div class="tv-fut-rest">${rest.map((f, i) => {
+      const w = whenOf(f); const c = catFromTipo(f.tipo);
+      return `<div class="tv-fut" style="--i:${i+2}">
+        <span class="tf-when">${w.rel}${f.dateISO ? ' · ' + fmtDateShort(f.dateISO).toUpperCase() : ''}</span>
+        <span class="tf-nome">${escHtml(shortName(f.nome))}</span>
+        <div class="tf-meta">${c ? catTag(c) : ''}${f.buyin != null ? `<span class="tf-buy">buy-in ${fmtMoneyFull(f.buyin)}</span>` : ''}</div>
+        ${f.garantido != null ? `<span class="tf-gtd tv-count">${fmtMoney(f.garantido)}</span><span class="tf-gl">garantidos</span>` : ''}
+      </div>`;
+    }).join('')}</div>` : '';
     const html = `${suitWatermark('✦')}
       <h2 class="sc-kicker gold" style="--i:0">VEM AÍ</h2>
-      <div class="tv-futs">${futs.map((f, i) => {
-        const days = f.dateISO ? isoDayNumber(f.dateISO) - isoDayNumber(todayISO) : null;
-        return `<div class="tv-fut" style="--i:${i+1}">
-          <span class="tf-when">${days == null ? 'EM BREVE' : days <= 0 ? 'HOJE' : days === 1 ? 'AMANHÃ' : 'EM ' + days + ' DIAS'}${f.dateISO ? ' · ' + fmtDateShort(f.dateISO).toUpperCase() : ''}</span>
-          <span class="tf-nome">${escHtml(shortName(f.nome))}</span>
-          ${f.garantido != null ? `<span class="tf-gtd tv-count">${fmtMoney(f.garantido)}</span><span class="tf-gl">garantidos</span>` : ''}
-        </div>`;
-      }).join('')}</div>`;
+      <div class="tv-futs${rest.length ? '' : ' solo'}">${heroHtml}${restHtml}</div>`;
     segments.push({ cls:'s-future', dur: sceneDuration(html, 9000, 15000), accent:'#f4a9ba', html });
   }
 
   /* 8 — avisos da casa (os mesmos que o Admin edita pro hub) */
   if (AVISOS.length){
     const ICO = { info:'ℹ️', alerta:'⚠️', evento:'📅', promo:'✦', novidade:'✨' };
-    const html = `${suitWatermark('♥')}
-      <h2 class="sc-kicker" style="--i:0">AVISOS DA CASA</h2>
-      <div class="tv-avisos">${AVISOS.map((a, i) => `
-        <div class="tv-aviso" style="--i:${i+1}">
-          <span class="av-ico">${ICO[normText(a.tipo)] || '📣'}</span>
-          <span class="av-body"><b>${escHtml(a.titulo)}</b>${a.texto || a.msg || a.desc ? `<small>${escHtml(a.texto || a.msg || a.desc)}</small>` : ''}</span>
-        </div>`).join('')}</div>`;
+    const html = `${suitWatermark('♣')}
+      <h2 class="sc-kicker gold" style="--i:0">AVISOS DA CASA
+        <em class="sc-cnt">${conta(AVISOS.length, 'recado', 'recados')} da operação</em></h2>
+      <div class="tv-avisos">${AVISOS.map((a, i) => {
+        const tp = normText(a.tipo);
+        return `<div class="tv-aviso tp-${tp || 'info'}" style="--i:${i+1}">
+          <span class="av-ico">${ICO[tp] || '📣'}</span>
+          <span class="av-body">
+            <span class="av-tag">${escHtml((a.tipo || 'aviso').toUpperCase())}</span>
+            <b>${escHtml(a.titulo)}</b>
+            ${a.texto || a.msg || a.desc ? `<small>${escHtml(a.texto || a.msg || a.desc)}</small>` : ''}
+          </span>
+        </div>`;
+      }).join('')}</div>`;
     segments.push({ cls:'s-avisos', dur: sceneDuration(html, 9000, 18000), accent:GOLD, html });
   }
 
