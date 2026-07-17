@@ -202,10 +202,14 @@ h1{
   font-family:var(--display);font-size:clamp(28px,4.2vw,44px);
   font-weight:800;letter-spacing:-.03em;line-height:1.06;
 }
-h1 .grad{
-  background:linear-gradient(92deg,#f4a9ba 5%,#e8c884 70%,#c9a84c);
-  -webkit-background-clip:text;background-clip:text;color:transparent;
-}
+/* O destaque do h1 é COR SÓLIDA, não gradiente no texto.
+   `background-clip:text` num degradê é decoração que não significa nada: o
+   "caminho até a mesa" não tem três valores pra justificar três cores. Pior, ele
+   torra o contraste no meio do percurso (o #c9a84c da ponta dá ~4,4:1 sobre o
+   hero noturno, contra 8,9:1 do dourado claro) e apaga o texto inteiro se o
+   background-clip falhar. O dourado da casa, chapado, diz a mesma coisa e é
+   legível de ponta a ponta — a ênfase já vem do peso e do tamanho. */
+h1 .grad{ color:var(--sup-gold-dark); }
 .hero-sub{margin-top:12px;font-size:14.5px;color:rgba(236,232,234,.62);max-width:600px;line-height:1.6}
 .source-meta{
   margin-top:14px;display:inline-flex;align-items:center;gap:8px;font-size:11.5px;
@@ -403,6 +407,27 @@ main{max-width:1240px;margin:0 auto;padding:6px 28px 90px}
 .b-camp{color:var(--gold);border-color:color-mix(in srgb, var(--gold) 40%, transparent);background:var(--gold-soft)}
 .b-day{font-family:var(--mono)}
 
+/* ── busca vazia COM SAÍDA ──
+   Não é um "empty state" decorativo: é um atalho. O Radar sabe a semana inteira,
+   então quando o dia atual não tem o que a pessoa procura ele diz ONDE está e
+   leva num clique, em vez de responder "nenhum evento" e encerrar o assunto. */
+.ag-vazia{padding:30px 20px;text-align:center}
+.av-titulo{font-family:var(--display);font-size:16px;font-weight:700;letter-spacing:-.01em}
+.av-sub{margin-top:6px;font-size:13px;color:var(--ink-soft)}
+.av-dias{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:16px 0 18px}
+.av-dia{
+  display:flex;align-items:baseline;gap:7px;padding:8px 14px;border-radius:var(--radius-sm);
+  border:1px solid var(--hairline-strong);background:var(--card);
+  transition:border-color .22s var(--ease), transform .22s var(--ease), background .22s;
+}
+.av-dia:hover{border-color:var(--ev-bright);transform:translateY(-1px);background:var(--ev-soft)}
+.av-dia b{font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--ink-soft)}
+.av-dia:hover b{color:var(--ev-bright)}
+.av-dia span{
+  font-family:var(--mono);font-size:14px;font-weight:800;color:var(--ev-bright);
+  font-variant-numeric:tabular-nums;
+}
+
 /* divisor AGORA — só no dia de hoje */
 .now-divider{
   display:flex;align-items:center;gap:12px;padding:7px 16px;
@@ -451,13 +476,53 @@ main{max-width:1240px;margin:0 auto;padding:6px 28px 90px}
 .btn-sm.gold{background:var(--gold);color:#fff}
 html.dark .btn-sm.gold{color:#15171b}
 .btn-sm.ghost{background:none;border:1px solid var(--hairline-strong);color:var(--ink-soft)}
-.btn-sm.ghost:hover{border-color:var(--live);color:var(--live)}
-.rd-fix{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+.btn-sm.ghost:hover{border-color:var(--ev-bright);color:var(--ev-bright)}
+/* grupo de cópia: as variantes ficam agrupadas, separadas do resto das ações */
+.rd-copy-group{display:inline-flex;gap:6px;flex-wrap:wrap}
+
+/* ── correção de vínculo (admin) com CONTEXTO ──
+   O admin sobrescrevia no escuro. Agora a caixa mostra POR QUE a heurística
+   decidiu (rd-why), e o select tem busca — a semana inteira não cabe num
+   dropdown legível. */
+.rd-fix-box{
+  flex:1 1 100%;margin-top:10px;padding:12px 14px;border-radius:var(--radius-sm);
+  border:1px solid var(--hairline);background:color-mix(in srgb, var(--gold) 4%, transparent);
+}
+.rd-why{font-size:12px;color:var(--ink-soft);line-height:1.5;margin-bottom:10px}
+.rd-why code{
+  font-family:var(--mono);font-size:11px;padding:1px 5px;border-radius:5px;
+  background:var(--card-elevated);color:var(--ink);
+}
+.rd-why b{color:var(--ink)}
+.rd-why.warn{color:var(--live)}
+.rd-why.fixed{color:var(--felt-bright)}
+.rd-fix{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.rd-fix-lbl{font-size:12px;font-weight:700;color:var(--ink-soft)}
+.rd-fix-q{
+  padding:6px 10px;border-radius:10px;font-size:12px;min-width:150px;
+  border:1px solid var(--hairline-strong);background:var(--card);color:var(--ink);
+}
+.rd-fix-q:focus{outline:none;border-color:var(--ev-bright)}
 .rd-fix-sel{
   max-width:340px;padding:7px 10px;border-radius:10px;font-size:12px;
   border:1px solid var(--hairline-strong);background:var(--card);color:var(--ink);
 }
 .rd-fix-by{font-size:11px;color:var(--ink-soft)}
+
+/* ── preview do card de divulgação ── <dialog> nativo: escapa de qualquer
+   overflow, fecha no ESC e no backdrop, trap de foco de graça */
+#promoDlg{
+  border:0;border-radius:var(--radius-lg);padding:0;max-width:min(92vw,440px);
+  background:var(--card);color:var(--ink);box-shadow:var(--shadow-lg);
+}
+#promoDlg::backdrop{background:rgba(8,6,10,.62);backdrop-filter:blur(3px)}
+.promo-preview{padding:18px;display:flex;flex-direction:column;gap:14px}
+#promoImg{
+  width:100%;border-radius:var(--radius-md);display:block;
+  box-shadow:var(--shadow-md);background:#120d12;
+}
+.promo-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.promo-hint{font-size:11.5px;color:var(--ink-soft);text-align:center;line-height:1.5}
 
 /* toast de feedback (copiar/salvar/card) */
 #radarToast{
@@ -512,11 +577,28 @@ html.dark .btn-sm.gold{color:#15171b}
 .rt-target.c-side .rt-tname{color:var(--side-bright)}
 .rt-tsub{margin-top:3px;font-size:12px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
 .rt-tsub b{color:var(--gold)}
-.rt-orphans{font-size:12px;color:var(--ink-soft);line-height:2;padding:4px 2px}
-.rt-orphan{
-  display:inline-block;margin-left:6px;padding:2px 9px;border-radius:99px;
-  border:1px dashed var(--hairline-strong);font-variant-numeric:tabular-nums;
+/* ── alerta de satélites órfãos ── era nota de rodapé cinza; virou aviso no topo.
+   Usa o vermelho de estado da casa (--live), com tinta suave, não vermelho
+   chapado — é aviso, não erro fatal. */
+.rt-alert{
+  margin-bottom:14px;padding:14px 18px;border-radius:var(--radius-md);
+  border:1px solid color-mix(in srgb, var(--live) 32%, transparent);
+  background:color-mix(in srgb, var(--live) 7%, transparent);
 }
+.rt-alert-head{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:10px}
+.rt-alert-ico{font-size:14px}
+.rt-alert-head b{font-size:13.5px;color:var(--ink);font-weight:750}
+.rt-alert-sub{font-size:12px;color:var(--ink-soft)}
+.rt-alert-chips{display:flex;gap:8px;flex-wrap:wrap}
+.rt-orphan{
+  display:inline-flex;align-items:baseline;gap:7px;padding:6px 12px;border-radius:99px;
+  border:1px dashed color-mix(in srgb, var(--live) 40%, transparent);
+  background:var(--card);color:var(--ink);font-size:12.5px;font-weight:600;
+  font-variant-numeric:tabular-nums;
+  transition:border-color .2s, transform .2s var(--ease), background .2s;
+}
+.rt-orphan:hover{border-style:solid;border-color:var(--live);transform:translateY(-1px);background:var(--ev-soft)}
+.rt-orphan .ro-hora{font-family:var(--mono);font-weight:800;color:var(--live);font-size:11.5px}
 /* destino fora da grade (série/live): card tracejado, ✦ no acento */
 .route.offgrid{border-style:dashed}
 .route.offgrid .rt-tname{color:var(--ev-bright)}

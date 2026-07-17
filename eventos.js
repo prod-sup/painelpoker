@@ -49,6 +49,11 @@ function readStateFromURL(){
   const cat = (q.get('cat') || '').toLowerCase();
   if (['main','side','sat'].includes(cat)) state.cat = cat;
   if (q.get('q')) state.q = q.get('q');
+  /* ?ev=<evKey>: link direto pra UM evento com a rota já aberta. A chave é a
+     evKey (dia|hora|nome), a MESMA dos overrides — estável entre re-uploads da
+     Global, ao contrário do id sequencial. Resolvido só depois do modelo pronto
+     (openFromURL), porque agora não existe evento nenhum ainda. */
+  if (q.get('ev')) state.linkEv = q.get('ev');
 }
 function writeStateToURL(){
   try{
@@ -57,6 +62,10 @@ function writeStateToURL(){
     if (state.camp !== 'all') q.set('camp', state.camp === 'none' ? 'none' : state.camp);
     if (state.cat !== 'all') q.set('cat', state.cat);
     if (state.q) q.set('q', state.q);
+    /* o evento aberto entra na URL: é o que faz o link ser COMPARTILHÁVEL — o
+       Atendimento cola "olha esse aqui" no chat da equipe e o outro abre já na
+       rota certa. Sem isto a URL só levava ao dia filtrado. */
+    if (state.open){ const e = MODEL && MODEL.byId.get(state.open); if (e) q.set('ev', evKey(e)); }
     const s = q.toString();
     history.replaceState(null, '', location.pathname + (s ? '?' + s : ''));
   }catch(e){}
@@ -115,12 +124,28 @@ function applyParsed(parsed){
   MODEL = buildModel(LAST_PARSED, OVERRIDES);
   console.info(`[Radar] Global aplicada — ${MODEL.events.length} eventos na semana, ${MODEL.futures.length} futuros`);
   if (!MODEL.events.length && !MODEL.futures.length){ showEmpty(); return; }
+  /* ?ev= manda no dia: se o link aponta pra um evento da quinta, abre na quinta,
+     não em "hoje". Resolvido aqui porque só agora existe modelo pra procurar. */
+  const linkAlvo = state.linkEv ? MODEL.events.find(e => evKey(e) === state.linkEv) : null;
+  if (linkAlvo) state.day = linkAlvo.weekday;
   if (!state.day) state.day = todayWeekdayPT();
   document.getElementById('loading').hidden = true;
   document.getElementById('emptyState').hidden = true;
   document.getElementById('content').hidden = false;
   renderAll();
-  if (_firstRender){ _firstRender = false; scrollAgendaToNow(); }
+  if (_firstRender){
+    _firstRender = false;
+    if (linkAlvo){ openFromURL(linkAlvo); state.linkEv = null; }
+    else scrollAgendaToNow();
+  }
+}
+
+/* abre a rota do evento do ?ev= e rola até ela — o outro lado do link
+   compartilhável (writeStateToURL grava o ?ev=, este lê no boot) */
+function openFromURL(ev){
+  toggleRow(ev.id);
+  const row = document.querySelector(`.row[data-id="${ev.id}"]`);
+  if (row) row.scrollIntoView({ block:'center', behavior:'smooth' });
 }
 
 /* fallback: ler um arquivo local sem publicar nada */
@@ -203,6 +228,13 @@ function eventoHaystack(e){
   }
   return e.__hay;
 }
+/* o futuro (P&D) não tem categoria nem grupo — só nome, campanha e hora */
+function futuroHaystack(f){
+  if (!f.__hay){
+    f.__hay = ' ' + buscaTokens([f.nome, f.camp ? CAMP_LABEL[f.camp] : '', f.tipo || '', f.hora || ''].join(' ')).join(' ') + ' ';
+  }
+  return f.__hay;
+}
 let _qStr = null, _qToks = [];
 function queryTokens(q){
   if (q !== _qStr){ _qStr = q; _qToks = buscaTokens(q || ''); }
@@ -210,7 +242,15 @@ function queryTokens(q){
 }
 function matchBusca(hay, q){
   const toks = queryTokens(q);
-  return !toks.length || toks.every(t => hay.includes(t));
+  if (!toks.length) return true;
+  return toks.every(t => /^\d+$/.test(t)
+    /* NÚMERO exige a palavra inteira: sem isso "50000" casava dentro de
+       "250000" e de "1500000", e procurar o 50K trazia o 250K e o 1,5 mi
+       junto. É pra isto que o haystack tem espaço nas pontas. */
+    ? hay.includes(' ' + t + ' ')
+    /* PALAVRA casa por pedaço: "warm" tem que achar "WarmUp", e é assim que
+       alguém encontra o torneio sem lembrar o nome exato. */
+    : hay.includes(t));
 }
 
 function matches(ev){
@@ -393,10 +433,7 @@ function renderAgenda(){
     <span class="ah-sub">${evs.length}${evs.length !== all.length ? ` de ${all.length}` : ''} evento${evs.length === 1 ? '' : 's'} · <b>${fmtMoney(gtd)}</b> garantidos</span>`;
 
   const list = document.getElementById('agendaList');
-  if (!evs.length){
-    list.innerHTML = `<p class="section-empty">Nenhum evento ${all.length ? 'passa nos filtros atuais' : 'neste dia'}.</p>`;
-    return;
-  }
+  if (!evs.length){ list.innerHTML = agendaVaziaHtml(all.length); return; }
   let html = '', nowMarkPlaced = !today;
   evs.forEach(e => {
     const st = statusOf(e);
@@ -409,6 +446,35 @@ function renderAgenda(){
   if (!nowMarkPlaced) html += nowDividerHtml(now);
   list.innerHTML = html;
 }
+/* ── BUSCA VAZIA COM SAÍDA ──
+   "Nenhum evento passa nos filtros atuais." é um beco sem saída: a pessoa
+   procurou um torneio que EXISTE — só que na quinta — e a tela responde nada,
+   sem dizer nem que ele existe nem como chegar nele. O Radar tem a SEMANA
+   INTEIRA na mão; esconder isso é desperdício. Agora ele diz onde está e leva. */
+function agendaVaziaHtml(totalNoDia){
+  if (!totalNoDia && !temFiltroAtivo())
+    return `<p class="section-empty">Nenhum evento neste dia na Global desta semana.</p>`;
+  const noutros = WEEK_ORDER.filter(d => d !== state.day)
+    .map(d => ({ d, n: MODEL.events.filter(e => e.weekday === d && matches(e)).length }))
+    .filter(x => x.n > 0);
+  const total = noutros.reduce((s, x) => s + x.n, 0);
+  return `<div class="ag-vazia">
+    <p class="av-titulo">Nada ${state.q ? `para “${escHtml(state.q)}”` : 'com esses filtros'}${totalNoDia ? ' neste dia' : ''}.</p>
+    ${noutros.length ? `
+      <p class="av-sub">Mas ${total === 1 ? 'tem 1 evento' : `tem ${total} eventos`} em outro${noutros.length > 1 ? 's' : ''} dia${noutros.length > 1 ? 's' : ''} da semana:</p>
+      <div class="av-dias">${noutros.map(x => `
+        <button class="av-dia" data-ir="${x.d}" aria-label="Ir para ${x.d}, ${x.n} resultado${x.n > 1 ? 's' : ''}">
+          <b>${WEEKDAY_SHORT[isoWeekdayIdx(MODEL.dates[x.d])]}</b><span>${x.n}</span>
+        </button>`).join('')}</div>`
+    : `<p class="av-sub">E nenhum outro dia da semana tem — confira a busca ou os filtros.</p>`}
+    <button class="btn-sm ghost" data-limpar>✕ Limpar filtros</button>
+  </div>`;
+}
+function limparFiltros(){
+  state.camp = 'all'; state.cat = 'all'; state.q = '';
+  syncFilterUI(); writeStateToURL(); renderContent();
+}
+
 function nowDividerHtml(now){
   const hh = String(Math.floor(now.minutes/60)).padStart(2,'0'), mm = String(now.minutes%60).padStart(2,'0');
   return `<div class="now-divider" id="nowDivider" aria-label="Agora são ${hh}:${mm}"><i></i><span>AGORA · ${hh}:${mm}</span><i></i></div>`;
@@ -424,7 +490,7 @@ function rowHtml(e, st){
   const link =
     target ? `<span class="r-ticket" title="Premia ticket para ${escHtml(target.nome)}">🎟 → ${escHtml(target.nome)}${e.overridden ? ' <em class="r-fixed" title="Vínculo corrigido manualmente">✓ corrigido</em>' : ''}</span>` :
     e.targetGroup ? `<span class="r-ticket" title="Destino declarado na planilha (fora da grade desta semana)">🎟 → ${escHtml(e.targetGroup)} <em class="r-offgrid">fora da grade</em></span>` :
-    e.satCount ? `<span class="r-ticket in">🎟 ${e.satCount} satélite${e.satCount > 1 ? 's' : ''} classificam</span>` : '';
+    e.satCount ? `<span class="r-ticket in">🎟 ${contaR(e.satCount, 'satélite classifica', 'satélites classificam')}</span>` : '';
   /* A LINHA INTEIRA continua clicável (é o alvo confortável no mouse), mas quem
      carrega a semântica é o CHEVRON — agora um <button> de verdade, com
      aria-expanded/aria-controls. Antes o <article> só tinha handler de clique:
@@ -497,8 +563,16 @@ function refreshAgendaStatus(){
 /* clique na agenda: copiar, salvar correção, gerar card, ou expandir a rota */
 document.getElementById('agendaList').addEventListener('click', (e) => {
   if (!MODEL) return;
+  const irDia = e.target.closest('[data-ir]');
+  if (irDia){ pickDay(irDia.dataset.ir); return; }          // "está na quinta" → vai pra quinta
+  const limpar = e.target.closest('[data-limpar]');
+  if (limpar){ limparFiltros(); return; }
   const copyBtn = e.target.closest('.r-copy');
   if (copyBtn){ copyEvent(copyBtn.dataset.copy); return; }
+  const copy2 = e.target.closest('[data-copy2]');
+  if (copy2){ copyEvent(copy2.dataset.copy2, copy2.dataset.fmt); return; }
+  const linkBtn = e.target.closest('[data-link]');
+  if (linkBtn){ copyLink(linkBtn.dataset.link); return; }
   const fixSave = e.target.closest('[data-fix-save]');
   if (fixSave){ saveOverride(fixSave.dataset.fixSave); return; }
   const fixClear = e.target.closest('[data-fix-clear]');
@@ -509,6 +583,16 @@ document.getElementById('agendaList').addEventListener('click', (e) => {
   const row = e.target.closest('.row.has-detail');
   if (!row) return;
   toggleRow(row.dataset.id);
+});
+/* busca dentro do select de correção (admin): remonta as <option> filtrando por
+   nome, pra não encarar a semana inteira no dropdown */
+document.getElementById('agendaList').addEventListener('input', (e) => {
+  const q = e.target.closest('.rd-fix-q');
+  if (!q || !MODEL) return;
+  const id = q.id.replace('fixQ-', '');
+  const sat = MODEL.byId.get(id);
+  const sel = document.getElementById('fixSel-' + id);
+  if (sat && sel) sel.innerHTML = fixOptionsHtml(sat, OVERRIDES[fbKey(evKey(sat))], q.value.trim());
 });
 
 /* abre/fecha a rota de UMA linha (um detalhe aberto por vez). Estado visual e
@@ -521,15 +605,16 @@ function toggleRow(id){
     const chev = r.querySelector('.r-chev');
     if (chev) chev.setAttribute('aria-expanded', 'false');
   });
-  if (state.open === id){ state.open = null; return; }
+  if (state.open === id){ state.open = null; writeStateToURL(); return; }
   const row = document.querySelector(`.row[data-id="${id}"]`);
-  if (!row) { state.open = null; return; }
+  if (!row) { state.open = null; writeStateToURL(); return; }
   state.open = id;
   row.classList.add('open');
   const chev = row.querySelector('.r-chev');
   if (chev) chev.setAttribute('aria-expanded', 'true');
   row.insertAdjacentHTML('afterend',
     `<div class="row-detail" id="detail-${id}" role="region" aria-label="Rota do ticket">${detailHtml(MODEL.byId.get(id))}</div>`);
+  writeStateToURL();          // a rota aberta entra na URL (link compartilhável)
 }
 
 function detailHtml(e){
@@ -572,30 +657,67 @@ function detailHtml(e){
   return flow + rdActionsHtml(e);
 }
 
-/* barra de ações do detalhe: card de divulgação + correção do vínculo (admin) */
+/* explica em uma frase POR QUE a heurística ligou o satélite onde ligou — o
+   admin decidia no escuro, sobrescrevendo sem saber o que estava corrigindo.
+   Lê o linkWhy que o radar-core agora guarda. */
+function linkWhyHtml(e){
+  const w = e.linkWhy;
+  if (!w) return '';
+  if (e.overridden) return `<p class="rd-why fixed">✓ Alvo definido à mão por um admin — a heurística está sendo ignorada aqui.</p>`;
+  if (w.via === 'header') return `<p class="rd-why">Ligado pelo <b>cabeçalho do grupo</b> na planilha (“${escHtml(w.grupo)}”) — é a declaração explícita da Global, não um palpite.</p>`;
+  if (w.via === 'tokens') return `<p class="rd-why">Ligado por <b>nome parecido</b> (${w.toks.map(t => `<code>${escHtml(t)}</code>`).join(' ')}) — confiança ${w.score}. Confira se é o alvo certo.</p>`;
+  if (w.via === 'grupo') return `<p class="rd-why">Sem torneio na grade com esse nome — o grupo “${escHtml(w.grupo)}” virou destino nomeado (série/live fora da semana).</p>`;
+  if (w.via === 'nenhum'){
+    const q = w.quase ? MODEL.byId.get(w.quase.id) : null;
+    return `<p class="rd-why warn">Nenhum alvo identificado.${q ? ` O mais perto foi <b>${escHtml(shortName(q.nome))}</b> (confiança ${w.quase.score}, abaixo do corte).` : ''} Ligue à mão se souber o destino.</p>`;
+  }
+  return '';
+}
+
+/* barra de ações do detalhe: link, copiar, card e correção do vínculo (admin) */
 function rdActionsHtml(e){
   let html = `<div class="rd-actions">
+    <div class="rd-copy-group">
+      <button class="btn-sm" data-copy2="${e.id}" data-fmt="full" title="Bloco completo pro chat">📋 Copiar</button>
+      <button class="btn-sm ghost" data-copy2="${e.id}" data-fmt="curto" title="Só hora, buy-in e garantido">✂️ Resumo</button>
+      ${e.cat === 'sat' && (e.targetId || e.targetGroup) ? `<button class="btn-sm ghost" data-copy2="${e.id}" data-fmt="rota" title="Só a rota do ticket">🎟 Rota</button>` : ''}
+      <button class="btn-sm ghost" data-link="${e.id}" title="Link direto pra este evento">🔗 Link</button>
+    </div>
     <button class="btn-sm gold" data-promo="${e.id}">🖼 Card de divulgação</button>`;
   if (IS_ADMIN && e.cat === 'sat'){
     const key = fbKey(evKey(e));
     const cur = OVERRIDES[key];
-    const opts = [`<option value="">— automático (heurística) —</option>`,
-                  `<option value="none" ${cur && cur.target === 'none' ? 'selected' : ''}>sem alvo / fora da grade</option>`];
-    WEEK_ORDER.forEach(day => {
-      const evs = MODEL.events.filter(t => t.weekday === day && t.id !== e.id);
-      if (!evs.length) return;
-      opts.push(`<optgroup label="${day}">` + evs.map(t => {
-        const k = evKey(t);
-        return `<option value="${escHtml(k)}" ${cur && cur.target === k ? 'selected' : ''}>${CAT_META[t.cat].suit} ${t.hora} ${escHtml(shortName(t.nome))}</option>`;
-      }).join('') + `</optgroup>`);
-    });
-    html += `<span class="rd-fix">
-      <select class="rd-fix-sel" id="fixSel-${e.id}" aria-label="Corrigir alvo do satélite">${opts.join('')}</select>
-      <button class="btn-sm" data-fix-save="${e.id}">Salvar vínculo</button>
-      ${cur ? `<button class="btn-sm ghost" data-fix-clear="${e.id}">✕ remover correção</button><small class="rd-fix-by">por ${escHtml(cur.by || 'admin')}</small>` : ''}
-    </span>`;
+    /* o palpite automático fica NOMEADO na frente do select: o admin vê o que a
+       heurística escolheu e por quê antes de trocar, em vez de só sobrescrever */
+    html += `<div class="rd-fix-box">
+      ${linkWhyHtml(e)}
+      <span class="rd-fix">
+        <label class="rd-fix-lbl">Corrigir alvo:</label>
+        <input type="search" class="rd-fix-q" id="fixQ-${e.id}" placeholder="filtrar torneios…" aria-label="Filtrar torneios do dia" autocomplete="off">
+        <select class="rd-fix-sel" id="fixSel-${e.id}" aria-label="Corrigir alvo do satélite">${fixOptionsHtml(e, cur)}</select>
+        <button class="btn-sm" data-fix-save="${e.id}">Salvar vínculo</button>
+        ${cur ? `<button class="btn-sm ghost" data-fix-clear="${e.id}">✕ remover correção</button><small class="rd-fix-by">por ${escHtml(cur.by || 'admin')}</small>` : ''}
+      </span>
+    </div>`;
   }
   return html + `</div>`;
+}
+/* opções do select de correção — extraídas pra que a busca (fixQ) possa
+   remontá-las filtrando por nome, sem a lista inteira da semana na cara */
+function fixOptionsHtml(e, cur, filtro){
+  const f = filtro ? buscaTokens(filtro) : [];
+  const opts = [`<option value="">— automático (heurística) —</option>`,
+                `<option value="none" ${cur && cur.target === 'none' ? 'selected' : ''}>sem alvo / fora da grade</option>`];
+  WEEK_ORDER.forEach(day => {
+    const evs = MODEL.events.filter(t => t.weekday === day && t.id !== e.id &&
+      (!f.length || f.every(tok => eventoHaystack(t).includes(tok))));
+    if (!evs.length) return;
+    opts.push(`<optgroup label="${day}">` + evs.map(t => {
+      const k = evKey(t);
+      return `<option value="${escHtml(k)}" ${cur && cur.target === k ? 'selected' : ''}>${CAT_META[t.cat].suit} ${t.hora} ${escHtml(shortName(t.nome))}</option>`;
+    }).join('') + `</optgroup>`);
+  });
+  return opts.join('');
 }
 
 function saveOverride(id){
@@ -629,36 +751,71 @@ function scrollAgendaToNow(){
   if (el) el.scrollIntoView({ block:'center' });
 }
 
-/* ── COPIAR PRO CHAT: texto pronto pro atendimento colar na conversa ── */
-function copyTextFor(e){
-  const dia = `${WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)]} ${fmtDateShort(e.dateISO)}`;
-  const L = [`${CAT_META[e.cat].suit} ${e.nome}`];
-  L.push(`🗓 ${dia} às ${e.hora}${e.late ? ` (late register até ${e.late})` : ''}`);
-  const nums = [];
-  if (e.garantido != null) nums.push(`GTD ${fmtMoney(e.garantido)}`);
-  if (e.buyin != null) nums.push(`Buy-in ${fmtMoneyFull(e.buyin)}`);
-  if (nums.length) L.push(`💰 ${nums.join(' · ')}`);
-  if (e.camp) L.push(`✦ Campanha ${CAMP_LABEL[e.camp]}`);
+/* ── COPIAR PRO CHAT ──
+   Quem responde jogador raramente quer o dossiê inteiro: às vezes é só "que
+   horas e quanto", às vezes só "como chego nesse via satélite". Um bloco só,
+   que a pessoa editava à mão toda vez, virou três formatos:
+     full  — tudo (o padrão de antes)
+     curto — hora, buy-in e garantido; a resposta rápida de balcão
+     rota  — só o caminho do ticket (só faz sentido em satélite com destino) */
+const contaR = (n, um, muitos) => `${n} ${n === 1 ? um : muitos}`;
+function linhaRota(e){
   const t = e.targetId ? MODEL.byId.get(e.targetId) : null;
-  if (t) L.push(`🎟 Premia ticket${t.buyin != null ? ` de ${fmtMoneyFull(t.buyin)}` : ''} para: ${t.nome} — ${WEEKDAY_SHORT[isoWeekdayIdx(t.dateISO)]} às ${t.hora}`);
-  else if (e.targetGroup) L.push(`🎟 Classifica para: ${e.targetGroup}`);
+  if (t) return `🎟 Premia ticket${t.buyin != null ? ` de ${fmtMoneyFull(t.buyin)}` : ''} para: ${t.nome} — ${WEEKDAY_SHORT[isoWeekdayIdx(t.dateISO)]} às ${t.hora}`;
+  if (e.targetGroup) return `🎟 Classifica para: ${e.targetGroup}`;
   if (e.cat !== 'sat'){
     const sats = MODEL.events.filter(s => s.targetId === e.id);
     if (sats.length){
       const cheap = sats.reduce((m,s) => (s.buyin ?? Infinity) < (m.buyin ?? Infinity) ? s : m, sats[0]);
-      L.push(`🎟 ${sats.length} satélite${sats.length > 1 ? 's' : ''} classificam — dá pra entrar às ${cheap.hora}${cheap.buyin != null ? ` por ${fmtMoneyFull(cheap.buyin)}` : ''}`);
+      return `🎟 ${contaR(sats.length, 'satélite classifica', 'satélites classificam')} — dá pra entrar às ${cheap.hora}${cheap.buyin != null ? ` por ${fmtMoneyFull(cheap.buyin)}` : ''}`;
     }
   }
+  return null;
+}
+function copyTextFor(e, fmt){
+  const dia = `${WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)]} ${fmtDateShort(e.dateISO)}`;
+  const nums = [];
+  if (e.garantido != null) nums.push(`GTD ${fmtMoney(e.garantido)}`);
+  if (e.buyin != null) nums.push(`Buy-in ${fmtMoneyFull(e.buyin)}`);
+
+  if (fmt === 'curto'){
+    return `${CAT_META[e.cat].suit} ${e.nome} · ${dia} às ${e.hora}${nums.length ? ' · ' + nums.join(' · ') : ''}`;
+  }
+  if (fmt === 'rota'){
+    const r = linhaRota(e);
+    return `${CAT_META[e.cat].suit} ${e.nome}\n${r || 'Sem rota de ticket identificada para este evento.'}`;
+  }
+  // full (padrão)
+  const L = [`${CAT_META[e.cat].suit} ${e.nome}`];
+  L.push(`🗓 ${dia} às ${e.hora}${e.late ? ` (late register até ${e.late})` : ''}`);
+  if (nums.length) L.push(`💰 ${nums.join(' · ')}`);
+  if (e.camp) L.push(`✦ Campanha ${CAMP_LABEL[e.camp]}`);
+  const r = linhaRota(e);
+  if (r) L.push(r);
   return L.join('\n');
 }
-function copyEvent(id){
+function copyEvent(id, fmt){
   const e = MODEL.byId.get(id);
   if (!e) return;
-  const text = copyTextFor(e);
-  const done = () => toast('Copiado — é só colar no chat ✓');
+  copiar(copyTextFor(e, fmt), { curto:'Resumo copiado ✓', rota:'Rota copiada ✓' }[fmt] || 'Copiado — é só colar no chat ✓');
+}
+/* copia texto pra área de transferência com fallback e toast */
+function copiar(text, msg){
+  const done = () => toast(msg || 'Copiado ✓');
   if (navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(text).then(done).catch(() => { legacyCopy(text); done(); });
   } else { legacyCopy(text); done(); }
+}
+/* link direto pra ESTE evento: escreve o ?ev= na URL e copia. Como writeStateToURL
+   já reflete a rota aberta, basta ler o location depois de garantir o estado. */
+function copyLink(id){
+  const e = MODEL.byId.get(id);
+  if (!e) return;
+  const q = new URLSearchParams();
+  q.set('dia', SHORT_BY_DAY[e.weekday]);
+  q.set('ev', evKey(e));
+  const url = location.origin + location.pathname + '?' + q.toString();
+  copiar(url, 'Link copiado — leva direto a este evento 🔗');
 }
 function legacyCopy(text){
   const ta = document.createElement('textarea');
@@ -732,10 +889,33 @@ function renderRoutes(){
     </article>`;
   }).join('');
 
-  wrap.innerHTML = realHtml + groupHtml + (orphans.length ? `
-    <p class="rt-orphans">♦ ${orphans.length} satélite${orphans.length > 1 ? 's' : ''} sem destino identificado:
-      ${orphans.map(s => `<span class="rt-orphan" title="${escHtml(s.nome)}">${s.hora} ${escHtml(shortName(s.nome))}</span>`).join('')}</p>` : '');
+  /* ── ÓRFÃOS: de nota de rodapé a ALERTA ──
+     Satélite sem destino é o ÚNICO sinal de que a Global tem um furo que a
+     operação precisa consertar. Vivia numa linha cinza no fim das rotas, onde
+     ninguém olha. Agora é um bloco no topo, e cada órfão é um chip que ABRE a
+     rota daquele satélite na agenda — pro admin ligar à mão ali mesmo. Pra quem
+     não é admin continua sendo informação (não há o que corrigir), mas visível. */
+  const orphansHtml = orphans.length ? `
+    <div class="rt-alert" role="${IS_ADMIN ? 'alert' : 'note'}">
+      <div class="rt-alert-head">
+        <span class="rt-alert-ico">⚠️</span>
+        <b>${contaR(orphans.length, 'satélite sem destino', 'satélites sem destino')}</b>
+        <span class="rt-alert-sub">${IS_ADMIN ? 'clique pra abrir a rota e ligar à mão' : 'a Global não declarou o alvo — avise a operação'}</span>
+      </div>
+      <div class="rt-alert-chips">${orphans.sort((a,b) => a.abs - b.abs).map(s =>
+        `<button class="rt-orphan" data-open-sat="${s.id}" title="Abrir a rota de ${escHtml(s.nome)}">
+          <span class="ro-hora">${s.hora}</span>${escHtml(shortName(s.nome))}</button>`).join('')}</div>
+    </div>` : '';
+
+  wrap.innerHTML = orphansHtml + realHtml + groupHtml;
 }
+/* chip de órfão → abre a linha dele na agenda (e rola até lá) */
+document.getElementById('routesWrap').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-open-sat]');
+  if (!b || !MODEL) return;
+  const ev = MODEL.byId.get(b.dataset.openSat);
+  if (ev) openFromURL(ev);
+});
 function satRowsHtml(list){
   return list.map(s => `<div class="rt-sat" title="${escHtml(s.nome)}">
     <span class="rt-hora">${s.hora}</span>
@@ -752,7 +932,10 @@ function renderFutures(){
   FUT_SHOWN = MODEL.futures.filter(f => {
     if (state.camp === 'none' && f.camp) return false;
     if (state.camp !== 'all' && state.camp !== 'none' && f.camp !== state.camp) return false;
-    if (state.q && !normText(f.nome).includes(normText(state.q))) return false;
+    /* MESMA busca da agenda: o futuro tinha ficado com o `includes` antigo, e
+       era o tipo de divergência que ninguém nota até alguém procurar "50 mil" e
+       achar na agenda mas não no P&D */
+    if (state.q && !matchBusca(futuroHaystack(f), state.q)) return false;
     return true;
   });
   document.getElementById('futEmpty').hidden = FUT_SHOWN.length > 0;
@@ -936,13 +1119,60 @@ function makePromoCard(spec){
   ctx.font = `600 26px ${DISPLAY}`;
   ctx.fillText('Jogue com responsabilidade · app Suprema Poker', PAD, H-84);
 
-  /* baixar */
-  const a = document.createElement('a');
+  /* ANTES baixava direto: se o nome cortava em 4 linhas ou a rota não cabia, a
+     pessoa só descobria abrindo o PNG na pasta — e refazia. Agora ABRE UM
+     PREVIEW: vê o card, baixa OU copia pra área de transferência (colar direto
+     no chat sem passar por arquivo). */
   const slug = normText(spec.nome).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'evento';
-  a.download = `suprema-${slug}.png`;
-  a.href = cv.toDataURL('image/png');
-  a.click();
-  toast('Card gerado — imagem baixada 🖼');
+  showPromoPreview(cv, `suprema-${slug}.png`);
+}
+
+/* modal de preview do card — <dialog> nativo (escapa do overflow, fecha no ESC,
+   trap de foco de graça) */
+function showPromoPreview(cv, filename){
+  let dlg = document.getElementById('promoDlg');
+  if (!dlg){
+    dlg = document.createElement('dialog');
+    dlg.id = 'promoDlg';
+    dlg.innerHTML = `
+      <div class="promo-preview">
+        <img id="promoImg" alt="Prévia do card de divulgação">
+        <div class="promo-actions">
+          <button class="btn-sm gold" data-promo-dl>⬇ Baixar PNG</button>
+          <button class="btn-sm" data-promo-copy>📋 Copiar imagem</button>
+          <button class="btn-sm ghost" data-promo-close>Fechar</button>
+        </div>
+        <p class="promo-hint">Confira o corte do nome e a rota antes de publicar. Copiar cola direto no chat, sem baixar.</p>
+      </div>`;
+    document.body.appendChild(dlg);
+    dlg.addEventListener('click', (e) => {          // clicar no backdrop fecha
+      if (e.target === dlg) dlg.close();
+    });
+    dlg.querySelector('[data-promo-close]').addEventListener('click', () => dlg.close());
+    dlg.querySelector('[data-promo-dl]').addEventListener('click', () => {
+      const a = document.createElement('a');
+      a.download = dlg._filename;
+      a.href = dlg._canvas.toDataURL('image/png');
+      a.click();
+      toast('Card baixado 🖼');
+    });
+    dlg.querySelector('[data-promo-copy]').addEventListener('click', async () => {
+      try{
+        if (!window.ClipboardItem || !navigator.clipboard || !navigator.clipboard.write)
+          throw new Error('sem suporte a copiar imagem');
+        const blob = await new Promise(res => dlg._canvas.toBlob(res, 'image/png'));
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        toast('Imagem copiada — cole no chat ✓');
+      }catch(err){
+        console.warn('[Radar] copiar imagem falhou', err);
+        toast('Seu navegador não deixa copiar imagem — use Baixar', true);
+      }
+    });
+  }
+  dlg._canvas = cv;
+  dlg._filename = filename;
+  dlg.querySelector('#promoImg').src = cv.toDataURL('image/png');
+  dlg.showModal();
 }
 
 /* ═══════════════════ chrome: relógio, tema, operador ═══════════════════ */
