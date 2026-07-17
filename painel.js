@@ -91,6 +91,13 @@
    STATE
 ========================================================================= */
 let RAW_ROWS = [];        // raw parsed rows from the sheet
+/* Índice _key → row. Os listeners do Firebase faziam RAW_ROWS.find() dentro de
+   forEach (cada evento de premiação/field/garantido varria o array inteiro por
+   chave, pra CADA chave) — O(chaves × linhas) num dia cheio. O índice é
+   reconstruído junto com RAW_ROWS (ver setRawRows) e derruba isso pra O(chaves). */
+let ROW_BY_KEY = new Map();
+function rowByKey(key){ return ROW_BY_KEY.get(key); }
+function reindexRows(){ ROW_BY_KEY = new Map(RAW_ROWS.map(r => [r._key, r])); }
 let UPCOMING = [];
 let _compactMode = localStorage.getItem('suprema_compact_mode_v1') === '1';        // open tournaments (no premiação yet)
 let RESULTS = [];         // closed tournaments (premiação filled)
@@ -268,6 +275,38 @@ function setVisibilityAwareInterval(fn, ms){
   }, ms);
   _visibilitySubscribers.push(fn); // executa imediatamente ao voltar a ficar visível
   return id;
+}
+
+/* ── agendador de UI coalescido ──
+   A CAUSA RAIZ do painel pesado: no carregamento, CADA listener do Firebase
+   (premiação, fixed, premBy, ids, field, garantido…) dispara uma vez ao anexar
+   e cada um chamava renderResults()/renderUpcoming() DIRETO — 6-8 rebuilds
+   completos do DOM em sequência, com centenas de cards cada. Em uso, cada
+   edição de outro operador repetia o rebuild.
+   Aqui os pedidos viram FLAGS ('results', 'upcoming', 'unfixed', 'stats') e um
+   único flush 40ms depois faz cada trabalho UMA vez, na ordem certa. As guardas
+   de digitação/eco são avaliadas NO FLUSH — o estado que vale é o de agora, não
+   o de quando o evento chegou. */
+const _uiPending = new Set();
+let _uiFlushTimer = null;
+function scheduleUI(...parts){
+  parts.forEach(p => _uiPending.add(p));
+  if(_uiFlushTimer != null) return;
+  _uiFlushTimer = setTimeout(flushUI, 40);
+}
+function flushUI(){
+  _uiFlushTimer = null;
+  const parts = new Set(_uiPending);
+  _uiPending.clear();
+  if(parts.has('unfixed')){
+    UNFIXED = computeUnfixed();
+    const el = document.getElementById('statUnfixed');
+    if(el) el.textContent = UNFIXED.length;
+  }
+  if(parts.has('stats')){ computeStats(); updateProgress(); }
+  if(parts.has('unfixed')) renderUnfixed();
+  if(parts.has('results')) renderResults();
+  if(parts.has('upcoming') && !isTypingInCard() && !window._suppressRenderUpcoming) renderUpcoming();
 }
 
 const fmtBRL = (v, decimals=0) => {
@@ -2406,7 +2445,7 @@ function initFirebaseSync(){
       let changed = false;
       // Aplicar novas premiações
       Object.entries(data).forEach(([key, val]) => {
-        const row = RAW_ROWS.find(r => r._key === key);
+        const row = rowByKey(key);
         if(row && row.premiacao !== val){
           row.premiacao = val; changed = true;
           try {
@@ -2415,7 +2454,7 @@ function initFirebaseSync(){
             localStorage.setItem('suprema_prem_v1', JSON.stringify(pm));
           } catch(e){}
           if(changed){
-            const r2 = RAW_ROWS.find(r=>r._key===key);
+            const r2 = rowByKey(key);
             if(r2) logActivity(`<b>${'Parceiro'}</b> preencheu premiação de <b>${r2.nome}</b>: R$ ${fmtBRL(val,0)}`, '🔄');
           }
           const inp = document.querySelector(`.tcard-prem-input[data-key="${key}"]`);
@@ -2440,15 +2479,9 @@ function initFirebaseSync(){
       if(changed || RAW_ROWS.length){
         RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
         UPCOMING = [...RAW_ROWS];
-        UNFIXED  = computeUnfixed();
-        document.getElementById('statUnfixed').textContent = UNFIXED.length;
-        computeStats(); updateProgress();
-        renderUnfixed();
-        // Só faz renderUpcoming se nenhum input de premiação está em foco
-        // (evita destruir o card enquanto o operador está digitando)
-        const activeEl = document.activeElement;
-        renderResults();
-        if(!isTypingInCard() && !window._suppressRenderUpcoming) renderUpcoming();
+        // os renders vão pro agendador: se fixed/field/garantido chegarem na mesma
+        // rajada (típico do load), o rebuild pesado roda UMA vez, não uma por nó
+        scheduleUI('unfixed', 'stats', 'results', 'upcoming');
       }
     });
     });  // fim do whenAuthed (premiação)
@@ -2457,21 +2490,14 @@ function initFirebaseSync(){
     fbDb.ref(`${FB_BASE_PATH}/fixed`).on('value', snap => {
       FIXED_MAP = snap.val() || {};
       saveFixedMapLocal(FIXED_MAP);
-      if(RAW_ROWS.length){
-        UNFIXED = computeUnfixed();
-        document.getElementById('statUnfixed').textContent = UNFIXED.length;
-        updateProgress(); renderUnfixed(); renderResults();
-        // só reconstrói a agenda se ninguém estiver digitando num card agora, e não for eco
-        // da própria escrita (evita destruir/recriar todos os cards à toa)
-        if(!isTypingInCard() && !window._suppressRenderUpcoming) renderUpcoming();
-      }
+      if(RAW_ROWS.length) scheduleUI('unfixed', 'stats', 'results', 'upcoming');
     });
 
     // ── Responsável por premiação/field (exibido nos Resultados) ─────────
     fbDb.ref(`${FB_BASE_PATH}/premBy`).on('value', snap => {
       PREM_BY_MAP = snap.val() || {};
       savePremByMapLocal(PREM_BY_MAP);
-      if(RAW_ROWS.length) renderResults();
+      if(RAW_ROWS.length) scheduleUI('results');
     });
 
     // ── Torneios manuais ──────────────────────────────────────────────────
@@ -2504,7 +2530,7 @@ function initFirebaseSync(){
         // modo compacto, etc.) — isso é normal, não significa que precisa reconstruir a agenda.
         // Só força renderUpcoming se não for eco da própria escrita (senão marcar NF, por exemplo,
         // reconstruía o grid inteiro à toa e os cards "sumiam" até revelar de novo)
-        if(!allPatched && RAW_ROWS.length && !window._suppressRenderUpcoming){ UNFIXED = computeUnfixed(); updateProgress(); renderUnfixed(); renderUpcoming(); renderResults(); }
+        if(!allPatched && RAW_ROWS.length && !window._suppressRenderUpcoming) scheduleUI('unfixed', 'stats', 'results', 'upcoming');
       } else {
         // Só patch do card sem recriar
         Object.keys(ID_MAP).forEach(key => patchCardFields(key));
@@ -2518,18 +2544,10 @@ function initFirebaseSync(){
       document.querySelectorAll('.tcard-field-input').forEach(inp => {
         const v = FIELD_MAP[inp.dataset.key];
         if(document.activeElement !== inp) inp.value = v != null ? v : '';
-        const row = RAW_ROWS.find(r => r._key === inp.dataset.key);
+        const row = rowByKey(inp.dataset.key);
         if(row) row.field = v != null ? v : null;
       });
-      if(RAW_ROWS.length){
-        renderResults();
-        // Só renderUpcoming se não há input em foco e não for eco da própria escrita
-        const _ae = document.activeElement;
-        const _typingNow = _ae && (_ae.classList.contains('tcard-prem-input') || _ae.classList.contains('tcard-field-input') || _ae.classList.contains('id-input'));
-        if(!_typingNow && !window._suppressRenderUpcoming){
-          renderUpcoming();
-        }
-      }
+      if(RAW_ROWS.length) scheduleUI('results', 'upcoming');
     });
 
     // ── Garantido editado ─────────────────────────────────────────────────
@@ -2537,7 +2555,7 @@ function initFirebaseSync(){
       const data = snap.val() || {};
       Object.entries(data).forEach(([key, val]) => {
         GARANTIDO_MAP[key] = val;
-        const row = RAW_ROWS.find(r => r._key === key);
+        const row = rowByKey(key);
         if(row) row.garantido = val;
         const wrap = document.querySelector(`.tcard-garantido-wrap[data-key="${key}"]`);
         if(wrap && document.activeElement !== wrap.querySelector('.tcard-garantido-input')){
@@ -2547,8 +2565,8 @@ function initFirebaseSync(){
         }
       });
       saveGarantidoMapLocal(GARANTIDO_MAP);
-      computeStats();
-      if(RAW_ROWS.length) renderResults();
+      if(RAW_ROWS.length) scheduleUI('stats', 'results');
+      else computeStats();
     });
 
     // ── Checklist e Conf. hoje ────────────────────────────────────────────
@@ -2906,7 +2924,7 @@ function setField(key, val){
   // Atualização em memória é imediata (preview instantâneo, sem custo de I/O)…
   if(n != null && !isNaN(n)) FIELD_MAP[key] = n;
   else delete FIELD_MAP[key];
-  const row = RAW_ROWS.find(r => r._key === key);
+  const row = rowByKey(key);
   if(row) row.field = (n != null && !isNaN(n)) ? n : null;
   // …mas o localStorage (síncrono, bate no disco) e o Firebase (rede) NÃO podem rodar
   // a cada tecla — era isso que travava ao digitar. Publica "editando" 1x por rajada.
@@ -2931,7 +2949,7 @@ function setField(key, val){
 function getGarantidoEffective(key){
   // override manual prevalece sobre a planilha
   if(GARANTIDO_MAP[key] != null) return GARANTIDO_MAP[key];
-  const row = RAW_ROWS.find(r => r._key === key);
+  const row = rowByKey(key);
   return row?.garantido ?? null;
 }
 function setGarantidoOverride(key, val){
@@ -2939,7 +2957,7 @@ function setGarantidoOverride(key, val){
   if(n != null && !isNaN(n) && n > 0){
     GARANTIDO_MAP[key] = n;
     // também atualiza o row em memória para que computeStats e exports usem o valor correto
-    const row = RAW_ROWS.find(r => r._key === key);
+    const row = rowByKey(key);
     if(row) row.garantido = n;
     if(fbReady) fbDb.ref(`${FB_BASE_PATH}/garantido/${key}`).set(n);
   } else if(val === '' || val == null){
@@ -3073,7 +3091,7 @@ function setSharedSheet(rows, filename){
     // 2. Restaurar premiações salvas (prioridade: snapshot da sheet > localStorage separado)
     const premMap = data.premiacaoMap || JSON.parse(localStorage.getItem('suprema_prem_v1') || '{}');
     Object.entries(premMap).forEach(([key, val]) => {
-      const row = RAW_ROWS.find(r => r._key === key);
+      const row = rowByKey(key);
       if(row && val > 0){
         row.premiacao = val;
         const inp = document.querySelector(`.tcard-prem-input[data-key="${key}"]`);
@@ -3086,7 +3104,7 @@ function setSharedSheet(rows, filename){
     const fieldMap = data.fieldMap || {};
     Object.entries(fieldMap).forEach(([key, val]) => {
       FIELD_MAP[key] = val;
-      const row = RAW_ROWS.find(r => r._key === key);
+      const row = rowByKey(key);
       if(row) row.field = val;
     });
 
@@ -3626,6 +3644,7 @@ function ingest(rows, filename, fromRemote=false){
   const _migrated = migrateOrphanedWork(rows);
   if (_migrated) logActivity(`♻️ Re-upload: ${_migrated} torneio${_migrated>1?'s':''} já trabalhado${_migrated>1?'s':''} tiveram o vínculo preservado (fix/ID/valores migrados pra planilha nova)`);
   RAW_ROWS = rows.map(r => ({...r, _key: rowKey(r)}));
+  reindexRows();
   // planilha carregada → re-puxa a premiação salva no Firebase (corrige a corrida de ordem)
   resyncPremiacaoFromFirebase();
   // Persistir sheet + dados dos cards no localStorage (restauração imediata ao recarregar)
@@ -4286,7 +4305,7 @@ function wireCardInteractions(container){
   container.querySelectorAll('.copy-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const key = btn.dataset.key;
-      const row = RAW_ROWS.find(r => r._key === key);
+      const row = rowByKey(key);
       if (!row) return;
       copyToClipboard(buildCopyText(row, key), btn);
     });
@@ -5476,7 +5495,7 @@ function ovcAutoApplyToCard(pote){
     if(badge) badge.classList.remove('show');
     return;
   }
-  const tRow = RAW_ROWS.find(r => r._key === key);
+  const tRow = rowByKey(key);
   if(!tRow) return;
   window._ovcApplyTimer = setTimeout(() => {
     applyPremiacaoValue(key, pote, `<b>${OPERATOR_NAME||'Você'}</b> preencheu premiação de <b>${tRow.nome||key}</b> via Calculadora de Overlay: R$ ${fmtBRL(pote,0)}`);
@@ -5578,7 +5597,7 @@ function _applyGarantidoValue(input, n){
   setGarantidoOverride(key, n);
   disp.textContent = fmtGarantidoBRL(n);
   wrap.classList.add('tcard-garantido-edited');
-  const row = RAW_ROWS.find(r => r._key === key);
+  const row = rowByKey(key);
   if(row) renderCardOverlayPreview(key, row, row.premiacao, getField(key));
   ovcPopulateTournamentSelect();
   // formata o input também
@@ -5635,7 +5654,7 @@ function loadSavedGarantidos(){
     if(!data) return;
     Object.entries(data).forEach(([key, val]) => {
       GARANTIDO_MAP[key] = val;
-      const row = RAW_ROWS.find(r => r._key === key);
+      const row = rowByKey(key);
       if(row) row.garantido = val;
       // atualiza display no DOM se já renderizado
       const wrap = document.querySelector(`.tcard-garantido-wrap[data-key="${key}"]`);
@@ -5656,7 +5675,7 @@ function loadSavedGarantidos(){
 /* aplica um valor de premiação a um torneio (por _key) e propaga pra tudo que depende dela —
    usada tanto pela digitação manual no card quanto pelo auto-preenchimento da Calculadora de Overlay */
 function applyPremiacaoValue(key, premiacaoVal, activityMsg){
-  const row = RAW_ROWS.find(r => r._key === key);
+  const row = rowByKey(key);
   if(!row) return;
   row.premiacao = premiacaoVal;
   stampPremBy(key); // quem preencheu a premiação vira o responsável exibido nos Resultados
@@ -5747,7 +5766,7 @@ function warnIfPremSuspeita(input, row, val){
 
 function onCardPremiacaoInput(input){
   const key = input.dataset.key;
-  const row = RAW_ROWS.find(r => r._key === key);
+  const row = rowByKey(key);
   if(!row) return;
   // parsePremInput entende "2543,20", "2.543,20", "2543.20"
   const premiacaoVal = parsePremInput(input);
@@ -5787,7 +5806,7 @@ function onCardFieldInput(input){
   const key = input.dataset.key;
   const val = input.value.trim();
   setField(key, val);
-  const row = RAW_ROWS.find(r => r._key === key);
+  const row = rowByKey(key);
   if(!row) return;
   // Patch in-place — não recriar o card
   renderCardOverlayPreview(key, row, row.premiacao, val ? parseInt(val,10) : null);
@@ -5881,7 +5900,7 @@ function loadSavedPremiacoes(){
     const data = snap.val();
     if(!data) return;
     Object.entries(data).forEach(([key, val]) => {
-      const row = RAW_ROWS.find(r => r._key === key);
+      const row = rowByKey(key);
       if(row){
         // Firebase é fonte de verdade — sempre aplica (pode ter dados mais recentes do parceiro)
         row.premiacao = val;
@@ -5908,7 +5927,7 @@ function loadSavedPremiacoes(){
     if(!data) return;
     Object.entries(data).forEach(([key, val]) => {
       FIELD_MAP[key] = val;
-      const row = RAW_ROWS.find(r => r._key === key);
+      const row = rowByKey(key);
       if(row) row.field = val;
       const inp = document.querySelector(`.tcard-field-input[data-key="${key}"]`);
       if(inp && !inp.value) inp.value = val;
@@ -5919,7 +5938,7 @@ function loadSavedPremiacoes(){
 }
 function ovcSaveToHistory(){
   const sel = document.getElementById('ovcTorneioSelect');
-  const row = sel?.value ? RAW_ROWS.find(r => r._key === sel.value) : null;
+  const row = sel?.value ? rowByKey(sel.value) : null;
   const nome = row?.nome || document.getElementById('ovcGarantidoOut').textContent !== 'R$ 0,00' ? (row?.nome || 'Torneio manual') : null;
   if(!nome){ showToast('Selecione um torneio antes de salvar.', true); return; }
   const garantido = ovcNum('ovcGarantido');
@@ -5996,7 +6015,7 @@ document.getElementById('overlayCalcDrawerOverlay').addEventListener('click', (e
 });
 document.getElementById('ovcCopyBtn').addEventListener('click', () => {
   const sel = document.getElementById('ovcTorneioSelect');
-  const row = sel?.value ? RAW_ROWS.find(r => r._key === sel.value) : null;
+  const row = sel?.value ? rowByKey(sel.value) : null;
   const nome = row?.nome || 'Torneio';
   const rakePct = (ovcRakePercent()*100).toFixed(0);
   const pote = document.getElementById('ovcPote').textContent;
@@ -7881,7 +7900,7 @@ function resetDay(forcedDate){
   try { localStorage.removeItem('suprema_prem_v1'); } catch(e){}
 
   // 3. Limpar RAW_ROWS e re-renderizar (tela em branco até nova Global)
-  RAW_ROWS = []; RESULTS = []; UPCOMING = []; UNFIXED = [];
+  RAW_ROWS = []; RESULTS = []; UPCOMING = []; UNFIXED = []; reindexRows();
   renderUnfixed(); renderUpcoming(); renderResults();
   computeStats(); updateProgress();
 
@@ -7994,7 +8013,7 @@ function doUndo(){
   if(!last) return;
   document.querySelector('.undo-toast')?.remove();
   clearTimeout(_undoToastTimer);
-  const row = RAW_ROWS.find(r=>r._key===last.key);
+  const row = rowByKey(last.key);
   if(!row) return;
   // Restaurar valor anterior
   row.premiacao = last.oldVal;
@@ -8054,7 +8073,7 @@ function parsePremInput(inp){
 function patchCardFields(key){
   const card = document.querySelector(`.tcard[data-key="${key}"]`);
   if(!card) return false;
-  const row = RAW_ROWS.find(r => r._key === key);
+  const row = rowByKey(key);
   if(!row) return false;
   const fixed  = isFixed(key);
   const fixer  = fixedBy(key);
@@ -8118,22 +8137,14 @@ function patchCardFields(key){
 }
 
 /* Render agrupado — evita cascata de renders quando múltiplos listeners disparam juntos */
-let _renderAllTimer = null;
 function scheduleRenderAll(){
-  clearTimeout(_renderAllTimer);
-  _renderAllTimer = setTimeout(() => {
-    _lastTickSignature = '';
-    UNFIXED  = computeUnfixed();
-    document.getElementById('statUnfixed').textContent = UNFIXED.length;
-    computeStats(); updateProgress();
-    renderUnfixed(); renderResults();
-    // O eco da própria escrita (suppressUpcomingEcho) e o foco num card só podem barrar o
-    // REBUILD dos cards — nunca os KPIs. Antes o `_suppressRenderUpcoming` era testado lá fora
-    // e pulava o scheduleRenderAll INTEIRO: no load, o listener de premiação caía dentro da
-    // janela de 4s, RESULTS virava 74 mas o computeStats nunca rodava e "Pago em premiações"
-    // congelava em R$ 0 pra sempre (com o dado certo na memória). Os números agora sempre atualizam.
-    if(!isTypingInCard() && !window._suppressRenderUpcoming) renderUpcoming();
-  }, 150);
+  /* delega pro agendador unificado (scheduleUI, no topo do arquivo): um só
+     caminho de flush pra rajadas de listeners, seja no load ou na virada.
+     A regra de sempre atualizar KPIs mesmo com card em foco (o bug do "Pago em
+     premiações" congelado em R$ 0) mora lá: 'stats' nunca é barrado, só o
+     rebuild de 'upcoming'. */
+  _lastTickSignature = '';
+  scheduleUI('unfixed', 'stats', 'results', 'upcoming');
 }
 
 /* Re-registra apenas os listeners que dependem do FB_BASE_PATH (por dia) */
@@ -8177,7 +8188,7 @@ function reinitDayListeners(){
     const data = snap.val() || {};
     let changed = false;
     Object.entries(data).forEach(([key, val]) => {
-      const row = RAW_ROWS.find(r => r._key === key);
+      const row = rowByKey(key);
       if(row && row.premiacao !== val){ row.premiacao = val; changed = true;
         try{ const pm=JSON.parse(localStorage.getItem('suprema_prem_v1')||'{}'); pm[key]=val; localStorage.setItem('suprema_prem_v1',JSON.stringify(pm)); }catch(e){}
         const inp = document.querySelector(`.tcard-prem-input[data-key="${key}"]`);
@@ -8214,7 +8225,7 @@ function reinitDayListeners(){
   // os cards "sumirem" até o IntersectionObserver revelar de novo)
   fbDb.ref(`${FB_BASE_PATH}/premBy`).on('value', snap => {
     PREM_BY_MAP = snap.val() || {}; savePremByMapLocal(PREM_BY_MAP);
-    if(RAW_ROWS.length) renderResults();
+    if(RAW_ROWS.length) scheduleUI('results');
   });
 
   // IDs
@@ -8237,10 +8248,10 @@ function reinitDayListeners(){
     document.querySelectorAll('.tcard-field-input').forEach(inp => {
       const v = FIELD_MAP[inp.dataset.key];
       if(document.activeElement !== inp) inp.value = v!=null?v:'';
-      const row = RAW_ROWS.find(r=>r._key===inp.dataset.key);
+      const row = rowByKey(inp.dataset.key);
       if(row) row.field = v!=null?v:null;
     });
-    if(RAW_ROWS.length) renderResults();
+    if(RAW_ROWS.length) scheduleUI('results');
   });
 
   // Garantido
@@ -8248,7 +8259,7 @@ function reinitDayListeners(){
     const data = snap.val() || {};
     Object.entries(data).forEach(([key, val]) => {
       GARANTIDO_MAP[key] = val;
-      const row = RAW_ROWS.find(r=>r._key===key);
+      const row = rowByKey(key);
       if(row) row.garantido = val;
       const wrap = document.querySelector(`.tcard-garantido-wrap[data-key="${key}"]`);
       if(wrap && document.activeElement !== wrap.querySelector('.tcard-garantido-input')){
@@ -8257,8 +8268,9 @@ function reinitDayListeners(){
         wrap.classList.add('tcard-garantido-edited');
       }
     });
-    saveGarantidoMapLocal(GARANTIDO_MAP); computeStats();
-    if(RAW_ROWS.length) renderResults();
+    saveGarantidoMapLocal(GARANTIDO_MAP);
+    if(RAW_ROWS.length) scheduleUI('stats', 'results');
+    else computeStats();
   });
 
   // Checklist e confhoje
@@ -8610,7 +8622,7 @@ function ovcOnSelectChange(){
 
   if(!sel.value) return;
 
-  const row = RAW_ROWS.find(r => r._key === sel.value);
+  const row = rowByKey(sel.value);
   if(!row){ notFoundEl.classList.add('show'); return; }
 
   // ── Categoria ──
@@ -8646,7 +8658,7 @@ function ovcOnSelectChange(){
 /* copia nome/garantido do torneio selecionado na calculadora — busca pelo _key em vez de
    embutir o texto direto no onclick, que quebrava o HTML quando o nome tinha aspas */
 function ovcCopyTourneyField(key, field){
-  const r = RAW_ROWS.find(x => x._key === key);
+  const r = rowByKey(key);
   if(!r) return;
   const text = field === 'garantido' ? `R$ ${fmtBRL(r.garantido, 0)}` : (r.nome || '');
   navigator.clipboard.writeText(text).then(() => showToast(field === 'garantido' ? 'Copiado.' : 'Nome copiado.'));
@@ -9100,7 +9112,7 @@ const _origOvcClear = typeof ovcClear === 'function' ? ovcClear : null;
     const key = sel && sel.value;
     if(!key){ showToast('Selecione um Main Event da planilha.', true); return; }
     if(OPJ.events.some(e => e.srcKey === key)){ showToast('Esse torneio já está em acompanhamento.', true); return; }
-    const row = RAW_ROWS.find(r => r._key === key);
+    const row = rowByKey(key);
     if(!row){ showToast('Torneio não encontrado.', true); return; }
     opjAddManual({
       nome: row.nome, buyin: row.buyin ?? null, gtd: row.garantido ?? null,
