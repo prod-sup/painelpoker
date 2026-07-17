@@ -70,10 +70,15 @@
       '.sp-magnetic.sp-mag-on{transition:none}' +
       /* aurora: mesh de gradiente lento atrás do hero, na tinta do produto */
       '.sp-aurora{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;border-radius:inherit}' +
-      '.sp-aurora::before,.sp-aurora::after{content:"";position:absolute;inset:-45%;filter:blur(48px);' +
-        'background:radial-gradient(closest-side,var(--sp-au1,rgba(79,142,247,.22)),transparent 70%);' +
+      /* SEM filter:blur — animar scale num elemento borrado re-rasteriza o blur
+         inteiro por frame (2 blobs de ~2× o hero re-blurando a 60fps era o FPS
+         baixo do Painel). O radial-gradient já é suave por natureza: alargar o
+         falloff dá o mesmo veludo, por custo de compositor puro (mesma lição do
+         deck::before em painel.css). */
+      '.sp-aurora::before,.sp-aurora::after{content:"";position:absolute;inset:-45%;' +
+        'background:radial-gradient(closest-side,var(--sp-au1,rgba(79,142,247,.22)),transparent 62%);' +
         'animation:sp-aurora 20s ease-in-out infinite;will-change:transform}' +
-      '.sp-aurora::after{background:radial-gradient(closest-side,var(--sp-au2,rgba(216,181,109,.18)),transparent 70%);' +
+      '.sp-aurora::after{background:radial-gradient(closest-side,var(--sp-au2,rgba(216,181,109,.18)),transparent 62%);' +
         'animation-duration:27s;animation-direction:reverse}' +
       '@keyframes sp-aurora{0%,100%{transform:translate(-8%,-6%) scale(1)}50%{transform:translate(10%,9%) scale(1.18)}}' +
       'body.win-blurred .sp-aurora::before,body.win-blurred .sp-aurora::after{animation-play-state:paused}' +

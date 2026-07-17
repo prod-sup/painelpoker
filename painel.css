@@ -3247,6 +3247,10 @@ html.dark .routine-tool-desc b{ color:var(--felt-bright); }
 .tcard{ content-visibility:auto; contain-intrinsic-size:auto 230px; }
 .learn-card{ content-visibility:auto; contain-intrinsic-size:auto 260px; }
 .ev-item, .checklist-item{ content-visibility:auto; contain-intrinsic-size:auto 64px; }
+/* linhas de Resultados: cada uma carrega um anel de performance em SVG — numa
+   sexta são 70+; fora da tela não precisam custar layout/paint (o head fica de
+   fora pra régua das colunas nunca sumir) */
+.rrow:not(.head){ content-visibility:auto; contain-intrinsic-size:auto 72px; }
 
 /* ── FIX MOBILE: content-visibility:auto podia deixar os cards de torneio em
    branco em alguns navegadores mobile (offscreen sem altura → nunca renderizam).
