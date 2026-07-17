@@ -108,17 +108,17 @@ body{
 }
 .scene.in .kw{transform:none}
 /* elementos com --i entram em cascata */
-.tv-chip,.tv-stat,.tv-row,.rank-row,.tv-route,.tv-fut,.tv-fut-hero,.tv-aviso,.tv-record,.giant-rank,.giant-cat,.maker,.gu-progress,.sc-kicker,.b-sub,.tv-credits,.tv-day,.tv-camp-group{
+.tv-chip,.tv-stat,.tv-row,.rank-row,.tv-route,.tv-fut,.tv-fut-hero,.tv-aviso,.tv-record,.giant-rank,.giant-cat,.maker,.gu-progress,.sc-kicker,.b-sub,.tv-credits,.tv-day,.tv-week-legend,.tv-camp-group{
   opacity:0;transform:translateY(26px);
   transition:opacity .6s var(--ease), transform .7s var(--ease);
   transition-delay:calc(var(--i,0) * 110ms);
 }
-.scene.in :is(.tv-chip,.tv-stat,.tv-row,.rank-row,.tv-route,.tv-fut,.tv-fut-hero,.tv-aviso,.tv-record,.giant-rank,.giant-cat,.maker,.gu-progress,.sc-kicker,.b-sub,.tv-credits,.tv-day,.tv-camp-group){
+.scene.in :is(.tv-chip,.tv-stat,.tv-row,.rank-row,.tv-route,.tv-fut,.tv-fut-hero,.tv-aviso,.tv-record,.giant-rank,.giant-cat,.maker,.gu-progress,.sc-kicker,.b-sub,.tv-credits,.tv-day,.tv-week-legend,.tv-camp-group){
   opacity:1;transform:none;
 }
 @media (prefers-reduced-motion:reduce){
   .kw,.scene{transition:none;transform:none;opacity:1}
-  .tv-chip,.tv-stat,.tv-row,.rank-row,.tv-route,.tv-fut,.tv-fut-hero,.tv-aviso,.tv-record,.giant-rank,.giant-cat,.maker,.gu-progress,.sc-kicker,.b-sub,.tv-credits,.tv-day,.tv-camp-group{transition:none;transform:none;opacity:1}
+  .tv-chip,.tv-stat,.tv-row,.rank-row,.tv-route,.tv-fut,.tv-fut-hero,.tv-aviso,.tv-record,.giant-rank,.giant-cat,.maker,.gu-progress,.sc-kicker,.b-sub,.tv-credits,.tv-day,.tv-week-legend,.tv-camp-group{transition:none;transform:none;opacity:1}
 }
 
 /* ── etiqueta de categoria (Main/Side/Satélite) ──
@@ -473,43 +473,51 @@ body{
 .tv-stat.s-when .v{font-size:clamp(26px,3.4vw,58px);color:var(--ink)}
 
 /* ── a semana inteira ──
-   Deixou de ser sete cartões com um tracinho de barra e virou um GRÁFICO DE
-   COLUNAS: a altura de cada dia é o garantido dele contra o maior da semana, e
-   a coluna é EMPILHADA na cor da família (quanto de Main, Side, Satélite). Num
-   relance, do outro lado da sala, dá pra ver qual é o dia forte e de que é feito. */
-.tv-week{
-  display:flex;align-items:flex-end;gap:1.2vw;max-width:1600px;width:100%;
-  height:44vh;
-}
+   LINHAS horizontais, uma por dia: num telão 16:9 a barra corre pro LADO (a
+   língua do ticker). O comprimento contra o maior dia da semana diz qual é o
+   dia forte; a barra é EMPILHADA na cor da família (quanto é Main, Side, Sat).
+   As colunas verticais anteriores ficavam magras e com rótulos espremidos. */
+.tv-week-legend{display:flex;gap:2.2vw;margin:-1.6vh 0 2.6vh;font-size:clamp(14px,1.4vw,22px)}
+.tv-week{display:flex;flex-direction:column;gap:1.6vh;max-width:1600px;width:100%}
 .tv-day{
-  flex:1;height:100%;display:flex;flex-direction:column;align-items:center;
-  justify-content:flex-end;gap:.7vh;position:relative;
+  display:grid;align-items:center;gap:0 1.6vw;
+  grid-template-columns:8.5em 7.5em 1fr 8em;
+  font-size:clamp(15px,1.7vw,27px);
+  padding:.6vh 1vw;border-radius:16px;
 }
-.td-live{
-  position:absolute;top:-3vh;font-size:clamp(10px,.9vw,14px);font-weight:800;
-  letter-spacing:.16em;color:#0b0c10;background:linear-gradient(135deg,var(--gold-hi),var(--gold));
-  padding:.35em .8em;border-radius:99px;
+.tv-day.is-today{
+  background:rgba(201,168,76,.07);
+  outline:1.5px solid rgba(201,168,76,.4);
 }
-.td-gtd{font-family:var(--mono);font-weight:800;font-size:clamp(12px,1.25vw,19px);color:var(--gold-hi);white-space:nowrap}
-.tv-day:not(.is-today) .td-gtd{color:var(--ink-soft)}
-/* a PISTA dá altura definida pra barra em % crescer contra o teto da semana sem
-   empurrar os rótulos de baixo */
-.td-track{flex:1;min-height:0;width:100%;display:flex;align-items:flex-end;justify-content:center}
-/* a coluna: cresce em altura (o dado macro) e é fatiada por categoria (o mix) */
-.td-bar{
-  display:flex;flex-direction:column-reverse;width:min(72%,84px);
-  min-height:6px;border-radius:10px 10px 4px 4px;overflow:hidden;
-  background:rgba(255,255,255,.05);
+.td-wd{
+  display:flex;align-items:baseline;gap:.5em;
+  font-weight:800;letter-spacing:.1em;color:var(--ink-soft);font-size:.85em;
 }
-.td-bar b{display:block;width:100%;min-height:0}
-.td-bar b.c-main{background:linear-gradient(180deg,var(--main-c),color-mix(in srgb,var(--main-c) 60%,#000))}
-.td-bar b.c-side{background:linear-gradient(180deg,var(--side-c),color-mix(in srgb,var(--side-c) 60%,#000))}
-.td-bar b.c-sat {background:linear-gradient(180deg,var(--sat-c), color-mix(in srgb,var(--sat-c) 60%,#000))}
-.tv-day.is-today .td-bar{box-shadow:0 0 40px -8px rgba(201,168,76,.6);outline:2px solid rgba(201,168,76,.45);outline-offset:2px}
-.td-n{font-size:clamp(10px,.95vw,15px);color:var(--ink-soft);white-space:nowrap}
-.td-wd{font-size:clamp(11px,1.15vw,16px);font-weight:800;letter-spacing:.12em;color:var(--ink-soft)}
+.td-wd b{font-family:var(--mono);font-weight:800;color:var(--ink);font-size:1.15em}
 .tv-day.is-today .td-wd{color:var(--gold-hi)}
-.td-d{font-family:var(--mono);font-weight:800;font-size:clamp(18px,2.2vw,34px)}
+.td-live{
+  font-style:normal;font-size:.52em;font-weight:800;letter-spacing:.14em;
+  color:#0b0c10;background:linear-gradient(135deg,var(--gold-hi),var(--gold));
+  padding:.3em .8em;border-radius:99px;align-self:center;
+}
+.td-n{font-size:.62em;color:var(--ink-soft);white-space:nowrap;text-align:right}
+/* a pista inteira é o teto da semana; o preenchimento é o dia contra ele */
+.td-bar{
+  display:block;height:clamp(18px,2.8vh,30px);border-radius:99px;
+  background:rgba(255,255,255,.05);overflow:hidden;
+}
+.td-fill{display:flex;height:100%;border-radius:99px;overflow:hidden}
+.td-bar b{display:block;height:100%;min-width:0}
+.td-bar b.c-main{background:linear-gradient(90deg,color-mix(in srgb,var(--main-c) 70%,#000),var(--main-c))}
+.td-bar b.c-side{background:linear-gradient(90deg,color-mix(in srgb,var(--side-c) 70%,#000),var(--side-c))}
+.td-bar b.c-sat {background:linear-gradient(90deg,color-mix(in srgb,var(--sat-c) 70%,#000),var(--sat-c))}
+.tv-day.is-today .td-bar{box-shadow:0 0 34px -8px rgba(201,168,76,.5)}
+.td-gtd{
+  font-family:var(--mono);font-weight:800;font-size:.95em;
+  color:var(--gold-hi);white-space:nowrap;text-align:right;
+  font-variant-numeric:tabular-nums;
+}
+.tv-day:not(.is-today) .td-gtd{color:var(--ink)}
 
 /* ── rotas de ticket ── */
 .tv-routes{display:flex;flex-direction:column;gap:2.4vh;max-width:1500px}
@@ -789,11 +797,9 @@ html.remote #stage{position:static;padding:86px 18px 40px}
   .tv-records{flex-direction:column}
   .tv-futs,.tv-futs.solo{grid-template-columns:1fr;max-width:none;margin:0}
   .tv-fut-hero{padding:3vh 6vw}
-  /* o gráfico de colunas fica apertado num retrato — vira lista de dias */
-  .tv-week{height:auto;flex-direction:column;align-items:stretch;gap:1vh}
-  .tv-day{height:auto;flex-direction:row;justify-content:space-between;align-items:center;gap:1.2em;padding:1.2vh 0;border-bottom:1px solid rgba(255,255,255,.08)}
-  .td-live{position:static}
-  .td-track{display:none}
+  /* retrato: some a contagem, a barra encosta no rótulo */
+  .tv-day{grid-template-columns:7em 1fr 7em}
+  .td-n{display:none}
   .suit-mark{font-size:40vh}
   /* linhas densas soltam as colunas da direita pra baixo do nome */
   .tv-row{grid-template-columns:3.4em auto 1fr;row-gap:.3vh}

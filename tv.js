@@ -533,27 +533,27 @@ function composeScenes(){
       gtdByDay[day] = g; mixByDay[day] = mix; gtdWeek += g; nWeek += evs.length;
       if (g > gtdMax) gtdMax = g;
     });
+    /* LINHAS horizontais, não colunas: num telão 16:9 a barra que corre pro
+       LADO é a leitura natural (é a língua do ticker) — as colunas verticais
+       ficavam magras, com rótulo espremido embaixo. Uma linha por dia: o dia
+       forte salta pelo comprimento, a cor diz de que ele é feito. */
     const html = `${suitWatermark('♥')}
       <h2 class="sc-kicker gold" style="--i:0">A SEMANA INTEIRA
         <em class="sc-cnt">${conta(nWeek, 'evento', 'eventos')} · ${fmtMoney(gtdWeek)} garantidos</em></h2>
+      <div class="tv-week-legend" style="--i:1" aria-hidden="true">${catTag('main')}${catTag('side')}${catTag('sat')}</div>
       <div class="tv-week">${WEEK_ORDER.map((day, i) => {
         const iso = MODEL.dates[day];
         const n = MODEL.events.filter(e => e.weekday === day).length;
-        const h = gtdMax > 0 ? Math.max(6, Math.round((gtdByDay[day] / gtdMax) * 100)) : 0;
-        const mix = mixByDay[day], g = gtdByDay[day] || 1;
-        return `<div class="tv-day ${day === today ? 'is-today' : ''}" style="--i:${i+1}">
-          ${day === today ? '<span class="td-live">HOJE</span>' : ''}
-          <span class="td-gtd">${gtdByDay[day] ? fmtMoney(gtdByDay[day]) : '—'}</span>
-          <i class="td-track" aria-hidden="true">
-            <i class="td-bar" style="height:${h}%">
-              <b class="c-main" style="flex:${mix.main / g}"></b>
-              <b class="c-side" style="flex:${mix.side / g}"></b>
-              <b class="c-sat"  style="flex:${mix.sat / g}"></b>
-            </i>
-          </i>
-          <span class="td-n">${conta(n, 'evento', 'eventos')}</span>
-          <span class="td-wd">${WEEKDAY_SHORT[isoWeekdayIdx(iso)]}</span>
-          <span class="td-d">${+iso.slice(8)}</span>
+        const g = gtdByDay[day];
+        const pct = gtdMax > 0 && g > 0 ? Math.max(4, Math.round((g / gtdMax) * 100)) : 0;
+        const mix = mixByDay[day], tot = g || 1;
+        return `<div class="tv-day ${day === today ? 'is-today' : ''}" style="--i:${i+2}">
+          <span class="td-wd">${WEEKDAY_SHORT[isoWeekdayIdx(iso)]}<b>${+iso.slice(8)}</b>${day === today ? '<em class="td-live">HOJE</em>' : ''}</span>
+          <span class="td-n">${n ? conta(n, 'evento', 'eventos') : '—'}</span>
+          <i class="td-bar" aria-hidden="true">${pct ? `<span class="td-fill" style="width:${pct}%">
+            <b class="c-main" style="flex:${mix.main / tot}"></b><b class="c-side" style="flex:${mix.side / tot}"></b><b class="c-sat" style="flex:${mix.sat / tot}"></b>
+          </span>` : ''}</i>
+          <span class="td-gtd">${g ? fmtMoney(g) : ''}</span>
         </div>`;
       }).join('')}</div>`;
     segments.push({ cls:'s-grid', dur: sceneDuration(html, 10000, 16000), accent:GOLD, html });
