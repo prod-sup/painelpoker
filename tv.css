@@ -65,7 +65,16 @@ body{
 #stage{position:fixed;inset:0;z-index:10}
 .scene{
   position:absolute;inset:0;display:flex;flex-direction:column;
-  justify-content:center;padding:9vh 7vw 13vh;
+  padding:9vh 7vw 13vh;
+  /* REDE DE SEGURANÇA DO TELÃO: `justify-content:center` puro faz conteúdo mais
+     alto que a tela vazar pelos DOIS lados — por cima do relógio e por baixo do
+     ticker (era exatamente o que a cena de campanhas fazia numa sexta cheia).
+     `safe center` centraliza quando cabe e volta pro topo quando não cabe, então
+     o começo da lista nunca some. O overflow:hidden garante que nada escape da
+     caixa, mesmo que a paginação erre a conta por uma linha. */
+  justify-content:center;
+  justify-content:safe center;
+  overflow:hidden;
   opacity:0;transform:scale(1.02);
   /* corte mais lento que um site (site: ~0.3s) — um canal troca de segmento,
      não troca de aba; ainda só opacity/transform */
@@ -211,6 +220,59 @@ body{
 }
 .sc-kicker::before{content:"— ";color:var(--gold)}
 .sc-kicker.gold{color:var(--gold-hi)}
+/* o tamanho da lista, dito em voz alta no kicker: "23 eventos até o fim do dia"
+   é a informação que o telão inteiro está prestes a provar */
+.sc-cnt{
+  font-style:normal;margin-left:1em;letter-spacing:.06em;text-transform:none;
+  font-size:.62em;font-weight:650;color:var(--ink-soft);
+}
+.sc-cnt.felt{color:var(--felt)}
+
+/* ══════════════════════ O ROLO ══════════════════════
+   Uma lista maior que a tela NÃO vira páginas — um canal não passa slides. Ela
+   CORRE: é o ticker do rodapé, que já é a linguagem da casa, girado 90°.
+
+   O ponto que faz isto ser desenho e não efeito: a lista SÓ SE MEXE QUANDO
+   PRECISA. Se os eventos cabem, --roll-ms fica em 0 e nada acontece. Se não
+   cabem, correm. O movimento passa a significar "tem mais coisa aqui embaixo",
+   e um dia cheio PARECE cheio do outro lado da sala.
+
+   A distância (--roll) e o tempo (--roll-ms) são medidos no render — o CSS não
+   tem como saber a altura do conteúdo. Ver ajustaRolo() em tv.js. */
+/* `flex:0 1 auto` + `min-height:0` é o que faz a cena servir aos DOIS casos com
+   uma regra só: lista curta não cresce, fica do tamanho do conteúdo e o
+   `safe center` da .scene centraliza ela na tela como sempre fez; lista longa
+   encolhe até o espaço disponível e rola por dentro. Com `flex:1 1 auto` (o
+   caminho óbvio) a caixa esticava sempre, e quatro eventos ficavam grudados no
+   topo com meia tela de vazio embaixo. */
+.tv-scroll{
+  position:relative;flex:0 1 auto;min-height:0;width:100%;overflow:hidden;
+}
+/* a máscara SÓ existe quando há rolo. Ela serve pra linha que entra não aparecer
+   cortada ao meio — sem movimento, ela não suaviza nada: só desbota a primeira e
+   a última linha de uma lista parada, apagando informação de graça.
+   Quem liga a classe é o ajustaRolo(), que é quem sabe se sobrou conteúdo. */
+.tv-scroll.rolando{
+  -webkit-mask-image:linear-gradient(180deg,transparent,#000 7%,#000 91%,transparent);
+  mask-image:linear-gradient(180deg,transparent,#000 7%,#000 91%,transparent);
+}
+.tv-roll{
+  will-change:transform;
+  animation:tv-roll-run linear forwards;
+  animation-duration:var(--roll-ms,0ms);
+  animation-delay:2200ms;              /* casa com ROLO_ESPERA em tv.js */
+}
+@keyframes tv-roll-run{
+  from{transform:translateY(0)}
+  to{transform:translateY(var(--roll,0px))}
+}
+/* quem pediu pra não ter movimento não vai receber texto correndo na cara. Fica
+   o topo da lista; a máscara continua dizendo que há mais abaixo. */
+@media (prefers-reduced-motion:reduce){ .tv-roll{animation:none} }
+
+/* premiação que bateu o garantido, na cena JÁ ROLOU HOJE */
+.tr-gtd.bateu{color:var(--felt)}
+.s-done .tr-in{color:var(--felt)}
 
 /* ── a seguir hoje ── */
 .tv-rows{display:flex;flex-direction:column;gap:1.4vh;max-width:1500px}
@@ -225,7 +287,9 @@ body{
 .tr-nome{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650}
 .tr-camp{font-style:normal;font-size:.6em;font-weight:800;color:var(--camp);letter-spacing:.08em;vertical-align:.25em}
 .tr-gtd{font-family:var(--mono);font-weight:800;color:var(--ink);flex:0 0 auto}
-.tr-in{flex:0 0 5.5em;text-align:right;font-size:.62em;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--felt)}
+/* nowrap + folga: "em 40 min" em caixa alta com tracking não cabia em 5.5em e
+   quebrava em duas linhas, empurrando a altura da linha inteira */
+.tr-in{flex:0 0 7em;text-align:right;white-space:nowrap;font-size:.62em;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--felt)}
 
 /* ── campanhas em destaque ── */
 .tv-camps{display:flex;flex-direction:column;gap:2.8vh;max-width:1500px}

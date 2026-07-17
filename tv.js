@@ -244,6 +244,63 @@ function spotlightHtml(e, st){
     ${creditHtml(e, lv)}`;
 }
 
+/* ═══════════════════ O ROLO ═══════════════════
+   As cenas de lista sangravam pra fora do telão: a de campanhas não tinha
+   limite nenhum (numa sexta com 16 eventos #AS, listava os 16) e, como .scene é
+   flex centralizado, o excesso vazava por cima do relógio E por baixo do ticker
+   ao mesmo tempo.
+
+   A saída ÓBVIA seria truncar em N, ou quebrar em páginas ("A SEGUIR 1/3").
+   Nenhuma das duas presta: truncar esconde metade do dia, e paginar transforma
+   o canal num PowerPoint. Um canal não passa slides.
+
+   Então a grade CORRE. É o mesmo dispositivo do ticker do rodapé — que já é a
+   linguagem da casa — girado 90°. O que isso compra:
+   · nada é truncado e nada é paginado: o dia inteiro passa, inteiro;
+   · a lista SÓ SE MEXE QUANDO PRECISA. Cinco eventos ficam parados; dezesseis
+     correm. O movimento vira a informação "tem mais coisa aqui embaixo", em vez
+     de enfeite — e o dia cheio PARECE cheio, do outro lado da sala;
+   · a duração da cena passa a ser consequência do conteúdo: a velocidade de
+     leitura é constante, o relógio é que se ajusta.
+
+   O CSS não tem como saber a altura do conteúdo, então a distância (--roll) e a
+   duração (--roll-ms) são medidas no render, uma vez por cena. */
+const ROLO_ESPERA = 2200;                     // parado antes de começar a correr: dá tempo de achar o topo
+const ROLO_RESPIRO = 2600;                    // parado no fim: dá tempo de ler as últimas linhas
+const ROLO_TETO = 48000;                      // nenhuma cena sequestra o loop
+/* px por segundo, proporcional à tela (~54px/s num 1080p): a linha tem altura
+   em vh, então a velocidade tem que acompanhar ou a leitura muda com o telão */
+function roloVel(){ return innerHeight * 0.05; }
+
+function ajustaRolo(el, durBase){
+  const box = el.querySelector('.tv-scroll');
+  const track = box && box.querySelector('.tv-roll');
+  if (!box || !track) return durBase;
+  /* offsetHeight, NÃO scrollHeight: a medição roda antes da classe .in, quando as
+     linhas ainda estão em transform:translateY(26px) — e transform de descendente
+     ENTRA na área de overflow rolável do ancestral. Com scrollHeight, uma lista de
+     4 eventos que cabia folgada acusava 26px de excesso e saía rolando: a régua
+     estava medindo a animação de entrada em vez do conteúdo. offsetHeight é o
+     layout, e layout não enxerga transform. */
+  const excesso = track.offsetHeight - box.clientHeight;
+  if (excesso <= 2){
+    /* coube inteiro: fica PARADO e SEM máscara — a máscara existe pra suavizar a
+       linha que entra; numa lista parada ela só desbotaria a primeira e a última
+       de graça */
+    track.style.setProperty('--roll-ms', '0ms');
+    return durBase;
+  }
+  const correr = (excesso / roloVel()) * 1000;
+  box.classList.add('rolando');
+  track.style.setProperty('--roll', `-${Math.round(excesso)}px`);
+  track.style.setProperty('--roll-ms', `${Math.round(correr)}ms`);
+  return Math.min(ROLO_TETO, ROLO_ESPERA + correr + ROLO_RESPIRO);
+}
+/* o stagger de entrada é por tempo, não por posição: com 40 linhas o --i faria
+   a última esperar 4,4s pra aparecer. Depois da 9ª ninguém está olhando o
+   stagger — está olhando o rolo. */
+function iCap(i){ return Math.min(i, 9); }
+
 /* ═══════════════════ compositor de cenas ═══════════════════ */
 
 let _compositions = 0;                                // conta as voltas do loop (marca não toca toda vez)
@@ -277,42 +334,77 @@ function composeScenes(){
              accent: CAT_ACCENT[e.cat], html };
   });
 
-  /* 3 — a seguir hoje */
+  /* 3 — a seguir hoje: o DIA INTEIRO correndo (o slice(0,7) escondia o resto) */
   if (upcoming.length){
     const html = `${suitWatermark('♥')}
-      <h2 class="sc-kicker" style="--i:0">A SEGUIR HOJE</h2>
-      <div class="tv-rows">${upcoming.slice(0, 7).map(({e, st}, i) => `
-        <div class="tv-row" style="--i:${i+1}">
+      <h2 class="sc-kicker" style="--i:0">A SEGUIR HOJE
+        <em class="sc-cnt">${upcoming.length} evento${upcoming.length > 1 ? 's' : ''} até o fim do dia</em></h2>
+      <div class="tv-scroll"><div class="tv-rows tv-roll">${upcoming.map(({e, st}, i) => `
+        <div class="tv-row" style="--i:${iCap(i+1)}">
           <span class="tr-hora">${e.hora}</span>
           <span class="tr-suit ${CAT_META[e.cat].cls}">${CAT_META[e.cat].suit}</span>
           <span class="tr-nome">${escHtml(shortName(e.nome))}${e.camp ? ` <em class="tr-camp">✦ ${CAMP_LABEL[e.camp]}</em>` : ''}</span>
           <span class="tr-gtd">${e.garantido != null ? fmtMoney(e.garantido) : ''}</span>
           <span class="tr-in">${st.k === 'soon' ? 'em ' + fmtIn(st.inMin) : ''}</span>
-        </div>`).join('')}</div>`;
-    segments.push({ cls:'s-list', dur: sceneDuration(html, 10000, 20000), accent:GOLD, html });
+        </div>`).join('')}</div></div>`;
+    segments.push({ cls:'s-list s-roll', dur: sceneDuration(html, 10000, 20000), accent:GOLD, html });
+  }
+
+  /* 3b — JÁ ROLOU HOJE: o fecho do dia, que faltava.
+     A TV só sabia falar do que VEM. Quem entra na sala às 22h não tinha como
+     saber como foi o dia — e premiação final contra garantido é a melhor
+     notícia que a casa tem pra dar. Do mais recente pro mais antigo. */
+  const jaRolou = withSt.filter(x => x.st.k === 'past')
+    .map(x => ({ e: x.e, lv: liveOf(x.e) }))
+    .filter(x => x.lv.prem != null)
+    .sort((a, b) => b.e.abs - a.e.abs);
+  if (jaRolou.length){
+    const estouraram = jaRolou.filter(x => x.e.garantido != null && x.lv.prem >= x.e.garantido).length;
+    const html = `${suitWatermark('♥')}
+      <h2 class="sc-kicker" style="--i:0">JÁ ROLOU HOJE
+        ${estouraram ? `<em class="sc-cnt felt">✦ ${estouraram} bateu${estouraram > 1 ? 'ram' : ''} o garantido</em>` : ''}</h2>
+      <div class="tv-scroll"><div class="tv-rows tv-roll">${jaRolou.map(({e, lv}, i) => {
+        const bateu = e.garantido != null && lv.prem >= e.garantido;
+        return `<div class="tv-row" style="--i:${iCap(i+1)}">
+          <span class="tr-hora">${e.hora}</span>
+          <span class="tr-suit ${CAT_META[e.cat].cls}">${CAT_META[e.cat].suit}</span>
+          <span class="tr-nome">${escHtml(shortName(e.nome))}</span>
+          <span class="tr-gtd${bateu ? ' bateu' : ''}">${fmtMoney(lv.prem)}</span>
+          <span class="tr-in">${bateu ? '✦ bateu' : ''}</span>
+        </div>`;
+      }).join('')}</div></div>`;
+    segments.push({ cls:'s-list s-roll s-done', dur: sceneDuration(html, 9000, 18000), accent:'#22d47e', html });
   }
 
   /* 3b — campanhas em destaque (a Global tem #AS/+SPS/+SPT — a TV nunca dava
      palco especial pra elas, só um badge pequeno dentro do holofote) */
+  /* ERA AQUI QUE O TELÃO RASGAVA: a lista de cada campanha não tinha limite
+     nenhum. Numa sexta com 16 eventos #AS, os 16 entravam — e o excesso vazava
+     por cima do relógio e por baixo do ticker. Continua trazendo TODOS: agora
+     eles correm (ver "O ROLO" acima) em vez de estourar a caixa. */
   const campToday = todays.filter(e => e.camp);
   if (campToday.length){
     const groups = {};
     campToday.forEach(e => { (groups[e.camp] = groups[e.camp] || []).push(e); });
     const order = ['AS', 'SPS', 'SPT'].filter(c => groups[c]);
     const html = `${suitWatermark('♥')}
-      <h2 class="sc-kicker gold" style="--i:0">CAMPANHAS EM DESTAQUE</h2>
-      <div class="tv-camps">${order.map((c, gi) => `
-        <div class="tv-camp-group" style="--i:${gi+1}">
-          <div class="tc-tag">✦ ${CAMP_LABEL[c]}</div>
-          <div class="tc-list">${groups[c].sort((a,b) => a.abs - b.abs).map(e => `
+      <h2 class="sc-kicker gold" style="--i:0">CAMPANHAS EM DESTAQUE
+        <em class="sc-cnt">${campToday.length} evento${campToday.length > 1 ? 's' : ''} hoje</em></h2>
+      <div class="tv-scroll"><div class="tv-camps tv-roll">${order.map((c, gi) => {
+        const evs = groups[c].sort((a,b) => a.abs - b.abs);
+        const gtd = evs.reduce((s,e) => s + (e.garantido || 0), 0);
+        return `<div class="tv-camp-group" style="--i:${iCap(gi+1)}">
+          <div class="tc-tag">✦ ${CAMP_LABEL[c]} · ${evs.length} evento${evs.length > 1 ? 's' : ''} · ${fmtMoney(gtd)} GTD</div>
+          <div class="tc-list">${evs.map(e => `
             <div class="tc-row">
               <span class="tc-hora">${e.hora}</span>
               <span class="tc-suit ${CAT_META[e.cat].cls}">${CAT_META[e.cat].suit}</span>
               <span class="tc-nome">${escHtml(shortName(e.nome))}</span>
               ${e.garantido != null ? `<span class="tc-gtd">${fmtMoney(e.garantido)}</span>` : ''}
             </div>`).join('')}</div>
-        </div>`).join('')}</div>`;
-    segments.push({ cls:'s-camps', dur: sceneDuration(html, 9000, 16000), accent:'#f4a9ba', html });
+        </div>`;
+      }).join('')}</div></div>`;
+    segments.push({ cls:'s-camps s-roll', dur: sceneDuration(html, 9000, 16000), accent:'#f4a9ba', html });
   }
 
   /* 4 — os gigantes da semana (top 5 GTD) */
@@ -380,21 +472,22 @@ function composeScenes(){
 
   /* 6 — comece pequeno, jogue grande (principais rotas de ticket de hoje) */
   const routeTargets = todays.filter(e => e.satCount > 0)
-    .sort((a,b) => b.satCount - a.satCount || (b.garantido||0) - (a.garantido||0)).slice(0, 3);
+    .sort((a,b) => b.satCount - a.satCount || (b.garantido||0) - (a.garantido||0));
   if (routeTargets.length){
     const html = `${suitWatermark('♥')}
-      <h2 class="sc-kicker" style="--i:0">COMECE PEQUENO, JOGUE GRANDE</h2>
-      <div class="tv-routes">${routeTargets.map((t, i) => {
+      <h2 class="sc-kicker" style="--i:0">COMECE PEQUENO, JOGUE GRANDE
+        <em class="sc-cnt">${routeTargets.length} torneio${routeTargets.length > 1 ? 's' : ''} com rota de ticket hoje</em></h2>
+      <div class="tv-scroll"><div class="tv-routes tv-roll">${routeTargets.map((t, i) => {
         const sats = MODEL.events.filter(s => s.targetId === t.id).sort((a,b) => (a.buyin??Infinity) - (b.buyin??Infinity));
         const cheap = sats[0];
-        return `<div class="tv-route" style="--i:${i+1}">
+        return `<div class="tv-route" style="--i:${iCap(i+1)}">
           <span class="tvr-from">♦ ${sats.length} satélite${sats.length > 1 ? 's' : ''}${cheap && cheap.buyin != null ? ` · desde <b>${fmtMoneyFull(cheap.buyin)}</b>` : ''}</span>
           <span class="tvr-arrow"><i></i>🎟<i></i></span>
           <span class="tvr-to">${CAT_META[t.cat].suit} ${escHtml(shortName(t.nome))}<small>${t.hora}${t.garantido != null ? ' · GTD ' + fmtMoney(t.garantido) : ''}</small></span>
         </div>`;
-      }).join('')}</div>`;
+      }).join('')}</div></div>`;
     /* rota de ticket é assunto de SATÉLITE — a névoa vai pro violeta da família */
-    segments.push({ cls:'s-routes', dur: sceneDuration(html, 9000, 15000), accent: CAT_ACCENT.sat, html });
+    segments.push({ cls:'s-routes s-roll', dur: sceneDuration(html, 9000, 15000), accent: CAT_ACCENT.sat, html });
   }
 
   /* 7 — vem aí (eventos futuros, P&D) */
@@ -490,8 +583,14 @@ function renderScene(sc){
   const outgoing = Array.from(stage.querySelectorAll('.scene'));
   const el = document.createElement('section');
   el.className = 'scene ' + sc.cls;
-  el.innerHTML = sc.html + (sc.dur ? `<i class="scene-progress" style="animation-duration:${sc.dur}ms"></i>` : '');
+  el.innerHTML = sc.html;
   stage.appendChild(el);
+  /* a duração é medida DEPOIS de montar: numa cena de rolo ela é consequência
+     do tamanho da lista, não um número escolhido antes de saber o que tem nela
+     (ver "O ROLO"). A barra de progresso só entra agora porque precisa saber
+     por quanto tempo correr. */
+  const dur = sc.dur ? ajustaRolo(el, sc.dur) : 0;
+  if (dur) el.insertAdjacentHTML('beforeend', `<i class="scene-progress" style="animation-duration:${dur}ms"></i>`);
   outgoing.forEach(prev => {
     prev.classList.remove('in');
     prev.classList.add('out');
@@ -507,6 +606,7 @@ function renderScene(sc){
     el.classList.add('in');
     SupremaMotion.countUp('.tv-count', { duration:1500 });
   }));
+  return dur;
 }
 function playNext(){
   if (REMOTE) return;
@@ -515,9 +615,11 @@ function playNext(){
   if (_idx >= _scenes.length){ _scenes = composeScenes(); _idx = 0; }
   const sc = _scenes[_idx++];
   if (!sc){ _timer = setTimeout(playNext, 3000); return; }
-  renderScene(sc);
+  /* o relógio da cena vem do renderScene, não do sc.dur: numa lista que corre,
+     quem manda na duração é o tamanho da lista */
+  const dur = renderScene(sc);
   clearTimeout(_timer);
-  _timer = setTimeout(playNext, sc.dur);
+  _timer = setTimeout(playNext, dur || sc.dur || 8000);
 }
 
 /* ── 🎉 CELEBRAÇÃO: premiação lançada que BATE o garantido fura a fila ── */
