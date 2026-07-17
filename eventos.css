@@ -50,10 +50,12 @@ body > *{position:relative;z-index:1}
   --ev-bright: #d8607a;
   --ev-soft: rgba(179,71,93,.10);
 
-  /* categorias — paleta COMPARTILHADA da casa (mesma da Criação Noturna) */
-  --main: #9a2d1f;   --main-bright: #d8492f;  --main-soft: #fbece7;
-  --side: #1d5fa3;   --side-bright: #2f7fd6;  --side-soft: #e9f1fb;
-  --sat:  #6b3fa0;   --sat-bright:  #8c5cc6;  --sat-soft:  #f1eaf9;
+  /* categorias — fonte única em suprema-tokens.css (--sup-cat-*). Estes três
+     apelidos existem só pra não reescrever o CSS todo; o VALOR não mora mais
+     aqui, e o dark vem junto sem bloco próprio (o token é que troca). */
+  --main: var(--sup-cat-main);  --main-bright: var(--sup-cat-main-bright);  --main-soft: var(--sup-cat-main-soft);
+  --side: var(--sup-cat-side);  --side-bright: var(--sup-cat-side-bright);  --side-soft: var(--sup-cat-side-soft);
+  --sat:  var(--sup-cat-sat);   --sat-bright:  var(--sup-cat-sat-bright);   --sat-soft:  var(--sup-cat-sat-soft);
 
   --live: #c0392b;
   --card: #ffffff;
@@ -86,9 +88,8 @@ html.dark{
   --ev:        var(--sup-p-eventos);
   --ev-bright: #f492a5;
   --ev-soft:   rgba(239,125,147,.12);
-  --main: #d94f3d;  --main-bright:#f06050;  --main-soft: rgba(217,79,61,0.14);
-  --side: #3585e0;  --side-bright:#5aa8ff;  --side-soft: rgba(53,133,224,0.14);
-  --sat:  #9b61d6;  --sat-bright: #b888f0;  --sat-soft:  rgba(155,97,214,0.14);
+  /* categorias: NADA aqui. Os apelidos do :root apontam pros --sup-cat-*, e é o
+     suprema-tokens.css que troca os tokens no dark — um lugar só decide. */
   --live: #f36b70;
   --shadow-sm: 0 1px 2px rgba(0,0,0,.45), 0 3px 12px -2px rgba(0,0,0,.4);
   --shadow-md: 0 6px 20px -4px rgba(0,0,0,.55), 0 14px 38px -10px rgba(0,0,0,.5);

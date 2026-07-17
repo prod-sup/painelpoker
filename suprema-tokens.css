@@ -61,6 +61,31 @@
   --sup-p-cash:   #4f8ef7;
   --sup-p-eventos:#b3475d;                 /* framboesa do Radar de Eventos (Marketing) */
 
+  /* -- categorias de torneio (Main / Side / Satélite) -------
+     O ÚNICO vocabulário de cor que atravessa a operação inteira: o mesmo
+     vermelho-queimado de Main Event que o operador vê na Criação Noturna ele
+     tem que ver no Painel do Dia, no Radar e no telão. Não é acento de produto
+     (esse é um por painel, acima) — é significado, e significado não muda de
+     cor ao trocar de aba.
+     Estava COPIADO em painel.css, criacao-noturna.css, eventos.css e tv.css:
+     mesmos valores, quatro chances de divergir. A TV já tinha divergido no nome
+     (chamava --main-c) e só trazia o tom escuro. É exatamente o que este arquivo
+     existe pra impedir — mesmo caso do --sup-gold, que virou fonte única depois
+     de o hub inventar o próprio dourado.
+     Três tons por categoria, como o resto do sistema:
+       base   → texto/borda em superfície CLARA
+       bright → texto/acento em superfície ESCURA (e realce no claro)
+       soft   → fundo (chip, pílula, linha) */
+  --sup-cat-main:        #9a2d1f;
+  --sup-cat-main-bright: #d8492f;
+  --sup-cat-main-soft:   #fbece7;
+  --sup-cat-side:        #1d5fa3;
+  --sup-cat-side-bright: #2f7fd6;
+  --sup-cat-side-soft:   #e9f1fb;
+  --sup-cat-sat:         #6b3fa0;
+  --sup-cat-sat-bright:  #8c5cc6;
+  --sup-cat-sat-soft:    #f1eaf9;
+
   /* -- pontes pros nomes que cada app já usa ---------------- */
   /* Painel / Criação GU */
   --gold: var(--sup-gold);
@@ -86,6 +111,20 @@ html[data-theme="dark"]{
   --sup-p-admin: var(--sup-gold-dark);
   /* o framboesa do claro não segura contraste no escuro — mesmo modelo do dourado */
   --sup-p-eventos: #ef7d93;
+
+  /* as categorias sobem de tom no escuro pelo mesmo motivo do dourado e do
+     framboesa: o #9a2d1f de Main sobre #0f1110 dá ~2,6:1 e some. Os valores
+     abaixo são os que o Painel do Dia e o Radar já usavam no dark — aqui eles
+     só param de viver em dois arquivos. */
+  --sup-cat-main:        #d94f3d;
+  --sup-cat-main-bright: #f06050;
+  --sup-cat-main-soft:   rgba(217,79,61,.14);
+  --sup-cat-side:        #3585e0;
+  --sup-cat-side-bright: #5aa8ff;
+  --sup-cat-side-soft:   rgba(53,133,224,.14);
+  --sup-cat-sat:         #9b61d6;
+  --sup-cat-sat-bright:  #b888f0;
+  --sup-cat-sat-soft:    rgba(155,97,214,.14);
 }
 
 /* ============================================================

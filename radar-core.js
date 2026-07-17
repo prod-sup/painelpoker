@@ -225,10 +225,34 @@ function headerTarget(sat, events){
   const gh = squashName(sat.groupHeader);
   const ghToks = linkTokens(sat.groupHeader);
   if (!gh) return null;
+  const satNome = squashName(sat.nome);
   let best = null, bestRank = -1;
   events.forEach(t => {
     if (t.id === sat.id) return;
+    /* ── O ALVO TEM QUE COMEÇAR DEPOIS ──
+       Não se ganha ticket pra torneio que já começou. O ranking aqui embaixo só
+       PREFERIA alvos posteriores (+1) em vez de exigir, e isso tinha custo real:
+       num grupo "Mega Sat Big Main" com Step 1 às 16:00 e Mega Sat às 18:00, o
+       Mega Sat casava EXATO com o nome do Step (rank 4, pra trás no tempo) e
+       vencia o Main das 20:00, que só casava por tokens (rank 3). Resultado: o
+       Mega Sat classificava pro próprio Step, e o Main ficava sem satélite.
+       A heurística de tokens (linkSatellites) sempre exigiu isto — o
+       headerTarget é que era o inconsistente. */
+    if (t.abs <= sat.abs) return;
     const tn = squashName(t.nome);
+    /* ── MESMO NOME NUNCA É "PRÓXIMO ESTÁGIO" ──
+       É o MESMO satélite rodando de novo mais tarde. Sem esta guarda, um grupo
+       com o satélite repetido ao longo do dia ("5 Seats WarmUp" às 10:30, 11:00,
+       11:30…) virava uma CORRENTE: como o cabeçalho do grupo tem o mesmo nome
+       das linhas, cada execução casava exata com a execução seguinte e apontava
+       pra ela. Só a ÚLTIMA da fila alcançava o torneio real — e o Main aparecia
+       com "1 satélite classificam" quando tinha cinco. O Marketing lia isso como
+       verdade e passava pro jogador.
+       `t.id === sat.id` sozinho não bastava: ele exclui o próprio, não os gêmeos.
+       Cadeia de VERDADE (Step 1 → Mega Sat → Main) tem nomes DIFERENTES em cada
+       degrau, então continua funcionando — é a mesma regra que a branch do
+       targetGroup aqui embaixo já aplicava. */
+    if (tn === satNome) return;
     const exact = tn.includes(gh) || gh.includes(tn);
     let tokHit = false;
     if (!exact && ghToks.length){
@@ -238,8 +262,10 @@ function headerTarget(sat, events){
                ghToks.some(tok => tok.length >= 3 && tToks.has(tok));
     }
     if (!exact && !tokHit) return;
-    /* ranking: casamento exato > por tokens; começa depois do sat > antes; mais cedo > mais tarde */
-    const rank = (exact ? 4 : 2) + (t.abs > sat.abs ? 1 : 0);
+    /* ranking: casamento exato > por tokens; empatou, o mais CEDO vence (é o
+       próximo degrau da cadeia, não o último). O "+1 se começa depois" saiu:
+       agora começar depois é pré-requisito, não bônus. */
+    const rank = exact ? 4 : 2;
     if (rank > bestRank || (rank === bestRank && best && t.abs < best.abs)){ bestRank = rank; best = t; }
   });
   return best;
@@ -254,27 +280,43 @@ function linkSatellites(events){
   const targets = events.filter(e => e.cat !== 'sat');
   events.filter(e => e.cat === 'sat').forEach(sat => {
     const viaHeader = headerTarget(sat, events);
-    if (viaHeader){ sat.targetId = viaHeader.id; return; }
+    if (viaHeader){
+      sat.targetId = viaHeader.id;
+      /* POR QUE ligou aqui: o Radar deixava essa decisão anônima — o admin via o
+         resultado e tinha que confiar ou sobrescrever no escuro. Guardar o
+         motivo custa um campo e é o que permite a UI EXPLICAR a escolha. */
+      sat.linkWhy = { via:'header', grupo: sat.groupHeader };
+      return;
+    }
     const satToks = new Set([...linkTokens(sat.nome), ...linkTokens(sat.groupHeader || '')]);
     const satHour = nameHour(sat.nome) ?? nameHour(sat.groupHeader || '');
-    let best = null, bestScore = 0;
+    let best = null, bestScore = 0, bestToks = [];
     targets.forEach(t => {
       if (t.abs <= sat.abs) return;                 // alvo tem que começar DEPOIS do satélite
       let score = 0;
+      const casados = [];
       const tToks = linkTokens(t.nome);
-      tToks.forEach(tok => { if (satToks.has(tok)) score += Math.min(4, tok.length); });
-      if (satHour != null && timeToMinutes(t.hora) != null &&
-          Math.floor(timeToMinutes(t.hora)/60) === satHour) score += 3;
+      tToks.forEach(tok => { if (satToks.has(tok)){ score += Math.min(4, tok.length); casados.push(tok); } });
+      const mesmaHora = satHour != null && timeToMinutes(t.hora) != null &&
+                        Math.floor(timeToMinutes(t.hora)/60) === satHour;
+      if (mesmaHora) score += 3;
       if (t.dateISO === sat.dateISO) score += 1.5;   // leve preferência pelo mesmo dia
       if (t.cat === 'main') score += 0.5;
-      if (score > bestScore){ bestScore = score; best = t; }
+      if (score > bestScore){ bestScore = score; best = t; bestToks = casados; }
     });
     if (best && bestScore >= 4){
       sat.targetId = best.id;
+      sat.linkWhy = { via:'tokens', score: Math.round(bestScore*10)/10, toks: bestToks };
     } else if (sat.groupHeader && !squashName(sat.nome).includes(squashName(sat.groupHeader))){
       /* o próprio cabeçalho do grupo não pode ser "destino" de si mesmo
          (a linha-mãe do grupo herda o header com o mesmo nome) */
       sat.targetGroup = sat.groupHeader;
+      sat.linkWhy = { via:'grupo', grupo: sat.groupHeader };
+    } else {
+      /* órfão: nem cabeçalho, nem nome. Guarda o melhor palpite REPROVADO — é a
+         informação mais útil pra quem vai corrigir na mão ("quase ligou nesse,
+         faltou pouco"), e era justamente o que se perdia. */
+      sat.linkWhy = { via:'nenhum', quase: best ? { id: best.id, score: Math.round(bestScore*10)/10 } : null };
     }
   });
 }
@@ -315,6 +357,7 @@ function buildModel(parsed, overrides){
           ...e, id: 'ev' + (seq++), cat, weekday: day, dateISO: iso,
           startMin: m, abs: absMin(iso, m), camp: campOf(e.nome),
           satCount: 0, targetId: null, targetGroup: null, overridden: false,
+          linkWhy: null,                      // por que o vínculo ficou assim (ver linkSatellites)
         });
       });
     });

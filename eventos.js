@@ -157,13 +157,70 @@ function setSync(ok){
 
 /* ═══════════════════ filtros ═══════════════════ */
 
+/* ═══════════════════ BUSCA ═══════════════════
+   Era `normText(nome).includes(q)`: substring pura no nome. Três buracos que a
+   operação sentia todo dia e ninguém reportava (a pessoa só desiste e rola a
+   lista): "warmup 50k" não achava "#AS 50K WarmUp" porque a ORDEM não bate;
+   "50 mil" não achava nada porque a Global escreve "50K"; e "satelite" não
+   achava satélite nenhum porque a categoria não estava no texto.
+
+   Agora: cada token da busca precisa aparecer em ALGUM lugar do evento (nome,
+   campanha, categoria, hora, grupo do satélite), em qualquer ordem. */
+
+/* "50k", "50 mil", "50.000" e "50000" são a MESMA coisa pra quem procura um
+   torneio. Os dois lados viram a mesma etiqueta canônica, então tanto faz o que
+   a pessoa digita ou como a planilha escreveu. */
+function canonNumero(txt){
+  return String(txt)
+    .replace(/(\d+(?:[.,]\d+)?)\s*(?:k|mil)\b/g, (_, n) => String(Math.round(parseFloat(n.replace(',', '.')) * 1000)))
+    .replace(/(\d+(?:[.,]\d+)?)\s*(?:mi|milhao|milhoes)\b/g, (_, n) => String(Math.round(parseFloat(n.replace(',', '.')) * 1000000)))
+    .replace(/(\d)\.(\d{3})\b/g, '$1$2');            // 50.000 → 50000 (depois do k/mil: "1.5k" continua 1500)
+}
+/* como a operação FALA × como a planilha escreve */
+const BUSCA_SINONIMOS = {
+  sat:'satelite', sats:'satelite', satelites:'satelite', satellite:'satelite',
+  ko:'k', pko:'pko', freeze:'freezeout', hr:'highroller', high:'highroller',
+  main:'main', side:'side', gtd:'garantido', bounty:'bounty',
+};
+function buscaTokens(s){
+  return canonNumero(normText(s))
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim().split(/\s+/).filter(Boolean)
+    .map(t => BUSCA_SINONIMOS[t] || t);
+}
+/* o texto inteiro do evento, achatado. Cacheado no próprio objeto: o modelo é
+   reconstruído a cada Global nova, então o cache morre junto — sem invalidação
+   pra esquecer. */
+function eventoHaystack(e){
+  if (!e.__hay){
+    e.__hay = ' ' + buscaTokens([
+      e.nome,
+      e.camp ? CAMP_LABEL[e.camp] : '',
+      CAT_META[e.cat].label,                        // "Satélite", "Main Event", "Side Event"
+      e.hora,
+      e.groupHeader || '',
+    ].join(' ')).join(' ') + ' ';
+  }
+  return e.__hay;
+}
+let _qStr = null, _qToks = [];
+function queryTokens(q){
+  if (q !== _qStr){ _qStr = q; _qToks = buscaTokens(q || ''); }
+  return _qToks;
+}
+function matchBusca(hay, q){
+  const toks = queryTokens(q);
+  return !toks.length || toks.every(t => hay.includes(t));
+}
+
 function matches(ev){
   if (state.camp === 'none' && ev.camp) return false;
   if (state.camp !== 'all' && state.camp !== 'none' && ev.camp !== state.camp) return false;
   if (state.cat !== 'all' && ev.cat !== state.cat) return false;
-  if (state.q && !normText(ev.nome).includes(normText(state.q))) return false;
+  if (state.q && !matchBusca(eventoHaystack(ev), state.q)) return false;
   return true;
 }
+function temFiltroAtivo(){ return state.camp !== 'all' || state.cat !== 'all' || !!state.q; }
 
 /* pinta um grupo de chips: classe (visual), aria-checked (semântica) e roving
    tabindex (só o ativo entra no Tab; dentro do grupo navega-se com as setas).

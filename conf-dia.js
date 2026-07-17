@@ -29,14 +29,25 @@
   /* ── COLUNAS = MESMA LÓGICA DA CRIAÇÃO NOTURNA ──
      Os campos da receita seguem a ordem em que se DIGITA no app (cópia do
      creationOrderFields de criacao-noturna.html):
-     Torneio → K.O → Max. Table → Garantido → Ticket Award → Calculated Payout →
-     Payout → Buy-in → Reentry/Rebuy → Stack Reentry/Rebuy → Rebuy Condition →
-     Add-on → Stack Add-on → Break Late Reg. → Admin Fee → Structure → Chips →
-     Early game → Pós Late Reg. → Final Table → Early Bird → Time Bank.
+     Torneio → Game Type → K.O → Max. Table → Garantido → Ticket Award →
+     Calculated Payout → Payout → Buy-in → Reentry/Rebuy → Stack Reentry/Rebuy →
+     Rebuy Condition → Add-on → Stack Add-on → Break Late Reg. → Admin Fee →
+     Structure → Chips → Early game → Pós Late Reg. → Final Table → Early Bird →
+     Time Bank.
      Campos fora da lista entram DEPOIS, na ordem original da planilha;
      Garantido e Buy-in aparecem UMA vez; "Num. players"/"Chat" ficam fora. */
   const GC_CREATION_ORDER = [
     { m: n => n === 'mtt' },                                                          // Torneio (nome interno)
+    /* Game Type logo abaixo do MTT: é a primeira coisa que se decide sobre um
+       torneio (Hold'em? PLO? Omaha 5?) e a que muda a leitura de tudo que vem
+       depois. Sem slot próprio ele caía no `remaining` e ia parar no FIM da
+       tabela, longe do nome — quem confere lia a receita inteira sem saber de
+       qual jogo ela era.
+       Padrões copiados do `gametype` da Criação Noturna (criacao-noturna.js:136),
+       inclusive o excl de "early game" — que é OUTRO campo e tem slot próprio
+       mais abaixo. Renomeou a coluna na planilha? Muda nos dois. */
+    { m: n => (/game\s*type/.test(n) || /variante/.test(n) || /modalidade/.test(n) || n === 'game')
+              && !/early\s*game/.test(n) },                                          // Game Type
     { m: n => /(^|[^a-z])k\.?\s*o\b/.test(n) || n.includes('knock') },                // K.O (REG/PROG/OFF)
     { m: n => n.includes('max') && n.includes('table') },                             // MAX. TABLE
     { m: n => n.includes('prize pool') || n.includes('guarant') || n.includes('garantido'), once: true }, // Garantido (1x)
@@ -62,6 +73,22 @@
   // além dos campos que a Criação esconde, some o "Action" da planilha —
   // aqui a linha Action é o botão de conferido do checklist, duplicaria
   const GC_HIDDEN_RECIPE = /num\.?\s*(de\s*)?players|jogadores|\bchat\b|^action$/;
+  /* ── a coluna FEE/Rake não vira linha própria ──
+     Ela JÁ está dentro da linha Admin Fee: gcAdminFeeVal() monta as DUAS parcelas
+     juntas ("10% = 2,20 / 2% = 0,44"), a do rake e a do admin, do mesmo jeito que
+     a Criação Noturna. A linha "Fee" solta repetia o mesmo número num formato
+     diferente — e duas linhas pro mesmo valor, num checklist de conferência, só
+     dão margem pra alguém conferir a errada.
+     Os padrões são os MESMOS do gcAdminFeeVal (inclusive o "não é admin/early"):
+     se a planilha renomear a coluna um dia, os dois lugares mudam juntos ou a
+     linha volta a aparecer duplicada. */
+  const GC_FEE_FIELD  = /\brake\b|(^|[^a-z])fee([^a-z]|$)|taxa\s*do\s*torneio/;
+  const GC_FEE_EXCETO = /admin|early|adm\.?\s*fee/;
+  function gcHiddenField(label){
+    const n = normText(label);
+    if (GC_HIDDEN_RECIPE.test(n)) return true;
+    return GC_FEE_FIELD.test(n) && !GC_FEE_EXCETO.test(n);
+  }
   function gcOrderFields(fields){
     const remaining = fields.slice(), out = [];
     GC_CREATION_ORDER.forEach(slot => {
@@ -78,7 +105,7 @@
     return out.concat(remaining);                 // o que sobrou vai pro fim, na ordem da planilha
   }
   function gcVisibleFields(){
-    return gcOrderFields(((gcSheet && gcSheet.fields) || []).filter(l => !GC_HIDDEN_RECIPE.test(normText(l))));
+    return gcOrderFields(((gcSheet && gcSheet.fields) || []).filter(l => !gcHiddenField(l)));
   }
   /* ── ADMIN FEE CALCULADO, igual à Criação (adminFeeParts de criacao-noturna.html):
      Rake/Fee e Admin Fee SEPARADOS na mesma linha — regra da casa: 10% do buy-in

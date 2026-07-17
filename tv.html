@@ -55,7 +55,13 @@ SupremaAuth.guard({ panel:'tv' }); SupremaAuth.revalidateAccess('tv');
   <div class="ticker-mask"><div class="ticker-track" id="tickerTrack"></div></div>
 </footer>
 
-<button id="fsBtn" class="fs-btn" title="Tela cheia">⛶</button>
+<!-- controles do canal: dormem junto com o cursor (body.tv-awake, ver tv.js).
+     O "♠ OS" é a ÚNICA saída da TV — a página é fullscreen, cursor:none e não
+     tem nav nenhuma; até agora só dava pra sair pelo Alt+seta do navegador. -->
+<div class="tv-controls">
+  <a class="tv-btn tv-btn-hub" href="hub.html" title="Voltar ao hub Suprema OS">♠ OS</a>
+  <button class="tv-btn" id="fsBtn" title="Tela cheia" aria-label="Alternar tela cheia">⛶</button>
+</div>
 
 <script src="suprema-db.js"></script>
 <script src="tv.js"></script>

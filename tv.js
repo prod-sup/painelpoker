@@ -197,6 +197,38 @@ async function loadRecords(){
   }catch(e){ console.warn('[SupremaTV] recordes indisponíveis', e); }
 }
 
+/* ═══════════════════ português ═══════════════════
+   Concordância num lugar só. Estava montada À MÃO em sete pontos, e a conta
+   chegou: `bateu${n>1?'ram':''}` cuspiu "15 BATEURAM O GARANTIDO" no telão —
+   o radical é "bat-", então o plural é "bateram", não "bateu"+"ram".
+   O segundo erro era mais silencioso: `${n > 1 ? 's' : ''}` dá "0 evento", e
+   zero em português pede PLURAL ("0 eventos"). Um ponto do arquivo já usava a
+   forma certa (`n === 1 ? '' : 's'`) e os outros não — o arquivo se contradizia.
+   Quem escreve texto pra tela não devia estar decidindo isto de novo a cada vez. */
+const pl = (n, um, muitos) => (n === 1 ? um : muitos);
+const conta = (n, um, muitos) => `${NF_INT.format(n)} ${pl(n, um, muitos)}`;
+
+/* nome de operador pra tela: o Painel do Dia grava e-mail em alguns nós */
+function nomeCurto(s){ return String(s || '').split('@')[0].trim(); }
+
+/* ═══════════════════ performance do evento ═══════════════════
+   A pergunta que a operação faz olhando o telão não é "quanto pagou", é "PASSOU
+   do garantido ou a casa cobriu?". Premiação sozinha não responde: R$ 2,7 mil é
+   ótimo num GTD de 2 mil e ruim num de 5 mil. O percentual responde.
+   Overlay (premiação abaixo do garantido) não é ERRO — é a casa bancando a
+   diferença, que faz parte do negócio. Por isso ele é dourado e não vermelho:
+   vermelho aqui viraria alarme falso, e ainda brigaria com o vermelho do AO VIVO. */
+function perfEvento(e, lv){
+  if (e.garantido == null || e.garantido <= 0 || lv.prem == null) return null;
+  return { pct: (lv.prem / e.garantido - 1) * 100, bateu: lv.prem >= e.garantido };
+}
+function fmtPerf(pct){
+  const v = Math.abs(pct) >= 10 ? Math.round(Math.abs(pct)) : Math.round(Math.abs(pct) * 10) / 10;
+  /* sinal de menos DE VERDADE (U+2212), não hífen: num número grande em mono o
+     hífen fica curto demais e some a 4 metros */
+  return (pct >= 0 ? '+' : '−') + v.toLocaleString('pt-BR') + '%';
+}
+
 /* ═══════════════════ helpers de cena ═══════════════════ */
 
 function kinetic(text, base){
@@ -338,7 +370,7 @@ function composeScenes(){
   if (upcoming.length){
     const html = `${suitWatermark('♥')}
       <h2 class="sc-kicker" style="--i:0">A SEGUIR HOJE
-        <em class="sc-cnt">${upcoming.length} evento${upcoming.length > 1 ? 's' : ''} até o fim do dia</em></h2>
+        <em class="sc-cnt">${conta(upcoming.length, 'evento', 'eventos')} até o fim do dia</em></h2>
       <div class="tv-scroll"><div class="tv-rows tv-roll">${upcoming.map(({e, st}, i) => `
         <div class="tv-row" style="--i:${iCap(i+1)}">
           <span class="tr-hora">${e.hora}</span>
@@ -359,18 +391,32 @@ function composeScenes(){
     .filter(x => x.lv.prem != null)
     .sort((a, b) => b.e.abs - a.e.abs);
   if (jaRolou.length){
-    const estouraram = jaRolou.filter(x => x.e.garantido != null && x.lv.prem >= x.e.garantido).length;
+    const bateram = jaRolou.filter(x => x.e.garantido != null && x.lv.prem >= x.e.garantido).length;
+    const pago = jaRolou.reduce((s, x) => s + x.lv.prem, 0);
     const html = `${suitWatermark('♥')}
       <h2 class="sc-kicker" style="--i:0">JÁ ROLOU HOJE
-        ${estouraram ? `<em class="sc-cnt felt">✦ ${estouraram} bateu${estouraram > 1 ? 'ram' : ''} o garantido</em>` : ''}</h2>
-      <div class="tv-scroll"><div class="tv-rows tv-roll">${jaRolou.map(({e, lv}, i) => {
-        const bateu = e.garantido != null && lv.prem >= e.garantido;
-        return `<div class="tv-row" style="--i:${iCap(i+1)}">
-          <span class="tr-hora">${e.hora}</span>
-          <span class="tr-suit ${CAT_META[e.cat].cls}">${CAT_META[e.cat].suit}</span>
-          <span class="tr-nome">${escHtml(shortName(e.nome))}</span>
-          <span class="tr-gtd${bateu ? ' bateu' : ''}">${fmtMoney(lv.prem)}</span>
-          <span class="tr-in">${bateu ? '✦ bateu' : ''}</span>
+        <em class="sc-cnt">${conta(jaRolou.length, 'evento', 'eventos')} · ${fmtMoney(pago)} em premiação</em>
+        ${bateram ? `<em class="sc-cnt felt">✦ ${bateram} ${pl(bateram, 'bateu', 'bateram')} o garantido</em>` : ''}</h2>
+      <div class="tv-scroll"><div class="tv-done-list tv-roll">${jaRolou.map(({e, lv}, i) => {
+        const p = perfEvento(e, lv);
+        const quem = nomeCurto(lv.premBy);
+        return `<div class="tv-done" style="--i:${iCap(i+1)}">
+          <span class="dn-hora">${e.hora}</span>
+          <span class="dn-suit ${CAT_META[e.cat].cls}">${CAT_META[e.cat].suit}</span>
+          <span class="dn-body">
+            <span class="dn-nome">${escHtml(shortName(e.nome))}${e.camp ? ` <em class="tr-camp">✦ ${CAMP_LABEL[e.camp]}</em>` : ''}</span>
+            <span class="dn-sub">${[
+              e.buyin != null ? `buy-in ${fmtMoneyFull(e.buyin)}` : null,
+              e.garantido != null ? `garantido ${fmtMoney(e.garantido)}` : null,
+              lv.field != null ? `${conta(lv.field, 'jogador', 'jogadores')}` : null,
+            ].filter(Boolean).join(' · ')}</span>
+          </span>
+          <span class="dn-prem${p && p.bateu ? ' bateu' : ''}">${fmtMoney(lv.prem)}</span>
+          <span class="dn-perf${p ? (p.bateu ? ' bateu' : ' overlay') : ''}">${p ? fmtPerf(p.pct) : ''}
+            <small>${p ? (p.bateu ? 'sobre o GTD' : 'de overlay') : 'sem garantido'}</small></span>
+          <span class="dn-by">${quem
+            ? `${avatarHtml(quem, 'dn-av')}<small>${escHtml(quem)} lançou</small>`
+            : '<small class="dn-sem">premiação sem autor</small>'}</span>
         </div>`;
       }).join('')}</div></div>`;
     segments.push({ cls:'s-list s-roll s-done', dur: sceneDuration(html, 9000, 18000), accent:'#22d47e', html });
@@ -389,12 +435,12 @@ function composeScenes(){
     const order = ['AS', 'SPS', 'SPT'].filter(c => groups[c]);
     const html = `${suitWatermark('♥')}
       <h2 class="sc-kicker gold" style="--i:0">CAMPANHAS EM DESTAQUE
-        <em class="sc-cnt">${campToday.length} evento${campToday.length > 1 ? 's' : ''} hoje</em></h2>
+        <em class="sc-cnt">${conta(campToday.length, 'evento', 'eventos')} hoje</em></h2>
       <div class="tv-scroll"><div class="tv-camps tv-roll">${order.map((c, gi) => {
         const evs = groups[c].sort((a,b) => a.abs - b.abs);
         const gtd = evs.reduce((s,e) => s + (e.garantido || 0), 0);
         return `<div class="tv-camp-group" style="--i:${iCap(gi+1)}">
-          <div class="tc-tag">✦ ${CAMP_LABEL[c]} · ${evs.length} evento${evs.length > 1 ? 's' : ''} · ${fmtMoney(gtd)} GTD</div>
+          <div class="tc-tag">✦ ${CAMP_LABEL[c]} · ${conta(evs.length, 'evento', 'eventos')} · ${fmtMoney(gtd)} GTD</div>
           <div class="tc-list">${evs.map(e => `
             <div class="tc-row">
               <span class="tc-hora">${e.hora}</span>
@@ -441,7 +487,7 @@ function composeScenes(){
         return `<div class="tv-day ${day === today ? 'is-today' : ''}" style="--i:${i+1}">
           <span class="td-wd">${WEEKDAY_SHORT[isoWeekdayIdx(iso)]}</span>
           <span class="td-d">${+iso.slice(8)}</span>
-          <span class="td-n">${n} evento${n === 1 ? '' : 's'}</span>
+          <span class="td-n">${conta(n, 'evento', 'eventos')}</span>
           <i class="td-bar" aria-hidden="true"><b style="width:${pct}%"></b></i>
           <span class="td-gtd">${fmtMoney(gtdByDay[day])}</span>
         </div>`;
@@ -476,12 +522,12 @@ function composeScenes(){
   if (routeTargets.length){
     const html = `${suitWatermark('♥')}
       <h2 class="sc-kicker" style="--i:0">COMECE PEQUENO, JOGUE GRANDE
-        <em class="sc-cnt">${routeTargets.length} torneio${routeTargets.length > 1 ? 's' : ''} com rota de ticket hoje</em></h2>
+        <em class="sc-cnt">${conta(routeTargets.length, 'torneio', 'torneios')} com rota de ticket hoje</em></h2>
       <div class="tv-scroll"><div class="tv-routes tv-roll">${routeTargets.map((t, i) => {
         const sats = MODEL.events.filter(s => s.targetId === t.id).sort((a,b) => (a.buyin??Infinity) - (b.buyin??Infinity));
         const cheap = sats[0];
         return `<div class="tv-route" style="--i:${iCap(i+1)}">
-          <span class="tvr-from">♦ ${sats.length} satélite${sats.length > 1 ? 's' : ''}${cheap && cheap.buyin != null ? ` · desde <b>${fmtMoneyFull(cheap.buyin)}</b>` : ''}</span>
+          <span class="tvr-from">♦ ${conta(sats.length, 'satélite', 'satélites')}${cheap && cheap.buyin != null ? ` · desde <b>${fmtMoneyFull(cheap.buyin)}</b>` : ''}</span>
           <span class="tvr-arrow"><i></i>🎟<i></i></span>
           <span class="tvr-to">${CAT_META[t.cat].suit} ${escHtml(shortName(t.nome))}<small>${t.hora}${t.garantido != null ? ' · GTD ' + fmtMoney(t.garantido) : ''}</small></span>
         </div>`;
@@ -536,7 +582,7 @@ function composeScenes(){
         <div class="maker" style="--i:${i+1}">
           ${avatarHtml(name, 'mk-av')}
           <span class="mk-name">${escHtml(name)}</span>
-          <span class="mk-n">${n} evento${n > 1 ? 's' : ''}</span>
+          <span class="mk-n">${conta(n, 'evento', 'eventos')}</span>
         </div>`).join('')}</div>` : ''}
       ${tomorrowTotal && tomorrowDone ? `
         <div class="gu-progress" style="--i:${makers.length + 2}">

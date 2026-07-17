@@ -48,17 +48,20 @@ body > *{position:relative;z-index:1}
     --red: #c0392b;
     --red-soft: #fbeae8;
 
-    --main: #9a2d1f;
-    --main-bright: #d8492f;
-    --main-soft: #fbece7;
+    /* Categorias — fonte única em suprema-tokens.css (--sup-cat-*). O dark vem
+       junto sem bloco próprio: quem troca é o token. (--sidefree é exclusivo da
+       Criação e continua morando aqui.) */
+    --main: var(--sup-cat-main);
+    --main-bright: var(--sup-cat-main-bright);
+    --main-soft: var(--sup-cat-main-soft);
 
-    --side: #1d5fa3;
-    --side-bright: #2f7fd6;
-    --side-soft: #e9f1fb;
+    --side: var(--sup-cat-side);
+    --side-bright: var(--sup-cat-side-bright);
+    --side-soft: var(--sup-cat-side-soft);
 
-    --sat: #6b3fa0;
-    --sat-bright: #8c5cc6;
-    --sat-soft: #f1eaf9;
+    --sat: var(--sup-cat-sat);
+    --sat-bright: var(--sup-cat-sat-bright);
+    --sat-soft: var(--sup-cat-sat-soft);
 
     --sidefree: #1f9e90;
     --sidefree-bright: #17998a;
@@ -96,15 +99,8 @@ body > *{position:relative;z-index:1}
     --gold-soft: rgba(201,168,76,0.14);
     --red:       #e85555;
     --red-soft:  rgba(232,85,85,0.14);
-    --main:       #d94f3d;
-    --main-bright:#f06050;
-    --main-soft:  rgba(217,79,61,0.14);
-    --side:       #3585e0;
-    --side-bright:#5aa8ff;
-    --side-soft:  rgba(53,133,224,0.14);
-    --sat:        #9b61d6;
-    --sat-bright: #b888f0;
-    --sat-soft:   rgba(155,97,214,0.14);
+    /* Categorias: nada aqui — os apelidos do :root apontam pros --sup-cat-* e o
+       suprema-tokens.css troca os tokens no dark. */
     --sidefree:       #2bb5a4;
     --sidefree-bright:#4dd0c4;
     --sidefree-soft:  rgba(77,208,196,0.14);
