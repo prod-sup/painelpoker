@@ -502,7 +502,9 @@
 
   *{box-sizing:border-box;}
   [hidden]{display:none !important;}
-  html{scroll-behavior:smooth;}
+  /* scroll-padding-top: a nav é fixed (56px, 48px depois de .scrolled) — sem isso,
+     todo link do nav ("#agenda" etc.) pousa a seção escondida atrás dela */
+  html{scroll-behavior:smooth; scroll-padding-top:76px;}
   /* ── a mesma atmosfera do hub: feltro no horizonte + dourado no canto,
      e as cores dos naipes à deriva (SupremaMotion.ambient) e do cursor-glow.
      No light o glow é feltro (dourado some no branco); no dark, dourado. ── */

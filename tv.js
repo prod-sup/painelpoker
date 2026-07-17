@@ -178,6 +178,14 @@ function creditHtml(e, lv){
 function suitWatermark(suit){
   return `<span class="suit-mark" aria-hidden="true">${suit}</span>`;
 }
+/* duração da cena por VOLUME DE CONTEÚDO, não fixa — era a causa raiz do "muito
+   rápido": uma lista de 7 linhas cortava no mesmo relógio que um holofote com
+   1 número. Conta palavras do HTML (aproxima o esforço de leitura) e escala
+   entre min/max por tipo de cena. */
+function sceneDuration(html, min, max){
+  const words = String(html).replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length;
+  return Math.max(min, Math.min(max, 2600 + words * 220));
+}
 /* cena de holofote (usada na rotação, no PIN do controle e na celebração) */
 function spotlightHtml(e, st){
   const lv = liveOf(e);
@@ -200,9 +208,11 @@ function spotlightHtml(e, st){
 
 /* ═══════════════════ compositor de cenas ═══════════════════ */
 
+let _compositions = 0;                                // conta as voltas do loop (marca não toca toda vez)
 function composeScenes(){
   attachDayListeners();                              // se a grade virou, reancora
-  const scenes = [];
+  _compositions++;
+  const segments = [];                               // as cenas de "conteúdo" (a live e a marca entram na hora de montar a ordem)
   const today = todayWeekdayPT();
   const todays = MODEL.events.filter(e => e.weekday === today);
   matchCreators(MODEL.events, LIVE.doneToday, today);
@@ -213,20 +223,24 @@ function composeScenes(){
   const upcoming = withSt.filter(x => x.st.k === 'soon' || x.st.k === 'upcoming')
     .sort((a,b) => a.e.abs - b.e.abs);
 
-  /* 1 — vinheta da casa */
-  scenes.push({ cls:'s-brand', dur:7000, html:`
+  /* vinheta da casa — NÃO toca toda volta (repetitivo em horas de telão); só
+     abre a 1ª composição e depois a cada 3 */
+  const brandScene = (_compositions % 3 === 1) ? { cls:'s-brand', dur:7000, html:`
     <div class="b-mark shine">♠</div>
     <h1 class="b-title">${kinetic('SUPREMA TV')}</h1>
-    <p class="b-sub" style="--i:3">${escHtml(today.replace('-FEIRA',''))} · ${fmtDateShort(MODEL.dates[today])} — a grade de hoje, ao vivo</p>` });
+    <p class="b-sub" style="--i:3">${escHtml(today.replace('-FEIRA',''))} · ${fmtDateShort(MODEL.dates[today])} — a grade de hoje, ao vivo</p>` } : null;
 
-  /* 2 — holofote nos AO VIVO */
-  liveNow.slice(0, 3).forEach(({e, st}) => {
-    scenes.push({ cls:'s-spot ' + CAT_META[e.cat].cls, dur:12000, html: spotlightHtml(e, st) });
+  /* holofotes AO VIVO — montados aqui, mas INTERCALADOS na rotação lá embaixo
+     (antes despejavam os 3 no início e sumiam por 2 min; um canal traz o "ao
+     vivo" de volta ao longo do loop) */
+  const liveScenes = liveNow.slice(0, 3).map(({e, st}) => {
+    const html = spotlightHtml(e, st);
+    return { cls:'s-spot ' + CAT_META[e.cat].cls, dur: sceneDuration(html, 10000, 15000), html };
   });
 
   /* 3 — a seguir hoje */
   if (upcoming.length){
-    scenes.push({ cls:'s-list', dur:12000, html:`
+    const html = `${suitWatermark('♥')}
       <h2 class="sc-kicker" style="--i:0">A SEGUIR HOJE</h2>
       <div class="tv-rows">${upcoming.slice(0, 7).map(({e, st}, i) => `
         <div class="tv-row" style="--i:${i+1}">
@@ -235,14 +249,38 @@ function composeScenes(){
           <span class="tr-nome">${escHtml(shortName(e.nome))}${e.camp ? ` <em class="tr-camp">✦ ${CAMP_LABEL[e.camp]}</em>` : ''}</span>
           <span class="tr-gtd">${e.garantido != null ? fmtMoney(e.garantido) : ''}</span>
           <span class="tr-in">${st.k === 'soon' ? 'em ' + fmtIn(st.inMin) : ''}</span>
-        </div>`).join('')}</div>` });
+        </div>`).join('')}</div>`;
+    segments.push({ cls:'s-list', dur: sceneDuration(html, 10000, 20000), html });
+  }
+
+  /* 3b — campanhas em destaque (a Global tem #AS/+SPS/+SPT — a TV nunca dava
+     palco especial pra elas, só um badge pequeno dentro do holofote) */
+  const campToday = todays.filter(e => e.camp);
+  if (campToday.length){
+    const groups = {};
+    campToday.forEach(e => { (groups[e.camp] = groups[e.camp] || []).push(e); });
+    const order = ['AS', 'SPS', 'SPT'].filter(c => groups[c]);
+    const html = `${suitWatermark('♥')}
+      <h2 class="sc-kicker gold" style="--i:0">CAMPANHAS EM DESTAQUE</h2>
+      <div class="tv-camps">${order.map((c, gi) => `
+        <div class="tv-camp-group" style="--i:${gi+1}">
+          <div class="tc-tag">✦ ${CAMP_LABEL[c]}</div>
+          <div class="tc-list">${groups[c].sort((a,b) => a.abs - b.abs).map(e => `
+            <div class="tc-row">
+              <span class="tc-hora">${e.hora}</span>
+              <span class="tc-suit ${CAT_META[e.cat].cls}">${CAT_META[e.cat].suit}</span>
+              <span class="tc-nome">${escHtml(shortName(e.nome))}</span>
+              ${e.garantido != null ? `<span class="tc-gtd">${fmtMoney(e.garantido)}</span>` : ''}
+            </div>`).join('')}</div>
+        </div>`).join('')}</div>`;
+    segments.push({ cls:'s-camps', dur: sceneDuration(html, 9000, 16000), html });
   }
 
   /* 4 — os gigantes da semana (top 5 GTD) */
   const top5 = [...MODEL.events].filter(e => e.garantido != null)
     .sort((a,b) => b.garantido - a.garantido).slice(0, 5);
   if (top5.length){
-    scenes.push({ cls:'s-week', dur:12000, html:`
+    const html = `${suitWatermark('♥')}
       <h2 class="sc-kicker" style="--i:0">OS GIGANTES DA SEMANA</h2>
       <div class="tv-rank">${top5.map((e, i) => `
         <div class="rank-row ${i === 0 ? 'first' : ''}" style="--i:${i+1}">
@@ -250,12 +288,39 @@ function composeScenes(){
           <span class="rk-body"><span class="rk-nome">${escHtml(shortName(e.nome))}</span>
             <span class="rk-sub">${WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)]} · ${e.hora}${e.buyin != null ? ' · buy-in ' + fmtMoneyFull(e.buyin) : ''}</span></span>
           <span class="rk-gtd tv-count">${fmtMoney(e.garantido)}</span>
-        </div>`).join('')}</div>` });
+        </div>`).join('')}</div>`;
+    segments.push({ cls:'s-week', dur: sceneDuration(html, 10000, 18000), html });
+  }
+
+  /* 4b — a semana inteira (visão macro que faltava: até aqui só "hoje" tinha
+     cena própria — um canal precisa dar contexto do que vem nos outros dias) */
+  {
+    const gtdByDay = {}; let gtdMax = 0;
+    WEEK_ORDER.forEach(day => {
+      const g = MODEL.events.filter(e => e.weekday === day).reduce((s,e) => s + (e.garantido || 0), 0);
+      gtdByDay[day] = g;
+      if (g > gtdMax) gtdMax = g;
+    });
+    const html = `${suitWatermark('♥')}
+      <h2 class="sc-kicker" style="--i:0">A SEMANA INTEIRA</h2>
+      <div class="tv-week">${WEEK_ORDER.map((day, i) => {
+        const iso = MODEL.dates[day];
+        const n = MODEL.events.filter(e => e.weekday === day).length;
+        const pct = gtdMax > 0 ? Math.round((gtdByDay[day] / gtdMax) * 100) : 0;
+        return `<div class="tv-day ${day === today ? 'is-today' : ''}" style="--i:${i+1}">
+          <span class="td-wd">${WEEKDAY_SHORT[isoWeekdayIdx(iso)]}</span>
+          <span class="td-d">${+iso.slice(8)}</span>
+          <span class="td-n">${n} evento${n === 1 ? '' : 's'}</span>
+          <i class="td-bar" aria-hidden="true"><b style="width:${pct}%"></b></i>
+          <span class="td-gtd">${fmtMoney(gtdByDay[day])}</span>
+        </div>`;
+      }).join('')}</div>`;
+    segments.push({ cls:'s-grid', dur: sceneDuration(html, 10000, 16000), html });
   }
 
   /* 5 — os recordes da semana (snapshots + GU) */
   if (RECORDS && (RECORDS.topPrem || RECORDS.topField || RECORDS.topMaker)){
-    scenes.push({ cls:'s-records', dur:12000, html:`
+    const html = `${suitWatermark('♥')}
       <h2 class="sc-kicker gold" style="--i:0">OS RECORDES DA SEMANA</h2>
       <div class="tv-records">
         ${RECORDS.topPrem ? `<div class="tv-record" style="--i:1">
@@ -270,14 +335,15 @@ function composeScenes(){
           <span class="rec-ico">${avatarHtml(RECORDS.topMaker.name, 'rec-av')}</span><span class="rec-label">MAIS EVENTOS CRIADOS</span>
           <span class="rec-val">${escHtml(RECORDS.topMaker.name)}</span>
           <span class="rec-sub">${RECORDS.topMaker.n} eventos nos últimos 7 dias 🌙</span></div>` : ''}
-      </div>` });
+      </div>`;
+    segments.push({ cls:'s-records', dur: sceneDuration(html, 9000, 15000), html });
   }
 
   /* 6 — comece pequeno, jogue grande (principais rotas de ticket de hoje) */
   const routeTargets = todays.filter(e => e.satCount > 0)
     .sort((a,b) => b.satCount - a.satCount || (b.garantido||0) - (a.garantido||0)).slice(0, 3);
   if (routeTargets.length){
-    scenes.push({ cls:'s-routes', dur:12000, html:`
+    const html = `${suitWatermark('♥')}
       <h2 class="sc-kicker" style="--i:0">COMECE PEQUENO, JOGUE GRANDE</h2>
       <div class="tv-routes">${routeTargets.map((t, i) => {
         const sats = MODEL.events.filter(s => s.targetId === t.id).sort((a,b) => (a.buyin??Infinity) - (b.buyin??Infinity));
@@ -287,14 +353,15 @@ function composeScenes(){
           <span class="tvr-arrow"><i></i>🎟<i></i></span>
           <span class="tvr-to">${CAT_META[t.cat].suit} ${escHtml(shortName(t.nome))}<small>${t.hora}${t.garantido != null ? ' · GTD ' + fmtMoney(t.garantido) : ''}</small></span>
         </div>`;
-      }).join('')}</div>` });
+      }).join('')}</div>`;
+    segments.push({ cls:'s-routes', dur: sceneDuration(html, 9000, 15000), html });
   }
 
   /* 7 — vem aí (eventos futuros, P&D) */
   const futs = MODEL.futures.slice(0, 3);
   if (futs.length){
     const todayISO = gradeTodayISO();
-    scenes.push({ cls:'s-future', dur:11000, html:`
+    const html = `${suitWatermark('✦')}
       <h2 class="sc-kicker gold" style="--i:0">VEM AÍ</h2>
       <div class="tv-futs">${futs.map((f, i) => {
         const days = f.dateISO ? isoDayNumber(f.dateISO) - isoDayNumber(todayISO) : null;
@@ -303,19 +370,21 @@ function composeScenes(){
           <span class="tf-nome">${escHtml(shortName(f.nome))}</span>
           ${f.garantido != null ? `<span class="tf-gtd tv-count">${fmtMoney(f.garantido)}</span><span class="tf-gl">garantidos</span>` : ''}
         </div>`;
-      }).join('')}</div>` });
+      }).join('')}</div>`;
+    segments.push({ cls:'s-future', dur: sceneDuration(html, 9000, 15000), html });
   }
 
   /* 8 — avisos da casa (os mesmos que o Admin edita pro hub) */
   if (AVISOS.length){
     const ICO = { info:'ℹ️', alerta:'⚠️', evento:'📅', promo:'✦', novidade:'✨' };
-    scenes.push({ cls:'s-avisos', dur:10000, html:`
+    const html = `${suitWatermark('♥')}
       <h2 class="sc-kicker" style="--i:0">AVISOS DA CASA</h2>
       <div class="tv-avisos">${AVISOS.map((a, i) => `
         <div class="tv-aviso" style="--i:${i+1}">
           <span class="av-ico">${ICO[normText(a.tipo)] || '📣'}</span>
           <span class="av-body"><b>${escHtml(a.titulo)}</b>${a.texto || a.msg || a.desc ? `<small>${escHtml(a.texto || a.msg || a.desc)}</small>` : ''}</span>
-        </div>`).join('')}</div>` });
+        </div>`).join('')}</div>`;
+    segments.push({ cls:'s-avisos', dur: sceneDuration(html, 9000, 18000), html });
   }
 
   /* 9 — quem construiu a noite (créditos da equipe + progresso da GU ao vivo) */
@@ -328,7 +397,7 @@ function composeScenes(){
   const tomorrowTotal = MODEL.events.filter(e => e.weekday === tomorrowDay).length;
   const tomorrowDone = Object.keys(LIVE.doneTomorrow || {}).length;
   if (makers.length || (tomorrowTotal && tomorrowDone)){
-    scenes.push({ cls:'s-team', dur:12000, html:`
+    const html = `${suitWatermark('♥')}
       <h2 class="sc-kicker" style="--i:0">QUEM CONSTRUIU A NOITE</h2>
       ${makers.length ? `<div class="tv-makers">${makers.map(([name, n], i) => `
         <div class="maker" style="--i:${i+1}">
@@ -341,8 +410,20 @@ function composeScenes(){
           <span class="gp-label">🌙 A GU está montando ${tomorrowDay.replace('-FEIRA','').toLowerCase()} agora:</span>
           <span class="gp-bar"><b style="width:${Math.min(100, Math.round(tomorrowDone / tomorrowTotal * 100))}%"></b></span>
           <span class="gp-n">${tomorrowDone} de ${tomorrowTotal} eventos criados</span>
-        </div>` : ''}` });
+        </div>` : ''}`;
+    segments.push({ cls:'s-team', dur: sceneDuration(html, 9000, 16000), html });
   }
+
+  /* ── monta a ORDEM final: marca (quando toca) → segmentos com os holofotes
+     AO VIVO intercalados a cada ~2 blocos, e o que sobrar de live no fim ── */
+  const scenes = [];
+  if (brandScene) scenes.push(brandScene);
+  let li = 0;
+  segments.forEach((seg, i) => {
+    if (li < liveScenes.length && i % 2 === 0) scenes.push(liveScenes[li++]);
+    scenes.push(seg);
+  });
+  while (li < liveScenes.length) scenes.push(liveScenes[li++]);
 
   renderTicker(upcoming.map(x => x.e));
   return scenes;
@@ -353,11 +434,23 @@ function composeScenes(){
 let _onAir = false, _scenes = [], _idx = 0, _timer = null;
 function renderScene(sc){
   const stage = document.getElementById('stage');
-  stage.innerHTML = `<section class="scene ${sc.cls}">${sc.html}
-    ${sc.dur ? `<i class="scene-progress" style="animation-duration:${sc.dur}ms"></i>` : ''}</section>`;
+  /* CROSSFADE de transmissão: em vez de trocar o innerHTML (que deixava um
+     FLASH PRETO entre cenas — a antiga sumia antes de a nova aparecer), a nova
+     entra POR CIMA e a antiga esmaece junto. Sobreposição só de opacity/
+     transform, sem custo de layout. countUp tem guarda __spCount, então os
+     números da cena que está saindo não re-animam. */
+  const outgoing = Array.from(stage.querySelectorAll('.scene'));
+  const el = document.createElement('section');
+  el.className = 'scene ' + sc.cls;
+  el.innerHTML = sc.html + (sc.dur ? `<i class="scene-progress" style="animation-duration:${sc.dur}ms"></i>` : '');
+  stage.appendChild(el);
+  outgoing.forEach(prev => {
+    prev.classList.remove('in');
+    prev.classList.add('out');
+    setTimeout(() => { if (prev.isConnected) prev.remove(); }, 1400);
+  });
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    const el = stage.firstElementChild;
-    if (el) el.classList.add('in');
+    el.classList.add('in');
     SupremaMotion.countUp('.tv-count', { duration:1500 });
   }));
 }
