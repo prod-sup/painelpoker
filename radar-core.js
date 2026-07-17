@@ -251,6 +251,7 @@ function ticketFazSentido(sat, t){
   return t.buyin >= sat.buyin * 1.5;
 }
 
+
 /* O CABEÇALHO DO GRUPO (coluna A) é a declaração EXPLÍCITA do destino na
    Global — vence qualquer heurística. Procura um evento da semana com o nome
    do cabeçalho; pode ser OUTRO SATÉLITE (cadeia real: Step → Mega Sat → Main). */
@@ -309,8 +310,10 @@ function headerTarget(sat, events){
     if (!exact && !tokHit) return;
     /* ranking: casamento exato > por tokens; empatou, o mais CEDO vence (é o
        próximo degrau da cadeia, não o último). O "+1 se começa depois" saiu:
-       agora começar depois é pré-requisito, não bônus. */
-    const rank = exact ? 4 : 2;
+       agora começar depois é pré-requisito, não bônus. Variante casada com o
+       NOME do sat desempata por cima — entre dois alvos do grupo, o da mesma
+       família (HR com HR, T. com T.) vence. */
+    const rank = (exact ? 4 : 2) + (satVar && tVar === satVar ? 1 : 0);
     if (rank > bestRank || (rank === bestRank && best && t.abs < best.abs)){ bestRank = rank; best = t; }
   });
   return best;
@@ -349,6 +352,14 @@ function linkSatellites(events){
       const casados = [];
       const tToks = linkTokens(t.nome);
       tToks.forEach(tok => { if (satToks.has(tok)){ score += Math.min(4, tok.length); casados.push(tok); } });
+      /* ── A VARIANTE DECIDE ENTRE OS IRMÃOS ──
+         "5 Seats OmaX HR" tem que preferir o "40K OmaX HR" (variante casada,
+         bônus forte) — e "6 Seats OmaX T." NÃO pode cair num "1K Omax" genérico
+         só porque "omax" casou: sat com variante declarada e alvo sem nenhuma é
+         palpite fraco (penalidade). Se o alvo T. da família não existir na
+         semana, o certo é ficar ÓRFÃO pro admin decidir, não chutar o primo. */
+      if (satVar && tVar === satVar){ score += 4; casados.push(satVar); }
+      else if (satVar && !tVar) score -= 2;
       const mesmaHora = satHour != null && timeToMinutes(t.hora) != null &&
                         Math.floor(timeToMinutes(t.hora)/60) === satHour;
       if (mesmaHora) score += 3;
