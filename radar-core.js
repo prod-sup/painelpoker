@@ -296,8 +296,12 @@ function headerTarget(sat, events){
        degrau, então continua funcionando — é a mesma regra que a branch do
        targetGroup aqui embaixo já aplicava. */
     if (tn === satNome) return;
+    /* sat com variante declarada EXIGE alvo da MESMA variante — genérico não
+       vale: na Global da casa os alvos carregam a variante no nome ("40K OmaX
+       HR"), então "OmaX T." casando com "1K Omax" era herança de cabeçalho
+       errada, não rota. Cobre o conflito (T. ≠ HR) E o alvo sem variante. */
     const tVar = variantOf(t.nome);
-    if (satVar && tVar && satVar !== tVar) return;   // irmão de outra família (T. ≠ HR)
+    if (satVar && tVar !== satVar) return;
     if (!ticketFazSentido(sat, t)) return;           // alvo mais barato que o sat: não é rota
     const exact = tn.includes(gh) || gh.includes(tn);
     let tokHit = false;
@@ -345,21 +349,22 @@ function linkSatellites(events){
       if (t.abs <= sat.abs) return;                 // alvo tem que começar DEPOIS do satélite
       /* irmãos de famílias diferentes nunca se ligam: sat "OmaX T." não
          classifica pro "OmaX HR", por mais que o resto do nome case */
+      /* mesma exigência do headerTarget: variante declarada só liga em alvo da
+         MESMA variante — alvo genérico é vetado, não só penalizado (a penalidade
+         de -2 não bastava: os tokens do cabeçalho herdado somavam ponto e o
+         "1K Omax" passava do corte mesmo assim) */
       const tVar = variantOf(t.nome);
-      if (satVar && tVar && satVar !== tVar) return;
+      if (satVar && tVar !== satVar) return;
       if (!ticketFazSentido(sat, t)) return;         // economia do ticket (ver acima)
       let score = 0;
       const casados = [];
       const tToks = linkTokens(t.nome);
       tToks.forEach(tok => { if (satToks.has(tok)){ score += Math.min(4, tok.length); casados.push(tok); } });
-      /* ── A VARIANTE DECIDE ENTRE OS IRMÃOS ──
-         "5 Seats OmaX HR" tem que preferir o "40K OmaX HR" (variante casada,
-         bônus forte) — e "6 Seats OmaX T." NÃO pode cair num "1K Omax" genérico
-         só porque "omax" casou: sat com variante declarada e alvo sem nenhuma é
-         palpite fraco (penalidade). Se o alvo T. da família não existir na
-         semana, o certo é ficar ÓRFÃO pro admin decidir, não chutar o primo. */
-      if (satVar && tVar === satVar){ score += 4; casados.push(satVar); }
-      else if (satVar && !tVar) score -= 2;
+      /* variante casada entra nos motivos do vínculo (o drawer mostra) — o
+         VETO lá em cima já garantiu que só sobram alvos da mesma família; se o
+         alvo T. não existir na semana, o certo é ficar ÓRFÃO pro admin decidir,
+         não chutar o primo genérico */
+      if (satVar && tVar === satVar) casados.push(satVar);
       const mesmaHora = satHour != null && timeToMinutes(t.hora) != null &&
                         Math.floor(timeToMinutes(t.hora)/60) === satHour;
       if (mesmaHora) score += 3;
@@ -371,11 +376,12 @@ function linkSatellites(events){
       sat.targetId = best.id;
       sat.linkWhy = { via:'tokens', score: Math.round(bestScore*10)/10, toks: bestToks };
     } else if (sat.groupHeader && !squashName(sat.nome).includes(squashName(sat.groupHeader))
-               && !(satNameVar && variantOf(sat.groupHeader) && variantOf(sat.groupHeader) !== satNameVar)){
+               && !(satNameVar && variantOf(sat.groupHeader) !== satNameVar)){
       /* o próprio cabeçalho do grupo não pode ser "destino" de si mesmo
          (a linha-mãe do grupo herda o header com o mesmo nome).
-         E cabeçalho de variante CONFLITANTE com o nome do sat não vira destino
-         nomeado: é herança de cascata do grupo de cima, não declaração. */
+         E sat com variante no nome EXIGE cabeçalho da mesma variante pra virar
+         destino nomeado — conflitante OU genérico é herança de cascata do grupo
+         de cima, não declaração ("OmaX T." sob header "1K OMAX" fica órfão). */
       sat.targetGroup = sat.groupHeader;
       sat.linkWhy = { via:'grupo', grupo: sat.groupHeader };
     } else {
