@@ -124,6 +124,29 @@ body{
 }
 @keyframes shine-sweep{0%,55%{transform:translateX(-120%)}85%,100%{transform:translateX(120%)}}
 
+/* ── canal fora do ar ── Um telão que não diz nada parece quebrado; este diz.
+   Sem dourado e sem pulso de "vivo": a ausência de brilho É a mensagem. */
+.s-offair .offair-mark{
+  color:var(--ink-soft);opacity:.4;filter:none;
+  animation:offair-breathe 3.4s ease-in-out infinite;
+}
+@keyframes offair-breathe{0%,100%{opacity:.28}50%{opacity:.5}}
+.s-offair .offair-title{
+  font-size:clamp(38px,5.4vw,84px);letter-spacing:-.02em;color:var(--ink);
+}
+.s-offair .b-sub{text-transform:none;letter-spacing:.01em;max-width:44ch;line-height:1.5}
+.offair-hint{
+  margin-top:3.4vh;font-size:clamp(12px,1.15vw,17px);color:var(--ink-soft);opacity:.7;
+  opacity:0;transform:translateY(20px);
+  transition:opacity .6s var(--ease), transform .7s var(--ease);
+  transition-delay:calc(var(--i,0) * 110ms);
+}
+.scene.in .offair-hint{opacity:.7;transform:none}
+@media (prefers-reduced-motion:reduce){
+  .s-offair .offair-mark{animation:none}
+  .offair-hint{transition:none;transform:none;opacity:.7}
+}
+
 /* ── holofote (AO VIVO) ── */
 .s-spot{justify-content:center}
 .suit-mark{
@@ -354,15 +377,21 @@ body{
 .tk-item em{font-style:normal;color:var(--felt);font-weight:800;margin-left:8px}
 .tk-sep{color:rgba(201,168,76,.5);font-size:13px}
 
-/* fullscreen: só aparece quando o mouse mexe (cursor none no resto) */
+/* fullscreen: só aparece quando o mouse MEXE. `body:hover` (o que estava aqui)
+   é verdadeiro sempre que o ponteiro está sobre a janela — ou seja, o botão
+   ficava aceso o tempo todo num telão que declara `cursor:none`. Quem decide é
+   o JS: .tv-awake entra no pointermove e sai depois de ~2,5s parado. */
 .fs-btn{
   position:fixed;right:18px;bottom:74px;z-index:30;width:44px;height:44px;
   border-radius:12px;border:1px solid rgba(255,255,255,.14);cursor:pointer;
   background:rgba(10,11,14,.7);color:var(--ink-soft);font-size:19px;
-  opacity:0;transition:opacity .3s;
+  opacity:0;pointer-events:none;transition:opacity .3s;
 }
-body:hover .fs-btn{opacity:.6}
+body.tv-awake{cursor:auto}
+body.tv-awake .fs-btn{opacity:.6;pointer-events:auto}
 .fs-btn:hover{opacity:1 !important;color:var(--gold-hi)}
+/* teclado: quem chega por Tab precisa ver o botão mesmo com o mouse parado */
+.fs-btn:focus-visible{opacity:1;pointer-events:auto}
 
 /* ── 🎉 celebração: premiação bateu o garantido ── */
 #confettiCv{position:fixed;inset:0;z-index:5;pointer-events:none}

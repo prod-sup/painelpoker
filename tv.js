@@ -48,10 +48,14 @@ function initData(){
     console.info('[SupremaTV] auth ok — sintonizando');
     SupremaDB.watch('painel/globalMtt/at', snap => {
       const at = snap.val();
-      if (!at || `${at}` === `${_lastAt}`) return;
+      if (!at){ showOffAir('sem-global'); return; }   // nó vazio: ninguém subiu a Global ainda
+      if (`${at}` === `${_lastAt}`) return;
       _lastAt = `${at}`;
       loadSharedGlobal();
     });
+    /* rede lenta ou regra negada: o watcher acima nunca dispara e o telão
+       ficaria eternamente em "sintonizando…". Mesmo prazo do Radar. */
+    setTimeout(() => { if (!MODEL) showOffAir('sem-sinal'); }, 12000);
     SupremaDB.watch('eventos/linksOverride', snap => {
       OVERRIDES = snap.val() || {};
       if (LAST_PARSED) MODEL = buildModel(LAST_PARSED, OVERRIDES);
@@ -95,16 +99,50 @@ function attachDayListeners(){
 async function loadSharedGlobal(){
   try{
     const v = await SupremaDB.getValue('painel/globalMtt');
-    if (!v || !v.data) return;
-    await ensureXLSX();
-    const matrix = readSheetMatrix(b64ToBuf(v.data), 'MTTS BRAZIL');
-    if (!matrix) return;
-    LAST_PARSED = parseGlobalWeek(matrix);
+    if (!v || !v.data){ showOffAir('sem-global'); return; }
+    /* parse no Worker: uma Global nova chegando no meio de uma cena NÃO pode
+       travar a transmissão (ver parseGlobalWeekAsync em radar-core.js) */
+    LAST_PARSED = await parseGlobalWeekAsync(v.data, 'MTTS BRAZIL');
     MODEL = buildModel(LAST_PARSED, OVERRIDES);
     console.info(`[SupremaTV] programação carregada — ${MODEL.events.length} eventos na semana`);
     if (REMOTE){ renderRemote(); return; }
+    _offAir = null;                                  // o sinal voltou
     if (!_onAir){ _onAir = true; playNext(); }
-  }catch(err){ console.error('[SupremaTV] falha ao carregar a Global', err); }
+  }catch(err){
+    console.error('[SupremaTV] falha ao carregar a Global', err);
+    showOffAir('falha');
+  }
+}
+
+/* ── CANAL FORA DO AR ── A TV não tinha estado de erro: sem Global no nó, o
+   watcher só dava `return` e o telão ficava eternamente em "sintonizando a
+   grade…" — ninguém na operação sabia dizer se era lentidão ou falha. Um canal
+   ANUNCIA que está fora do ar. Volta sozinho: o watcher do `at` continua vivo e
+   chama loadSharedGlobal quando a Global aparecer.
+   Só vale ANTES de entrar no ar — se a grade sumir com a TV já transmitindo,
+   segurar a última programação conhecida é melhor que apagar o telão. */
+let _offAir = null;
+const OFF_AIR = {
+  'sem-global': { t:'Nenhuma grade publicada',
+                  s:'Assim que a operação subir a Global MTT no Painel do Dia, a programação entra no ar sozinha.' },
+  'sem-sinal':  { t:'Sem sinal',
+                  s:'Não consegui alcançar a grade compartilhada. Continuo tentando reconectar.' },
+  'falha':      { t:'Falha ao sintonizar',
+                  s:'A Global chegou, mas não consegui ler a aba MTTS BRAZIL dela.' },
+};
+function showOffAir(reason){
+  if (REMOTE || _onAir || _offAir === reason) return;
+  _offAir = reason;
+  clearTimeout(_timer);
+  const c = OFF_AIR[reason] || OFF_AIR['sem-sinal'];
+  /* fora do ar a sala PERDE A COR: sem categoria no palco, a névoa vai pro
+     cinza e o calor cai a zero. A ausência de cor é parte do recado. */
+  if (FELTRO) FELTRO.heat(0);
+  renderScene({ cls:'s-brand s-offair', accent:'#8b9088', html:`
+    <div class="b-mark offair-mark">♠</div>
+    <h1 class="b-title offair-title">${escHtml(c.t)}</h1>
+    <p class="b-sub" style="--i:2">${escHtml(c.s)}</p>
+    <p class="offair-hint" style="--i:3">Pode deixar o telão ligado — a TV volta ao ar sozinha.</p>` });
 }
 
 /* premiação/field/quem-lançou do Painel do Dia, pela MESMA chave (rowKey) */
@@ -225,7 +263,7 @@ function composeScenes(){
 
   /* vinheta da casa — NÃO toca toda volta (repetitivo em horas de telão); só
      abre a 1ª composição e depois a cada 3 */
-  const brandScene = (_compositions % 3 === 1) ? { cls:'s-brand', dur:7000, html:`
+  const brandScene = (_compositions % 3 === 1) ? { cls:'s-brand', dur:7000, accent:GOLD, html:`
     <div class="b-mark shine">♠</div>
     <h1 class="b-title">${kinetic('SUPREMA TV')}</h1>
     <p class="b-sub" style="--i:3">${escHtml(today.replace('-FEIRA',''))} · ${fmtDateShort(MODEL.dates[today])} — a grade de hoje, ao vivo</p>` } : null;
@@ -235,7 +273,8 @@ function composeScenes(){
      vivo" de volta ao longo do loop) */
   const liveScenes = liveNow.slice(0, 3).map(({e, st}) => {
     const html = spotlightHtml(e, st);
-    return { cls:'s-spot ' + CAT_META[e.cat].cls, dur: sceneDuration(html, 10000, 15000), html };
+    return { cls:'s-spot ' + CAT_META[e.cat].cls, dur: sceneDuration(html, 10000, 15000),
+             accent: CAT_ACCENT[e.cat], html };
   });
 
   /* 3 — a seguir hoje */
@@ -250,7 +289,7 @@ function composeScenes(){
           <span class="tr-gtd">${e.garantido != null ? fmtMoney(e.garantido) : ''}</span>
           <span class="tr-in">${st.k === 'soon' ? 'em ' + fmtIn(st.inMin) : ''}</span>
         </div>`).join('')}</div>`;
-    segments.push({ cls:'s-list', dur: sceneDuration(html, 10000, 20000), html });
+    segments.push({ cls:'s-list', dur: sceneDuration(html, 10000, 20000), accent:GOLD, html });
   }
 
   /* 3b — campanhas em destaque (a Global tem #AS/+SPS/+SPT — a TV nunca dava
@@ -273,7 +312,7 @@ function composeScenes(){
               ${e.garantido != null ? `<span class="tc-gtd">${fmtMoney(e.garantido)}</span>` : ''}
             </div>`).join('')}</div>
         </div>`).join('')}</div>`;
-    segments.push({ cls:'s-camps', dur: sceneDuration(html, 9000, 16000), html });
+    segments.push({ cls:'s-camps', dur: sceneDuration(html, 9000, 16000), accent:'#f4a9ba', html });
   }
 
   /* 4 — os gigantes da semana (top 5 GTD) */
@@ -289,7 +328,7 @@ function composeScenes(){
             <span class="rk-sub">${WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)]} · ${e.hora}${e.buyin != null ? ' · buy-in ' + fmtMoneyFull(e.buyin) : ''}</span></span>
           <span class="rk-gtd tv-count">${fmtMoney(e.garantido)}</span>
         </div>`).join('')}</div>`;
-    segments.push({ cls:'s-week', dur: sceneDuration(html, 10000, 18000), html });
+    segments.push({ cls:'s-week', dur: sceneDuration(html, 10000, 18000), accent:GOLD, html });
   }
 
   /* 4b — a semana inteira (visão macro que faltava: até aqui só "hoje" tinha
@@ -315,7 +354,7 @@ function composeScenes(){
           <span class="td-gtd">${fmtMoney(gtdByDay[day])}</span>
         </div>`;
       }).join('')}</div>`;
-    segments.push({ cls:'s-grid', dur: sceneDuration(html, 10000, 16000), html });
+    segments.push({ cls:'s-grid', dur: sceneDuration(html, 10000, 16000), accent:GOLD, html });
   }
 
   /* 5 — os recordes da semana (snapshots + GU) */
@@ -336,7 +375,7 @@ function composeScenes(){
           <span class="rec-val">${escHtml(RECORDS.topMaker.name)}</span>
           <span class="rec-sub">${RECORDS.topMaker.n} eventos nos últimos 7 dias 🌙</span></div>` : ''}
       </div>`;
-    segments.push({ cls:'s-records', dur: sceneDuration(html, 9000, 15000), html });
+    segments.push({ cls:'s-records', dur: sceneDuration(html, 9000, 15000), accent:GOLD, html });
   }
 
   /* 6 — comece pequeno, jogue grande (principais rotas de ticket de hoje) */
@@ -354,7 +393,8 @@ function composeScenes(){
           <span class="tvr-to">${CAT_META[t.cat].suit} ${escHtml(shortName(t.nome))}<small>${t.hora}${t.garantido != null ? ' · GTD ' + fmtMoney(t.garantido) : ''}</small></span>
         </div>`;
       }).join('')}</div>`;
-    segments.push({ cls:'s-routes', dur: sceneDuration(html, 9000, 15000), html });
+    /* rota de ticket é assunto de SATÉLITE — a névoa vai pro violeta da família */
+    segments.push({ cls:'s-routes', dur: sceneDuration(html, 9000, 15000), accent: CAT_ACCENT.sat, html });
   }
 
   /* 7 — vem aí (eventos futuros, P&D) */
@@ -371,7 +411,7 @@ function composeScenes(){
           ${f.garantido != null ? `<span class="tf-gtd tv-count">${fmtMoney(f.garantido)}</span><span class="tf-gl">garantidos</span>` : ''}
         </div>`;
       }).join('')}</div>`;
-    segments.push({ cls:'s-future', dur: sceneDuration(html, 9000, 15000), html });
+    segments.push({ cls:'s-future', dur: sceneDuration(html, 9000, 15000), accent:'#f4a9ba', html });
   }
 
   /* 8 — avisos da casa (os mesmos que o Admin edita pro hub) */
@@ -384,7 +424,7 @@ function composeScenes(){
           <span class="av-ico">${ICO[normText(a.tipo)] || '📣'}</span>
           <span class="av-body"><b>${escHtml(a.titulo)}</b>${a.texto || a.msg || a.desc ? `<small>${escHtml(a.texto || a.msg || a.desc)}</small>` : ''}</span>
         </div>`).join('')}</div>`;
-    segments.push({ cls:'s-avisos', dur: sceneDuration(html, 9000, 18000), html });
+    segments.push({ cls:'s-avisos', dur: sceneDuration(html, 9000, 18000), accent:GOLD, html });
   }
 
   /* 9 — quem construiu a noite (créditos da equipe + progresso da GU ao vivo) */
@@ -411,7 +451,8 @@ function composeScenes(){
           <span class="gp-bar"><b style="width:${Math.min(100, Math.round(tomorrowDone / tomorrowTotal * 100))}%"></b></span>
           <span class="gp-n">${tomorrowDone} de ${tomorrowTotal} eventos criados</span>
         </div>` : ''}`;
-    segments.push({ cls:'s-team', dur: sceneDuration(html, 9000, 16000), html });
+    /* violeta da Criação Noturna (--sup-p-gu) — é o time dela que está no palco */
+    segments.push({ cls:'s-team', dur: sceneDuration(html, 9000, 16000), accent: CAT_ACCENT.sat, html });
   }
 
   /* ── monta a ORDEM final: marca (quando toca) → segmentos com os holofotes
@@ -432,6 +473,13 @@ function composeScenes(){
 /* ═══════════════════ motor de exibição ═══════════════════ */
 
 let _onAir = false, _scenes = [], _idx = 0, _timer = null;
+
+/* as cores das categorias, iguais às de tv.css (--main-c/--side-c/--sat-c) — é
+   a mesma família que a operação já lê nas linhas do Radar. O fundo passa a
+   falar essa língua junto com o texto. */
+const GOLD = '#c9a84c';
+const CAT_ACCENT = { main:'#f06050', side:'#5aa8ff', sat:'#b888f0' };
+
 function renderScene(sc){
   const stage = document.getElementById('stage');
   /* CROSSFADE de transmissão: em vez de trocar o innerHTML (que deixava um
@@ -449,6 +497,12 @@ function renderScene(sc){
     prev.classList.add('out');
     setTimeout(() => { if (prev.isConnected) prev.remove(); }, 1400);
   });
+  /* o fundo entra no corte junto com a cena: a onda de choque marca o corte de
+     transmissão e a névoa migra pra cor da categoria que está subindo */
+  if (FELTRO){
+    FELTRO.pulse();
+    FELTRO.accent(sc.accent || GOLD);
+  }
   requestAnimationFrame(() => requestAnimationFrame(() => {
     el.classList.add('in');
     SupremaMotion.countUp('.tv-count', { duration:1500 });
@@ -489,7 +543,7 @@ function celebrate(ev, val){
   clearTimeout(_timer);
   const lv = liveOf(ev);
   const diff = val - ev.garantido;
-  renderScene({ cls:'s-boom ' + CAT_META[ev.cat].cls, dur:12000, html:`
+  renderScene({ cls:'s-boom ' + CAT_META[ev.cat].cls, dur:12000, accent: CAT_ACCENT[ev.cat], html:`
     <canvas id="confettiCv" aria-hidden="true"></canvas>
     ${suitWatermark(CAT_META[ev.cat].suit)}
     <div class="tv-chip boom" style="--i:0">🎉 PREMIAÇÃO CONFIRMADA</div>
@@ -499,6 +553,9 @@ function celebrate(ev, val){
       ? `superou o garantido de ${fmtMoney(ev.garantido)} em <b>${fmtMoney(diff)}</b>`
       : `bateu o garantido de ${fmtMoney(ev.garantido)}`}</div>
     ${creditHtml(ev, lv)}` });
+  /* a sala inteira acende: bloom dourado na névoa e os motes disparam pra cima.
+     O confete em canvas continua por cima — um é o AMBIENTE, o outro é o evento. */
+  if (FELTRO) FELTRO.boom();
   requestAnimationFrame(() => confetti(document.getElementById('confettiCv'), 9000));
   _timer = setTimeout(playNext, 12000);
 }
@@ -558,7 +615,7 @@ function showPin(){
   const ev = MODEL.events.find(e => evKey(e) === CTRL.pin);
   if (!ev){ playNext(); return; }
   matchCreators(MODEL.events, LIVE.doneToday, todayWeekdayPT());
-  renderScene({ cls:'s-spot pinned ' + CAT_META[ev.cat].cls, html:
+  renderScene({ cls:'s-spot pinned ' + CAT_META[ev.cat].cls, accent: CAT_ACCENT[ev.cat], html:
     spotlightHtml(ev, statusOf(ev)) + '<div class="pin-tag">📌 destaque fixado pelo controle</div>' });
 }
 
@@ -629,6 +686,10 @@ setInterval(() => {
   if (live) document.getElementById('tvLiveN').textContent = `${live} AO VIVO`;
   document.getElementById('tvToday').textContent =
     `${today.replace('-FEIRA','')} · ${MODEL.dates[today] ? fmtDateShort(MODEL.dates[today]) : ''}`;
+  /* a sala esquenta com a casa: grade parada = névoa fria; dois ou mais
+     torneios rolando = calor no máximo. Quem entra na sala LÊ isso de longe,
+     antes de conseguir ler qualquer texto. */
+  if (FELTRO && !_offAir) FELTRO.heat(Math.min(1, live / 2));
 }, 5000);
 
 document.getElementById('fsBtn').addEventListener('click', () => {
@@ -636,8 +697,40 @@ document.getElementById('fsBtn').addEventListener('click', () => {
   else document.documentElement.requestFullscreen().catch(() => {});
 });
 
-/* fundo: a rede de nós da casa, na paleta do canal (dourado + feltro) */
+/* o chrome acorda com o mouse e dorme sozinho — num telão, ponteiro e botão
+   parados na tela são sujeira permanente na imagem */
+let _awake = 0;
+addEventListener('pointermove', () => {
+  document.body.classList.add('tv-awake');
+  clearTimeout(_awake);
+  _awake = setTimeout(() => document.body.classList.remove('tv-awake'), 2500);
+}, { passive:true });
+
+/* ═══════════════════ fundo: O FELTRO (WebGL) ═══════════════════
+   O fundo deixou de ser decoração e virou parte da transmissão: a névoa se
+   tinge com a categoria da cena no ar, esquenta quando tem torneio AO VIVO,
+   estala a cada corte e explode em dourado quando uma premiação bate o
+   garantido. Ver suprema-feltro.js.
+
+   A rede de nós continua existindo como REDE DE SEGURANÇA: sem WebGL, com o
+   shader falhando ou com a máquina não dando conta nem no tier mais baixo, o
+   Feltro chama onFallback e o canal volta pro fundo antigo em canvas 2D.
+   Escape manual pro operador: tv.html?feltro=0 */
+let FELTRO = null;
+function mountBackground(){
+  const paraOCanvas2D = () => {
+    FELTRO = null;
+    SupremaMotion.network('.tv-bg', { c1:'#c9a84c', c2:'#22d47e', maxNodes:64, linkDist:150, isDark: () => true });
+  };
+  if (new URLSearchParams(location.search).get('feltro') === '0'){ paraOCanvas2D(); return; }
+  FELTRO = SupremaFeltro.mount('.tv-bg', {
+    bg:'#0b0c10', gold:'#c9a84c', felt:'#22d47e',
+    onFallback: paraOCanvas2D,
+  });
+  if (FELTRO) console.info(`[SupremaTV] fundo O Feltro no ar — tier "${FELTRO.tier()}"`);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-  if (!REMOTE) SupremaMotion.network('.tv-bg', { c1:'#c9a84c', c2:'#22d47e', maxNodes:64, linkDist:150, isDark: () => true });
+  if (!REMOTE) mountBackground();
   initData();
 });

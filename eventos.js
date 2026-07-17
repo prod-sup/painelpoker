@@ -99,9 +99,9 @@ async function loadSharedGlobal(){
     const v = await SupremaDB.getValue('painel/globalMtt');
     if (!v || !v.data){ showEmpty(); return; }
     META = { filename: v.filename || 'Global MTT.xlsx', at: v.at || 0, by: v.by || 'alguém' };
-    await ensureXLSX();
-    const matrix = readSheetMatrix(b64ToBuf(v.data), 'MTTS BRAZIL');
-    applyMatrix(matrix);
+    /* parse no Worker: atob + XLSX.read numa Global grande travavam a aba
+       (ver parseGlobalWeekAsync em radar-core.js) */
+    applyParsed(await parseGlobalWeekAsync(v.data, 'MTTS BRAZIL'));
   }catch(err){
     console.error('[Radar] falha ao carregar a Global compartilhada', err);
     showEmpty();
@@ -109,9 +109,9 @@ async function loadSharedGlobal(){
 }
 
 let _firstRender = true;
-function applyMatrix(matrix){
-  if (!matrix){ showEmpty(); return; }
-  LAST_PARSED = parseGlobalWeek(matrix);
+function applyParsed(parsed){
+  if (!parsed){ showEmpty(); return; }
+  LAST_PARSED = parsed;
   MODEL = buildModel(LAST_PARSED, OVERRIDES);
   console.info(`[Radar] Global aplicada — ${MODEL.events.length} eventos na semana, ${MODEL.futures.length} futuros`);
   if (!MODEL.events.length && !MODEL.futures.length){ showEmpty(); return; }
@@ -128,11 +128,14 @@ document.getElementById('localFile').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
   try{
+    /* o arquivo local segue no caminho síncrono: é uma ação manual e pontual,
+       o operador está esperando por ela, e o Worker fala em base64 (o formato
+       em que a Global vem do Firebase), não em File */
     await ensureXLSX();
     const matrix = readSheetMatrix(await file.arrayBuffer(), 'MTTS BRAZIL');
     if (!matrix) throw new Error('aba "MTTS BRAZIL" não encontrada');
     META = { filename: file.name, at: Date.now(), by: 'você (arquivo local)' };
-    applyMatrix(matrix);
+    applyParsed(parseGlobalWeek(matrix));
   }catch(err){ alert('Não consegui ler essa planilha: ' + err.message); }
   e.target.value = '';
 });
@@ -162,17 +165,43 @@ function matches(ev){
   return true;
 }
 
+/* pinta um grupo de chips: classe (visual), aria-checked (semântica) e roving
+   tabindex (só o ativo entra no Tab; dentro do grupo navega-se com as setas).
+   Antes só a classe era tocada — o grupo inteiro era invisível pro leitor de
+   tela e cada chip roubava uma parada do Tab. */
+function paintChips(groupId, key){
+  document.querySelectorAll(`#${groupId} .chip`).forEach(c => {
+    const on = c.dataset[key] === state[key];
+    c.classList.toggle('on', on);
+    c.setAttribute('aria-checked', String(on));
+    c.tabIndex = on ? 0 : -1;
+  });
+}
+function wireChipGroup(groupId, key){
+  const group = document.getElementById(groupId);
+  const pick = (val, focus) => {
+    if (!val || state[key] === val) return;
+    state[key] = val;
+    paintChips(groupId, key);
+    writeStateToURL(); renderContent();
+    if (focus){
+      const el = group.querySelector(`.chip[data-${key}="${val}"]`);
+      if (el) el.focus();
+    }
+  };
+  group.querySelectorAll('.chip').forEach(ch => ch.addEventListener('click', () => pick(ch.dataset[key])));
+  group.addEventListener('keydown', (e) => {
+    const step = { ArrowRight:1, ArrowDown:1, ArrowLeft:-1, ArrowUp:-1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    const chips = [...group.querySelectorAll('.chip')];
+    const at = chips.findIndex(c => c.dataset[key] === state[key]);
+    pick(chips[((at === -1 ? 0 : at) + step + chips.length) % chips.length].dataset[key], true);
+  });
+}
 function wireFilters(){
-  document.querySelectorAll('#campChips .chip').forEach(ch => ch.addEventListener('click', () => {
-    state.camp = ch.dataset.camp;
-    document.querySelectorAll('#campChips .chip').forEach(c => c.classList.toggle('on', c === ch));
-    writeStateToURL(); renderContent();
-  }));
-  document.querySelectorAll('#catChips .chip').forEach(ch => ch.addEventListener('click', () => {
-    state.cat = ch.dataset.cat;
-    document.querySelectorAll('#catChips .chip').forEach(c => c.classList.toggle('on', c === ch));
-    writeStateToURL(); renderContent();
-  }));
+  wireChipGroup('campChips', 'camp');
+  wireChipGroup('catChips', 'cat');
   let qTimer = null;
   document.getElementById('searchInput').addEventListener('input', (e) => {
     clearTimeout(qTimer);
@@ -181,8 +210,8 @@ function wireFilters(){
 }
 /* reflete na UI o estado que veio da URL */
 function syncFilterUI(){
-  document.querySelectorAll('#campChips .chip').forEach(c => c.classList.toggle('on', c.dataset.camp === state.camp));
-  document.querySelectorAll('#catChips .chip').forEach(c => c.classList.toggle('on', c.dataset.cat === state.cat));
+  paintChips('campChips', 'camp');
+  paintChips('catChips', 'cat');
   document.getElementById('searchInput').value = state.q;
 }
 
@@ -247,24 +276,47 @@ function renderDayBar(){
     const iso = MODEL.dates[day];
     const n = MODEL.events.filter(e => e.weekday === day).length;
     const pct = gtdMax > 0 ? Math.round((gtdByDay[day] / gtdMax) * 100) : 0;
-    return `<button class="day-pill ${day === state.day ? 'on' : ''} ${day === today ? 'is-today' : ''}"
+    const on = day === state.day;
+    /* roving tabindex: só o dia selecionado entra na ordem do Tab; dentro do
+       grupo quem navega são as setas (padrão de radiogroup) */
+    return `<button class="day-pill ${on ? 'on' : ''} ${day === today ? 'is-today' : ''}"
+      role="radio" aria-checked="${on}" tabindex="${on ? 0 : -1}"
       data-day="${day}" ${n ? '' : 'disabled'}
       title="${day}: ${n} eventos · ${fmtMoney(gtdByDay[day])} garantidos"
-      aria-label="${day}, ${n} eventos, ${fmtMoney(gtdByDay[day])} garantidos">
+      aria-label="${day}${day === today ? ' (hoje)' : ''}, ${n} evento${n === 1 ? '' : 's'}, ${fmtMoney(gtdByDay[day])} garantidos">
       <span class="dp-wd">${WEEKDAY_SHORT[isoWeekdayIdx(iso)]}</span>
       <span class="dp-d">${+iso.slice(8)}</span>
       <span class="dp-n">${n || '·'}</span>
       <i class="dp-bar" aria-hidden="true"><b style="width:${pct}%"></b></i>
     </button>`;
   }).join('');
-  wrap.querySelectorAll('.day-pill').forEach(p => p.addEventListener('click', () => {
-    if (state.day === p.dataset.day) return;
-    state.day = p.dataset.day;
-    writeStateToURL();
-    renderDayBar();
-    renderContent();
-  }));
+  wrap.querySelectorAll('.day-pill').forEach(p => p.addEventListener('click', () => pickDay(p.dataset.day)));
 }
+function pickDay(day, focus){
+  if (!day || state.day === day) return;
+  state.day = day;
+  writeStateToURL();
+  renderDayBar();
+  renderContent();
+  if (focus){
+    const el = document.querySelector(`.day-pill[data-day="${day}"]`);
+    if (el) el.focus();
+  }
+}
+/* setas/Home/End dentro do grupo de dias — pula os dias vazios (disabled), que
+   não são alvo válido de seleção */
+document.getElementById('dayBar').addEventListener('keydown', (e) => {
+  const step = { ArrowRight:1, ArrowDown:1, ArrowLeft:-1, ArrowUp:-1 }[e.key];
+  if (!step && e.key !== 'Home' && e.key !== 'End') return;
+  const pills = [...document.querySelectorAll('.day-pill:not(:disabled)')];
+  if (!pills.length) return;
+  e.preventDefault();
+  if (e.key === 'Home'){ pickDay(pills[0].dataset.day, true); return; }
+  if (e.key === 'End'){ pickDay(pills[pills.length-1].dataset.day, true); return; }
+  const at = pills.findIndex(p => p.dataset.day === state.day);
+  const next = pills[((at === -1 ? 0 : at) + step + pills.length) % pills.length];
+  pickDay(next.dataset.day, true);
+});
 
 /* ── AGENDA do dia: linhas verticais, divisor AGORA, ao vivo aceso ── */
 function renderAgenda(){
@@ -304,15 +356,24 @@ function nowDividerHtml(now){
   const hh = String(Math.floor(now.minutes/60)).padStart(2,'0'), mm = String(now.minutes%60).padStart(2,'0');
   return `<div class="now-divider" id="nowDivider" aria-label="Agora são ${hh}:${mm}"><i></i><span>AGORA · ${hh}:${mm}</span><i></i></div>`;
 }
+/* o único pedaço da linha que muda com o RELÓGIO — isolado pra que o refresh
+   por minuto possa reescrever só isto (ver refreshAgendaStatus) */
+function statusHtml(e, st){
+  return st.k === 'live' ? `<span class="r-live"><i class="pulse"></i>AO VIVO${e.late ? `<small>late até ${e.late}</small>` : ''}</span>` :
+         st.k === 'soon' ? `<span class="r-soon">em ${fmtIn(st.inMin)}</span>` : '';
+}
 function rowHtml(e, st){
   const target = e.targetId ? MODEL.byId.get(e.targetId) : null;
-  const statusHtml =
-    st.k === 'live' ? `<span class="r-live"><i class="pulse"></i>AO VIVO${e.late ? `<small>late até ${e.late}</small>` : ''}</span>` :
-    st.k === 'soon' ? `<span class="r-soon">em ${fmtIn(st.inMin)}</span>` : '';
   const link =
     target ? `<span class="r-ticket" title="Premia ticket para ${escHtml(target.nome)}">🎟 → ${escHtml(target.nome)}${e.overridden ? ' <em class="r-fixed" title="Vínculo corrigido manualmente">✓ corrigido</em>' : ''}</span>` :
     e.targetGroup ? `<span class="r-ticket" title="Destino declarado na planilha (fora da grade desta semana)">🎟 → ${escHtml(e.targetGroup)} <em class="r-offgrid">fora da grade</em></span>` :
     e.satCount ? `<span class="r-ticket in">🎟 ${e.satCount} satélite${e.satCount > 1 ? 's' : ''} classificam</span>` : '';
+  /* A LINHA INTEIRA continua clicável (é o alvo confortável no mouse), mas quem
+     carrega a semântica é o CHEVRON — agora um <button> de verdade, com
+     aria-expanded/aria-controls. Antes o <article> só tinha handler de clique:
+     no teclado não havia como abrir rota nenhuma, e o leitor de tela não tinha
+     o que anunciar. Botão aninhado dentro de role="button" seria inválido, por
+     isso a linha permanece um container sem role. */
   return `<article class="row has-detail ${st.k} ${CAT_META[e.cat].cls}" data-id="${e.id}">
     <span class="r-time">${e.hora}</span>
     <span class="r-suit" title="${CAT_META[e.cat].label}">${CAT_META[e.cat].suit}</span>
@@ -324,12 +385,56 @@ function rowHtml(e, st){
       <span class="r-gtd">${e.garantido != null ? fmtMoney(e.garantido) : ''}</span>
       <span class="r-buyin">${e.buyin != null ? fmtMoneyFull(e.buyin) : ''}</span>
     </div>
-    ${statusHtml}
-    <button class="r-copy" data-copy="${e.id}" title="Copiar pro chat" aria-label="Copiar informações do evento">
-      <svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+    <span class="r-status">${statusHtml(e, st)}</span>
+    <button class="r-copy" data-copy="${e.id}" title="Copiar pro chat" aria-label="Copiar informações de ${escHtml(e.nome)} pro chat">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
     </button>
-    <span class="r-chev" aria-hidden="true">›</span>
+    <button class="r-chev" aria-expanded="false" aria-controls="detail-${e.id}"
+      aria-label="Ver a rota do ticket de ${escHtml(e.nome)}">›</button>
   </article>`;
+}
+
+/* ── REFRESH POR MINUTO, SEM RECONSTRUIR A LISTA ──
+   renderAgenda() reescrevia list.innerHTML inteiro a cada 60s. Efeitos colaterais
+   reais: (1) a rota que o operador tinha aberto SUMIA sozinha — e como state.open
+   continuava apontando pra linha, o clique seguinte nela só "fechava" um detalhe
+   que já não existia, exigindo dois cliques pra reabrir; (2) seleção de texto e
+   foco de teclado morriam no meio da leitura; (3) os spans de glow do
+   suprema-motion eram recriados do zero. A ordem das linhas não muda com o
+   relógio — só o status e a posição do divisor AGORA. É só isso que tocamos. */
+function refreshAgendaStatus(){
+  const list = document.getElementById('agendaList');
+  if (!list || !MODEL) return;
+  const rows = list.querySelectorAll('.row[data-id]');
+  if (!rows.length) return;
+  const now = spNow();
+  const nowAbs = absMin(now.iso, now.minutes);
+  let firstFuture = null;
+  rows.forEach(row => {
+    const e = MODEL.byId.get(row.dataset.id);
+    if (!e) return;
+    const st = statusOf(e);
+    if (!firstFuture && e.abs > nowAbs) firstFuture = row;
+    if (!row.classList.contains(st.k)){
+      row.classList.remove('live','soon','upcoming','past');
+      row.classList.add(st.k);
+    }
+    const slot = row.querySelector('.r-status');
+    const html = statusHtml(e, st);
+    if (slot && slot.innerHTML !== html) slot.innerHTML = html;
+  });
+  /* o divisor AGORA desce conforme os eventos ficam pra trás */
+  const div = document.getElementById('nowDivider');
+  if (!div) return;                                  // dia que não é hoje: não existe divisor
+  const hh = String(Math.floor(now.minutes/60)).padStart(2,'0'), mm = String(now.minutes%60).padStart(2,'0');
+  const label = div.querySelector('span');
+  if (label) label.textContent = `AGORA · ${hh}:${mm}`;
+  div.setAttribute('aria-label', `Agora são ${hh}:${mm}`);
+  if (firstFuture){
+    if (firstFuture.previousElementSibling !== div) list.insertBefore(div, firstFuture);
+  } else if (list.lastElementChild !== div){
+    list.appendChild(div);
+  }
 }
 
 /* clique na agenda: copiar, salvar correção, gerar card, ou expandir a rota */
@@ -346,15 +451,29 @@ document.getElementById('agendaList').addEventListener('click', (e) => {
   if (e.target.closest('.row-detail')) return;      // cliques soltos no detalhe não fecham
   const row = e.target.closest('.row.has-detail');
   if (!row) return;
-  const id = row.dataset.id;
-  const existing = document.getElementById('rowDetail');
+  toggleRow(row.dataset.id);
+});
+
+/* abre/fecha a rota de UMA linha (um detalhe aberto por vez). Estado visual e
+   estado ARIA andam juntos — o chevron é o botão que o leitor de tela anuncia. */
+function toggleRow(id){
+  const existing = document.querySelector('.row-detail');
   if (existing) existing.remove();
-  document.querySelectorAll('.row.open').forEach(r => r.classList.remove('open'));
+  document.querySelectorAll('.row.open').forEach(r => {
+    r.classList.remove('open');
+    const chev = r.querySelector('.r-chev');
+    if (chev) chev.setAttribute('aria-expanded', 'false');
+  });
   if (state.open === id){ state.open = null; return; }
+  const row = document.querySelector(`.row[data-id="${id}"]`);
+  if (!row) { state.open = null; return; }
   state.open = id;
   row.classList.add('open');
-  row.insertAdjacentHTML('afterend', `<div class="row-detail" id="rowDetail">${detailHtml(MODEL.byId.get(id))}</div>`);
-});
+  const chev = row.querySelector('.r-chev');
+  if (chev) chev.setAttribute('aria-expanded', 'true');
+  row.insertAdjacentHTML('afterend',
+    `<div class="row-detail" id="detail-${id}" role="region" aria-label="Rota do ticket">${detailHtml(MODEL.byId.get(id))}</div>`);
+}
 
 function detailHtml(e){
   if (!e) return '';
@@ -777,9 +896,9 @@ function tickClock(){
     `${String(Math.floor(n.minutes/60)).padStart(2,'0')}:${String(n.minutes%60).padStart(2,'0')}:${String(n.seconds).padStart(2,'0')}`;
 }
 setInterval(tickClock, 1000); tickClock();
-/* status "AO VIVO"/divisor AGORA acompanham o relógio — refresh leve por
-   minuto, só das partes que mudam */
-setInterval(() => { if (MODEL){ renderHero(); renderAgenda(); } }, 60000);
+/* status "AO VIVO"/divisor AGORA acompanham o relógio — patch cirúrgico por
+   minuto (renderAgenda() aqui reconstruía a lista e derrubava a rota aberta) */
+setInterval(() => { if (MODEL){ renderHero(); refreshAgendaStatus(); } }, 60000);
 
 (function themeAndUser(){
   const html = document.documentElement;

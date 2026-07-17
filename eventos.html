@@ -83,27 +83,31 @@ document.addEventListener('DOMContentLoaded', () => {
 <div class="controls">
   <div class="controls-inner">
     <div class="controls-row">
-      <div id="dayBar" role="tablist" aria-label="Dia da semana"></div>
+      <!-- seleção ÚNICA de dia, na barra de filtros ao lado dos outros filtros:
+           é um radiogroup, não um tablist (o role="tablist" que estava aqui não
+           tinha um único role="tab" dentro — leitor de tela anunciava abas que
+           não existiam). Os itens são pintados por renderDayBar(). -->
+      <div id="dayBar" role="radiogroup" aria-label="Dia da semana"></div>
       <label class="search">
-        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input id="searchInput" type="search" placeholder="Buscar torneio…" autocomplete="off">
       </label>
     </div>
     <div class="controls-row">
-      <div class="chip-group" id="campChips">
-        <span class="lbl">Campanha</span>
-        <button class="chip on" data-camp="all">Todas</button>
-        <button class="chip" data-camp="AS">✦ #AS</button>
-        <button class="chip" data-camp="SPS">✦ +SPS</button>
-        <button class="chip" data-camp="SPT">✦ +SPT</button>
-        <button class="chip" data-camp="none">Sem campanha</button>
+      <div class="chip-group" id="campChips" role="radiogroup" aria-labelledby="campLbl">
+        <span class="lbl" id="campLbl">Campanha</span>
+        <button class="chip on" role="radio" aria-checked="true"  data-camp="all">Todas</button>
+        <button class="chip"    role="radio" aria-checked="false" data-camp="AS">✦ #AS</button>
+        <button class="chip"    role="radio" aria-checked="false" data-camp="SPS">✦ +SPS</button>
+        <button class="chip"    role="radio" aria-checked="false" data-camp="SPT">✦ +SPT</button>
+        <button class="chip"    role="radio" aria-checked="false" data-camp="none">Sem campanha</button>
       </div>
-      <div class="chip-group" id="catChips">
-        <span class="lbl">Categoria</span>
-        <button class="chip on" data-cat="all">Tudo</button>
-        <button class="chip" data-cat="main">♠ Main</button>
-        <button class="chip" data-cat="side">♣ Side</button>
-        <button class="chip" data-cat="sat">♦ Satélite</button>
+      <div class="chip-group" id="catChips" role="radiogroup" aria-labelledby="catLbl">
+        <span class="lbl" id="catLbl">Categoria</span>
+        <button class="chip on" role="radio" aria-checked="true"  data-cat="all">Tudo</button>
+        <button class="chip"    role="radio" aria-checked="false" data-cat="main">♠ Main</button>
+        <button class="chip"    role="radio" aria-checked="false" data-cat="side">♣ Side</button>
+        <button class="chip"    role="radio" aria-checked="false" data-cat="sat">♦ Satélite</button>
       </div>
     </div>
   </div>
@@ -126,7 +130,11 @@ document.addEventListener('DOMContentLoaded', () => {
 <main id="content" hidden>
 
   <section class="section" id="agendaSection">
-    <div id="agendaHead"></div>
+    <!-- container estável e polido: trocar de dia ou mexer num filtro reescreve
+         o miolo daqui, e é isso que o leitor de tela anuncia ("SEXTA 18 jul,
+         12 de 34 eventos · R$ 2,4 mi garantidos"). Sem isto, filtrar no teclado
+         não dava retorno nenhum. -->
+    <div id="agendaHead" aria-live="polite"></div>
     <div id="agendaList"></div>
     <p class="ah-sub" style="margin-top:9px">♠ Main · ♣ Side · ♦ Satélite — clique numa linha com 🎟 pra ver a rota do ticket.</p>
   </section>

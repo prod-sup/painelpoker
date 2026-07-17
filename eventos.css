@@ -350,9 +350,14 @@ main{max-width:1240px;margin:0 auto;padding:6px 28px 90px}
 .r-nums{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;gap:1px;min-width:92px}
 .r-gtd{font-family:var(--mono);font-weight:800;font-size:13.5px;font-variant-numeric:tabular-nums}
 .r-buyin{font-size:11px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+/* faixa de status com largura FIXA. Duas razões: o refresh por minuto reescreve
+   só o conteúdo daqui (ver refreshAgendaStatus), e a coluna de números para de
+   serrilhar — antes só as linhas AO VIVO/em-breve reservavam esses 86px, então
+   as demais empurravam os números 86px pra direita. */
+.r-status{flex:0 0 86px;display:flex;justify-content:flex-end;align-items:center}
 .r-live{
   flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;gap:1px;
-  font-size:10px;font-weight:800;letter-spacing:.09em;color:var(--live);min-width:86px;
+  font-size:10px;font-weight:800;letter-spacing:.09em;color:var(--live);
 }
 .r-live small{font-weight:600;letter-spacing:0;color:var(--ink-soft);font-size:10.5px}
 .r-live .pulse{
@@ -361,12 +366,15 @@ main{max-width:1240px;margin:0 auto;padding:6px 28px 90px}
 }
 .r-soon{
   flex:0 0 auto;font-size:10.5px;font-weight:800;letter-spacing:.05em;color:var(--felt-bright);
-  text-transform:uppercase;min-width:86px;text-align:right;
+  text-transform:uppercase;text-align:right;
 }
+/* o chevron é o BOTÃO de divulgar a rota (aria-expanded mora nele) — a linha
+   inteira continua clicável no mouse, mas o alvo de teclado é este */
 .r-chev{
-  flex:0 0 auto;color:var(--ink-soft);font-size:17px;opacity:.55;
-  transition:transform .25s var(--ease);
+  flex:0 0 auto;color:var(--ink-soft);font-size:17px;opacity:.55;line-height:1;
+  padding:4px 2px;transition:transform .25s var(--ease), opacity .2s, color .2s;
 }
+.r-chev:hover{opacity:1;color:var(--ev-bright)}
 .row.open .r-chev{transform:rotate(90deg);color:var(--ev-bright);opacity:1}
 /* copiar pro chat: discreto, acende no hover da linha (sempre visível no touch) */
 .r-copy{
@@ -620,7 +628,7 @@ html.tv .stat .n{font-size:30px}
   main{padding:6px 14px 70px}
   .row{padding:11px 14px 11px 12px}
   .r-nums{min-width:70px}
-  .r-live,.r-soon{min-width:0}
+  .r-status{flex-basis:auto}
   .r-live small{display:none}
   .route{grid-template-columns:1fr;gap:10px}
   .rt-link{justify-content:center}

@@ -1,7 +1,7 @@
 // Suprema Poker — Service Worker
 // IMPORTANTE: incremente SW_VERSION a cada deploy — é isso que faz as abas abertas
 // receberem o aviso de "nova versão disponível" e ninguém operar com código velho
-const SW_VERSION = '3.8.2';
+const SW_VERSION = '3.9.0';
 const CACHE_NAME = `suprema-painel-v${SW_VERSION}`;
 const STATIC_ASSETS = [
   '/painelpoker/',
@@ -23,9 +23,14 @@ const STATIC_ASSETS = [
   '/painelpoker/eventos.css',
   '/painelpoker/eventos.js',
   '/painelpoker/radar-core.js',
+  // o Worker de parse da Global: sem ele no cache, o Radar/TV offline perdem o
+  // caminho rápido e caem no parse síncrono (funciona, mas trava a aba)
+  '/painelpoker/suprema-global-worker.js',
   '/painelpoker/tv.html',
   '/painelpoker/tv.css',
   '/painelpoker/tv.js',
+  // O Feltro: o fundo em WebGL da TV. Sem ele o canal cai na rede de nós 2D.
+  '/painelpoker/suprema-feltro.js',
   '/painelpoker/suprema-tokens.css',
   // PWA: manifest + ícones precisam existir offline pro app instalado abrir sem rede
   '/painelpoker/manifest.json',

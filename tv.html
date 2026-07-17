@@ -18,6 +18,9 @@
 SupremaAuth.guard({ panel:'tv' }); SupremaAuth.revalidateAccess('tv');
 </script>
 <script src="suprema-motion.js"></script>
+<!-- O Feltro: o fundo em WebGL do canal. Fica DEPOIS do suprema-motion porque a
+     rede de nós em canvas 2D é a rede de segurança dele (onFallback). -->
+<script src="suprema-feltro.js"></script>
 <link rel="stylesheet" href="tv.css">
 <link rel="stylesheet" href="suprema-tokens.css">
 </head>

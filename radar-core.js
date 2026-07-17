@@ -398,3 +398,66 @@ function b64ToBuf(b64){
   for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
   return buf.buffer;
 }
+
+/* ═══════════════════ parse da Global FORA da main thread ═══════════════════
+   b64ToBuf (atob + laço byte a byte) e XLSX.read são síncronos e caros. Na main
+   thread isso trava a aba do Radar e, pior, GAGUEJA a transmissão da TV toda vez
+   que a operação sobe uma Global nova — no meio de uma cena, num telão que a
+   sala está olhando. O Worker (suprema-global-worker.js) faz a cadeia inteira e
+   devolve o {days, futures} pronto.
+
+   Bônus nada pequeno: quando o Worker funciona, o SheetJS (861KB) nem chega a
+   ser carregado na main thread — só lá dentro.
+
+   Rede de segurança em três camadas: sem suporte a Worker, com o arquivo
+   faltando, ou com erro lá dentro, cai no caminho síncrono de sempre. Um
+   engasgo de 200ms é melhor que uma tela vazia. */
+let _gWorker = null;                  // null = ainda não tentou · false = desistiu
+let _gSeq = 0;
+const _gJobs = new Map();
+function globalWorker(){
+  if (_gWorker !== null) return _gWorker;
+  if (typeof Worker === 'undefined'){ _gWorker = false; return false; }
+  try{
+    _gWorker = new Worker('suprema-global-worker.js');
+    _gWorker.onmessage = (e) => {
+      const { id, parsed, error } = e.data || {};
+      const job = _gJobs.get(id);
+      if (!job) return;
+      _gJobs.delete(id);
+      if (error) job.reject(new Error(error)); else job.resolve(parsed);
+    };
+    /* new Worker() NÃO lança quando o arquivo não existe — o 404 chega aqui.
+       Desiste de vez e devolve todo mundo pro caminho síncrono. */
+    _gWorker.onerror = (err) => {
+      console.warn('[radar-core] Worker da Global indisponível — parse volta pra main thread', err.message || err);
+      try{ _gWorker.terminate(); }catch(e){}
+      _gWorker = false;
+      _gJobs.forEach(job => job.reject(new Error('worker indisponível')));
+      _gJobs.clear();
+    };
+  }catch(err){
+    console.warn('[radar-core] não consegui criar o Worker da Global', err);
+    _gWorker = false;
+  }
+  return _gWorker;
+}
+
+async function parseGlobalWeekAsync(b64, sheetName){
+  const w = globalWorker();
+  if (w){
+    try{
+      return await new Promise((resolve, reject) => {
+        const id = ++_gSeq;
+        _gJobs.set(id, { resolve, reject });
+        w.postMessage({ id, b64, sheet: sheetName });
+      });
+    }catch(err){
+      console.warn('[radar-core] parse no Worker falhou, indo de síncrono:', err.message || err);
+    }
+  }
+  await ensureXLSX();
+  const matrix = readSheetMatrix(b64ToBuf(b64), sheetName);
+  if (!matrix) throw new Error(`aba "${sheetName}" não encontrada na Global`);
+  return parseGlobalWeek(matrix);
+}
