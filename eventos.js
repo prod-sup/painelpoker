@@ -930,6 +930,9 @@ function renderFutures(){
   const wrap = document.getElementById('futGrid');
   const today = gradeTodayISO();
   FUT_SHOWN = MODEL.futures.filter(f => {
+    /* futuro datado que já passou sai da vitrine (o buildModel filtra no parse,
+       mas a aba pode atravessar a virada do dia com o MODEL parado) */
+    if (f.dateISO && f.dateISO < today) return false;
     if (state.camp === 'none' && f.camp) return false;
     if (state.camp !== 'all' && state.camp !== 'none' && f.camp !== state.camp) return false;
     /* MESMA busca da agenda: o futuro tinha ficado com o `includes` antigo, e

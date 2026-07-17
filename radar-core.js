@@ -217,6 +217,27 @@ function nameHour(s){
 /* nome "amassado" (sem acento/espaço/pontuação) pra teste de continência */
 function squashName(s){ return normText(s).replace(/[^a-z0-9]+/g,''); }
 
+/* ── VARIANTE do torneio (HR, T./Turbo, KO…) ──
+   "6 Seats OmaX T." casava com "#AS 40K OmaX HR" só pelo "omax" (mesmo dia +
+   bônus de main passavam do corte de 4). O sufixo curto é justamente o que
+   DISTINGUE os irmãos da mesma família — e ele não entrava na conta: "t" cai no
+   filtro de tamanho do linkTokens e "turbo"/"hyper" são stopwords. Variantes
+   CONFLITANTES agora VETAM o vínculo por heurística; sem variante de um dos
+   lados, nada muda. (Cabeçalho de grupo e override do admin continuam vencendo
+   tudo — o veto só vale pro palpite por tokens.) */
+const VARIANT_GROUPS = [
+  ['hr', 'hyper', 'highroller'],
+  ['turbo', 't'],
+  ['ko', 'pko', 'bounty'],
+  ['mystery'],
+  ['deep', 'deepstack'],
+];
+function variantOf(nome){
+  const toks = normText(nome).replace(/[^a-z0-9]+/g, ' ').split(/\s+/).filter(Boolean);
+  for (const g of VARIANT_GROUPS){ if (toks.some(t => g.includes(t))) return g[0]; }
+  return null;
+}
+
 /* O CABEÇALHO DO GRUPO (coluna A) é a declaração EXPLÍCITA do destino na
    Global — vence qualquer heurística. Procura um evento da semana com o nome
    do cabeçalho; pode ser OUTRO SATÉLITE (cadeia real: Step → Mega Sat → Main). */
@@ -290,9 +311,14 @@ function linkSatellites(events){
     }
     const satToks = new Set([...linkTokens(sat.nome), ...linkTokens(sat.groupHeader || '')]);
     const satHour = nameHour(sat.nome) ?? nameHour(sat.groupHeader || '');
+    const satVar = variantOf(sat.nome) || variantOf(sat.groupHeader || '');
     let best = null, bestScore = 0, bestToks = [];
     targets.forEach(t => {
       if (t.abs <= sat.abs) return;                 // alvo tem que começar DEPOIS do satélite
+      /* irmãos de famílias diferentes nunca se ligam: sat "OmaX T." não
+         classifica pro "OmaX HR", por mais que o resto do nome case */
+      const tVar = variantOf(t.nome);
+      if (satVar && tVar && satVar !== tVar) return;
       let score = 0;
       const casados = [];
       const tToks = linkTokens(t.nome);
@@ -373,8 +399,13 @@ function buildModel(parsed, overrides){
     }
   });
 
+  const todayISO = gradeTodayISO();
   const futures = parsed.futures
     .map(f => ({ ...f, camp: campOf(f.nome) }))
+    /* futuro com data que JÁ PASSOU não é futuro: o rodapé da Global guarda
+       linhas velhas e o "VEM AÍ" da TV anunciava evento de ontem como "HOJE".
+       Sem data (null) fica — é "em breve", não passado. */
+    .filter(f => !f.dateISO || f.dateISO >= todayISO)
     .filter((f, i, arr) => arr.findIndex(x => x.nome === f.nome && x.dateISO === f.dateISO) === i)
     .sort((a,b) => String(a.dateISO||'9999').localeCompare(String(b.dateISO||'9999')));
   return { events, futures, dates, byId };

@@ -610,9 +610,12 @@ function composeScenes(){
      ganha metade do telão, com contagem regressiva grande. Os outros dois entram
      como cartas menores ao lado. Antes eram três cartões iguais; "vem aí" pede um
      que puxe o olho. */
-  const futs = MODEL.futures.slice(0, 3);
+  /* re-filtra o passado AQUI, não só no buildModel: o telão fica ligado por
+     horas e o dia vira com o MODEL parado — sem isso, à meia-noite um "HOJE"
+     virava mentira até alguém subir Global nova */
+  const todayISO = gradeTodayISO();
+  const futs = MODEL.futures.filter(f => !f.dateISO || f.dateISO >= todayISO).slice(0, 3);
   if (futs.length){
-    const todayISO = gradeTodayISO();
     const whenOf = f => {
       const days = f.dateISO ? isoDayNumber(f.dateISO) - isoDayNumber(todayISO) : null;
       const rel = days == null ? 'EM BREVE' : days <= 0 ? 'HOJE' : days === 1 ? 'AMANHÃ' : 'EM ' + days + ' DIAS';

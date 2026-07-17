@@ -141,14 +141,20 @@ body{
 .b-title{font-size:clamp(54px,8.5vw,124px);font-weight:800;letter-spacing:.04em;line-height:1.05}
 .b-title b,.b-title .kw:last-child{color:var(--gold)}
 .b-sub{margin-top:2vh;font-size:clamp(14px,1.5vw,21px);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
-/* brilho varrendo a marca (shine sweep) */
-.shine{position:relative;overflow:visible}
-.shine::after{
-  content:"";position:absolute;inset:-20%;pointer-events:none;
-  background:linear-gradient(115deg,transparent 42%,rgba(255,255,255,.22) 50%,transparent 58%);
-  transform:translateX(-120%);animation:shine-sweep 3.4s var(--ease) infinite;
+/* brilho da marca: halo dourado que RESPIRA atrás do naipe.
+   O antigo "shine sweep" era uma faixa branca varrendo por cima do fundo — fora
+   do glifo ela não tem onde brilhar e virava uma barra cinza atravessando o
+   telão. O halo é um radial atrás da marca animando SÓ opacity (compositor
+   puro, sem repaint — nada de blur/filter animado). */
+.shine{position:relative}
+.shine::before{
+  content:"";position:absolute;left:50%;top:50%;width:220%;height:220%;
+  transform:translate(-50%,-50%);z-index:-1;pointer-events:none;
+  background:radial-gradient(closest-side, rgba(201,168,76,.30), rgba(201,168,76,.10) 45%, transparent 72%);
+  animation:brand-halo 4.2s ease-in-out infinite;
 }
-@keyframes shine-sweep{0%,55%{transform:translateX(-120%)}85%,100%{transform:translateX(120%)}}
+@keyframes brand-halo{0%,100%{opacity:.5}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){ .shine::before{animation:none} }
 
 /* ── canal fora do ar ── Um telão que não diz nada parece quebrado; este diz.
    Sem dourado e sem pulso de "vivo": a ausência de brilho É a mensagem. */
