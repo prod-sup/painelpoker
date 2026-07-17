@@ -33,6 +33,7 @@ SupremaAuth.guard({ panel:'tv' }); SupremaAuth.revalidateAccess('tv');
   </div>
   <div class="tv-today" id="tvToday"></div>
   <div class="tv-right">
+    <span class="tv-pause-chip" id="pauseChip" hidden>⏸ PAUSADA PELO CONTROLE</span>
     <span class="tv-live-badge" id="tvLiveBadge" hidden><i></i><span id="tvLiveN">AO VIVO</span></span>
     <span class="tv-clock" id="tvClock">--:--:--</span>
   </div>

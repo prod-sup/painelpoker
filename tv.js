@@ -1,29 +1,43 @@
 /* =========================================================================
-   SUPREMA TV — o canal da casa. Um broadcast em tela cheia que anuncia a
-   grade como um comercial: cenas rotativas com o que está AO VIVO agora
-   (premiação real e field em tempo real, direto do Painel do Dia), quem
-   CRIOU cada evento (Criação Noturna — o momento "eu criei esse evento"),
-   os gigantes da semana, as rotas de ticket, os eventos futuros e os
-   créditos da equipe da noite.
+   SUPREMA TV — o canal da casa. Broadcast em cenas rotativas que anuncia a
+   grade como um comercial: AO VIVO com premiação real e field, quem CRIOU
+   cada evento (com o avatar do hub), gigantes da semana, rotas de ticket,
+   eventos futuros, RECORDES da semana, avisos da casa e créditos da equipe.
+
+   EXTRAS v1.1:
+     🎉 CELEBRAÇÃO — premiação lançada que BATE o garantido interrompe a
+        programação com cena especial + confete (1× por evento/dia).
+     👤 AVATARES — o `face` do hub/leaderboard aparece nos créditos.
+     🏆 RECORDES — maior premiação/field da semana (snapshots/) e quem mais
+        criou eventos nos últimos 7 dias (criacaoNoturna/done).
+     🎛 CONTROLE REMOTO — tv.html?remote=1 vira o controle (pausar, pular,
+        fixar evento). Estado em tv/control, a TV obedece ao vivo.
+     📣 AVISOS — hub/avisos (os mesmos do Admin) ganham cena própria.
 
    FONTES (tudo tempo real, via SupremaDB):
-     painel/globalMtt ................. a Global MTT (o motor radar-core.js parseia)
-     eventos/linksOverride ............ correções de vínculo do Radar
-     painel/<hoje>/premiacao|field|premBy  premiação real, jogadores e quem lançou
-     painel/<hoje>/criacaoNoturna/done     quem criou cada evento de hoje
-     painel/<amanhã>/criacaoNoturna/done   progresso da GU criando amanhã, ao vivo
+     painel/globalMtt · eventos/linksOverride · painel/<hoje>/premiacao|field|premBy
+     painel/<hoje±>/criacaoNoturna/done · snapshots/<dia> · hub/leaderboard
+     hub/avisos · tv/control
 
    Depende de: gu-parser.js, radar-core.js, suprema-db.js, suprema-auth.js,
    suprema-motion.js, ensureXLSX.
 ========================================================================= */
 'use strict';
 
-console.info('[SupremaTV] tv.js v1.0 — no ar');
+console.info('[SupremaTV] tv.js v1.1 — no ar (celebração, recordes, controle remoto)');
 
 let MODEL = null, LAST_PARSED = null, OVERRIDES = {};
 const LIVE = { prem:{}, field:{}, premBy:{}, doneToday:{}, doneTomorrow:{} };
 let DAY_ISO = null;
 let _dayOffs = [];
+let FACES = {};                       // normText(nome) → emoji do hub/leaderboard
+let RECORDS = null;                   // {topPrem, topField, topMaker}
+let AVISOS = [];                      // avisos da casa (hub/avisos)
+let CTRL = {};                        // tv/control — o controle remoto manda
+
+/* modo controle: a MESMA página vira o controle remoto no celular */
+const REMOTE = new URLSearchParams(location.search).get('remote') === '1';
+if (REMOTE) document.documentElement.classList.add('remote');
 
 /* ═══════════════════ dados ao vivo ═══════════════════ */
 
@@ -42,11 +56,19 @@ function initData(){
       OVERRIDES = snap.val() || {};
       if (LAST_PARSED) MODEL = buildModel(LAST_PARSED, OVERRIDES);
     });
+    SupremaDB.watch('hub/avisos', snap => {
+      const v = snap.val() || {};
+      AVISOS = Object.values(v).filter(a => a && a.titulo && !a.off && !a.hidden).slice(-4);
+    });
+    wireControl();
     attachDayListeners();
+    loadFaces(); loadRecords();
+    setInterval(() => { loadFaces(); loadRecords(); }, 3600000);   // 1×/hora basta
   });
 }
 
 /* listeners do DIA (premiação/field/criadores) — reancorados quando a grade vira */
+let _premDay = null;                  // primeira foto do dia não celebra (é carga, não conquista)
 function attachDayListeners(){
   if (!window.SupremaDB || !SupremaDB.ready()) return;   // ainda sintonizando
   const today = gradeTodayISO();
@@ -55,7 +77,13 @@ function attachDayListeners(){
   _dayOffs.forEach(off => { try{ off(); }catch(e){} });
   const tomorrow = isoAddDays(today, 1);
   _dayOffs = [
-    SupremaDB.watch(`painel/${today}/premiacao`, s => { LIVE.prem = s.val() || {}; }),
+    SupremaDB.watch(`painel/${today}/premiacao`, s => {
+      const val = s.val() || {};
+      const prev = LIVE.prem;
+      LIVE.prem = val;
+      if (_premDay !== today){ _premDay = today; return; }
+      maybeCelebrate(prev, val);
+    }),
     SupremaDB.watch(`painel/${today}/field`,     s => { LIVE.field = s.val() || {}; }),
     SupremaDB.watch(`painel/${today}/premBy`,    s => { LIVE.premBy = s.val() || {}; }),
     SupremaDB.watch(`painel/${today}/criacaoNoturna/done`,    s => { LIVE.doneToday = s.val() || {}; }),
@@ -74,6 +102,7 @@ async function loadSharedGlobal(){
     LAST_PARSED = parseGlobalWeek(matrix);
     MODEL = buildModel(LAST_PARSED, OVERRIDES);
     console.info(`[SupremaTV] programação carregada — ${MODEL.events.length} eventos na semana`);
+    if (REMOTE){ renderRemote(); return; }
     if (!_onAir){ _onAir = true; playNext(); }
   }catch(err){ console.error('[SupremaTV] falha ao carregar a Global', err); }
 }
@@ -89,9 +118,49 @@ function liveOf(e){
   };
 }
 
+/* ── avatares reais: o `face` que cada operador escolheu no hub ── */
+async function loadFaces(){
+  try{
+    const lb = await SupremaDB.getValue('hub/leaderboard');
+    const map = {};
+    Object.values(lb || {}).forEach(u => { if (u && u.name && u.face) map[normText(u.name)] = u.face; });
+    FACES = map;
+  }catch(e){}
+}
+function avatarHtml(name, cls){
+  const f = FACES[normText(name)];
+  return `<span class="${cls}${f ? ' has-face' : ''}">${f ? f : escHtml(String(name).trim().charAt(0).toUpperCase())}</span>`;
+}
+
+/* ── recordes da semana: snapshots (premiação/field) + done da GU (criadores) ── */
+async function loadRecords(){
+  try{
+    const today = gradeTodayISO();
+    let topPrem = null, topField = null;
+    const makerWeek = {};
+    for (let i = 0; i < 7; i++){
+      const iso = isoAddDays(today, -i);
+      const [snap, done] = await Promise.all([
+        SupremaDB.getValue('snapshots/' + iso).catch(() => null),
+        SupremaDB.getValue(`painel/${iso}/criacaoNoturna/done`).catch(() => null),
+      ]);
+      if (snap && snap.rows) Object.values(snap.rows).forEach(r => {
+        if (!r) return;
+        if (typeof r.premiacao === 'number' && (!topPrem || r.premiacao > topPrem.val))
+          topPrem = { val: r.premiacao, nome: r.nome || '', iso };
+        const fld = r.field != null && isFinite(+r.field) ? +r.field : null;
+        if (fld != null && (!topField || fld > topField.val))
+          topField = { val: fld, nome: r.nome || '', iso };
+      });
+      if (done) Object.values(done).forEach(v => { if (v && v.by) makerWeek[v.by] = (makerWeek[v.by] || 0) + 1; });
+    }
+    const top = Object.entries(makerWeek).sort((a,b) => b[1] - a[1])[0] || null;
+    RECORDS = { topPrem, topField, topMaker: top ? { name: top[0], n: top[1] } : null };
+  }catch(e){ console.warn('[SupremaTV] recordes indisponíveis', e); }
+}
+
 /* ═══════════════════ helpers de cena ═══════════════════ */
 
-/* título cinético: cada palavra entra por baixo, em cascata */
 function kinetic(text, base){
   return String(text).split(/\s+/).map((w, i) =>
     `<span class="kw-clip"><span class="kw" style="--i:${(base||0)+i}">${escHtml(w)}</span></span>`).join(' ');
@@ -102,12 +171,31 @@ function statHtml(label, value, cls, extra){
 }
 function creditHtml(e, lv){
   const bits = [];
-  if (e.createdBy) bits.push(`<span class="credit-chip maker"><span class="cc-av">${escHtml(String(e.createdBy).trim().charAt(0).toUpperCase())}</span> criado por <b>${escHtml(e.createdBy)}</b></span>`);
+  if (e.createdBy) bits.push(`<span class="credit-chip maker">${avatarHtml(e.createdBy, 'cc-av')} criado por <b>${escHtml(e.createdBy)}</b></span>`);
   if (lv && lv.premBy) bits.push(`<span class="credit-chip">premiação por <b>${escHtml(lv.premBy)}</b></span>`);
   return bits.length ? `<div class="tv-credits">${bits.join('')}</div>` : '';
 }
 function suitWatermark(suit){
   return `<span class="suit-mark" aria-hidden="true">${suit}</span>`;
+}
+/* cena de holofote (usada na rotação, no PIN do controle e na celebração) */
+function spotlightHtml(e, st){
+  const lv = liveOf(e);
+  const chip =
+    st.k === 'live' ? `<div class="tv-chip live" style="--i:0"><i class="pulse"></i>AO VIVO AGORA${e.late ? ` · LATE ATÉ ${e.late}` : ''}</div>` :
+    st.k === 'soon' ? `<div class="tv-chip live" style="--i:0">COMEÇA EM ${fmtIn(st.inMin).toUpperCase()}</div>` :
+    st.k === 'upcoming' ? `<div class="tv-chip live" style="--i:0">HOJE ÀS ${e.hora}</div>` : '';
+  return `${suitWatermark(CAT_META[e.cat].suit)}
+    ${chip}
+    <h1 class="spot-title">${kinetic(e.nome, 1)}</h1>
+    ${e.camp ? `<div class="tv-chip camp" style="--i:3">✦ CAMPANHA ${CAMP_LABEL[e.camp]}</div>` : ''}
+    <div class="tv-stats">
+      ${e.garantido != null ? statHtml('garantido', fmtMoney(e.garantido), 's-gtd', 4) : ''}
+      ${lv.prem != null ? statHtml('premiação atual', fmtMoney(lv.prem), 's-prem', 5) : ''}
+      ${lv.field != null ? statHtml('jogadores', NF_INT.format(lv.field), 's-field', 6) : ''}
+      ${e.buyin != null ? statHtml('buy-in', fmtMoneyFull(e.buyin), '', 7) : ''}
+    </div>
+    ${creditHtml(e, lv)}`;
 }
 
 /* ═══════════════════ compositor de cenas ═══════════════════ */
@@ -131,21 +219,9 @@ function composeScenes(){
     <h1 class="b-title">${kinetic('SUPREMA TV')}</h1>
     <p class="b-sub" style="--i:3">${escHtml(today.replace('-FEIRA',''))} · ${fmtDateShort(MODEL.dates[today])} — a grade de hoje, ao vivo</p>` });
 
-  /* 2 — holofote nos AO VIVO (um por cena, com premiação real + field + criador) */
+  /* 2 — holofote nos AO VIVO */
   liveNow.slice(0, 3).forEach(({e, st}) => {
-    const lv = liveOf(e);
-    scenes.push({ cls:'s-spot ' + CAT_META[e.cat].cls, dur:12000, html:`
-      ${suitWatermark(CAT_META[e.cat].suit)}
-      <div class="tv-chip live" style="--i:0"><i class="pulse"></i>AO VIVO AGORA${e.late ? ` · LATE ATÉ ${e.late}` : ''}</div>
-      <h1 class="spot-title">${kinetic(e.nome, 1)}</h1>
-      ${e.camp ? `<div class="tv-chip camp" style="--i:3">✦ CAMPANHA ${CAMP_LABEL[e.camp]}</div>` : ''}
-      <div class="tv-stats">
-        ${e.garantido != null ? statHtml('garantido', fmtMoney(e.garantido), 's-gtd', 4) : ''}
-        ${lv.prem != null ? statHtml('premiação atual', fmtMoney(lv.prem), 's-prem', 5) : ''}
-        ${lv.field != null ? statHtml('jogadores', NF_INT.format(lv.field), 's-field', 6) : ''}
-        ${e.buyin != null ? statHtml('buy-in', fmtMoneyFull(e.buyin), '', 7) : ''}
-      </div>
-      ${creditHtml(e, lv)}` });
+    scenes.push({ cls:'s-spot ' + CAT_META[e.cat].cls, dur:12000, html: spotlightHtml(e, st) });
   });
 
   /* 3 — a seguir hoje */
@@ -177,7 +253,27 @@ function composeScenes(){
         </div>`).join('')}</div>` });
   }
 
-  /* 5 — comece pequeno, jogue grande (principais rotas de ticket de hoje) */
+  /* 5 — os recordes da semana (snapshots + GU) */
+  if (RECORDS && (RECORDS.topPrem || RECORDS.topField || RECORDS.topMaker)){
+    scenes.push({ cls:'s-records', dur:12000, html:`
+      <h2 class="sc-kicker gold" style="--i:0">OS RECORDES DA SEMANA</h2>
+      <div class="tv-records">
+        ${RECORDS.topPrem ? `<div class="tv-record" style="--i:1">
+          <span class="rec-ico">🏆</span><span class="rec-label">MAIOR PREMIAÇÃO</span>
+          <span class="rec-val tv-count">${fmtMoney(RECORDS.topPrem.val)}</span>
+          <span class="rec-sub">${escHtml(shortName(RECORDS.topPrem.nome))} · ${WEEKDAY_SHORT[isoWeekdayIdx(RECORDS.topPrem.iso)]}</span></div>` : ''}
+        ${RECORDS.topField ? `<div class="tv-record" style="--i:2">
+          <span class="rec-ico">👥</span><span class="rec-label">MAIOR FIELD</span>
+          <span class="rec-val tv-count">${NF_INT.format(RECORDS.topField.val)}</span>
+          <span class="rec-sub">jogadores · ${escHtml(shortName(RECORDS.topField.nome))} · ${WEEKDAY_SHORT[isoWeekdayIdx(RECORDS.topField.iso)]}</span></div>` : ''}
+        ${RECORDS.topMaker ? `<div class="tv-record" style="--i:3">
+          <span class="rec-ico">${avatarHtml(RECORDS.topMaker.name, 'rec-av')}</span><span class="rec-label">MAIS EVENTOS CRIADOS</span>
+          <span class="rec-val">${escHtml(RECORDS.topMaker.name)}</span>
+          <span class="rec-sub">${RECORDS.topMaker.n} eventos nos últimos 7 dias 🌙</span></div>` : ''}
+      </div>` });
+  }
+
+  /* 6 — comece pequeno, jogue grande (principais rotas de ticket de hoje) */
   const routeTargets = todays.filter(e => e.satCount > 0)
     .sort((a,b) => b.satCount - a.satCount || (b.garantido||0) - (a.garantido||0)).slice(0, 3);
   if (routeTargets.length){
@@ -194,7 +290,7 @@ function composeScenes(){
       }).join('')}</div>` });
   }
 
-  /* 6 — vem aí (eventos futuros, P&D) */
+  /* 7 — vem aí (eventos futuros, P&D) */
   const futs = MODEL.futures.slice(0, 3);
   if (futs.length){
     const todayISO = gradeTodayISO();
@@ -210,7 +306,19 @@ function composeScenes(){
       }).join('')}</div>` });
   }
 
-  /* 7 — quem construiu a noite (créditos da equipe + progresso da GU ao vivo) */
+  /* 8 — avisos da casa (os mesmos que o Admin edita pro hub) */
+  if (AVISOS.length){
+    const ICO = { info:'ℹ️', alerta:'⚠️', evento:'📅', promo:'✦', novidade:'✨' };
+    scenes.push({ cls:'s-avisos', dur:10000, html:`
+      <h2 class="sc-kicker" style="--i:0">AVISOS DA CASA</h2>
+      <div class="tv-avisos">${AVISOS.map((a, i) => `
+        <div class="tv-aviso" style="--i:${i+1}">
+          <span class="av-ico">${ICO[normText(a.tipo)] || '📣'}</span>
+          <span class="av-body"><b>${escHtml(a.titulo)}</b>${a.texto || a.msg || a.desc ? `<small>${escHtml(a.texto || a.msg || a.desc)}</small>` : ''}</span>
+        </div>`).join('')}</div>` });
+  }
+
+  /* 9 — quem construiu a noite (créditos da equipe + progresso da GU ao vivo) */
   const makerCount = {};
   Object.values(LIVE.doneToday || {}).forEach(v => {
     if (v && v.by) makerCount[v.by] = (makerCount[v.by] || 0) + 1;
@@ -224,7 +332,7 @@ function composeScenes(){
       <h2 class="sc-kicker" style="--i:0">QUEM CONSTRUIU A NOITE</h2>
       ${makers.length ? `<div class="tv-makers">${makers.map(([name, n], i) => `
         <div class="maker" style="--i:${i+1}">
-          <span class="mk-av">${escHtml(String(name).trim().charAt(0).toUpperCase())}</span>
+          ${avatarHtml(name, 'mk-av')}
           <span class="mk-name">${escHtml(name)}</span>
           <span class="mk-n">${n} evento${n > 1 ? 's' : ''}</span>
         </div>`).join('')}</div>` : ''}
@@ -243,34 +351,169 @@ function composeScenes(){
 /* ═══════════════════ motor de exibição ═══════════════════ */
 
 let _onAir = false, _scenes = [], _idx = 0, _timer = null;
-function playNext(){
-  if (!MODEL){ _timer = setTimeout(playNext, 2000); return; }
-  if (_idx >= _scenes.length){ _scenes = composeScenes(); _idx = 0; }
-  const sc = _scenes[_idx++];
-  if (!sc){ _timer = setTimeout(playNext, 3000); return; }
+function renderScene(sc){
   const stage = document.getElementById('stage');
   stage.innerHTML = `<section class="scene ${sc.cls}">${sc.html}
-    <i class="scene-progress" style="animation-duration:${sc.dur}ms"></i></section>`;
+    ${sc.dur ? `<i class="scene-progress" style="animation-duration:${sc.dur}ms"></i>` : ''}</section>`;
   requestAnimationFrame(() => requestAnimationFrame(() => {
     const el = stage.firstElementChild;
     if (el) el.classList.add('in');
     SupremaMotion.countUp('.tv-count', { duration:1500 });
   }));
+}
+function playNext(){
+  if (REMOTE) return;
+  if (CTRL.pause || CTRL.pin) return;                // o controle manda
+  if (!MODEL){ _timer = setTimeout(playNext, 2000); return; }
+  if (_idx >= _scenes.length){ _scenes = composeScenes(); _idx = 0; }
+  const sc = _scenes[_idx++];
+  if (!sc){ _timer = setTimeout(playNext, 3000); return; }
+  renderScene(sc);
   clearTimeout(_timer);
   _timer = setTimeout(playNext, sc.dur);
+}
+
+/* ── 🎉 CELEBRAÇÃO: premiação lançada que BATE o garantido fura a fila ── */
+const _celebrated = new Set();
+function maybeCelebrate(prev, cur){
+  if (!MODEL || REMOTE) return;
+  const today = todayWeekdayPT();
+  const byRk = new Map();
+  MODEL.events.filter(e => e.weekday === today).forEach(e => byRk.set(painelRowKey(e), e));
+  Object.entries(cur).forEach(([key, val]) => {
+    if (typeof val !== 'number' || prev[key] === val) return;
+    const ev = byRk.get(key) || byRk.get(key.replace(/_px$/, ''));
+    if (!ev || ev.garantido == null || ev.garantido <= 0) return;
+    if (val < ev.garantido) return;                  // ainda não bateu
+    const stamp = DAY_ISO + '|' + key;
+    if (_celebrated.has(stamp)) return;
+    _celebrated.add(stamp);
+    celebrate(ev, val);
+  });
+}
+function celebrate(ev, val){
+  if (CTRL.pause || CTRL.pin) return;                // controle tem prioridade
+  clearTimeout(_timer);
+  const lv = liveOf(ev);
+  const diff = val - ev.garantido;
+  renderScene({ cls:'s-boom ' + CAT_META[ev.cat].cls, dur:12000, html:`
+    <canvas id="confettiCv" aria-hidden="true"></canvas>
+    ${suitWatermark(CAT_META[ev.cat].suit)}
+    <div class="tv-chip boom" style="--i:0">🎉 PREMIAÇÃO CONFIRMADA</div>
+    <h1 class="spot-title">${kinetic(ev.nome, 1)}</h1>
+    <div class="boom-val tv-count">${fmtMoney(val)}</div>
+    <div class="boom-sub" style="--i:4">${diff > 0
+      ? `superou o garantido de ${fmtMoney(ev.garantido)} em <b>${fmtMoney(diff)}</b>`
+      : `bateu o garantido de ${fmtMoney(ev.garantido)}`}</div>
+    ${creditHtml(ev, lv)}` });
+  requestAnimationFrame(() => confetti(document.getElementById('confettiCv'), 9000));
+  _timer = setTimeout(playNext, 12000);
+}
+/* confete em canvas: leve, autolimitado, cores da casa */
+function confetti(cv, ms){
+  if (!cv || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const ctx = cv.getContext('2d');
+  const dpr = Math.min(2, devicePixelRatio || 1);
+  const W = cv.width = innerWidth * dpr, H = cv.height = innerHeight * dpr;
+  const COLORS = ['#e8c884','#c9a84c','#22d47e','#f4a9ba','#5aa8ff','#f0ede8'];
+  const P = Array.from({ length: 150 }, () => ({
+    x: Math.random()*W, y: -Math.random()*H*.4,
+    vx: (Math.random()-.5)*2.4*dpr, vy: (1.6+Math.random()*2.6)*dpr,
+    w: (5+Math.random()*7)*dpr, h: (8+Math.random()*10)*dpr,
+    rot: Math.random()*Math.PI, vr: (Math.random()-.5)*.18,
+    c: COLORS[(Math.random()*COLORS.length)|0],
+  }));
+  const t0 = performance.now();
+  (function frame(t){
+    if (!cv.isConnected || t - t0 > ms) return;
+    ctx.clearRect(0, 0, W, H);
+    const fade = Math.min(1, Math.max(0, (ms - (t - t0)) / 1500));
+    ctx.globalAlpha = fade;
+    P.forEach(p => {
+      p.x += p.vx + Math.sin(t/450 + p.rot)*0.7*dpr;
+      p.y += p.vy; p.rot += p.vr;
+      if (p.y > H + 30) { p.y = -20; p.x = Math.random()*W; }
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.fillStyle = p.c; ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+      ctx.restore();
+    });
+    requestAnimationFrame(frame);
+  })(t0);
+}
+
+/* ── 🎛 CONTROLE REMOTO: a TV obedece o nó tv/control ── */
+let _ctrlReady = false;
+function wireControl(){
+  SupremaDB.watch('tv/control', snap => {
+    const v = snap.val() || {};
+    const prev = CTRL;
+    CTRL = v;
+    const chip = document.getElementById('pauseChip');
+    if (chip) chip.hidden = !v.pause;
+    if (REMOTE){ renderRemote(); return; }           // o controle só espelha o estado
+    if (!_ctrlReady){ _ctrlReady = true; if (v.pin) showPin(); return; }
+    if (v.pin && v.pin !== prev.pin){ showPin(); return; }
+    if (!v.pin && prev.pin){ clearTimeout(_timer); playNext(); return; }
+    if (v.pause && !prev.pause){ clearTimeout(_timer); return; }
+    if (!v.pause && prev.pause){ clearTimeout(_timer); playNext(); return; }
+    if (v.skip !== prev.skip && !v.pause && !v.pin){ clearTimeout(_timer); playNext(); }
+  });
+}
+function showPin(){
+  clearTimeout(_timer);
+  if (!MODEL) return;
+  const ev = MODEL.events.find(e => evKey(e) === CTRL.pin);
+  if (!ev){ playNext(); return; }
+  matchCreators(MODEL.events, LIVE.doneToday, todayWeekdayPT());
+  renderScene({ cls:'s-spot pinned ' + CAT_META[ev.cat].cls, html:
+    spotlightHtml(ev, statusOf(ev)) + '<div class="pin-tag">📌 destaque fixado pelo controle</div>' });
+}
+
+/* ── a interface do controle (tv.html?remote=1, no celular) ── */
+function ctrlSet(patch){
+  const by = ((SupremaAuth.getSession && SupremaAuth.getSession()) || {}).email || 'controle';
+  SupremaDB.update('tv/control', { ...patch, by, at: Date.now() })
+    .catch(err => console.error('[SupremaTV] controle falhou', err));
+}
+function renderRemote(){
+  const stage = document.getElementById('stage');
+  const today = todayWeekdayPT();
+  const todays = MODEL ? MODEL.events.filter(e => e.weekday === today) : [];
+  stage.innerHTML = `<div class="remote-ui">
+    <h1>🎛 Controle da Suprema TV</h1>
+    <p class="rc-state">${CTRL.pause ? '⏸ pausada' : CTRL.pin ? '📌 destaque fixado' : '▶ programação normal'}</p>
+    <div class="rc-row">
+      <button class="rc-btn ${CTRL.pause ? 'on' : ''}" id="rcPause">${CTRL.pause ? '▶ Retomar' : '⏸ Pausar'}</button>
+      <button class="rc-btn" id="rcSkip">⏭ Próxima cena</button>
+      ${CTRL.pin ? '<button class="rc-btn warn" id="rcUnpin">📌 Soltar destaque</button>' : ''}
+    </div>
+    <h2>Fixar um evento de hoje no telão</h2>
+    <div class="rc-list">${todays.length ? todays.map(e => `
+      <button class="rc-ev ${CTRL.pin === evKey(e) ? 'on' : ''}" data-pin="${escHtml(evKey(e))}">
+        <span class="rce-hora">${e.hora}</span>
+        <span class="rce-nome">${escHtml(shortName(e.nome))}</span>
+        <span class="rce-pin">${CTRL.pin === evKey(e) ? '📌 no ar' : 'fixar'}</span>
+      </button>`).join('') : '<p class="rc-state">carregando a grade…</p>'}</div>
+  </div>`;
+  const q = id => stage.querySelector('#' + id);
+  if (q('rcPause')) q('rcPause').addEventListener('click', () => ctrlSet({ pause: !CTRL.pause }));
+  if (q('rcSkip'))  q('rcSkip').addEventListener('click', () => ctrlSet({ skip: Date.now() }));
+  if (q('rcUnpin')) q('rcUnpin').addEventListener('click', () => ctrlSet({ pin: null }));
+  stage.querySelectorAll('.rc-ev').forEach(b => b.addEventListener('click', () => {
+    ctrlSet({ pin: CTRL.pin === b.dataset.pin ? null : b.dataset.pin, pause: false });
+  }));
 }
 
 /* ticker: a fita de eventos de hoje correndo no rodapé */
 function renderTicker(upcoming){
   const wrap = document.getElementById('tickerWrap');
   const track = document.getElementById('tickerTrack');
-  if (!upcoming.length){ wrap.hidden = true; return; }
+  if (REMOTE || !upcoming.length){ wrap.hidden = true; return; }
   const items = upcoming.map(e =>
     `<span class="tk-item"><b>${e.hora}</b> ${escHtml(shortName(e.nome))}${e.garantido != null ? ` <em>${fmtMoney(e.garantido)}</em>` : ''}</span>`
   ).join('<span class="tk-sep">♦</span>');
   track.innerHTML = items + '<span class="tk-sep">♠</span>' + items + '<span class="tk-sep">♠</span>';
   wrap.hidden = false;
-  /* velocidade proporcional ao conteúdo: ~90px/s */
   requestAnimationFrame(() => {
     track.style.animationDuration = Math.max(30, Math.round(track.scrollWidth / 2 / 90)) + 's';
   });
@@ -302,6 +545,6 @@ document.getElementById('fsBtn').addEventListener('click', () => {
 
 /* fundo: a rede de nós da casa, na paleta do canal (dourado + feltro) */
 document.addEventListener('DOMContentLoaded', () => {
-  SupremaMotion.network('.tv-bg', { c1:'#c9a84c', c2:'#22d47e', maxNodes:64, linkDist:150, isDark: () => true });
+  if (!REMOTE) SupremaMotion.network('.tv-bg', { c1:'#c9a84c', c2:'#22d47e', maxNodes:64, linkDist:150, isDark: () => true });
   initData();
 });

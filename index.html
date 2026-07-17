@@ -36,7 +36,7 @@
 /* motion do Suprema OS (ref. MotionSites): glow segue o cursor nos cards de
    torneio (delegação, pode ligar já); naipes à deriva = a atmosfera do hub;
    busyAuto = fichas caindo na ponta do mouse enquanto uma planilha processa */
-SupremaMotion.glow('.tcard');
+SupremaMotion.glow('.tcard, .hstat');
 SupremaMotion.busyAuto();
 document.addEventListener('DOMContentLoaded', () => {
   SupremaMotion.ambient();
@@ -113,6 +113,10 @@ document.addEventListener('DOMContentLoaded', () => {
       <a href="#learn">Learn</a>
       <a href="hub.html" title="Voltar ao hub Suprema OS">♠ OS</a>
     </div>
+    <div class="nav-ext">
+      <a href="criacao-noturna.html" id="criacaoNavLink" title="Criação de torneios do turno noturno — eventos da GU do dia seguinte">Criação GU 🌙&nbsp;↗</a>
+      <a href="admin.html" id="adminNavLink">Admin&nbsp;↗</a>
+    </div>
     <div class="nav-right">
       <div class="presence-wrap" id="presenceWrap" hidden></div>
       <button class="operator-badge" id="operatorBadge" title="Clique para trocar usuário"></button>
@@ -121,6 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </span>
       <span class="nav-time" id="navTime"></span>
       <button class="dark-toggle" id="darkToggle" title="Alternar modo escuro/claro">🌙</button>
+      <div class="nav-tools" role="group" aria-label="Ferramentas do turno">
       <button class="clear-btn" id="summaryBtn" title="Copiar resumo do dia (pronto pra colar no grupo)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 13h6M9 17h4"/></svg>
       </button>
@@ -131,6 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <button class="clear-btn" id="serversToggle" title="Lista de servidores">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="6" rx="1.6"/><rect x="2" y="15" width="20" height="6" rx="1.6"/><path d="M6 6h.01M6 18h.01"/></svg>
       </button>
+      <i class="tsep" aria-hidden="true"></i>
       <button class="clear-btn" id="routineToggle" title="Conferência de hoje">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
       </button>
@@ -138,6 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/><path d="m12.5 14.5 2 2 4-4.5"/></svg>
         <span id="guConfBadge" class="checklist-badge" hidden>0/0</span>
       </button>
+      <i class="tsep" aria-hidden="true"></i>
       <button class="clear-btn" id="overlayCalcToggle" title="Calculadora de Overlay">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2.2"/><path d="M8 2.5v3M16 2.5v3M3 9.5h18"/><circle cx="8" cy="14" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="14" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="14" r="1.1" fill="currentColor" stroke="none"/><circle cx="8" cy="17.6" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="17.6" r="1.1" fill="currentColor" stroke="none"/></svg>
       </button>
@@ -147,6 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <button class="clear-btn" id="cashTablesToggle" title="Buscador de Mesas Cash">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="13" height="17" rx="2"/><circle cx="17.5" cy="17.5" r="4.5"/><path d="m21 21 2 2"/></svg>
       </button>
+      <i class="tsep" aria-hidden="true"></i>
       <button class="clear-btn" id="shiftReportToggle" title="Relatório de Turno">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4a1 1 0 0 0-1 1v1a3 3 0 0 0 3 3M17 6h3a1 1 0 0 1 1 1v1a3 3 0 0 1-3 3"/></svg>
       </button>
@@ -158,6 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2.2"/><path d="M8 2.5v3M16 2.5v3M3 9.5h18"/><path d="M12 13v5M9.5 15.5h5"/></svg>
         <span id="addTorneioBadge" class="checklist-badge" hidden>0</span>
       </button>
+      </div>
       <button class="upload-btn" id="uploadGlobalBtn" title="Carregar Global MTT (.xlsx) → alimenta o painel direto" style="background:var(--gold);color:#000;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
         <span id="uploadGlobalBtnLabel">Global MTT</span>
@@ -166,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display:none;">
     </div>
   </div>
-<a href="criacao-noturna.html" id="criacaoNavLink" title="Criação de torneios do turno noturno — eventos da GU do dia seguinte" style="font-size:11px;color:var(--ink-soft);padding:4px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.08);transition:background-color .15s,border-color .15s,color .15s,transform .15s,box-shadow .15s,opacity .15s;margin-right:6px" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='var(--ink-soft)'">Criação GU 🌙 ↗</a><a href="admin.html" id="adminNavLink" style="font-size:11px;color:var(--ink-soft);padding:4px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.08);transition:background-color .15s,border-color .15s,color .15s,transform .15s,box-shadow .15s,opacity .15s" onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='var(--ink-soft)'">Admin ↗</a></nav>
+</nav>
 
 <div class="drawer-overlay" id="checklistDrawerOverlay">
   <aside class="drawer" id="checklistDrawer" role="dialog" aria-modal="true" aria-label="Checklist diário">

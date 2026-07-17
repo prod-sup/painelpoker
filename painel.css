@@ -845,8 +845,43 @@
     background:transparent; color:var(--ink-soft); cursor:pointer; flex:none;
     transition:background-color .25s var(--ease),border-color .25s var(--ease),color .25s var(--ease),transform .25s var(--ease),box-shadow .25s var(--ease),opacity .25s var(--ease);
   }
-  .clear-btn:hover{ color:var(--red); border-color:var(--red); background:var(--red-soft); }
+  /* hover FELTRO, não vermelho: são ferramentas, não ações destrutivas — o
+     vermelho em 12 botões gritava "perigo" o tempo todo */
+  .clear-btn:hover{ color:var(--felt-bright); border-color:var(--felt-bright); background:var(--felt-soft); transform:translateY(-1px); }
+  .clear-btn:active{ transform:scale(.92); transition-duration:.1s; }
   .clear-btn svg{width:14px; height:14px;}
+
+  /* ── BANDEJA DE FERRAMENTAS: os 12 botões agrupados numa cápsula só, com
+     separadores por família de uso (resumo/rotina | conferências | cálculo |
+     relatórios). Vira UMA caixa de ferramentas em vez de 12 círculos soltos. ── */
+  .nav-tools{
+    display:flex; align-items:center; gap:2px; flex:none;
+    padding:3px; border-radius:99px;
+    border:1px solid var(--hairline);
+    background:rgba(12,30,22,.035);
+    transition:border-color .3s var(--ease);
+  }
+  html.dark .nav-tools{ background:rgba(255,255,255,.045); }
+  .nav-tools:hover{ border-color:var(--hairline-strong); }
+  .nav-tools .clear-btn{ width:29px; height:29px; border-color:transparent; }
+  .nav-tools .tsep{
+    width:1px; height:15px; flex:none; margin:0 3px;
+    background:var(--hairline-strong);
+  }
+  @media (max-width:540px){ .nav-tools{ display:none; } }
+
+  /* ── links externos da operação (Criação GU / Admin) — antes eram âncoras
+     soltas com estilo inline fora da .nav-inner; agora são pills da casa ── */
+  .nav-ext{ display:flex; align-items:center; gap:6px; flex:none; }
+  .nav-ext a{
+    font-size:11px; font-weight:700; letter-spacing:.01em; white-space:nowrap;
+    color:var(--ink-soft); padding:5px 11px; border-radius:99px;
+    border:1px solid var(--hairline-strong);
+    transition:color .25s var(--ease), border-color .25s var(--ease),
+               background-color .25s var(--ease), transform .25s var(--ease);
+  }
+  .nav-ext a:hover{ color:var(--gold); border-color:var(--gold); background:var(--gold-soft); transform:translateY(-1px); }
+  @media (max-width:1080px){ .nav-ext{ display:none; } }
 
   @media (max-width:540px){
     .nav-inner{padding:0 16px; gap:8px;}
