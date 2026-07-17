@@ -1,310 +1,66 @@
 /* =========================================================================
    RADAR DE EVENTOS — a vitrine da grade pro Marketing e pro Atendimento.
 
-   MODELO MENTAL (v2, redesenho): escolha o DIA → a AGENDA do dia em linhas
-   verticais (hora | evento | números | status, com o divisor "AGORA") →
-   as ROTAS DE TICKET (satélite → 🎟 → torneio-alvo, um card por alvo) →
-   os EVENTOS FUTUROS (a seção P&D depois de domingo). Nada se repete em
-   três lugares; só o dia selecionado vai pro DOM.
+   MODELO MENTAL: escolha o DIA → a AGENDA do dia em linhas (hora | evento |
+   números | status, com o divisor "AGORA") → as ROTAS DE TICKET (satélite →
+   🎟 → torneio-alvo) → os EVENTOS FUTUROS (a seção P&D depois de domingo).
 
-   DE ONDE VÊM OS DADOS
-   --------------------
-   Do arquivo Global compartilhado que a operação já sobe no Painel do Dia
-   (painel/globalMtt, base64 no Firebase via SupremaDB). Um operador sobe,
-   o Marketing vê — sem planilha por e-mail. Fallback local ("ler minha
-   Global") parseia no navegador sem publicar nada.
+   O MOTOR (parser semanal, vínculos em 3 degraus, status, formatação) mora
+   em radar-core.js — compartilhado com a Suprema TV (tv.html). Este arquivo
+   é só a UI do Radar: agenda, rotas, filtros, copiar-pro-chat, card de
+   divulgação, correção manual (admin) e estado na URL.
 
-   VÍNCULO SATÉLITE → ALVO: heurística de tokens do nome + cabeçalho do
-   grupo (coluna A, propaga até linha em branco) + hora citada no nome
-   ("19H"). Ticket = buy-in do alvo.
+   DADOS: painel/globalMtt (a Global que a operação sobe no Painel do Dia) +
+   eventos/linksOverride (correções manuais). Fallback local sem publicar.
 
-   Depende de: gu-parser.js (normText, cellToHHMM, timeToMinutes,
-   readSheetMatrix, isFutureSectionLabel, WEEKDAYS_PT/EN), suprema-db.js,
-   suprema-auth.js, suprema-motion.js, ensureXLSX (suprema-xlsx.js).
+   Depende de: gu-parser.js, radar-core.js, suprema-db.js, suprema-auth.js,
+   suprema-motion.js, ensureXLSX (suprema-xlsx.js).
 ========================================================================= */
 'use strict';
 
 /* carimbo de versão: primeiro a rodar — se este log não aparecer no console,
    o navegador está servindo um eventos.js antigo (cache/upload pendente) */
-console.info('[Radar] eventos.js v2.0 — agenda por dia + rotas de ticket');
+console.info('[Radar] eventos.js v3.0 — motor extraído pro radar-core; TV unificada em tv.html');
 
-/* ═══════════════════ utilidades ═══════════════════ */
+/* modo TV unificado: a Suprema TV é um painel próprio agora — quem chegar
+   pelo antigo ?tv=1 é levado pra lá */
+if (new URLSearchParams(location.search).get('tv') === '1') location.replace('tv.html');
 
-function escHtml(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-const NF_INT = new Intl.NumberFormat('pt-BR');
-function fmtMoney(v){
-  if (v == null || !isFinite(v)) return '—';
-  if (v >= 1000000) return 'R$ ' + (v/1000000).toLocaleString('pt-BR', {maximumFractionDigits:1}) + ' mi';
-  if (v >= 1000)    return 'R$ ' + (v/1000).toLocaleString('pt-BR', {maximumFractionDigits:v%1000?1:0}) + ' mil';
-  return 'R$ ' + v.toLocaleString('pt-BR', {maximumFractionDigits:2});
-}
-function fmtMoneyFull(v){
-  if (v == null || !isFinite(v)) return '—';
-  return 'R$ ' + v.toLocaleString('pt-BR', {maximumFractionDigits:2});
-}
-
-/* ── relógio de São Paulo (a grade vive nesse fuso) ── */
-const SP_FMT = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Sao_Paulo', hour12:false,
-  year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit'});
-function spNow(){
-  const parts = {};
-  SP_FMT.formatToParts(new Date()).forEach(p => { parts[p.type] = p.value; });
-  const iso = `${parts.year}-${parts.month}-${parts.day}`;
-  return { iso, minutes: (parseInt(parts.hour,10)%24)*60 + parseInt(parts.minute,10), seconds: parseInt(parts.second,10) };
-}
-function isoAddDays(iso, n){
-  const [y,m,d] = iso.split('-').map(Number);
-  return new Date(Date.UTC(y, m-1, d + n)).toISOString().slice(0,10);
-}
-function isoDayNumber(iso){ const [y,m,d] = iso.split('-').map(Number); return Date.UTC(y, m-1, d) / 86400000; }
-/* minuto absoluto (dias desde epoch × 1440 + minuto do dia) — permite comparar
-   horários entre dias sem aritmética de fuso */
-function absMin(iso, minutes){ return isoDayNumber(iso) * 1440 + minutes; }
-function isoWeekdayIdx(iso){ const [y,m,d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m-1, d)).getUTCDay(); } // 0=domingo
-const MONTHS_PT = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-const WEEKDAY_SHORT = ['DOM','SEG','TER','QUA','QUI','SEX','SÁB'];
-function fmtDateShort(iso){ const [,m,d] = iso.split('-').map(Number); return `${d} ${MONTHS_PT[m-1]}`; }
-
-/* grade operacional: o dia vira às 05:30 — antes disso ainda é "ontem" */
-const GRADE_FLIP_MIN = 5*60 + 30;
-function gradeTodayISO(){
-  const now = spNow();
-  return now.minutes < GRADE_FLIP_MIN ? isoAddDays(now.iso, -1) : now.iso;
-}
-
-/* ── campanhas — mesmo radar do Painel do Dia (#AS / SPS / SPT no nome) ── */
-function campOf(nome){
-  const n = String(nome||'').toUpperCase();
-  if (n.includes('#AS')) return 'AS';
-  if (n.includes('SPS')) return 'SPS';
-  if (n.includes('SPT')) return 'SPT';
-  return null;
-}
-const CAMP_LABEL = { AS:'#AS', SPS:'+SPS', SPT:'+SPT' };
-const CAT_META = {
-  main: { label:'Main Event', suit:'♠', cls:'c-main' },
-  side: { label:'Side Event', suit:'♣', cls:'c-side' },
-  sat:  { label:'Satélite',   suit:'♦', cls:'c-sat'  },
-};
-
-/* ═══════════════════ parser semanal da Global (MTTS BRAZIL) ═══════════════════
-   Mesmas regras do extrator do Painel do Dia (coluna A decorativa, horário
-   mesclado herdado, "suspenso" pulado, tipo por radical), mas varrendo a
-   SEMANA INTEIRA de uma vez e coletando os EVENTOS FUTUROS (linhas com data
-   na coluna A / depois do rótulo "EVENTOS FUTUROS"/P&D) em vez de descartá-los. */
-
-function excelSerialToISO(v){
-  if (v instanceof Date) return v.toISOString().slice(0,10);
-  if (typeof v === 'number' && v > 40000 && v < 60000)
-    return new Date(Date.UTC(1899,11,30) + Math.round(v)*86400000).toISOString().slice(0,10);
-  if (typeof v === 'string'){
-    const m = v.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-    const br = v.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
-    if (br){
-      const y = br[3].length === 2 ? '20'+br[3] : br[3];
-      return `${y}-${String(br[2]).padStart(2,'0')}-${String(br[1]).padStart(2,'0')}`;
-    }
-  }
-  return null;
-}
-
-function parseGlobalWeek(matrix){
-  const days = {};                    // 'SEGUNDA-FEIRA' → {main:[], side:[], sat:[]}
-  const futures = [];
-  const weekdayNames = allWeekdayNamesNorm();
-  let currentDay = null;              // nome PT do dia da seção atual
-  let currentGroupHeader = null;
-  let lastHora = null;
-  let futureMode = false;             // depois do rótulo EVENTOS FUTUROS/P&D
-
-  const ptFromAny = (name) => {
-    const n = normText(name);
-    let i = WEEKDAYS_PT.findIndex(w => normText(w) === n);
-    if (i === -1) i = WEEKDAYS_EN.findIndex(w => normText(w) === n);
-    return i === -1 ? null : WEEKDAYS_PT[i];
-  };
-
-  for (let i = 0; i < matrix.length; i++){
-    const row = matrix[i];
-    if (!row || row.every(v => v === null || v === undefined || v === '' || v === ' ')){
-      currentGroupHeader = null; lastHora = null; continue;
-    }
-    const colA = row[0];
-    let hora = cellToHHMM(row[1]);
-    const nome = row[2];
-    const tipo = row[3];
-    const garantidoRaw = row[6];
-    const buyinRaw = row[7];
-    const lateHH = cellToHHMM(row[17]);
-
-    /* cabeçalho de dia: o nome do dia na PRÓPRIA coluna do nome (col C) */
-    if (typeof nome === 'string' && weekdayNames.includes(normText(nome))){
-      currentDay = ptFromAny(nome);
-      if (currentDay && !days[currentDay]) days[currentDay] = { main:[], side:[], sat:[] };
-      currentGroupHeader = null; lastHora = null; futureMode = false;
-      continue;
-    }
-
-    /* rótulo EVENTOS FUTUROS / P&D → daqui pra baixo (até o próximo dia) é futuro */
-    if (isFutureSectionLabel(colA) || isFutureSectionLabel(nome)){ futureMode = true; currentGroupHeader = null; continue; }
-
-    /* linha com DATA na coluna A = evento futuro datado (o rodapé da Global) */
-    const futISO = excelSerialToISO(colA);
-    if (futISO || futureMode){
-      if (typeof nome === 'string' && nome.trim() && !weekdayNames.includes(normText(nome))){
-        futures.push({
-          dateISO: futISO,                     // pode ser null (futuro sem data explícita)
-          nome: nome.trim(),
-          hora: hora,
-          tipo: typeof tipo === 'string' ? tipo.trim() : null,
-          garantido: typeof garantidoRaw === 'number' ? Math.round(garantidoRaw*100)/100 : null,
-          buyin: typeof buyinRaw === 'number' ? Math.round(buyinRaw*100)/100 : null,
-        });
-      }
-      continue;
-    }
-
-    if (!currentDay) continue;
-    const bucket = days[currentDay];
-
-    /* coluna A textual que não é dia = cabeçalho de grupo de satélite */
-    if (typeof colA === 'string' && colA.trim() && !weekdayNames.includes(normText(colA))){
-      currentGroupHeader = colA.trim();
-    }
-    if (!nome || typeof nome !== 'string') continue;
-    if (['SÁBADO','DOMINGO','SATÉLITE','SATELLITE'].includes(nome.trim().toUpperCase())) continue;
-    if (normText(nome) === 'suspenso') continue;
-    if (!hora && lastHora) hora = lastHora;
-    else if (hora) lastHora = hora;
-    if (!hora) continue;
-
-    const entry = {
-      nome: nome.trim(), hora,
-      garantido: typeof garantidoRaw === 'number' ? Math.round(garantidoRaw*100)/100 : null,
-      buyin: typeof buyinRaw === 'number' ? Math.round(buyinRaw*100)/100 : null,
-      late: lateHH || null,
-      groupHeader: currentGroupHeader,
-    };
-    const tipoNorm = normText(tipo);
-    if (tipoNorm.includes('main')) bucket.main.push(entry);
-    else if (tipoNorm.includes('side')) bucket.side.push(entry);
-    else if (tipoNorm.includes('sat')) bucket.sat.push(entry);
-    /* tipo desconhecido: pro Marketing tratamos como side (não some da vitrine) */
-    else if (tipoNorm) bucket.side.push(entry);
-  }
-  return { days, futures };
-}
-
-/* ═══════════════════ modelo: datas, status e vínculos ═══════════════════ */
-
-/* semana Mon→Sun contendo o dia da GRADE de hoje */
-function weekDates(){
-  const today = gradeTodayISO();
-  const dow = isoWeekdayIdx(today);                 // 0=dom
-  const monday = isoAddDays(today, -((dow + 6) % 7));
-  const map = {};                                    // 'SEGUNDA-FEIRA' → iso
-  for (let i = 0; i < 7; i++){
-    const iso = isoAddDays(monday, i);
-    map[WEEKDAYS_PT[isoWeekdayIdx(iso)]] = iso;
-  }
-  return map;
-}
-
-/* palavras que não identificam um alvo (sat/mega/ticket/etc.) */
-const LINK_STOP = new Set(['sat','sats','satelite','satelites','satellite','mega','super','hyper','turbo',
-  'ticket','tickets','tkt','seat','seats','step','freeroll','qualifier','ao','de','do','da','das','dos',
-  'em','no','na','the','to','for','pra','para','gtd','garantido','evento','event','edicao','edition',
-  'as','sps','spt','com','sem','max','and','e']);
-function linkTokens(s){
-  return normText(s).replace(/[^a-z0-9]+/g,' ').split(/\s+/)
-    .filter(t => t.length >= 2 && !LINK_STOP.has(t) && !/^\d{1,2}h$/.test(t));
-}
-function nameHour(s){
-  const m = String(s||'').toUpperCase().match(/(\d{1,2})\s*H(?:S|RS)?\b/);
-  return m ? parseInt(m[1],10) : null;
-}
-
-/* liga cada satélite ao torneio-alvo mais provável (mesmo dia primeiro, depois
-   o resto da semana pra frente). Score por sobreposição de tokens do nome do
-   sat + cabeçalho do grupo vs. o nome do alvo; bônus por hora citada no nome. */
-function linkSatellites(events){
-  const targets = events.filter(e => e.cat !== 'sat');
-  events.filter(e => e.cat === 'sat').forEach(sat => {
-    const satToks = new Set([...linkTokens(sat.nome), ...linkTokens(sat.groupHeader || '')]);
-    const satHour = nameHour(sat.nome) ?? nameHour(sat.groupHeader || '');
-    let best = null, bestScore = 0;
-    targets.forEach(t => {
-      if (t.abs <= sat.abs) return;                 // alvo tem que começar DEPOIS do satélite
-      let score = 0;
-      const tToks = linkTokens(t.nome);
-      tToks.forEach(tok => { if (satToks.has(tok)) score += Math.min(4, tok.length); });
-      if (satHour != null && timeToMinutes(t.hora) != null &&
-          Math.floor(timeToMinutes(t.hora)/60) === satHour) score += 3;
-      if (t.dateISO === sat.dateISO) score += 1.5;   // leve preferência pelo mesmo dia
-      if (t.cat === 'main') score += 0.5;
-      if (score > bestScore){ bestScore = score; best = t; }
-    });
-    if (best && bestScore >= 4){
-      sat.targetId = best.id;
-      best.satCount = (best.satCount || 0) + 1;
-    }
-  });
-}
-
-function buildModel(parsed){
-  const dates = weekDates();
-  const events = [];
-  let seq = 0;
-  Object.keys(parsed.days).forEach(day => {
-    const iso = dates[day];
-    if (!iso) return;
-    ['main','side','sat'].forEach(cat => {
-      parsed.days[day][cat].forEach(e => {
-        const m = timeToMinutes(e.hora);
-        if (m == null) return;
-        events.push({
-          ...e, id: 'ev' + (seq++), cat, weekday: day, dateISO: iso,
-          startMin: m, abs: absMin(iso, m), camp: campOf(e.nome),
-          satCount: 0, targetId: null,
-        });
-      });
-    });
-  });
-  events.sort((a,b) => a.abs - b.abs);
-  linkSatellites(events);
-
-  const byId = new Map(events.map(e => [e.id, e]));
-  const futures = parsed.futures
-    .map(f => ({ ...f, camp: campOf(f.nome) }))
-    .filter((f, i, arr) => arr.findIndex(x => x.nome === f.nome && x.dateISO === f.dateISO) === i)
-    .sort((a,b) => String(a.dateISO||'9999').localeCompare(String(b.dateISO||'9999')));
-  return { events, futures, dates, byId };
-}
-
-function statusOf(ev){
-  const now = spNow();
-  const n = absMin(now.iso, now.minutes);
-  let lateAbs = ev.late != null && timeToMinutes(ev.late) != null
-    ? absMin(ev.dateISO, timeToMinutes(ev.late)) : ev.abs + 90;
-  if (lateAbs < ev.abs) lateAbs += 1440;             // late que cruza a meia-noite
-  if (n >= ev.abs && n <= lateAbs) return { k:'live', left: lateAbs - n };
-  if (n < ev.abs){
-    const inMin = ev.abs - n;
-    return { k: inMin <= 120 ? 'soon' : 'upcoming', inMin };
-  }
-  return { k:'past' };
-}
-function fmtIn(min){
-  return min >= 60 ? `${Math.floor(min/60)}h${String(min%60).padStart(2,'0')}` : `${min} min`;
-}
-
-/* ═══════════════════ estado + dados ═══════════════════ */
+/* ═══════════════════ estado + URL ═══════════════════ */
 
 let MODEL = null;                                    // {events, futures, dates, byId}
 let META = null;                                     // {filename, at, by}
+let LAST_PARSED = null;                              // pra reconstruir quando um override chega
+let OVERRIDES = {};
 const state = { camp:'all', cat:'all', q:'', day:null, open:null };
+
+const IS_ADMIN = (() => { try { return !!SupremaAuth.recognize().isAdmin; } catch(e){ return false; } })();
+
+/* estado ↔ URL (?dia=SEX&camp=AS&cat=sat&q=...): abrir um link filtrado já
+   filtrado, e todo clique atualiza a URL (replaceState — não polui o histórico) */
+const SHORT_BY_DAY = {'SEGUNDA-FEIRA':'SEG','TERÇA-FEIRA':'TER','QUARTA-FEIRA':'QUA','QUINTA-FEIRA':'QUI','SEXTA-FEIRA':'SEX','SÁBADO':'SAB','DOMINGO':'DOM'};
+const DAY_BY_SHORT = Object.fromEntries(Object.entries(SHORT_BY_DAY).map(([d,s]) => [s, d]));
+function readStateFromURL(){
+  const q = new URLSearchParams(location.search);
+  const dia = (q.get('dia') || '').toUpperCase().replace('Á','A');
+  if (DAY_BY_SHORT[dia]) state.day = DAY_BY_SHORT[dia];
+  const camp = (q.get('camp') || '').toUpperCase();
+  if (['AS','SPS','SPT','NONE'].includes(camp)) state.camp = camp === 'NONE' ? 'none' : camp;
+  const cat = (q.get('cat') || '').toLowerCase();
+  if (['main','side','sat'].includes(cat)) state.cat = cat;
+  if (q.get('q')) state.q = q.get('q');
+}
+function writeStateToURL(){
+  try{
+    const q = new URLSearchParams();
+    if (state.day && state.day !== todayWeekdayPT()) q.set('dia', SHORT_BY_DAY[state.day]);
+    if (state.camp !== 'all') q.set('camp', state.camp === 'none' ? 'none' : state.camp);
+    if (state.cat !== 'all') q.set('cat', state.cat);
+    if (state.q) q.set('q', state.q);
+    const s = q.toString();
+    history.replaceState(null, '', location.pathname + (s ? '?' + s : ''));
+  }catch(e){}
+}
 
 let _lastAt = null;
 function initData(){
@@ -316,7 +72,7 @@ function initData(){
      no hub (?reauth=1) se a sessão do Firebase não existir mais. */
   console.info('[Radar] aguardando o Firebase Auth restaurar a sessão…');
   SupremaDB.requireUser(() => {
-    console.info('[Radar] auth ok — anexando listener da Global compartilhada');
+    console.info('[Radar] auth ok — anexando listeners');
     SupremaDB.watch('painel/globalMtt/at', snap => {
       const at = snap.val();
       console.info('[Radar] painel/globalMtt/at =', at);
@@ -325,18 +81,17 @@ function initData(){
       _lastAt = `${at}`;
       loadSharedGlobal();
     });
+    /* correções manuais dos vínculos — chegam/mudam ao vivo pra todo mundo */
+    SupremaDB.watch('eventos/linksOverride', snap => {
+      OVERRIDES = snap.val() || {};
+      if (LAST_PARSED){ MODEL = buildModel(LAST_PARSED, OVERRIDES); renderAll(); }
+    });
     SupremaDB.onConnection(ok => setSync(ok));
     /* rede lenta/regra negada: depois de 12s sem dado, troca o loading pelo
        estado vazio (que tem o fallback de ler o arquivo local) */
     setTimeout(() => { if (!MODEL) showEmpty(); }, 12000);
   });
   setSync(true);
-}
-
-function b64ToBuf(b64){
-  const bin = atob(b64); const buf = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-  return buf.buffer;
 }
 
 async function loadSharedGlobal(){
@@ -356,10 +111,11 @@ async function loadSharedGlobal(){
 let _firstRender = true;
 function applyMatrix(matrix){
   if (!matrix){ showEmpty(); return; }
-  MODEL = buildModel(parseGlobalWeek(matrix));
+  LAST_PARSED = parseGlobalWeek(matrix);
+  MODEL = buildModel(LAST_PARSED, OVERRIDES);
   console.info(`[Radar] Global aplicada — ${MODEL.events.length} eventos na semana, ${MODEL.futures.length} futuros`);
   if (!MODEL.events.length && !MODEL.futures.length){ showEmpty(); return; }
-  if (!state.day) state.day = WEEKDAYS_PT[isoWeekdayIdx(gradeTodayISO())];
+  if (!state.day) state.day = todayWeekdayPT();
   document.getElementById('loading').hidden = true;
   document.getElementById('emptyState').hidden = true;
   document.getElementById('content').hidden = false;
@@ -391,6 +147,7 @@ function showEmpty(){
 function setSync(ok){
   const el = document.getElementById('syncStatus');
   if (!el) return;
+  el.classList.toggle('on', !!ok);        /* mesmas classes dos outros painéis */
   el.classList.toggle('off', !ok);
   el.querySelector('.sync-label').textContent = ok ? 'Ao vivo' : 'Reconectando…';
 }
@@ -409,18 +166,24 @@ function wireFilters(){
   document.querySelectorAll('#campChips .chip').forEach(ch => ch.addEventListener('click', () => {
     state.camp = ch.dataset.camp;
     document.querySelectorAll('#campChips .chip').forEach(c => c.classList.toggle('on', c === ch));
-    renderContent();
+    writeStateToURL(); renderContent();
   }));
   document.querySelectorAll('#catChips .chip').forEach(ch => ch.addEventListener('click', () => {
     state.cat = ch.dataset.cat;
     document.querySelectorAll('#catChips .chip').forEach(c => c.classList.toggle('on', c === ch));
-    renderContent();
+    writeStateToURL(); renderContent();
   }));
   let qTimer = null;
   document.getElementById('searchInput').addEventListener('input', (e) => {
     clearTimeout(qTimer);
-    qTimer = setTimeout(() => { state.q = e.target.value.trim(); renderContent(); }, 180);
+    qTimer = setTimeout(() => { state.q = e.target.value.trim(); writeStateToURL(); renderContent(); }, 180);
   });
+}
+/* reflete na UI o estado que veio da URL */
+function syncFilterUI(){
+  document.querySelectorAll('#campChips .chip').forEach(c => c.classList.toggle('on', c.dataset.camp === state.camp));
+  document.querySelectorAll('#catChips .chip').forEach(c => c.classList.toggle('on', c.dataset.cat === state.cat));
+  document.getElementById('searchInput').value = state.q;
 }
 
 /* ═══════════════════ render ═══════════════════ */
@@ -456,7 +219,7 @@ function renderMeta(){
 
 function renderHero(){
   const evs = MODEL.events;
-  const today = WEEKDAYS_PT[isoWeekdayIdx(gradeTodayISO())];
+  const today = todayWeekdayPT();
   const live = evs.filter(e => statusOf(e).k === 'live').length;
   const hoje = evs.filter(e => e.weekday === today).length;
   const gtdWeek = evs.reduce((s,e) => s + (e.garantido || 0), 0);
@@ -468,24 +231,36 @@ function renderHero(){
   if (!renderHero._counted){ renderHero._counted = true; SupremaMotion.countUp('#statLive, #statToday, #statFut'); }
 }
 
-/* ── barra de dias: a navegação principal ── */
-const WEEK_ORDER = ['SEGUNDA-FEIRA','TERÇA-FEIRA','QUARTA-FEIRA','QUINTA-FEIRA','SEXTA-FEIRA','SÁBADO','DOMINGO'];
+/* ── barra de dias: a navegação principal + mini-barras de GTD (a leitura
+   instantânea do peso da semana; um matiz só — dourado = dinheiro) ── */
 function renderDayBar(){
   const wrap = document.getElementById('dayBar');
-  const today = WEEKDAYS_PT[isoWeekdayIdx(gradeTodayISO())];
+  const today = todayWeekdayPT();
+  const gtdByDay = {};
+  let gtdMax = 0;
+  WEEK_ORDER.forEach(day => {
+    const g = MODEL.events.filter(e => e.weekday === day).reduce((s,e) => s + (e.garantido || 0), 0);
+    gtdByDay[day] = g;
+    if (g > gtdMax) gtdMax = g;
+  });
   wrap.innerHTML = WEEK_ORDER.map(day => {
     const iso = MODEL.dates[day];
     const n = MODEL.events.filter(e => e.weekday === day).length;
+    const pct = gtdMax > 0 ? Math.round((gtdByDay[day] / gtdMax) * 100) : 0;
     return `<button class="day-pill ${day === state.day ? 'on' : ''} ${day === today ? 'is-today' : ''}"
-      data-day="${day}" ${n ? '' : 'disabled'} aria-label="${day}, ${n} eventos">
+      data-day="${day}" ${n ? '' : 'disabled'}
+      title="${day}: ${n} eventos · ${fmtMoney(gtdByDay[day])} garantidos"
+      aria-label="${day}, ${n} eventos, ${fmtMoney(gtdByDay[day])} garantidos">
       <span class="dp-wd">${WEEKDAY_SHORT[isoWeekdayIdx(iso)]}</span>
       <span class="dp-d">${+iso.slice(8)}</span>
       <span class="dp-n">${n || '·'}</span>
+      <i class="dp-bar" aria-hidden="true"><b style="width:${pct}%"></b></i>
     </button>`;
   }).join('');
   wrap.querySelectorAll('.day-pill').forEach(p => p.addEventListener('click', () => {
     if (state.day === p.dataset.day) return;
     state.day = p.dataset.day;
+    writeStateToURL();
     renderDayBar();
     renderContent();
   }));
@@ -498,7 +273,7 @@ function renderAgenda(){
   const evs = MODEL.events.filter(e => e.weekday === day && matches(e));
   const all = MODEL.events.filter(e => e.weekday === day);
   const gtd = evs.reduce((s,e) => s + (e.garantido || 0), 0);
-  const today = day === WEEKDAYS_PT[isoWeekdayIdx(gradeTodayISO())];
+  const today = day === todayWeekdayPT();
   const now = spNow();
   const nowAbs = absMin(now.iso, now.minutes);
 
@@ -531,14 +306,14 @@ function nowDividerHtml(now){
 }
 function rowHtml(e, st){
   const target = e.targetId ? MODEL.byId.get(e.targetId) : null;
-  const hasDetail = !!(target || e.satCount);
   const statusHtml =
     st.k === 'live' ? `<span class="r-live"><i class="pulse"></i>AO VIVO${e.late ? `<small>late até ${e.late}</small>` : ''}</span>` :
     st.k === 'soon' ? `<span class="r-soon">em ${fmtIn(st.inMin)}</span>` : '';
   const link =
-    target ? `<span class="r-ticket" title="Premia ticket para ${escHtml(target.nome)}">🎟 → ${escHtml(target.nome)}</span>` :
+    target ? `<span class="r-ticket" title="Premia ticket para ${escHtml(target.nome)}">🎟 → ${escHtml(target.nome)}${e.overridden ? ' <em class="r-fixed" title="Vínculo corrigido manualmente">✓ corrigido</em>' : ''}</span>` :
+    e.targetGroup ? `<span class="r-ticket" title="Destino declarado na planilha (fora da grade desta semana)">🎟 → ${escHtml(e.targetGroup)} <em class="r-offgrid">fora da grade</em></span>` :
     e.satCount ? `<span class="r-ticket in">🎟 ${e.satCount} satélite${e.satCount > 1 ? 's' : ''} classificam</span>` : '';
-  return `<article class="row ${st.k} ${CAT_META[e.cat].cls} ${hasDetail ? 'has-detail' : ''}" data-id="${e.id}">
+  return `<article class="row has-detail ${st.k} ${CAT_META[e.cat].cls}" data-id="${e.id}">
     <span class="r-time">${e.hora}</span>
     <span class="r-suit" title="${CAT_META[e.cat].label}">${CAT_META[e.cat].suit}</span>
     <div class="r-main">
@@ -550,14 +325,27 @@ function rowHtml(e, st){
       <span class="r-buyin">${e.buyin != null ? fmtMoneyFull(e.buyin) : ''}</span>
     </div>
     ${statusHtml}
-    ${hasDetail ? '<span class="r-chev" aria-hidden="true">›</span>' : ''}
+    <button class="r-copy" data-copy="${e.id}" title="Copiar pro chat" aria-label="Copiar informações do evento">
+      <svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+    </button>
+    <span class="r-chev" aria-hidden="true">›</span>
   </article>`;
 }
 
-/* clique numa linha com vínculo → expande a rota do ticket ali mesmo */
+/* clique na agenda: copiar, salvar correção, gerar card, ou expandir a rota */
 document.getElementById('agendaList').addEventListener('click', (e) => {
+  if (!MODEL) return;
+  const copyBtn = e.target.closest('.r-copy');
+  if (copyBtn){ copyEvent(copyBtn.dataset.copy); return; }
+  const fixSave = e.target.closest('[data-fix-save]');
+  if (fixSave){ saveOverride(fixSave.dataset.fixSave); return; }
+  const fixClear = e.target.closest('[data-fix-clear]');
+  if (fixClear){ clearOverride(fixClear.dataset.fixClear); return; }
+  const promoBtn = e.target.closest('[data-promo]');
+  if (promoBtn){ makePromoCard(promoSpecFromEvent(MODEL.byId.get(promoBtn.dataset.promo))); return; }
+  if (e.target.closest('.row-detail')) return;      // cliques soltos no detalhe não fecham
   const row = e.target.closest('.row.has-detail');
-  if (!row || !MODEL) return;
+  if (!row) return;
   const id = row.dataset.id;
   const existing = document.getElementById('rowDetail');
   if (existing) existing.remove();
@@ -567,29 +355,97 @@ document.getElementById('agendaList').addEventListener('click', (e) => {
   row.classList.add('open');
   row.insertAdjacentHTML('afterend', `<div class="row-detail" id="rowDetail">${detailHtml(MODEL.byId.get(id))}</div>`);
 });
+
 function detailHtml(e){
   if (!e) return '';
+  let flow = '';
   if (e.cat === 'sat' && e.targetId){
     const t = MODEL.byId.get(e.targetId);
-    return `<div class="rd-flow">
+    const chain = t.cat === 'sat';
+    flow = `<div class="rd-flow">
       <span class="rd-node">♦ ${escHtml(shortName(e.nome))}<small>${WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)]} ${e.hora} · buy-in ${fmtMoneyFull(e.buyin)}</small></span>
       <span class="rd-arrow"><span class="ticket-chip">🎟 ${t.buyin != null ? fmtMoney(t.buyin) : 'ticket'}</span></span>
-      <span class="rd-node tgt">${CAT_META[t.cat].suit} ${escHtml(t.nome)}<small>${WEEKDAY_SHORT[isoWeekdayIdx(t.dateISO)]} ${t.hora} · GTD ${fmtMoney(t.garantido)}</small></span>
+      <span class="rd-node tgt">${CAT_META[t.cat].suit} ${escHtml(t.nome)}<small>${WEEKDAY_SHORT[isoWeekdayIdx(t.dateISO)]} ${t.hora} · ${chain ? `buy-in ${fmtMoneyFull(t.buyin)}` : `GTD ${fmtMoney(t.garantido)}`}</small></span>
     </div>
-    <p class="rd-note">Quem vencer o satélite ganha o ticket de <b>${t.buyin != null ? fmtMoneyFull(t.buyin) : 'entrada'}</b> — acesso direto ao torneio-alvo.</p>`;
+    <p class="rd-note">${chain
+      ? `Cadeia de classificação: este satélite dá entrada no <b>próximo estágio</b> (${escHtml(shortName(t.nome))}) — clique nele na agenda pra seguir a rota.`
+      : `Quem vencer o satélite ganha o ticket de <b>${t.buyin != null ? fmtMoneyFull(t.buyin) : 'entrada'}</b> — acesso direto ao torneio-alvo.`}</p>`;
+  } else if (e.cat === 'sat' && e.targetGroup){
+    flow = `<div class="rd-flow">
+      <span class="rd-node">♦ ${escHtml(shortName(e.nome))}<small>${WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)]} ${e.hora} · buy-in ${fmtMoneyFull(e.buyin)}</small></span>
+      <span class="rd-arrow"><span class="ticket-chip">🎟 ticket</span></span>
+      <span class="rd-node tgt">✦ ${escHtml(e.targetGroup)}<small>série / evento fora da grade desta semana</small></span>
+    </div>
+    <p class="rd-note">A planilha agrupa este satélite sob <b>${escHtml(e.targetGroup)}</b> — o destino não é um torneio da grade semanal (série ou evento live).</p>`;
+  } else if (e.cat !== 'sat'){
+    const sats = MODEL.events.filter(s => s.targetId === e.id);
+    if (sats.length){
+      flow = `<div class="rd-flow">
+        <span class="rd-sats">${sats.map(s =>
+          `<span class="rd-node">♦ ${escHtml(shortName(s.nome))}<small>${WEEKDAY_SHORT[isoWeekdayIdx(s.dateISO)]} ${s.hora} · ${fmtMoneyFull(s.buyin)}</small></span>`).join('')}</span>
+        <span class="rd-arrow"><span class="ticket-chip">🎟 ${e.buyin != null ? fmtMoney(e.buyin) : 'ticket'}</span></span>
+        <span class="rd-node tgt">${CAT_META[e.cat].suit} ${escHtml(e.nome)}<small>${WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)]} ${e.hora} · GTD ${fmtMoney(e.garantido)}</small></span>
+      </div>
+      <p class="rd-note">${sats.length} caminho${sats.length > 1 ? 's' : ''} barato${sats.length > 1 ? 's' : ''} até este torneio — o ticket vale <b>${e.buyin != null ? fmtMoneyFull(e.buyin) : 'a entrada'}</b>.</p>`;
+    } else {
+      flow = `<p class="rd-note">Nenhum satélite ligado a este evento nesta semana.</p>`;
+    }
+  } else {
+    flow = `<p class="rd-note">Satélite sem destino identificado na planilha (sem grupo na coluna A e sem alvo por nome).</p>`;
   }
-  const sats = MODEL.events.filter(s => s.targetId === e.id);
-  if (!sats.length) return '';
-  return `<div class="rd-flow">
-    <span class="rd-sats">${sats.map(s =>
-      `<span class="rd-node">♦ ${escHtml(shortName(s.nome))}<small>${WEEKDAY_SHORT[isoWeekdayIdx(s.dateISO)]} ${s.hora} · ${fmtMoneyFull(s.buyin)}</small></span>`).join('')}</span>
-    <span class="rd-arrow"><span class="ticket-chip">🎟 ${e.buyin != null ? fmtMoney(e.buyin) : 'ticket'}</span></span>
-    <span class="rd-node tgt">${CAT_META[e.cat].suit} ${escHtml(e.nome)}<small>${WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)]} ${e.hora} · GTD ${fmtMoney(e.garantido)}</small></span>
-  </div>
-  <p class="rd-note">${sats.length} caminho${sats.length > 1 ? 's' : ''} barato${sats.length > 1 ? 's' : ''} até este torneio — o ticket vale <b>${e.buyin != null ? fmtMoneyFull(e.buyin) : 'a entrada'}</b>.</p>`;
+  return flow + rdActionsHtml(e);
 }
-function shortName(nome){
-  return nome.length > 44 ? nome.slice(0, 42).trimEnd() + '…' : nome;
+
+/* barra de ações do detalhe: card de divulgação + correção do vínculo (admin) */
+function rdActionsHtml(e){
+  let html = `<div class="rd-actions">
+    <button class="btn-sm gold" data-promo="${e.id}">🖼 Card de divulgação</button>`;
+  if (IS_ADMIN && e.cat === 'sat'){
+    const key = fbKey(evKey(e));
+    const cur = OVERRIDES[key];
+    const opts = [`<option value="">— automático (heurística) —</option>`,
+                  `<option value="none" ${cur && cur.target === 'none' ? 'selected' : ''}>sem alvo / fora da grade</option>`];
+    WEEK_ORDER.forEach(day => {
+      const evs = MODEL.events.filter(t => t.weekday === day && t.id !== e.id);
+      if (!evs.length) return;
+      opts.push(`<optgroup label="${day}">` + evs.map(t => {
+        const k = evKey(t);
+        return `<option value="${escHtml(k)}" ${cur && cur.target === k ? 'selected' : ''}>${CAT_META[t.cat].suit} ${t.hora} ${escHtml(shortName(t.nome))}</option>`;
+      }).join('') + `</optgroup>`);
+    });
+    html += `<span class="rd-fix">
+      <select class="rd-fix-sel" id="fixSel-${e.id}" aria-label="Corrigir alvo do satélite">${opts.join('')}</select>
+      <button class="btn-sm" data-fix-save="${e.id}">Salvar vínculo</button>
+      ${cur ? `<button class="btn-sm ghost" data-fix-clear="${e.id}">✕ remover correção</button><small class="rd-fix-by">por ${escHtml(cur.by || 'admin')}</small>` : ''}
+    </span>`;
+  }
+  return html + `</div>`;
+}
+
+function saveOverride(id){
+  const sat = MODEL.byId.get(id);
+  const sel = document.getElementById('fixSel-' + id);
+  if (!sat || !sel) return;
+  const val = sel.value;
+  const key = fbKey(evKey(sat));
+  if (!val){ clearOverride(id); return; }             // "automático" = sem override
+  const tEv = val !== 'none' ? MODEL.events.find(t => evKey(t) === val) : null;
+  const payload = {
+    target: val,
+    targetName: tEv ? tEv.nome : null,
+    by: (SupremaAuth.getSession() || {}).email || 'admin',
+    at: Date.now(),
+  };
+  SupremaDB.set(`eventos/linksOverride/${key}`, payload)
+    .then(() => toast('Vínculo corrigido — vale pra todo mundo ✓'))
+    .catch(err => { console.error('[Radar] override falhou', err); toast('Não consegui salvar (permissão?)', true); });
+}
+function clearOverride(id){
+  const sat = MODEL.byId.get(id);
+  if (!sat) return;
+  SupremaDB.remove(`eventos/linksOverride/${fbKey(evKey(sat))}`)
+    .then(() => toast('Correção removida — voltou ao automático'))
+    .catch(err => { console.error('[Radar] remover override falhou', err); toast('Não consegui remover (permissão?)', true); });
 }
 
 function scrollAgendaToNow(){
@@ -597,56 +453,134 @@ function scrollAgendaToNow(){
   if (el) el.scrollIntoView({ block:'center' });
 }
 
-/* ── ROTAS DE TICKET: um card por alvo, conexão em CSS puro ── */
+/* ── COPIAR PRO CHAT: texto pronto pro atendimento colar na conversa ── */
+function copyTextFor(e){
+  const dia = `${WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)]} ${fmtDateShort(e.dateISO)}`;
+  const L = [`${CAT_META[e.cat].suit} ${e.nome}`];
+  L.push(`🗓 ${dia} às ${e.hora}${e.late ? ` (late register até ${e.late})` : ''}`);
+  const nums = [];
+  if (e.garantido != null) nums.push(`GTD ${fmtMoney(e.garantido)}`);
+  if (e.buyin != null) nums.push(`Buy-in ${fmtMoneyFull(e.buyin)}`);
+  if (nums.length) L.push(`💰 ${nums.join(' · ')}`);
+  if (e.camp) L.push(`✦ Campanha ${CAMP_LABEL[e.camp]}`);
+  const t = e.targetId ? MODEL.byId.get(e.targetId) : null;
+  if (t) L.push(`🎟 Premia ticket${t.buyin != null ? ` de ${fmtMoneyFull(t.buyin)}` : ''} para: ${t.nome} — ${WEEKDAY_SHORT[isoWeekdayIdx(t.dateISO)]} às ${t.hora}`);
+  else if (e.targetGroup) L.push(`🎟 Classifica para: ${e.targetGroup}`);
+  if (e.cat !== 'sat'){
+    const sats = MODEL.events.filter(s => s.targetId === e.id);
+    if (sats.length){
+      const cheap = sats.reduce((m,s) => (s.buyin ?? Infinity) < (m.buyin ?? Infinity) ? s : m, sats[0]);
+      L.push(`🎟 ${sats.length} satélite${sats.length > 1 ? 's' : ''} classificam — dá pra entrar às ${cheap.hora}${cheap.buyin != null ? ` por ${fmtMoneyFull(cheap.buyin)}` : ''}`);
+    }
+  }
+  return L.join('\n');
+}
+function copyEvent(id){
+  const e = MODEL.byId.get(id);
+  if (!e) return;
+  const text = copyTextFor(e);
+  const done = () => toast('Copiado — é só colar no chat ✓');
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(() => { legacyCopy(text); done(); });
+  } else { legacyCopy(text); done(); }
+}
+function legacyCopy(text){
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); }catch(e){}
+  ta.remove();
+}
+
+/* toast minimalista (feedback de copiar/salvar) */
+let _toastTimer = null;
+function toast(msg, isErr){
+  let el = document.getElementById('radarToast');
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'radarToast'; el.setAttribute('role','status');
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.classList.toggle('err', !!isErr);
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+/* ── ROTAS DE TICKET: um card por destino (evento da grade OU grupo nomeado
+   fora da grade), conexão em CSS puro ── */
 function renderRoutes(){
   const day = state.day;
   const sats = MODEL.events.filter(e => e.weekday === day && e.cat === 'sat' && matches(e));
-  const byTarget = new Map();                        // targetId → sats[]
+  const byTarget = new Map();                        // id do evento OU 'g:'+grupo → sats[]
   const orphans = [];
   sats.forEach(s => {
-    if (s.targetId){
-      if (!byTarget.has(s.targetId)) byTarget.set(s.targetId, []);
-      byTarget.get(s.targetId).push(s);
-    } else orphans.push(s);
+    const key = s.targetId || (s.targetGroup ? 'g:' + s.targetGroup : null);
+    if (!key){ orphans.push(s); return; }
+    if (!byTarget.has(key)) byTarget.set(key, []);
+    byTarget.get(key).push(s);
   });
-  const targets = [...byTarget.keys()].map(id => MODEL.byId.get(id)).sort((a,b) => a.abs - b.abs);
+  const realKeys = [...byTarget.keys()].filter(k => !k.startsWith('g:'))
+    .sort((a,b) => MODEL.byId.get(a).abs - MODEL.byId.get(b).abs);
+  const groupKeys = [...byTarget.keys()].filter(k => k.startsWith('g:')).sort();
 
   const wrap = document.getElementById('routesWrap');
-  document.getElementById('routesEmpty').hidden = targets.length > 0 || orphans.length > 0;
-  wrap.innerHTML = targets.map(t => {
-    const list = byTarget.get(t.id).sort((a,b) => a.abs - b.abs);
+  document.getElementById('routesEmpty').hidden = byTarget.size > 0 || orphans.length > 0;
+
+  const realHtml = realKeys.map(key => {
+    const t = MODEL.byId.get(key);
+    const list = byTarget.get(key).sort((a,b) => a.abs - b.abs);
     const otherDay = t.weekday !== day ? `<span class="badge b-day">${WEEKDAY_SHORT[isoWeekdayIdx(t.dateISO)]}</span>` : '';
+    const chain = t.cat === 'sat' ? `<span class="badge b-chain" title="Este destino também é satélite — a rota continua a partir dele">etapa ↷</span>` : '';
     return `<article class="route">
-      <div class="rt-sats">
-        ${list.map(s => `<div class="rt-sat" title="${escHtml(s.nome)}">
-          <span class="rt-hora">${s.hora}</span>
-          <span class="rt-nome">${escHtml(shortName(s.nome))}</span>
-          <span class="rt-buyin">${s.buyin != null ? fmtMoneyFull(s.buyin) : ''}</span>
-        </div>`).join('')}
-      </div>
+      <div class="rt-sats">${satRowsHtml(list)}</div>
       <div class="rt-link" aria-hidden="true"><span class="ticket-chip">🎟 ${t.buyin != null ? fmtMoney(t.buyin) : 'ticket'}</span></div>
       <div class="rt-target ${CAT_META[t.cat].cls}">
-        <div class="rt-tname">${CAT_META[t.cat].suit} ${escHtml(t.nome)}${campBadge(t.camp)}${otherDay}</div>
-        <div class="rt-tsub">${t.hora} · GTD <b>${fmtMoney(t.garantido)}</b>${t.buyin != null ? ` · Buy-in ${fmtMoneyFull(t.buyin)}` : ''}</div>
+        <div class="rt-tname">${CAT_META[t.cat].suit} ${escHtml(t.nome)}${campBadge(t.camp)}${otherDay}${chain}</div>
+        <div class="rt-tsub">${t.hora}${t.garantido != null ? ` · GTD <b>${fmtMoney(t.garantido)}</b>` : ''}${t.buyin != null ? ` · Buy-in ${fmtMoneyFull(t.buyin)}` : ''}</div>
       </div>
     </article>`;
-  }).join('') + (orphans.length ? `
-    <p class="rt-orphans">♦ ${orphans.length} satélite${orphans.length > 1 ? 's' : ''} sem alvo identificado na planilha:
+  }).join('');
+
+  const groupHtml = groupKeys.map(key => {
+    const name = key.slice(2);
+    const list = byTarget.get(key).sort((a,b) => a.abs - b.abs);
+    return `<article class="route offgrid">
+      <div class="rt-sats">${satRowsHtml(list)}</div>
+      <div class="rt-link" aria-hidden="true"><span class="ticket-chip">🎟 ticket</span></div>
+      <div class="rt-target">
+        <div class="rt-tname">✦ ${escHtml(name)}</div>
+        <div class="rt-tsub">série / evento fora da grade desta semana</div>
+      </div>
+    </article>`;
+  }).join('');
+
+  wrap.innerHTML = realHtml + groupHtml + (orphans.length ? `
+    <p class="rt-orphans">♦ ${orphans.length} satélite${orphans.length > 1 ? 's' : ''} sem destino identificado:
       ${orphans.map(s => `<span class="rt-orphan" title="${escHtml(s.nome)}">${s.hora} ${escHtml(shortName(s.nome))}</span>`).join('')}</p>` : '');
+}
+function satRowsHtml(list){
+  return list.map(s => `<div class="rt-sat" title="${escHtml(s.nome)}">
+    <span class="rt-hora">${s.hora}</span>
+    <span class="rt-nome">${escHtml(shortName(s.nome))}</span>
+    <span class="rt-buyin">${s.buyin != null ? fmtMoneyFull(s.buyin) : ''}</span>
+  </div>`).join('');
 }
 
 /* ── FUTUROS (P&D depois de domingo) ── */
+let FUT_SHOWN = [];
 function renderFutures(){
   const wrap = document.getElementById('futGrid');
   const today = gradeTodayISO();
-  const futs = MODEL.futures.filter(f => {
+  FUT_SHOWN = MODEL.futures.filter(f => {
     if (state.camp === 'none' && f.camp) return false;
     if (state.camp !== 'all' && state.camp !== 'none' && f.camp !== state.camp) return false;
     if (state.q && !normText(f.nome).includes(normText(state.q))) return false;
     return true;
   });
-  document.getElementById('futEmpty').hidden = futs.length > 0;
-  wrap.innerHTML = futs.map(f => {
+  document.getElementById('futEmpty').hidden = FUT_SHOWN.length > 0;
+  wrap.innerHTML = FUT_SHOWN.map((f, i) => {
     const days = f.dateISO ? isoDayNumber(f.dateISO) - isoDayNumber(today) : null;
     const when = days == null ? 'data a definir'
       : days <= 0 ? 'é hoje!' : days === 1 ? 'amanhã' : `em ${days} dias`;
@@ -664,8 +598,175 @@ function renderFutures(){
           ${f.tipo ? `<span>${escHtml(f.tipo)}</span>` : ''}
         </div>
       </div>
+      <button class="fut-share" data-share-fut="${i}" title="Card de divulgação (PNG)" aria-label="Gerar card de divulgação">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-4.5-4.5L7 20"/></svg>
+      </button>
     </article>`;
   }).join('');
+}
+document.getElementById('futGrid').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-share-fut]');
+  if (!b) return;
+  const f = FUT_SHOWN[+b.dataset.shareFut];
+  if (f) makePromoCard(promoSpecFromFuture(f));
+});
+
+/* ═══════════════════ CARD DE DIVULGAÇÃO (PNG via canvas) ═══════════════════
+   1080×1350 (4:5, feed) na identidade da casa: noite, framboesa + dourado,
+   nome grande, GTD em destaque e a rota do ticket quando existir. */
+
+function promoSpecFromEvent(e){
+  if (!e) return null;
+  const t = e.targetId ? MODEL.byId.get(e.targetId) : null;
+  const sats = e.cat !== 'sat' ? MODEL.events.filter(s => s.targetId === e.id) : [];
+  const cheap = sats.length ? sats.reduce((m,s) => (s.buyin ?? Infinity) < (m.buyin ?? Infinity) ? s : m, sats[0]) : null;
+  return {
+    nome: e.nome,
+    quando: `${WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)]} · ${fmtDateShort(e.dateISO).toUpperCase()} · ${e.hora}`,
+    gtd: e.garantido, buyin: e.buyin, camp: e.camp, suit: CAT_META[e.cat].suit,
+    rota: t ? `Classifique pelo satélite: ticket de ${t.buyin != null ? fmtMoneyFull(t.buyin) : 'entrada'} para ${shortName(t.nome)}`
+      : e.targetGroup ? `Vale vaga em: ${e.targetGroup}`
+      : cheap ? `🎟 Satélites desde ${cheap.buyin != null ? fmtMoneyFull(cheap.buyin) : '—'} (às ${cheap.hora})`
+      : null,
+  };
+}
+function promoSpecFromFuture(f){
+  const when = f.dateISO
+    ? `${WEEKDAY_SHORT[isoWeekdayIdx(f.dateISO)]} · ${fmtDateShort(f.dateISO).toUpperCase()}${f.hora ? ' · ' + f.hora : ''}`
+    : 'EM BREVE';
+  return { nome: f.nome, quando: when, gtd: f.garantido, buyin: f.buyin, camp: f.camp, suit: '✦', rota: null };
+}
+
+function roundRectPath(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+function wrapText(ctx, text, maxW){
+  const words = String(text).split(/\s+/);
+  const lines = [];
+  let line = '';
+  words.forEach(w => {
+    const probe = line ? line + ' ' + w : w;
+    if (ctx.measureText(probe).width > maxW && line){ lines.push(line); line = w; }
+    else line = probe;
+  });
+  if (line) lines.push(line);
+  return lines;
+}
+
+function makePromoCard(spec){
+  if (!spec) return;
+  const W = 1080, H = 1350, PAD = 84;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  const DISPLAY = '"SF Pro Display","Segoe UI",system-ui,sans-serif';
+  const MONO = '"SF Mono","Cascadia Mono",ui-monospace,monospace';
+
+  /* fundo: a noite da casa */
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#150b0f'); bg.addColorStop(.75, '#120d12'); bg.addColorStop(1, '#0e0c10');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  let g = ctx.createRadialGradient(W*.82, -80, 60, W*.82, -80, 780);
+  g.addColorStop(0, 'rgba(216,96,122,.34)'); g.addColorStop(1, 'rgba(216,96,122,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  g = ctx.createRadialGradient(W*.08, H+60, 60, W*.08, H+60, 720);
+  g.addColorStop(0, 'rgba(201,168,76,.26)'); g.addColorStop(1, 'rgba(201,168,76,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  /* naipes de fundo, quase invisíveis */
+  ctx.fillStyle = 'rgba(255,255,255,.028)';
+  [['♠',120,300,210],['♦',830,520,260],['♣',180,1050,230],['♥',760,1180,180]].forEach(([s,x,y,fs]) => {
+    ctx.font = `${fs}px ${DISPLAY}`; ctx.fillText(s, x, y);
+  });
+  /* moldura fina dourada */
+  ctx.strokeStyle = 'rgba(201,168,76,.34)'; ctx.lineWidth = 2;
+  roundRectPath(ctx, 34, 34, W-68, H-68, 34); ctx.stroke();
+
+  /* topo: marca */
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#c9a84c';
+  ctx.font = `700 30px ${DISPLAY}`;
+  ctx.save(); ctx.translate(PAD, 132);
+  ctx.fillText('♦', 0, 0);
+  ctx.font = `700 27px ${DISPLAY}`;
+  ctx.fillText('S U P R E M A   P O K E R', 44, -1);
+  ctx.restore();
+
+  let y = 236;
+  /* pílula de campanha */
+  if (spec.camp){
+    const label = `✦  CAMPANHA ${CAMP_LABEL[spec.camp]}`;
+    ctx.font = `700 26px ${DISPLAY}`;
+    const w = ctx.measureText(label).width + 56;
+    ctx.fillStyle = 'rgba(216,96,122,.16)';
+    roundRectPath(ctx, PAD, y-44, w, 62, 31); ctx.fill();
+    ctx.strokeStyle = 'rgba(216,96,122,.5)'; ctx.lineWidth = 2; roundRectPath(ctx, PAD, y-44, w, 62, 31); ctx.stroke();
+    ctx.fillStyle = '#f4a9ba';
+    ctx.fillText(label, PAD+28, y);
+    y += 92;
+  }
+
+  /* nome do evento */
+  ctx.fillStyle = '#f2edf0';
+  ctx.font = `800 76px ${DISPLAY}`;
+  const nameLines = wrapText(ctx, `${spec.suit} ${spec.nome}`, W - PAD*2);
+  nameLines.slice(0, 4).forEach(l => { ctx.fillText(l, PAD, y+62); y += 88; });
+  y += 26;
+
+  /* quando */
+  ctx.fillStyle = '#f4a9ba';
+  ctx.font = `700 34px ${MONO}`;
+  ctx.fillText(spec.quando, PAD, y+30); y += 96;
+
+  /* GTD gigante */
+  if (spec.gtd != null){
+    ctx.fillStyle = 'rgba(242,237,240,.55)';
+    ctx.font = `700 30px ${DISPLAY}`;
+    ctx.fillText('G A R A N T I D O', PAD, y+22);
+    ctx.fillStyle = '#e8c884';
+    ctx.font = `800 148px ${DISPLAY}`;
+    ctx.fillText(fmtMoney(spec.gtd), PAD, y+178);
+    y += 254;
+  }
+  if (spec.buyin != null){
+    ctx.fillStyle = 'rgba(242,237,240,.72)';
+    ctx.font = `600 40px ${DISPLAY}`;
+    ctx.fillText(`Buy-in ${fmtMoneyFull(spec.buyin)}`, PAD, y+30);
+    y += 92;
+  }
+
+  /* rota do ticket */
+  if (spec.rota){
+    const boxY = Math.min(y+16, H-280);
+    ctx.fillStyle = 'rgba(201,168,76,.10)';
+    roundRectPath(ctx, PAD, boxY, W-PAD*2, 130, 24); ctx.fill();
+    ctx.strokeStyle = 'rgba(201,168,76,.4)'; ctx.lineWidth = 2;
+    ctx.setLineDash([10, 8]);
+    roundRectPath(ctx, PAD, boxY, W-PAD*2, 130, 24); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#e8c884';
+    ctx.font = `700 32px ${DISPLAY}`;
+    const rl = wrapText(ctx, `🎟 ${spec.rota}`, W - PAD*2 - 76);
+    rl.slice(0, 2).forEach((l, i) => ctx.fillText(l, PAD+38, boxY+56+i*44));
+  }
+
+  /* rodapé */
+  ctx.fillStyle = 'rgba(242,237,240,.42)';
+  ctx.font = `600 26px ${DISPLAY}`;
+  ctx.fillText('Jogue com responsabilidade · app Suprema Poker', PAD, H-84);
+
+  /* baixar */
+  const a = document.createElement('a');
+  const slug = normText(spec.nome).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'evento';
+  a.download = `suprema-${slug}.png`;
+  a.href = cv.toDataURL('image/png');
+  a.click();
+  toast('Card gerado — imagem baixada 🖼');
 }
 
 /* ═══════════════════ chrome: relógio, tema, operador ═══════════════════ */
@@ -676,8 +777,8 @@ function tickClock(){
     `${String(Math.floor(n.minutes/60)).padStart(2,'0')}:${String(n.minutes%60).padStart(2,'0')}:${String(n.seconds).padStart(2,'0')}`;
 }
 setInterval(tickClock, 1000); tickClock();
-/* status "AO VIVO"/divisor AGORA acompanham o relógio — refresh leve por minuto,
-   só das partes que mudam (hero + agenda do dia; rotas/futuros não têm status) */
+/* status "AO VIVO"/divisor AGORA acompanham o relógio — refresh leve por
+   minuto, só das partes que mudam */
 setInterval(() => { if (MODEL){ renderHero(); renderAgenda(); } }, 60000);
 
 (function themeAndUser(){
@@ -696,6 +797,8 @@ setInterval(() => { if (MODEL){ renderHero(); renderAgenda(); } }, 60000);
 
 /* ═══════════════════ boot ═══════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
+  readStateFromURL();
   wireFilters();
+  syncFilterUI();
   initData();
 });

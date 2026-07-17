@@ -88,7 +88,7 @@
      "continuar de onde parou". Cada pedaço acende quando o dado chega
      (sessão → turno; boards → evento; stats → missões; lastTool → continuar). ── */
   let heroLastTool = null;   // users/<key>/lastTool {t, at} — alimentado pelo suprema-auth
-  const HERO_TOOL_URLS = { painel:'index.html', admin:'admin.html', gu:'criacao-noturna.html', cash:'dashboard-mesa-cash.html', eventos:'eventos.html' };
+  const HERO_TOOL_URLS = { painel:'index.html', admin:'admin.html', gu:'criacao-noturna.html', cash:'dashboard-mesa-cash.html', eventos:'eventos.html', tv:'tv.html' };
   function renderHeroOps(){
     const box = $('heroOps'); if(!box) return;
     if(!session){ box.hidden = true; return; }

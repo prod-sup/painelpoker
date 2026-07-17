@@ -10,6 +10,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="gu-parser.js"></script>
+<script src="radar-core.js"></script>
 <script src="suprema-auth.js"></script>
 <script>
 /* portão: login mora no hub; exige acesso liberado a ESTE painel.
@@ -25,8 +26,9 @@ if (SupremaAuth.isDarkPreferred()) document.documentElement.classList.add('dark'
 SupremaMotion.glow('.stat, .fut-card, .route');
 document.addEventListener('DOMContentLoaded', () => {
   SupremaMotion.magnetic('.btn');
-  SupremaMotion.aurora('.hero', { tint1:'rgba(179,71,93,.14)', tint2:'rgba(201,168,76,.10)' });
-  SupremaMotion.network('.hero', { c1:'#b3475d', c2:'#8f6b2d', c1Dark:'#ef7d93', c2Dark:'#c9a84c', maxNodes:55 });
+  /* o hero é NOTURNO nos dois temas (assinatura da casa) — a rede usa sempre
+     a paleta clara, por isso o isDark fixo */
+  SupremaMotion.network('.hero', { c1:'#ef7d93', c2:'#c9a84c', maxNodes:55, isDark: () => true });
 });
 </script>
 <link rel="stylesheet" href="eventos.css">
@@ -48,6 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="nav-links">
       <a href="hub.html" title="Voltar ao hub Suprema OS">♠ OS</a>
       <a href="index.html">Painel do Dia</a>
+      <a href="tv.html" title="O canal da casa — modo telão">📺 Suprema TV</a>
     </div>
     <div class="nav-right">
       <span class="presence-wrap" id="presenceWrap" title="Quem está online agora" hidden></span>

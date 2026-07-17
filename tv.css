@@ -1,0 +1,326 @@
+/* =========================================================================
+   SUPREMA TV — CSS. Um canal, não um app: sempre noturno, tela cheia, tipo
+   gigante, cenas que entram como vinheta de transmissão. Identidade da casa:
+   feltro no horizonte, dourado da marca, categorias nas cores da família
+   (Main vermelho-queimado, Side azul, Sat violeta). Só transform/opacity —
+   nada de layout por frame.
+========================================================================= */
+
+:root{
+  --bg:#0b0c10; --ink:#f0ede8; --ink-soft:#8b9088;
+  --gold:#c9a84c; --gold-hi:#e8c884; --felt:#22d47e;
+  --live:#f36b70; --camp:#f4a9ba;
+  --main-c:#f06050; --side-c:#5aa8ff; --sat-c:#b888f0;
+  --display:"SF Pro Display",-apple-system,"Segoe UI","Inter",sans-serif;
+  --mono:"SF Mono","Cascadia Mono",ui-monospace,monospace;
+  --ease:cubic-bezier(.22,1,.36,1); --ease-expo:cubic-bezier(.16,1,.3,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+[hidden]{display:none !important}
+html,body{height:100%}
+body{
+  font-family:var(--display);color:var(--ink);overflow:hidden;cursor:none;
+  background:
+    radial-gradient(1400px 600px at 78% -12%, rgba(201,168,76,.14), transparent 62%),
+    radial-gradient(1100px 520px at 8% 112%, rgba(14,107,64,.22), transparent 60%),
+    linear-gradient(180deg,#0c0d12 0%,#0b0c10 60%,#090a0d 100%);
+}
+.tv-bg{position:fixed;inset:0;z-index:0}
+.tv-bg .sp-network{opacity:.5}
+
+/* ── barra superior: o chrome do canal ── */
+.tv-top{
+  position:fixed;inset:0 0 auto 0;z-index:20;height:64px;
+  display:flex;align-items:center;gap:28px;padding:0 34px;
+  background:linear-gradient(180deg,rgba(9,10,13,.85),rgba(9,10,13,0));
+}
+.tv-brand{display:flex;align-items:baseline;gap:12px}
+.tv-logo{
+  font-size:26px;color:var(--gold);
+  animation:logo-breathe 4s ease-in-out infinite;
+}
+@keyframes logo-breathe{0%,100%{opacity:.85;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}
+.tv-name{font-weight:800;font-size:21px;letter-spacing:.06em}
+.tv-name b{color:var(--gold);font-weight:800}
+.tv-tag{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-soft)}
+.tv-today{
+  margin-left:auto;font-size:14px;font-weight:700;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-soft);
+}
+.tv-right{display:flex;align-items:center;gap:18px}
+.tv-live-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  font-size:12px;font-weight:800;letter-spacing:.16em;color:var(--live);
+  border:1px solid rgba(243,107,112,.4);background:rgba(243,107,112,.1);
+  padding:6px 14px;border-radius:99px;
+}
+.tv-live-badge i{
+  width:8px;height:8px;border-radius:99px;background:var(--live);
+  animation:tv-pulse 1.4s ease-in-out infinite;
+}
+@keyframes tv-pulse{0%,100%{box-shadow:0 0 0 0 rgba(243,107,112,.5)}55%{box-shadow:0 0 0 8px rgba(243,107,112,0)}}
+.tv-clock{font-family:var(--mono);font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink)}
+
+/* ── palco ── */
+#stage{position:fixed;inset:0;z-index:10}
+.scene{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  justify-content:center;padding:9vh 7vw 13vh;
+  opacity:0;transform:scale(1.02);
+  transition:opacity .7s var(--ease), transform .9s var(--ease);
+}
+.scene.in{opacity:1;transform:none}
+/* barra de progresso da cena (broadcast feel) */
+.scene-progress{
+  position:absolute;left:0;bottom:0;height:3px;width:100%;
+  background:linear-gradient(90deg,var(--gold),var(--gold-hi));
+  transform-origin:0 50%;transform:scaleX(0);
+  animation:sc-prog linear forwards;
+}
+@keyframes sc-prog{to{transform:scaleX(1)}}
+
+/* tipografia cinética: palavras sobem de dentro de um clip, em cascata */
+.kw-clip{display:inline-block;overflow:hidden;vertical-align:bottom;padding-bottom:.08em}
+.kw{
+  display:inline-block;transform:translateY(112%);
+  transition:transform .8s var(--ease-expo);
+  transition-delay:calc(var(--i,0) * 90ms);
+}
+.scene.in .kw{transform:none}
+/* elementos com --i entram em cascata */
+.tv-chip,.tv-stat,.tv-row,.rank-row,.tv-route,.tv-fut,.maker,.gu-progress,.sc-kicker,.b-sub,.tv-credits{
+  opacity:0;transform:translateY(26px);
+  transition:opacity .6s var(--ease), transform .7s var(--ease);
+  transition-delay:calc(var(--i,0) * 110ms);
+}
+.scene.in :is(.tv-chip,.tv-stat,.tv-row,.rank-row,.tv-route,.tv-fut,.maker,.gu-progress,.sc-kicker,.b-sub,.tv-credits){
+  opacity:1;transform:none;
+}
+@media (prefers-reduced-motion:reduce){
+  .kw,.scene{transition:none;transform:none;opacity:1}
+  .tv-chip,.tv-stat,.tv-row,.rank-row,.tv-route,.tv-fut,.maker,.gu-progress,.sc-kicker,.b-sub,.tv-credits{transition:none;transform:none;opacity:1}
+}
+
+/* ── vinheta da marca ── */
+.s-brand{align-items:center;text-align:center}
+.b-mark{
+  font-size:clamp(64px,9vw,130px);color:var(--gold);line-height:1;
+  filter:drop-shadow(0 0 34px rgba(201,168,76,.4));
+}
+.b-title{font-size:clamp(54px,8.5vw,124px);font-weight:800;letter-spacing:.04em;line-height:1.05}
+.b-title b,.b-title .kw:last-child{color:var(--gold)}
+.b-sub{margin-top:2vh;font-size:clamp(14px,1.5vw,21px);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+/* brilho varrendo a marca (shine sweep) */
+.shine{position:relative;overflow:visible}
+.shine::after{
+  content:"";position:absolute;inset:-20%;pointer-events:none;
+  background:linear-gradient(115deg,transparent 42%,rgba(255,255,255,.22) 50%,transparent 58%);
+  transform:translateX(-120%);animation:shine-sweep 3.4s var(--ease) infinite;
+}
+@keyframes shine-sweep{0%,55%{transform:translateX(-120%)}85%,100%{transform:translateX(120%)}}
+
+/* ── holofote (AO VIVO) ── */
+.s-spot{justify-content:center}
+.suit-mark{
+  position:absolute;right:-2vw;top:50%;transform:translateY(-52%) rotate(12deg);
+  font-size:56vh;line-height:1;opacity:.06;pointer-events:none;user-select:none;
+  animation:suit-drift 26s ease-in-out infinite;
+}
+@keyframes suit-drift{0%,100%{transform:translateY(-52%) rotate(12deg)}50%{transform:translateY(-48%) rotate(9deg)}}
+.s-spot.c-main .suit-mark{color:var(--main-c)}
+.s-spot.c-side .suit-mark{color:var(--side-c)}
+.s-spot.c-sat .suit-mark{color:var(--sat-c)}
+.tv-chip{
+  align-self:flex-start;display:inline-flex;align-items:center;gap:12px;
+  font-size:clamp(13px,1.3vw,19px);font-weight:800;letter-spacing:.18em;
+  padding:.7em 1.4em;border-radius:99px;margin-bottom:2.6vh;
+}
+.tv-chip.live{color:var(--live);border:1.5px solid rgba(243,107,112,.45);background:rgba(243,107,112,.1)}
+.tv-chip.live .pulse{width:.65em;height:.65em;border-radius:99px;background:var(--live);animation:tv-pulse 1.4s ease-in-out infinite}
+.tv-chip.camp{color:var(--camp);border:1.5px solid rgba(244,169,186,.4);background:rgba(216,96,122,.12);margin-top:-1vh}
+.spot-title{
+  font-size:clamp(40px,5.6vw,96px);font-weight:800;letter-spacing:-.02em;
+  line-height:1.06;max-width:24ch;margin-bottom:3.4vh;
+  text-shadow:0 6px 60px rgba(0,0,0,.5);
+}
+.tv-stats{display:flex;gap:2.6vw;flex-wrap:wrap;align-items:flex-end}
+.tv-stat .v{
+  display:block;font-family:var(--mono);font-weight:800;
+  font-size:clamp(30px,4vw,66px);font-variant-numeric:tabular-nums;line-height:1.05;
+}
+.tv-stat .l{
+  display:block;margin-top:.5vh;font-size:clamp(11px,1vw,15px);
+  font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft);
+}
+.tv-stat.s-gtd .v{color:var(--gold-hi)}
+.tv-stat.s-prem .v{
+  color:var(--felt);
+  text-shadow:0 0 34px rgba(34,212,126,.35);
+}
+.tv-stat.s-field .v{color:var(--side-c)}
+.tv-credits{display:flex;gap:14px;flex-wrap:wrap;margin-top:4vh}
+.credit-chip{
+  display:inline-flex;align-items:center;gap:10px;font-size:clamp(13px,1.25vw,19px);
+  color:var(--ink-soft);border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.05);padding:.55em 1.2em;border-radius:99px;
+}
+.credit-chip b{color:var(--ink)}
+.credit-chip.maker{border-color:rgba(201,168,76,.4);background:rgba(201,168,76,.08)}
+.credit-chip.maker b{color:var(--gold-hi)}
+.cc-av{
+  width:1.7em;height:1.7em;border-radius:99px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--gold),#8f6b2d);color:#0b0c10;
+  font-weight:800;font-size:.8em;
+}
+
+/* ── kicker das seções ── */
+.sc-kicker{
+  font-size:clamp(15px,1.6vw,24px);font-weight:800;letter-spacing:.3em;
+  color:var(--ink-soft);margin-bottom:3.4vh;
+}
+.sc-kicker::before{content:"— ";color:var(--gold)}
+.sc-kicker.gold{color:var(--gold-hi)}
+
+/* ── a seguir hoje ── */
+.tv-rows{display:flex;flex-direction:column;gap:1.4vh;max-width:1500px}
+.tv-row{
+  display:flex;align-items:baseline;gap:1.6vw;
+  font-size:clamp(17px,1.9vw,30px);
+  padding:1.1vh 0;border-bottom:1px solid rgba(255,255,255,.07);
+}
+.tr-hora{font-family:var(--mono);font-weight:800;color:var(--gold-hi);flex:0 0 3.6em}
+.tr-suit{flex:0 0 auto}
+.tr-suit.c-main{color:var(--main-c)} .tr-suit.c-side{color:var(--side-c)} .tr-suit.c-sat{color:var(--sat-c)}
+.tr-nome{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650}
+.tr-camp{font-style:normal;font-size:.6em;font-weight:800;color:var(--camp);letter-spacing:.08em;vertical-align:.25em}
+.tr-gtd{font-family:var(--mono);font-weight:800;color:var(--ink);flex:0 0 auto}
+.tr-in{flex:0 0 5.5em;text-align:right;font-size:.62em;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--felt)}
+
+/* ── gigantes da semana ── */
+.tv-rank{display:flex;flex-direction:column;gap:1.6vh;max-width:1500px}
+.rank-row{
+  display:flex;align-items:center;gap:2vw;
+  padding:1.3vh 1.6vw;border-radius:18px;
+  border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);
+}
+.rank-row.first{
+  border-color:rgba(201,168,76,.45);background:rgba(201,168,76,.07);
+  box-shadow:0 0 60px -18px rgba(201,168,76,.45);
+}
+.rk-pos{
+  font-family:var(--mono);font-weight:800;font-size:clamp(20px,2.4vw,38px);
+  color:var(--ink-soft);flex:0 0 1.4em;text-align:center;
+}
+.rank-row.first .rk-pos{color:var(--gold-hi)}
+.rk-body{flex:1;min-width:0}
+.rk-nome{
+  display:block;font-weight:750;font-size:clamp(17px,2vw,32px);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.rk-sub{display:block;margin-top:.3vh;font-size:clamp(11px,1.1vw,17px);color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.rk-gtd{font-family:var(--mono);font-weight:800;font-size:clamp(20px,2.6vw,44px);color:var(--gold-hi);flex:0 0 auto}
+.rank-row.first .rk-gtd{font-size:clamp(24px,3.2vw,54px)}
+
+/* ── rotas de ticket ── */
+.tv-routes{display:flex;flex-direction:column;gap:2.4vh;max-width:1500px}
+.tv-route{
+  display:flex;align-items:center;gap:2vw;font-size:clamp(16px,1.8vw,29px);
+  padding:1.6vh 2vw;border-radius:20px;
+  border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);
+}
+.tvr-from{color:var(--sat-c);font-weight:650;flex:0 0 auto}
+.tvr-from b{color:var(--ink)}
+.tvr-arrow{display:flex;align-items:center;gap:.6vw;color:var(--gold-hi);font-size:1.2em;flex:0 0 auto}
+.tvr-arrow i{
+  display:block;width:3.4vw;border-top:2.5px dashed rgba(201,168,76,.55);
+  animation:dash-slide 1.2s linear infinite;
+}
+@keyframes dash-slide{to{transform:translateX(6px)}}
+.tvr-to{flex:1;min-width:0;font-weight:750}
+.tvr-to small{display:block;font-size:.62em;font-weight:600;color:var(--ink-soft);margin-top:.3vh}
+
+/* ── vem aí ── */
+.tv-futs{display:flex;gap:2.4vw;max-width:1600px}
+.tv-fut{
+  flex:1;display:flex;flex-direction:column;gap:1vh;
+  padding:3.4vh 2.2vw;border-radius:26px;
+  border:1px solid rgba(201,168,76,.3);
+  background:linear-gradient(165deg,rgba(216,96,122,.09),rgba(201,168,76,.07));
+}
+.tf-when{font-size:clamp(12px,1.1vw,17px);font-weight:800;letter-spacing:.2em;color:var(--camp)}
+.tf-nome{font-size:clamp(19px,1.9vw,32px);font-weight:750;line-height:1.2;min-height:2.4em}
+.tf-gtd{font-family:var(--mono);font-weight:800;font-size:clamp(30px,3.4vw,58px);color:var(--gold-hi);line-height:1}
+.tf-gl{font-size:clamp(11px,1vw,15px);font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft)}
+
+/* ── quem construiu a noite ── */
+.tv-makers{display:flex;flex-wrap:wrap;gap:1.6vw;max-width:1500px}
+.maker{
+  display:flex;align-items:center;gap:1vw;
+  padding:1.4vh 1.6vw;border-radius:99px;
+  border:1px solid rgba(201,168,76,.35);background:rgba(201,168,76,.07);
+}
+.mk-av{
+  width:clamp(34px,3vw,52px);height:clamp(34px,3vw,52px);border-radius:99px;
+  display:grid;place-items:center;font-weight:800;font-size:clamp(15px,1.4vw,23px);
+  background:linear-gradient(135deg,var(--gold),#8f6b2d);color:#0b0c10;
+}
+.mk-name{font-weight:750;font-size:clamp(16px,1.6vw,26px)}
+.mk-n{font-size:clamp(11px,1vw,16px);font-weight:700;letter-spacing:.08em;color:var(--gold-hi)}
+.gu-progress{margin-top:4vh;max-width:900px;display:flex;flex-direction:column;gap:1.2vh}
+.gp-label{font-size:clamp(14px,1.4vw,22px);font-weight:650;color:var(--ink-soft)}
+.gp-bar{
+  display:block;height:12px;border-radius:99px;overflow:hidden;
+  background:rgba(255,255,255,.08);
+}
+.gp-bar b{
+  display:block;height:100%;border-radius:99px;
+  background:linear-gradient(90deg,#8c5cc6,var(--sat-c));
+  box-shadow:0 0 24px rgba(140,92,198,.5);
+  transition:width 1.2s var(--ease-expo);
+}
+.gp-n{font-family:var(--mono);font-size:clamp(12px,1.1vw,17px);color:var(--sat-c);font-weight:700}
+
+/* ── ticker do rodapé ── */
+.tv-ticker{
+  position:fixed;inset:auto 0 0 0;z-index:20;height:58px;
+  display:flex;align-items:stretch;
+  background:linear-gradient(0deg,rgba(6,7,9,.92),rgba(6,7,9,.72));
+  border-top:1px solid rgba(201,168,76,.25);
+}
+.ticker-label{
+  flex:0 0 auto;display:grid;place-items:center;padding:0 26px;
+  font-weight:800;font-size:13px;letter-spacing:.24em;color:#0b0c10;
+  background:linear-gradient(135deg,var(--gold-hi),var(--gold));
+}
+.ticker-mask{
+  flex:1;overflow:hidden;display:flex;align-items:center;
+  mask-image:linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent);
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent);
+}
+.ticker-track{
+  display:inline-flex;align-items:center;gap:34px;white-space:nowrap;
+  padding-left:100%;will-change:transform;
+  animation:ticker-run linear infinite;
+}
+@keyframes ticker-run{to{transform:translateX(-50%)}}
+.tk-item{font-size:17px;font-weight:600;color:var(--ink)}
+.tk-item b{font-family:var(--mono);color:var(--gold-hi);margin-right:8px}
+.tk-item em{font-style:normal;color:var(--felt);font-weight:800;margin-left:8px}
+.tk-sep{color:rgba(201,168,76,.5);font-size:13px}
+
+/* fullscreen: só aparece quando o mouse mexe (cursor none no resto) */
+.fs-btn{
+  position:fixed;right:18px;bottom:74px;z-index:30;width:44px;height:44px;
+  border-radius:12px;border:1px solid rgba(255,255,255,.14);cursor:pointer;
+  background:rgba(10,11,14,.7);color:var(--ink-soft);font-size:19px;
+  opacity:0;transition:opacity .3s;
+}
+body:hover .fs-btn{opacity:.6}
+.fs-btn:hover{opacity:1 !important;color:var(--gold-hi)}
+
+@media (max-width:900px){
+  .tv-tag,.tv-today{display:none}
+  .scene{padding:12vh 6vw 12vh}
+  .tv-futs{flex-direction:column}
+  .suit-mark{font-size:40vh}
+}

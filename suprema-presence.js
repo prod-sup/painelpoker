@@ -66,7 +66,7 @@
   var EXTRA_LABELS = {
     hub: 'Suprema OS', painel: 'Painel do Dia', gu: 'Criação Noturna',
     cash: 'Cash Intelligence', admin: 'Admin', learn: 'Poker Learn', org: 'A Constelação',
-    eventos: 'Radar de Eventos'
+    eventos: 'Radar de Eventos', tv: 'Suprema TV'
   };
 
   /* qual painel é este? deriva do arquivo atual via SupremaAuth.PANELS (file->label) */

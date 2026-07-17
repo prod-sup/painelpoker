@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suprema TV · Suprema OS</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%23c9a84c'>♠</text></svg>">
+<script defer src="suprema-xlsx.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script src="gu-parser.js"></script>
+<script src="radar-core.js"></script>
+<script src="suprema-auth.js"></script>
+<script>
+/* portão: a TV também é um painel do OS — acesso liberado pelo Admin (id 'tv').
+   A página é SEMPRE noturna (é um canal, não um app com tema). */
+SupremaAuth.guard({ panel:'tv' }); SupremaAuth.revalidateAccess('tv');
+</script>
+<script src="suprema-motion.js"></script>
+<link rel="stylesheet" href="tv.css">
+<link rel="stylesheet" href="suprema-tokens.css">
+</head>
+<body>
+
+<div class="tv-bg" aria-hidden="true"></div>
+
+<header class="tv-top">
+  <div class="tv-brand">
+    <span class="tv-logo">♠</span>
+    <span class="tv-name">SUPREMA<b>TV</b></span>
+    <span class="tv-tag">a grade ao vivo</span>
+  </div>
+  <div class="tv-today" id="tvToday"></div>
+  <div class="tv-right">
+    <span class="tv-live-badge" id="tvLiveBadge" hidden><i></i><span id="tvLiveN">AO VIVO</span></span>
+    <span class="tv-clock" id="tvClock">--:--:--</span>
+  </div>
+</header>
+
+<main id="stage" aria-live="off">
+  <section class="scene in s-brand" id="bootScene">
+    <div class="b-mark">♠</div>
+    <h1 class="b-title">SUPREMA<b>TV</b></h1>
+    <p class="b-sub">sintonizando a grade…</p>
+  </section>
+</main>
+
+<footer class="tv-ticker" id="tickerWrap" hidden>
+  <div class="ticker-label">HOJE</div>
+  <div class="ticker-mask"><div class="ticker-track" id="tickerTrack"></div></div>
+</footer>
+
+<button id="fsBtn" class="fs-btn" title="Tela cheia">⛶</button>
+
+<script src="suprema-db.js"></script>
+<script src="tv.js"></script>
+</body>
+</html>
