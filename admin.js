@@ -453,8 +453,8 @@ function mergeDayInto(date, snap, day){
    .once (raramente muda). Assim o admin fica ao vivo sem rebaixar 60 dias a cada
    tecla (o egress que estourou antes — ver o cuidado no painel.js). Um listener
    por nó-dia (pequeno), debounce, e re-render só da aba de Acompanhamento. */
-let _liveWired = false; const _liveT = {};
-function refreshDayLive(date, painelVal){
+let _liveWired = false; const _liveT = {}; const _liveDay = {};
+function refreshDayLive(date){
   clearTimeout(_liveT[date]);
   _liveT[date] = setTimeout(async () => {
     if(!fbOk) return;
@@ -462,7 +462,7 @@ function refreshDayLive(date, painelVal){
       // snapshots/<date> costuma nem existir durante o dia (é escrito no fecho) — leitura barata
       const snapS = await db.ref('snapshots/'+date).once('value');
       delete _allData[date];                      // reprocessa o dia do zero (evita lixo de chaves antigas)
-      mergeDayInto(date, snapS.val(), painelVal);
+      mergeDayInto(date, snapS.val(), _liveDay[date] || null);
       // re-renderiza só se a tela de Acompanhamento estiver aberta (é a "grade")
       if(document.getElementById('pageAudit')?.classList.contains('active')) loadAudit();
     }catch(e){ /* negado/offline: mantém o que já tem */ }
@@ -472,7 +472,25 @@ function watchLiveGrade(){
   if(_liveWired || !fbOk) return; _liveWired = true;
   // hoje + amanhã (dago(-1) = +1 dia): cobre a operação do dia e a GU da noite
   [nowSP(), dago(-1)].forEach(date => {
-    db.ref('painel/'+date).on('value', snap => refreshDayLive(date, snap.val()));
+    /* POR FILHO, não o nó-dia inteiro: o `.on('value')` em painel/<date> re-baixava
+       o dia COMPLETO — com a planilha (sheet.rows, o filho pesado) dentro — a cada
+       tecla de premiação de qualquer operador, ×2 dias. É a mesma família do egress
+       que já estourou a cota. A planilha segue o protocolo da casa: observa só o
+       uploadedAt e baixa com .once() QUANDO muda; os filhos pequenos (premiação,
+       fixados, ids, field, garantido) ficam ao vivo — são eles que mudam o dia todo. */
+    const day = _liveDay[date] = {};
+    let lastSheetAt = null;
+    db.ref(`painel/${date}/sheet/uploadedAt`).on('value', s => {
+      const at = s.val();
+      if(at == null || `${at}` === `${lastSheetAt}`) return;
+      lastSheetAt = `${at}`;
+      db.ref(`painel/${date}/sheet`).once('value')
+        .then(ss => { day.sheet = ss.val(); refreshDayLive(date); })
+        .catch(() => { lastSheetAt = null; });
+    });
+    ['premiacao','fixed','ids','field','garantido'].forEach(node => {
+      db.ref(`painel/${date}/${node}`).on('value', s => { day[node] = s.val(); refreshDayLive(date); });
+    });
   });
 }
 

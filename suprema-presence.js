@@ -233,7 +233,10 @@
     attachListeners();
     var boot = function () {
       writePresence();
-      setInterval(function () { if (db) myRef.update({ at: global.firebase.database.ServerValue.TIMESTAMP }).catch(function () {}); }, 60 * 1000);
+      /* heartbeat de SET completo, não update({at}): se o set inicial falhou
+         (rede/transitório), o update nunca passaria no hasChild('name') da
+         regra — o set se cura sozinho no próximo batimento */
+      setInterval(function () { if (db) writePresence(); }, 60 * 1000);
     };
     if (email) hydrateProfile(email, boot); else boot();
     // some limpo ao fechar a aba (além do onDisconnect)

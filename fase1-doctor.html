@@ -7,6 +7,11 @@
 <title>Fase 1 — Diagnóstico de Autenticação</title>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="suprema-auth.js"></script>
+<script>/* página de diagnóstico: ferramenta interna — mesmo portão do Admin.
+   (A Fase 1 já passou; se um dia precisar diagnosticar auth QUEBRADA de novo,
+   comente estas duas linhas localmente.) */
+SupremaAuth.guard({ adminOnly: true });</script>
 <style>
   :root{
     --bg:#0e0d0b; --panel:#171512; --panel2:#1f1c17; --line:#2c2820;

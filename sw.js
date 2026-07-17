@@ -1,7 +1,7 @@
 // Suprema Poker — Service Worker
 // IMPORTANTE: incremente SW_VERSION a cada deploy — é isso que faz as abas abertas
 // receberem o aviso de "nova versão disponível" e ninguém operar com código velho
-const SW_VERSION = '3.9.0';
+const SW_VERSION = '3.10.0';
 const CACHE_NAME = `suprema-painel-v${SW_VERSION}`;
 const STATIC_ASSETS = [
   '/painelpoker/',
@@ -16,9 +16,19 @@ const STATIC_ASSETS = [
   // pra todo operador, inclusive quem nunca exporta — anulando o carregamento sob demanda.
   // Quem usar a exportação baixa uma vez e o runtime cache (network-first, abaixo) guarda.
   '/painelpoker/suprema-onboarding.js',
+  /* cada .html precacheado precisa dos SEUS js/css também — senão a página abre
+     offline mas sem cérebro/estilo na primeira visita sem rede */
   '/painelpoker/hub.html',
+  '/painelpoker/hub.js',
+  '/painelpoker/hub.css',
   '/painelpoker/admin.html',
+  '/painelpoker/admin.js',
+  '/painelpoker/admin.css',
+  '/painelpoker/criacao-noturna.js',
+  '/painelpoker/criacao-noturna.css',
   '/painelpoker/dashboard-mesa-cash.html',
+  '/painelpoker/dashboard-mesa-cash.js',
+  '/painelpoker/dashboard-mesa-cash.css',
   '/painelpoker/eventos.html',
   '/painelpoker/eventos.css',
   '/painelpoker/eventos.js',

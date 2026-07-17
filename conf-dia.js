@@ -293,6 +293,15 @@
   }
   function gcAttach(){
     if (gcAttached || !fbDb) return;
+    /* só com auth viva: leitura negada CANCELA o listener (mesma corrida do
+       Painel do Dia). Sem usuário ainda, espera o onAuthStateChanged e re-tenta. */
+    if (!(window.firebase && firebase.auth && firebase.auth().currentUser)){
+      if (!gcAttach._waiting && window.firebase && firebase.auth){
+        gcAttach._waiting = true;
+        firebase.auth().onAuthStateChanged(u => { if (u) gcAttach(); });
+      }
+      return;
+    }
     gcAttached = true;
     // ECONOMIA DE BANDA: observa só o timestamp; baixa a grade (json pesado) com
     // .once() SÓ quando muda — antes o .on('value') rebaixava a grade a cada reconexão.

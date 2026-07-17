@@ -425,6 +425,13 @@ try{
     if (s.val() === true) setSync('on','Sincronizado');
     else setSync('','Conectando…');
   });
+  /* ── LISTENERS SÓ COM AUTH VIVA ──
+     Mesma corrida já corrigida no Painel do Dia (whenAuthed): a restauração da
+     sessão do Firebase Auth é ASSÍNCRONA — anexar antes dela terminar faz o
+     RTDB negar a leitura (as regras exigem auth) e CANCELAR o listener. Sintoma:
+     grade vazia/da memória até um F5 com sorte. O .info/connected (acima) não
+     precisa de auth e fica de fora. */
+  const attachCN = () => {
   // ECONOMIA DE BANDA: observa só o timestamp; baixa a grade (json pesado) com
   // .once() SÓ quando muda — antes o .on('value') rebaixava a grade a cada reconexão.
   fbDb.ref(`${FB_PATH}/sheet/at`).on('value', tsSnap => {
@@ -487,6 +494,12 @@ try{
     renderAll();
     renderFocus();
   });
+  };  // fim do attachCN
+  if (firebase.auth().currentUser) attachCN();
+  else {
+    let cnAttached = false;
+    firebase.auth().onAuthStateChanged(u => { if (u && !cnAttached){ cnAttached = true; attachCN(); } });
+  }
   // (a Conferência do dia mora no Painel — index.html — lendo este mesmo /sheet e /conf)
 }catch(e){
   console.error('Firebase indisponível — modo local', e);

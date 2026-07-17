@@ -1662,7 +1662,15 @@
     // morriam com "Sem conexão com o servidor".
     db = firebase.database();
     fbReady = true;
-    initBoards(db);
+    /* boards só com auth viva: a restauração da sessão do Firebase Auth é
+       assíncrona, e listener anexado antes dela é negado pelas regras e
+       CANCELADO — agenda/leaderboard/avisos ficavam vazios até F5 (mesma
+       corrida já corrigida no Painel do Dia). */
+    if (firebase.auth().currentUser) initBoards(db);
+    else {
+      let boardsWired = false;
+      firebase.auth().onAuthStateChanged(u => { if (u && !boardsWired){ boardsWired = true; initBoards(db); } });
+    }
     // usuário já logado ao abrir: carrega o XP cedo pra moldura de progressão
     // aparecer no avatar do hero sem precisar abrir o perfil.
     if(session) pfLoadStats();

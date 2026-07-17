@@ -2691,22 +2691,36 @@ function myPresencePayload(){
   if (title) p.title = title;           // título equipado (nome legível)
   return p;
 }
+let _presenceArmed = false;
 function initPresence(){
   if (!fbReady) return;
   const myRef = fbDb.ref(`presence/${PRESENCE_SESSION_ID}`);
-  // Registra presença após confirmação de conexão (via callback global _onConnected)
+  /* ── registro SÓ com auth viva ──
+     O set inicial rodava no _onConnected sem esperar a restauração (assíncrona)
+     da sessão do Firebase Auth. Negado, o nó nunca nascia com `name` — e a regra
+     `newData.hasChild('name')` passava a derrubar TODOS os heartbeats update({at})
+     e os sets de `editing` dali em diante (o permission_denied de 60 em 60s no
+     console). O arm() registra o onDisconnect e o payload completo juntos. */
+  const arm = () => {
+    myRef.onDisconnect().remove();
+    myRef.set(myPresencePayload()).then(() => { _presenceArmed = true; }).catch(() => {});
+  };
   window._onConnected = window._onConnected || [];
   window._onConnected.push(() => {
-    myRef.onDisconnect().remove();
-    myRef.set(myPresencePayload());
+    if (firebase.auth && firebase.auth().currentUser) arm();
+    else if (firebase.auth){
+      let done = false;
+      firebase.auth().onAuthStateChanged(u => { if (u && !done){ done = true; arm(); } });
+    }
   });
-  // atualiza o nome registrado se o operador trocar o nome no meio da sessão
-  // presence listener centralizado em initFirebaseSync
-  // heartbeat: renova o timestamp periodicamente, pra renderPresence saber que essa sessão
-  // ainda está realmente ativa (não só "nunca foi removida")
+  // heartbeat: renova o timestamp periodicamente, pra renderPresence saber que essa
+  // sessão ainda está realmente ativa (não só "nunca foi removida"). Vai de SET com
+  // o payload completo, não update({at}): se o registro inicial falhou (rede, auth),
+  // o set SE CURA sozinho — sempre passa no hasChild('name') da regra.
   setInterval(() => {
-    if (!fbReady) return;
-    myRef.update({ at: firebase.database.ServerValue.TIMESTAMP }).catch(() => {});
+    if (!fbReady || !(firebase.auth && firebase.auth().currentUser)) return;
+    if (!_presenceArmed) myRef.onDisconnect().remove();   // re-arma junto com a cura
+    myRef.set(myPresencePayload()).then(() => { _presenceArmed = true; }).catch(() => { _presenceArmed = false; });
   }, 60*1000);
 }
 function refreshMyPresenceName(){
@@ -7314,13 +7328,16 @@ function appendTodayToHistorico(){
       nome:      r.nome,
       date:      ds,
       dia:       null,
-      hora:      r.hora,
+      hora:      r.hora || null,
       late:      r.late || null,
       garantido: gtd,
-      premiacao: buyin,    // buy-in (alinhado com planilha histórica)
-      overlay:   prizePool, // prize pool total (alinhado com planilha histórica)
+      /* ?? null em TUDO que pode faltar: o RTDB rejeita `undefined` com throw
+         SÍNCRONO (o .catch do set não pega) — uma linha manual sem buy-in
+         derrubava a gravação do dia inteiro no histórico */
+      premiacao: buyin ?? null,     // buy-in (alinhado com planilha histórica)
+      overlay:   prizePool ?? null, // prize pool total (alinhado com planilha histórica)
       field:     fieldVal,
-      acoes:     acoes,
+      acoes:     acoes ?? null,
       perf:      perf,
       operador:  OPERATOR_NAME || null,
       fixadoPor: fixedBy(r._key) || null,
