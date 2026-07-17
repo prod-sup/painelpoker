@@ -238,6 +238,19 @@ function variantOf(nome){
   return null;
 }
 
+/* ── ECONOMIA DO TICKET ──
+   Satélite só faz sentido se o alvo custa BEM mais que a entrada dele — ninguém
+   joga um sat de R$ 8 pra ganhar vaga num torneio de R$ 3 (inscrevia direto), e
+   R$ 9 → R$ 10 (1,1×) também não é rota, é irmão da mesma família. Era o que
+   ligava os "4 Seats OmaX PKO"/"4 Seats Battle HR" (SNGs da casa, sem satélite)
+   nos eventos grandes só pelo nome parecido. Regra: alvo precisa custar ≥1,5×
+   a entrada do sat. Sem buy-in de um dos lados não há como julgar — passa
+   (freeroll → qualquer alvo é ganho real). Override do admin ignora isto. */
+function ticketFazSentido(sat, t){
+  if (sat.buyin == null || t.buyin == null || sat.buyin <= 0) return true;
+  return t.buyin >= sat.buyin * 1.5;
+}
+
 /* O CABEÇALHO DO GRUPO (coluna A) é a declaração EXPLÍCITA do destino na
    Global — vence qualquer heurística. Procura um evento da semana com o nome
    do cabeçalho; pode ser OUTRO SATÉLITE (cadeia real: Step → Mega Sat → Main). */
@@ -247,6 +260,14 @@ function headerTarget(sat, events){
   const ghToks = linkTokens(sat.groupHeader);
   if (!gh) return null;
   const satNome = squashName(sat.nome);
+  /* variante declarada no PRÓPRIO NOME do sat (T., HR, KO…): ela é mais local —
+     e mais confiável — que o cabeçalho, porque o parser HERDA a coluna A em
+     cascata até a próxima linha em branco. Um "6 Seats OmaX T." colado embaixo
+     do grupo "40K OMAX HR" herdava o cabeçalho errado e o casamento "exact"
+     ligava o sat Turbo no alvo HR — com carimbo de fonte-da-verdade (via
+     header). Se o nome do sat diz a variante, alvo de variante conflitante é
+     vetado AQUI também, não só na heurística de tokens. */
+  const satVar = variantOf(sat.nome);
   let best = null, bestRank = -1;
   events.forEach(t => {
     if (t.id === sat.id) return;
@@ -274,6 +295,9 @@ function headerTarget(sat, events){
        degrau, então continua funcionando — é a mesma regra que a branch do
        targetGroup aqui embaixo já aplicava. */
     if (tn === satNome) return;
+    const tVar = variantOf(t.nome);
+    if (satVar && tVar && satVar !== tVar) return;   // irmão de outra família (T. ≠ HR)
+    if (!ticketFazSentido(sat, t)) return;           // alvo mais barato que o sat: não é rota
     const exact = tn.includes(gh) || gh.includes(tn);
     let tokHit = false;
     if (!exact && ghToks.length){
@@ -311,7 +335,8 @@ function linkSatellites(events){
     }
     const satToks = new Set([...linkTokens(sat.nome), ...linkTokens(sat.groupHeader || '')]);
     const satHour = nameHour(sat.nome) ?? nameHour(sat.groupHeader || '');
-    const satVar = variantOf(sat.nome) || variantOf(sat.groupHeader || '');
+    const satNameVar = variantOf(sat.nome);
+    const satVar = satNameVar || variantOf(sat.groupHeader || '');
     let best = null, bestScore = 0, bestToks = [];
     targets.forEach(t => {
       if (t.abs <= sat.abs) return;                 // alvo tem que começar DEPOIS do satélite
@@ -319,6 +344,7 @@ function linkSatellites(events){
          classifica pro "OmaX HR", por mais que o resto do nome case */
       const tVar = variantOf(t.nome);
       if (satVar && tVar && satVar !== tVar) return;
+      if (!ticketFazSentido(sat, t)) return;         // economia do ticket (ver acima)
       let score = 0;
       const casados = [];
       const tToks = linkTokens(t.nome);
@@ -333,9 +359,12 @@ function linkSatellites(events){
     if (best && bestScore >= 4){
       sat.targetId = best.id;
       sat.linkWhy = { via:'tokens', score: Math.round(bestScore*10)/10, toks: bestToks };
-    } else if (sat.groupHeader && !squashName(sat.nome).includes(squashName(sat.groupHeader))){
+    } else if (sat.groupHeader && !squashName(sat.nome).includes(squashName(sat.groupHeader))
+               && !(satNameVar && variantOf(sat.groupHeader) && variantOf(sat.groupHeader) !== satNameVar)){
       /* o próprio cabeçalho do grupo não pode ser "destino" de si mesmo
-         (a linha-mãe do grupo herda o header com o mesmo nome) */
+         (a linha-mãe do grupo herda o header com o mesmo nome).
+         E cabeçalho de variante CONFLITANTE com o nome do sat não vira destino
+         nomeado: é herança de cascata do grupo de cima, não declaração. */
       sat.targetGroup = sat.groupHeader;
       sat.linkWhy = { via:'grupo', grupo: sat.groupHeader };
     } else {

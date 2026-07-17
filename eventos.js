@@ -36,6 +36,52 @@ const state = { camp:'all', cat:'all', q:'', day:null, open:null };
 
 const IS_ADMIN = (() => { try { return !!SupremaAuth.recognize().isAdmin; } catch(e){ return false; } })();
 
+/* ── AO VIVO: premiação/field do Painel do Dia nas linhas de HOJE ──
+   O Radar era cego pro dia acontecendo: mostrava só o garantido estático da
+   planilha, enquanto a TV já lia painel/<hoje>/premiacao|field. A vitrine que o
+   Marketing olha agora mostra a premiação ATUAL (e acende quando bate o GTD).
+   Mesma ponte da TV: painelRowKey casa a linha da Global com o nó do Painel. */
+const LIVE = { prem:{}, field:{} };
+let LIVE_DAY = null, _liveOffs = [];
+function attachLiveDay(){
+  if (!window.SupremaDB || !SupremaDB.ready()) return;
+  const today = gradeTodayISO();
+  if (today === LIVE_DAY) return;                    // já ancorado neste dia
+  LIVE_DAY = today;
+  _liveOffs.forEach(off => { try{ off(); }catch(e){} });
+  _liveOffs = [
+    SupremaDB.watch(`painel/${today}/premiacao`, s => { LIVE.prem  = s.val() || {}; updateLiveNums(); }),
+    SupremaDB.watch(`painel/${today}/field`,     s => { LIVE.field = s.val() || {}; updateLiveNums(); }),
+  ];
+}
+function liveOf(e){
+  const rk = painelRowKey(e);
+  return {
+    prem:  LIVE.prem[rk]  ?? LIVE.prem[rk + '_px']  ?? null,
+    field: LIVE.field[rk] ?? LIVE.field[rk + '_px'] ?? null,
+  };
+}
+/* patch cirúrgico (não re-renderiza a agenda — rota aberta/foco sobrevivem) */
+function updateLiveNums(){
+  if (!MODEL || state.day !== todayWeekdayPT()) return;
+  document.querySelectorAll('#agendaList .row[data-id]').forEach(row => {
+    const e = MODEL.byId.get(row.dataset.id);
+    const slot = row.querySelector('.r-livenums');
+    if (!e || !slot) return;
+    const lv = liveOf(e);
+    if (lv.prem == null && lv.field == null){ slot.hidden = true; return; }
+    const bateu = lv.prem != null && e.garantido != null && e.garantido > 0 && lv.prem >= e.garantido;
+    const html = [
+      lv.prem != null ? `<b>${fmtMoney(lv.prem)}</b>` : '',
+      lv.field != null ? `${NF_INT.format(lv.field)} j.` : '',
+    ].filter(Boolean).join(' · ') + (bateu ? ' ✦' : '');
+    slot.hidden = false;
+    slot.classList.toggle('bateu', bateu);
+    slot.title = bateu ? 'Premiação atual — bateu o garantido' : 'Premiação/field ao vivo (Painel do Dia)';
+    if (slot.innerHTML !== html) slot.innerHTML = html;
+  });
+}
+
 /* estado ↔ URL (?dia=SEX&camp=AS&cat=sat&q=...): abrir um link filtrado já
    filtrado, e todo clique atualiza a URL (replaceState — não polui o histórico) */
 const SHORT_BY_DAY = {'SEGUNDA-FEIRA':'SEG','TERÇA-FEIRA':'TER','QUARTA-FEIRA':'QUA','QUINTA-FEIRA':'QUI','SEXTA-FEIRA':'SEX','SÁBADO':'SAB','DOMINGO':'DOM'};
@@ -96,6 +142,7 @@ function initData(){
       if (LAST_PARSED){ MODEL = buildModel(LAST_PARSED, OVERRIDES); renderAll(); }
     });
     SupremaDB.onConnection(ok => setSync(ok));
+    attachLiveDay();                                 // premiação/field de hoje, ao vivo
     /* rede lenta/regra negada: depois de 12s sem dado, troca o loading pelo
        estado vazio (que tem o fallback de ler o arquivo local) */
     setTimeout(() => { if (!MODEL) showEmpty(); }, 12000);
@@ -132,6 +179,7 @@ function applyParsed(parsed){
   document.getElementById('loading').hidden = true;
   document.getElementById('emptyState').hidden = true;
   document.getElementById('content').hidden = false;
+  maybeShowGlobalDiff();
   renderAll();
   if (_firstRender){
     _firstRender = false;
@@ -139,6 +187,73 @@ function applyParsed(parsed){
     else scrollAgendaToNow();
   }
 }
+
+/* ── O QUE MUDOU NA GLOBAL ──
+   Re-upload da Global era caixa-preta: evento sumiu? horário mudou? GTD subiu?
+   Ninguém sabia sem re-conferir a semana inteira. O Radar agora guarda um
+   resumo da Global anterior (localStorage) e, quando chega uma nova, mostra o
+   diff — o Marketing confere SÓ o que mudou.
+   Chave por dia+nome (não evKey, que embute a hora — mudança de horário viraria
+   um falso "removido + adicionado"); nomes repetidos no dia ganham sufixo pela
+   ordem de horário. */
+const DIFF_KEY = 'radar_global_diff_v1';
+const DIFF_SEEN_KEY = 'radar_global_diff_seen_v1';
+function diffSnapshot(){
+  const snap = {};
+  const seen = {};
+  [...MODEL.events].sort((a,b) => a.abs - b.abs).forEach(e => {
+    let k = `${e.weekday}|${normText(e.nome)}`;
+    if (seen[k] != null){ seen[k]++; k += '#' + seen[k]; } else seen[k] = 0;
+    snap[k] = { h: e.hora, g: e.garantido, b: e.buyin, n: e.nome, d: e.weekday };
+  });
+  return snap;
+}
+function maybeShowGlobalDiff(){
+  const el = document.getElementById('globalDiff');
+  if (!el || !META || !META.at) return;
+  let prev = null;
+  try{ prev = JSON.parse(localStorage.getItem(DIFF_KEY) || 'null'); }catch(e){}
+  const snap = diffSnapshot();
+  try{ localStorage.setItem(DIFF_KEY, JSON.stringify({ at: META.at, snap })); }catch(e){}
+  el.hidden = true;
+  if (!prev || !prev.snap || `${prev.at}` === `${META.at}`) return;
+  if (localStorage.getItem(DIFF_SEEN_KEY) === `${META.at}`) return;   // já dispensado
+  const added = [], removed = [], changed = [];
+  Object.entries(snap).forEach(([k, v]) => {
+    const o = prev.snap[k];
+    if (!o){ added.push(v); return; }
+    const muda = [];
+    if (o.h !== v.h) muda.push(`${o.h} → ${v.h}`);
+    if (o.g !== v.g) muda.push(`GTD ${fmtMoney(o.g)} → ${fmtMoney(v.g)}`);
+    if (o.b !== v.b) muda.push(`buy-in ${fmtMoneyFull(o.b)} → ${fmtMoneyFull(v.b)}`);
+    if (muda.length) changed.push({ ...v, muda });
+  });
+  Object.entries(prev.snap).forEach(([k, v]) => { if (!snap[k]) removed.push(v); });
+  if (!added.length && !removed.length && !changed.length) return;
+  const li = (v, extra) => `<li><b>${WEEKDAY_SHORT[isoWeekdayIdx(MODEL.dates[v.d] || gradeTodayISO())] || v.d}</b> ${escHtml(shortName(v.n))}${extra ? ` <span class="gd-m">${extra}</span>` : ''}</li>`;
+  const MAXL = 10;
+  el.innerHTML = `<div class="gd-banner" role="status">
+    <span class="gd-ico">📋</span>
+    <div class="gd-body">
+      <b>Global nova${META.by ? ` (${escHtml(META.by)})` : ''}:</b>
+      ${[added.length ? `+${conta2(added.length, 'evento', 'eventos')}` : '',
+         removed.length ? `${conta2(removed.length, 'removido', 'removidos')}` : '',
+         changed.length ? `${conta2(changed.length, 'alterado', 'alterados')}` : ''].filter(Boolean).join(' · ')}
+      <details class="gd-det"><summary>ver o que mudou</summary>
+        ${changed.length ? `<p class="gd-h">Alterados</p><ul>${changed.slice(0, MAXL).map(v => li(v, v.muda.map(escHtml).join(' · '))).join('')}${changed.length > MAXL ? `<li class="gd-more">+${changed.length - MAXL}…</li>` : ''}</ul>` : ''}
+        ${added.length ? `<p class="gd-h">Novos</p><ul>${added.slice(0, MAXL).map(v => li(v, `${v.h}${v.g != null ? ' · GTD ' + fmtMoney(v.g) : ''}`)).join('')}${added.length > MAXL ? `<li class="gd-more">+${added.length - MAXL}…</li>` : ''}</ul>` : ''}
+        ${removed.length ? `<p class="gd-h">Removidos</p><ul>${removed.slice(0, MAXL).map(v => li(v, v.h)).join('')}${removed.length > MAXL ? `<li class="gd-more">+${removed.length - MAXL}…</li>` : ''}</ul>` : ''}
+      </details>
+    </div>
+    <button class="gd-close" data-gd-close title="Dispensar" aria-label="Dispensar o resumo de mudanças">✕</button>
+  </div>`;
+  el.hidden = false;
+  el.querySelector('[data-gd-close]').addEventListener('click', () => {
+    el.hidden = true;
+    try{ localStorage.setItem(DIFF_SEEN_KEY, `${META.at}`); }catch(e){}
+  });
+}
+const conta2 = (n, um, muitos) => `${n} ${n === 1 ? um : muitos}`;
 
 /* abre a rota do evento do ?ev= e rola até ela — o outro lado do link
    compartilhável (writeStateToURL grava o ?ev=, este lê no boot) */
@@ -332,6 +447,14 @@ function renderContent(){
 function campBadge(camp){
   return camp ? `<span class="badge b-camp">✦ ${CAMP_LABEL[camp]}</span>` : '';
 }
+/* variante do torneio (HR/Turbo/KO…) visível na linha: é o sufixo que separa os
+   irmãos da mesma família — e o que o veto de vínculo usa (variantOf, radar-core).
+   Vê-la de relance ajuda a conferir os vínculos sem abrir linha por linha. */
+const VARIANT_LABEL = { hr:'HR', turbo:'TURBO', ko:'KO', mystery:'MYSTERY', deep:'DEEP' };
+function variantChip(e){
+  const v = variantOf(e.nome);
+  return v ? `<em class="r-var" title="Variante identificada no nome">${VARIANT_LABEL[v] || v.toUpperCase()}</em>` : '';
+}
 
 function renderMeta(){
   const el = document.getElementById('sourceMeta');
@@ -362,11 +485,16 @@ function renderHero(){
 function renderDayBar(){
   const wrap = document.getElementById('dayBar');
   const today = todayWeekdayPT();
-  const gtdByDay = {};
+  /* a mini-barra agora é EMPILHADA por categoria (Main/Side/Sat nas cores da
+     família) — a mesma leitura do "A SEMANA INTEIRA" da TV: o tamanho diz qual
+     é o dia forte, a cor diz de quê ele é feito */
+  const gtdByDay = {}, mixByDay = {};
   let gtdMax = 0;
   WEEK_ORDER.forEach(day => {
-    const g = MODEL.events.filter(e => e.weekday === day).reduce((s,e) => s + (e.garantido || 0), 0);
-    gtdByDay[day] = g;
+    const mix = { main:0, side:0, sat:0 };
+    MODEL.events.filter(e => e.weekday === day).forEach(e => { mix[e.cat] += (e.garantido || 0); });
+    const g = mix.main + mix.side + mix.sat;
+    gtdByDay[day] = g; mixByDay[day] = mix;
     if (g > gtdMax) gtdMax = g;
   });
   wrap.innerHTML = WEEK_ORDER.map(day => {
@@ -384,7 +512,9 @@ function renderDayBar(){
       <span class="dp-wd">${WEEKDAY_SHORT[isoWeekdayIdx(iso)]}</span>
       <span class="dp-d">${+iso.slice(8)}</span>
       <span class="dp-n">${n || '·'}</span>
-      <i class="dp-bar" aria-hidden="true"><b style="width:${pct}%"></b></i>
+      <i class="dp-bar" aria-hidden="true"><span class="dp-fill" style="width:${pct}%">
+        <b class="c-main" style="flex:${mixByDay[day].main || 0}"></b><b class="c-side" style="flex:${mixByDay[day].side || 0}"></b><b class="c-sat" style="flex:${mixByDay[day].sat || 0}"></b>
+      </span></i>
     </button>`;
   }).join('');
   wrap.querySelectorAll('.day-pill').forEach(p => p.addEventListener('click', () => pickDay(p.dataset.day)));
@@ -430,7 +560,11 @@ function renderAgenda(){
   head.innerHTML = `
     <h2>${escHtml(day.replace('-FEIRA',''))}<span class="ah-date">${fmtDateShort(iso)}</span>
       ${today ? '<span class="today-tag">HOJE</span>' : ''}</h2>
-    <span class="ah-sub">${evs.length}${evs.length !== all.length ? ` de ${all.length}` : ''} evento${evs.length === 1 ? '' : 's'} · <b>${fmtMoney(gtd)}</b> garantidos</span>`;
+    <span class="ah-sub">${evs.length}${evs.length !== all.length ? ` de ${all.length}` : ''} evento${evs.length === 1 ? '' : 's'} · <b>${fmtMoney(gtd)}</b> garantidos</span>
+    ${evs.length ? `<span class="ah-tools">
+      <button class="btn-sm ghost" data-day-csv title="Exportar as linhas visíveis pra planilha (CSV)">⬇ CSV</button>
+      <button class="btn-sm ghost" data-day-promo title="Baixar os cards de divulgação dos maiores GTD do dia">🖼 Destaques do dia</button>
+    </span>` : ''}`;
 
   const list = document.getElementById('agendaList');
   if (!evs.length){ list.innerHTML = agendaVaziaHtml(all.length); return; }
@@ -445,6 +579,57 @@ function renderAgenda(){
   });
   if (!nowMarkPlaced) html += nowDividerHtml(now);
   list.innerHTML = html;
+  updateLiveNums();                                  // premiação/field ao vivo nas linhas de hoje
+}
+/* ferramentas do dia: CSV das linhas visíveis + cards dos destaques em lote */
+document.getElementById('agendaHead').addEventListener('click', (e) => {
+  if (!MODEL) return;
+  if (e.target.closest('[data-day-csv]')) exportDayCsv();
+  else if (e.target.closest('[data-day-promo]')) batchPromoDay();
+});
+function visibleDayEvents(){
+  return MODEL.events.filter(e => e.weekday === state.day && matches(e));
+}
+function exportDayCsv(){
+  const evs = visibleDayEvents();
+  if (!evs.length){ toast('Nada visível pra exportar', true); return; }
+  const cell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const rows = [['data','dia','hora','categoria','variante','campanha','nome','buy-in','garantido','destino do ticket'].join(';')];
+  evs.forEach(e => {
+    const t = e.targetId ? MODEL.byId.get(e.targetId) : null;
+    rows.push([
+      e.dateISO, WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)], e.hora,
+      CAT_META[e.cat].label, variantOf(e.nome) || '', e.camp ? CAMP_LABEL[e.camp] : '',
+      cell(e.nome), e.buyin ?? '', e.garantido ?? '',
+      cell(t ? t.nome : (e.targetGroup || '')),
+    ].join(';'));
+  });
+  /* BOM: sem ele o Excel pt-BR abre o arquivo com acentuação quebrada */
+  const blob = new Blob(['﻿' + rows.join('\r\n')], { type:'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `radar-${SHORT_BY_DAY[state.day].toLowerCase()}-${MODEL.dates[state.day]}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast(`CSV com ${evs.length} evento${evs.length === 1 ? '' : 's'} baixado ⬇`);
+}
+function batchPromoDay(){
+  const picks = visibleDayEvents().filter(e => e.garantido != null)
+    .sort((a,b) => b.garantido - a.garantido).slice(0, 5);
+  if (!picks.length){ toast('Nenhum evento com garantido visível neste dia', true); return; }
+  picks.forEach((e, i) => {
+    const cv = buildPromoCanvas(promoSpecFromEvent(e));
+    const slug = normText(e.nome).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'evento';
+    /* downloads escalonados: alguns navegadores engolem cliques de download em
+       sequência imediata */
+    setTimeout(() => {
+      const a = document.createElement('a');
+      a.download = `suprema-${String(i+1).padStart(2,'0')}-${slug}.png`;
+      a.href = cv.toDataURL('image/png');
+      a.click();
+    }, i * 350);
+  });
+  toast(`${picks.length} card${picks.length === 1 ? '' : 's'} dos maiores GTD do dia baixando 🖼`);
 }
 /* ── BUSCA VAZIA COM SAÍDA ──
    "Nenhum evento passa nos filtros atuais." é um beco sem saída: a pessoa
@@ -501,10 +686,11 @@ function rowHtml(e, st){
     <span class="r-time">${e.hora}</span>
     <span class="r-suit" title="${CAT_META[e.cat].label}">${CAT_META[e.cat].suit}</span>
     <div class="r-main">
-      <div class="r-name">${escHtml(e.nome)}${campBadge(e.camp)}</div>
+      <div class="r-name">${escHtml(e.nome)}${variantChip(e)}${campBadge(e.camp)}</div>
       ${link ? `<div class="r-link">${link}</div>` : ''}
     </div>
     <div class="r-nums">
+      <span class="r-livenums" hidden></span>
       <span class="r-gtd">${e.garantido != null ? fmtMoney(e.garantido) : ''}</span>
       <span class="r-buyin">${e.buyin != null ? fmtMoneyFull(e.buyin) : ''}</span>
     </div>
@@ -907,7 +1093,37 @@ function renderRoutes(){
           <span class="ro-hora">${s.hora}</span>${escHtml(shortName(s.nome))}</button>`).join('')}</div>
     </div>` : '';
 
-  wrap.innerHTML = orphansHtml + realHtml + groupHtml;
+  wrap.innerHTML = linkHealthHtml(sats) + orphansHtml + realHtml + groupHtml;
+}
+/* ── SAÚDE DOS VÍNCULOS ──
+   O linkWhy sempre soube COMO cada satélite foi ligado (cabeçalho / heurística
+   com score / grupo / órfão / corrigido) — mas só aparecia clicando linha por
+   linha. Agora é uma régua no topo das Rotas: o caso OmaX teria sido pego numa
+   conferência de 10 segundos, antes do telão. Os de score baixo são chips que
+   abrem a rota direto — o suspeito a um clique da correção. */
+const HEALTH_SCORE_CORTE = 6;
+function linkHealthHtml(sats){
+  if (!sats.length) return '';
+  const n = { header:0, tokens:0, grupo:0, nenhum:0, fixed:0 };
+  const suspeitos = [];
+  sats.forEach(s => {
+    if (s.overridden){ n.fixed++; return; }
+    const w = s.linkWhy || {};
+    n[w.via] = (n[w.via] || 0) + 1;
+    if (w.via === 'tokens' && w.score < HEALTH_SCORE_CORTE) suspeitos.push(s);
+  });
+  const parts = [];
+  if (n.header) parts.push(`<span class="lh-part ok" title="Declarados pelo cabeçalho de grupo da planilha — a fonte mais confiável">${n.header} pelo cabeçalho</span>`);
+  if (n.tokens) parts.push(`<span class="lh-part ${suspeitos.length ? 'warn' : ''}" title="Ligados por nome parecido (heurística)">${n.tokens} por nome${suspeitos.length ? ` · ${suspeitos.length} com confiança baixa ⚠` : ''}</span>`);
+  if (n.grupo)  parts.push(`<span class="lh-part" title="Destino nomeado fora da grade desta semana">${n.grupo} fora da grade</span>`);
+  if (n.nenhum) parts.push(`<span class="lh-part warn" title="Sem destino identificado — ver alerta abaixo">${n.nenhum} sem destino</span>`);
+  if (n.fixed)  parts.push(`<span class="lh-part fixed" title="Vínculo definido à mão por um admin">${n.fixed} à mão ✓</span>`);
+  return `<div class="rt-health" role="note" aria-label="Saúde dos vínculos dos satélites do dia">
+    <span class="lh-title">Vínculos:</span> ${parts.join('<i class="lh-sep">·</i>')}
+    ${suspeitos.length ? `<span class="lh-chips">${suspeitos.sort((a,b) => a.abs - b.abs).map(s =>
+      `<button class="rt-orphan warn" data-open-sat="${s.id}" title="Confiança ${s.linkWhy.score} — abrir e conferir o alvo">
+        <span class="ro-hora">${s.hora}</span>${escHtml(shortName(s.nome))}</button>`).join('')}</span>` : ''}
+  </div>`;
 }
 /* chip de órfão → abre a linha dele na agenda (e rola até lá) */
 document.getElementById('routesWrap').addEventListener('click', (e) => {
@@ -1021,8 +1237,9 @@ function wrapText(ctx, text, maxW){
   return lines;
 }
 
-function makePromoCard(spec){
-  if (!spec) return;
+/* desenha o card e DEVOLVE o canvas — separado do preview pra permitir o modo
+   em lote (Destaques do dia baixa vários sem abrir modal um a um) */
+function buildPromoCanvas(spec){
   const W = 1080, H = 1350, PAD = 84;
   const cv = document.createElement('canvas');
   cv.width = W; cv.height = H;
@@ -1121,11 +1338,15 @@ function makePromoCard(spec){
   ctx.fillStyle = 'rgba(242,237,240,.42)';
   ctx.font = `600 26px ${DISPLAY}`;
   ctx.fillText('Jogue com responsabilidade · app Suprema Poker', PAD, H-84);
-
+  return cv;
+}
+function makePromoCard(spec){
+  if (!spec) return;
   /* ANTES baixava direto: se o nome cortava em 4 linhas ou a rota não cabia, a
      pessoa só descobria abrindo o PNG na pasta — e refazia. Agora ABRE UM
      PREVIEW: vê o card, baixa OU copia pra área de transferência (colar direto
      no chat sem passar por arquivo). */
+  const cv = buildPromoCanvas(spec);
   const slug = normText(spec.nome).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'evento';
   showPromoPreview(cv, `suprema-${slug}.png`);
 }
@@ -1188,7 +1409,7 @@ function tickClock(){
 setInterval(tickClock, 1000); tickClock();
 /* status "AO VIVO"/divisor AGORA acompanham o relógio — patch cirúrgico por
    minuto (renderAgenda() aqui reconstruía a lista e derrubava a rota aberta) */
-setInterval(() => { if (MODEL){ renderHero(); refreshAgendaStatus(); } }, 60000);
+setInterval(() => { if (MODEL){ renderHero(); refreshAgendaStatus(); attachLiveDay(); } }, 60000);
 
 (function themeAndUser(){
   const html = document.documentElement;
