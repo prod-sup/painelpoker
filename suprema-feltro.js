@@ -143,6 +143,99 @@ void main(){
   gl_FragColor = vec4(col, 1.0);
 }`;
 
+  /* ══ VARIANTE 'mesa' — o fundo do HUB ══════════════════════════════════════
+     Mesmos uniforms da névoa da TV (o maquinário não muda: tiers, dither,
+     perda de contexto, fallback, reduced-motion — tudo reaproveitado). O que
+     muda é a IMAGEM, porque o hub não é um telão de transmissão: é a porta de
+     entrada, e a metáfora dele é a MESA.
+
+     Três camadas, nesta ordem de leitura:
+       1. o pano — trama de feltro, dois ruídos cruzados em ângulos diferentes.
+          É o que dá textura de tecido em vez de gradiente liso.
+       2. a luz rasante — o dourado da casa entrando pelo alto, como abajur
+          sobre a mesa. Move devagar; é o que dá vida sem pedir atenção.
+       3. a onda do cursor — uma ondulação suave que nasce onde o mouse está.
+          É a única parte REATIVA, e é de propósito: o hub responde ao toque
+          da pessoa, mas nada aqui pisca nem corre. Quem passa 10x por dia não
+          pode ser agredido pelo próprio launcher.
+
+     `uHeat` aqui é a PROGRESSÃO do operador (0..1 do nível): quanto mais alto,
+     mais quente o dourado. O fundo conta quem você é na casa. */
+  const MESA_FS = (octaves) => `${FS_PRECISION}
+#define OCTAVES ${octaves}
+uniform vec2  uRes;
+uniform float uTime;
+uniform vec3  uBg, uGold, uFelt, uAccent;
+uniform float uHeat, uPulse, uBoom;
+uniform vec2  uMouse;          // 0..1 no espaço da tela; (-1,-1) = sem cursor
+
+float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+float noise(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+             mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+float fbm(vec2 p){
+  float v = 0.0, a = 0.5;
+  for (int i = 0; i < OCTAVES; i++){ v += a * noise(p); p *= 2.03; a *= 0.5; }
+  return v;
+}
+float falloff(float lo, float hi, float x){ return 1.0 - smoothstep(lo, hi, x); }
+
+void main(){
+  vec2 uv = gl_FragCoord.xy / uRes;
+  /* CORREÇÃO 2 — normalizar pelo MENOR lado, não pelo Y.
+     Dividir por uRes.y é o certo num quadro 16:9 (a TV). O hero do hub é uma
+     faixa de ~6:1: ali o eixo X estica seis vezes e o ruído vira LISTRA
+     horizontal. Pelo menor lado, o campo fica isotrópico em qualquer proporção. */
+  vec2 p = (gl_FragCoord.xy - 0.5 * uRes) / min(uRes.x, uRes.y);
+
+  /* 1. O PANO.
+     CORREÇÃO 1 — frequência BAIXA. A versão anterior tinha uma "trama" a 130×,
+     e o Feltro reduz o backing store de propósito (1600/1200/850px) deixando o
+     CSS reampliar em bilinear: detalhe fino nessa escala vira moiré e
+     cintilação, não tecido. O cabeçalho deste arquivo já avisava que nada aqui
+     pode depender de resolução nativa — a trama foi embora, fica só o volume. */
+  float cloth = fbm(p * 1.5 + vec2(uTime * 0.005, uTime * 0.0035));
+  vec3 col = uBg + uFelt * (0.028 + cloth * 0.070);
+
+  /* 2. A LUZ RASANTE — abajur sobre a mesa.
+     Ancorada em UV (0..1 do quadro), não no espaço isotrópico: assim ela fica
+     no mesmo canto seja qual for a proporção. Intensidade calibrada pelo que
+     substitui (os nós dourados a ~0.14 de alfa); acima disso come o contraste
+     do título, que é texto claro por cima. Isto é FUNDO. */
+  float lamp = falloff(0.0, 1.05, distance(uv, vec2(0.80, 1.00)) * 1.10);
+  col += uGold * lamp * (0.050 + cloth * 0.10) * (0.75 + uHeat * 0.55);
+
+  /* contraluz de feltro subindo pela esquerda — dá volume, tira o ar de papel */
+  float rim = falloff(0.0, 1.0, distance(uv, vec2(0.06, -0.04)) * 1.15);
+  col += uFelt * rim * (0.040 + cloth * 0.085);
+
+  /* 3. A ONDA DO CURSOR — amortecida, e agora no mesmo espaço isotrópico do
+     pano, senão o anel vira elipse achatada num hero largo. */
+  if (uMouse.x >= 0.0){
+    vec2 m = (uMouse * uRes - 0.5 * uRes) / min(uRes.x, uRes.y);
+    float d = length(p - m);
+    float wave = sin(d * 7.0 - uTime * 1.2) * falloff(0.0, 0.55, d);
+    col += mix(uGold, uAccent, 0.35) * wave * 0.026;
+  }
+
+  /* pulso e boom continuam existindo (a API é a mesma) — aqui em dose menor:
+     no hub eles marcam conquista, não corte de transmissão. */
+  float d0 = length(p);
+  float ring = falloff(0.0, 0.07, abs(d0 - (1.0 - uPulse) * 1.5)) * uPulse;
+  col += mix(uGold, uAccent, 0.5) * ring * 0.12;
+  col += uGold * uBoom * 0.10;
+
+  /* dither: mata o banding do degradê em tela grande — a razão técnica de todo
+     este arquivo existir (ver cabeçalho). */
+  float dth = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+  col += (dth - 0.5) / 255.0;
+
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
   /* um TRIÂNGULO que cobre a tela, não dois: sem a costura da diagonal e com
      menos invocação de vértice — o padrão pra passe fullscreen */
   const FOG_VS = `
@@ -280,6 +373,7 @@ void main(){
     let tier = 0, dead = false, lost = false, raf = 0, last = 0;
     let fogP = null, dustP = null, fogU = null, dustU = null, fogA = 0, dustA = 0;
     let quadBuf = null, dustBuf = null;
+    let dustN = 0;                 // quantos motes ESTE mount desenha (varia por variante)
     let W = 0, H = 0, px = 1;
     let t0 = performance.now();
 
@@ -288,14 +382,24 @@ void main(){
     let accent = hexRgb(opts.gold || '#c9a84c');
     let accentTo = accent.slice();
     let heat = 0, heatTo = 0, pulse = 0, boom = 0;
+    /* (-1,-1) = sem cursor: o shader da mesa checa `uMouse.x >= 0.0` e pula a
+       onda inteira. Em touch o ponteiro nunca chega, e é o certo — ondulação
+       presa no último toque pareceria bug. */
+    let mouse = [-1, -1], mouseTo = [-1, -1];
 
     function build(){
       const t = TIERS[tier];
-      fogP  = program(gl, FOG_VS, FOG_FS(t.octaves));
+      /* variante 'mesa' = fundo do hub; sem variante = a névoa da TV, byte a
+         byte como antes (o caminho da TV não pode mudar por causa do hub). */
+      const FS = opts.variant === 'mesa' ? MESA_FS : FOG_FS;
+      fogP  = program(gl, FOG_VS, FS(t.octaves));
       dustP = program(gl, DUST_VS, DUST_FS);
       if (!fogP || !dustP) return false;
 
-      fogU  = locs(gl, fogP, ['uRes','uTime','uBg','uGold','uFelt','uAccent','uHeat','uPulse','uBoom']);
+      /* uMouse só existe no shader da mesa. Pedir a location dele na TV devolve
+         null, e `gl.uniform2f(null, …)` é no-op por especificação — então a
+         mesma lista serve pras duas variantes, sem ramificação. */
+      fogU  = locs(gl, fogP, ['uRes','uTime','uBg','uGold','uFelt','uAccent','uHeat','uPulse','uBoom','uMouse']);
       dustU = locs(gl, dustP, ['uTime','uBoom','uPx','uGold']);
       fogA  = gl.getAttribLocation(fogP, 'aPos');
       dustA = gl.getAttribLocation(dustP, 'aSeed');
@@ -304,7 +408,12 @@ void main(){
       gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
 
-      const seeds = new Float32Array(t.dust * 3);
+      /* CORREÇÃO 3 — densidade de motes por VARIANTE.
+         Os 900 do tier alto foram pensados pra atravessar um telão inteiro. No
+         hero do hub (uma faixa de ~200px de altura) a mesma conta vira enxame:
+         não lê como poeira dourada, lê como ruído. A mesa fica com um sexto. */
+      dustN = opts.variant === 'mesa' ? Math.round(t.dust / 6) : t.dust;
+      const seeds = new Float32Array(dustN * 3);
       for (let i = 0; i < seeds.length; i++) seeds[i] = Math.random();
       dustBuf = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, dustBuf);
@@ -342,6 +451,11 @@ void main(){
       gl.uniform3fv(fogU.uGold, COL.gold);
       gl.uniform3fv(fogU.uFelt, COL.felt);
       gl.uniform3fv(fogU.uAccent, accent);
+      /* cursor: perseguição AMORTECIDA, não 1:1. Seguir exato parece
+         cursor-glow de CSS; o atraso é o que dá peso de matéria. */
+      mouse[0] += (mouseTo[0] - mouse[0]) * 0.06;
+      mouse[1] += (mouseTo[1] - mouse[1]) * 0.06;
+      gl.uniform2f(fogU.uMouse, mouse[0], mouse[1]);
       gl.uniform1f(fogU.uHeat, heat);
       gl.uniform1f(fogU.uPulse, pulse);
       gl.uniform1f(fogU.uBoom, boom);
@@ -357,7 +471,9 @@ void main(){
       gl.uniform1f(dustU.uPx, px);
       gl.uniform3fv(dustU.uGold, COL.gold);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE);            // motes ADITIVOS: são luz, não tinta
-      gl.drawArrays(gl.POINTS, 0, TIERS[tier].dust);
+      /* dustN, NÃO TIERS[tier].dust: a mesa usa um sexto dos motes, e pedir a
+         contagem do tier desenharia além do buffer de sementes. */
+      gl.drawArrays(gl.POINTS, 0, dustN);
     }
 
     /* ── vigia de performance: mede e cai de tier sozinho ──
@@ -505,6 +621,15 @@ void main(){
       /* premiação bateu o garantido */
       boom(){ if (!calm){ boom = 1; wake(); } return api; },
       tier(){ return TIERS[tier].id; },
+      /* posição do cursor em 0..1 (x da esquerda, y de BAIXO — espaço do
+         gl_FragCoord). `null` solta o cursor e a onda some.
+         Só a variante 'mesa' usa; na TV é no-op silencioso. */
+      mouse(x, y){
+        if (x === null || x === undefined){ mouseTo = [-1, -1]; mouse = [-1, -1]; }
+        else { mouseTo = [x, y]; if (mouse[0] < 0) mouse = [x, y]; }  // 1ª leitura não varre a tela
+        if (calm) drawOnce(); else wake();
+        return api;
+      },
       destroy,
     };
     host.__spFeltro = api;

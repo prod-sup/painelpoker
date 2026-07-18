@@ -435,7 +435,14 @@ document.addEventListener('DOMContentLoaded', function(){
       isDark: function(){ return !document.documentElement.classList.contains('light'); }
     });
   }
-  if (!window.SupremaFeltro || new URLSearchParams(location.search).get('feltro') === '0'){
+  /* REVERTIDO: a variante 'mesa' está desligada por padrão.
+     Ela ficou ruim por três erros de calibração — trama em frequência 130× num
+     backing store que o Feltro reduz de propósito (vira moiré), composição de
+     16:9 aplicada num hero de ~6:1 (o ruído vira listra) e os 900 motes do
+     telão espremidos em 200px de altura. Nada disso é culpa do WebGL: é
+     shader de tela cheia usado em caixa baixa e larga.
+     Pra experimentar a versão corrigida: hub.html?mesa=1 */
+  if (!window.SupremaFeltro || new URLSearchParams(location.search).get('mesa') !== '1'){
     redeDeNos(); return;
   }
 

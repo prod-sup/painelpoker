@@ -127,4 +127,39 @@ console.log('\nsentinela do cursor:');
      'a 1ª leitura não varre a tela (sem isso a onda cruza o hero na entrada)');
 }
 
+/* ── 6. OS TRÊS ERROS DA PRIMEIRA VERSÃO ──
+   A v1 ficou feia. Não por causa do WebGL: por aplicar um fundo desenhado pra
+   TELA CHEIA DE TV num hero baixo e largo, sem recalibrar. Ficam travados aqui
+   pra ninguém reintroduzir. */
+console.log('\nos três erros da v1 não podem voltar:');
+{
+  const codigo = MESA.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+
+  /* (1) frequência alta — o backing store é reduzido de propósito (1600/1200/
+     850px) e o CSS reamplia em bilinear. Detalhe fino nessa escala vira moiré,
+     não tecido. A v1 tinha uma "trama" a 130x. */
+  /* só multiplicadores de COORDENADA (p/uv/m), não constantes de hash —
+     o 43758.5453123 do hash é padrão e não tem nada a ver com escala espacial */
+  const freqs = [...codigo.matchAll(/\b(?:p|uv|m)\s*\*\s*(\d+(?:\.\d+)?)/g)]
+    .map(x => parseFloat(x[1]));
+  const altas = freqs.filter(f => f > 20);
+  eq(altas, [], 'nenhuma frequência espacial acima de 20x (o backing store é reduzido)');
+  ok(freqs.length > 0, 'o teste realmente encontrou frequências pra checar');
+
+  /* (2) normalização pelo menor lado. Dividir por uRes.y é certo em 16:9 e
+     ERRADO num hero de ~6:1, onde o X estica e o ruído vira listra. */
+  ok(/min\(uRes\.x, uRes\.y\)/.test(codigo),
+     'o campo normaliza pelo MENOR lado (isotrópico em qualquer proporção)');
+  ok(!/\/ uRes\.y\b/.test(codigo),
+     'nada mais divide só por uRes.y (era o que esticava o ruído)');
+
+  /* (3) densidade de motes por variante — 900 num hero de 200px é enxame */
+  ok(/dustN = opts\.variant === 'mesa'/.test(src),
+     'a mesa usa menos motes que o telão');
+  ok(/gl\.drawArrays\(gl\.POINTS, 0, dustN\)/.test(src),
+     'o draw usa dustN — pedir TIERS[tier].dust desenharia além do buffer');
+  ok(/dustN = opts\.variant === 'mesa' \? [^:]+: t\.dust/.test(src),
+     'sem variante, a TV mantém a contagem cheia');
+}
+
 console.log(`\n${passed} verificações passaram.`);
