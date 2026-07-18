@@ -34,6 +34,27 @@ let LAST_PARSED = null;                              // pra reconstruir quando u
 let OVERRIDES = {};
 const state = { camp:'all', cat:'all', q:'', day:null, open:null };
 
+/* ── ÍCONES DA INTERFACE (SVG em currentColor) ──
+   Emoji não acompanha a cor do texto e muda de desenho em cada plataforma: num
+   botão que fica dourado no hover, o emoji fica pra trás e lê como defeito. O
+   hub e o Painel do Dia já tinham trocado; o Radar não. Estes herdam a cor.
+
+   ATENÇÃO: isto vale só pro CROMO da tela. O texto que o Atendimento COPIA PRO
+   CHAT (linhaRota, blocos de cópia, toasts) continua com emoji de propósito —
+   no WhatsApp não existe SVG, e lá o 🎟 é justamente o que dá leitura rápida. */
+const _svg = (inner, cls) => `<svg class="ic${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+const IC = {
+  /* ticket: o conceito central do Radar (rotas de ticket) — merece desenho
+     próprio em vez do 🎟 genérico */
+  ticket:   _svg('<path d="M3 8.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2 2 2 0 0 0 0 4 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2 2 2 0 0 0 0-4z"/><path d="M14.5 6.5v11" stroke-dasharray="2 2.4"/>'),
+  copy:     _svg('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),
+  scissors: _svg('<circle cx="6" cy="6" r="2.6"/><circle cx="6" cy="18" r="2.6"/><path d="M8.2 7.6 20 18M20 6 8.2 16.4"/>'),
+  link:     _svg('<path d="M10.5 13.5a4 4 0 0 0 5.7 0l2.3-2.3a4 4 0 0 0-5.7-5.7l-1.3 1.3"/><path d="M13.5 10.5a4 4 0 0 0-5.7 0l-2.3 2.3a4 4 0 0 0 5.7 5.7l1.3-1.3"/>'),
+  image:    _svg('<rect x="3" y="4.5" width="18" height="15" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="m4 17 5-4.5 4 3.5 3-2.5 4 3.5"/>'),
+  download: _svg('<path d="M12 3v12"/><path d="m7.5 11 4.5 4.5 4.5-4.5"/><path d="M4 20h16"/>'),
+  clipboard:_svg('<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4a3 3 0 0 1 6 0M9 11h6M9 15h4"/>'),
+};
+
 const IS_ADMIN = (() => { try { return !!SupremaAuth.recognize().isAdmin; } catch(e){ return false; } })();
 
 /* ── AO VIVO: premiação/field do Painel do Dia nas linhas de HOJE ──
@@ -233,7 +254,7 @@ function maybeShowGlobalDiff(){
   const li = (v, extra) => `<li><b>${WEEKDAY_SHORT[isoWeekdayIdx(MODEL.dates[v.d] || gradeTodayISO())] || v.d}</b> ${escHtml(shortName(v.n))}${extra ? ` <span class="gd-m">${extra}</span>` : ''}</li>`;
   const MAXL = 10;
   el.innerHTML = `<div class="gd-banner" role="status">
-    <span class="gd-ico">📋</span>
+    <span class="gd-ico">${IC.clipboard}</span>
     <div class="gd-body">
       <b>Global nova${META.by ? ` (${escHtml(META.by)})` : ''}:</b>
       ${[added.length ? `+${conta2(added.length, 'evento', 'eventos')}` : '',
@@ -562,8 +583,8 @@ function renderAgenda(){
       ${today ? '<span class="today-tag">HOJE</span>' : ''}</h2>
     <span class="ah-sub">${evs.length}${evs.length !== all.length ? ` de ${all.length}` : ''} evento${evs.length === 1 ? '' : 's'} · <b>${fmtMoney(gtd)}</b> garantidos</span>
     ${evs.length ? `<span class="ah-tools">
-      <button class="btn-sm ghost" data-day-csv title="Exportar as linhas visíveis pra planilha (CSV)">⬇ CSV</button>
-      <button class="btn-sm ghost" data-day-promo title="Baixar os cards de divulgação dos maiores GTD do dia">🖼 Destaques do dia</button>
+      <button class="btn-sm ghost" data-day-csv title="Exportar as linhas visíveis pra planilha (CSV)">${IC.download} CSV</button>
+      <button class="btn-sm ghost" data-day-promo title="Baixar os cards de divulgação dos maiores GTD do dia">${IC.image} Destaques do dia</button>
     </span>` : ''}`;
 
   const list = document.getElementById('agendaList');
@@ -673,9 +694,9 @@ function statusHtml(e, st){
 function rowHtml(e, st){
   const target = e.targetId ? MODEL.byId.get(e.targetId) : null;
   const link =
-    target ? `<span class="r-ticket" title="Premia ticket para ${escHtml(target.nome)}">🎟 → ${escHtml(target.nome)}${e.overridden ? ' <em class="r-fixed" title="Vínculo corrigido manualmente">✓ corrigido</em>' : ''}</span>` :
-    e.targetGroup ? `<span class="r-ticket" title="Destino declarado na planilha (fora da grade desta semana)">🎟 → ${escHtml(e.targetGroup)} <em class="r-offgrid">fora da grade</em></span>` :
-    e.satCount ? `<span class="r-ticket in">🎟 ${contaR(e.satCount, 'satélite classifica', 'satélites classificam')}</span>` : '';
+    target ? `<span class="r-ticket" title="Premia ticket para ${escHtml(target.nome)}">${IC.ticket} → ${escHtml(target.nome)}${e.overridden ? ' <em class="r-fixed" title="Vínculo corrigido manualmente">✓ corrigido</em>' : ''}</span>` :
+    e.targetGroup ? `<span class="r-ticket" title="Destino declarado na planilha (fora da grade desta semana)">${IC.ticket} → ${escHtml(e.targetGroup)} <em class="r-offgrid">fora da grade</em></span>` :
+    e.satCount ? `<span class="r-ticket in">${IC.ticket} ${contaR(e.satCount, 'satélite classifica', 'satélites classificam')}</span>` : '';
   /* A LINHA INTEIRA continua clicável (é o alvo confortável no mouse), mas quem
      carrega a semântica é o CHEVRON — agora um <button> de verdade, com
      aria-expanded/aria-controls. Antes o <article> só tinha handler de clique:
@@ -811,7 +832,7 @@ function detailHtml(e){
     const chain = t.cat === 'sat';
     flow = `<div class="rd-flow">
       <span class="rd-node">♦ ${escHtml(shortName(e.nome))}<small>${WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)]} ${e.hora} · buy-in ${fmtMoneyFull(e.buyin)}</small></span>
-      <span class="rd-arrow"><span class="ticket-chip">🎟 ${t.buyin != null ? fmtMoney(t.buyin) : 'ticket'}</span></span>
+      <span class="rd-arrow"><span class="ticket-chip">${IC.ticket} ${t.buyin != null ? fmtMoney(t.buyin) : 'ticket'}</span></span>
       <span class="rd-node tgt">${CAT_META[t.cat].suit} ${escHtml(t.nome)}<small>${WEEKDAY_SHORT[isoWeekdayIdx(t.dateISO)]} ${t.hora} · ${chain ? `buy-in ${fmtMoneyFull(t.buyin)}` : `GTD ${fmtMoney(t.garantido)}`}</small></span>
     </div>
     <p class="rd-note">${chain
@@ -820,7 +841,7 @@ function detailHtml(e){
   } else if (e.cat === 'sat' && e.targetGroup){
     flow = `<div class="rd-flow">
       <span class="rd-node">♦ ${escHtml(shortName(e.nome))}<small>${WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)]} ${e.hora} · buy-in ${fmtMoneyFull(e.buyin)}</small></span>
-      <span class="rd-arrow"><span class="ticket-chip">🎟 ticket</span></span>
+      <span class="rd-arrow"><span class="ticket-chip">${IC.ticket} ticket</span></span>
       <span class="rd-node tgt">✦ ${escHtml(e.targetGroup)}<small>série / evento fora da grade desta semana</small></span>
     </div>
     <p class="rd-note">A planilha agrupa este satélite sob <b>${escHtml(e.targetGroup)}</b> — o destino não é um torneio da grade semanal (série ou evento live).</p>`;
@@ -830,7 +851,7 @@ function detailHtml(e){
       flow = `<div class="rd-flow">
         <span class="rd-sats">${sats.map(s =>
           `<span class="rd-node">♦ ${escHtml(shortName(s.nome))}<small>${WEEKDAY_SHORT[isoWeekdayIdx(s.dateISO)]} ${s.hora} · ${fmtMoneyFull(s.buyin)}</small></span>`).join('')}</span>
-        <span class="rd-arrow"><span class="ticket-chip">🎟 ${e.buyin != null ? fmtMoney(e.buyin) : 'ticket'}</span></span>
+        <span class="rd-arrow"><span class="ticket-chip">${IC.ticket} ${e.buyin != null ? fmtMoney(e.buyin) : 'ticket'}</span></span>
         <span class="rd-node tgt">${CAT_META[e.cat].suit} ${escHtml(e.nome)}<small>${WEEKDAY_SHORT[isoWeekdayIdx(e.dateISO)]} ${e.hora} · GTD ${fmtMoney(e.garantido)}</small></span>
       </div>
       <p class="rd-note">${sats.length} caminho${sats.length > 1 ? 's' : ''} barato${sats.length > 1 ? 's' : ''} até este torneio — o ticket vale <b>${e.buyin != null ? fmtMoneyFull(e.buyin) : 'a entrada'}</b>.</p>`;
@@ -864,12 +885,12 @@ function linkWhyHtml(e){
 function rdActionsHtml(e){
   let html = `<div class="rd-actions">
     <div class="rd-copy-group">
-      <button class="btn-sm" data-copy2="${e.id}" data-fmt="full" title="Bloco completo pro chat">📋 Copiar</button>
-      <button class="btn-sm ghost" data-copy2="${e.id}" data-fmt="curto" title="Só hora, buy-in e garantido">✂️ Resumo</button>
-      ${e.cat === 'sat' && (e.targetId || e.targetGroup) ? `<button class="btn-sm ghost" data-copy2="${e.id}" data-fmt="rota" title="Só a rota do ticket">🎟 Rota</button>` : ''}
-      <button class="btn-sm ghost" data-link="${e.id}" title="Link direto pra este evento">🔗 Link</button>
+      <button class="btn-sm" data-copy2="${e.id}" data-fmt="full" title="Bloco completo pro chat">${IC.copy} Copiar</button>
+      <button class="btn-sm ghost" data-copy2="${e.id}" data-fmt="curto" title="Só hora, buy-in e garantido">${IC.scissors} Resumo</button>
+      ${e.cat === 'sat' && (e.targetId || e.targetGroup) ? `<button class="btn-sm ghost" data-copy2="${e.id}" data-fmt="rota" title="Só a rota do ticket">${IC.ticket} Rota</button>` : ''}
+      <button class="btn-sm ghost" data-link="${e.id}" title="Link direto pra este evento">${IC.link} Link</button>
     </div>
-    <button class="btn-sm gold" data-promo="${e.id}">🖼 Card de divulgação</button>`;
+    <button class="btn-sm gold" data-promo="${e.id}">${IC.image} Card de divulgação</button>`;
   if (IS_ADMIN && e.cat === 'sat'){
     const key = fbKey(evKey(e));
     const cur = OVERRIDES[key];
@@ -1054,7 +1075,7 @@ function renderRoutes(){
     const chain = t.cat === 'sat' ? `<span class="badge b-chain" title="Este destino também é satélite — a rota continua a partir dele">etapa ↷</span>` : '';
     return `<article class="route">
       <div class="rt-sats">${satRowsHtml(list)}</div>
-      <div class="rt-link" aria-hidden="true"><span class="ticket-chip">🎟 ${t.buyin != null ? fmtMoney(t.buyin) : 'ticket'}</span></div>
+      <div class="rt-link" aria-hidden="true"><span class="ticket-chip">${IC.ticket} ${t.buyin != null ? fmtMoney(t.buyin) : 'ticket'}</span></div>
       <div class="rt-target ${CAT_META[t.cat].cls}">
         <div class="rt-tname">${CAT_META[t.cat].suit} ${escHtml(t.nome)}${campBadge(t.camp)}${otherDay}${chain}</div>
         <div class="rt-tsub">${t.hora}${t.garantido != null ? ` · GTD <b>${fmtMoney(t.garantido)}</b>` : ''}${t.buyin != null ? ` · Buy-in ${fmtMoneyFull(t.buyin)}` : ''}</div>
@@ -1067,7 +1088,7 @@ function renderRoutes(){
     const list = byTarget.get(key).sort((a,b) => a.abs - b.abs);
     return `<article class="route offgrid">
       <div class="rt-sats">${satRowsHtml(list)}</div>
-      <div class="rt-link" aria-hidden="true"><span class="ticket-chip">🎟 ticket</span></div>
+      <div class="rt-link" aria-hidden="true"><span class="ticket-chip">${IC.ticket} ticket</span></div>
       <div class="rt-target">
         <div class="rt-tname">✦ ${escHtml(name)}</div>
         <div class="rt-tsub">série / evento fora da grade desta semana</div>

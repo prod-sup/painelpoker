@@ -294,6 +294,18 @@ html.dark .controls{background:rgba(15,17,16,0.9)}
 .search:focus-within{border-color:var(--ev-bright)}
 .search svg{width:13px;height:13px;stroke:var(--ink-soft);fill:none;stroke-width:2}
 .search input{border:0;outline:0;background:none;color:var(--ink);font:inherit;font-size:13px;width:100%}
+/* Anel de foco pro TECLADO.
+   O `outline:0` acima é proposital (o contorno do input dentro da cápsula fica
+   feio), mas ele tem especificidade (0,1,1) e vence a regra global de
+   :focus-visible do suprema-tokens.css — que usa :where(), valendo ZERO. Com o
+   outline suprimido, sobrava só o `:focus-within` mudando 1px de borda: fraco
+   demais como indicador, e dispara no clique de mouse também, então nem
+   distingue quem navega por teclado. O ring vai no CONTÊINER, via :has(), pra
+   manter o visual da cápsula e só aparecer no foco de teclado. */
+.search:has(input:focus-visible){
+  outline:2px solid var(--sup-focus, var(--ev-bright));
+  outline-offset:2px;
+}
 
 /* ── seções ── */
 main{max-width:1240px;margin:0 auto;padding:6px 28px 90px}
@@ -471,6 +483,15 @@ main{max-width:1240px;margin:0 auto;padding:6px 28px 90px}
   margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
   padding-top:12px;border-top:1px solid var(--hairline);
 }
+/* ── ícones SVG da interface (substituíram emoji) ──
+   Dimensionados em `em` pra acompanharem o tamanho do texto em cada contexto
+   (botão, badge de rota, chip de ticket) sem uma regra por lugar. `currentColor`
+   vem do <svg> no JS: é o ponto todo da troca — no hover o ícone acompanha.
+   `vertical-align` importa porque .r-ticket é inline-block, não flex. */
+.ic{
+  width:1.05em;height:1.05em;flex:0 0 auto;
+  vertical-align:-0.16em;
+}
 .btn-sm{
   display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:99px;
   font-size:12px;font-weight:700;background:var(--ev);color:#fff;
@@ -507,7 +528,14 @@ html.dark .btn-sm.gold{color:#15171b}
   padding:6px 10px;border-radius:10px;font-size:12px;min-width:150px;
   border:1px solid var(--hairline-strong);background:var(--card);color:var(--ink);
 }
+/* borda no foco de mouse; anel de verdade no foco de TECLADO.
+   Era `:focus{outline:none}` — especificidade (0,2,0), vencia a regra global
+   dos tokens e deixava este campo sem nenhum indicador pro teclado. */
 .rd-fix-q:focus{outline:none;border-color:var(--ev-bright)}
+.rd-fix-q:focus-visible{
+  outline:2px solid var(--sup-focus, var(--ev-bright));
+  outline-offset:2px;
+}
 .rd-fix-sel{
   max-width:340px;padding:7px 10px;border-radius:10px;font-size:12px;
   border:1px solid var(--hairline-strong);background:var(--card);color:var(--ink);
@@ -779,7 +807,8 @@ html.dark .lh-part.ok{color:var(--felt-bright)}
   background:color-mix(in srgb, var(--gold) 7%, var(--card));
   font-size:13px;color:var(--ink);
 }
-.gd-ico{font-size:18px;line-height:1.3}
+.gd-ico{font-size:18px;line-height:1.3;color:var(--ink-soft)}
+.gd-ico .ic{width:18px;height:18px;vertical-align:middle}
 .gd-body{flex:1;min-width:0;line-height:1.55}
 .gd-det{margin-top:6px}
 .gd-det summary{cursor:pointer;font-weight:700;color:var(--gold);font-size:12px}
@@ -806,4 +835,43 @@ html.dark .lh-part.ok{color:var(--felt-bright)}
   .row-detail,
   .loader-cards i{animation:none}
   *{transition-duration:.01ms !important}
+}
+
+/* ══ TELEFONE ESTREITO (≤ 420px) ══════════════════════════════════════════
+   O Radar é do Marketing/Atendimento — quem responde jogador pelo celular.
+   Havia UM breakpoint (760px), bem feito, mas nada abaixo dele: num aparelho
+   de 360px as 7 pills de dia quebravam em 3–4 linhas e empurravam a agenda
+   pra fora da tela logo na abertura. */
+@media (max-width:420px){
+  /* seletor de dia vira faixa rolável de UMA linha — o padrão de calendário.
+     scroll-snap pra cada dia parar alinhado no gesto. */
+  #dayBar{
+    flex-wrap:nowrap;overflow-x:auto;scroll-snap-type:x proximity;
+    /* sangra até a borda: a faixa encosta nas laterais e fica claro que rola */
+    margin-inline:-14px;padding-inline:14px;padding-bottom:4px;
+    scrollbar-width:none;
+  }
+  #dayBar::-webkit-scrollbar{display:none}
+  .day-pill{flex:0 0 auto;scroll-snap-align:start}
+
+  /* KPIs do hero: 2 colunas em 360px espremem o número, que é o que importa */
+  .hero-stats{grid-template-columns:1fr;gap:8px}
+  .stat{padding:11px 14px}
+
+  /* os 5 botões do detalhe cabem em 2 linhas legíveis em vez de 5 apertadas */
+  .rd-actions{flex-wrap:wrap;gap:6px}
+  .btn-sm{padding:7px 11px;font-size:11.5px}
+
+  .hero{padding:28px 14px 24px}
+  main{padding:6px 12px 64px}
+  .row{padding:10px 12px}
+}
+
+/* ══ FAIXA INTERMEDIÁRIA (421–760px) ═══════════════════════════════════════
+   Tablet retrato e telefone deitado: cabe mais que um telefone, menos que o
+   desktop. Só o dayBar precisa de ajuda — o resto o bloco de 760px cobre. */
+@media (min-width:421px) and (max-width:760px){
+  #dayBar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  #dayBar::-webkit-scrollbar{display:none}
+  .day-pill{flex:0 0 auto}
 }
