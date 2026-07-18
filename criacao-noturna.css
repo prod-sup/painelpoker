@@ -509,7 +509,14 @@ body > *{position:relative;z-index:1}
   /* ── modo TV (parede do turno): só leitura, número grande ── */
   #tvOverlay{position:fixed;inset:0;z-index:95;background:#090c0a;display:none;color:#e8ede9;overflow-y:auto}
   #tvOverlay.open{display:block}
-  .tv-inner{max-width:1100px;margin:0 auto;padding:48px 40px}
+  /* ── O FELTRO (WebGL) ──
+     O #090c0a acima continua sendo o fundo REAL: é o que aparece em modo lite,
+     em prefers-reduced-motion sem WebGL, ou se o shader não compilar. O canvas
+     entra POR CIMA dele e por BAIXO do conteúdo — nunca substitui, sempre cobre.
+     Sem isso, uma falha de GPU deixaria o telão branco no meio do turno. */
+  #tvOverlay .tv-bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .tv-inner{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:48px 40px}
+  .tv-close{position:relative;z-index:2}
   .tv-head{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;margin-bottom:30px}
   .tv-head h2{font-family:var(--display);font-size:30px;font-weight:800;letter-spacing:-.02em}
   .tv-head .clk{font-family:var(--mono);font-size:22px;color:#22d47e;margin-left:auto}

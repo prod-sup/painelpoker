@@ -183,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 <div id="focusOverlay" role="dialog" aria-modal="true" aria-label="Detalhe do item" aria-hidden="true"><div class="focus-card" id="focusCard"></div></div>
 
-<div id="tvOverlay" role="dialog" aria-modal="true" aria-label="Modo TV da criação noturna" aria-hidden="true"><button class="tv-close" id="tvClose" title="Fechar (Esc)">✕</button><div class="tv-inner" id="tvInner"></div></div>
+<div id="tvOverlay" role="dialog" aria-modal="true" aria-label="Modo TV da criação noturna" aria-hidden="true"><div class="tv-bg" aria-hidden="true"></div><button class="tv-close" id="tvClose" title="Fechar (Esc)">✕</button><div class="tv-inner" id="tvInner"></div></div>
 
 <div id="toast" role="status" aria-live="polite"></div>
 
@@ -191,6 +191,10 @@ document.addEventListener('DOMContentLoaded', () => {
 <script src="suprema-db.js"></script>
 <!-- criacao-calc: núcleo numérico da receita (parsing, fee %, early bird),
      puro e testado. Tem que vir ANTES do criacao-noturna.js, que o consome. -->
+<!-- O Feltro: o fundo WebGL da Suprema TV, reaproveitado no modo TV daqui.
+     defer porque só é usado quando o operador abre o telão — não atrasa o
+     carregamento da planilha, que é o caminho crítico da página. -->
+<script defer src="suprema-feltro.js"></script>
 <script src="criacao-calc.js"></script>
 <script src="criacao-noturna.js"></script>
 <script src="suprema-presence.js"></script>

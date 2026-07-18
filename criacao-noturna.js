@@ -865,6 +865,9 @@ function renderTV(){
   }).filter(x => x.t);
   const next = all.filter(it => !DONE[itemKey(it)])
     .sort((a,b) => (hoursToStart(a) ?? 999) - (hoursToStart(b) ?? 999)).slice(0, 9);
+  /* o fundo acompanha o turno — renderTV já roda a cada sync, então o Feltro
+     recebe o estado novo junto com o texto, sem timer próprio */
+  tvDriveFeltro(pct, all);
   $('tvInner').innerHTML = `
     <div class="tv-head">
       <h2>🌙 Criação Noturna — ${WEEKDAY_TOMORROW.toLowerCase()} ${refToLabel(TURNO.refTomorrow)}</h2>
@@ -893,8 +896,75 @@ function renderTV(){
       </div>
     </div>`;
 }
-function openTV(){ if (!DATA){ showToast('Carregue a Global primeiro.', true); return; } TV_OPEN = true; $('tvOverlay').classList.add('open'); renderTV(); a11yOpenDialog('tvOverlay'); }
-function closeTV(){ TV_OPEN = false; $('tvOverlay').classList.remove('open'); a11yCloseDialog('tvOverlay'); }
+/* ═══════════════ O FELTRO no modo TV (mesmo fundo WebGL da Suprema TV) ═══════
+   O que faz a TV parecer transmissão não é "ter WebGL" — é o fundo CARREGAR
+   ESTADO. Lá as entradas são a categoria da cena, o ao-vivo e o corte. Aqui o
+   estado é OUTRO: o turno da noite tem prazo. Então o mapeamento é:
+
+     accent  a cor do turno. Verde-feltro enquanto tudo corre no prazo; vira
+             âmbar quando aparece atraso; dourado quando fecha em 100%.
+     heat    a PRESSÃO do turno: fração de torneios que já estão atrasados ou
+             na janela de risco. A sala esquenta quando a noite aperta — é a
+             leitura periférica que o supervisor pega de longe, sem ler número.
+     pulse   cada torneio marcado como criado. É o "corte" da transmissão.
+     boom    fechou tudo. A celebração do turno.
+
+   O Feltro só sobe com o telão aberto: WebGL rodando atrás de um overlay
+   fechado seria queimar GPU 24h à toa. ── */
+let TV_FELTRO = null;
+let _tvPctAnterior = null;
+
+function tvMountFeltro(){
+  if (TV_FELTRO) return;
+  /* o script é `defer` e pode não ter chegado; em modo lite o mount devolve
+     null de propósito. Nos dois casos fica o #090c0a do CSS, que é fundo
+     legítimo — não é degradação visível. */
+  if (typeof SupremaFeltro === 'undefined') return;
+  TV_FELTRO = SupremaFeltro.mount('#tvOverlay .tv-bg', {
+    bg:'#090c0a', gold:'#c9a84c', felt:'#22d47e',
+    onFallback(){ TV_FELTRO = null; },   // shader não compilou: fundo chapado
+  });
+}
+function tvUnmountFeltro(){
+  try{ if (TV_FELTRO) TV_FELTRO.destroy(); }catch(e){}
+  TV_FELTRO = null;
+  _tvPctAnterior = null;
+}
+
+/* traduz o estado do turno nas quatro entradas do fundo */
+function tvDriveFeltro(pct, all){
+  if (!TV_FELTRO) return;
+  const pendentes = all.filter(it => !DONE[itemKey(it)]);
+  const atrasados = pendentes.filter(it => urgency(it) === 'late').length;
+  const emRisco   = pendentes.filter(it => urgency(it) === 'warn').length;
+
+  /* heat: atraso pesa o dobro do risco. Normaliza pelo total pendente pra não
+     depender do tamanho da grade — 3 atrasados em 5 é pânico, em 80 não é. */
+  const base = pendentes.length || 1;
+  TV_FELTRO.heat(Math.min(1, (atrasados * 2 + emRisco) / base));
+
+  TV_FELTRO.accent(pct >= 100 ? '#c9a84c' : atrasados ? '#e0a33c' : '#22d47e');
+
+  /* pulse a cada torneio novo criado; boom só na virada pro 100% (não a cada
+     re-render, senão o telão explode em loop enquanto ninguém mexe) */
+  if (_tvPctAnterior !== null && pct > _tvPctAnterior){
+    if (pct >= 100 && _tvPctAnterior < 100) TV_FELTRO.boom();
+    else TV_FELTRO.pulse();
+  }
+  _tvPctAnterior = pct;
+}
+
+function openTV(){
+  if (!DATA){ showToast('Carregue a Global primeiro.', true); return; }
+  TV_OPEN = true; $('tvOverlay').classList.add('open');
+  tvMountFeltro();
+  renderTV(); a11yOpenDialog('tvOverlay');
+}
+function closeTV(){
+  TV_OPEN = false; $('tvOverlay').classList.remove('open');
+  tvUnmountFeltro();
+  a11yCloseDialog('tvOverlay');
+}
 $('tvBtn').addEventListener('click', openTV);
 $('tvClose').addEventListener('click', closeTV);
 $('allDoneExport').addEventListener('click', () => $('exportBtn').click());
