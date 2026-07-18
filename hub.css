@@ -67,9 +67,15 @@ html.light .tile:hover,html.light .tile:focus-visible{
 html.light .tile::before{opacity:1}
 html.light .tile .mark{color:color-mix(in srgb, var(--tint) 26%, transparent)}
 html.light .tile .meta{color:color-mix(in srgb, var(--tint) 72%, #000 18%)}
-/* GU e Learn têm céus próprios no dark; no claro viram papel com a tinta deles */
+/* GU, Learn e TV têm céus próprios no dark; no claro viram papel com a tinta deles.
+   A TV tinha ficado DE FORA desta lista: ela usa o mesmo gradiente escuro das
+   outras duas (#16110a → --bg-raise), mas sem a contraparte clara o --bg-raise
+   vira #ffffff e o cartão fica um borrão marrom-para-branco atravessado na
+   diagonal. Era o único tile que não era nem claro como os irmãos nem
+   assumidamente escuro como A Constelação — por isso lia como sujeira. */
 html.light .t-gu{background:linear-gradient(160deg, rgba(140,92,198,.10), var(--bg-raise) 55%)}
 html.light .t-learn{background:linear-gradient(160deg, rgba(232,147,61,.12), var(--bg-raise) 55%)}
+html.light .t-tv{background:linear-gradient(160deg, rgba(143,107,45,.12), var(--bg-raise) 55%)}
 /* A Constelação é uma experiência dark: o tile mantém o céu dela nos dois temas */
 html.light .t-org{color:#f2ede2;border-color:rgba(0,0,0,.18)}
 html.light .t-org .desc{color:rgba(242,237,226,.58)}
