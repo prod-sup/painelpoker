@@ -22,7 +22,7 @@ const ARQUIVOS = [
   'painel.js', 'admin.js', 'hub.js', 'eventos.js', 'tv.js',
   'dashboard-mesa-cash.js', 'criacao-noturna.js', 'conf-dia.js',
   'suprema-auth.js', 'radar-core.js', 'gu-parser.js',
-  'painel-calc.js', 'painel-actions.js',
+  'painel-calc.js', 'painel-actions.js', 'criacao-calc.js',
 ];
 
 let passed = 0, falhas = 0;
@@ -87,31 +87,46 @@ console.log('\na própria guarda pega uma duplicata?');
   passed++; console.log('  ✓ não acusa `const t` local em duas funções (falso positivo)');
 }
 
-/* O caso concreto que originou tudo: escHtml precisa escapar aspas, senão
-   qualquer interpolação em atributo (title="...", value="...") abre XSS. */
-console.log('\nescHtml escapa o que precisa:');
+/* TODO escHtml do repo tem que escapar os 5 caracteres.
+   Existem várias cópias (painel.js, criacao-noturna.js, radar-core.js) porque
+   radar-core é carregado por `new Function` nos testes e não pode importar
+   módulo. Cópia não é o problema — cópia DIVERGENTE é. Estavam divergindo: duas
+   delas deixavam a aspa simples passar crua. Esta guarda impede a próxima. */
+console.log('\ntodo escHtml do repo escapa os 5 caracteres:');
 {
-  const src = fs.readFileSync(__dirname + '/painel.js', 'utf8');
-  const m = src.match(/^function escHtml\([\s\S]*?\n\}/m);
-  assert.ok(m, 'escHtml não encontrada em painel.js');
-  const escHtml = new Function('return ' + m[0])();
-
   const casos = [
     ['&', '&amp;'], ['<', '&lt;'], ['>', '&gt;'],
     ['"', '&quot;'], ["'", '&#39;'],
   ];
-  for (const [entrada, esperado] of casos) {
-    assert.strictEqual(escHtml(entrada), esperado,
-      `escHtml('${entrada}') deveria dar '${esperado}'`);
-    passed++; console.log(`  ✓ ${entrada} vira ${esperado}`);
-  }
+  let achou = 0;
+  for (const arq of ARQUIVOS) {
+    let src;
+    try { src = fs.readFileSync(__dirname + '/' + arq, 'utf8'); } catch (e) { continue; }
+    const m = src.match(/function escHtml\s*\([\s\S]*?\n?\s*\}/);
+    if (!m) continue;
+    achou++;
+    let fn;
+    try { fn = new Function('return ' + m[0])(); }
+    catch (e) { falhas.push(arq + ': escHtml não pôde ser avaliada'); continue; }
 
-  // o payload real: nome de torneio quebrando um atributo
-  const payload = 'Main Event" onmouseover=alert(1) x="';
-  const saida = escHtml(payload);
-  assert.ok(!saida.includes('"'),
-    'escHtml deixou aspa crua passar — atributo pode ser quebrado');
-  passed++; console.log('  ✓ nome de torneio malicioso não quebra o atributo');
+    const ruins = casos.filter(([entrada, esperado]) => fn(entrada) !== esperado)
+                       .map(([c]) => c);
+    if (ruins.length) {
+      falhas.push(arq + ': escHtml NÃO escapa ' + ruins.join(' '));
+      console.log('  ✗ ' + arq + ' — não escapa: ' + ruins.join(' '));
+    } else {
+      passed++; console.log('  ✓ ' + arq);
+    }
+
+    // o payload real: nome de torneio quebrando um atributo
+    const saida = fn('Main Event" onmouseover=alert(1) x=\'y');
+    if (saida.includes('"') || saida.includes("'")) {
+      falhas.push(arq + ': aspa crua passa — atributo pode ser quebrado');
+    } else { passed++; }
+  }
+  assert.ok(achou >= 2, 'esperava encontrar escHtml em pelo menos 2 arquivos, achei ' + achou);
+  console.log('  ✓ ' + achou + ' implementações verificadas');
+  passed++;
 }
 
 console.log(`\n${passed} verificações passaram.`);

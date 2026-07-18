@@ -1,7 +1,7 @@
 // Suprema Poker — Service Worker
 // IMPORTANTE: incremente SW_VERSION a cada deploy — é isso que faz as abas abertas
 // receberem o aviso de "nova versão disponível" e ninguém operar com código velho
-const SW_VERSION = '3.11.0';
+const SW_VERSION = '3.12.0';
 const CACHE_NAME = `suprema-painel-v${SW_VERSION}`;
 const STATIC_ASSETS = [
   '/painelpoker/',
@@ -20,11 +20,15 @@ const STATIC_ASSETS = [
      offline mas sem cérebro/estilo na primeira visita sem rede */
   '/painelpoker/hub.html',
   '/painelpoker/hub.js',
+  '/painelpoker/hub-onboarding.js',   // o hub.html carrega — estava fora do precache
   '/painelpoker/hub.css',
   '/painelpoker/admin.html',
   '/painelpoker/admin.js',
   '/painelpoker/admin.css',
   '/painelpoker/criacao-noturna.js',
+  // criacao-noturna.js DEPENDE de criacao-calc (parsing/fee/early bird):
+  // sem ele offline, a receita não renderiza.
+  '/painelpoker/criacao-calc.js',
   '/painelpoker/criacao-noturna.css',
   '/painelpoker/dashboard-mesa-cash.html',
   '/painelpoker/dashboard-mesa-cash.js',

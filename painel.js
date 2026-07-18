@@ -1237,7 +1237,18 @@ function saveSession(data){
     }));
   }catch(e){}
 }
-function clearSession(){ try{ localStorage.removeItem(AUTH_STORE_KEY); }catch(e){} }
+/* delega pro SupremaAuth (já carregado antes deste arquivo): a cópia local
+   removia SÓ a sessão e DEIXAVA o 'suprema_trusted_admin' pra trás — então o
+   logout de um admin não o deslogava de fato: recognize() seguia devolvendo
+   isAdmin:true por "admin confiável neste navegador". Em máquina compartilhada
+   da operação, o próximo usuário herdava isso. O clearSession do módulo limpa
+   as DUAS chaves. Fallback só pra não quebrar se o módulo faltar. */
+function clearSession(){
+  try{
+    if (window.SupremaAuth && SupremaAuth.clearSession){ SupremaAuth.clearSession(); return; }
+  }catch(e){}
+  try{ localStorage.removeItem(AUTH_STORE_KEY); }catch(e){}
+}
 
 /* PBKDF2-SHA256 (Web Crypto), salt aleatório por usuário — mesma lógica do admin.html.
    Mantém o hash legado (DJB2+salt fixo) apenas para verificar/migrar contas antigas. */

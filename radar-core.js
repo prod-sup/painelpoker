@@ -11,7 +11,10 @@
 
 /* ═══════════════════ utilidades ═══════════════════ */
 
-function escHtml(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+/* escapa os 5 (inclui a aspa simples) — ver painel-scope.test.js, que falha se
+   algum escHtml do repo cobrir menos que isso. Não vira import: este arquivo é
+   carregado por `new Function` no teste, sem módulos disponíveis. */
+function escHtml(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 const NF_INT = new Intl.NumberFormat('pt-BR');
 function fmtMoney(v){

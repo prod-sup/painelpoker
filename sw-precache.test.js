@@ -29,30 +29,29 @@ for (const rel of precache) {
 }
 console.log('  ✓ ' + passed + ' de ' + precache.length + ' caminhos conferem');
 
-/* ── 2. todo <script src> local do index.html está no precache? ──
-   Se o painel carrega, ele precisa offline. */
-console.log('\nscripts do index.html estão no precache?');
-{
-  const html = fs.readFileSync(__dirname + '/index.html', 'utf8');
-  const srcs = [...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map(m => m[1])
-    .filter(s => !/^https?:|^\/\//.test(s));      // ignora CDN
-  for (const s of srcs) {
-    const rel = s.replace(/^\.?\//, '');
-    if (noPrecache.has(rel)) { passed++; console.log('  ✓ ' + rel); }
-    else { falhas.push('script carregado mas FORA do precache: ' + rel); console.log('  ✗ ' + rel + ' — fora do precache'); }
-  }
-}
+/* ── 2. todo <script>/<link> local das PÁGINAS precacheadas está no precache? ──
+   Se a página é servida offline mas um script dela não, ela abre quebrada — o
+   pior dos dois mundos. Cobrir só o index.html não bastava: foi assim que o
+   criacao-calc.js quase saiu de fora. */
+const PAGINAS = precache.filter(p => p.endsWith('.html'));
+for (const pagina of PAGINAS) {
+  let html;
+  try { html = fs.readFileSync(__dirname + '/' + pagina, 'utf8'); } catch (e) { continue; }
+  console.log('\n' + pagina + ' — dependências no precache?');
 
-/* ── 3. o <link rel=stylesheet> local também ── */
-console.log('\nCSS do index.html está no precache?');
-{
-  const html = fs.readFileSync(__dirname + '/index.html', 'utf8');
-  const hrefs = [...html.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"/g)].map(m => m[1])
-    .filter(s => !/^https?:|^\/\//.test(s));
-  for (const h of hrefs) {
-    const rel = h.replace(/^\.?\//, '');
+  const locais = [
+    ...[...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map(m => m[1]),
+    ...[...html.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"/g)].map(m => m[1]),
+  ].filter(s => !/^https?:|^\/\//.test(s));       // ignora CDN
+
+  if (!locais.length) { console.log('  (nenhuma dependência local)'); continue; }
+  for (const s of locais) {
+    const rel = s.replace(/^\.?\//, '').split('?')[0];
     if (noPrecache.has(rel)) { passed++; console.log('  ✓ ' + rel); }
-    else { falhas.push('CSS carregado mas FORA do precache: ' + rel); console.log('  ✗ ' + rel + ' — fora do precache'); }
+    else {
+      falhas.push(pagina + ' carrega "' + rel + '" mas ele está FORA do precache');
+      console.log('  ✗ ' + rel + ' — fora do precache');
+    }
   }
 }
 

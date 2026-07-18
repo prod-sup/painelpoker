@@ -46,7 +46,10 @@ if (typeof buildSections === 'undefined' || typeof CONF_WINDOW_END_MIN === 'unde
 
 const $ = id => document.getElementById(id);
 
-function escHtml(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+/* escapa TAMBÉM a aspa simples: sem ela, o dia que alguém escrever
+   title='${escHtml(x)}' vira XSS — e nome de torneio vem da planilha enviada.
+   painel-scope.test.js falha se qualquer escHtml do repo deixar de cobrir os 5. */
+function escHtml(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 /* normText, parser da G MTTS, janelas da grade e BRL_RATE vêm de gu-parser.js */
 function showToast(msg, isErr){
   const t = $('toast');
@@ -202,21 +205,14 @@ function structureInfo(it){ return fieldInfo('structure', it); }
    pctOnly = true  → não converte absolutos em dinheiro (ex.: chips do early bird) */
 function calcValueParts(it, info, pctOnly){
   if (!info) return null;
-  let raw;
-  if (typeof info.raw === 'number') raw = info.raw;
-  else {
-    const s = String(info.raw);
-    raw = parseFloat(s.replace(/[^\d.,-]/g, '').replace(',', '.'));
-    if (isFinite(raw) && /%/.test(s)) raw = raw / 100;   // "10%" (texto) → 0.10
-  }
-  if (!isFinite(raw)) return {main: info.disp, sub: '', money: null};
+  const raw = CriacaoCalc.parseRaw(info.raw);
+  if (raw === null) return {main: info.disp, sub: '', money: null};
   if (raw > 0 && raw < 1){
-    const money = (it.buyin != null) ? Math.round(it.buyin * raw * 100) / 100 : null;
-    const pct = (Math.round(raw * 10000) / 100).toLocaleString('pt-BR') + '%';
-    return {main: pct, sub: money != null ? fmtMoneyPlain(money) : '', money};
+    const money = (it.buyin != null) ? CriacaoCalc.moneyOf(it.buyin, raw) : null;
+    return {main: CriacaoCalc.pctText(raw), sub: money != null ? fmtMoneyPlain(money) : '', money};
   }
   if (pctOnly) return {main: info.disp, sub: '', money: null};
-  const pct = (it.buyin && it.buyin > 0) ? (Math.round(raw / it.buyin * 10000) / 100).toLocaleString('pt-BR') + '%' : '';
+  const pct = (it.buyin && it.buyin > 0) ? CriacaoCalc.pctText(raw / it.buyin) : '';
   return {main: fmtMoneyPlain(raw), sub: pct, money: raw, isMoney: true};
 }
 
@@ -224,16 +220,7 @@ function calcValueParts(it, info, pctOnly){
    número ≥ 1 em campo de fee = valor absoluto → vira % do buy-in */
 function rawToPct(it, info){
   if (!info) return 0;
-  let raw;
-  if (typeof info.raw === 'number') raw = info.raw;
-  else {
-    const s = String(info.raw);
-    raw = parseFloat(s.replace(/[^\d.,-]/g, '').replace(',', '.'));
-    if (isFinite(raw) && /%/.test(s)) raw = raw / 100;
-  }
-  if (!isFinite(raw) || raw <= 0) return 0;
-  if (raw >= 1) return (it.buyin && it.buyin > 0) ? raw / it.buyin : 0;
-  return raw;
+  return CriacaoCalc.rawToPctFee(it.buyin, info.raw);
 }
 /* ADMIN FEE — Rake/Fee e Admin Fee SEPARADOS na mesma linha (regra da casa:
    10% do buy-in / +2% do buy-in quando tem admin fee de campanha).
@@ -253,24 +240,12 @@ function adminFeeParts(it){
 function earlyParts(it){
   const e = earlyActive(it);
   if (!e) return null;
-  let raw;
-  if (typeof e.raw === 'number') raw = e.raw;
-  else {
-    const s = String(e.raw);
-    raw = parseFloat(s.replace(/[^\d.,-]/g, '').replace(',', '.'));
-    if (isFinite(raw) && /%/.test(s)) raw = raw / 100;
-  }
-  if (!isFinite(raw) || raw <= 0) return null;
-  if (raw >= 1) raw = raw / 100; // "20" na planilha = 20%
-  const pct = (Math.round(raw * 10000) / 100).toLocaleString('pt-BR') + '%';
+  const pct = CriacaoCalc.earlyPct(e.raw);
+  if (!pct) return null;
   const ch = chipsInfo(it);
-  let chips = null;
-  if (ch){
-    if (typeof ch.raw === 'number') chips = ch.raw;
-    else { const c = parseFloat(String(ch.raw).replace(/[^\d.,-]/g, '').replace(',', '.')); if (isFinite(c)) chips = c; }
-  }
-  const sub = chips ? '= ' + Math.round(chips * raw).toLocaleString('pt-BR') + ' fichas' : '% das fichas';
-  return {main: pct, sub};
+  const fichas = ch ? CriacaoCalc.earlyChips(e.raw, ch.raw) : null;
+  const sub = fichas ? '= ' + fichas.toLocaleString('pt-BR') + ' fichas' : '% das fichas';
+  return {main: CriacaoCalc.pctText(pct), sub};
 }
 
 /* ícones da ficha (traço, no mesmo estilo do resto) */
@@ -520,7 +495,14 @@ function getSession(){
     return s;
   }catch(e){ return null; }
 }
-function clearSession(){ try{ localStorage.removeItem(AUTH_STORE_KEY); }catch(e){} }
+/* delega pro SupremaAuth: a cópia local deixava o 'suprema_trusted_admin' pra
+   trás e o logout de admin não deslogava de fato (ver painel.js). */
+function clearSession(){
+  try{
+    if (window.SupremaAuth && SupremaAuth.clearSession){ SupremaAuth.clearSession(); return; }
+  }catch(e){}
+  try{ localStorage.removeItem(AUTH_STORE_KEY); }catch(e){}
+}
 
 /* o portão no topo da página já barrou quem não tem sessão — aqui ela sempre existe */
 let SESSION = getSession();

@@ -189,6 +189,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 <script src="suprema-db.js"></script>
+<!-- criacao-calc: núcleo numérico da receita (parsing, fee %, early bird),
+     puro e testado. Tem que vir ANTES do criacao-noturna.js, que o consome. -->
+<script src="criacao-calc.js"></script>
 <script src="criacao-noturna.js"></script>
 <script src="suprema-presence.js"></script>
 <script src="suprema-onboarding.js"></script>
