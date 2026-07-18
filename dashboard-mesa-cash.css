@@ -430,6 +430,14 @@ body.tv-on #tvMode{display:flex}
 body.tv-on{overflow:hidden}
 /* ambience: dois glows derivando + spade watermark (transform-only) */
 .tv-bg{position:absolute;inset:0;pointer-events:none}
+/* ── O FELTRO (WebGL) ──
+   Mesmo arranjo da Suprema TV: os blobs em CSS abaixo são a REDE DE SEGURANÇA.
+   Só somem quando o shader sobe de fato (a classe é posta pelo JS depois do
+   mount devolver algo) — assim, sem WebGL, em modo lite ou com o shader
+   falhando, o telão continua com o fundo animado de sempre em vez de preto.
+   A ficha de naipe (.tv-spade) FICA nos dois casos: é marca d'água a 2,8%,
+   não briga com a névoa e mantém a identidade da casa. */
+#tvMode.feltro-on .tv-blob{display:none}
 .tv-blob{position:absolute;width:60vw;height:60vw;border-radius:50%;opacity:.5;will-change:transform}
 .tv-blob.b1{left:-18vw;top:-22vw;background:radial-gradient(circle,rgba(79,142,247,.14) 0%,transparent 62%);animation:tvDrift1 46s ease-in-out infinite alternate}
 .tv-blob.b2{right:-20vw;bottom:-26vw;background:radial-gradient(circle,rgba(167,139,250,.12) 0%,transparent 62%);animation:tvDrift2 58s ease-in-out infinite alternate}

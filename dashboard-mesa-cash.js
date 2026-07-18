@@ -1845,6 +1845,63 @@ enterFromHubSession();
 // Firebase a cada 5 min — a TV nunca fica estática nem desatualizada.
 const TV={on:false,scene:0,rot:null,clock:null,chart:null,refresh:null,dur:14000};
 const TV_RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ═══════════════ O FELTRO — o fundo WebGL da Suprema TV ═══════════════
+   Reaproveita o suprema-feltro.js. O que faz a TV parecer transmissão não é
+   ter shader: é o fundo CARREGAR ESTADO. Aqui o mapeamento é o mais próximo
+   possível do original, porque este painel também tem MÁQUINA DE CENAS:
+
+     accent  a cor da CENA no ar — igualzinho à TV, onde a névoa veste a
+             categoria. Cada uma das seis cenas tem seu matiz.
+     heat    quão VIVA está a operação. Na TV é "tem torneio rolando"; aqui é
+             a fração de mesas com retenção (o inverso de mesas mortas). Piso
+             cheio = sala quente. É a leitura que se pega de longe, sem ler
+             número — o supervisor vê o salão esfriar quando as mesas morrem.
+     pulse   o corte de cena. 1:1 com a TV.
+
+   `boom` fica de fora de propósito: na TV ele é "premiação bateu o
+   garantido", um marco de negócio real. Aqui eu não tenho um marco
+   equivalente sem inventar um número — e celebração disparada em cima de
+   limiar arbitrário vira ruído no telão.
+
+   Os blobs em CSS continuam sendo o fallback: sem WebGL/em lite eles ficam. */
+let TV_FELTRO=null;
+/* matiz por cena, na ordem de tvSceneList(): Resumo, Turnos, Ritmo, Stakes,
+   Top mesas, Eventos. Cores da paleta da casa (as mesmas do painel). */
+const TV_SCENE_ACCENT=['#22d47e','#4f8ef7','#c9a84c','#a78bfa','#e0a33c','#f36b70'];
+
+function tvMountFeltro(){
+  if(TV_FELTRO)return;
+  if(typeof SupremaFeltro==='undefined')return;      // defer ainda não chegou / lite
+  TV_FELTRO=SupremaFeltro.mount('#tvMode .tv-bg',{
+    bg:'#0b0c10', gold:'#c9a84c', felt:'#22d47e',
+    onFallback(){ tvFeltroOff(); },                  // shader não compilou: volta pros blobs
+  });
+  const el=document.getElementById('tvMode');
+  if(TV_FELTRO&&el)el.classList.add('feltro-on');    // só então esconde os blobs
+}
+function tvFeltroOff(){
+  TV_FELTRO=null;
+  const el=document.getElementById('tvMode');
+  if(el)el.classList.remove('feltro-on');
+}
+function tvUnmountFeltro(){
+  try{ if(TV_FELTRO)TV_FELTRO.destroy(); }catch(_){}
+  tvFeltroOff();
+}
+/* quão viva está a operação: mesas COM retenção sobre o total.
+   deadPct já vem normalizado (0–100), então não depende do tamanho do salão. */
+function tvFeltroHeat(){
+  if(!TV_FELTRO)return;
+  const raw=KPI_DEMO&&KPI_DEMO.deadPct;
+  /* null/''/undefined ANTES do Number(): `Number(null)` é 0 e passa no isFinite,
+     o que pintaria "salão em brasa" (heat 1) justamente quando NÃO há dado —
+     o telão mentindo com cara de certeza. Sem número, não mexe no fundo. */
+  if(raw===null||raw===undefined||raw==='')return;
+  const morto=Number(raw);
+  if(!isFinite(morto))return;
+  TV_FELTRO.heat(Math.max(0,Math.min(1,1-morto/100)));
+}
 function tvEl(){
   let el=document.getElementById('tvMode');
   if(el)return el;
@@ -1995,6 +2052,12 @@ function tvShow(i){
   const scenes=tvSceneList(); if(!scenes.length)return;
   TV.scene=((i%scenes.length)+scenes.length)%scenes.length;
   const sc=scenes[TV.scene], el=document.getElementById('tvScene');
+  /* o fundo corta junto com a cena: onda de choque + a névoa veste o matiz da
+     cena nova. É o mesmo gesto da Suprema TV a cada troca. */
+  if(TV_FELTRO){
+    TV_FELTRO.pulse().accent(TV_SCENE_ACCENT[TV.scene%TV_SCENE_ACCENT.length]);
+    tvFeltroHeat();
+  }
   const dots=document.getElementById('tvDots');
   if(dots)dots.innerHTML=scenes.map((s,k)=>`<span class="${k===TV.scene?'on':''}" title="${s.name}"></span>`).join('');
   if(TV.chart){try{TV.chart.destroy()}catch(_){}TV.chart=null;}
@@ -2014,6 +2077,8 @@ function tvShow(i){
 function tvEnter(){
   if(TV.on)return;
   tvEl(); TV.on=true;
+  tvMountFeltro();                       // só com o telão aberto: WebGL atrás de
+  tvFeltroHeat();                        // overlay fechado seria queimar GPU à toa
   document.body.classList.add('tv-on');
   document.body.classList.remove('win-blurred');
   const dEl=document.getElementById('tvDate'); if(dEl)dEl.textContent=KPI_DEMO.date||'';
@@ -2036,6 +2101,7 @@ function tvExit(){
   TV.on=false;
   clearTimeout(TV.rot);clearInterval(TV.clock);clearInterval(TV.refresh);
   if(TV.chart){try{TV.chart.destroy()}catch(_){}TV.chart=null;}
+  tvUnmountFeltro();                     // libera o contexto WebGL ao fechar
   document.body.classList.remove('tv-on');
   try{document.fullscreenElement&&document.exitFullscreen().catch(()=>{});}catch(_){ }
   if(location.hash==='#tv')try{history.replaceState(null,'',location.pathname);}catch(_){ }
