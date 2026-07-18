@@ -1454,6 +1454,11 @@
   function renderProfileProgress(){
     const xp = pfXp(), lv = levelFromXp(xp);
     const cur = xpForLevel(lv), next = xpForLevel(lv+1);
+    /* A MESA reflete a progressão: quanto mais alto o nível, mais quente o
+       dourado do fundo. É a leitura periférica da jornada — o hub de um
+       Titã não parece o hub de um Novato, sem precisar ler número nenhum.
+       Nível 50 é o teto da curva (ver levelFromXp). */
+    try{ if (window.__hubMesa) window.__hubMesa.heat(Math.min(1, lv / 50)); }catch(e){}
     $('pfLevel').textContent = lv;
     $('pfXpLbl').textContent = `${xp} XP`;
     $('pfXpNext').textContent = `nível ${lv+1} · ${next} XP`;

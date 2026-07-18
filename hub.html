@@ -411,16 +411,58 @@ if (location.protocol === 'file:') {
      a cada correção). Precisa vir ANTES do IIFE do gate, que só delega pra ele. -->
 <script defer src="suprema-auth.js"></script>
 <script defer src="suprema-motion.js"></script>
+<script defer src="suprema-feltro.js"></script>
 <script>
-/* rede de nós atrás do hero (Network Hero, estreada no Radar de Eventos).
-   Deferred scripts rodam antes do DOMContentLoaded, então SupremaMotion já existe.
-   O hub é escuro por padrão e marca o CLARO com html.light — daí o isDark próprio. */
+/* ── A MESA: o fundo do hero em WebGL ──────────────────────────────────────
+   Substitui a rede de nós em canvas 2D (SupremaMotion.network). Não é troca
+   por gosto: o cabeçalho do suprema-feltro.js documenta que o `network` custa
+   O(n²) POR FRAME — com 64 nós são 2016 testes de distância, cada link com seu
+   beginPath/stroke. O hub é a primeira tela do turno e ficava pagando isso.
+   A variante 'mesa' desenha o pano, a luz rasante e a onda do cursor num único
+   passe de shader, e ainda mata o banding do degradê com dither.
+
+   A rede continua como REDE DE SEGURANÇA: sem WebGL, com o shader falhando ou
+   em modo lite, o onFallback devolve o fundo antigo. Escape manual: ?feltro=0
+   Deferred scripts rodam antes do DOMContentLoaded, então as libs já existem. */
 document.addEventListener('DOMContentLoaded', function(){
-  if (!window.SupremaMotion) return;
-  SupremaMotion.network('.hero', {
-    c1:'#8f6b2d', c2:'#18a36b', c1Dark:'#c9a84c', c2Dark:'#18a36b',
-    isDark: function(){ return !document.documentElement.classList.contains('light'); }
+  var hero = document.querySelector('.hero');
+  if (!hero) return;
+
+  function redeDeNos(){
+    if (!window.SupremaMotion) return;
+    SupremaMotion.network('.hero', {
+      c1:'#8f6b2d', c2:'#18a36b', c1Dark:'#c9a84c', c2Dark:'#18a36b',
+      isDark: function(){ return !document.documentElement.classList.contains('light'); }
+    });
+  }
+  if (!window.SupremaFeltro || new URLSearchParams(location.search).get('feltro') === '0'){
+    redeDeNos(); return;
+  }
+
+  var MESA = SupremaFeltro.mount('.hero', {
+    variant: 'mesa',
+    bg: '#0f1110', gold: '#c9a84c', felt: '#18a36b',
+    onFallback: redeDeNos,
   });
+  if (!MESA) return;                       // lite/sem WebGL: o mount já cuidou
+  window.__hubMesa = MESA;                 // o perfil usa pra refletir a progressão
+
+  /* cursor: só em ponteiro FINO. Em touch a onda ficaria presa no último
+     toque, o que lê como travamento. E `pointermove` no document (não no
+     hero) pra onda continuar respondendo enquanto o mouse passeia pelos
+     tiles — o hero é o palco, mas a mesa é a página inteira. */
+  if (matchMedia('(hover:hover) and (pointer:fine)').matches){
+    var r = null;
+    var solta = function(){ r = null; };
+    addEventListener('scroll', solta, { passive: true });
+    addEventListener('resize', solta, { passive: true });
+    document.addEventListener('pointermove', function(e){
+      r = r || hero.getBoundingClientRect();          // 1 medição por gesto
+      /* gl_FragCoord tem Y de BAIXO pra cima; o DOM, de cima pra baixo */
+      MESA.mouse((e.clientX - r.left) / r.width, 1 - (e.clientY - r.top) / r.height);
+    }, { passive: true });
+    document.addEventListener('pointerleave', function(){ MESA.mouse(null); });
+  }
 });
 </script>
 <script defer src="hub.js"></script>
