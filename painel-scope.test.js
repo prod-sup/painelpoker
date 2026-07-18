@@ -25,7 +25,10 @@ const ARQUIVOS = [
   'painel-calc.js', 'painel-actions.js', 'criacao-calc.js',
 ];
 
-let passed = 0, falhas = 0;
+let passed = 0;
+const falhas = [];   // lista de problemas; era um contador e o bloco do escHtml
+                     // chamava falhas.push() — só estouraria QUANDO algo falhasse,
+                     // ou seja, exatamente quando o teste precisava funcionar.
 
 /* Declarações em COLUNA ZERO = escopo do arquivo. Indentadas estão dentro de
    função/bloco e podem repetir sem se atropelar. */
@@ -50,9 +53,9 @@ for (const arq of ARQUIVOS) {
   const decls = topLevelDecls(src);
   const dups = [...decls].filter(([, linhas]) => linhas.length > 1);
   if (dups.length) {
-    falhas++;
     console.log('  ✗ ' + arq);
     for (const [nome, linhas] of dups) {
+      falhas.push(arq + ': "' + nome + '" declarado nas linhas ' + linhas.join(', '));
       console.log('      "' + nome + '" declarado nas linhas ' + linhas.join(', ') +
                   ' — a ÚLTIMA vence em TODO o arquivo');
     }
@@ -102,12 +105,18 @@ console.log('\ntodo escHtml do repo escapa os 5 caracteres:');
   for (const arq of ARQUIVOS) {
     let src;
     try { src = fs.readFileSync(__dirname + '/' + arq, 'utf8'); } catch (e) { continue; }
-    const m = src.match(/function escHtml\s*\([\s\S]*?\n?\s*\}/);
+    /* pega QUALQUER nome: o admin.js usa `const esc = s => ...` e passava batido
+       por uma guarda que só procurava `function escHtml` — falsa sensação de
+       cobertura justamente no painel de maior privilégio. */
+    const m = src.match(/function escHtml\s*\([\s\S]*?\n?\s*\}/)
+           || src.match(/^const esc\s*=\s*s\s*=>[^\n]*/m);
     if (!m) continue;
     achou++;
     let fn;
-    try { fn = new Function('return ' + m[0])(); }
-    catch (e) { falhas.push(arq + ': escHtml não pôde ser avaliada'); continue; }
+    // 'const esc = s => ...' precisa virar só a expressão pra ser avaliada
+    const expr = m[0].replace(/^const\s+esc\s*=\s*/, '').replace(/;\s*$/, '');
+    try { fn = new Function('return (' + expr + ')')(); }
+    catch (e) { falhas.push(arq + ': função de escape não pôde ser avaliada'); continue; }
 
     const ruins = casos.filter(([entrada, esperado]) => fn(entrada) !== esperado)
                        .map(([c]) => c);
@@ -130,7 +139,8 @@ console.log('\ntodo escHtml do repo escapa os 5 caracteres:');
 }
 
 console.log(`\n${passed} verificações passaram.`);
-if (falhas) {
-  console.error(`\n${falhas} arquivo(s) com nome duplicado no escopo do topo.`);
+if (falhas.length) {
+  console.error(`\n${falhas.length} problema(s):`);
+  falhas.forEach(f => console.error('  - ' + f));
   process.exit(1);
 }

@@ -1,7 +1,7 @@
 // Suprema Poker — Service Worker
 // IMPORTANTE: incremente SW_VERSION a cada deploy — é isso que faz as abas abertas
 // receberem o aviso de "nova versão disponível" e ninguém operar com código velho
-const SW_VERSION = '3.12.0';
+const SW_VERSION = '3.13.0';
 const CACHE_NAME = `suprema-painel-v${SW_VERSION}`;
 const STATIC_ASSETS = [
   '/painelpoker/',
@@ -24,6 +24,8 @@ const STATIC_ASSETS = [
   '/painelpoker/hub.css',
   '/painelpoker/admin.html',
   '/painelpoker/admin.js',
+  // sem admin-actions os [data-act] do admin ficam mudos (nenhum botão responde)
+  '/painelpoker/admin-actions.js',
   '/painelpoker/admin.css',
   '/painelpoker/criacao-noturna.js',
   // criacao-noturna.js DEPENDE de criacao-calc (parsing/fee/early bird):

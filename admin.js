@@ -494,8 +494,33 @@ function watchLiveGrade(){
   });
 }
 
+/* Busca um valor pela chave da linha, tolerando as chaves ALTERNATIVAS que o
+   mesmo evento pode ter no Firebase. São duas fontes de divergência:
+
+   1. _altKeys — a chave do painel AO VIVO difere da do snapshot (o hash inclui
+      o garantido, que muda entre os dois).
+   2. sufixo '_px' — o painel marca com `proxCronograma` a madrugada que aparece
+      no quadro de HOJE mas roda amanhã, e sufixa a chave (rowKey em painel.js).
+      Esses cards SÃO fixáveis pelo operador, então existem registros gravados
+      sob 'rk_..._px' que o admin nunca encontrava: a auditoria os perdia em
+      silêncio. O admin não replica a lógica de proxCronograma — só reconhece a
+      chave.
+
+   Ordem importa: a chave base vence, o '_px' fica por ÚLTIMO. Assim isto só
+   PREENCHE onde não havia dado, nunca sobrescreve o que já estava certo. */
+function pickByKey(map, key, r){
+  if(!map) return null;
+  if(map[key] != null) return map[key];
+  for(const ak of ((r && r._altKeys) || [])) if(map[ak] != null) return map[ak];
+  if(map[key + '_px'] != null) return map[key + '_px'];
+  return null;
+}
+
 function rowKey(r){
-  // Idêntico ao painel
+  /* ATENÇÃO: NÃO é idêntico ao painel — o painel acrescenta '_px' quando
+     row.proxCronograma. O admin não conhece esse conceito; quem cobre a
+     diferença é o pickByKey acima. (O comentário antigo dizia "idêntico" e
+     escondia a divergência.) */
   const s=`${r.nome}|${r.hora}|${r.buyin}|${r.garantido}`;
   let h=0;
   for(let i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h|=0;}
@@ -519,11 +544,7 @@ function flatRows(fromDate, toDate){
 
       // Busca com alias: os dados digitados no card podem estar sob a chave ao vivo
       // (r._altKeys) em vez da chave do snapshot — sem isso o ID do card não aparecia
-      const pick = map => {
-        if(map && map[key]!=null) return map[key];
-        for(const ak of (r._altKeys||[])) if(map && map[ak]!=null) return map[ak];
-        return null;
-      };
+      const pick = map => pickByKey(map, key, r);
       // Premiação: snapshot já tem r.premiacao, ou vem do nó premiacao
       const prem = pick(day.prem)??r.premiacao??null;
       // Garantido: sobrescrito ou da planilha
@@ -732,8 +753,8 @@ function renderCn(){
         : (r.doneBy ? '<span style="color:var(--green)">✓ ok</span>' : '<span style="color:var(--ink3)">—</span>'))
         + (anoms.length ? `<div style="font-size:11px;color:var(--amber);font-weight:600;max-width:200px;white-space:normal">⚡ ${anoms.map(esc).join(' · ')}</div>` : '');
       const btn = r.audit && r.audit.status === 'erro'
-        ? `<button class="btn btn-gold btn-sm" onclick="notifyCnError(${i})">📨 Notificar</button> <button class="btn btn-ghost btn-sm" onclick="clearCnError(${i})">Desfazer</button>`
-        : (r.doneBy ? `<button class="btn btn-ghost btn-sm" onclick="markCnError(${i})">⚠ Marcar erro</button>` : '');
+        ? `<button class="btn btn-gold btn-sm" data-act="notifyCnError" data-arg="${i}">📨 Notificar</button> <button class="btn btn-ghost btn-sm" data-act="clearCnError" data-arg="${i}">Desfazer</button>`
+        : (r.doneBy ? `<button class="btn btn-ghost btn-sm" data-act="markCnError" data-arg="${i}">⚠ Marcar erro</button>` : '');
       return `<tr data-cni="${i}">
         <td class="mono">${r.date.slice(5).split('-').reverse().join('/')}</td>
         <td style="max-width:260px;white-space:normal"><b>${esc(r.nome)}</b></td>
@@ -806,7 +827,11 @@ function goToAuditFor(nome){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.ntab').forEach(b=>b.classList.remove('active'));
   document.getElementById('pageAudit')?.classList.add('active');
-  document.querySelector('.ntab[onclick*="\'audit\'"]')?.classList.add('active');
+  /* a aba é achada pelo data-act/data-arg. Antes o seletor era
+     `.ntab[onclick*="'audit'"]`, casando pelo PRÓPRIO atributo onclick — com os
+     handlers inline removidos ele não acharia mais nada, e o `?.` engoliria a
+     falha em silêncio (a aba simplesmente não acenderia). */
+  document.querySelector('.ntab[data-act="nav"][data-arg="audit"]')?.classList.add('active');
   const search = document.getElementById('auSearch');
   if(search) search.value = nome;
   // Auditoria por padrão olha os últimos 7 dias — abrir um período maior pra achar o torneio
@@ -917,7 +942,7 @@ async function loadAudit(){
         return `<tr class="${trCls}" data-key="${r.key}" data-date="${r.date}">
           <td><input type="checkbox" class="row-check" data-key="${r.key}" data-date="${r.date}"
             style="accent-color:var(--gold);width:14px;height:14px"
-            onchange="updateBatchActions()"></td>
+            data-act="updateBatchActions" data-act-on="change"></td>
           <td class="nm" style="max-width:200px">${esc(r.nome)}${anomaliaHtml}</td>
           <td class="mono">${esc(r.hora)}</td>
           <td class="mono">${esc(r.late)}</td>
@@ -933,12 +958,12 @@ async function loadAudit(){
           <td style="display:flex;gap:5px;align-items:center">
             <button class="audit-edit-btn ${r._audited?'auditado':''}"
               data-key="${r.key}" data-date="${r.date}"
-              onclick="openAuditEditByEl(this)">
+              data-act="openAuditEditByEl" data-act-self>
               ${r._audited ? '✓ Auditado' : '✏ Editar'}
             </button>
             <button class="btn-notif"
               data-nome="${esc(r.nome)}" data-date="${r.date}" data-fixby="${esc(r.fixBy||r.idBy||'')}" data-key="${r.key}"
-              onclick="openNotifByEl(this)">⚠ Notif</button>
+              data-act="openNotifByEl" data-act-self>⚠ Notif</button>
           </td>
         </tr>`;
       }).join('');
@@ -950,7 +975,7 @@ async function loadAudit(){
         </div>
         <table class="audit-table">
           <thead><tr>
-            <th style="width:32px"><input type="checkbox" id="checkAll" onchange="toggleCheckAll(this)" style="accent-color:var(--gold);width:14px;height:14px"></th>
+            <th style="width:32px"><input type="checkbox" id="checkAll" data-act="toggleCheckAll" data-act-self data-act-on="change" style="accent-color:var(--gold);width:14px;height:14px"></th>
             <th>Torneio</th><th>Hora</th><th>Late</th>
             <th class="r">GTD</th><th class="r">Buy-in</th><th class="r">Premiação</th>
             <th class="r">Overlay</th><th class="r">Field</th><th class="r">Perf.</th>
@@ -1059,7 +1084,7 @@ function buildDash(){
       <td class="r mono c-red">${brlk(v.ov)}</td>
       <td class="r">${perf!=null?`<span class="perf neg">${pct(perf)}</span>`:'—'}</td>
       <td style="min-width:80px"><div class="bar"><div class="bar-fill" style="width:${barPct}%;background:var(--red)"></div></div></td>
-      <td><button class="btn btn-ghost btn-sm" onclick="goToAuditFor('${esc(v.nome).replace(/'/g,"\\'")}')">🔍 Auditar</button></td>
+      <td><button class="btn btn-ghost btn-sm" data-act="goToAuditFor" data-arg="${esc(v.nome)}">🔍 Auditar</button></td>
     </tr>`;
   }).join(''):`<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--ink3)">Sem overlay no período</td></tr>`;
 
@@ -1323,7 +1348,7 @@ function renderGrade(){
       <td class="r mono ${v.ov<0?'c-red':''}">${v.ov!==0?brlk(v.ov):'—'}</td>
       <td class="r mono" style="color:${riskColor}">${Math.round(v.ovRate*100)}%</td>
       <td><span style="font-size:10px;font-weight:700;color:${riskColor};background:${riskColor}18;border:1px solid ${riskColor}33;padding:2px 8px;border-radius:99px">${v.risk.toUpperCase()}</span></td>
-      <td><button class="btn btn-ghost btn-sm" onclick="goToAuditFor('${esc(v.nome).replace(/'/g,"\\'")}')">🔍 Auditar</button></td>
+      <td><button class="btn btn-ghost btn-sm" data-act="goToAuditFor" data-arg="${esc(v.nome)}">🔍 Auditar</button></td>
     </tr>`;
   }).join(''):`<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--ink3)">Nenhum dado</td></tr>`;
 }
@@ -1357,8 +1382,8 @@ async function loadOps(){
         <td>${accessCell(u)}</td>
         <td class="c-ink3">${created}</td>
         <td>${suspenso
-          ? `<button class="btn btn-gold btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" onclick="forceUnblockOp(this.dataset.key,this.dataset.name)">Reativar</button>`
-          : `<button class="btn btn-ghost btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" onclick="blockOp(this.dataset.key,this.dataset.name)">Suspender</button>`}</td>
+          ? `<button class="btn btn-gold btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" data-act="forceUnblockOpFromEl">Reativar</button>`
+          : `<button class="btn btn-ghost btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" data-act="blockOpFromEl">Suspender</button>`}</td>
       </tr>`;
     }).join('');
   }catch(e){document.getElementById('opBody').innerHTML=`<tr><td colspan="7" style="color:var(--red);padding:16px">${e.message}</td></tr>`;}
@@ -1378,7 +1403,7 @@ function accessCell(u){
   const acc = u.access || {};
   return `<div style="display:flex;gap:4px;flex-wrap:wrap">`+ACCESS_PANELS.map(p=>{
     const on = acc[p.id]===true;
-    return `<button data-key="${esc(u.key)}" data-panel="${p.id}" data-on="${on?'1':'0'}" onclick="toggleAccess(this)" `+
+    return `<button data-key="${esc(u.key)}" data-panel="${p.id}" data-on="${on?'1':'0'}" data-act="toggleAccess" data-act-self `+
       `title="${on?'Tem acesso a':'Sem acesso a'} ${esc(p.label)} — clique pra ${on?'retirar':'liberar'}" style="${accessChipStyle(on)}">${PANEL_SHORT[p.id]||p.id}</button>`;
   }).join('')+`</div>`;
 }
@@ -1715,7 +1740,7 @@ async function openJustifs(){
             ? `<div>
                 <span class="notif-justified">Justificado</span>
                 <div style="font-size:11px;color:var(--green);margin-top:4px;padding:8px;background:var(--greenf);border-radius:6px">"${esc(n.justification||'')}"</div>
-                <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="resolveNotif('${n.opKey}','${n.nid}')">✓ Resolver</button>
+                <button class="btn btn-ghost btn-sm" style="margin-top:6px" data-act="resolveNotif" data-arg="${n.opKey}" data-arg2="${n.nid}">✓ Resolver</button>
               </div>`
             : `<span class="notif-pending">Aguardando justificativa</span>`}
         </div>
@@ -1809,7 +1834,12 @@ function openNotifByEl(btn){
 }
 
 function openAuditEdit(ctx){
-  _auditContext = typeof ctx === 'string' ? JSON.parse(ctx.replace(/&quot;/g,'"')) : ctx;
+  /* Só objeto. Havia aqui um ramo que aceitava STRING, desescapava &quot; e
+     fazia JSON.parse — o padrão de "JSON embutido em atributo HTML", que quebra
+     no primeiro nome de torneio com aspa e é porta de injeção. Ninguém chamava
+     mais assim (o openAuditEditByEl passa objeto, lido de data-key/data-date),
+     mas o ramo continuava lá convidando ao reuso. */
+  _auditContext = ctx;
   const audit = getAuditEntry(_auditContext.date, _auditContext.key);
 
   document.getElementById('auditErr').style.display = 'none';
@@ -2217,11 +2247,7 @@ function buildDaySheet(date){
     g.rows.forEach(r=>{
       const key  = Object.keys(day.rows).find(k=>day.rows[k]===r)||'';
       // mesmo fallback de alias do flatRows: dados do card podem estar sob a chave ao vivo
-      const pick = map => {
-        if(map && map[key]!=null) return map[key];
-        for(const ak of (r._altKeys||[])) if(map && map[ak]!=null) return map[ak];
-        return null;
-      };
+      const pick = map => pickByKey(map, key, r);
       const prem = pick(day.prem)??r.premiacao??null;
       const gar  = pick(day.guar)??r.garantido??null;
       const field= pick(day.field)??r.field??null;
@@ -2626,7 +2652,7 @@ function renderHubEvents(){
     const range = e.endDate ? ` — ${fmt(e.endDate)}` : '';
     return `<div class="he-row"><div class="he-main"><div class="he-t">${esc(e.title)}</div>
       <div class="he-s">${fmt(e.date)}${range}${when ? ' · '+esc(when) : ''}${e.by ? ' · '+esc(String(e.by).split('@')[0]) : ''}</div></div>
-      <button class="btn btn-ghost btn-sm" onclick="removeHubEvent('${e.id}')" style="color:var(--red)">Remover</button></div>`;
+      <button class="btn btn-ghost btn-sm" data-act="removeHubEvent" data-arg="${e.id}" style="color:var(--red)">Remover</button></div>`;
   }).join('');
 }
 
@@ -2659,7 +2685,7 @@ function renderHubLinks(){
     const host = (l.url||'').replace(/^https?:\/\//,'').replace(/\/$/,'');
     return `<div class="he-row"><div class="he-main"><div class="he-t">${esc(l.title)}${l.tag ? ` <span style="font-size:11px;color:var(--gold);font-weight:500">· ${esc(l.tag)}</span>` : ''}</div>
       <div class="he-s">${esc(host)}${l.by ? ' · '+esc(String(l.by).split('@')[0]) : ''}</div></div>
-      <button class="btn btn-ghost btn-sm" onclick="removeHubLink('${l.id}')" style="color:var(--red)">Remover</button></div>`;
+      <button class="btn btn-ghost btn-sm" data-act="removeHubLink" data-arg="${l.id}" style="color:var(--red)">Remover</button></div>`;
   }).join('');
 }
 
@@ -2749,9 +2775,9 @@ function renderAvisosAdmin(){
         <div class="av-item-meta">${when}${a.by?' · '+esc(String(a.by).split('@')[0]):''}</div>
       </div>
       <div class="av-item-actions">
-        <button class="btn btn-ghost btn-sm" onclick="toggleAviso('${a.id}')">${inativo?'Mostrar':'Ocultar'}</button>
-        <button class="btn btn-ghost btn-sm" onclick="editAviso('${a.id}')">Editar</button>
-        <button class="btn btn-ghost btn-sm av-item-rm" onclick="removeAviso('${a.id}')">Remover</button>
+        <button class="btn btn-ghost btn-sm" data-act="toggleAviso" data-arg="${a.id}">${inativo?'Mostrar':'Ocultar'}</button>
+        <button class="btn btn-ghost btn-sm" data-act="editAviso" data-arg="${a.id}">Editar</button>
+        <button class="btn btn-ghost btn-sm av-item-rm" data-act="removeAviso" data-arg="${a.id}">Remover</button>
       </div>
     </div>`;
   }).join('');
