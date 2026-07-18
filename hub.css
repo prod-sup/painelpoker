@@ -482,6 +482,14 @@ html.light .aviso[data-tipo="erro"]{ --av-fg:#c0392b }
 .lb-champ.me{box-shadow:0 0 0 2px color-mix(in srgb, var(--gold) 40%, transparent)}
 @media (max-width:640px){ .lb-podium{grid-template-columns:1fr} .lb-champ{padding-top:18px} }
 .lb-list{display:flex;flex-direction:column;gap:6px}
+/* rodapé da temporada: prazo de fechamento — vira dourado na reta final */
+.lb-foot{
+  margin:10px 2px 0;padding-top:9px;border-top:1px solid var(--hairline);
+  font-size:11.5px;color:var(--ink-faint);text-align:center;
+}
+.lb-foot b{font-family:var(--mono);font-weight:800;color:var(--ink-soft)}
+.lb-foot.urgent{color:var(--gold)}
+.lb-foot.urgent b{color:var(--gold)}
 .lb-row{
   display:flex;align-items:center;gap:12px;padding:9px 14px 9px 10px;
   border:1px solid var(--hairline);border-radius:12px;

@@ -1085,20 +1085,40 @@
   }
 
   /* ── leaderboard: publica o próprio placar e desenha a mesa dos campeões.
-     Temporada = XP ganho SÓ no mês corrente (derivado de stats/daily, days e
-     missions por data) — todo mês a disputa recomeça e ninguém fica pra trás. ── */
-  function seasonYm(){ return todayIso().slice(0,7); }
+     Temporada = SEMESTRE (6 meses): S1 vai de janeiro a junho, S2 de julho a
+     dezembro. XP da temporada é derivado de stats/daily, days e missions por
+     data — nada extra pra gravar, e o corte é só uma questão de qual data conta.
+     Seis meses dão fôlego pra quem entra no meio e fazem a ponta valer algo. ── */
+  const SEASON_MONTHS = 6;
+  // '2026-07-18' -> {id:'2026-S2', y:2026, s:2, from:'2026-07', to:'2026-12'}
+  function seasonOf(iso){
+    const y = +iso.slice(0,4), m = +iso.slice(5,7);
+    const s = Math.floor((m-1)/SEASON_MONTHS) + 1;           // 1 ou 2
+    const mFrom = (s-1)*SEASON_MONTHS + 1, mTo = s*SEASON_MONTHS;
+    const p2 = n => String(n).padStart(2,'0');
+    return { id:`${y}-S${s}`, y, s, from:`${y}-${p2(mFrom)}`, to:`${y}-${p2(mTo)}`,
+             lastDay:`${y}-${p2(mTo)}-${new Date(y, mTo, 0).getDate()}` };
+  }
+  function season(){ return seasonOf(todayIso()); }
+  function seasonId(){ return season().id; }
+  // um dia 'YYYY-MM-DD' pertence à temporada? (compara só o prefixo YYYY-MM)
+  function inSeason(dia, sn){ const ym = dia.slice(0,7); return ym >= sn.from && ym <= sn.to; }
   function seasonXp(){
-    const ym = seasonYm();
+    const sn = season();
     let xp = 0;
     for(const dia in (pfStats.daily||{})){
-      if(!dia.startsWith(ym)) continue;
+      if(!inSeason(dia, sn)) continue;
       const d = pfStats.daily[dia];
       xp += (d.opens||0)*XP_PER_OPEN + (d.actions||0)*XP_PER_ACTION;
     }
-    for(const dia in (pfStats.daysMap||{})) if(dia.startsWith(ym)) xp += XP_PER_DAY;
-    for(const dia in (pfStats.missions||{})) if(dia.startsWith(ym)) xp += Object.keys(pfStats.missions[dia]).length*XP_PER_MISSION;
+    for(const dia in (pfStats.daysMap||{})) if(inSeason(dia, sn)) xp += XP_PER_DAY;
+    for(const dia in (pfStats.missions||{})) if(inSeason(dia, sn)) xp += Object.keys(pfStats.missions[dia]).length*XP_PER_MISSION;
     return xp;
+  }
+  // dias que faltam pro fim da temporada (0 = último dia)
+  function seasonDaysLeft(){
+    const MS = 86400000;
+    return Math.max(0, Math.round((Date.parse(season().lastDay+'T00:00:00') - Date.parse(todayIso()+'T00:00:00')) / MS));
   }
   let lbData = null, lbLastPub = 0, lbMode = 'season';
   function lbPublish(){
@@ -1111,29 +1131,42 @@
     db.ref(`hub/leaderboard/${emailToKey(session.email)}`).set({
       name: session.displayName || session.apelido || session.nome || session.email.split('@')[0],
       xp: pfXp(), lv: levelFromXp(pfXp()), tier: frameFromXp(pfXp()).t, face, updatedAt: now,
-      season: { ym: seasonYm(), xp: seasonXp() }
+      season: { id: seasonId(), xp: seasonXp() }
     }).catch(()=>{});
   }
-  const LB_MONTHS = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
   function renderLeaderboard(){
     const list = $('lbList'); if(!list) return;
+    const sn = season();
     const tabs = $('lbTabs');
     if(tabs){
-      const mes = LB_MONTHS[+seasonYm().slice(5,7)-1];
-      tabs.querySelector('[data-mode="season"]').textContent = `Temporada · ${mes}`;
+      tabs.querySelector('[data-mode="season"]').textContent = `Temporada · ${sn.s}º sem ${sn.y}`;
       tabs.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.mode === lbMode));
     }
-    const ym = seasonYm();
-    const score = r => lbMode === 'season'
-      ? ((r.season && r.season.ym === ym) ? (r.season.xp||0) : 0)
-      : (r.xp||0);
+    /* placar da temporada: aceita o formato novo (season.id) e, por transição, o
+       antigo mensal (season.ym) quando o mês cai dentro do semestre — assim
+       ninguém aparece zerado até publicar de novo (no máx. 30s depois). */
+    const seasonScore = r => {
+      const s = r.season; if(!s) return 0;
+      if(s.id) return s.id === sn.id ? (s.xp||0) : 0;
+      if(s.ym) return (s.ym >= sn.from && s.ym <= sn.to) ? (s.xp||0) : 0;
+      return 0;
+    };
+    const score = r => lbMode === 'season' ? seasonScore(r) : (r.xp||0);
     const rows = Object.entries(lbData || {})
       .map(([k,v]) => ({key:k, ...v})).filter(r => r && r.name)
       .sort((a,b) => score(b) - score(a)).slice(0,10);
+    /* rodapé da temporada: 6 meses sem prazo à vista viram um placar sem fim —
+       o contador diz que a disputa fecha e dá urgência na reta final. */
+    const left = seasonDaysLeft();
+    const foot = lbMode !== 'season' ? '' :
+      `<p class="lb-foot${left <= 14 ? ' urgent' : ''}">${
+        left === 0 ? 'Último dia da temporada — o placar congela hoje.'
+        : left === 1 ? 'Falta <b>1 dia</b> pra temporada fechar.'
+        : `Faltam <b>${left} dias</b> pra temporada fechar.`}</p>`;
     if(!rows.length || (lbMode === 'season' && score(rows[0]) === 0)){
       list.innerHTML = `<p class="ev-empty">${lbMode === 'season'
         ? 'A temporada acabou de começar — o primeiro a jogar leva a ponta.'
-        : 'A mesa ainda está vazia — o primeiro a jogar leva a ponta.'}</p>`;
+        : 'A mesa ainda está vazia — o primeiro a jogar leva a ponta.'}</p>` + foot;
       return;
     }
     const meKey = session ? emailToKey(session.email) : null;
@@ -1156,7 +1189,7 @@
         <span class="lb-nm">${escHtml(r.name)}${r.key === meKey ? ' <small>(você)</small>' : ''}</span>
         <span class="lb-lv">Nv ${r.lv || 1}</span>
         <span class="lb-xp">${fmt(score(r))}</span>
-      </div>`).join('');
+      </div>`).join('') + foot;
   }
 
   /* badges: conquistas da operação (derivadas das stats — nada extra pra gravar).
