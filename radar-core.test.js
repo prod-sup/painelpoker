@@ -27,7 +27,7 @@ const guSrc = fs.readFileSync(__dirname + '/gu-parser.js', 'utf8');
 const coreSrc = fs.readFileSync(__dirname + '/radar-core.js', 'utf8');
 const api = {};
 new Function('api', guSrc + '\n;' + coreSrc + `
-;Object.assign(api, { parseGlobalWeek, buildModel, evKey, statusOf, fmtMoney });`)(api);
+;Object.assign(api, { parseGlobalWeek, buildModel, evKey, statusOf, fmtMoney, variantOf });`)(api);
 
 let passed = 0;
 function ok(cond, name){ assert.ok(cond, name); passed++; console.log('  ✓ ' + name); }
@@ -87,6 +87,29 @@ console.log('\nsatélites diferentes no mesmo alvo:');
     L('#AS 50K Sunday', '18:00', 'Sat 50K Sunday Hyper', 'Satelite', null, 30),
   ]);
   eq(acha(mo, '#AS 50K Sunday').satCount, 2, 'os 2 satélites contam');
+}
+
+/* ── 3b. VARIANTE: o veto tem que barrar CONFLITO, não alvo genérico ──
+   O veto de variante nasceu pro palpite por tokens e tinha vazado pro caminho
+   do CABEÇALHO, onde exigia variante IGUAL. Isso zerava o satCount da rota mais
+   comum da casa (sat Turbo → main regular, teste 3 acima). Afrouxar tinha um
+   risco: ressuscitar o bug do OmaX. Os dois casos ficam pinados aqui.
+   Bônus: "Hyper" é velocidade (hyper-turbo), não High Roller — estava no grupo
+   do 'hr' e era lido como stake. */
+console.log('\nvariante: conflito veta, genérico passa:');
+{
+  eq(api.variantOf('Sat 50K Sunday Hyper'), 'turbo', 'Hyper é velocidade, não HR');
+  eq(api.variantOf('6 Seats OmaX T.'),      'turbo', 'T. é turbo');
+  eq(api.variantOf('#AS 40K OmaX HR'),      'hr',    'HR é high roller');
+
+  // CONFLITO (bug real de produção): sat Turbo herda cabeçalho HR → NÃO liga
+  const mo = model([
+    dia('TERÇA-FEIRA'),
+    L(null, '21:00', '#AS 40K OmaX HR', 'Main Event', 40000, 400),
+    L('40K OMAX HR', '19:00', '6 Seats OmaX T.', 'Satelite', null, 25),
+  ]);
+  eq(alvoDe(mo, '6 Seats OmaX T.'), '(nenhum)', 'Turbo não classifica pro HR');
+  eq(acha(mo, '#AS 40K OmaX HR').satCount, 0, 'o HR não conta o sat Turbo');
 }
 
 /* ── 4. o alvo NUNCA pode começar antes do satélite ── */

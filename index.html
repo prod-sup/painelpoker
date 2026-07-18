@@ -63,14 +63,14 @@ document.addEventListener('DOMContentLoaded', () => {
 <body>
 
 <!-- Botão de log de atividade -->
-<button class="activity-btn" id="activityBtn" onclick="toggleActivityLog()" title="Log de atividade do turno">
+<button class="activity-btn" id="activityBtn" data-act="toggleActivityLog" title="Log de atividade do turno">
   📋 Atividade
   <span class="activity-badge">0</span>
 </button>
 <div id="activityLog">
   <div class="activity-head">
     <span class="activity-head-title">📋 Log do turno</span>
-    <span class="activity-close" onclick="toggleActivityLog()">✕</span>
+    <span class="activity-close" data-act="toggleActivityLog">✕</span>
   </div>
   <div class="activity-items"></div>
 </div>
@@ -336,7 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <!-- Seletor de torneio -->
       <div style="margin-bottom:14px;">
         <label style="font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px;">Torneio</label>
-        <select id="ovcTorneioSelect" style="width:100%;font-family:var(--text);font-size:13.5px;color:var(--ink);padding:10px 12px;border:1.5px solid var(--hairline-strong);border-radius:11px;outline:none;background:var(--card);transition:border-color .2s;" onchange="ovcOnSelectChange()">
+        <select id="ovcTorneioSelect" style="width:100%;font-family:var(--text);font-size:13.5px;color:var(--ink);padding:10px 12px;border:1.5px solid var(--hairline-strong);border-radius:11px;outline:none;background:var(--card);transition:border-color .2s;" data-act="ovcOnSelectChange" data-act-on="change">
           <option value="">— Selecione um torneio do dia —</option>
         </select>
         <div class="ovc-tour-match" id="ovcTourMatch" style="margin-top:6px;">
@@ -808,7 +808,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="auth-card">
     <!-- Tabs -->
     <div class="auth-tabs-wrap">
-      <button type="button" id="tabLogin" class="auth-tab active" onclick="switchAuthTab('login')">Entrar</button>
+      <button type="button" id="tabLogin" class="auth-tab active" data-act="switchAuthTab" data-arg="login">Entrar</button>
       <div class="auth-tab-indicator" id="authTabIndicator"></div>
     </div>
 
@@ -827,7 +827,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           <input type="password" id="loginPassword" class="auth-input" placeholder="••••••••" autocomplete="current-password" style="padding-right:44px;"
             onkeydown="if(event.key==='Enter')doLogin()" onkeyup="authCapsHint(event)">
-          <button type="button" class="auth-pass-toggle" onclick="togglePassVisibility('loginPassword', this)" aria-label="Mostrar senha" title="Mostrar/ocultar senha">
+          <button type="button" class="auth-pass-toggle" data-act="togglePassVisibility" data-arg="loginPassword" aria-label="Mostrar senha" title="Mostrar/ocultar senha">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
         </div>
@@ -837,11 +837,11 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       </div>
       <div id="loginError" class="auth-error" hidden></div>
-      <button type="button" class="auth-submit" id="loginBtn" onclick="doLogin()">
+      <button type="button" class="auth-submit" id="loginBtn" data-act="doLogin">
         <span>Entrar</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </button>
-      <button type="button" class="auth-link-btn" onclick="switchAuthTab('recovery')">Esqueci minha senha</button>
+      <button type="button" class="auth-link-btn" data-act="switchAuthTab" data-arg="recovery">Esqueci minha senha</button>
     </div>
 
     <!-- RECUPERAÇÃO DE SENHA -->
@@ -872,18 +872,18 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="auth-input-wrap">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             <input type="password" id="recoveryNewPw" class="auth-input" placeholder="Mín. 6 · 1 minúscula · 1 especial" maxlength="64" style="padding-right:44px;">
-            <button type="button" class="auth-pass-toggle" onclick="togglePassVisibility('recoveryNewPw', this)" aria-label="Mostrar senha" title="Mostrar/ocultar senha">
+            <button type="button" class="auth-pass-toggle" data-act="togglePassVisibility" data-arg="recoveryNewPw" aria-label="Mostrar senha" title="Mostrar/ocultar senha">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
           </div>
         </div>
       </div>
       <div id="recoveryMsg" class="auth-error" hidden></div>
-      <button type="button" class="auth-submit" id="recoveryBtn" onclick="doRecovery()" style="margin-top:14px;">
+      <button type="button" class="auth-submit" id="recoveryBtn" data-act="doRecovery" style="margin-top:14px;">
         <span id="recoveryBtnLabel">Enviar código</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </button>
-      <button type="button" class="auth-link-btn" onclick="switchAuthTab('login')">← Voltar ao login</button>
+      <button type="button" class="auth-link-btn" data-act="switchAuthTab" data-arg="login">← Voltar ao login</button>
     </div>
     <!-- Cadastro removido do painel: criar conta acontece no hub (hub.html) -->
     </div><!-- /auth-card -->
@@ -916,7 +916,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="ws-info-val" id="wsTurno"></span>
         </div>
       </div>
-      <button type="button" class="ws-btn" onclick="closeWelcomeSuccess()">
+      <button type="button" class="ws-btn" data-act="closeWelcomeSuccess">
         Começar turno
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </button>
@@ -948,7 +948,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <div id="wbName" style="font-size:18px;font-weight:700;color:#fff;font-family:var(--display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
       <div id="wbSub" style="font-size:12px;color:rgba(255,255,255,0.45);margin-top:2px;font-family:var(--mono);"></div>
     </div>
-    <button onclick="document.getElementById('wbOverlay').style.display='none'" style="
+    <button data-act="hideWelcomeOverlay" style="
       flex:none;width:28px;height:28px;border-radius:50%;border:none;
       background:rgba(255,255,255,0.1);cursor:pointer;color:rgba(255,255,255,0.5);
       font-size:14px;display:flex;align-items:center;justify-content:center;
@@ -1064,7 +1064,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
       <h3>Nenhuma agenda carregada</h3>
       <p>Use o botão <b>Global MTT</b> no topo para carregar a planilha semanal e montar o painel do dia.</p>
-      <button class="upload-btn" id="uploadBtnEmpty" onclick="document.getElementById('fileInputGlobal').click()" style="margin:0 auto;background:var(--gold);color:#000;">
+      <button class="upload-btn" id="uploadBtnEmpty" data-act="openGlobalFilePicker" style="margin:0 auto;background:var(--gold);color:#000;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
         <span>Carregar Global MTT</span>
       </button>
@@ -1096,40 +1096,40 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
       <div class="filters-bar" id="upcomingFilters">
         <div class="filter-row legend">
-          <button class="chip active" data-cat="all" onclick="setUpcomingCat('all',this)"><span class="d" style="background:var(--ink)"></span>Todos</button>
-          <button class="chip" data-cat="main" onclick="setUpcomingCat('main',this)"><svg class="crown-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.5 1.5 7l5.4 4L12 4l5.1 7 5.4-4-1.5 10.5a1 1 0 0 1-1 .85H4a1 1 0 0 1-1-.85Z"/><rect x="3.3" y="19" width="17.4" height="2.2" rx="1"/></svg>Main Event</button>
-          <button class="chip" data-cat="side" onclick="setUpcomingCat('side',this)"><span class="d"></span>Side Event</button>
-          <button class="chip" data-cat="sat" onclick="setUpcomingCat('sat',this)"><span class="d"></span>Satélite</button>
+          <button class="chip active" data-cat="all" data-act="setUpcomingCat" data-arg="all"><span class="d" style="background:var(--ink)"></span>Todos</button>
+          <button class="chip" data-cat="main" data-act="setUpcomingCat" data-arg="main"><svg class="crown-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.5 1.5 7l5.4 4L12 4l5.1 7 5.4-4-1.5 10.5a1 1 0 0 1-1 .85H4a1 1 0 0 1-1-.85Z"/><rect x="3.3" y="19" width="17.4" height="2.2" rx="1"/></svg>Main Event</button>
+          <button class="chip" data-cat="side" data-act="setUpcomingCat" data-arg="side"><span class="d"></span>Side Event</button>
+          <button class="chip" data-cat="sat" data-act="setUpcomingCat" data-arg="sat"><span class="d"></span>Satélite</button>
           <span class="legend-divider" aria-hidden="true"></span>
-          <button class="chip" data-cat="late" onclick="setUpcomingCat('late',this)"><span class="d late-status-dot"></span>Atrasado</button>
-          <button class="chip" data-cat="soon" onclick="setUpcomingCat('soon',this)"><span class="d soon-status-dot"></span>Em breve</button>
-          <button class="chip chip-running" data-cat="running" onclick="setUpcomingCat('running',this)"><span class="d running-dot"></span>Rolando agora</button>
+          <button class="chip" data-cat="late" data-act="setUpcomingCat" data-arg="late"><span class="d late-status-dot"></span>Atrasado</button>
+          <button class="chip" data-cat="soon" data-act="setUpcomingCat" data-arg="soon"><span class="d soon-status-dot"></span>Em breve</button>
+          <button class="chip chip-running" data-cat="running" data-act="setUpcomingCat" data-arg="running"><span class="d running-dot"></span>Rolando agora</button>
         </div>
         <div class="filter-row">
           <div class="filter-group">
             <span class="filter-group-label">Premiação</span>
-            <button class="chip chip-prem active" data-prem="all"   onclick="setUpcomingPrem('all',this)"><span class="d" style="background:var(--ink)"></span>Todos</button>
-            <button class="chip chip-prem"        data-prem="sem"   onclick="setUpcomingPrem('sem',this)"><span class="d"></span>Sem</button>
-            <button class="chip chip-prem chip-prem-com" data-prem="com" onclick="setUpcomingPrem('com',this)"><span class="d"></span>Com</button>
+            <button class="chip chip-prem active" data-prem="all"   data-act="setUpcomingPrem" data-arg="all"><span class="d" style="background:var(--ink)"></span>Todos</button>
+            <button class="chip chip-prem"        data-prem="sem"   data-act="setUpcomingPrem" data-arg="sem"><span class="d"></span>Sem</button>
+            <button class="chip chip-prem chip-prem-com" data-prem="com" data-act="setUpcomingPrem" data-arg="com"><span class="d"></span>Com</button>
           </div>
           <div class="filter-group">
             <span class="filter-group-label">Campanha</span>
-            <button class="chip chip-camp active" data-camp="all" onclick="setUpcomingCamp('all',this)"><span class="d" style="background:var(--ink)"></span>Todas</button>
-            <button class="chip chip-camp" data-camp="AS"  onclick="setUpcomingCamp('AS',this)"><span class="d"></span>#AS</button>
-            <button class="chip chip-camp" data-camp="SPS" onclick="setUpcomingCamp('SPS',this)"><span class="d"></span>SPS</button>
-            <button class="chip chip-camp" data-camp="SPT" onclick="setUpcomingCamp('SPT',this)"><span class="d"></span>SPT</button>
+            <button class="chip chip-camp active" data-camp="all" data-act="setUpcomingCamp" data-arg="all"><span class="d" style="background:var(--ink)"></span>Todas</button>
+            <button class="chip chip-camp" data-camp="AS"  data-act="setUpcomingCamp" data-arg="AS"><span class="d"></span>#AS</button>
+            <button class="chip chip-camp" data-camp="SPS" data-act="setUpcomingCamp" data-arg="SPS"><span class="d"></span>SPS</button>
+            <button class="chip chip-camp" data-camp="SPT" data-act="setUpcomingCamp" data-arg="SPT"><span class="d"></span>SPT</button>
           </div>
           <div class="filter-group">
             <span class="filter-group-label">Visualização</span>
-            <button class="chip" id="compactToggleBtn" onclick="toggleCompactMode()" title="Modo compacto">
+            <button class="chip" id="compactToggleBtn" data-act="toggleCompactMode" title="Modo compacto">
               <svg class="chip-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
               <span id="compactToggleLabel">Compacto</span>
             </button>
-            <button class="chip" id="opFilterMe" onclick="setOpFilter('me')">
+            <button class="chip" id="opFilterMe" data-act="setOpFilter" data-arg="me">
               <svg class="chip-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg>
               Meus
             </button>
-            <button class="chip" id="opFilterPartner" onclick="setOpFilter('partner')">
+            <button class="chip" id="opFilterPartner" data-act="setOpFilter" data-arg="partner">
               <svg class="chip-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-5.5 6.5-5.5s6.5 2 6.5 5.5"/><path d="M15.5 5.7a3 3 0 1 1 1.8 5.6"/><path d="M16.5 14.6c3 .4 5 2.3 5 5.4"/></svg>
               Parceiro
             </button>
@@ -1137,7 +1137,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <div class="filter-summary" id="filterSummary" hidden>
           <span id="filterSummaryText"></span>
-          <button class="filter-clear-btn" id="filterClearBtn" type="button" onclick="clearAllUpcomingFilters()">✕ Limpar filtros</button>
+          <button class="filter-clear-btn" id="filterClearBtn" type="button" data-act="clearAllUpcomingFilters">✕ Limpar filtros</button>
         </div>
       </div>
     </div>
@@ -1201,10 +1201,10 @@ document.addEventListener('DOMContentLoaded', () => {
         <p class="section-desc">Premiação paga, performance sobre o garantido e quem fixou cada mesa. <span id="resultsProgressInline"></span></p>
       </div>
       <div class="legend" id="resultsFilters">
-        <button class="chip active" data-cat="all" onclick="setResultsCat('all',this)"><span class="d" style="background:#fff"></span>Todos</button>
-        <button class="chip" data-cat="main" onclick="setResultsCat('main',this)"><svg class="crown-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.5 1.5 7l5.4 4L12 4l5.1 7 5.4-4-1.5 10.5a1 1 0 0 1-1 .85H4a1 1 0 0 1-1-.85Z"/><rect x="3.3" y="19" width="17.4" height="2.2" rx="1"/></svg>Main Event</button>
-        <button class="chip" data-cat="side" onclick="setResultsCat('side',this)"><span class="d"></span>Side Event</button>
-        <button class="chip" data-cat="sat" onclick="setResultsCat('sat',this)"><span class="d"></span>Satélite</button>
+        <button class="chip active" data-cat="all" data-act="setResultsCat" data-arg="all"><span class="d" style="background:#fff"></span>Todos</button>
+        <button class="chip" data-cat="main" data-act="setResultsCat" data-arg="main"><svg class="crown-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.5 1.5 7l5.4 4L12 4l5.1 7 5.4-4-1.5 10.5a1 1 0 0 1-1 .85H4a1 1 0 0 1-1-.85Z"/><rect x="3.3" y="19" width="17.4" height="2.2" rx="1"/></svg>Main Event</button>
+        <button class="chip" data-cat="side" data-act="setResultsCat" data-arg="side"><span class="d"></span>Side Event</button>
+        <button class="chip" data-cat="sat" data-act="setResultsCat" data-arg="sat"><span class="d"></span>Satélite</button>
         <button class="results-export-btn" id="exportResultsBtn" type="button" title="Exportar relatório de acompanhamento completo do dia">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M12 15l-4-4M12 15l4-4"/><path d="M4 18v1a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1"/></svg>
           <span>Acompanhamento</span>
@@ -1321,23 +1321,23 @@ document.addEventListener('DOMContentLoaded', () => {
     <strong>Ativar alertas de torneio?</strong>
     Você recebe uma notificação mesmo com o painel minimizado quando um torneio estiver próximo de fixar.
     <div class="notif-banner-actions">
-      <button class="notif-allow" onclick="requestNotifPermission()">Ativar alertas</button>
-      <button class="notif-dismiss" onclick="dismissNotifBanner()">Agora não</button>
+      <button class="notif-allow" data-act="requestNotifPermission">Ativar alertas</button>
+      <button class="notif-dismiss" data-act="dismissNotifBanner">Agora não</button>
     </div>
   </div>
 </div>
 
 <!-- ═══ PERFIL DO USUÁRIO ════════════════════════════════════════════════ -->
-<div id="userProfileOverlay" style="display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.5);backdrop-filter:blur(8px);align-items:flex-start;justify-content:flex-end;padding:12px;" onclick="if(event.target===this)closeUserProfile()">
+<div id="userProfileOverlay" style="display:none;position:fixed;inset:0;z-index:800;background:rgba(0,0,0,.5);backdrop-filter:blur(8px);align-items:flex-start;justify-content:flex-end;padding:12px;" data-act="closeProfileBackdrop">
   <div id="userProfilePanel" style="width:min(420px,calc(100vw - 24px));background:var(--card);border-radius:24px;border:1px solid var(--hairline-strong);box-shadow:0 32px 80px rgba(0,0,0,.25);overflow:hidden;transform:translateX(20px);opacity:0;transition:transform .35s cubic-bezier(.22,1,.36,1),opacity .3s var(--ease);max-height:calc(100vh - 24px);overflow-y:auto;">
     <div class="up-hero">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;position:relative;z-index:1;">
         <div><div class="up-eyebrow">Suprema Poker · Perfil do operador</div><div id="upName" class="up-name"></div><div id="upEmail" class="up-email"></div></div>
-        <button class="up-close" onclick="closeUserProfile()" aria-label="Fechar perfil">✕</button>
+        <button class="up-close" data-act="closeUserProfile" aria-label="Fechar perfil">✕</button>
       </div>
     </div>
     <div style="display:flex;justify-content:center;margin-top:-46px;position:relative;z-index:1;">
-      <div id="upAvatarWrap" class="up-avatar" onclick="upPickEmoji()" role="button" tabindex="0" aria-label="Trocar ícone do avatar" onkeydown="if(event.key==='Enter'||event.key===' ')upPickEmoji()">
+      <div id="upAvatarWrap" class="up-avatar" data-act="upPickEmoji" role="button" tabindex="0" aria-label="Trocar ícone do avatar" onkeydown="if(event.key==='Enter'||event.key===' ')upPickEmoji()">
         <span id="upAvatarContent"></span>
         <span class="up-avatar-edit" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3Z"/></svg></span>
       </div>
@@ -1353,16 +1353,22 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="up-card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Atividade de hoje</div>
         <div id="upMyCards" class="up-tl"></div>
       </div>
-      <div id="upErrorFeedback" style="display:none;background:rgba(216,57,43,0.06);border:1px solid rgba(216,57,43,0.2);border-radius:14px;padding:16px;"><div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:8px;">⚠️ Erro identificado</div><div id="upErrorDesc" style="font-size:12px;color:var(--ink-soft);margin-bottom:10px;"></div><textarea id="upJustificativa" rows="3" placeholder="Justifique o erro..." style="width:100%;font-family:var(--text);font-size:13px;padding:10px 12px;border:1.5px solid var(--hairline-strong);border-radius:9px;outline:none;resize:none;background:var(--card);color:var(--ink);"></textarea><div style="display:flex;gap:8px;margin-top:8px;"><button onclick="upDenyError()" style="flex:1;padding:10px;border-radius:9px;border:1px solid var(--hairline-strong);background:none;cursor:pointer;font-size:13px;color:var(--ink-soft);font-family:var(--text);">Cancelar</button><button onclick="upAcceptError()" style="flex:2;padding:10px;border-radius:9px;border:none;background:var(--red);color:#fff;cursor:pointer;font-size:13px;font-weight:700;font-family:var(--text);">Aceitar e justificar</button></div></div>
+      <div id="upErrorFeedback" style="display:none;background:rgba(216,57,43,0.06);border:1px solid rgba(216,57,43,0.2);border-radius:14px;padding:16px;"><div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:8px;">⚠️ Erro identificado</div><div id="upErrorDesc" style="font-size:12px;color:var(--ink-soft);margin-bottom:10px;"></div><textarea id="upJustificativa" rows="3" placeholder="Justifique o erro..." style="width:100%;font-family:var(--text);font-size:13px;padding:10px 12px;border:1.5px solid var(--hairline-strong);border-radius:9px;outline:none;resize:none;background:var(--card);color:var(--ink);"></textarea><div style="display:flex;gap:8px;margin-top:8px;"><button data-act="upDenyError" style="flex:1;padding:10px;border-radius:9px;border:1px solid var(--hairline-strong);background:none;cursor:pointer;font-size:13px;color:var(--ink-soft);font-family:var(--text);">Cancelar</button><button data-act="upAcceptError" style="flex:2;padding:10px;border-radius:9px;border:none;background:var(--red);color:#fff;cursor:pointer;font-size:13px;font-weight:700;font-family:var(--text);">Aceitar e justificar</button></div></div>
       <div class="up-actions">
-        <button class="up-btn ghost" onclick="upChangeAccount()">Trocar conta</button>
-        <button class="up-btn danger" onclick="upLogout()">Sair</button>
+        <button class="up-btn ghost" data-act="upChangeAccount">Trocar conta</button>
+        <button class="up-btn danger" data-act="upLogout">Sair</button>
       </div>
     </div>
   </div>
 </div>
 
+<!-- painel-calc: a matemática de dinheiro (Ações/overlay/perf), pura e testada.
+     Tem que vir ANTES do painel.js, que a consome. -->
+<script src="painel-calc.js"></script>
 <script src="painel.js"></script>
+<!-- painel-actions: delegação dos [data-act] que substituíram os 44 handlers
+     inline. Depois do painel.js, que define as funções que ele aciona. -->
+<script src="painel-actions.js"></script>
 <script src="conf-dia.js"></script>
 <script src="suprema-onboarding.js"></script>
 <script>

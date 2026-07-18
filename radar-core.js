@@ -225,9 +225,12 @@ function squashName(s){ return normText(s).replace(/[^a-z0-9]+/g,''); }
    CONFLITANTES agora VETAM o vínculo por heurística; sem variante de um dos
    lados, nada muda. (Cabeçalho de grupo e override do admin continuam vencendo
    tudo — o veto só vale pro palpite por tokens.) */
+/* "hyper" é VELOCIDADE (hyper-turbo), não stake: mora com o turbo. Estava no
+   grupo do 'hr' e fazia um "Sat 50K Sunday Hyper" ser lido como High Roller —
+   casava com alvo HR e CONFLITAVA com alvo Turbo, os dois errados. */
 const VARIANT_GROUPS = [
-  ['hr', 'hyper', 'highroller'],
-  ['turbo', 't'],
+  ['hr', 'highroller'],
+  ['turbo', 't', 'hyper'],
   ['ko', 'pko', 'bounty'],
   ['mystery'],
   ['deep', 'deepstack'],
@@ -296,12 +299,17 @@ function headerTarget(sat, events){
        degrau, então continua funcionando — é a mesma regra que a branch do
        targetGroup aqui embaixo já aplicava. */
     if (tn === satNome) return;
-    /* sat com variante declarada EXIGE alvo da MESMA variante — genérico não
-       vale: na Global da casa os alvos carregam a variante no nome ("40K OmaX
-       HR"), então "OmaX T." casando com "1K Omax" era herança de cabeçalho
-       errada, não rota. Cobre o conflito (T. ≠ HR) E o alvo sem variante. */
+    /* sat com variante declarada não liga em alvo de variante CONFLITANTE: é o
+       caso real do "6 Seats OmaX T." que herdava o cabeçalho "40K OMAX HR" e
+       classificava pro High Roller (T. ≠ HR → vetado, e continua vetado).
+       Mas alvo SEM variante é liberado: "Sat 50K Sunday Turbo" → "#AS 50K
+       Sunday" é a rota normal da casa (satélite turbo alimentando main
+       regular). Exigir variante igual aqui zerava o satCount desses grupos —
+       e este é o caminho do CABEÇALHO, a declaração explícita da planilha, que
+       por projeto vence heurística; o veto de variante nasceu pro palpite por
+       tokens e tinha vazado pra cá. */
     const tVar = variantOf(t.nome);
-    if (satVar && tVar !== satVar) return;
+    if (satVar && tVar && tVar !== satVar) return;
     if (!ticketFazSentido(sat, t)) return;           // alvo mais barato que o sat: não é rota
     const exact = tn.includes(gh) || gh.includes(tn);
     let tokHit = false;

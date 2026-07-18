@@ -400,25 +400,8 @@ function excelTimeToString(v){
   }
   return String(v);
 }
-function toNumber(v){
-  if (v === null || v === undefined || v === '') return null;
-  if (typeof v === 'number') return v;
-  let s = String(v).trim();
-  if (s === '') return null;
-  s = s.replace(/^R\$\s*/i, '').replace(/\s/g,'');
-  const hasComma = s.includes(',');
-  const hasDot = s.includes('.');
-  if (hasComma && hasDot) {
-    // formato BR: ponto = separador de milhar, vírgula = decimal
-    s = s.replace(/\./g,'').replace(',', '.');
-  } else if (hasComma && !hasDot) {
-    // só vírgula -> decimal BR
-    s = s.replace(',', '.');
-  }
-  // só ponto (ou nenhum separador) -> já é decimal padrão
-  const n = parseFloat(s);
-  return isNaN(n) ? null : n;
-}
+/* parse de número BR ("R$ 1.234,56" → 1234.56) — regra em painel-calc.js */
+function toNumber(v){ return PainelCalc.toNumber(v); }
 
 /* a planilha usa -1 (e variações como "-1", "-1.0") como valor "vazio/sentinela" em colunas como
    Nome Usuário e PERF % quando o evento ainda não aconteceu — trata isso como ausência de dado real */
@@ -431,26 +414,12 @@ function sanitizeText(v){
 
 /* classify: prioriza a coluna "Tipo" da planilha (tolerante a grafias como "Main event", "Satelite" sem acento);
    senão usa heurística (Seats -> satélite, Garantido >= 20000 -> main, senão side) */
-function classify(row){
-  const tipoRaw = (row.tipo || '').toString().trim().toLowerCase();
-  if (tipoRaw){
-    if (tipoRaw.includes('main')) return 'main';
-    if (tipoRaw.includes('side')) return 'side';
-    if (tipoRaw.includes('sat')) return 'sat'; // cobre "satélite" e "satelite"
-  }
-  const n = (row.nome || '').toLowerCase();
-  if (n.includes('seats') || n.includes('seat ') || n.includes('satelite') || n.includes('satélite')) return 'sat';
-  if ((row.garantido || 0) >= 20000) return 'main';
-  return 'side';
-}
+function classify(row){ return PainelCalc.classify(row); }
 const CAT_LABEL = {main:'Main Event', side:'Side Event', sat:'Satélite'};
 const CAT_SUIT = {main:'♠', side:'♣', sat:'♦'};
 
-/* Detecta se um torneio tem campanha ativa: #AS, SPT, SPS no nome (case-insensitive) */
-function hasCampanha(row){
-  const n = (row.nome || '').toUpperCase();
-  return n.includes('#AS') || n.includes('SPT') || n.includes('SPS') || n.includes('+SPS') || n.includes('+SPT');
-}
+/* Detecta se um torneio tem campanha ativa: #AS, SPT, SPS no nome */
+function hasCampanha(row){ return PainelCalc.hasCampanha(row); }
 
 /* qual campanha específica bate com o nome do torneio ('AS' | 'SPS' | 'SPT') — usado pelo filtro
    de campanha, que deixa escolher uma campanha em particular em vez de só "tem ou não tem" */
@@ -470,17 +439,11 @@ function calcRake(row){
   return 0.10;
 }
 
-/* Calcula overlay de um card dado premiacao e garantido, retorna valor negativo ou 0 */
-function calcOverlayCard(row, premiacao){
-  if(!premiacao || !row.garantido) return 0;
-  const rake = calcRake(row);
-  const buyin = parseFloat(row.buyin) || 0;
-  // field = acoes = premiacao / buyin_liquido se buyin conhecido, senão 0
-  const rakeFactor1 = cat === 'main' ? 0.88 : cat === 'sat' ? 0.95 : (isCamp ? 0.88 : 0.9);
-  const buyinLiq = buyin * rakeFactor1;
-  const acoes = buyinLiq > 0 ? Math.round((premiacao / buyinLiq) * 10) / 10 : null;
-  return { overlay: premiacao - row.garantido, acoes, rake };
-}
+/* (calcOverlayCard removida: era código MORTO e QUEBRADO — ninguém a chamava e
+   ela lia `cat`/`isCamp` como variáveis livres, nunca declaradas, então a
+   primeira chamada teria dado ReferenceError. Pior: o nome parecia o cálculo
+   canônico de overlay e convidava ao reuso. O cálculo de verdade é
+   PainelCalc.acoes()/calcOverlay(), em painel-calc.js, coberto por teste.) */
 /* ficha de poker mini, usada no lugar de um emoji genérico no badge "Rolando agora" —
    reforça a identidade do produto em vez de um 🔴 sem relação com o tema */
 const MINI_CHIP_SVG = `<svg class="mini-chip" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="currentColor" opacity="0.18"/><circle cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="5.6" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.7"/></svg>`;
@@ -1745,7 +1708,10 @@ function showJustifModal(pending, emailKey){
   setTimeout(() => document.getElementById('justifText')?.focus(), 300);
 }
 
-function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+/* (o escHtml completo — que também escapa " e ' — mora nos HELPERS, no topo do
+   arquivo. Havia uma segunda declaração aqui que, por hoisting, sobrescrevia a
+   primeira no arquivo inteiro e deixava aspas passarem batido em contexto de
+   atributo. Removida: use sempre a do topo.) */
 
 async function submitJustif(emailKey, notifId){
   const text = document.getElementById('justifText')?.value?.trim();
@@ -5843,24 +5809,11 @@ function renderCardOverlayPreview(key, row, premiacaoVal, fieldVal){
 
   // Sempre exibe os 3 campos — mostra "—" quando sem dados
 
-  /* ── Ações = (premiação ÷ buy-in bruto) × multiplicador por categoria ──
-     Main Event:                  × 0.88
-     Satélite:                    × 0.95
-     Side Event COM campanha:     × 0.88
-     Side Event SEM campanha:     × 0.95
-  ── */
-  let acoes = null;
-  const rakeFactor = cat === 'main' ? 0.88
-                   : cat === 'sat'  ? 0.95
-                   : (isCamp ? 0.88 : 0.9);
-  const buyinLiqCalc = buyin * rakeFactor;
-
-  if(!isNaN(prem) && prem > 0 && buyin > 0 && buyinLiqCalc > 0){
-    acoes = Math.round((prem / buyinLiqCalc) * 10) / 10;
-  } else if(!isNaN(field) && field > 0 && buyin > 0){
-    // estimativa antes da premiação: field (pool/buyin_liq = field)
-    acoes = field;
-  }
+  /* Ações = premiação ÷ buy-in líquido. A regra (multiplicador por categoria,
+     estimativa por field, quando devolver null) mora em painel-calc.js, coberta
+     por painel-calc.test.js — foi aqui que o 0.90 divergiu do comentário sem
+     ninguém notar. Não reimplemente: chame o módulo. */
+  const acoes = PainelCalc.acoes({ premiacao: prem, buyin, field, cat, isCamp });
 
   // Overlay — sempre visível
   const overlay = calcOverlay(prem, gar);
@@ -8939,7 +8892,7 @@ const _origOvcClear = typeof ovcClear === 'function' ? ovcClear : null;
       ? `<div class="opj-chart-wrap">${opjChart(c)}</div>`
       : '';
 
-    return `<div class="opj-card" data-id="${ev.id}">
+    return `<div class="opj-card" data-id="${escHtml(ev.id)}">
       <div class="opj-card-head">
         <svg class="opj-card-crown" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.5 1.5 7l5.4 4L12 4l5.1 7 5.4-4-1.5 10.5a1 1 0 0 1-1 .85H4a1 1 0 0 1-1-.85Z"/><rect x="3.3" y="19" width="17.4" height="2.2" rx="1"/></svg>
         <div class="opj-card-titles">
