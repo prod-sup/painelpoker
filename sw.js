@@ -1,7 +1,7 @@
 // Suprema Poker — Service Worker
 // IMPORTANTE: incremente SW_VERSION a cada deploy — é isso que faz as abas abertas
 // receberem o aviso de "nova versão disponível" e ninguém operar com código velho
-const SW_VERSION = '3.10.0';
+const SW_VERSION = '3.11.0';
 const CACHE_NAME = `suprema-painel-v${SW_VERSION}`;
 const STATIC_ASSETS = [
   '/painelpoker/',
@@ -55,6 +55,11 @@ const STATIC_ASSETS = [
   '/painelpoker/suprema-insights.js',
   '/painelpoker/painel.css',
   '/painelpoker/painel.js',
+  // painel.js DEPENDE de painel-calc (classify/toNumber/acoes) — sem ele offline
+  // o painel não renderiza. painel-actions traduz os [data-act] em cliques:
+  // sem ele os botões da nav e dos filtros ficam mudos.
+  '/painelpoker/painel-calc.js',
+  '/painelpoker/painel-actions.js',
   // deps do dashboard cash agora locais (offline-safe)
   '/painelpoker/vendor/chart.umd.js',
   '/painelpoker/vendor/phosphor/regular.css',
