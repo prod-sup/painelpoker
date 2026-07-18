@@ -9,6 +9,11 @@
     --bg-deep: #0b0d0c;
     --ink: #1d1d1f;
     --ink-soft: #6e6e73;
+    /* --ink-faint era USADO em 6 lugares e nunca DEFINIDO: `color:var(--ink-faint)`
+       sem fallback é inválido em tempo de cômputo, então a cor virava herdada e
+       ninguém percebia. Definido no tom mais claro que ainda passa em WCAG AA
+       (4.56:1 sobre --bg) — abaixo disso vira texto ilegível, não "discreto". */
+    --ink-faint: #737378;
     --hairline: rgba(0,0,0,0.08);
     --hairline-strong: rgba(0,0,0,0.13);
 
@@ -78,6 +83,7 @@
     /* ── Texto ── */
     --ink:       #e8ede9;   /* branco quente, não puro — menos fadiga visual */
     --ink-soft:  #7a8a7d;   /* texto secundário com leve tom verde */
+    --ink-faint: #708073;   /* terciário — 4.53:1 sobre --bg, o limite do AA */
 
     /* ── Linhas / bordas ── */
     --hairline:        rgba(255,255,255,0.06);
@@ -584,10 +590,23 @@
   nav.scrolled .nav-inner{ height:48px; }
   .brand{display:flex; align-items:center; gap:9px; font-size:14.5px; font-weight:600; letter-spacing:-0.01em; flex:none;}
   .brand-mark{width:20px; height:20px; flex:none;}
-  .brand-chips{ position:relative; width:26px; height:18px; flex:none; margin-left:2px; }
-  .bchip{ position:absolute; top:1px; width:17px; height:17px; filter:drop-shadow(0 1px 2px rgba(12,30,22,0.15)); }
-  .bchip-a{ left:0; z-index:2; }
-  .bchip-b{ left:9px; z-index:1; }
+  /* ── fichas da marca ──
+     Sobreposição era de 8px em discos de 17px: o silhueta virava uma CÁPSULA
+     com um círculo na ponta e lia como toggle ligado. Agora a de trás fica mais
+     recuada, inclinada e um pouco menor — leem como duas fichas EMPILHADAS, com
+     profundidade, não como um interruptor. */
+  .brand-chips{ position:relative; width:29px; height:19px; flex:none; margin-left:3px; }
+  .bchip{ position:absolute; width:17px; height:17px; filter:drop-shadow(0 1px 2px rgba(12,30,22,0.18)); }
+  .bchip-a{ left:0; top:1px; z-index:2; }
+  .bchip-b{
+    left:12px; top:2.5px; z-index:1;
+    width:15.5px; height:15.5px;          /* mais atrás = menor */
+    transform:rotate(-13deg); transform-origin:50% 50%;
+    opacity:.92;
+  }
+  .brand:hover .bchip-b{ transform:rotate(-19deg) translateY(-1px); }
+  .bchip, .bchip-b{ transition:transform .32s var(--ease-expo); }
+  @media (prefers-reduced-motion: reduce){ .bchip, .bchip-b{ transition:none; } }
   @media (max-width:680px){ .brand-chips{ display:none; } }
   /* ── NAV OUSADO — pill de feltro que "senta" no link ativo (scroll-spy) e
      naipe da casa que pula acima no hover. Só transform/opacity.
@@ -619,6 +638,36 @@
   .nav-links a:nth-child(3)::after{ content:"♥"; color:#e05a5a; }
   .nav-links a:nth-child(4)::after{ content:"♣"; }
   .nav-links a:last-child::after{ content:none; }   /* "♠ OS" já tem o naipe no texto */
+
+  /* ── ♠ OS: SAÍDA pro hub, não seção da página ──
+     Estava idêntico às âncoras (mesma pill de feltro, mesmo peso), então lia
+     como "mais uma seção pra rolar". Divisória + naipe dourado + sem a pill de
+     scroll-spy deixam claro que este link TROCA de produto. */
+  .nav-links a.nav-os{
+    display:inline-flex; align-items:center; gap:5px;
+    margin-left:9px; padding-left:14px;
+    color:var(--ink-faint); font-weight:650;
+  }
+  .nav-links a.nav-os::before{ background:var(--gold-soft); }   /* pill discreta, dourada */
+  .nav-links a.nav-os .nav-os-suit{
+    font-size:11px; color:var(--gold); line-height:1;
+    transition:transform .3s var(--ease-expo);
+  }
+  /* divisória: separa o grupo de âncoras do destino externo.
+     `:last-child` aqui não é decorativo — sem ele esta regra EMPATA em
+     especificidade com `.nav-links a:last-child::after{content:none}` e só
+     venceria pela ordem no arquivo, quebrando se alguém reordenasse. */
+  .nav-links a.nav-os:last-child::after{
+    content:""; position:absolute; left:0; top:50%; transform:translateY(-50%);
+    width:1px; height:15px; background:var(--hairline-strong);
+    opacity:1; border-radius:0;
+  }
+  .nav-links a.nav-os:hover{ color:var(--gold); }
+  .nav-links a.nav-os:hover::after{ opacity:1; transform:translateY(-50%); }
+  .nav-links a.nav-os:hover .nav-os-suit{ transform:translateY(-1px) rotate(-8deg); }
+  /* scroll-spy nunca deve "acender" um link que sai da página */
+  .nav-links a.nav-os.active{ color:var(--gold); }
+  .nav-links a.nav-os.active::before{ background:var(--gold-soft); box-shadow:none; }
   .nav-links a:hover{ color:var(--ink); transform:translateY(-1px); }
   .nav-links a:hover::before{ opacity:1; transform:scale(1); }
   .nav-links a:hover::after{ opacity:1; transform:translateX(-50%) translateY(0) scale(1) rotate(0deg); }
@@ -868,13 +917,33 @@
      soltas com estilo inline fora da .nav-inner; agora são pills da casa ── */
   .nav-ext{ display:flex; align-items:center; gap:6px; flex:none; }
   .nav-ext a{
+    display:inline-flex; align-items:center; gap:5px;
     font-size:11px; font-weight:700; letter-spacing:.01em; white-space:nowrap;
     color:var(--ink-soft); padding:5px 11px; border-radius:99px;
     border:1px solid var(--hairline-strong);
     transition:color .25s var(--ease), border-color .25s var(--ease),
                background-color .25s var(--ease), transform .25s var(--ease);
   }
+  /* ícones herdam a cor do link (currentColor) — é o ponto de trocar o emoji */
+  .nav-ext .nx-ic{ width:12px; height:12px; flex:none; opacity:.85; }
+  .nav-ext .nx-out{
+    width:11px; height:11px; flex:none; opacity:.5;
+    transition:transform .28s var(--ease-expo), opacity .25s var(--ease);
+  }
   .nav-ext a:hover{ color:var(--gold); border-color:var(--gold); background:var(--gold-soft); transform:translateY(-1px); }
+  /* a seta "sai" na diagonal no hover — reforça que o link troca de página */
+  .nav-ext a:hover .nx-out{ opacity:1; transform:translate(1.5px,-1.5px); }
+  .nav-ext a:hover .nx-ic{ opacity:1; }
+
+  /* Admin é destino privilegiado e raro: fica mais discreto que a Criação GU
+     (rotina do turno) até receber hover, pra hierarquia bater com o uso. */
+  .nav-ext a#adminNavLink{ color:var(--ink-faint); border-color:var(--hairline); }
+  .nav-ext a#adminNavLink:hover{ color:var(--gold); border-color:var(--gold); }
+
+  @media (prefers-reduced-motion: reduce){
+    .nav-ext a, .nav-ext .nx-out{ transition:none; }
+    .nav-ext a:hover{ transform:none; }
+  }
   @media (max-width:1080px){ .nav-ext{ display:none; } }
 
   @media (max-width:540px){

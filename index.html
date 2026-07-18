@@ -101,9 +101,21 @@ document.addEventListener('DOMContentLoaded', () => {
         <path d="M7.5 12.5 L10.5 15.5 L16.5 8.5" stroke="#18a36b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <span class="brand-text">Suprema Poker</span>
+      <!-- fichas da casa. As bordas entalhadas (stroke-dasharray) são o que faz
+           lerem como FICHA DE PÔQUER: sem elas, dois discos lisos sobrepostos
+           viravam uma cápsula com botão — igual a um toggle ligado — e o
+           operador tentava clicar. -->
       <span class="brand-chips" aria-hidden="true">
-        <svg class="bchip bchip-a" viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="var(--main-soft)" stroke="var(--main)" stroke-width="6"/><circle cx="50" cy="50" r="30" fill="none" stroke="var(--main)" stroke-width="3" opacity=".55"/></svg>
-        <svg class="bchip bchip-b" viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="var(--felt-soft)" stroke="var(--felt-bright)" stroke-width="6"/><circle cx="50" cy="50" r="30" fill="none" stroke="var(--felt-bright)" stroke-width="3" opacity=".55"/></svg>
+        <svg class="bchip bchip-a" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="41" fill="var(--main-soft)" stroke="var(--main)" stroke-width="6"/>
+          <circle cx="50" cy="50" r="44" fill="none" stroke="var(--main)" stroke-width="11" stroke-dasharray="17 17.6"/>
+          <circle cx="50" cy="50" r="27" fill="none" stroke="var(--main)" stroke-width="3" opacity=".55"/>
+        </svg>
+        <svg class="bchip bchip-b" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="41" fill="var(--felt-soft)" stroke="var(--felt-bright)" stroke-width="6"/>
+          <circle cx="50" cy="50" r="44" fill="none" stroke="var(--felt-bright)" stroke-width="11" stroke-dasharray="17 17.6"/>
+          <circle cx="50" cy="50" r="27" fill="none" stroke="var(--felt-bright)" stroke-width="3" opacity=".55"/>
+        </svg>
       </span>
     </div>
     <div class="nav-links">
@@ -111,11 +123,24 @@ document.addEventListener('DOMContentLoaded', () => {
       <a href="#agenda">Agenda</a>
       <a href="#resultados">Resultados</a>
       <a href="#learn">Learn</a>
-      <a href="hub.html" title="Voltar ao hub Suprema OS">♠ OS</a>
+      <!-- destino de SAÍDA, não âncora da página: fica no fim do grupo (preserva
+           os naipes por nth-child) mas com divisória e tratamento próprio, pra
+           não ser lido como mais uma seção pra rolar. -->
+      <a href="hub.html" class="nav-os" title="Voltar ao hub Suprema OS"><span class="nav-os-suit" aria-hidden="true">♠</span>OS</a>
     </div>
     <div class="nav-ext">
-      <a href="criacao-noturna.html" id="criacaoNavLink" title="Criação de torneios do turno noturno — eventos da GU do dia seguinte">Criação GU 🌙&nbsp;↗</a>
-      <a href="admin.html" id="adminNavLink">Admin&nbsp;↗</a>
+      <!-- ícones em SVG/currentColor, não emoji: emoji varia por plataforma e
+           NÃO acompanha a cor — no hover o pill virava dourado e o 🌙 ficava
+           para trás. Mesma decisão já tomada no hub. -->
+      <a href="criacao-noturna.html" id="criacaoNavLink" title="Criação de torneios do turno noturno — eventos da GU do dia seguinte">
+        <svg class="nx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13.5A8 8 0 0 1 10.5 4 8 8 0 1 0 20 13.5z"/></svg>
+        Criação GU
+        <svg class="nx-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16 16 8M9.5 8H16v6.5"/></svg>
+      </a>
+      <a href="admin.html" id="adminNavLink">
+        Admin
+        <svg class="nx-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16 16 8M9.5 8H16v6.5"/></svg>
+      </a>
     </div>
     <div class="nav-right">
       <div class="presence-wrap" id="presenceWrap" hidden></div>
