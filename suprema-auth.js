@@ -78,14 +78,14 @@
     return !!(s.access && s.access[panelId] === true);
   }
 
-  /* ── REVALIDAÇÃO DE ACESSO (fecha a brecha da revogação) ──
+  /* ── REVALIDAÇÃO DE ACESSO AO VIVO (fecha a brecha da revogação) ──
      guard() confia no snapshot da sessão (localStorage). Se o admin REVOGA o
-     acesso de um operador, ele continuaria entrando até a sessão expirar (365
-     dias). revalidateAccess() relê users/<key>/access do banco assim que o
-     Firebase estiver pronto e autenticado, atualiza a sessão e, se ESTE painel
-     não é mais permitido (e o usuário não é admin), manda de volta pro hub.
-     Chame 1x no load do painel, logo depois de guard(). Silenciosa sem
-     Firebase/sessão — nunca trava a página se o banco não responder. */
+     acesso — ou a EDIÇÃO — de um operador ONLINE, ele não pode continuar na
+     tela: revalidateAccess() mantém listeners em users/<key>/access|edit
+     enquanto o painel está aberto, espelha cada mudança na sessão e ejeta
+     pro hub na hora se este painel deixou de ser permitido ou se a edição
+     foi retirada de quem editava. Chame 1x no load do painel, logo depois de
+     guard(). Silenciosa sem Firebase/sessão — nunca trava a página. */
   function revalidateAccess(panelId, opts) {
     opts = opts || {};
     var s = getSession();
@@ -98,20 +98,39 @@
         if (tries++ > 100) return;            // ~20s esperando o Firebase: desiste em silêncio
         return setTimeout(waitDb, 200);
       }
+      /* VIGILÂNCIA AO VIVO (não é mais foto única do load): access e edit
+         ficam observados enquanto o painel está aberto. Revogou o ACESSO →
+         volta pro hub na hora. Revogou a EDIÇÃO de quem estava editando →
+         idem: a pessoa é ejetada em vez de continuar numa tela cheia de
+         ferramentas que o banco já nega (ao voltar, entra com a permissão
+         nova). A comparação é por transição (tinha → perdeu), então quem já
+         entrou sem edição nunca é expulso por não tê-la. */
       var base = fb.database().ref('users/' + emailToKey(s.email));
-      Promise.all([base.child('access').once('value'), base.child('edit').once('value')])
-        .then(function (snaps) {
-          var cur = getSession();
-          if (!cur) return;
-          cur.access = snaps[0].val() || {};   // reflete a permissão real do banco na sessão
-          cur.edit = snaps[1].val();           // null = conta pré-migração (canEdit cai no access)
-          saveSession(cur);
-          if (panelId && !canAccess(panelId)) {
-            location.replace((opts.redirect || 'hub.html') +
-              '?denied=' + encodeURIComponent(panelId) + '&revoked=1');
-          }
-        })
-        .catch(function () {});
+      var kicked = false;
+      var kick = function () {
+        if (kicked) return;
+        kicked = true;
+        location.replace((opts.redirect || 'hub.html') +
+          '?denied=' + encodeURIComponent(panelId) + '&revoked=1');
+      };
+      var lastEdit = null;
+      base.child('access').on('value', function (snap) {
+        var cur = getSession();
+        if (!cur) return;
+        cur.access = snap.val() || {};       // reflete a permissão real do banco na sessão
+        saveSession(cur);
+        if (panelId && !canAccess(panelId)) kick();
+      }, function () {});
+      base.child('edit').on('value', function (snap) {
+        var cur = getSession();
+        if (!cur) return;
+        cur.edit = snap.val();               // null = conta pré-migração (canEdit cai no access)
+        saveSession(cur);
+        if (!panelId) return;
+        var nowEdit = canEdit(panelId);
+        if (lastEdit === true && !nowEdit) kick();
+        lastEdit = nowEdit;
+      }, function () {});
     })();
   }
 

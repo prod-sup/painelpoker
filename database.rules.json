@@ -16,6 +16,16 @@
         "blocked": {
           ".validate": "auth.token.admin === true || root.child('admins').child(auth.uid).val() === true || auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'"
         },
+        "access": {
+          "$panel": {
+            ".validate": "auth.token.admin === true || root.child('admins').child(auth.uid).val() === true || auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'"
+          }
+        },
+        "edit": {
+          "$flag": {
+            ".validate": "auth.token.admin === true || root.child('admins').child(auth.uid).val() === true || auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group'"
+          }
+        },
         "stats": {
           "opens": {
             ".validate": "newData.isNumber() && newData.val() >= 0 && (!data.exists() || newData.val() >= data.val())"

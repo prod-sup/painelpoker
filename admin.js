@@ -1393,7 +1393,7 @@ async function loadOps(){
    Bloqueio por padrão: só entra no painel quem tiver users/<key>/access/<id>=true.
    Aqui o admin libera/retira painel por painel, por pessoa. Admin entra em tudo. */
 const ACCESS_PANELS = (window.SupremaAuth && SupremaAuth.PANELS ? SupremaAuth.PANELS : []).filter(p=>!p.adminOnly);
-const PANEL_SHORT = {painel:'Painel', gu:'GU', cash:'Cash', learn:'Learn', org:'Org'};
+const PANEL_SHORT = {painel:'Painel', gu:'GU', cash:'Cash', learn:'Learn', org:'Org', eventos:'Radar', tv:'TV'};
 function accessChipStyle(on){
   return `font:700 10px/1 ui-monospace,monospace;padding:4px 7px;border-radius:6px;cursor:pointer;`+
     `border:1px solid ${on?'#1f7a4d':'var(--line,#333)'};background:${on?'#1f7a4d':'transparent'};color:${on?'#fff':'var(--ink3,#888)'}`;
