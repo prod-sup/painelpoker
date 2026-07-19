@@ -500,10 +500,39 @@
     if (document.body) boot(); else document.addEventListener('DOMContentLoaded', boot);
   }
 
+  /* ── ÍCONES premium (linha SF Symbols: monoline, cantos redondos,
+     currentColor) — substituem emojis por algo que veste o tema e escala sem
+     serrilhar. SupremaMotion.icon('flame') → string <svg>. Uso:
+       el.innerHTML = SupremaMotion.icon('seal-check', 'ico-lg');
+     A cor vem do CSS (stroke:currentColor herda a cor do elemento pai). ── */
+  var ICON_PATHS = {
+    'flame':        '<path d="M12 3c.8 3 3.7 4.2 3.7 7.5a3.7 3.7 0 0 1-7.4 0c0-1 .4-1.9 1-2.6-.2 1.4.5 2.3 1.3 2.5-.7-2.2.4-4.3 1.4-5.4Z"/>',
+    'sprout':       '<path d="M12 20v-8"/><path d="M12 12C12 8.5 9.3 6.5 5.5 6.5c0 3.6 2.7 5.5 6.5 5.5Z"/><path d="M12 13.5c0-3 2.4-4.8 5.8-4.8 0 3.2-2.4 4.8-5.8 4.8Z"/>',
+    'target':       '<circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="4.4"/><circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none"/>',
+    'bolt':         '<path d="M13 2.5 5 13h5.5l-.9 8.5L19 10.5h-5.5z"/>',
+    'seal-check':   '<circle cx="12" cy="12" r="8.5"/><path d="m8.4 12.2 2.5 2.5 4.7-5.4"/>',
+    'alert-tri':    '<path d="M10.3 4.2 2.2 18a2 2 0 0 0 1.7 3h16.2a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z"/><path d="M12 9.5v4"/><path d="M12 17h.01"/>',
+    'alert-circle': '<circle cx="12" cy="12" r="8.5"/><path d="M12 8v5"/><path d="M12 16h.01"/>',
+    'info':         '<circle cx="12" cy="12" r="8.5"/><path d="M12 11.2v4.5"/><path d="M12 8.2h.01"/>',
+    'spark':        '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/>'
+  };
+  function icon(name, cls){
+    var inner = ICON_PATHS[name] || ICON_PATHS['info'];
+    return '<svg class="spi' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" fill="none" ' +
+      'stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" ' +
+      'aria-hidden="true">' + inner + '</svg>';
+  }
+  if (!document.getElementById('spi-css') && document.head){
+    var st = document.createElement('style'); st.id = 'spi-css';
+    st.textContent = '.spi{width:1em;height:1em;display:inline-block;vertical-align:-.14em;flex:none}' +
+      '.spi.ico-lg{width:1.35em;height:1.35em}';
+    document.head.appendChild(st);
+  }
+
   global.SupremaMotion = {
     glow: glow, reveal: reveal, tilt: tilt,
     ambient: ambient, busy: busy, busyAuto: busyAuto, busyWatch: busyWatch,
     countUp: countUp, magnetic: magnetic, scrollProgress: scrollProgress,
-    aurora: aurora, skeleton: skeleton, network: network
+    aurora: aurora, skeleton: skeleton, network: network, icon: icon
   };
 })(window);

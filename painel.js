@@ -3893,19 +3893,20 @@ function renderCoach(){
   const el = document.getElementById('fechoCoach');
   if(!el) return;
   if(!RAW_ROWS.length || typeof SupremaInsights === 'undefined'){ el.innerHTML = ''; return; }
-  const ICO  = { critico:'🔴', atencao:'⚠️', info:'💡' };
+  const ico = n => (window.SupremaMotion && SupremaMotion.icon) ? SupremaMotion.icon(n) : '';
+  const ICO  = { critico:'alert-circle', atencao:'alert-tri', info:'info' };
   const TONE = { critico:'crit', atencao:'warn', info:'info' };
   const top = (DIAG_ACHADOS || []).slice(0, 3);
   if(!top.length){
     el.innerHTML = `<article class="cch-card t-ok">
-      <span class="cch-ic" aria-hidden="true">✅</span>
+      <span class="cch-ic">${ico('seal-check')}</span>
       <div class="cch-body"><b>Dia sob controle</b><p>Nenhum ponto de atenção agora — segue o jogo.</p></div>
     </article>`;
     return;
   }
   el.innerHTML = top.map(a =>
     `<article class="cch-card t-${TONE[a.sev]||'info'}">
-      <span class="cch-ic" aria-hidden="true">${ICO[a.sev]||'💡'}</span>
+      <span class="cch-ic">${ico(ICO[a.sev]||'info')}</span>
       <div class="cch-body"><b>${escHtml(a.titulo || '')}</b><p>${escHtml(a.acao || a.porque || '')}</p></div>
     </article>`).join('');
 }

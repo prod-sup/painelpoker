@@ -128,6 +128,48 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{animatio
 
 /* ── KPI GRID ── */
 .kg{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px;margin-bottom:16px}
+/* ── ANÉIS DE SAÚDE (Fecho do dia cash) ── */
+.cash-rings{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px;
+}
+.cr-card{
+  --tone:var(--green);
+  position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;
+  background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r2);
+  padding:20px 16px 16px;box-shadow:var(--sh);
+}
+.cr-card.t-green{--tone:var(--green)}
+.cr-card.t-teal{--tone:#2dd4bf}
+.cr-card.t-amber{--tone:var(--amber)}
+.cr-card.t-red{--tone:var(--red)}
+.cr-ring{width:104px;height:104px;transform:rotate(-90deg)}
+.cr-bg{fill:none;stroke:color-mix(in srgb,var(--tone) 15%,transparent);stroke-width:8}
+.cr-fg{
+  fill:none;stroke:var(--tone);stroke-width:8;stroke-linecap:round;
+  stroke-dasharray:var(--circ);stroke-dashoffset:var(--circ);
+  filter:drop-shadow(0 0 5px color-mix(in srgb,var(--tone) 45%,transparent));
+  transition:stroke-dashoffset 1.05s var(--ease);
+}
+.cash-rings.in .cr-fg{stroke-dashoffset:calc(var(--circ) * (1 - var(--pct)))}
+.cash-rings.in .cr-card:nth-child(2) .cr-fg{transition-delay:.09s}
+.cash-rings.in .cr-card:nth-child(3) .cr-fg{transition-delay:.18s}
+.cr-center{
+  position:absolute;top:20px;left:0;right:0;height:104px;
+  display:flex;align-items:center;justify-content:center;pointer-events:none;
+}
+.cr-center b{font-size:23px;font-weight:800;letter-spacing:-.03em;color:var(--ink)}
+.cr-label{margin-top:8px;font-size:13px;font-weight:700;color:var(--ink);letter-spacing:-.01em}
+.cr-sub{font-size:11px;color:var(--ink2);text-align:center}
+@media (prefers-reduced-motion: reduce){ .cr-fg{transition:none} }
+@media (max-width:720px){
+  .cash-rings{grid-template-columns:1fr;gap:10px}
+  .cr-card{flex-direction:row;justify-content:flex-start;gap:14px;padding:14px 16px}
+  .cr-ring{width:76px;height:76px;flex:none}
+  .cr-center{width:76px;height:76px;top:14px;left:16px;right:auto}
+  .cr-center b{font-size:18px}
+  .cr-label,.cr-sub{text-align:left}
+}
+
 .kpi{
   background:var(--surf);border:1px solid var(--bdr);
   border-radius:var(--r2);padding:14px 16px;

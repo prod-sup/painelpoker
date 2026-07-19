@@ -1546,33 +1546,34 @@
 
     // sub-título conversacional
     const sub = streak >= 2
-      ? `<b>${streak} dias seguidos</b> na operação — mantenha a chama acesa. 🔥`
-      : (doneToday >= totMiss ? `Dia redondo: <b>todas as metas cumpridas</b>. ✅`
+      ? `<b>${streak} dias seguidos</b> na operação — mantenha a chama acesa.`
+      : (doneToday >= totMiss ? `Dia redondo: <b>todas as metas cumpridas</b>.`
                               : `Bem-vindo de volta. Rank atual: <b>${escHtml(rk.name)}</b>.`);
     document.getElementById('mydaySub').innerHTML = sub;
 
-    // cards de coach (conversacionais, priorizados)
+    // cards de coach (conversacionais, priorizados) — ícones premium (SF-style)
+    const ico = n => (window.SupremaMotion && SupremaMotion.icon) ? SupremaMotion.icon(n) : '';
     const coach = [];
     if(doneToday < totMiss){
       const prox = MISSIONS.find(m => !missionsToday()[m.id]);
-      coach.push({ ic:'🎯', tone:'goal', t:`Faltam ${totMiss-doneToday} meta${totMiss-doneToday>1?'s':''} pra fechar o dia`,
+      coach.push({ ic:'target', tone:'goal', t:`Faltam ${totMiss-doneToday} meta${totMiss-doneToday>1?'s':''} pra fechar o dia`,
         p: prox ? `A próxima: “${prox.nm}”.` : 'Você está quase lá.' });
     } else {
-      coach.push({ ic:'✅', tone:'goal', t:'Metas do dia concluídas', p:'Voltou amanhã, a sequência cresce.' });
+      coach.push({ ic:'seal-check', tone:'goal', t:'Metas do dia concluídas', p:'Voltou amanhã, a sequência cresce.' });
     }
     if(streak >= 2){
-      coach.push({ ic:'🔥', tone:'streak', t:`Sequência de ${streak} dias`,
+      coach.push({ ic:'flame', tone:'streak', t:`Sequência de ${streak} dias`,
         p: `Não perca hoje — cada dia ativo vale ${XP_PER_DAY} XP e alimenta seu rank.` });
     } else {
-      coach.push({ ic:'🌱', tone:'streak', t:'Comece uma sequência',
+      coach.push({ ic:'sprout', tone:'streak', t:'Comece uma sequência',
         p:'Dias ativos seguidos sobem seu rank mais rápido que XP solto.' });
     }
-    coach.push({ ic:'⚡', tone:'level', t:`Nível ${lv} · ${escHtml(rk.name)}`,
+    coach.push({ ic:'bolt', tone:'level', t:`Nível ${lv} · ${escHtml(rk.name)}`,
       p:`Faltam ${Math.max(0, next-xp)} XP pro nível ${lv+1}.` });
     document.getElementById('mydayCoach').innerHTML = coach.map((c,i) =>
       `<article class="coach-card t-${c.tone}" style="--i:${i}">
-        <span class="coach-ic" aria-hidden="true">${c.ic}</span>
-        <div class="coach-body"><b>${escHtml(c.t)}</b><p>${c.p}</p></div>
+        <span class="coach-ic">${ico(c.ic)}</span>
+        <div class="coach-body"><b>${escHtml(c.t)}</b><p>${escHtml(c.p)}</p></div>
       </article>`).join('');
 
     sec.hidden = false;

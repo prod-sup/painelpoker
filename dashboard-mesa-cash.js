@@ -1825,10 +1825,43 @@ function buildResumo(){
 }
 
 // ══════════════════════════════ INIT (chamado após login bem-sucedido)
+/* ── ANÉIS DE SAÚDE (ref. getfluently, registro de dashboard) ──
+   Leitura de relance da operação cash, preenchendo quando entram na tela. As
+   coach cards já existem aqui (o sistema de recs), então isto é só o resumo
+   visual no topo. ── */
+function cashRing(tone, pct, val, label, sub){
+  const R=46, C=2*Math.PI*R;
+  pct=Math.max(0,Math.min(1,pct||0));
+  return `<div class="cr-card t-${tone}">
+    <svg class="cr-ring" viewBox="0 0 108 108" aria-hidden="true">
+      <circle class="cr-bg" cx="54" cy="54" r="${R}"></circle>
+      <circle class="cr-fg" cx="54" cy="54" r="${R}" style="--circ:${C.toFixed(1)};--pct:${pct.toFixed(3)}"></circle>
+    </svg>
+    <div class="cr-center"><b>${val}</b></div>
+    <div class="cr-label">${label}</div>
+    <div class="cr-sub">${sub}</div>
+  </div>`;
+}
+let _cashRingsBuilt=false;
+function buildCashRings(){
+  const el=document.getElementById('cashRings');
+  if(!el) return;
+  const ativas = 100 - (KPI_DEMO.deadPct||0);         // % de mesas com retenção
+  const multiRet = KPI_DEMO.multiRet || 0;            // retenção das mesas multi-way
+  const conc = KPI_DEMO.conc10pct || 0;              // rake concentrado no top 10%
+  el.innerHTML =
+    cashRing('green', ativas/100,  f(ativas,1)+'%',   'Mesas ativas',       `${f(KPI_DEMO.deadTables||0,0)} sem retenção`) +
+    cashRing('teal',  multiRet/100, f(multiRet,1)+'%', 'Retenção multi-way', `${f(KPI_DEMO.multiTables||0,0)} mesas cheias`) +
+    cashRing('amber', conc/100,    f(conc,1)+'%',     'Top 10% das mesas',  `concentram o rake do dia`);
+  if(!_cashRingsBuilt){ _cashRingsBuilt=true; requestAnimationFrame(()=> el.classList.add('in')); }
+  else el.classList.add('in');
+}
+
 let _appStarted=false;
 function startApp(){
   if(_appStarted)return;_appStarted=true;
   renderShiftStats();
+  buildCashRings();
   buildTimeline();buildHrChart();buildLifecycle();buildModal();buildOpDiv();buildTop10();buildRecs();
   buildBestSlots();buildShiftFee();buildForecast();buildConcurrent();buildOpShiftTable();buildShiftRecs();
   buildTierCharts();buildConc();buildHuMulti();buildJP();buildFPP();
