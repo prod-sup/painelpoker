@@ -1159,9 +1159,12 @@
     .deck::before{ animation:none; }
   }
 
+  /* ── KPIs do dia, estilo Apple: label discreto em cima, número grande em SF com
+     algarismos tabulares embaixo, divisórias inset (não vão de borda a borda).
+     Uma superfície só — as células não são cards separados. ── */
   .hero-stats{
-    margin-top:56px; display:grid; grid-template-columns:repeat(4,1fr); gap:1px;
-    background:var(--hairline); border:1px solid var(--hairline);
+    margin-top:56px; display:grid; grid-template-columns:repeat(4,1fr);
+    background:var(--card); border:1px solid var(--hairline);
     border-radius:var(--radius-lg); overflow:hidden;
     box-shadow:var(--shadow-md);
     opacity:0; animation:hero-stats-fade .6s var(--ease) .4s forwards;
@@ -1169,28 +1172,47 @@
   @keyframes hero-stats-fade{ to{ opacity:1; } }
   /* cada KPI entra em cascata (stagger) em vez do bloco inteiro subir de uma vez — mais premium */
   .hstat{
-    background:var(--card); padding:24px 22px;
-    transition:background .3s var(--ease), transform .3s var(--ease);
+    position:relative; padding:22px 24px 20px; min-width:0;
+    display:flex; flex-direction:column; align-items:flex-start; gap:6px;
+    transition:background .3s var(--ease);
     opacity:0; transform:translateY(16px); animation:rise .7s var(--ease) forwards;
+  }
+  .hstat + .hstat::before{
+    content:""; position:absolute; left:0; top:20%; bottom:20%; width:1px;
+    background:var(--hairline);
   }
   .hstat:nth-child(1){ animation-delay:.48s; }
   .hstat:nth-child(2){ animation-delay:.56s; }
   .hstat:nth-child(3){ animation-delay:.64s; }
   .hstat:nth-child(4){ animation-delay:.72s; }
-  .hstat:hover{ background:#fcfcfb; transform:translateY(-2px); }
-  .hstat .num{ font-family:var(--mono); font-weight:600; font-size:clamp(19px,2.2vw,26px); letter-spacing:-0.01em; display:flex; align-items:baseline; gap:2px; }
+  .hstat:hover{ background:color-mix(in srgb, var(--card) 96%, var(--ink) 4%); }
+  .hstat .lbl{
+    font-size:12px; font-weight:500; color:var(--ink-soft);
+    letter-spacing:0.01em; line-height:1.3;
+  }
+  .hstat .num{
+    font-family:var(--display); font-weight:650; font-variant-numeric:tabular-nums;
+    font-size:clamp(21px,2.3vw,28px); letter-spacing:-0.02em; line-height:1.1;
+    display:flex; align-items:baseline; gap:2px; white-space:nowrap;
+  }
   .hstat .num small{font-size:13px; font-weight:500; color:var(--ink-soft); margin-left:2px;}
-  .hstat .lbl{font-size:11.5px; color:var(--ink-soft); margin-top:6px; letter-spacing:0.01em;}
   .hstat-compare{
     display:inline-flex; align-items:center; gap:3px; font-family:var(--mono); font-size:11px; font-weight:700;
-    margin-top:8px; padding:2px 7px; border-radius:99px;
+    margin-top:2px; padding:2px 7px; border-radius:99px;
   }
   .hstat-compare.up{ background:var(--felt-soft); color:var(--felt); }
   .hstat-compare.down{ background:var(--late-bg); color:var(--late-border); }
-  .hstat-compare.flat{ background:#f1f1f3; color:var(--ink-soft); }
+  .hstat-compare.flat{ background:color-mix(in srgb, var(--card) 90%, var(--ink) 10%); color:var(--ink-soft); }
   .hstat.pos .num{color:var(--felt);}
   .hstat.neg .num{color:var(--red);}
-  @media (max-width:760px){ .hero-stats{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:760px){
+    .hero-stats{ grid-template-columns:repeat(2,1fr); margin-top:36px; }
+    .hstat{ padding:16px 18px 14px; }
+    .hstat .num{ font-size:20px; }
+    /* na grade 2×2 a célula 3 abre uma linha nova: sem divisória vertical, com horizontal */
+    .hstat:nth-child(3)::before{ display:none; }
+    .hstat:nth-child(3), .hstat:nth-child(4){ border-top:1px solid var(--hairline); }
+  }
 
   /* o bloco de progresso vira invisível: os anéis do FECHO DO DIA o substituem
      (a lógica de virada em updateProgress continua rodando no elemento oculto) */

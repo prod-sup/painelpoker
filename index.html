@@ -1039,23 +1039,24 @@ document.addEventListener('DOMContentLoaded', () => {
     <div id="overlayChart" hidden style="margin:0 0 16px"></div>
 <div class="hero-stats" id="heroStats" hidden>
       <div class="hstat">
+        <div class="lbl">Garantido do dia</div>
         <div class="num" id="statGarantido">R$ 0</div>
-        <div class="lbl">Garantido total do dia</div>
         <span class="hstat-compare" id="cmpGarantido" hidden></span>
       </div>
       <div class="hstat pos">
-        <div class="num" id="statPremiacao">R$ 0</div>
         <div class="lbl">Pago em premiações</div>
+        <div class="num" id="statPremiacao">R$ 0</div>
         <span class="hstat-compare" id="cmpPremiacao" hidden></span>
       </div>
       <div class="hstat" id="statOverlayWrap">
-        <div class="num" id="statOverlay">R$ 0</div>
         <div class="lbl">Overlay acumulado</div>
+        <div class="num" id="statOverlay">R$ 0</div>
         <span class="hstat-compare" id="cmpOverlay" hidden></span>
       </div>
       <div class="hstat">
+        <div class="lbl">Não fixados</div>
         <div class="num" id="statUnfixed">0</div>
-        <div class="lbl">Não fixados · urgente</div>
+        <span class="hstat-compare flat" id="cmpUnfixedHint" hidden>precisam de ação</span>
       </div>
     </div>
 

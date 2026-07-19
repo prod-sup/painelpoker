@@ -3183,6 +3183,35 @@ function setSharedSheet(rows, filename){
 })();
 
 initFirebaseSync();
+
+/* bfcache: o Chrome congela o WebSocket do RTDB ao guardar a página no back-forward
+   cache e loga "WebSocket connection failed / already in CLOSING state" no console.
+   Desconectar de forma limpa ANTES de entrar no cache (pagehide persistido) e religar
+   ao voltar (pageshow persistido) elimina o ruído sem perder a elegibilidade ao bfcache. */
+window.addEventListener('pagehide', (e) => {
+  if (e.persisted && fbReady) { try{ firebase.database().goOffline(); }catch(_){} }
+});
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted && fbReady) { try{ firebase.database().goOnline(); }catch(_){} }
+});
+
+/* "Não fixados" no hero: o número é escrito por textContent em vários pontos do código —
+   em vez de espalhar a regra de urgência por todos eles, um observer único reage à mudança:
+   >0 pinta o número de vermelho (classe .neg já existente) e mostra a legenda "precisam de ação". */
+(function(){
+  const el = document.getElementById('statUnfixed');
+  if(!el) return;
+  const hint = document.getElementById('cmpUnfixedHint');
+  const apply = () => {
+    const n = parseInt(el.textContent, 10) || 0;
+    const card = el.closest('.hstat');
+    if(card) card.classList.toggle('neg', n > 0);
+    if(hint) hint.hidden = n === 0;
+  };
+  new MutationObserver(apply).observe(el, {childList:true, characterData:true, subtree:true});
+  apply();
+})();
+
 detectHeldDayOnLoad(); // recarregou a página com o dia anterior ainda incompleto? volta pro quadro segurado
 setTimeout(loadHistorico, 3000);
 
@@ -3837,7 +3866,7 @@ function computeStats(){
    Fixados e Saúde do dia (% dos fechados que bateram o GTD). Preenchem com
    transição quando os números mudam — mesma leitura periférica que a barra de
    progresso dava, agora de relance e com a saúde do overlay junto. ── */
-let _fechoBuilt = false;
+var _fechoBuilt = false; // var (hoisted): renderFechoRings roda antes desta linha via restoreSheetFromLocal → ingest → computeStats
 function fechoRingCard(tone, pct, val, unit, label){
   const R = 46, C = 2 * Math.PI * R;
   pct = Math.max(0, Math.min(1, pct || 0));
@@ -7477,6 +7506,7 @@ function appendTodayToHistorico(){
 }
 
 document.addEventListener('keydown', (e) => {
+  if (typeof e.key !== 'string') return; // autofill/IME disparam keydown sem key
   if (e.key === 'Escape'){
     // fecha o sheet de horário, se estiver aberto (tem seu próprio overlay separado das gavetas)
     const tfSheet = document.getElementById('tfSheetOverlay');
