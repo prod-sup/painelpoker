@@ -1393,42 +1393,30 @@ async function loadOps(){
    Bloqueio por padrão: só entra no painel quem tiver users/<key>/access/<id>=true.
    Aqui o admin libera/retira painel por painel, por pessoa. Admin entra em tudo. */
 const ACCESS_PANELS = (window.SupremaAuth && SupremaAuth.PANELS ? SupremaAuth.PANELS : []).filter(p=>!p.adminOnly);
-const PANEL_SHORT = {painel:'Painel', gu:'GU', cash:'Cash', learn:'Learn', org:'Org', eventos:'Radar', tv:'TV'};
-function accessChipStyle(on){
-  return `font:700 10px/1 ui-monospace,monospace;padding:4px 7px;border-radius:6px;cursor:pointer;`+
-    `border:1px solid ${on?'#1f7a4d':'var(--line,#333)'};background:${on?'#1f7a4d':'transparent'};color:${on?'#fff':'var(--ink3,#888)'}`;
-}
 /* painéis onde VER ≠ EDITAR (têm nós de escrita no RTDB). Learn/Org são
    externos e Radar é leitura por natureza — edição não se aplica. */
 const EDIT_PANELS = ['painel','gu','cash','tv'];
-function editChipStyle(on){
-  return `font:700 10px/1 ui-monospace,monospace;padding:4px 7px;border-radius:6px;cursor:pointer;`+
-    `border:1px solid ${on?'#8f6b2d':'var(--line,#333)'};background:${on?'#8f6b2d':'transparent'};color:${on?'#fff':'var(--ink3,#888)'}`;
+/* Uma LINHA por painel: nome + os dois interruptores (👁 Vê / ✎ Edita) lado a
+   lado. Lê-se naturalmente ("Painel do Dia: vê, edita") em vez de cruzar duas
+   fileiras de chips. Painéis sem escrita (Radar, externos) mostram só o Vê. */
+function accessRow(u, p, editable){
+  const acc = u.access || {};
+  const ed  = u.edit || {};
+  const legado = u.edit == null;                 // sem nó `edit` → herda do acesso
+  const sees  = acc[p.id] === true;
+  const edits = editable && (legado ? sees : ed[p.id] === true);
+  const see = `<button class="perm-pill see${sees?' on':''}" data-key="${esc(u.key)}" data-panel="${p.id}" data-on="${sees?'1':'0'}" data-act="toggleAccess" data-act-self `+
+    `title="${sees?'Vê — clique para tirar o acesso':'Não vê — clique para liberar'}">${sees?'👁 Vê':'○ Sem acesso'}</button>`;
+  const edit = editable
+    ? `<button class="perm-pill edit${edits?' on':''}${sees?'':' muted'}" data-key="${esc(u.key)}" data-panel="${p.id}" data-on="${edits?'1':'0'}" data-act="toggleEdit" data-act-self `+
+        `title="${edits?'Edita — clique para deixar só leitura':'Só leitura — clique para liberar edição'}${legado?' (herdado do acesso; o 1º clique torna explícito)':''}">${edits?'✎ Edita':'🔒 Só leitura'}</button>`
+    : `<span class="perm-pill na" title="Este painel é somente leitura — não há o que editar">—</span>`;
+  return `<div class="perm-row"><span class="perm-name">${esc(p.label)}</span>${see}${edit}</div>`;
 }
 function accessCell(u){
-  if(u.admin) return `<span class="c-ink3" style="font-size:11px">Acesso total</span>`;
-  const acc = u.access || {};
-  const ed = u.edit || {};
-  const lblStyle = `font:700 9px/1 ui-monospace,monospace;color:var(--ink3,#888);flex:0 0 30px;align-self:center`;
-  const ver = ACCESS_PANELS.map(p=>{
-    const on = acc[p.id]===true;
-    return `<button data-key="${esc(u.key)}" data-panel="${p.id}" data-on="${on?'1':'0'}" data-act="toggleAccess" data-act-self `+
-      `title="${on?'Tem acesso a':'Sem acesso a'} ${esc(p.label)} — clique pra ${on?'retirar':'liberar'}" style="${accessChipStyle(on)}">${PANEL_SHORT[p.id]||p.id}</button>`;
-  }).join('');
-  /* edição: sem nó `edit` a conta está no modo legado (regras caem no access) —
-     o primeiro clique em qualquer chip ✎ migra a conta pro modo explícito */
-  const legado = u.edit == null;
-  const edita = EDIT_PANELS.map(id=>{
-    const p = ACCESS_PANELS.find(x=>x.id===id) || {label:id};
-    const on = legado ? acc[id]===true : ed[id]===true;
-    return `<button data-key="${esc(u.key)}" data-panel="${id}" data-on="${on?'1':'0'}" data-act="toggleEdit" data-act-self `+
-      `title="${on?'Pode editar':'Não edita'} ${esc(p.label)}${legado?' (herdado do acesso — clique pra tornar explícito)':''} — clique pra ${on?'travar':'liberar'} edição" `+
-      `style="${editChipStyle(on)}">✎ ${PANEL_SHORT[id]||id}</button>`;
-  }).join('');
-  return `<div style="display:flex;flex-direction:column;gap:4px">
-    <div style="display:flex;gap:4px;flex-wrap:wrap"><span style="${lblStyle}">vê</span>${ver}</div>
-    <div style="display:flex;gap:4px;flex-wrap:wrap"><span style="${lblStyle}">edita</span>${edita}</div>
-  </div>`;
+  if(u.admin) return `<span class="perm-admin">👑 Acesso total <small>(todos os painéis, ver e editar)</small></span>`;
+  const rows = ACCESS_PANELS.map(p => accessRow(u, p, EDIT_PANELS.includes(p.id))).join('');
+  return `<div class="perm-grid">${rows}</div>`;
 }
 async function toggleAccess(btn){
   if(!fbOk){ alert('Firebase não conectado.'); return; }
@@ -1437,12 +1425,8 @@ async function toggleAccess(btn){
   try{
     // grava true, ou remove a chave quando desliga (mantém o nó limpo)
     await db.ref(`users/${key}/access/${panel}`).set(next?true:null);
-    btn.dataset.on = next?'1':'0';
-    btn.setAttribute('style', accessChipStyle(next));
-    const p = ACCESS_PANELS.find(x=>x.id===panel);
-    btn.title = `${next?'Tem acesso a':'Sem acesso a'} ${p?p.label:panel} — clique pra ${next?'retirar':'liberar'}`;
-  }catch(e){ alert('Falha ao salvar acesso: '+(e.message||e)); }
-  finally{ btn.disabled=false; }
+    await loadOps();          // re-pinta a linha (tirar o Vê já apaga o Edita ao lado)
+  }catch(e){ alert('Falha ao salvar acesso: '+(e.message||e)); btn.disabled=false; }
 }
 /* liga/desliga a EDIÇÃO de um painel. Conta legada (sem nó `edit`): o primeiro
    toggle materializa o nó copiando o access atual dos painéis editáveis, e aí
@@ -1467,11 +1451,8 @@ async function toggleEdit(btn){
       const left = (await ref.once('value')).val();
       if(left == null) await ref.set({ _off:true });
     }
-    btn.dataset.on = next?'1':'0';
-    btn.setAttribute('style', editChipStyle(next));
     await loadOps();                       // re-pinta a linha (o legado pode ter virado explícito)
-  }catch(e){ alert('Falha ao salvar edição: '+(e.message||e)); }
-  finally{ btn.disabled=false; }
+  }catch(e){ alert('Falha ao salvar edição: '+(e.message||e)); btn.disabled=false; }
 }
 
 /* ── BACKFILL edição ──

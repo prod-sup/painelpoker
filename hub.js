@@ -1496,6 +1496,99 @@
     renderProfileTitles();
     renderMissions();
     renderActivity();
+    renderMyDay();
+  }
+
+  /* ── MEU DIA (seção do hub, ref. getfluently) ──
+     Sequência (dias seguidos), metas do dia e progresso do nível em anéis que
+     preenchem quando a seção entra na tela, + cards de coach conversacionais.
+     Roda de graça: mesmos stats do perfil, sem leitura extra. ── */
+  function computeStreak(){
+    const days = pfStats.daysMap || {};
+    const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const d = new Date();
+    // hoje ainda pode não ter registrado atividade — não quebra a sequência: começa de ontem
+    if(!days[iso(d)]) d.setDate(d.getDate()-1);
+    let n = 0;
+    while(days[iso(d)]){ n++; d.setDate(d.getDate()-1); }
+    return n;
+  }
+  function ringCard(tone, pct, val, unit, label){
+    const R = 52, C = 2 * Math.PI * R;
+    pct = Math.max(0, Math.min(1, pct || 0));
+    return `<div class="ring-card t-${tone}">
+      <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+        <circle class="ring-bg" cx="60" cy="60" r="${R}"></circle>
+        <circle class="ring-fg" cx="60" cy="60" r="${R}" style="--circ:${C.toFixed(1)};--pct:${pct.toFixed(3)}"></circle>
+      </svg>
+      <div class="ring-center"><b class="ring-val">${val}</b><span class="ring-unit">${escHtml(unit)}</span></div>
+      <div class="ring-label">${escHtml(label)}</div>
+    </div>`;
+  }
+  let _mydayIO = null;
+  function renderMyDay(){
+    const sec = document.getElementById('myDay');
+    if(!sec || !session) return;
+    const streak = computeStreak();
+    const doneToday = Object.keys(missionsToday()).length;
+    const totMiss = MISSIONS.length;
+    const xp = pfXp(), lv = levelFromXp(xp);
+    const cur = xpForLevel(lv), next = xpForLevel(lv+1);
+    const lvPct = next > cur ? (xp - cur) / (next - cur) : 1;
+    const rk = rankFromStats();
+
+    // anéis: sequência · metas do dia · nível
+    const streakGoal = Math.max(7, streak);           // a meta visual da sequência é 7 (ou o recorde atual)
+    document.getElementById('mydayRings').innerHTML =
+      ringCard('streak', streak/streakGoal, streak, streak === 1 ? 'dia' : 'dias', 'Sequência') +
+      ringCard('goal',   totMiss ? doneToday/totMiss : 0, `${doneToday}/${totMiss}`, 'metas', 'Metas do dia') +
+      ringCard('level',  lvPct, lv, `nível`, `${Math.max(0, next-xp)} XP p/ subir`);
+
+    // sub-título conversacional
+    const sub = streak >= 2
+      ? `<b>${streak} dias seguidos</b> na operação — mantenha a chama acesa. 🔥`
+      : (doneToday >= totMiss ? `Dia redondo: <b>todas as metas cumpridas</b>. ✅`
+                              : `Bem-vindo de volta. Rank atual: <b>${escHtml(rk.name)}</b>.`);
+    document.getElementById('mydaySub').innerHTML = sub;
+
+    // cards de coach (conversacionais, priorizados)
+    const coach = [];
+    if(doneToday < totMiss){
+      const prox = MISSIONS.find(m => !missionsToday()[m.id]);
+      coach.push({ ic:'🎯', tone:'goal', t:`Faltam ${totMiss-doneToday} meta${totMiss-doneToday>1?'s':''} pra fechar o dia`,
+        p: prox ? `A próxima: “${prox.nm}”.` : 'Você está quase lá.' });
+    } else {
+      coach.push({ ic:'✅', tone:'goal', t:'Metas do dia concluídas', p:'Voltou amanhã, a sequência cresce.' });
+    }
+    if(streak >= 2){
+      coach.push({ ic:'🔥', tone:'streak', t:`Sequência de ${streak} dias`,
+        p: `Não perca hoje — cada dia ativo vale ${XP_PER_DAY} XP e alimenta seu rank.` });
+    } else {
+      coach.push({ ic:'🌱', tone:'streak', t:'Comece uma sequência',
+        p:'Dias ativos seguidos sobem seu rank mais rápido que XP solto.' });
+    }
+    coach.push({ ic:'⚡', tone:'level', t:`Nível ${lv} · ${escHtml(rk.name)}`,
+      p:`Faltam ${Math.max(0, next-xp)} XP pro nível ${lv+1}.` });
+    document.getElementById('mydayCoach').innerHTML = coach.map((c,i) =>
+      `<article class="coach-card t-${c.tone}" style="--i:${i}">
+        <span class="coach-ic" aria-hidden="true">${c.ic}</span>
+        <div class="coach-body"><b>${escHtml(c.t)}</b><p>${c.p}</p></div>
+      </article>`).join('');
+
+    sec.hidden = false;
+
+    // preenche os anéis + conta os números quando a seção ENTRA na tela (scroll)
+    if(!_mydayIO && 'IntersectionObserver' in window){
+      _mydayIO = new IntersectionObserver(es => es.forEach(e => {
+        if(e.isIntersecting){
+          sec.classList.add('in');
+          try{ if(window.SupremaMotion) SupremaMotion.countUp('#mydayRings .ring-val'); }catch(_){}
+        }
+      }), { rootMargin:'0px 0px -12% 0px' });
+      _mydayIO.observe(sec);
+    } else if(!('IntersectionObserver' in window)){
+      sec.classList.add('in');
+    }
   }
   function renderProfileTitles(){
     const xp = pfXp();

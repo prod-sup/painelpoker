@@ -1834,6 +1834,55 @@
     .rrow .c-garantido{display:none;}
   }
 
+  /* ---------- MODO LEITURA (html.ro) ----------
+     ver ≠ editar: quem não tem canEdit('painel') acompanha ao vivo, mas as
+     ferramentas de escrita ficam travadas (a defesa real é o roGuard no JS +
+     as regras do RTDB; isto aqui é a leitura visual: some/desabilita o que
+     escreve, pra ninguém tentar à toa). */
+  #roBanner{
+    position:sticky; top:0; z-index:305;
+    display:flex; align-items:center; gap:10px;
+    padding:9px 20px; font-size:13px; line-height:1.35;
+    background:linear-gradient(90deg, color-mix(in srgb, var(--gold) 22%, var(--card)), var(--card));
+    color:var(--ink); border-bottom:1px solid color-mix(in srgb, var(--gold) 45%, transparent);
+    box-shadow:0 2px 14px -6px rgba(0,0,0,.3);
+  }
+  #roBanner .ro-ico{ font-size:15px; flex:none; }
+  #roBanner b{ font-weight:750; }
+  #roBanner .ro-hint{ color:var(--ink-soft); }
+  @media (max-width:560px){ #roBanner .ro-hint{ display:none; } }
+
+  /* esconde os disparadores de escrita da barra de ferramentas */
+  html.ro #uploadGlobalBtn,
+  html.ro #uploadBtnEmpty,
+  html.ro #addTorneioToggle,
+  html.ro #checklistToggle,
+  html.ro #shiftReportToggle{ display:none !important; }
+
+  /* trava os campos editáveis dentro dos cards/tabela (premiação, field, ID,
+     fixar): viram somente-leitura, sem sumir — o viewer ainda LÊ o que já foi
+     preenchido, só não digita. pointer-events:none impede foco/clique. */
+  html.ro .tcard-prem-input,
+  html.ro .tcard-field-input,
+  html.ro .id-input,
+  html.ro .ctr-inp,
+  html.ro .ctr-inp-id,
+  html.ro .fix-toggle,
+  html.ro .fix-check{
+    pointer-events:none !important;
+    opacity:.55;
+    filter:grayscale(.3);
+  }
+  html.ro .fix-check{ cursor:default; }
+  /* inputs travados perdem a borda de "campo ativo" — viram texto */
+  html.ro .tcard-prem-input,
+  html.ro .tcard-field-input,
+  html.ro .id-input,
+  html.ro .ctr-inp,
+  html.ro .ctr-inp-id{
+    background:transparent !important; border-color:transparent !important;
+  }
+
   /* ---------- FOOTER ---------- */
   footer{ padding:56px 0 36px; border-top:1px solid var(--hairline); }
   .footer-inner{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:18px;}

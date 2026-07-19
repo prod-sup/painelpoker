@@ -93,11 +93,24 @@
     if (isAdminEmail(s.email)) return;         // admin entra em tudo: nada a revalidar
     var tries = 0;
     (function waitDb() {
-      var fb = global.firebase;
-      if (!fb || !fb.database || !fb.auth || !fb.auth().currentUser) {
+      /* Espera o Firebase estar PRONTO. `revalidateAccess` roda no <head> —
+         ANTES de o painel chamar initializeApp — então nesse instante o SDK
+         existe mas não há app: chamar fb.auth() aí lançava "No Firebase App
+         '[DEFAULT]'" e, sem try/catch, matava o waitDb no 1º tique (os
+         listeners de vigilância nunca subiam). Agora o teste de prontidão fica
+         dentro do try: `fb.apps.length` garante um app inicializado ANTES de
+         tocar em fb.auth(), e qualquer exceção precoce só reagenda. */
+      var ready = false;
+      try {
+        var fbc = global.firebase;
+        ready = !!(fbc && fbc.database && fbc.auth &&
+                   fbc.apps && fbc.apps.length && fbc.auth().currentUser);
+      } catch (e) { ready = false; }
+      if (!ready) {
         if (tries++ > 100) return;            // ~20s esperando o Firebase: desiste em silêncio
         return setTimeout(waitDb, 200);
       }
+      var fb = global.firebase;
       /* VIGILÂNCIA AO VIVO (não é mais foto única do load): access e edit
          ficam observados enquanto o painel está aberto. Revogou o ACESSO →
          volta pro hub na hora. Revogou a EDIÇÃO de quem estava editando →

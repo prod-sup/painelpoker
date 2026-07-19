@@ -1604,6 +1604,101 @@ footer{
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   MEU DIA — progresso do operador logo depois do hero (ref. getfluently).
+   Anéis que preenchem quando a seção entra na tela (scroll) + coach cards.
+   Cores da casa: sequência dourada, metas feltro, nível azul. ══════════ */
+.myday{
+  position:relative;z-index:1;
+  max-width:1180px;margin:26px auto 0;padding:0 28px;
+}
+.myday-eyebrow{
+  display:inline-flex;align-items:center;gap:7px;
+  font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--gold);
+}
+.myday-eyebrow .suit{color:var(--gold)}
+.myday-title{
+  font-family:var(--sup-display, inherit);font-weight:750;letter-spacing:-.02em;
+  font-size:clamp(22px,3vw,30px);color:var(--ink);margin:6px 0 2px;
+}
+.myday-sub{font-size:14px;color:var(--ink-soft);line-height:1.5;max-width:60ch}
+.myday-sub b{color:var(--ink);font-weight:700}
+
+/* trilha de anéis */
+.myday-rings{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px;
+}
+.ring-card{
+  --tone:var(--gold);
+  position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:22px 16px 18px;border-radius:20px;
+  background:var(--bg-raise);border:1px solid var(--hairline);
+  box-shadow:0 1px 2px rgba(0,0,0,.18);
+  opacity:0;transform:translateY(16px);
+  transition:opacity .6s cubic-bezier(.22,1,.36,1),transform .6s cubic-bezier(.22,1,.36,1);
+}
+.ring-card.t-streak{--tone:var(--sup-gold-bright,#d8b56d)}
+.ring-card.t-goal{--tone:var(--sup-felt-bright,#22d47e)}
+.ring-card.t-level{--tone:#5b9dff}
+.myday.in .ring-card{opacity:1;transform:none}
+.myday.in .ring-card:nth-child(2){transition-delay:.08s}
+.myday.in .ring-card:nth-child(3){transition-delay:.16s}
+.ring{width:118px;height:118px;transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:color-mix(in srgb,var(--tone) 16%,transparent);stroke-width:9}
+.ring-fg{
+  fill:none;stroke:var(--tone);stroke-width:9;stroke-linecap:round;
+  stroke-dasharray:var(--circ);stroke-dashoffset:var(--circ);   /* vazio */
+  filter:drop-shadow(0 0 5px color-mix(in srgb,var(--tone) 45%,transparent));
+  transition:stroke-dashoffset 1.15s cubic-bezier(.22,1,.36,1);
+}
+.myday.in .ring-fg{stroke-dashoffset:calc(var(--circ) * (1 - var(--pct)))}
+.myday.in .ring-card:nth-child(2) .ring-fg{transition-delay:.1s}
+.myday.in .ring-card:nth-child(3) .ring-fg{transition-delay:.2s}
+/* número no miolo (o SVG está rotacionado; o texto fica reto por cima) */
+.ring-center{
+  position:absolute;top:22px;left:0;right:0;height:118px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  pointer-events:none;
+}
+.ring-val{font-family:var(--sup-display,inherit);font-size:26px;font-weight:800;letter-spacing:-.02em;color:var(--ink);line-height:1}
+.ring-unit{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint)}
+.ring-label{margin-top:8px;font-size:12.5px;font-weight:650;color:var(--ink-soft);text-align:center}
+.ring-card.t-level .ring-label{font-size:11px}
+
+/* coach cards conversacionais */
+.myday-coach{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+.coach-card{
+  display:flex;gap:11px;align-items:flex-start;
+  padding:14px 15px;border-radius:15px;
+  background:color-mix(in srgb,var(--bg-raise) 88%,var(--tone,transparent) 12%);
+  border:1px solid color-mix(in srgb,var(--tone,var(--hairline)) 26%,transparent);
+  opacity:0;transform:translateY(12px);
+  transition:opacity .55s cubic-bezier(.22,1,.36,1),transform .55s cubic-bezier(.22,1,.36,1);
+  transition-delay:calc(.24s + var(--i,0) * .07s);
+}
+.coach-card.t-streak{--tone:var(--sup-gold-bright,#d8b56d)}
+.coach-card.t-goal{--tone:var(--sup-felt-bright,#22d47e)}
+.coach-card.t-level{--tone:#5b9dff}
+.myday.in .coach-card{opacity:1;transform:none}
+.coach-ic{font-size:18px;line-height:1.2;flex:none}
+.coach-body b{display:block;font-size:13px;font-weight:700;color:var(--ink);letter-spacing:-.01em}
+.coach-body p{margin:2px 0 0;font-size:12.5px;color:var(--ink-soft);line-height:1.45}
+
+@media (prefers-reduced-motion: reduce){
+  .ring-card,.coach-card{opacity:1;transform:none;transition:none}
+  .ring-fg{transition:none}
+  .myday.in .ring-fg{stroke-dashoffset:calc(var(--circ) * (1 - var(--pct)))}
+}
+@media (max-width:720px){
+  .myday-rings{grid-template-columns:repeat(3,1fr);gap:10px}
+  .ring{width:92px;height:92px}
+  .ring-center{height:92px;top:22px}
+  .ring-val{font-size:21px}
+  .myday-coach{grid-template-columns:1fr}
+}
+@media (max-width:600px){ .myday{padding:0 18px} }
+
 /* ---------- responsivo ---------- */
 @media (max-width:900px){
   .t-painel,.t-admin{grid-column:span 6}

@@ -67,6 +67,20 @@
   <div class="avisos-list" id="avisosList"></div>
 </section>
 
+<!-- ── MEU DIA — o progresso do operador logo depois do hero (ref. getfluently):
+     sequência (streak), metas do dia e nível em anéis que PREENCHEM conforme a
+     seção entra na tela, + cards de coach conversacionais. Populado por
+     renderMyDay() em hub.js a partir dos MESMOS stats do perfil. -->
+<section class="myday" id="myDay" hidden aria-label="Seu dia na operação">
+  <div class="myday-head">
+    <span class="myday-eyebrow"><span class="suit" aria-hidden="true">&spades;</span> Sua jornada</span>
+    <h2 class="myday-title" id="mydayTitle">Seu dia</h2>
+    <p class="myday-sub" id="mydaySub"></p>
+  </div>
+  <div class="myday-rings" id="mydayRings"></div>
+  <div class="myday-coach" id="mydayCoach"></div>
+</section>
+
 <main class="grid">
 
   <a class="tile t-painel" href="index.html" style="--i:0" data-panel="painel">

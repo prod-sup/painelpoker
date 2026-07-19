@@ -1322,6 +1322,43 @@ function emailToKey(email){
 let _session = getSession();
 let OPERATOR_NAME = _session ? (_session.apelido || _session.nome || _session.email) : '';
 
+/* ── MODO LEITURA (ver ≠ editar) ──
+   O acesso a ESTE painel já passou pelo guard; aqui separamos quem VÊ de quem
+   EDITA. canEdit('painel') falso (e não-admin) ⇒ modo leitura: toda escrita é
+   bloqueada por roGuard (a defesa real, junto das regras do RTDB) e a UI de
+   edição é travada por CSS (html.ro) com um banner. Sessão nova traz o mapa
+   `edit`; se a edição for revogada com a pessoa ONLINE, o suprema-auth já a
+   ejeta (revalidateAccess vigia access|edit ao vivo). */
+let PANEL_RO = false;
+try { PANEL_RO = !!_session && !(window.SupremaAuth && SupremaAuth.canEdit && SupremaAuth.canEdit('painel')); }
+catch(e){ PANEL_RO = false; }
+if (PANEL_RO) document.documentElement.classList.add('ro');
+let _roToastAt = 0;
+/* chame no TOPO de cada função de escrita disparada pelo usuário: bloqueia e
+   avisa (no máx. 1 toast a cada 2,5s). Retorna true quando bloqueou. */
+function roGuard(){
+  if(!PANEL_RO) return false;
+  const now = Date.now();
+  if(now - _roToastAt > 2500){
+    _roToastAt = now;
+    try{ showToast('👁 Modo leitura — a edição está com a operação. Fale com um admin para liberar.', true); }catch(e){}
+  }
+  return true;
+}
+function mountReadonlyBanner(){
+  if(!PANEL_RO || document.getElementById('roBanner')) return;
+  const b = document.createElement('div');
+  b.id = 'roBanner'; b.setAttribute('role','status');
+  b.innerHTML = '<span class="ro-ico" aria-hidden="true">👁</span>' +
+    '<span><b>Modo leitura.</b> Você acompanha o painel ao vivo, mas as edições estão com a operação. ' +
+    '<span class="ro-hint">Fale com um admin para liberar a edição.</span></span>';
+  (document.body || document.documentElement).prepend(b);
+}
+if(PANEL_RO){
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountReadonlyBanner);
+  else mountReadonlyBanner();
+}
+
 function promptOperatorNameIfNeeded(){
   if(_session) return;
   // A tela de login do painel não existe mais: sem sessão, o lugar é o hub.
@@ -2842,6 +2879,7 @@ function suppressUpcomingEcho(){
 }
 
 function setFixed(key, val){
+  if (roGuard()) return;
   if (val) FIXED_MAP[key] = { by: OPERATOR_NAME || 'Alguém', at: Date.now() };
   else delete FIXED_MAP[key];
   saveFixedMapLocal(FIXED_MAP); // grava local na hora (instantâneo, sem esperar rede)
@@ -2870,6 +2908,7 @@ function premByAt(key){
   return `${h}:${m}`;
 }
 function stampPremBy(key){
+  if (PANEL_RO) return;
   PREM_BY_MAP[key] = { by: OPERATOR_NAME || 'Alguém', at: Date.now() };
   savePremByMapLocal(PREM_BY_MAP);
   if (fbReady){
@@ -2890,6 +2929,7 @@ function cardResponsibleName(key){
   return fixedBy(key) || premBy(key) || getIdBy(key) || '';
 }
 function setId(key, val){
+  if (roGuard()) return;
   if(val){
     ID_MAP[key] = { val, by: OPERATOR_NAME || 'Alguém', at: Date.now() };
   } else {
@@ -2911,6 +2951,7 @@ function setId(key, val){
 
 function getField(key){ return FIELD_MAP[key] != null ? FIELD_MAP[key] : ''; }
 function setField(key, val){
+  if (roGuard()) return;
   const n = val === '' || val == null ? null : parseInt(val, 10);
   // Atualização em memória é imediata (preview instantâneo, sem custo de I/O)…
   if(n != null && !isNaN(n)) FIELD_MAP[key] = n;
@@ -2944,6 +2985,7 @@ function getGarantidoEffective(key){
   return row?.garantido ?? null;
 }
 function setGarantidoOverride(key, val){
+  if (roGuard()) return;
   const n = val === '' || val == null ? null : parseFloat(String(val).replace(/[^\d.,]/g,'').replace(',','.'));
   if(n != null && !isNaN(n) && n > 0){
     GARANTIDO_MAP[key] = n;
@@ -3010,6 +3052,7 @@ function checklistDoneBy(itemId){
   return (v && typeof v === 'object') ? (v.by || '') : '';
 }
 function setChecklistItem(itemId, val){
+  if (roGuard()) return;
   if (val) CHECKLIST_MAP[itemId] = { by: OPERATOR_NAME || 'Alguém', at: Date.now() };
   else delete CHECKLIST_MAP[itemId];
   // progressão: item do checklist do turno concluído = ação na jornada do operador
@@ -3031,6 +3074,7 @@ function confHojeDoneBy(itemId){
   return (v && typeof v === 'object') ? (v.by || '') : '';
 }
 function setConfHojeItem(itemId, val){
+  if (roGuard()) return;
   if (val) CONFHOJE_MAP[itemId] = { by: OPERATOR_NAME || 'Alguém', at: Date.now() };
   else delete CONFHOJE_MAP[itemId];
   saveConfHojeMapLocal(CONFHOJE_MAP);
@@ -3048,7 +3092,7 @@ function setConfHojeItem(itemId, val){
    (campos vindos direto da célula crua, como "acoes", podem vir undefined em vez de null) */
 
 function setSharedSheet(rows, filename){
-  if (!fbReady) return;
+  if (!fbReady || PANEL_RO) return;
   const safeRows = rows.map(r => {
     const clean = {};
     Object.keys(r).forEach(k => { clean[k] = r[k] === undefined ? null : r[k]; });
@@ -3584,6 +3628,7 @@ function buildManualRow({nome, hora, garantido, buyin, tipo}){
 
 /* Adiciona um torneio manual. Grava no nó próprio, funde na grade e republica. */
 async function addManualTournament(dados){
+  if (roGuard()) return;
   const row = buildManualRow(dados);
   const id = 'm_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   MANUAL_ROWS[id] = row;                       // otimista: a UI responde na hora
@@ -3605,6 +3650,7 @@ async function addManualTournament(dados){
 /* Remove um torneio manual (adicionado por engano). O trabalho já feito no card
    (premiação/ID/fixado) fica órfão no Firebase, inofensivo — a linha some da grade. */
 async function removeManualTournament(id){
+  if (roGuard()) return;
   const row = MANUAL_ROWS[id];
   if (!row) return;
   delete MANUAL_ROWS[id];
@@ -4627,6 +4673,7 @@ function wbToBase64(wb){
 
 // Salvar XLSX no Firebase em relatorios/{data}/acompanhamento
 async function saveReportToFirebase(silent=false){
+  if(PANEL_RO){ if(!silent) roGuard(); return; }
   if(!fbReady){ if(!silent) showToast('Firebase não conectado.', true); return; }
   if(!RAW_ROWS.length){ if(!silent) showToast('Nenhum dado para salvar.', true); return; }
 
@@ -4714,6 +4761,7 @@ async function saveReportToFirebase(silent=false){
 // Checar se o dia está completo após qualquer preenchimento
 let _lastDayCompleteCheck = false;
 function checkDayComplete(){
+  if(PANEL_RO) return;                 // viewer não dispara o autosave do relatório
   if(!RAW_ROWS.length) return;
   const complete = isDayComplete();
   if(complete && !_lastDayCompleteCheck){
@@ -5145,8 +5193,14 @@ function runDiagnostico(){
   }
   if (document.getElementById('diagDrawerOverlay')?.classList.contains('open')) renderDiagnostico();
 }
-/* re-analisa sem custo: colado nos mesmos momentos em que os números já mudam */
-const scheduleDiagnostico = debounce(runDiagnostico, 400);
+/* re-analisa sem custo: colado nos mesmos momentos em que os números já mudam.
+   `var` (não `const`) DE PROPÓSITO: computeStats (via restoreSheetFromLocal) e o
+   callback de conexão do Firebase podem rodar ANTES desta linha, no load. As
+   duas chamadas se protegem com `typeof scheduleDiagnostico === 'function'` —
+   guarda que só é segura com `var` (sobe como undefined). Como `const`, a mesma
+   leitura caía na Temporal Dead Zone e lançava ReferenceError, quebrando o
+   ingest inteiro ("Cannot access 'scheduleDiagnostico' before initialization"). */
+var scheduleDiagnostico = debounce(runDiagnostico, 400);
 
 const DIAG_CAT_LABEL = { operacional:'Operação', tecnico:'Técnico', preditivo:'Antecipação' };
 const DIAG_SEV_LABEL = { critico:'Crítico', atencao:'Atenção', info:'Info' };
@@ -5686,6 +5740,7 @@ function loadSavedGarantidos(){
 /* aplica um valor de premiação a um torneio (por _key) e propaga pra tudo que depende dela —
    usada tanto pela digitação manual no card quanto pelo auto-preenchimento da Calculadora de Overlay */
 function applyPremiacaoValue(key, premiacaoVal, activityMsg){
+  if (roGuard()) return;
   const row = rowByKey(key);
   if(!row) return;
   row.premiacao = premiacaoVal;
@@ -7298,7 +7353,7 @@ const ALL_DRAWER_OVERLAY_IDS = ['checklistDrawerOverlay', 'serversDrawerOverlay'
    - perf = (prize_pool - gtd) / gtd × 100
    - acoes = calculado via fórmula de buy-in */
 function appendTodayToHistorico(){
-  if(!fbReady || !RAW_ROWS.length) return;
+  if(!fbReady || PANEL_RO || !RAW_ROWS.length) return;
   const n = nowInSP();
   const ds = `${n.year}-${String(n.month).padStart(2,'0')}-${String(n.day).padStart(2,'0')}`;
   const recs = RAW_ROWS.filter(r => r.premiacao != null && r.premiacao > 0).map(r => {
@@ -7718,7 +7773,7 @@ let typingTimeout = null;
 let isShowingTypingIndicator = false;
 
 function setTypingActive(active){
-  if(!fbReady) return;
+  if(!fbReady || PANEL_RO) return;
   if(active){
     fbDb.ref(TYPING_PATH).set({
       name: OPERATOR_NAME || 'Parceiro',

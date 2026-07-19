@@ -823,3 +823,29 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
 .av-item-meta{font-size:11px;color:var(--ink3);margin-top:5px}
 .av-item-actions{flex:none;display:flex;gap:6px}
 .av-item-rm{color:var(--red)}
+
+/* ── PERMISSÕES POR PAINEL (aba Operadores) ──
+   Uma linha por painel: nome + interruptor Vê + interruptor Edita. Lê-se
+   como frase, sem cruzar duas fileiras de chips. Verde = vê, dourado = edita. */
+.perm-grid{display:flex;flex-direction:column;gap:3px;min-width:230px}
+.perm-row{
+  display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:6px;
+  padding:2px 0;
+}
+.perm-name{font-size:12px;font-weight:600;color:var(--ink2);white-space:nowrap}
+.perm-pill{
+  font:650 11px/1 var(--sans, inherit);
+  display:inline-flex;align-items:center;gap:4px;
+  padding:4px 9px;border-radius:99px;cursor:pointer;white-space:nowrap;
+  border:1px solid var(--border);background:var(--s2);color:var(--ink3);
+  transition:background .15s, border-color .15s, color .15s, opacity .15s;
+}
+.perm-pill:hover{border-color:var(--ink3)}
+.perm-pill.see.on{background:var(--greenf);border-color:var(--green);color:var(--green)}
+.perm-pill.edit.on{background:var(--goldf);border-color:var(--gold);color:var(--gold)}
+/* Edita só faz sentido com o Vê ligado — apaga quando não vê (ainda clicável) */
+.perm-pill.edit.muted{opacity:.4}
+.perm-pill.na{cursor:default;background:none;border-color:transparent;color:var(--ink3);opacity:.6}
+.perm-pill.na:hover{border-color:transparent}
+.perm-admin{font-size:12.5px;font-weight:650;color:var(--gold)}
+.perm-admin small{display:block;font-weight:500;color:var(--ink3);font-size:11px;margin-top:2px}
