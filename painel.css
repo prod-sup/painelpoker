@@ -557,6 +557,23 @@
     animation-play-state: paused !important;
   }
 
+  /* Mesmo congelamento com um drawer aberto (body.sp-covered, ligado em
+     openDrawer/closeDrawer): o vidro fosco do overlay re-borra a viewport
+     INTEIRA a cada frame em que qualquer coisa atrás dele se mexe — deck
+     respirando + aurora + naipes já custavam um re-blur de tela cheia por
+     frame enquanto o operador usava a ferramenta. Atrás do vidro nada
+     precisa se mexer; dentro do drawer (e no cursor de loading, que fica
+     acima do overlay) tudo segue animando normal. */
+  body.sp-covered *, body.sp-covered *::before, body.sp-covered *::after{
+    animation-play-state: paused !important;
+  }
+  body.sp-covered .drawer-overlay *,
+  body.sp-covered .drawer-overlay *::before,
+  body.sp-covered .drawer-overlay *::after,
+  body.sp-covered .sp-busy-chips *{
+    animation-play-state: running !important;
+  }
+
   .wrap{max-width:1180px; margin:0 auto; padding:0 28px;}
   :focus-visible{outline:2px solid var(--felt-bright); outline-offset:3px; border-radius:4px;}
 
@@ -1825,7 +1842,9 @@
 
   .progress-bar{
     position:fixed; top:0; left:0; height:2px; background:linear-gradient(90deg,var(--felt),var(--felt-bright),var(--gold));
-    z-index:300; width:0%; transition:width .1s linear;
+    z-index:300; width:100%; transform:scaleX(0); transform-origin:0 50%;
+    /* scaleX em vez de width: width dispara layout+paint a cada frame de scroll;
+       scaleX é compositor puro (mesmo visual — o gradiente comprime igual). */
   }
 
   .offline-banner{

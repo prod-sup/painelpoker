@@ -41,7 +41,7 @@
         'color:var(--sp-amb,rgba(24,163,107,.07));animation:sp-drift 26s ease-in-out infinite}' +
       '.sp-ambient span:nth-child(2n){color:var(--sp-amb2,rgba(216,181,109,.06))}' +
       '@keyframes sp-drift{0%,100%{transform:translateY(0) rotate(var(--rot,0deg))}50%{transform:translateY(-26px) rotate(calc(var(--rot,0deg) + 4deg))}}' +
-      'body.win-blurred .sp-ambient span{animation-play-state:paused}' +
+      'body.win-blurred .sp-ambient span,body.sp-covered .sp-ambient span{animation-play-state:paused}' +
       '@media (prefers-reduced-motion:reduce){.sp-ambient span{animation:none}}' +
       /* cursor de trabalho: fichas caindo perto do ponteiro enquanto algo processa */
       'body.sp-busy, body.sp-busy *{cursor:progress !important}' +
@@ -81,7 +81,8 @@
       '.sp-aurora::after{background:radial-gradient(closest-side,var(--sp-au2,rgba(216,181,109,.18)),transparent 62%);' +
         'animation-duration:27s;animation-direction:reverse}' +
       '@keyframes sp-aurora{0%,100%{transform:translate(-8%,-6%) scale(1)}50%{transform:translate(10%,9%) scale(1.18)}}' +
-      'body.win-blurred .sp-aurora::before,body.win-blurred .sp-aurora::after{animation-play-state:paused}' +
+      'body.win-blurred .sp-aurora::before,body.win-blurred .sp-aurora::after,' +
+      'body.sp-covered .sp-aurora::before,body.sp-covered .sp-aurora::after{animation-play-state:paused}' +
       '@media (prefers-reduced-motion:reduce){.sp-aurora::before,.sp-aurora::after{animation:none}}' +
       /* skeleton shimmer: percepção de velocidade enquanto os dados chegam */
       '.sp-shimmer{position:relative;overflow:hidden;background:color-mix(in srgb, var(--ink-faint, #888) 16%, transparent);border-radius:8px}' +
@@ -441,7 +442,10 @@
         }
         function frame(){
           raf = 0;
-          if (!visible || !focused) return;
+          /* body.sp-covered = página coberta por um drawer/overlay com vidro
+             fosco: cada frame do canvas re-borra a viewport inteira. Dorme e
+             o MutationObserver abaixo acorda quando a classe sai. */
+          if (!visible || !focused || (document.body && document.body.classList.contains('sp-covered'))) return;
           /* cada página marca o tema do seu jeito (.dark, [data-theme], ou .light
              invertido no hub) — opts.isDark deixa o chamador mandar na regra */
           var darkNow = opts.isDark
@@ -482,6 +486,9 @@
         }
         global.addEventListener('blur',  function(){ focused = false; }, { passive:true });
         global.addEventListener('focus', function(){ focused = true; wake(); }, { passive:true });
+        if ('MutationObserver' in global && document.body){
+          new MutationObserver(wake).observe(document.body, { attributes:true, attributeFilter:['class'] });
+        }
         document.addEventListener('visibilitychange', function(){ focused = !document.hidden; wake(); });
         var rsz = 0;
         global.addEventListener('resize', function(){

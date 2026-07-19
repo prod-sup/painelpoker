@@ -5035,11 +5035,31 @@ function renderChecklist(){
 }
 renderChecklist();
 
+/* Drawer aberto = página coberta pelo vidro fosco. body.sp-covered congela as
+   animações de fundo (CSS em painel.css) — cada frame animado sob o
+   backdrop-filter re-borra a viewport inteira, que era o FPS baixo das
+   ferramentas em PC fraco. O vídeo do hero também pausa (decodificar frame
+   novo = re-blur), guardando se estava tocando pra retomar só nesse caso. */
+function syncCoveredState(){
+  const covered = !!document.querySelector('.drawer-overlay.open');
+  document.body.classList.toggle('sp-covered', covered);
+  const video = document.getElementById('heroVideo');
+  if(video){
+    if(covered){
+      if(!video.paused){ video.__resumeAfterDrawer = true; video.pause(); }
+    }else if(video.__resumeAfterDrawer){
+      video.__resumeAfterDrawer = false;
+      video.play?.().catch(()=>{});
+    }
+  }
+}
 function openDrawer(overlayId){
   document.getElementById(overlayId).classList.add('open');
+  syncCoveredState();
 }
 function closeDrawer(overlayId){
   document.getElementById(overlayId).classList.remove('open');
+  syncCoveredState();
 }
 document.getElementById('checklistToggle').addEventListener('click', () => openDrawer('checklistDrawerOverlay'));
 document.getElementById('checklistDrawerClose').addEventListener('click', () => closeDrawer('checklistDrawerOverlay'));
@@ -7378,7 +7398,7 @@ window.addEventListener('scroll', () => {
     const scrollY = window.scrollY;                 // leitura
     const max = h.scrollHeight - h.clientHeight;    // leitura
     nav.classList.toggle('scrolled', scrollY > 8);  // escrita
-    progressBar.style.width = (max > 0 ? (scrollY / max) * 100 : 0) + '%'; // escrita
+    progressBar.style.transform = 'scaleX(' + (max > 0 ? scrollY / max : 0).toFixed(4) + ')'; // escrita (compositor puro)
     scrollTicking = false;
   });
 }, {passive:true});
