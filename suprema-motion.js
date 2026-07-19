@@ -514,7 +514,11 @@
     'alert-tri':    '<path d="M10.3 4.2 2.2 18a2 2 0 0 0 1.7 3h16.2a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z"/><path d="M12 9.5v4"/><path d="M12 17h.01"/>',
     'alert-circle': '<circle cx="12" cy="12" r="8.5"/><path d="M12 8v5"/><path d="M12 16h.01"/>',
     'info':         '<circle cx="12" cy="12" r="8.5"/><path d="M12 11.2v4.5"/><path d="M12 8.2h.01"/>',
-    'spark':        '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/>'
+    'spark':        '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/>',
+    'trophy':       '<path d="M7 4.5h10V9a5 5 0 0 1-10 0V4.5Z"/><path d="M7 5.5H4.2v1.6A2.8 2.8 0 0 0 7 10M17 5.5h2.8v1.6A2.8 2.8 0 0 1 17 10"/><path d="M12 14v3.5M9.2 20.5h5.6M10 20.5v-1a2 2 0 0 1 4 0v1"/>',
+    'refresh':      '<path d="M20.5 12a8.5 8.5 0 1 1-2.4-5.9"/><path d="M20.5 4v4.5H16"/>',
+    'ban':          '<circle cx="12" cy="12" r="8.5"/><path d="m6.1 6.1 11.8 11.8"/>',
+    'moon':         '<path d="M20 14.3A8 8 0 0 1 9.7 4 7 7 0 1 0 20 14.3Z"/>'
   };
   function icon(name, cls){
     var inner = ICON_PATHS[name] || ICON_PATHS['info'];

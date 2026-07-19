@@ -1097,8 +1097,38 @@ $('allDoneGo').addEventListener('click', () => {
   $('fileInput').click();
 });
 
+/* ── ANÉIS DE CRIAÇÃO (ref. getfluently) — progresso POR FUNÇÃO do turno,
+   preenchendo conforme os torneios são marcados como criados ── */
+function cnRing(tone, done, total, label){
+  const R = 44, C = 2 * Math.PI * R;
+  const pct = total ? Math.max(0, Math.min(1, done/total)) : 0;
+  return `<div class="cn-ring t-${tone}">
+    <svg viewBox="0 0 108 108" aria-hidden="true">
+      <circle class="cn-bg" cx="54" cy="54" r="${R}"></circle>
+      <circle class="cn-fg" cx="54" cy="54" r="${R}" style="--circ:${C.toFixed(1)};--pct:${pct.toFixed(3)}"></circle>
+    </svg>
+    <div class="cn-center"><b>${done}<span>/${total}</span></b></div>
+    <div class="cn-label">${label}</div>
+  </div>`;
+}
+let _cnRingsBuilt = false;
+function renderCriacaoRings(){
+  const el = document.getElementById('cnRings');
+  if (!el || !DATA) return;
+  const mainSat = [...DATA.main, ...DATA.sat];
+  const sd = sideSplit();
+  const doneOf = arr => arr.filter(it => DONE[itemKey(it)]).length;
+  el.innerHTML =
+    cnRing('main',     doneOf(mainSat),    mainSat.length,    'Main + Satélites') +
+    cnRing('side',     doneOf(sd.admin),   sd.admin.length,   'Side · c/ Admin') +
+    cnRing('sidefree', doneOf(sd.noadmin), sd.noadmin.length, 'Side · s/ Admin');
+  if (!_cnRingsBuilt){ _cnRingsBuilt = true; requestAnimationFrame(() => el.classList.add('in')); }
+  else el.classList.add('in');
+}
+
 function renderStats(){
   if (!DATA){ return; }
+  renderCriacaoRings();
   const total = DATA.main.length + DATA.side.length + DATA.sat.length;
   const doneCount = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => DONE[itemKey(it)]).length;
   const pct = total ? Math.round(doneCount/total*100) : 0;

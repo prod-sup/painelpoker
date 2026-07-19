@@ -244,8 +244,45 @@ body > *{position:relative;z-index:1}
   .hstat.c-prog .n{color:#22d47e}
   .hstat.c-camp .n{color:#c9a84c}
   .hstat.c-camp{background:rgba(201,168,76,.08);border-color:rgba(201,168,76,.28)}
-  .hero-progress{margin-top:22px;max-width:520px}
-  .hero-progress .bar{
+  /* ── ANÉIS DE CRIAÇÃO por função (linha Apple Fitness) ── */
+  .cn-rings{ display:grid; grid-template-columns:repeat(3,minmax(0,200px)); gap:14px; margin-top:22px; }
+  .cn-ring{
+    --tone:var(--main-bright);
+    position:relative; display:flex; flex-direction:column; align-items:center; gap:2px;
+    background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.09);
+    border-radius:16px; padding:18px 12px 14px;
+  }
+  .cn-ring.t-main{ --tone:var(--main-bright); }
+  .cn-ring.t-side{ --tone:var(--side-bright); }
+  .cn-ring.t-sidefree{ --tone:var(--sidefree-bright); }
+  .cn-ring svg{ width:98px; height:98px; transform:rotate(-90deg); }
+  .cn-bg{ fill:none; stroke:color-mix(in srgb, var(--tone) 18%, transparent); stroke-width:10; }
+  .cn-fg{
+    fill:none; stroke:var(--tone); stroke-width:10; stroke-linecap:round;
+    stroke-dasharray:var(--circ); stroke-dashoffset:var(--circ);
+    filter:drop-shadow(0 0 6px color-mix(in srgb, var(--tone) 60%, transparent));
+    transition:stroke-dashoffset 1.05s var(--ease-expo);
+  }
+  .cn-rings.in .cn-fg{ stroke-dashoffset:calc(var(--circ) * (1 - var(--pct))); }
+  .cn-rings.in .cn-ring:nth-child(2) .cn-fg{ transition-delay:.09s; }
+  .cn-rings.in .cn-ring:nth-child(3) .cn-fg{ transition-delay:.18s; }
+  .cn-center{ position:absolute; top:18px; left:0; right:0; height:98px; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+  .cn-center b{ font-family:var(--display,inherit); font-size:24px; font-weight:800; letter-spacing:-.03em; color:#f2f5f2; }
+  .cn-center b span{ font-size:15px; font-weight:600; color:rgba(242,245,242,.5); }
+  .cn-label{ margin-top:8px; font-size:12px; font-weight:700; color:rgba(242,245,242,.72); text-align:center; letter-spacing:-.01em; }
+  @media (prefers-reduced-motion: reduce){ .cn-fg{ transition:none; } }
+  @media (max-width:680px){
+    .cn-rings{ grid-template-columns:1fr; }
+    .cn-ring{ flex-direction:row; justify-content:flex-start; gap:14px; padding:12px 16px; }
+    .cn-ring svg{ width:72px; height:72px; flex:none; }
+    .cn-center{ width:72px; height:72px; top:12px; left:16px; right:auto; }
+    .cn-label{ text-align:left; }
+  }
+
+  .hero-progress{margin-top:16px;max-width:520px}
+  /* barra achatada some: os anéis acima já contam o progresso (a lógica em
+     renderStats segue escrevendo em #progFill, oculto) */
+  .hero-progress .bar{ display:none;
     height:8px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden;
   }
   .hero-progress .fill{
