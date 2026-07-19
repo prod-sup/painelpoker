@@ -171,19 +171,25 @@ html.dark nav{ background:rgba(15,17,16,0.92); border-bottom-color:rgba(255,255,
 /* ── HERO — noite na casa, como os irmãos: escuro MESMO no tema claro,
    desaguando no --bg. A rede de nós vive aqui. ── */
 .hero{
+  /* o efeito hero: a noite se DISSOLVE no dia — mas numa zona vazia ABAIXO do
+     conteúdo (últimos ~130px, só atmosfera e rede de nós), nunca por cima dos
+     stats. Era o que a versão antiga errava no tema claro: o fade em % caía em
+     cima dos cartões de vidro e virava névoa. Fixando o fade em px a partir do
+     fundo, o conteúdo fica no escuro sólido e a fumaça acontece depois dele. */
   position:relative;overflow:hidden;isolation:isolate;
+  --hero-fade:130px;                     /* altura da zona de dissolução */
   background:
     radial-gradient(1200px 420px at 78% -60%, rgba(216,96,122,.24), transparent 62%),
     radial-gradient(900px 380px at 12% -40%, rgba(138,100,32,.28), transparent 60%),
-    linear-gradient(180deg,#140b0e 0%, #120d10 78%, var(--bg) 100%);
+    linear-gradient(180deg,#140b0e 0%, #150e12 calc(100% - var(--hero-fade)), var(--bg) 100%);
   color:#ece8ea;
-  padding:52px 28px 40px;
+  padding:52px 28px var(--hero-fade);
 }
 html:not(.dark) .hero{
   background:
     radial-gradient(1200px 420px at 78% -60%, rgba(216,96,122,.30), transparent 62%),
     radial-gradient(900px 380px at 12% -40%, rgba(201,168,76,.26), transparent 60%),
-    linear-gradient(180deg,#140b0e 0%, #17121a 82%, var(--bg) 100%);
+    linear-gradient(180deg,#140b0e 0%, #17121a calc(100% - var(--hero-fade)), var(--bg) 100%);
 }
 .hero .sp-network{opacity:.55}
 .hero-inner{
@@ -218,6 +224,9 @@ h1 .grad{ color:var(--sup-gold-dark); }
   -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
 }
 .source-meta svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2}
+/* como filho direto do hero-inner (flex), o meta ganha a linha inteira mas
+   continua do tamanho do conteúdo — o rodapé discreto do hero */
+.hero-inner > .source-meta{flex:0 0 100%;max-width:max-content;margin-top:0}
 .source-meta b{color:#ece8ea}
 
 /* stats de vidro no hero — o mesmo hstat da família */
@@ -234,6 +243,225 @@ h1 .grad{ color:var(--sup-gold-dark); }
 .stat.s-gtd .n{color:#e8c884}
 .stat.s-fut .n{color:#f4a9ba}
 @keyframes ev-pulse{0%,100%{box-shadow:0 0 0 0 rgba(243,107,112,.45)}55%{box-shadow:0 0 0 6px rgba(243,107,112,0)}}
+
+/* ── PALCO DOS MAIN EVENTS — o hero vira vitrine: um Main por vez, navegação
+   lateral por scroll-snap (arrasto/trackpad nativos), setas e pontos.
+   SEM backdrop-filter no slide: a rede de nós anima atrás, e vidro fosco aqui
+   viraria re-blur por frame (a lição do sp-covered no Painel). O "vidro" é
+   translucidez + hairline, como os .stat. ── */
+/* o palco toma a seção INTEIRA do hero — os stats viram uma faixa fina abaixo */
+.mev-stage{flex:1 1 100%;min-width:0;display:flex;flex-direction:column;gap:14px}
+.hero-inner:has(.mev-stage:not([hidden])) .hero-stats{
+  width:100%;grid-template-columns:repeat(4,minmax(0,1fr));
+}
+.mev-stage .hero-kicker{margin-bottom:0}
+.mev-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.mev-nav{display:flex;align-items:center;gap:10px}
+.mev-count{font-family:var(--mono);font-size:11.5px;font-weight:700;color:rgba(236,232,234,.55);min-width:44px;text-align:center}
+.mev-arrow{
+  width:34px;height:34px;border-radius:99px;display:grid;place-items:center;
+  font-size:19px;line-height:1;color:#ece8ea;cursor:pointer;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+  transition:background-color .2s var(--ease), border-color .2s var(--ease), transform .2s var(--ease);
+}
+.mev-arrow:hover{background:rgba(255,255,255,.12);border-color:rgba(244,169,186,.5);transform:translateY(-1px)}
+.mev-arrow:active{transform:scale(.94)}
+.mev-track{
+  display:flex;overflow-x:auto;overscroll-behavior-x:contain;
+  scroll-snap-type:x mandatory;scrollbar-width:none;
+  border-radius:18px;outline-offset:3px;
+}
+.mev-track::-webkit-scrollbar{display:none}
+.mev-slide{
+  /* 90% + snap central: os vizinhos ESPIAM pelas bordas — o convite visual
+     de que dá pra ir pro lado, sem precisar de seta nenhuma */
+  flex:0 0 90%;min-width:0;scroll-snap-align:center;box-sizing:border-box;
+  position:relative;overflow:hidden;
+  display:flex;flex-direction:column;gap:16px;min-height:250px;justify-content:space-between;
+  padding:30px 36px 26px;border-radius:18px;
+  background:linear-gradient(165deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+}
+.mev-slide + .mev-slide{margin-left:16px}
+.mev-slide > *{position:relative;z-index:1}
+/* naipe gigante de marca-d'água — estático, custo zero */
+.mev-slide::before{
+  content:'♠';position:absolute;right:-18px;top:-52px;z-index:0;
+  font-size:230px;line-height:1;font-family:var(--display);
+  color:rgba(216,96,122,.08);transform:rotate(12deg);pointer-events:none;
+}
+/* IDENTIDADE POR CAMPANHA: o cartão carrega a cor da família (✦ #AS rosa,
+   +SPS dourado, +SPT verde) num facho de luz no topo, na marca-d'água e no
+   badge — de relance se sabe QUAL campanha está no palco. Sem stripe de
+   borda: a cor entra como LUZ, não como listra. */
+.mev-slide[data-camp="AS"]{ --mev-camp:#f4a9ba }
+.mev-slide[data-camp="SPS"]{ --mev-camp:#c9a84c }
+.mev-slide[data-camp="SPT"]{ --mev-camp:#22d47e }
+.mev-slide[data-camp]{
+  background:
+    radial-gradient(580px 200px at 14% -18%, color-mix(in srgb, var(--mev-camp) 22%, transparent), transparent 64%),
+    linear-gradient(165deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+  border-color:color-mix(in srgb, var(--mev-camp) 28%, rgba(255,255,255,.12));
+}
+.mev-slide[data-camp]::before{ color:color-mix(in srgb, var(--mev-camp) 11%, transparent) }
+.mev-slide[data-camp] .b-camp{
+  color:var(--mev-camp);
+  border-color:color-mix(in srgb, var(--mev-camp) 45%, transparent);
+  background:color-mix(in srgb, var(--mev-camp) 12%, transparent);
+}
+/* contagem regressiva viva do "começa em" */
+.mev-soon .mev-cd{font-family:var(--mono);font-size:12px;letter-spacing:.02em;font-variant-numeric:tabular-nums}
+/* AO VIVO: brasa framboesa respirando nas bordas do cartão (pulsa só a
+   OPACITY de uma sombra interna pré-pronta — compositor puro) */
+.mev-slide.live{border-color:rgba(243,107,112,.4)}
+.mev-slide.live::after{
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:0;
+  box-shadow:inset 0 0 74px -26px rgba(243,107,112,.6);
+  animation:mev-ember 2.4s ease-in-out infinite;
+}
+@keyframes mev-ember{0%,100%{opacity:.45}50%{opacity:1}}
+/* PROFUNDIDADE guiada pelo próprio arrasto (scroll-driven animation):
+   o slide que sai de cena encolhe e apaga de leve, o que chega cresce —
+   transform/opacity dirigidos pelo compositor, sem JS por frame.
+   Navegador sem suporte: carrossel normal, nada quebra. */
+@supports (animation-timeline: view()) {
+  .mev-slide{
+    animation:mev-depth linear both;
+    animation-timeline:view(inline);
+  }
+  @keyframes mev-depth{
+    0%{ transform:scale(.93); opacity:.5 }
+    50%{ transform:scale(1); opacity:1 }
+    100%{ transform:scale(.93); opacity:.5 }
+  }
+  /* layered depth (ref. MotionSites): a marca-d'água ♠ viaja mais devagar
+     que o cartão durante o arrasto — camadas em velocidades diferentes */
+  .mev-slide::before{
+    animation:mev-suit-par linear both;
+    animation-timeline:view(inline);
+  }
+  @keyframes mev-suit-par{
+    0%{ transform:translateX(-44px) rotate(12deg) }
+    100%{ transform:translateX(26px) rotate(12deg) }
+  }
+}
+/* TEXT REVEAL (ref. MotionSites): quando um cartão assume o centro
+   (classe .is-center via mevSync), o conteúdo sobe em cascata —
+   tags → nome → números → rodapé. Quem espia pelas bordas continua
+   inteiro (a cascata só toca no cartão da vez). */
+.mev-slide.is-center > *{ animation:mev-rise .6s cubic-bezier(.19,1,.22,1) both }
+.mev-slide.is-center > :nth-child(1){ animation-delay:.04s }
+.mev-slide.is-center > :nth-child(2){ animation-delay:.12s }
+.mev-slide.is-center > :nth-child(3){ animation-delay:.2s }
+.mev-slide.is-center > :nth-child(4){ animation-delay:.28s }
+@keyframes mev-rise{ from{ opacity:0; transform:translateY(14px) } }
+/* TILT 3D: o palco inclina seguindo o cursor (SupremaMotion.tilt define
+   --tiltX/--tiltY; perspective vem do stage). Compositor puro. */
+.mev-stage{ perspective:1100px }
+.mev-track{
+  transform:rotateX(var(--tiltX,0deg)) rotateY(var(--tiltY,0deg));
+  transition:transform .25s var(--ease);
+}
+/* barra do auto-avanço: fita dourada que enche em 7s e vira o slide.
+   Pausa junto com o auto (hover/foco); some quando o operador assume. */
+.mev-adv{
+  display:block;height:2px;border-radius:99px;margin-top:-6px;
+  background:var(--sup-gold-dark);opacity:.75;
+  transform:scaleX(0);transform-origin:0 50%;
+  animation:mev-adv 7s linear infinite;
+}
+@keyframes mev-adv{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.mev-stage:hover .mev-adv,
+.mev-stage:focus-within .mev-adv{animation-play-state:paused}
+.mev-stage.no-auto .mev-adv{display:none}
+.mev-stage.solo .mev-nav,
+.mev-stage.solo .mev-adv,
+.mev-stage.solo .mev-dots{display:none}
+.mev-tags{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mev-cat{
+  font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+  color:#f4a9ba;background:rgba(216,96,122,.16);border:1px solid rgba(216,96,122,.32);
+  padding:4px 11px;border-radius:99px;
+}
+.mev-when{font-family:var(--mono);font-size:11.5px;font-weight:600;color:rgba(236,232,234,.72)}
+.mev-tags .b-camp{background:rgba(201,168,76,.14);border-color:rgba(201,168,76,.4);color:var(--sup-gold-dark)}
+.mev-live{
+  display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:800;
+  letter-spacing:.09em;color:#f36b70;
+}
+.mev-live i{width:6px;height:6px;border-radius:99px;background:#f36b70;animation:ev-pulse 1.4s ease-in-out infinite}
+.mev-soon{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--sup-felt-bright, #22d47e)}
+.mev-name{
+  font-family:var(--display);font-size:clamp(24px,3.6vw,44px);font-weight:800;
+  letter-spacing:-.025em;line-height:1.08;color:#ece8ea;text-wrap:balance;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.mev-nums{display:flex;align-items:flex-end;gap:26px;flex-wrap:wrap}
+.mev-gtd b,.mev-buyin b{display:block;font-family:var(--display);letter-spacing:-.02em}
+.mev-gtd b{font-size:clamp(28px,3vw,40px);font-weight:800;color:var(--sup-gold-dark)}
+.mev-buyin b{font-size:16px;font-weight:700;color:rgba(236,232,234,.9)}
+.mev-gtd small,.mev-buyin small{
+  display:block;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:rgba(236,232,234,.5);margin-top:2px;
+}
+.mev-livenums{font-family:var(--mono);font-size:12px;font-weight:700;color:rgba(236,232,234,.8);padding-bottom:4px}
+.mev-livenums b{color:#f4a9ba}
+.mev-livenums.bateu b{color:var(--sup-gold-dark)}
+.mev-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.mev-sats{font-size:11.5px;font-weight:600;color:var(--sup-gold-dark)}
+.mev-sats .ic{width:1.05em;height:1.05em;vertical-align:-.16em}
+.mev-go{
+  display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:99px;
+  font-size:12px;font-weight:700;cursor:pointer;color:#fff;background:var(--ev);
+  border:1px solid rgba(255,255,255,.14);
+  transition:transform .2s var(--ease), background-color .2s var(--ease);
+}
+.mev-go:hover{background:var(--ev-bright);transform:translateY(-1px)}
+.mev-go:active{transform:scale(.95)}
+.mev-dots{display:flex;justify-content:center;gap:7px}
+.mev-dot{
+  width:16px;height:4px;border-radius:99px;padding:0;cursor:pointer;border:none;
+  background:rgba(236,232,234,.25);
+  transition:background-color .25s var(--ease), width .25s var(--ease);
+}
+.mev-dot:hover{background:rgba(236,232,234,.55)}
+.mev-dot.on{background:#f4a9ba;width:30px}
+/* slide "passado": esmaece de leve — o palco prioriza o que ainda vem */
+.mev-slide.past{opacity:.82}
+
+/* troca de dia: agenda e rotas ENTRAM (280ms) em vez do corte seco */
+.day-in{ animation:day-in .28s cubic-bezier(.165,.84,.44,1) both }
+@keyframes day-in{ from{ opacity:0; transform:translateY(8px) } }
+
+/* skeleton do primeiro carregamento: o esqueleto do palco + 3 linhas de
+   agenda com o shimmer da casa (sp-shimmer vem do suprema-motion) */
+.state-block.skel{max-width:1240px;margin:26px auto;padding:0 28px}
+/* fundo próprio: aparece mesmo se o CSS do suprema-motion (sp-shimmer)
+   não tiver sido injetado (touch/reduced-motion) — o brilho é só o extra */
+.skel-stage,.skel-row{background:color-mix(in srgb, var(--ink) 8%, transparent)}
+.skel-stage{height:216px;border-radius:18px;margin-bottom:16px}
+.skel-row{height:52px;border-radius:14px;margin-bottom:10px}
+.state-block.skel p{margin-top:16px;font-size:13px;color:var(--ink-soft);text-align:center}
+
+@media (prefers-reduced-motion: reduce){
+  .mev-live i{animation:none}
+  .mev-slide.live::after{animation:none;opacity:.6}
+  .mev-adv{display:none}
+  .day-in{animation:none}
+  .mev-slide.is-center > *{animation:none}
+  .mev-track{transform:none;transition:none}
+  .route:hover .rt-link::before,
+  .route:hover .rt-link::after{animation:none}
+  @supports (animation-timeline: view()) {
+    .mev-slide,.mev-slide::before{animation:none}
+  }
+}
+@media (max-width:760px){
+  .mev-slide{padding:18px 18px 16px;min-height:0}
+  .mev-nums{gap:18px}
+  .hero-inner:has(.mev-stage:not([hidden])) .hero-stats{grid-template-columns:repeat(2,1fr)}
+}
 
 /* ── BARRA DE CONTROLE (dias + filtros + busca), gruda sob a nav ── */
 .controls{
@@ -592,9 +820,24 @@ html.dark .btn-sm.gold{color:#15171b}
 .rt-nome{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
 .rt-buyin{flex:0 0 auto;font-size:11px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
 .rt-link{display:flex;align-items:center;padding:0 4px}
+/* trilha desenhada: tracejado que FLUI em direção ao alvo no hover do card
+   (background-position de uma faixa de 2px — custo desprezível, e só com o
+   mouse em cima; parado não pinta nada) */
 .rt-link::before,.rt-link::after{
-  content:"";width:clamp(18px,3vw,44px);height:0;
-  border-top:2px dashed color-mix(in srgb, var(--gold) 55%, transparent);
+  content:"";width:clamp(18px,3vw,44px);height:2px;
+  background:repeating-linear-gradient(90deg,
+    color-mix(in srgb, var(--gold) 55%, transparent) 0 6px, transparent 6px 12px);
+}
+.route:hover .rt-link::before,
+.route:hover .rt-link::after{ animation:rt-flow .5s linear infinite }
+@keyframes rt-flow{ to{ background-position:12px 0 } }
+/* ponta de seta chegando no destino */
+.route .rt-target{position:relative}
+.route .rt-target::before{
+  content:"";position:absolute;left:-7px;top:50%;width:7px;height:7px;
+  border-top:2px solid color-mix(in srgb, var(--gold) 70%, transparent);
+  border-right:2px solid color-mix(in srgb, var(--gold) 70%, transparent);
+  transform:translateY(-50%) rotate(45deg);
 }
 .ticket-chip{
   flex:0 0 auto;font-size:11.5px;font-weight:800;white-space:nowrap;padding:5px 11px;
@@ -736,7 +979,7 @@ html.tv .stat .n{font-size:30px}
   .sync-status .sync-label{display:none}
   .op-badge #opName{display:none}
   .op-badge{padding:4px 5px}
-  .hero{padding:36px 16px 30px}
+  .hero{--hero-fade:84px;padding:36px 16px var(--hero-fade)}
   .hero-inner{align-items:flex-start}
   .hero-stats{width:100%;grid-template-columns:repeat(2,1fr)}
   .controls-inner{padding:10px 14px}
@@ -748,8 +991,10 @@ html.tv .stat .n{font-size:30px}
   .r-live small{display:none}
   .route{grid-template-columns:1fr;gap:10px}
   .rt-link{justify-content:center}
-  .rt-link::before,.rt-link::after{width:0;height:14px;border-top-width:0;border-left:2px dashed color-mix(in srgb, var(--gold) 55%, transparent)}
+  .rt-link::before,.rt-link::after{width:0;height:14px;background:none;border-left:2px dashed color-mix(in srgb, var(--gold) 55%, transparent)}
   .rt-target{padding-left:0}
+  /* empilhado: a seta aponta pra baixo, centrada sobre o alvo */
+  .route .rt-target::before{left:50%;top:-9px;transform:translateX(-50%) rotate(135deg)}
   #futGrid{grid-template-columns:1fr}
   .rd-flow{flex-direction:column;align-items:stretch}
   .rd-arrow{justify-content:center}

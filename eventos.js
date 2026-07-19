@@ -84,7 +84,26 @@ function liveOf(e){
 }
 /* patch cirúrgico (não re-renderiza a agenda — rota aberta/foco sobrevivem) */
 function updateLiveNums(){
-  if (!MODEL || state.day !== todayWeekdayPT()) return;
+  if (!MODEL) return;
+  /* palco dos Main Events: premiação AO VIVO nos mains de HOJE, independente
+     do dia selecionado na agenda (o palco mostra a semana inteira) */
+  const hoje = todayWeekdayPT();
+  document.querySelectorAll('#mevTrack .mev-slide').forEach(sl => {
+    const e = MODEL.byId.get(sl.dataset.id);
+    const slot = sl.querySelector('.mev-livenums');
+    if (!e || !slot || e.weekday !== hoje) return;
+    const lv = liveOf(e);
+    if (lv.prem == null && lv.field == null){ slot.hidden = true; return; }
+    const bateu = lv.prem != null && e.garantido != null && e.garantido > 0 && lv.prem >= e.garantido;
+    const html = [
+      lv.prem != null ? `<b>${fmtMoney(lv.prem)}</b> agora` : '',
+      lv.field != null ? `${NF_INT.format(lv.field)} j.` : '',
+    ].filter(Boolean).join(' · ') + (bateu ? ' ✦ bateu o GTD' : '');
+    slot.hidden = false;
+    slot.classList.toggle('bateu', bateu);
+    if (slot.innerHTML !== html) slot.innerHTML = html;
+  });
+  if (state.day !== hoje) return;
   document.querySelectorAll('#agendaList .row[data-id]').forEach(row => {
     const e = MODEL.byId.get(row.dataset.id);
     const slot = row.querySelector('.r-livenums');
@@ -454,6 +473,7 @@ function renderAll(){
   if (!MODEL) return;
   renderMeta();
   renderHero();
+  renderMainEvents();
   renderDayBar();
   renderContent();
 }
@@ -498,7 +518,218 @@ function renderHero(){
   document.getElementById('statFut').textContent = NF_INT.format(MODEL.futures.length);
   document.getElementById('statGtd').textContent = fmtMoney(gtdWeek);
   document.getElementById('liveDot').classList.toggle('has-live', live > 0);
+  const mevDot = document.getElementById('mevLiveDot');
+  if (mevDot) mevDot.classList.toggle('has-live', live > 0);
   if (!renderHero._counted){ renderHero._counted = true; SupremaMotion.countUp('#statLive, #statToday, #statFut'); }
+}
+
+/* ── PALCO DOS MAIN EVENTS: o hero vira vitrine deslizante ──
+   Um Main por vez, indo pro lado por scroll-snap (arrasto/trackpad nativos),
+   setas, pontos e teclado (a própria faixa rola com ← →  quando focada).
+   Ordem: AO VIVO primeiro, depois os mais próximos a partir de hoje (semana
+   circular), passados por último. Auto-avança devagar até a primeira interação
+   manual — e nunca em reduced-motion, modo leve ou aba oculta. */
+const MEV = { list:[], idx:0, step:0, auto:0, touched:false, wired:false };
+const MEV_CALM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function mainEventsOrdered(){
+  /* SÓ os Main Events DE HOJE — o palco é a vitrine do dia acontecendo.
+     Ordem: ao vivo primeiro, depois os que vêm (por horário), passados no fim. */
+  const today = todayWeekdayPT();
+  const rank = { live:0, soon:1, upcoming:2, past:3 };
+  return MODEL.events.filter(e => e.cat === 'main' && e.weekday === today)
+    .map(e => ({ e, r: rank[statusOf(e).k] ?? 2 }))
+    .sort((a,b) => a.r - b.r || a.e.abs - b.e.abs)
+    .map(x => x.e);
+}
+function mevStatusHtml(st){
+  /* "em breve" vira contagem regressiva VIVA (mevTickCountdown preenche o <b>
+     a cada segundo — urgência de transmissão esportiva, um textContent por tick) */
+  return st.k === 'live' ? '<span class="mev-live"><i></i>AO VIVO</span>' :
+         st.k === 'soon' ? '<span class="mev-soon">começa em <b class="mev-cd"></b></span>' : '';
+}
+function mevTickCountdown(){
+  if (!MODEL || document.hidden) return;
+  const cds = document.querySelectorAll('#mevTrack .mev-cd');
+  if (!cds.length) return;
+  const now = spNow();
+  const nowAbs = absMin(now.iso, now.minutes);
+  cds.forEach(cd => {
+    const sl = cd.closest('.mev-slide');
+    const e = sl && MODEL.byId.get(sl.dataset.id);
+    if (!e) return;
+    const s = Math.max(0, (e.abs - nowAbs) * 60 - now.seconds);
+    const hh = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;
+    const txt = (hh ? String(hh).padStart(2,'0') + ':' : '') +
+      String(mm).padStart(2,'0') + ':' + String(ss).padStart(2,'0');
+    if (cd.textContent !== txt) cd.textContent = txt;
+  });
+}
+function mevSlideHtml(e, i, n){
+  const st = statusOf(e);
+  const iso = MODEL.dates[e.weekday];
+  const sats = e.satCount
+    ? `<span class="mev-sats">${IC.ticket} ${contaR(e.satCount, 'satélite classifica', 'satélites classificam')}</span>` : '';
+  return `<article class="mev-slide ${st.k}" role="group" aria-roledescription="slide"
+    aria-label="Main Event ${i+1} de ${n}: ${escHtml(e.nome)}" data-id="${e.id}"${e.camp ? ` data-camp="${e.camp}"` : ''}>
+    <div class="mev-tags">
+      <span class="mev-cat">♠ Main Event</span>
+      <span class="mev-when">${SHORT_BY_DAY[e.weekday]} · ${fmtDateShort(iso)} · ${e.hora}</span>
+      ${campBadge(e.camp)}
+      <span class="mev-status">${mevStatusHtml(st)}</span>
+    </div>
+    <h2 class="mev-name">${escHtml(e.nome)}</h2>
+    <div class="mev-nums">
+      <span class="mev-gtd"><b>${e.garantido != null ? fmtMoney(e.garantido) : '—'}</b><small>garantido</small></span>
+      ${e.buyin != null ? `<span class="mev-buyin"><b>${fmtMoneyFull(e.buyin)}</b><small>buy-in</small></span>` : ''}
+      <span class="mev-livenums" hidden></span>
+    </div>
+    <div class="mev-foot">
+      ${sats}
+      <button class="mev-go" data-mev-go="${e.id}">Ver na agenda ↗</button>
+    </div>
+  </article>`;
+}
+function renderMainEvents(){
+  const stage = document.getElementById('mevStage');
+  const copy = document.getElementById('heroCopy');
+  if (!stage) return;
+  const keepId = MEV.list[MEV.idx]?.id;
+  MEV.list = mainEventsOrdered();
+  const has = MEV.list.length > 0;
+  stage.hidden = !has;
+  copy.hidden = has;
+  if (!has) return;
+  const n = MEV.list.length;
+  document.getElementById('mevTrack').innerHTML = MEV.list.map((e,i) => mevSlideHtml(e, i, n)).join('');
+  document.getElementById('mevDots').innerHTML = MEV.list.map((e,i) =>
+    `<button class="mev-dot${i === 0 ? ' on' : ''}" data-mev-dot="${i}" tabindex="-1"></button>`).join('');
+  wireMev();
+  stage.classList.toggle('solo', n < 2);
+  /* dados novos: tenta ficar no mesmo evento; senão volta pro primeiro */
+  const keep = keepId ? MEV.list.findIndex(e => e.id === keepId) : -1;
+  MEV.idx = keep > 0 ? keep : 0;
+  mevGo(MEV.idx, false);
+  mevSync();
+  mevTickCountdown();
+  updateLiveNums();
+  mevStartAuto();
+  stage.classList.toggle('no-auto', !MEV.auto);
+  /* os garantidos ROLAM até o valor quando o cartão entra em cena */
+  if (window.SupremaMotion && SupremaMotion.countUp) SupremaMotion.countUp('#mevTrack .mev-gtd b');
+  /* o hero mudou de altura — a rede de nós (canvas) re-mede no resize */
+  window.dispatchEvent(new Event('resize'));
+}
+function mevMeasure(){
+  const track = document.getElementById('mevTrack');
+  const s = track.querySelectorAll('.mev-slide');
+  if (!s.length){ MEV.step = 0; MEV.center0 = 0; return; }
+  MEV.step = s.length > 1 ? (s[1].offsetLeft - s[0].offsetLeft) : Math.max(1, track.clientWidth);
+  /* slides de 90% com snap CENTRAL: a conta certa é pelo centro do slide,
+     não pelo scrollLeft cru (o snap centraliza, com vizinhos espiando) */
+  MEV.center0 = s[0].offsetLeft + s[0].clientWidth / 2;
+}
+function mevGo(i, smooth){
+  const n = MEV.list.length;
+  if (!n) return;
+  const to = ((i % n) + n) % n;                       // circular
+  mevMeasure();
+  const track = document.getElementById('mevTrack');
+  track.scrollTo({
+    left: MEV.center0 + to * MEV.step - track.clientWidth / 2,
+    behavior: (smooth === false || MEV_CALM) ? 'auto' : 'smooth',
+  });
+  /* realinha a cadência do auto com a fita dourada: cada virada (manual ou
+     automática) reabre a janela de 7s do zero */
+  if (MEV.auto){ clearInterval(MEV.auto); MEV.auto = 0; mevStartAuto(); }
+}
+function mevSync(){
+  const track = document.getElementById('mevTrack');
+  if (!MEV.step) mevMeasure();
+  const at = track.scrollLeft + track.clientWidth / 2 - MEV.center0;
+  const idx = Math.max(0, Math.min(MEV.list.length - 1, Math.round(at / (MEV.step || 1))));
+  const changed = idx !== MEV.idx;
+  MEV.idx = idx;
+  document.getElementById('mevCount').textContent = `${idx + 1} / ${MEV.list.length}`;
+  document.querySelectorAll('#mevDots .mev-dot').forEach((d,i) => d.classList.toggle('on', i === idx));
+  /* text reveal (ref. MotionSites): o cartão que ASSUME o centro toca sua
+     cascata — tags, nome, números e rodapé sobem em sequência */
+  track.querySelectorAll('.mev-slide').forEach((sl,i) => sl.classList.toggle('is-center', i === idx));
+  if (changed) mevRestartAdv();
+}
+/* reinicia a fita dourada do zero (truque padrão: zera a animação num frame) */
+function mevRestartAdv(){
+  const adv = document.getElementById('mevAdv');
+  if (!adv) return;
+  adv.style.animation = 'none';
+  void adv.offsetWidth;
+  adv.style.animation = '';
+}
+function mevStopAuto(){
+  MEV.touched = true;
+  if (MEV.auto){ clearInterval(MEV.auto); MEV.auto = 0; }
+  document.getElementById('mevStage').classList.add('no-auto');
+}
+function mevStartAuto(){
+  if (MEV.auto || MEV.touched || MEV_CALM || document.documentElement.classList.contains('lite')) return;
+  if (MEV.list.length < 2) return;
+  MEV.auto = setInterval(() => {
+    const stage = document.getElementById('mevStage');
+    if (document.hidden || stage.hidden) return;
+    if (stage.matches(':hover') || stage.contains(document.activeElement)) return;
+    mevGo(MEV.idx + 1);
+  }, 7000);
+}
+function wireMev(){
+  if (MEV.wired) return;
+  MEV.wired = true;
+  const track = document.getElementById('mevTrack');
+  document.getElementById('mevPrev').addEventListener('click', () => { mevStopAuto(); mevGo(MEV.idx - 1); });
+  document.getElementById('mevNext').addEventListener('click', () => { mevStopAuto(); mevGo(MEV.idx + 1); });
+  document.getElementById('mevDots').addEventListener('click', (e) => {
+    const d = e.target.closest('[data-mev-dot]');
+    if (d){ mevStopAuto(); mevGo(+d.dataset.mevDot); }
+  });
+  /* arrasto/trackpad/teclado direto na faixa também contam como "assumi o volante" */
+  track.addEventListener('pointerdown', mevStopAuto, { passive:true });
+  track.addEventListener('wheel', mevStopAuto, { passive:true });
+  track.addEventListener('keydown', (e) => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') mevStopAuto(); });
+  let raf = 0;
+  track.addEventListener('scroll', () => {
+    if (!raf) raf = requestAnimationFrame(() => { raf = 0; mevSync(); });
+  }, { passive:true });
+  addEventListener('resize', () => { MEV.step = 0; }, { passive:true });
+  /* "Ver na agenda": seleciona o dia do evento, abre a rota e rola até a linha —
+     o mesmo pouso do link compartilhável (?ev=) */
+  track.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-mev-go]');
+    if (!btn) return;
+    const ev = MODEL.byId.get(btn.dataset.mevGo);
+    if (!ev) return;
+    pickDay(ev.weekday);
+    requestAnimationFrame(() => {
+      if (state.open !== ev.id) toggleRow(ev.id);
+      const row = document.querySelector(`.row[data-id="${ev.id}"]`);
+      if (row) row.scrollIntoView({ block:'center', behavior: MEV_CALM ? 'auto' : 'smooth' });
+    });
+  });
+}
+/* o relógio andou: AO VIVO/"em 2h" dos slides acompanham, sem reconstruir */
+function refreshMevStatus(){
+  if (!MODEL) return;
+  document.querySelectorAll('#mevTrack .mev-slide').forEach(sl => {
+    const e = MODEL.byId.get(sl.dataset.id);
+    if (!e) return;
+    const st = statusOf(e);
+    if (!sl.classList.contains(st.k)){
+      sl.classList.remove('live','soon','upcoming','past');
+      sl.classList.add(st.k);
+    }
+    const slot = sl.querySelector('.mev-status');
+    const html = mevStatusHtml(st);
+    if (slot && slot.innerHTML !== html) slot.innerHTML = html;
+  });
+  mevTickCountdown();                                // recém-criados não ficam 1s vazios
 }
 
 /* ── barra de dias: a navegação principal + mini-barras de GTD (a leitura
@@ -546,6 +777,13 @@ function pickDay(day, focus){
   writeStateToURL();
   renderDayBar();
   renderContent();
+  /* micro-crossfade: a agenda e as rotas ENTRAM em vez de trocar num corte
+     seco (opacity/transform, compositor puro; reduced-motion desliga no CSS) */
+  ['agendaSection','routesSection'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('day-in'); void el.offsetWidth; el.classList.add('day-in');
+  });
   if (focus){
     const el = document.querySelector(`.day-pill[data-day="${day}"]`);
     if (el) el.focus();
@@ -1427,10 +1665,10 @@ function tickClock(){
   if (el) el.textContent =
     `${String(Math.floor(n.minutes/60)).padStart(2,'0')}:${String(n.minutes%60).padStart(2,'0')}:${String(n.seconds).padStart(2,'0')}`;
 }
-setInterval(tickClock, 1000); tickClock();
+setInterval(() => { tickClock(); mevTickCountdown(); }, 1000); tickClock();
 /* status "AO VIVO"/divisor AGORA acompanham o relógio — patch cirúrgico por
    minuto (renderAgenda() aqui reconstruía a lista e derrubava a rota aberta) */
-setInterval(() => { if (MODEL){ renderHero(); refreshAgendaStatus(); attachLiveDay(); } }, 60000);
+setInterval(() => { if (MODEL){ renderHero(); refreshAgendaStatus(); refreshMevStatus(); attachLiveDay(); } }, 60000);
 
 (function themeAndUser(){
   const html = document.documentElement;
