@@ -37,8 +37,10 @@
   --sup-red:       #c0392b;
 
   /* -- tipografia ------------------------------------------ */
-  --sup-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", sans-serif;
-  --sup-text:    "SF Pro Text", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", sans-serif;
+  /* Segoe UI Variable/Segoe UI ANTES de Helvetica: no Windows nada da família SF existe
+     e -apple-system/BlinkMacSystemFont não resolvem — a stack caía direto em Arial. */
+  --sup-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", "Helvetica Neue", "Inter", sans-serif;
+  --sup-text:    "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", "Inter", sans-serif;
   --sup-mono:    "SF Mono", "IBM Plex Mono", ui-monospace, "Roboto Mono", monospace;
 
   /* -- forma e movimento ----------------------------------- */

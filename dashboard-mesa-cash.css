@@ -2,7 +2,7 @@
    funciona offline; era 'Inter' via Google Fonts, o que destoava do resto. */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --sans:"SF Pro Display",-apple-system,BlinkMacSystemFont,"Helvetica Neue","Inter",sans-serif;
+  --sans:var(--sup-display); /* stack única no suprema-tokens.css (com fallback Segoe UI pro Windows) */
   --mono:"SF Mono","IBM Plex Mono",ui-monospace,"Roboto Mono",monospace;
 }
 :root{

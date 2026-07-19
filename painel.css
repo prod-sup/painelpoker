@@ -67,8 +67,9 @@
     --ease-expo:  cubic-bezier(.16,1,.3,1);    /* entradas decididas, câmera assentando */
     --ease-quart: cubic-bezier(.25,1,.5,1);    /* suave, propósito geral */
     --ease-inout: cubic-bezier(.65,0,.35,1);   /* travellings / troca de tela */
-    --display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", sans-serif;
-    --text: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Inter", sans-serif;
+    /* fonte única: as stacks moram no suprema-tokens.css (com fallback Segoe UI pro Windows) */
+    --display: var(--sup-display);
+    --text: var(--sup-text);
     --mono: "SF Mono", "IBM Plex Mono", ui-monospace, "Roboto Mono", monospace;
   }
 
@@ -1171,6 +1172,9 @@
      algarismos tabulares embaixo, divisórias inset (não vão de borda a borda).
      Uma superfície só — as células não são cards separados. ── */
   .hero-stats{
+    /* stacking context próprio: o leque de cartas usa preserve-3d + translateZ e, dependendo
+       do tilt, "saltava" na frente da barra — com z-index explícito ele fica sempre atrás */
+    position:relative; z-index:2;
     margin-top:56px; display:grid; grid-template-columns:repeat(4,1fr);
     background:var(--card); border:1px solid var(--hairline);
     border-radius:var(--radius-lg); overflow:hidden;

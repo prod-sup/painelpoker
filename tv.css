@@ -17,7 +17,7 @@
   --main-c: var(--sup-cat-main-bright);
   --side-c: var(--sup-cat-side-bright);
   --sat-c:  var(--sup-cat-sat-bright);
-  --display:"SF Pro Display",-apple-system,"Segoe UI","Inter",sans-serif;
+  --display:var(--sup-display); /* stack única no suprema-tokens.css */
   --mono:"SF Mono","Cascadia Mono",ui-monospace,monospace;
   --ease:cubic-bezier(.22,1,.36,1); --ease-expo:cubic-bezier(.16,1,.3,1);
 }
