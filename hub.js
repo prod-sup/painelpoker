@@ -318,7 +318,8 @@
     }
     const displayName = user.apelido || user.nome || email;
     saveSession({ email, nome:user.nome, sobrenome:user.sobrenome, apelido:user.apelido, displayName,
-      access: user.access || null, admin: (user.admin===true || user.Admin===true || isAdmin(email)) });
+      access: user.access || null, edit: user.edit || null,
+      admin: (user.admin===true || user.Admin===true || isAdmin(email)) });
     if(isAdmin(email)){ try{ localStorage.setItem('suprema_trusted_admin', email); }catch(e){} }
     paintAuthState();
     startLiveTiles();

@@ -64,6 +64,20 @@
     return !!(s && s.access && s.access[panelId] === true);
   }
 
+  /* pode EDITAR este painel (escrever nos nós dele)? Ver ≠ editar: quem só tem
+     access enxerga; escrever exige users/<key>/edit/<id> = true (as regras do
+     RTDB são a autoridade — isto aqui é pra UI esconder/travar ferramentas).
+     Sessão antiga (sem mapa `edit`, gravado no login pelo hub) cai no acesso,
+     o MESMO fallback das regras pré-backfill — nada quebra antes da migração. */
+  function canEdit(panelId) {
+    var r = recognize();
+    var s = getSession();
+    if (r.isAdmin || (s && s.admin === true)) return true;
+    if (!s) return false;
+    if (s.edit) return s.edit[panelId] === true;
+    return !!(s.access && s.access[panelId] === true);
+  }
+
   /* ── REVALIDAÇÃO DE ACESSO (fecha a brecha da revogação) ──
      guard() confia no snapshot da sessão (localStorage). Se o admin REVOGA o
      acesso de um operador, ele continuaria entrando até a sessão expirar (365
@@ -84,11 +98,13 @@
         if (tries++ > 100) return;            // ~20s esperando o Firebase: desiste em silêncio
         return setTimeout(waitDb, 200);
       }
-      fb.database().ref('users/' + emailToKey(s.email) + '/access').once('value')
-        .then(function (snap) {
+      var base = fb.database().ref('users/' + emailToKey(s.email));
+      Promise.all([base.child('access').once('value'), base.child('edit').once('value')])
+        .then(function (snaps) {
           var cur = getSession();
           if (!cur) return;
-          cur.access = snap.val() || {};       // reflete a permissão real do banco na sessão
+          cur.access = snaps[0].val() || {};   // reflete a permissão real do banco na sessão
+          cur.edit = snaps[1].val();           // null = conta pré-migração (canEdit cai no access)
           saveSession(cur);
           if (panelId && !canAccess(panelId)) {
             location.replace((opts.redirect || 'hub.html') +
@@ -384,7 +400,7 @@
     getSession: getSession, saveSession: saveSession, clearSession: clearSession,
     setTrustedAdmin: setTrustedAdmin, getTrustedAdmin: getTrustedAdmin,
     recognize: recognize, guard: guard, revalidateAccess: revalidateAccess, emailToKey: emailToKey,
-    PANELS: PANELS, panelById: panelById, canAccess: canAccess,
+    PANELS: PANELS, panelById: panelById, canAccess: canAccess, canEdit: canEdit,
     trackUse: trackUse, trackAction: trackAction,
     isDarkPreferred: isDarkPreferred, setThemePref: setThemePref, wireThemeSync: wireThemeSync,
     hashPassword: hashPassword, verifyPassword: verifyPassword, validatePassword: validatePassword

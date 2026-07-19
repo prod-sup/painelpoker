@@ -1398,14 +1398,37 @@ function accessChipStyle(on){
   return `font:700 10px/1 ui-monospace,monospace;padding:4px 7px;border-radius:6px;cursor:pointer;`+
     `border:1px solid ${on?'#1f7a4d':'var(--line,#333)'};background:${on?'#1f7a4d':'transparent'};color:${on?'#fff':'var(--ink3,#888)'}`;
 }
+/* painéis onde VER ≠ EDITAR (têm nós de escrita no RTDB). Learn/Org são
+   externos e Radar é leitura por natureza — edição não se aplica. */
+const EDIT_PANELS = ['painel','gu','cash','tv'];
+function editChipStyle(on){
+  return `font:700 10px/1 ui-monospace,monospace;padding:4px 7px;border-radius:6px;cursor:pointer;`+
+    `border:1px solid ${on?'#8f6b2d':'var(--line,#333)'};background:${on?'#8f6b2d':'transparent'};color:${on?'#fff':'var(--ink3,#888)'}`;
+}
 function accessCell(u){
   if(u.admin) return `<span class="c-ink3" style="font-size:11px">Acesso total</span>`;
   const acc = u.access || {};
-  return `<div style="display:flex;gap:4px;flex-wrap:wrap">`+ACCESS_PANELS.map(p=>{
+  const ed = u.edit || {};
+  const lblStyle = `font:700 9px/1 ui-monospace,monospace;color:var(--ink3,#888);flex:0 0 30px;align-self:center`;
+  const ver = ACCESS_PANELS.map(p=>{
     const on = acc[p.id]===true;
     return `<button data-key="${esc(u.key)}" data-panel="${p.id}" data-on="${on?'1':'0'}" data-act="toggleAccess" data-act-self `+
       `title="${on?'Tem acesso a':'Sem acesso a'} ${esc(p.label)} — clique pra ${on?'retirar':'liberar'}" style="${accessChipStyle(on)}">${PANEL_SHORT[p.id]||p.id}</button>`;
-  }).join('')+`</div>`;
+  }).join('');
+  /* edição: sem nó `edit` a conta está no modo legado (regras caem no access) —
+     o primeiro clique em qualquer chip ✎ migra a conta pro modo explícito */
+  const legado = u.edit == null;
+  const edita = EDIT_PANELS.map(id=>{
+    const p = ACCESS_PANELS.find(x=>x.id===id) || {label:id};
+    const on = legado ? acc[id]===true : ed[id]===true;
+    return `<button data-key="${esc(u.key)}" data-panel="${id}" data-on="${on?'1':'0'}" data-act="toggleEdit" data-act-self `+
+      `title="${on?'Pode editar':'Não edita'} ${esc(p.label)}${legado?' (herdado do acesso — clique pra tornar explícito)':''} — clique pra ${on?'travar':'liberar'} edição" `+
+      `style="${editChipStyle(on)}">✎ ${PANEL_SHORT[id]||id}</button>`;
+  }).join('');
+  return `<div style="display:flex;flex-direction:column;gap:4px">
+    <div style="display:flex;gap:4px;flex-wrap:wrap"><span style="${lblStyle}">vê</span>${ver}</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap"><span style="${lblStyle}">edita</span>${edita}</div>
+  </div>`;
 }
 async function toggleAccess(btn){
   if(!fbOk){ alert('Firebase não conectado.'); return; }
@@ -1420,6 +1443,63 @@ async function toggleAccess(btn){
     btn.title = `${next?'Tem acesso a':'Sem acesso a'} ${p?p.label:panel} — clique pra ${next?'retirar':'liberar'}`;
   }catch(e){ alert('Falha ao salvar acesso: '+(e.message||e)); }
   finally{ btn.disabled=false; }
+}
+/* liga/desliga a EDIÇÃO de um painel. Conta legada (sem nó `edit`): o primeiro
+   toggle materializa o nó copiando o access atual dos painéis editáveis, e aí
+   aplica o clique — a partir daqui as regras param de herdar do access. */
+async function toggleEdit(btn){
+  if(!fbOk){ alert('Firebase não conectado.'); return; }
+  const key=btn.dataset.key, panel=btn.dataset.panel, next = btn.dataset.on!=='1';
+  btn.disabled=true;
+  try{
+    const ref = db.ref(`users/${key}/edit`);
+    const cur = (await ref.once('value')).val();
+    if(cur == null){
+      const acc = (await db.ref(`users/${key}/access`).once('value')).val() || {};
+      const seed = {};
+      EDIT_PANELS.forEach(id => { if(acc[id]===true) seed[id]=true; });
+      seed[panel] = next;
+      if(!next) delete seed[panel];
+      await ref.set(Object.keys(seed).length ? seed : { _off:true });   // nó precisa EXISTIR pra regra não herdar
+    }else{
+      await ref.child(panel).set(next?true:null);
+      // se esvaziou, mantém o marcador — sem nó, as regras voltariam a herdar do access
+      const left = (await ref.once('value')).val();
+      if(left == null) await ref.set({ _off:true });
+    }
+    btn.dataset.on = next?'1':'0';
+    btn.setAttribute('style', editChipStyle(next));
+    await loadOps();                       // re-pinta a linha (o legado pode ter virado explícito)
+  }catch(e){ alert('Falha ao salvar edição: '+(e.message||e)); }
+  finally{ btn.disabled=false; }
+}
+
+/* ── BACKFILL edição ──
+   Materializa users/<key>/edit pra TODAS as contas de uma vez, copiando o
+   access atual dos painéis editáveis (quem via, segue editando — nada muda no
+   dia 1). A partir daí ver e editar são independentes: dá pra liberar o
+   Painel do Dia (ver) pra todo mundo sem entregar a escrita. Rodar 1x antes
+   de abrir os acessos. Contas que já têm nó `edit` não são tocadas. */
+async function backfillEditFlags(btn){
+  if(!fbOk){ alert('Firebase não conectado.'); return; }
+  if(btn){ btn.disabled=true; btn.textContent='Migrando…'; }
+  try{
+    const snap = await db.ref('users').once('value');
+    const users = snap.val() || {};
+    const updates = {}; let n=0, skip=0;
+    Object.entries(users).forEach(([key,u])=>{
+      if(!u || u.edit != null){ skip++; return; }
+      const acc = u.access || {};
+      const seed = {};
+      EDIT_PANELS.forEach(id => { if(acc[id]===true) seed[id]=true; });
+      updates['users/'+key+'/edit'] = Object.keys(seed).length ? seed : { _off:true };
+      n++;
+    });
+    if(n) await db.ref().update(updates);
+    alert(`Edição materializada em ${n} conta(s).`+(skip?` ${skip} já tinham (intactas).`:''));
+    await loadOps();
+  }catch(e){ alert('Falha ao migrar edição: '+(e.message||e)); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='Separar ver/editar (1ª vez)'; } }
 }
 
 /* ── BACKFILL uidIndex ──
