@@ -1192,23 +1192,70 @@
   .hstat.neg .num{color:var(--red);}
   @media (max-width:760px){ .hero-stats{grid-template-columns:repeat(2,1fr);} }
 
-  .progress-block{
-    margin-top:18px; background:var(--card); border:1px solid var(--hairline); border-radius:var(--radius-md);
-    padding:18px 22px; box-shadow:var(--shadow-sm);
-    opacity:0; transform:translateY(16px); animation:rise 1s var(--ease) .54s forwards;
+  /* o bloco de progresso vira invisível: os anéis do FECHO DO DIA o substituem
+     (a lógica de virada em updateProgress continua rodando no elemento oculto) */
+  .progress-block{ display:none !important; }
+
+  /* ── FECHO DO DIA — anéis de estado + coach do motor de diagnóstico ── */
+  .fecho{ margin-top:18px; display:flex; flex-direction:column; gap:14px; }
+  .fecho-rings{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  .fr-card{
+    --tone:var(--felt-bright);
+    position:relative; display:flex; flex-direction:column; align-items:center; gap:2px;
+    background:var(--card); border:1px solid var(--hairline); border-radius:var(--radius-md);
+    padding:18px 14px 15px; box-shadow:var(--shadow-sm);
   }
-  .progress-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
-  .progress-label{ font-size:13px; font-weight:650; color:var(--ink); }
-  .progress-count{ font-family:var(--mono); font-size:12px; font-weight:600; color:var(--ink-soft); display:inline-block; }
-  .progress-count.pop{ animation:count-pop .4s var(--ease); }
+  .fr-card.t-done{ --tone:var(--felt-bright); }
+  .fr-card.t-fix{ --tone:var(--gold); }
+  .fr-card.t-health{ --tone:#5b9dff; }
+  .fr-ring{ width:96px; height:96px; transform:rotate(-90deg); }
+  .fr-bg{ fill:none; stroke:color-mix(in srgb, var(--tone) 15%, transparent); stroke-width:8; }
+  .fr-fg{
+    fill:none; stroke:var(--tone); stroke-width:8; stroke-linecap:round;
+    stroke-dasharray:var(--circ); stroke-dashoffset:var(--circ);   /* nasce vazio */
+    transition:stroke-dashoffset .95s cubic-bezier(.22,1,.36,1);
+  }
+  .fecho.in .fr-fg{ stroke-dashoffset:calc(var(--circ) * (1 - var(--pct))); }
+  .fecho.in .fr-card:nth-child(2) .fr-fg{ transition-delay:.08s; }
+  .fecho.in .fr-card:nth-child(3) .fr-fg{ transition-delay:.16s; }
+  .fr-center{
+    position:absolute; top:18px; left:0; right:0; height:96px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; pointer-events:none;
+  }
+  .fr-center b{ font-family:var(--mono); font-size:21px; font-weight:700; letter-spacing:-.02em; color:var(--ink); line-height:1; }
+  .fr-center span{ font-size:9.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft); }
+  .fr-label{ margin-top:7px; font-size:12px; font-weight:650; color:var(--ink-soft); text-align:center; }
+  @media (prefers-reduced-motion: reduce){
+    .fr-fg{ transition:none; }
+  }
+
+  .fecho-coach{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .cch-card{
+    --tone:var(--ink-soft);
+    display:flex; gap:10px; align-items:flex-start;
+    background:color-mix(in srgb, var(--card) 92%, var(--tone) 8%);
+    border:1px solid color-mix(in srgb, var(--tone) 26%, var(--hairline));
+    border-radius:var(--radius-md); padding:13px 14px;
+  }
+  .cch-card.t-crit{ --tone:var(--red); }
+  .cch-card.t-warn{ --tone:var(--gold); }
+  .cch-card.t-info{ --tone:#5b9dff; }
+  .cch-card.t-ok{ --tone:var(--felt); }
+  .cch-ic{ font-size:15px; line-height:1.25; flex:none; }
+  .cch-body b{ display:block; font-size:12.5px; font-weight:700; color:var(--ink); letter-spacing:-.01em; line-height:1.3; }
+  .cch-body p{ margin:3px 0 0; font-size:11.5px; color:var(--ink-soft); line-height:1.45; }
+
+  @media (max-width:760px){
+    .fecho-rings{ gap:10px; }
+    .fr-ring{ width:82px; height:82px; }
+    .fr-center{ height:82px; }
+    .fr-center b{ font-size:18px; }
+    .fecho-coach{ grid-template-columns:1fr; }
+  }
+
+  /* estilos herdados do bloco de progresso antigo (elemento agora oculto — só a
+     lógica de virada usa o DOM). Mantidos inertes; o fecho acima é o visual. */
   @keyframes count-pop{ 0%{transform:scale(1);} 35%{transform:scale(1.18); color:var(--felt-bright);} 100%{transform:scale(1);} }
-  .progress-track{ height:8px; border-radius:99px; background:var(--hairline); overflow:hidden; }
-  .progress-fill{
-    height:100%; border-radius:99px;
-    background:linear-gradient(90deg, var(--felt) 0%, var(--felt-bright) 100%);
-    transition:width .6s var(--ease);
-  }
-  .progress-fill.complete{ background:linear-gradient(90deg, var(--felt-bright) 0%, var(--gold) 100%); }
 
   .sheet-warnings{
     margin-top:14px; background:var(--warn-bg); border:1px solid var(--warn-border); border-radius:var(--radius-md);

@@ -1067,6 +1067,15 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
     </div>
 
+    <!-- ── FECHO DO DIA — leitura de relance de como o dia está indo (fechados,
+         fixados, saúde do overlay), em anéis que se preenchem quando os números
+         mudam, + coach cards vindas do motor de diagnóstico (suprema-insights).
+         Substitui o bloco de progresso acima (mantido só pela lógica de virada). -->
+    <div class="fecho" id="fechoDia" hidden>
+      <div class="fecho-rings" id="fechoRings" aria-label="Fecho do dia"></div>
+      <div class="fecho-coach" id="fechoCoach" aria-live="polite" aria-label="Pontos de atenção do dia"></div>
+    </div>
+
     <div class="sheet-warnings" id="sheetWarnings" hidden>
       <div class="sheet-warnings-head">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>

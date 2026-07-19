@@ -3825,10 +3825,89 @@ function computeStats(){
   updateProgress();
 
   renderYesterdayComparison({garantidoTotal, premiacaoTotal, overlayTotal});
+  renderFechoRings();
 
   // o diagnóstico olha exatamente o mesmo estado que acabou de virar número na tela;
   // pendurar aqui (com debounce) garante que ele nunca fique falando de dados velhos
   if(typeof scheduleDiagnostico === 'function') scheduleDiagnostico();
+}
+
+/* ── FECHO DO DIA (ref. getfluently, no registro de FERRAMENTA) ──
+   Três anéis que respondem ao ESTADO (não ao scroll): Dia completo (fechados),
+   Fixados e Saúde do dia (% dos fechados que bateram o GTD). Preenchem com
+   transição quando os números mudam — mesma leitura periférica que a barra de
+   progresso dava, agora de relance e com a saúde do overlay junto. ── */
+let _fechoBuilt = false;
+function fechoRingCard(tone, pct, val, unit, label){
+  const R = 46, C = 2 * Math.PI * R;
+  pct = Math.max(0, Math.min(1, pct || 0));
+  return `<div class="fr-card t-${tone}">
+    <svg class="fr-ring" viewBox="0 0 108 108" aria-hidden="true">
+      <circle class="fr-bg" cx="54" cy="54" r="${R}"></circle>
+      <circle class="fr-fg" cx="54" cy="54" r="${R}" style="--circ:${C.toFixed(1)};--pct:${pct.toFixed(3)}"></circle>
+    </svg>
+    <div class="fr-center"><b>${val}</b><span>${escHtml(unit)}</span></div>
+    <div class="fr-label">${escHtml(label)}</div>
+  </div>`;
+}
+function renderFechoRings(){
+  const el = document.getElementById('fechoDia');
+  const ringsEl = document.getElementById('fechoRings');
+  if(!el || !ringsEl) return;
+  const relevant = RAW_ROWS.filter(r => mustFix(r, classify(r)));
+  const total = relevant.length;
+  if(!total){ el.hidden = true; _fechoBuilt = false; return; }
+  const fixados  = relevant.filter(r => isFixed(r._key)).length;
+  const fechRows = relevant.filter(r => r.premiacao != null);
+  const fechados = fechRows.length;
+  // saúde: dos fechados, quantos bateram o garantido (sem GTD conta como ok)
+  const bateram = fechRows.filter(r => r.garantido == null || r.premiacao >= r.garantido).length;
+  const saude   = fechados ? bateram / fechados : 1;
+  const rings = [
+    { tone:'done',   pct: fechados/total, val:`${fechados}/${total}`, unit:'fechados', label:'Dia completo' },
+    { tone:'fix',    pct: fixados/total,  val:`${fixados}/${total}`,  unit:'fixados',  label:'Fixados' },
+    { tone:'health', pct: saude,          val:`${Math.round(saude*100)}%`, unit:'no GTD', label:'Saúde do dia' },
+  ];
+  el.hidden = false;
+  if(!_fechoBuilt){
+    // primeira montagem: nasce VAZIO (sem .in) e preenche no próximo frame
+    ringsEl.innerHTML = rings.map(r => fechoRingCard(r.tone, r.pct, r.val, r.unit, r.label)).join('');
+    _fechoBuilt = true;
+    requestAnimationFrame(() => el.classList.add('in'));
+  }else{
+    // atualizações seguintes: só muda --pct e o valor → transição suave do compositor
+    const cards = ringsEl.querySelectorAll('.fr-card');
+    rings.forEach((r,i) => {
+      const c = cards[i]; if(!c) return;
+      const fg = c.querySelector('.fr-fg'); if(fg) fg.style.setProperty('--pct', r.pct.toFixed(3));
+      const b = c.querySelector('.fr-center b'); if(b && b.textContent !== r.val) b.textContent = r.val;
+      c.className = `fr-card t-${r.tone}`;
+    });
+  }
+}
+
+/* ── COACH DO DIA — os achados do motor de diagnóstico como cards que falam com
+   o operador (não uma lista num drawer). Top 3 por severidade; sem achados e com
+   o motor já carregado, mostra o card de "sob controle". ── */
+function renderCoach(){
+  const el = document.getElementById('fechoCoach');
+  if(!el) return;
+  if(!RAW_ROWS.length || typeof SupremaInsights === 'undefined'){ el.innerHTML = ''; return; }
+  const ICO  = { critico:'🔴', atencao:'⚠️', info:'💡' };
+  const TONE = { critico:'crit', atencao:'warn', info:'info' };
+  const top = (DIAG_ACHADOS || []).slice(0, 3);
+  if(!top.length){
+    el.innerHTML = `<article class="cch-card t-ok">
+      <span class="cch-ic" aria-hidden="true">✅</span>
+      <div class="cch-body"><b>Dia sob controle</b><p>Nenhum ponto de atenção agora — segue o jogo.</p></div>
+    </article>`;
+    return;
+  }
+  el.innerHTML = top.map(a =>
+    `<article class="cch-card t-${TONE[a.sev]||'info'}">
+      <span class="cch-ic" aria-hidden="true">${ICO[a.sev]||'💡'}</span>
+      <div class="cch-body"><b>${escHtml(a.titulo || '')}</b><p>${escHtml(a.acao || a.porque || '')}</p></div>
+    </article>`).join('');
 }
 
 /* =========================================================================
@@ -5192,6 +5271,7 @@ function runDiagnostico(){
     badge.classList.toggle('has-critico', r.critico > 0);
   }
   if (document.getElementById('diagDrawerOverlay')?.classList.contains('open')) renderDiagnostico();
+  renderCoach();                                       // coach do dia no hero (fora do drawer)
 }
 /* re-analisa sem custo: colado nos mesmos momentos em que os números já mudam.
    `var` (não `const`) DE PROPÓSITO: computeStats (via restoreSheetFromLocal) e o
