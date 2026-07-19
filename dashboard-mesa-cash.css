@@ -74,6 +74,8 @@ a,button{font-family:inherit;cursor:pointer;text-decoration:none;color:inherit;b
 .brand{display:flex;align-items:center;gap:10px;flex-shrink:0}
 .brand-ico{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#4f8ef7,#a78bfa);display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 4px 12px rgba(79,142,247,.3)}
 .brand-name{font-size:14px;font-weight:800;letter-spacing:-.04em;color:var(--ink)}
+/* pill do produto — mesmo desenho dos outros painéis do OS */
+.brand-sub{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--dia);background:var(--dia2);padding:3px 9px;border-radius:99px;flex:none}
 .brand-sep{width:1px;height:14px;background:var(--bdr);margin:0 14px}
 .nav{display:flex;gap:1px;flex:1;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .nav::-webkit-scrollbar{display:none}

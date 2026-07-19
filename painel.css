@@ -607,6 +607,14 @@
   nav.scrolled .nav-inner{ height:48px; }
   .brand{display:flex; align-items:center; gap:9px; font-size:14.5px; font-weight:600; letter-spacing:-0.01em; flex:none;}
   .brand-mark{width:20px; height:20px; flex:none;}
+  /* pill do produto — mesmo desenho do Radar/Criação: wordmark "Suprema OS" + produto na cor dele */
+  .brand-sub{
+    font-size:10.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--felt); background:var(--felt-soft);
+    padding:3px 9px; border-radius:99px; flex:none;
+  }
+  html.dark .brand-sub{ color:var(--felt-bright); }
+  @media (max-width:680px){ .brand-sub{ display:none; } }
   /* ── fichas da marca ──
      Sobreposição era de 8px em discos de 17px: o silhueta virava uma CÁPSULA
      com um círculo na ponta e lia como toggle ligado. Agora a de trás fica mais
