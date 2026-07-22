@@ -409,6 +409,8 @@
   }
   function network(selector, opts){
     if (calm) return;
+    if (!fine) return;   // canvas + rAF é o efeito mais caro: só em desktop com ponteiro fino
+                         // (mesma barra do tilt). No mobile/touch o hero já tem aurora+ambient.
     injectCss();
     opts = opts || {};
     var boot = function(){

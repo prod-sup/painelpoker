@@ -88,7 +88,9 @@ function doLogout(){
   // Sair = voltar pro hub (a sessão é dele; trocar de conta acontece lá)
   location.href='hub.html';
 }
-initFb();
+/* Firebase agora carrega com `defer`. Deferred rodam depois do parse do body e antes
+   do DOMContentLoaded, então esperar esse evento garante que `firebase` já existe. */
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', initFb); else initFb();
 
 const GU_TO_BRL=5;
 // ══════════════════════════════ DATA
@@ -1870,7 +1872,9 @@ function startApp(){
   buildResumo();buildEventos();
   initDayView(); // se há dias importados, troca a demo pelo dia mais recente
 }
-enterFromHubSession();
+/* mesmo motivo do initFb: startApp() usa `db`, que só existe depois do Firebase (deferido)
+   carregar. Roda no DOMContentLoaded, após o initFb registrado acima (ordem preservada). */
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', enterFromHubSession); else enterFromHubSession();
 
 // ══════════════════════════════ MODO TV (telão)
 // Overlay fullscreen com CENAS em rotação automática sobre o dataset ATIVO

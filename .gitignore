@@ -21,6 +21,8 @@ desktop.ini
 node_modules/
 _*.js
 _*.html
+# saída do build de produção (npm run build) — artefato minificado, gerado sob demanda
+dist/
 
 # Temporários
 *.tmp

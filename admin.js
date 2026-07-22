@@ -3337,9 +3337,10 @@ function debounced(key, fn, ms){
 }
 
 /* ── INIT ────────────────────────────────────────────────────── */
-initFb();
-// admin reconhecido entra direto; senão, fica o login manual (loginWrap)
-autoEnterFromSession();
+/* Firebase agora carrega com `defer`. initFb() usa `firebase` e autoEnterFromSession()
+   depende do db — ambos rodam no DOMContentLoaded (após os deferred, na ordem certa). */
+function adminBoot(){ initFb(); autoEnterFromSession(); }
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', adminBoot); else adminBoot();
 
 /* pausa animações quando a janela sai de foco / fica oculta — fluidez p/ os outros apps */
 (function freezeWhenBlurred(){

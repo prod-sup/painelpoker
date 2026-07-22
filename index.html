@@ -22,11 +22,17 @@
 <!-- XLSX (~900KB) só é usado em upload/exportar (ação do usuário), nunca no load:
      defer tira ele do caminho crítico → a página pinta na hora e ele carrega em paralelo. -->
 <script defer src="suprema-xlsx.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<!-- defer: o Firebase (~250KB) NÃO é caminho crítico. O portão de acesso usa localStorage
+     (não precisa dele) e o painel só chama initFirebaseSync no DOMContentLoaded — que roda
+     DEPOIS dos deferred, na ordem do documento. Tira ~250KB do First Paint sem quebrar nada;
+     initFirebaseSync já cai pra offline gracioso se `firebase` não existir. -->
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="gu-parser.js"></script>
 <script src="suprema-auth.js"></script>
+<!-- shell (chrome compartilhado, S1): SÍNCRONO — o mountControls do nav-right roda no parse -->
+<script src="suprema-shell.js"></script>
 <script>/* portão: login mora no hub; exige acesso liberado a ESTE painel */ SupremaAuth.guard({ panel:'painel' }); SupremaAuth.revalidateAccess('painel');</script>
 <script src="suprema-motion.js"></script>
 <!-- motor de diagnóstico: função pura (sem DOM/Firebase), testável no Node. O painel só
@@ -144,13 +150,18 @@ document.addEventListener('DOMContentLoaded', () => {
       </a>
     </div>
     <div class="nav-right">
-      <div class="presence-wrap" id="presenceWrap" hidden></div>
-      <button class="operator-badge" id="operatorBadge" title="Clique para trocar usuário"></button>
-      <span class="sync-status connecting" id="syncStatus" title="Sincronização compartilhada com seu parceiro">
-        <span class="sync-dot"></span><span class="sync-label">Conectando...</span>
-      </span>
-      <span class="nav-time" id="navTime"></span>
-      <button class="dark-toggle" id="darkToggle" title="Alternar modo escuro/claro">🌙</button>
+      <!-- Os 5 controles-padrão (presença, operador, sync, relógio, tema) vêm da
+           SupremaShell (S1), na ORDEM do painel — marcação byte-idêntica à de antes,
+           então painel.js/CSS não mudam. tools/upload seguem inline abaixo. -->
+      <span id="supControls"></span>
+      <script>
+      SupremaShell.mountControls('#supControls', {
+        order:['presence','opBadge','sync','time','toggle'],
+        presenceTag:'div', opBadge:'text', opTitle:'Clique para trocar usuário',
+        syncClass:'connecting', syncTitle:'Sincronização compartilhada com seu parceiro', syncLabel:'Conectando...',
+        toggleTitle:'Alternar modo escuro/claro', toggleGlyph:'🌙'
+      });
+      </script>
       <div class="nav-tools" role="group" aria-label="Ferramentas do turno">
       <button class="clear-btn" id="summaryBtn" title="Copiar resumo do dia (pronto pra colar no grupo)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 13h6M9 17h4"/></svg>
@@ -340,13 +351,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 <div class="drawer-overlay" id="overlayCalcDrawerOverlay">
   <aside class="drawer drawer-wide" id="overlayCalcDrawer" role="dialog" aria-modal="true" aria-label="Calculadora de Overlay">
-    <!-- Cabeçalho premium -->
-    <div class="drawer-head" style="background:linear-gradient(135deg,rgba(0,0,0,0) 0%,rgba(0,0,0,0.38) 100%),var(--felt);border-bottom:none;padding:18px 20px;">
-      <div style="display:flex;flex-direction:column;gap:2px;">
-        <div class="drawer-title" style="color:#fff;font-size:16px;">Calculadora de Overlay</div>
-        <span id="ovcDateDisplay" style="font-family:var(--mono);font-size:11px;color:rgba(255,255,255,0.5);"></span>
+    <!-- Cabeçalho premium (estilos em .drawer-head-premium no painel.css) -->
+    <div class="drawer-head drawer-head-premium">
+      <div class="drawer-head-premium-titles">
+        <div class="drawer-title">Calculadora de Overlay</div>
+        <span id="ovcDateDisplay" class="drawer-head-premium-date"></span>
       </div>
-      <button class="drawer-close" id="overlayCalcDrawerClose" type="button" aria-label="Fechar" style="color:rgba(255,255,255,0.7);">✕</button>
+      <button class="drawer-close" id="overlayCalcDrawerClose" type="button" aria-label="Fechar">✕</button>
     </div>
 
     <div class="drawer-body">
@@ -585,12 +596,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 <div class="drawer-overlay" id="overlayProjDrawerOverlay">
   <aside class="drawer drawer-wide" id="overlayProjDrawer" role="dialog" aria-modal="true" aria-label="Projeção de Overlay">
-    <div class="drawer-head" style="background:linear-gradient(135deg,rgba(0,0,0,0) 0%,rgba(0,0,0,0.38) 100%),var(--felt);border-bottom:none;padding:18px 20px;">
-      <div style="display:flex;flex-direction:column;gap:2px;">
-        <div class="drawer-title" style="color:#fff;font-size:16px;">Projeção de Overlay</div>
-        <span id="opjDateDisplay" style="font-family:var(--mono);font-size:11px;color:rgba(255,255,255,0.5);"></span>
+    <div class="drawer-head drawer-head-premium">
+      <div class="drawer-head-premium-titles">
+        <div class="drawer-title">Projeção de Overlay</div>
+        <span id="opjDateDisplay" class="drawer-head-premium-date"></span>
       </div>
-      <button class="drawer-close" id="overlayProjDrawerClose" type="button" aria-label="Fechar" style="color:rgba(255,255,255,0.7);">✕</button>
+      <button class="drawer-close" id="overlayProjDrawerClose" type="button" aria-label="Fechar">✕</button>
     </div>
 
     <div class="drawer-body">

@@ -849,3 +849,9 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
 .perm-pill.na:hover{border-color:transparent}
 .perm-admin{font-size:12.5px;font-weight:650;color:var(--gold)}
 .perm-admin small{display:block;font-weight:500;color:var(--ink3);font-size:11px;margin-top:2px}
+
+/* ── utilitários extraídos de style="" inline repetido (mesmo render, agora num
+   lugar só). Só padrões que estavam em elementos SEM class — o resto do inline é
+   override por-instância e fica onde está. ── */
+.admin-stack{padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.admin-pad-row{padding:14px 18px}

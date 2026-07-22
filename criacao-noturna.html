@@ -6,11 +6,15 @@
 <title>Criação Noturna GU · Suprema OS</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%238c5cc6'>♠</text></svg>">
 <script defer src="suprema-xlsx.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<!-- defer: Firebase (~250KB) fora do caminho crítico. A init foi embrulhada em
+     cnInitFirebase(), chamada no DOMContentLoaded (depois dos deferred). -->
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="gu-parser.js"></script>
 <script src="suprema-auth.js"></script>
+<!-- shell (chrome compartilhado): SÍNCRONO — o mount inline do nav roda no parse -->
+<script src="suprema-shell.js"></script>
 <script>/* portão: login mora no hub; exige acesso liberado a ESTE painel */ SupremaAuth.guard({ panel:'gu' }); SupremaAuth.revalidateAccess('gu');</script>
 <script src="suprema-motion.js"></script>
 <script>
@@ -33,30 +37,21 @@ document.addEventListener('DOMContentLoaded', () => {
 </head>
 <body>
 
-<nav>
-  <div class="nav-inner">
-    <div class="brand">
-      <svg class="brand-mark" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="10.5" stroke="#8c5cc6" stroke-width="1.6"/>
-        <path d="M15.5 12a5 5 0 1 1-4.2-7.4 6 6 0 1 0 4.2 7.4z" fill="#b888f0"/>
-      </svg>
-      <span class="brand-text">Suprema OS</span>
-      <span class="brand-sub">Criação Noturna · GU</span>
-    </div>
-    <div class="nav-links">
-      <a href="hub.html" title="Voltar ao hub Suprema OS">♠ OS</a>
-      <a href="index.html">← Painel</a>
-      <a href="admin.html">Admin</a>
-    </div>
-    <div class="nav-right">
-      <span class="presence-wrap" id="presenceWrap" title="Operadores online agora" hidden></span>
-      <span class="sync-status" id="syncStatus"><span class="sync-dot"></span><span class="sync-label">Conectando…</span></span>
-      <span class="nav-time" id="navTime"></span>
-      <button class="op-badge" id="opBadge" title="Trocar nome"><span class="avatar" id="opAvatar">?</span><span id="opName">—</span></button>
-      <button class="icon-btn" id="darkToggle" title="Alternar modo claro/escuro">☀️</button>
-    </div>
-  </div>
-</nav>
+<!-- chrome via SupremaShell (lacuna S1): moldura padrão no módulo; aqui só a
+     identidade da Criação Noturna. Mesmos ids de antes → criacao-noturna.js não muda. -->
+<nav id="supNav"></nav>
+<script>
+SupremaShell.mountNav('#supNav', {
+  mark: `<svg class="brand-mark" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10.5" stroke="#8c5cc6" stroke-width="1.6"/><path d="M15.5 12a5 5 0 1 1-4.2-7.4 6 6 0 1 0 4.2 7.4z" fill="#b888f0"/></svg>`,
+  sub: 'Criação Noturna · GU',
+  links: [
+    { href:'hub.html',  label:'♠ OS', title:'Voltar ao hub Suprema OS' },
+    { href:'index.html', label:'← Painel' },
+    { href:'admin.html', label:'Admin' }
+  ],
+  opTitle:'Trocar nome'
+});
+</script>
 
 <header class="hero">
   <div class="hero-inner">

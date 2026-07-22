@@ -43,6 +43,45 @@
   --sup-text:    "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", "Inter", sans-serif;
   --sup-mono:    "SF Mono", "IBM Plex Mono", ui-monospace, "Roboto Mono", monospace;
 
+  /* -- escala de ESPAÇO ------------------------------------
+     Fecha a lacuna S2 da auditoria: a marca tinha cor/raio/easing como fonte
+     única, mas espaçamento vivia à mão em cada painel (e derivava). Escala 4px,
+     nomes t-shirt. ADITIVO — nada consome ainda; código novo (e a shell futura)
+     passa a ter um vocabulário só. */
+  --sup-space-3xs: 2px;
+  --sup-space-2xs: 4px;
+  --sup-space-xs:  8px;
+  --sup-space-sm:  12px;
+  --sup-space-md:  16px;
+  --sup-space-lg:  24px;
+  --sup-space-xl:  32px;
+  --sup-space-2xl: 48px;
+  --sup-space-3xl: 64px;
+
+  /* -- escala de TIPO (fluida) ------------------------------
+     clamp(min, preferido, max): cresce com a viewport sem media query. Ancorada
+     no 16px de corpo que os painéis já usam. Mesma razão do espaço — parar o
+     drift de tamanho entre telas. */
+  --sup-text-xs:   clamp(.72rem, .70rem + .10vw, .78rem);
+  --sup-text-sm:   clamp(.82rem, .79rem + .15vw, .90rem);
+  --sup-text-base: clamp(.95rem, .92rem + .20vw, 1.05rem);
+  --sup-text-lg:   clamp(1.10rem, 1.03rem + .35vw, 1.30rem);
+  --sup-text-xl:   clamp(1.35rem, 1.20rem + .70vw, 1.80rem);
+  --sup-text-2xl:  clamp(1.80rem, 1.50rem + 1.40vw, 2.60rem);
+  --sup-text-3xl:  clamp(2.40rem, 1.90rem + 2.40vw, 3.80rem);
+  --sup-line-tight: 1.12;
+  --sup-line-base:  1.55;
+
+  /* -- escala de SOMBRA (elevação) --------------------------
+     Os mesmos quatro tons que o painel.css já provou (claro aqui, escuro no
+     bloco html.dark abaixo). Vira fonte única pra acabar com as ~94 sombras
+     hardcoded espalhadas — código novo usa --sup-shadow-*, o antigo migra aos
+     poucos. */
+  --sup-shadow-sm:   0 1px 2px rgba(16,28,22,.05), 0 3px 10px -2px rgba(16,28,22,.06);
+  --sup-shadow-md:   0 4px 14px -3px rgba(16,28,22,.09), 0 10px 30px -8px rgba(16,28,22,.11);
+  --sup-shadow-lg:   0 14px 36px -10px rgba(16,28,22,.16), 0 28px 64px -20px rgba(16,28,22,.20);
+  --sup-shadow-glow: 0 0 0 1px rgba(24,163,107,.14), 0 10px 28px -10px rgba(24,163,107,.24);
+
   /* -- forma e movimento ----------------------------------- */
   --sup-radius-sm: 12px;
   --sup-radius-md: 18px;
@@ -111,6 +150,12 @@ html[data-theme="dark"]{
   --gold: var(--sup-gold-dark);
   /* o acento do Admin É o dourado da marca, então acompanha junto */
   --sup-p-admin: var(--sup-gold-dark);
+
+  /* sombras da escala S2 sobem de opacidade no escuro (mesmo modelo do painel) */
+  --sup-shadow-sm:   0 1px 2px rgba(0,0,0,.45), 0 3px 12px -2px rgba(0,0,0,.4);
+  --sup-shadow-md:   0 6px 20px -4px rgba(0,0,0,.55), 0 14px 38px -10px rgba(0,0,0,.5);
+  --sup-shadow-lg:   0 18px 44px -12px rgba(0,0,0,.65), 0 34px 76px -22px rgba(0,0,0,.6);
+  --sup-shadow-glow: 0 0 0 1px rgba(34,212,126,.2), 0 12px 32px -10px rgba(34,212,126,.16);
   /* o framboesa do claro não segura contraste no escuro — mesmo modelo do dourado */
   --sup-p-eventos: #ef7d93;
 

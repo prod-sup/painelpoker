@@ -248,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div><div class="card-title"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Insights do período</div><div class="card-sub">Anomalias e oportunidades detectadas automaticamente</div></div>
           <div class="card-actions"><button class="btn btn-ghost btn-sm" data-act="openInsightSettings">⚙ Limiares</button></div>
         </div>
-        <div style="padding:14px 18px" id="dashInsights">
+        <div class="admin-pad-row" id="dashInsights">
           <div style="font-size:12px;color:var(--ink3)">Carregando dados...</div>
         </div>
       </div>
@@ -258,7 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
                <div class="card-sub">Tendência de premiação e overlay com base nos dias rodados</div></div>
           <div class="card-actions"><button class="btn btn-ghost btn-sm" data-act="buildMonthProjection">Atualizar</button></div>
         </div>
-        <div style="padding:14px 18px" id="monthProjection">
+        <div class="admin-pad-row" id="monthProjection">
           <div style="font-size:12px;color:var(--ink3)">Carregando...</div>
         </div>
       </div>
@@ -267,7 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div><div class="card-title"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Comparativo semana a semana</div>
                <div class="card-sub">Evolução de performance e overlay nas últimas 4 semanas</div></div>
         </div>
-        <div style="padding:14px 18px" id="weeklyComparison">
+        <div class="admin-pad-row" id="weeklyComparison">
           <div style="font-size:12px;color:var(--ink3)">Carregando...</div>
         </div>
       </div>
@@ -428,7 +428,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <button class="btn btn-gold btn-sm" data-act="exportToSheets">Enviar hoje para Sheets</button>
           </div>
         </div>
-        <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+        <div class="admin-stack">
           <div class="mf" style="margin:0">
             <label>URL da planilha Google (modo Apps Script)</label>
             <input type="url" id="sheetsUrl" placeholder="https://script.google.com/macros/s/..."
@@ -472,7 +472,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div><div class="card-title" id="avFormTitle">Novo aviso</div>
                <div class="card-sub">Publica no topo do hub; cada operador pode dispensar no navegador dele</div></div>
         </div>
-        <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+        <div class="admin-stack">
           <div class="filters" style="gap:12px;margin:0">
             <div class="fld"><label>Tipo</label>
               <select id="avTipo">
@@ -510,7 +510,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="card" style="margin-bottom:18px">
           <div class="card-head"><div><div class="card-title">Novo evento</div>
                <div class="card-sub">Aparece no calendário e na lista "Agenda da casa" do hub</div></div></div>
-          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+          <div class="admin-stack">
             <div class="filters" style="gap:12px;margin:0">
               <div class="fld"><label>Início</label><input type="date" id="agDate"></div>
               <div class="fld"><label>Fim <span style="color:var(--ink3)">(opcional)</span></label><input type="date" id="agEnd"></div>
@@ -536,7 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="card" style="margin-bottom:18px">
           <div class="card-head"><div><div class="card-title">Novo link</div>
                <div class="card-sub">Campanhas e eventos live que aparecem em "Fique ligado" no hub</div></div></div>
-          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+          <div class="admin-stack">
             <div class="fld"><label>Link (URL)</label><input type="url" id="lkUrlA" placeholder="https://..."></div>
             <div class="filters" style="gap:12px;margin:0">
               <div class="fld" style="flex:1;min-width:200px"><label>Nome</label><input type="text" id="lkTitleA" maxlength="60" placeholder="Ex: Suprema Poker Tour"></div>
@@ -898,9 +898,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 <div id="toast"></div>
 
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<!-- defer: Firebase (~250KB) fora do caminho crítico. O boot (initFb + autoEnterFromSession)
+     foi movido pro DOMContentLoaded, que roda depois dos deferred. -->
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script defer src="suprema-xlsx.js"></script>
 <script src="suprema-db.js"></script>
 <script src="admin.js"></script>

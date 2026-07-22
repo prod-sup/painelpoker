@@ -386,6 +386,9 @@ function setSync(state, label){
   el.className = 'sync-status ' + state;
   el.querySelector('.sync-label').textContent = label;
 }
+/* Firebase carrega com `defer` — embrulhado numa função chamada no DOMContentLoaded
+   (roda depois dos deferred, quando `firebase` já existe). */
+function cnInitFirebase(){
 try{
   firebase.initializeApp(SupremaDB.CONFIG);
   // Cutover email/senha (Fase 4): sem login anônimo. O token de acesso vem da
@@ -480,6 +483,8 @@ try{
   console.error('Firebase indisponível — modo local', e);
   setSync('off','Offline (só local)');
 }
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', cnInitFirebase); else cnInitFirebase();
 
 /* =========================================================================
    CONTA — a MESMA do Painel/Admin, e SÓ ela: não existe login próprio aqui.

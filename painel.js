@@ -1802,7 +1802,7 @@ function finishLogin(email, user, displayName){
     if(user.tag != null) localStorage.setItem(UP_TITLE_KEY, user.tag); else localStorage.removeItem(UP_TITLE_KEY);
     if(user.frame != null) localStorage.setItem(UP_TIER_KEY, String(user.frame));
   }catch(e){}
-  document.getElementById('operatorBadge').textContent = displayName;
+  document.getElementById('opBadge').textContent = displayName;
   document.getElementById('operatorOverlay').classList.remove('open');
   refreshMyPresenceName();
   // sem moldura equipada explícita? usa o tier já calculado pelo hub no leaderboard (a mais alta desbloqueada)
@@ -1970,7 +1970,7 @@ function launchConfetti(){
 /* ── Badge na nav ── */
 /* O perfil do operador agora mora no hub (hub.html#perfil): experiência única
    pra editar apelido, tag, avatar e ver progresso. O painel só aponta pra lá. */
-document.getElementById('operatorBadge')?.addEventListener('click', () => {
+document.getElementById('opBadge')?.addEventListener('click', () => {
   if(_session){
     location.href = 'hub.html#perfil';
   } else {
@@ -1985,7 +1985,7 @@ document.getElementById('operatorBadge')?.addEventListener('click', () => {
 document.getElementById('welcomeCloseBtn').addEventListener('click', () => {
   document.getElementById('operatorOverlay').classList.remove('open');
 });
-if(OPERATOR_NAME) document.getElementById('operatorBadge').textContent = OPERATOR_NAME;
+if(OPERATOR_NAME) document.getElementById('opBadge').textContent = OPERATOR_NAME;
 if(_session) setTimeout(initUserNotifListener, 1500);
 if(_session && isAdmin(_session.email)) revealAdminNav();
 // mostra botão 2FA se já tem sessão ativa
@@ -2135,7 +2135,7 @@ function upSetEmoji(e){
   setTimeout(() => document.getElementById('upEmojiPicker').classList.remove('open'), 260);
   showToast('Ícone atualizado!');
   // atualiza badge na nav
-  document.getElementById('operatorBadge').textContent = OPERATOR_NAME;
+  document.getElementById('opBadge').textContent = OPERATOR_NAME;
   // reescreve a presença já com o novo ícone, pra aparecer na barra pros outros na hora
   refreshMyPresenceName();
 }
@@ -3182,7 +3182,12 @@ function setSharedSheet(rows, filename){
   } catch(e){ console.error('Erro ao restaurar sheet local:', e); }
 })();
 
-initFirebaseSync();
+/* O Firebase agora carrega com `defer` (fora do caminho crítico). Deferred scripts rodam
+   DEPOIS do parse do body e ANTES do DOMContentLoaded — então esperar esse evento garante
+   que `firebase` já existe. Se painel.js rodar após o parse (readyState != loading), o SDK
+   já carregou e chamamos direto. Mantém o fallback offline de initFirebaseSync intacto. */
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initFirebaseSync);
+else initFirebaseSync();
 
 /* bfcache: o Chrome congela o WebSocket do RTDB ao guardar a página no back-forward
    cache e loga "WebSocket connection failed / already in CLOSING state" no console.

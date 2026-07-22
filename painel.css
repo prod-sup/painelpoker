@@ -413,11 +413,11 @@
   }
 
   /* ── Dark toggle button ── */
-  html.dark .dark-toggle{
+  html.dark .icon-btn{
     background: var(--card-elevated);
     border-color: var(--hairline-strong);
   }
-  html.dark .dark-toggle:hover{
+  html.dark .icon-btn:hover{
     background: var(--felt-soft);
     border-color: var(--felt-bright);
   }
@@ -456,14 +456,14 @@
   html.dark body{ background: var(--bg); }
 
   /* dark: dark mode toggle button */
-  .dark-toggle{
+  .icon-btn{
     width:36px;height:36px;border-radius:50%;
     border:1px solid var(--hairline-strong);background:var(--card);
     display:flex;align-items:center;justify-content:center;
     cursor:pointer;font-size:16px;transition:background-color .2s var(--ease),border-color .2s var(--ease),color .2s var(--ease),transform .2s var(--ease),box-shadow .2s var(--ease),opacity .2s var(--ease);
     flex:none;
   }
-  .dark-toggle:hover{background:var(--felt-soft);border-color:var(--felt);}
+  .icon-btn:hover{background:var(--felt-soft);border-color:var(--felt);}
 
   /* aviso de planilha desatualizada */
   .stale-sheet-banner{
@@ -769,14 +769,14 @@
   @keyframes presence-pop{ from{ transform:scale(0); opacity:0; } to{ transform:scale(1); opacity:1; } }
   @media (max-width:680px){ .presence-wrap{ display:none; } }
   .nav-time{font-family:var(--mono); font-size:11px; color:var(--ink-soft); letter-spacing:0.02em; white-space:nowrap;}
-  .operator-badge{
+  .op-badge{
     display:inline-flex; align-items:center; gap:6px;
     font-family:var(--text); font-size:11.5px; font-weight:700; color:var(--felt);
     background:var(--felt-soft); border:none; border-radius:99px; padding:5px 12px; cursor:pointer;
     white-space:nowrap; flex:none; transition:background-color .2s var(--ease),border-color .2s var(--ease),color .2s var(--ease),transform .2s var(--ease),box-shadow .2s var(--ease),opacity .2s var(--ease); max-width:120px; overflow:hidden; text-overflow:ellipsis;
   }
-  .operator-badge:empty{display:none;}
-  .operator-badge:hover{ background:var(--felt); color:#fff; }
+  .op-badge:empty{display:none;}
+  .op-badge:hover{ background:var(--felt); color:#fff; }
   .op-overlay{
     position:fixed; inset:0; z-index:600; background:rgba(12,18,15,0.82);
     display:flex; align-items:center; justify-content:center;
@@ -2073,6 +2073,20 @@
   }
   .drawer-close:hover{ background:#e6e6e9; color:var(--ink); }
   .drawer-body{ flex:1; overflow-y:auto; padding:20px 22px 32px; }
+
+  /* ── Cabeçalho "premium" (feltro + gradiente) reutilizado por Calculadora e
+     Projeção de Overlay. Antes vivia como style="" inline duplicado nos dois
+     drawers (cor/gradiente/padding repetidos); virou classe pra tema e
+     consistência num lugar só. ── */
+  .drawer-head-premium{
+    background:linear-gradient(135deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.38) 100%), var(--felt);
+    border-bottom:none; padding:18px 20px;
+  }
+  .drawer-head-premium-titles{ display:flex; flex-direction:column; gap:2px; }
+  .drawer-head-premium .drawer-title{ color:#fff; font-size:16px; }
+  .drawer-head-premium-date{ font-family:var(--mono); font-size:11px; color:rgba(255,255,255,.5); }
+  .drawer-head-premium .drawer-close{ background:transparent; color:rgba(255,255,255,.7); }
+  .drawer-head-premium .drawer-close:hover{ background:rgba(255,255,255,.14); color:#fff; }
 
   /* checklist */
   .checklist-group{ margin-bottom:28px; }

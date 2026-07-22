@@ -6,12 +6,16 @@
 <title>Radar de Eventos · Suprema OS</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%23b3475d'>♦</text></svg>">
 <script defer src="suprema-xlsx.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<!-- defer: Firebase (~250KB) fora do caminho crítico. initData() roda no DOMContentLoaded
+     (depois dos deferred) e ainda tem retry via SupremaDB.init() — 100% seguro. -->
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="gu-parser.js"></script>
 <script src="radar-core.js"></script>
 <script src="suprema-auth.js"></script>
+<!-- shell (chrome compartilhado): SÍNCRONO — o mount inline do nav roda no parse -->
+<script src="suprema-shell.js"></script>
 <script>
 /* portão: login mora no hub; exige acesso liberado a ESTE painel.
    anti-flash: aplica o tema salvo antes do primeiro paint. */
@@ -40,30 +44,24 @@ document.addEventListener('DOMContentLoaded', () => {
 </head>
 <body>
 
-<nav>
-  <div class="nav-inner">
-    <div class="brand">
-      <svg class="brand-mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M12 2.6 19 12l-7 9.4L5 12z" stroke="#b3475d" stroke-width="1.7" stroke-linejoin="round"/>
-        <path d="M12 7.2 15.6 12 12 16.8 8.4 12z" fill="#b3475d" opacity=".55"/>
-      </svg>
-      <span class="brand-text">Suprema OS</span>
-      <span class="brand-sub">Radar de Eventos · Marketing &amp; Atendimento</span>
-    </div>
-    <div class="nav-links">
-      <a href="hub.html" title="Voltar ao hub Suprema OS">♠ OS</a>
-      <a href="index.html">Painel do Dia</a>
-      <a href="tv.html" title="O canal da casa — modo telão">📺 Suprema TV</a>
-    </div>
-    <div class="nav-right">
-      <span class="presence-wrap" id="presenceWrap" title="Quem está online agora" hidden></span>
-      <span class="sync-status" id="syncStatus"><span class="sync-dot"></span><span class="sync-label">Conectando…</span></span>
-      <span class="nav-time" id="navTime" title="Horário de São Paulo"></span>
-      <button class="op-badge" id="opBadge" title="Sessão ativa"><span class="avatar" id="opAvatar">?</span><span id="opName">—</span></button>
-      <button class="icon-btn" id="darkToggle" title="Alternar modo claro/escuro">☀️</button>
-    </div>
-  </div>
-</nav>
+<!-- chrome via SupremaShell (lacuna S1): a moldura padrão (presença, sync, relógio,
+     operador, tema) mora no módulo; aqui fica só a identidade do Radar. Os ids
+     renderizados são os mesmos de antes, então o eventos.js não muda. -->
+<nav id="supNav"></nav>
+<script>
+SupremaShell.mountNav('#supNav', {
+  mark: `<svg class="brand-mark" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2.6 19 12l-7 9.4L5 12z" stroke="#b3475d" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 7.2 15.6 12 12 16.8 8.4 12z" fill="#b3475d" opacity=".55"/></svg>`,
+  sub: 'Radar de Eventos · Marketing &amp; Atendimento',
+  links: [
+    { href:'hub.html',  label:'♠ OS', title:'Voltar ao hub Suprema OS' },
+    { href:'index.html', label:'Painel do Dia' },
+    { href:'tv.html',   label:'📺 Suprema TV', title:'O canal da casa — modo telão' }
+  ],
+  presenceTitle:'Quem está online agora',
+  timeTitle:'Horário de São Paulo',
+  opTitle:'Sessão ativa'
+});
+</script>
 
 <header class="hero">
   <div class="hero-inner">
