@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "high-end-visual-design": {
+      "source": "leonxlnx/taste-skill",
+      "sourceType": "github",
+      "skillPath": "skills/soft-skill/SKILL.md",
+      "computedHash": "f730e4132775f13eea19e3dc39afc6bb453cfc0498872b127ad8f0d47cfd802d"
+    },
+    "micro-interactions": {
+      "source": "dylantarre/animation-principles",
+      "sourceType": "github",
+      "skillPath": "skills/01-by-domain/micro-interactions/SKILL.md",
+      "computedHash": "3329f824de3660f2aef6ea2974f7410fab5865ce0250fa2191a87370c616c093"
+    },
+    "web-motion-design": {
+      "source": "dylantarre/animation-principles",
+      "sourceType": "github",
+      "skillPath": "skills/01-by-domain/web-motion-design/SKILL.md",
+      "computedHash": "b73096ae0ad4bf50ee888519a9a863e949e0203b61339f4c274b3f460618a7f2"
+    }
+  }
+}

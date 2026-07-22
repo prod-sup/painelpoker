@@ -2162,3 +2162,32 @@ if(location.hash==='#tv'){
   addEventListener('focus', function(){ set(false); });
   document.addEventListener('visibilitychange', function(){ set(document.hidden); });
 })();
+
+/* ── ⌘K Command Palette: navegação de seções do Cash ─────────────────────────
+   Pluga as abas do Cash (Resumo/Overview/Turnos…) no buscador global do OS.
+   "abrir" chama pg() com o botão certo (mantém o realce da aba). */
+document.addEventListener('DOMContentLoaded', () => {
+  if (!window.SupremaPalette) return;
+  const pnorm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const SECTIONS = [
+    ['resumo','Resumo'], ['dash','Overview'], ['turnos','Turnos'], ['stakes','Stakes'],
+    ['salas','Salas'], ['eventos','Eventos'], ['player','Comportamento'],
+    ['hist','Histórico'], ['forecast','Previsão'], ['validar','Validar Dados']
+  ];
+  SupremaPalette.register({
+    id: 'secoes-cash', group: 'Seções do Cash',
+    search(q){
+      const nq = pnorm(q);
+      if (!nq) return [];   // vazio: palette limpa (nav+ações)
+      return SECTIONS.filter(([, label]) => pnorm(label).includes(nq)).map(([id, label]) => ({
+        title: label, sub: 'Ir para a seção', icon: '♣', hint: 'seção',
+        run(){
+          try {
+            const btn = [...document.querySelectorAll('.nt')].find(b => (b.getAttribute('onclick') || '').includes(`pg('${id}'`));
+            if (typeof pg === 'function') pg(id, btn);
+          } catch (e) {}
+        }
+      }));
+    }
+  });
+});

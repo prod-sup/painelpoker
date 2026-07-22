@@ -1417,6 +1417,12 @@ document.addEventListener('DOMContentLoaded', () => {
      inline. Depois do painel.js, que define as funções que ele aciona. -->
 <script src="painel-actions.js"></script>
 <script src="conf-dia.js"></script>
+<!-- ⌘K command palette: navegação + ações de fábrica; o painel pluga a busca de
+     torneios (registrada no painel.js, no DOMContentLoaded). defer: sobe no load. -->
+<script defer src="suprema-palette.js"></script>
+<!-- Copiloto de IA (Claude via Cloud Function): "Pergunte ao Suprema OS". DEPOIS do
+     palette pra auto-registrar a entrada ⌘K. O painel pluga o snapshot no painel.js. -->
+<script defer src="suprema-copiloto.js"></script>
 <script src="suprema-onboarding.js"></script>
 <script>
   /* motion premium: leque do hero inclina em 3D seguindo o cursor (self-guard em

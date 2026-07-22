@@ -1,7 +1,7 @@
 // Suprema Poker — Service Worker
 // IMPORTANTE: incremente SW_VERSION a cada deploy — é isso que faz as abas abertas
 // receberem o aviso de "nova versão disponível" e ninguém operar com código velho
-const SW_VERSION = '3.25.0';
+const SW_VERSION = '3.29.0';
 const CACHE_NAME = `suprema-painel-v${SW_VERSION}`;
 const STATIC_ASSETS = [
   '/painelpoker/',
@@ -39,6 +39,10 @@ const STATIC_ASSETS = [
   '/painelpoker/eventos.css',
   '/painelpoker/eventos.js',
   '/painelpoker/radar-core.js',
+  '/painelpoker/analytics.html',
+  '/painelpoker/analytics.css',
+  '/painelpoker/analytics.js',
+  '/painelpoker/analytics-core.js',
   // o Worker de parse da Global: sem ele no cache, o Radar/TV offline perdem o
   // caminho rápido e caem no parse síncrono (funciona, mas trava a aba)
   '/painelpoker/suprema-global-worker.js',
@@ -56,6 +60,8 @@ const STATIC_ASSETS = [
   // gate/sessão/presença/tema não sobem sem rede e a promessa de OS se quebra
   '/painelpoker/suprema-auth.js',
   '/painelpoker/suprema-shell.js',
+  '/painelpoker/suprema-palette.js',
+  '/painelpoker/suprema-copiloto.js',
   '/painelpoker/suprema-db.js',
   '/painelpoker/suprema-presence.js',
   '/painelpoker/suprema-motion.js',

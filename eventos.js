@@ -1691,3 +1691,32 @@ document.addEventListener('DOMContentLoaded', () => {
   syncFilterUI();
   initData();
 });
+
+/* ── ⌘K Command Palette: busca de eventos da semana ──────────────────────────
+   Pluga a busca do Radar no buscador global do OS. Lê MODEL.events na hora;
+   "abrir" leva ao dia do evento (pickDay). Navegação e tema já vêm de fábrica. */
+document.addEventListener('DOMContentLoaded', () => {
+  if (!window.SupremaPalette) return;
+  const pnorm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const catNome = { main:'Main Event', side:'Side Event', sat:'Satélite' };
+  const catSuit = { main:'♠', side:'♣', sat:'♦' };
+  SupremaPalette.register({
+    id: 'eventos', group: 'Eventos da semana',
+    search(q){
+      const nq = pnorm(q);
+      if (!nq || typeof MODEL === 'undefined' || !MODEL || !Array.isArray(MODEL.events)) return [];
+      const seen = new Set();
+      return MODEL.events
+        .filter(e => pnorm(e.nome || '').includes(nq))
+        .filter(e => { const k = `${e.weekday}|${e.nome}`; if (seen.has(k)) return false; seen.add(k); return true; })
+        .slice(0, 8)
+        .map(e => ({
+          title: e.nome || 'Evento',
+          sub: `${e.weekday || ''} · ${e.hora || '—'} · ${catNome[e.cat] || 'Side Event'}`,
+          icon: catSuit[e.cat] || '♣',
+          hint: 'ver dia',
+          run: () => { try { pickDay(e.weekday); } catch (err) {} }
+        }));
+    }
+  });
+});

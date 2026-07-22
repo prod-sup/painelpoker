@@ -9379,3 +9379,72 @@ const _origOvcClear = typeof ovcClear === 'function' ? ovcClear : null;
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', opjInit);
   else opjInit();
 })();
+
+/* ── ⌘K Command Palette: busca de torneios de hoje ────────────────────────────
+   O painel pluga sua busca no buscador global do OS (suprema-palette.js). Lê a
+   grade viva (UPCOMING) na hora da busca; "abrir" leva ao card e pisca, reusando
+   o mesmo diagIrParaCard() do diagnóstico. Navegação e tema já vêm de fábrica. */
+document.addEventListener('DOMContentLoaded', () => {
+  if (!window.SupremaPalette) return;
+  const pnorm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const catNome = { main:'Main Event', side:'Side Event', sat:'Satélite' };
+  SupremaPalette.register({
+    id: 'torneios', group: 'Torneios de hoje',
+    search(q){
+      const nq = pnorm(q);
+      if (!nq || !Array.isArray(UPCOMING)) return [];   // vazio: deixa a palette limpa (nav+ações)
+      return UPCOMING
+        .filter(t => pnorm(`${t.nome || ''} ${t.hora || ''}`).includes(nq))
+        .slice(0, 8)
+        .map(t => {
+          const cat = classify(t);
+          return {
+            title: t.nome || 'Torneio',
+            sub: `${t.hora || '—'} · ${catNome[cat] || 'Side Event'}${t.garantido != null ? ' · R$ ' + fmtBRL(t.garantido) : ''}`,
+            icon: CAT_SUIT[cat] || '♠',
+            hint: 'ver card',
+            run: () => diagIrParaCard(t._key)
+          };
+        });
+    }
+  });
+});
+
+/* ── Copiloto de IA: snapshot do estado do Painel do Dia ─────────────────────
+   Entrega ao Copiloto (suprema-copiloto.js) um retrato compacto do dia: totais
+   do hero, grade viva (UPCOMING) e os achados do motor de diagnóstico. É o mesmo
+   estado estruturado que o suprema-insights já produz — a IA só ganha a voz. */
+document.addEventListener('DOMContentLoaded', () => {
+  if (!window.SupremaCopiloto) return;
+  SupremaCopiloto.setSnapshot(() => {
+    const snap = { painel: 'Painel do Dia', data: (typeof BASE_DATE !== 'undefined' ? BASE_DATE : null) };
+    // totais do hero
+    try {
+      snap.totais = {
+        garantido: document.getElementById('statGarantido')?.textContent?.trim(),
+        premiacao: document.getElementById('statPremiacao')?.textContent?.trim(),
+        overlay:   document.getElementById('statOverlay')?.textContent?.trim(),
+        naoFixados:document.getElementById('statUnfixed')?.textContent?.trim()
+      };
+    } catch (e) {}
+    // grade viva (limita p/ caber no prompt): nome, hora, categoria, garantido, premiação, field
+    try {
+      if (Array.isArray(UPCOMING)) {
+        snap.torneios = UPCOMING.slice(0, 120).map(t => ({
+          nome: t.nome, hora: t.hora, categoria: classify(t),
+          garantido: t.garantido, premiacao: t.premiacao,
+          field: (typeof getField === 'function' ? getField(t._key) : undefined) || t.field,
+          fixado: (typeof isFixed === 'function' ? isFixed(t._key) : undefined)
+        }));
+      }
+    } catch (e) {}
+    // diagnóstico (o motor puro já achou os problemas)
+    try {
+      if (window.SupremaInsights && typeof buildInsightsInput === 'function') {
+        const found = SupremaInsights.analyze(buildInsightsInput());
+        if (Array.isArray(found)) snap.diagnostico = found.slice(0, 20).map(f => ({ titulo: f.titulo || f.title, acao: f.acao || f.action }));
+      }
+    } catch (e) {}
+    return snap;
+  });
+});

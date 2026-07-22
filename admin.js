@@ -3385,3 +3385,27 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
     else if(!mo.contains(document.activeElement)){ e.preventDefault(); first.focus(); }
   });
 })();
+
+/* ── ⌘K Command Palette: navegação de seções do Admin ────────────────────────
+   Pluga a sidebar do Admin (Acompanhamento/Operadores/Grade…) no buscador global.
+   "abrir" clica o .ntab certo — a delegação data-act="nav" cuida do resto. */
+document.addEventListener('DOMContentLoaded', () => {
+  if (!window.SupremaPalette) return;
+  const pnorm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const SECTIONS = [
+    ['audit','Acompanhamento'], ['criacao','Criação (GU)'], ['dashboard','Dashboard'],
+    ['grade','Grade'], ['operadores','Operadores'], ['backup','Backup & Arquivo'],
+    ['avisos','Conteúdo do hub']
+  ];
+  SupremaPalette.register({
+    id: 'secoes-admin', group: 'Seções do Admin',
+    search(q){
+      const nq = pnorm(q);
+      if (!nq) return [];
+      return SECTIONS.filter(([, label]) => pnorm(label).includes(nq)).map(([id, label]) => ({
+        title: label, sub: 'Ir para a seção', icon: '♦', hint: 'seção',
+        run(){ try { document.querySelector(`.ntab[data-act="nav"][data-arg="${id}"]`)?.click(); } catch (e) {} }
+      }));
+    }
+  });
+});
