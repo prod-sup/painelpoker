@@ -153,14 +153,21 @@ function fmtExtraVal(label, v){
 /* classifica a coluna TYPE de forma TOLERANTE — a GU digita a mão e varia a grafia
    ("Main event", "MAIN", "Satelite" sem acento, "Satellite", "SAT", "Side"...). Em vez de
    casar string exata (que jogava tudo pra "tipo não reconhecido"), normaliza e procura o
-   radical. Mesma lógica do classify() do painel.js — mantidas em sincronia de propósito. */
+   radical. Mesma lógica do classify() do painel.js — mantidas em sincronia de propósito.
+
+   Regra da operação: Main e Satélite são os ÚNICOS casos especiais; qualquer outro
+   TYPE PREENCHIDO é Side Event por eliminação (PKO/Bounty/Turbo/Freezeout/… são Side).
+   Por isso o default é 'side' — igual ao tail do classify() do painel. O split
+   com/sem Admin Fee sai das colunas de fee, não do TYPE.
+   TYPE VAZIO é a exceção: na G MTTS é linha decorativa/rótulo, então volta null e cai
+   na rede de segurança "tipo não reconhecido" (não vira Side sozinho). */
 function classifyGuTipo(tipo){
   const t = normText(tipo);
-  if (!t) return null;
+  if (!t) return null;                  // sem TYPE: rede de segurança, não classifica
   if (t.includes('main')) return 'main';
   if (t.includes('side')) return 'side';
   if (t.includes('sat'))  return 'sat'; // cobre SAT, satélite, satelite, satellite
-  return null;
+  return 'side';                        // TYPE preenchido fora dos radicais = Side por eliminação
 }
 
 function extractGuDaySection(matrix, weekdayEn, headerCols){

@@ -73,14 +73,22 @@ const variantes = [
   ['11:00', '#V3', 'Side sem "event"','Side',        1000,  10, null, 0.10, null, null, 10000, 8],
   ['12:00', 'SAT V4', 'Satelite sem acento', 'Satelite', 100, 5, null, 0.10, null, null, 10000, 5],
   ['13:00', 'SAT V5', 'Satellite EN',        'Satellite',100, 5, null, 0.10, null, null, 10000, 5],
-  ['14:00', '#V6', 'Tipo de verdade estranho', 'Bounty', 500, 5, null, 0.10, null, null, 10000, 5]
+  ['14:00', '#V6', 'Tipo de verdade estranho', 'Bounty', 500, 5, null, 0.10, null, null, 10000, 5],
+  // TYPE PREENCHIDO fora dos radicais = Side por eliminação (regra da operação)
+  ['15:00', '#V7', 'PKO qualquer',              'PKO',    800, 8, null, 0.10, null, null, 10000, 5],
+  // TYPE VAZIO com valores = rede de segurança: fica em "desconhecido", não vira Side sozinho
+  ['16:00', '#V8', 'Sem TYPE mas com valores',  '',       500, 5, null, 0.10, null, null, 10000, 5]
 ];
 const vcols = api.findHeaderCols(variantes);
 const vsec = api.extractGuDaySection(variantes, 'WEDNESDAY', vcols);
 ok(vsec.main.length === 2, '"main event" e "MAIN EVENT" caem em Main, não em desconhecido');
-ok(vsec.side.length === 1 && vsec.side[0].nome === 'Side sem "event"', '"Side" (sem "event") cai em Side');
+ok(vsec.side.length === 3 && vsec.side[0].nome === 'Side sem "event"',
+  '"Side", "Bounty" e "PKO" (TYPE preenchido fora dos radicais) caem em Side por eliminação');
+ok(vsec.side.some(it => it.nome === 'Tipo de verdade estranho') && vsec.side.some(it => it.nome === 'PKO qualquer'),
+  'Bounty e PKO viram Side, não desconhecido');
 ok(vsec.sat.length === 2, '"Satelite" e "Satellite" caem em Satélite');
-ok(vsec.unknown.length === 1 && vsec.unknown[0].tipo === 'Bounty', 'só tipo realmente fora dos radicais fica em desconhecido');
+ok(vsec.unknown.length === 1 && vsec.unknown[0].tipo === '',
+  'só TYPE VAZIO (com valores) fica em desconhecido — a rede de segurança das linhas sem tipo');
 
 console.log('buildSections (janela 06:10 → 05:30)');
 const secTue = api.extractGuDaySection(matrix, 'TUESDAY', cols);
