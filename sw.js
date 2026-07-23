@@ -1,7 +1,7 @@
 // Suprema Poker — Service Worker
 // IMPORTANTE: incremente SW_VERSION a cada deploy — é isso que faz as abas abertas
 // receberem o aviso de "nova versão disponível" e ninguém operar com código velho
-const SW_VERSION = '3.37.0';
+const SW_VERSION = '3.38.0';
 const CACHE_NAME = `suprema-painel-v${SW_VERSION}`;
 // BASE derivada da própria URL do SW: '/' na Vercel (painelpoker.vercel.app/) e
 // '/painelpoker/' no GitHub Pages. Os assets abaixo são RELATIVOS e recebem a base
@@ -34,6 +34,10 @@ const STATIC_ASSETS = [
   // criacao-noturna.js DEPENDE de criacao-calc (parsing/fee/early bird):
   // sem ele offline, a receita não renderiza.
   'criacao-calc.js',
+  // grade FIXA dos Eventos Principais (Liga Principal). Precachear é o ponto:
+  // é ela que faz a Criação Noturna abrir com trabalho na tela mesmo offline,
+  // sem depender de upload da Global.
+  'liga-principal-data.js',
   'criacao-noturna.css',
   'dashboard-mesa-cash.html',
   'dashboard-mesa-cash.js',

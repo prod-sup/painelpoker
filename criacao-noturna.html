@@ -64,6 +64,7 @@ SupremaShell.mountNav('#supNav', {
       <div class="hstat c-main"><div class="n" id="stMain">—</div><div class="l">Main + Satélites</div></div>
       <div class="hstat c-side"><div class="n" id="stSideA">—</div><div class="l">Side · c/ Admin</div></div>
       <div class="hstat c-sidefree"><div class="n" id="stSideB">—</div><div class="l">Side · s/ Admin</div></div>
+      <div class="hstat c-liga"><div class="n" id="stLiga">—</div><div class="l">★ Eventos Principais</div></div>
       <div class="hstat c-camp" id="stCampWrap" hidden><div class="n" id="stCamp">—</div><div class="l">✦ Com campanha</div></div>
       <div class="hstat" id="stUrgWrap" hidden><div class="n" id="stUrg" style="color:#e8c860">—</div><div class="l">Estourando prazo</div></div>
     </div>
@@ -130,6 +131,7 @@ SupremaShell.mountNav('#supNav', {
           <span class="lk"><span class="d" style="background:var(--main-bright)"></span>Main + Satélites</span>
           <span class="lk"><span class="d" style="background:var(--side-bright)"></span>Side c/ Admin Fee</span>
           <span class="lk"><span class="d" style="background:var(--sidefree-bright)"></span>Side s/ Admin Fee</span>
+          <span class="lk"><span class="d" style="background:var(--liga-bright)"></span>Eventos Principais</span>
           <span style="opacity:.8">Sem função marcada, todos dividem aquele bloco.</span>
         </p>
       </div>
@@ -202,6 +204,10 @@ SupremaShell.mountNav('#supNav', {
      defer porque só é usado quando o operador abre o telão — não atrasa o
      carregamento da planilha, que é o caminho crítico da página. -->
 <script defer src="suprema-feltro.js"></script>
+<!-- grade FIXA dos Eventos Principais (Liga Principal), pré-carregada: precisa vir
+     ANTES do criacao-noturna.js, que monta a seção já no boot. Gerado por
+     scripts/gerar-liga-principal.ps1 — ao trocar, bumpar SW_VERSION. -->
+<script src="liga-principal-data.js"></script>
 <script src="criacao-calc.js"></script>
 <script src="criacao-noturna.js"></script>
 <!-- ⌘K command palette (navegação + ações de fábrica) -->

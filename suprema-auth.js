@@ -34,15 +34,20 @@
      esse mapa na sessão no login, então o painel confere sem ir ao banco.
      Admin entra em tudo. Learn e Org são sites externos (outra origem) — não
      passam por esta trava aqui. */
+  /* `def`     = liberado por PADRÃO a toda conta autenticada (só sai com revogação
+                 explícita access[id]===false — o admin desmarca na aba Operadores).
+     `defEdit` = edita por padrão (só painel/gu). Painéis SEM `def` seguem opt-in
+                 (deny-by-default): só entram com access[id]===true. As regras do
+                 RTDB (database.rules.json) espelham isso e são a autoridade real. */
   var PANELS = [
-    { id: 'painel', label: 'Painel do Dia',     file: 'index.html' },
+    { id: 'painel', label: 'Painel do Dia',     file: 'index.html',              def: true, defEdit: true },
     { id: 'analytics', label: 'Suprema Analytics', file: 'analytics.html' },
-    { id: 'gu',     label: 'Criação Noturna',   file: 'criacao-noturna.html' },
+    { id: 'gu',     label: 'Criação Noturna',   file: 'criacao-noturna.html',    def: true, defEdit: true },
     { id: 'cash',   label: 'Cash Intelligence', file: 'dashboard-mesa-cash.html' },
     { id: 'eventos',label: 'Radar de Eventos',  file: 'eventos.html' },
-    { id: 'pipe',   label: 'Criação de Eventos', url: 'https://pipesuprema.vercel.app', external: true },
-    { id: 'tv',     label: 'Suprema TV',        file: 'tv.html' },
-    { id: 'learn',  label: 'Poker Learn',       url: 'https://prod-sup.github.io/Learn/', external: true },
+    { id: 'pipe',   label: 'Criação de Eventos', url: 'https://pipesuprema.vercel.app', external: true, def: true },
+    { id: 'tv',     label: 'Suprema TV',        file: 'tv.html',                 def: true },
+    { id: 'learn',  label: 'Poker Learn',       url: 'https://prod-sup.github.io/Learn/', external: true, def: true },
     { id: 'org',    label: 'A Constelação',     url: 'https://prod-sup.github.io/Org/',   external: true },
     { id: 'admin',  label: 'Admin',             file: 'admin.html', adminOnly: true }
   ];
@@ -61,9 +66,14 @@
     if (r.isAdmin || (s && s.admin === true)) return true;
     var p = panelById(panelId);
     if (p && p.adminOnly) return false;                 // painel restrito, e não é admin
-    // BLOQUEIO POR PADRÃO: sem liberação explícita, ninguém entra. O admin libera
-    // painel por painel na aba Operadores (grava users/<key>/access/<id> = true).
-    return !!(s && s.access && s.access[panelId] === true);
+    var acc = s && s.access ? s.access : {};
+    // REVOGAÇÃO EXPLÍCITA vence sempre: o admin desmarca gravando access[id]===false.
+    if (acc[panelId] === false) return false;
+    // Liberação explícita.
+    if (acc[panelId] === true) return true;
+    // PADRÃO: painéis `def` são liberados a toda conta autenticada enquanto não
+    // revogados; o resto é opt-in (deny-by-default, só com access[id]===true).
+    return !!(p && p.def);
   }
 
   /* pode EDITAR este painel (escrever nos nós dele)? Ver ≠ editar: quem só tem
@@ -76,18 +86,29 @@
     var s = getSession();
     if (r.isAdmin || (s && s.admin === true)) return true;
     if (!s) return false;
-    if (s.edit) return s.edit[panelId] === true;
+    // ver é pré-requisito de editar — e isto também tira a edição de quem teve o
+    // ACESSO revogado (access[id]===false), sem depender do mapa `edit`.
+    if (!canAccess(panelId)) return false;
+    var p = panelById(panelId);
+    if (s.edit) {
+      if (s.edit[panelId] === true) return true;
+      if (s.edit[panelId] === false) return false;      // edição revogada explicitamente
+      return !!(p && p.defEdit);                         // sem entrada: painel/gu editam por padrão
+    }
+    // conta legada (sem nó `edit`): edição herda do acesso — e os defaults valem
+    if (p && p.defEdit) return true;
     return !!(s.access && s.access[panelId] === true);
   }
 
-  /* ── REVALIDAÇÃO DE ACESSO AO VIVO (fecha a brecha da revogação) ──
+  /* ── REVALIDAÇÃO DE ACESSO AO VIVO → LOGOUT NA REVOGAÇÃO ──
      guard() confia no snapshot da sessão (localStorage). Se o admin REVOGA o
-     acesso — ou a EDIÇÃO — de um operador ONLINE, ele não pode continuar na
-     tela: revalidateAccess() mantém listeners em users/<key>/access|edit
-     enquanto o painel está aberto, espelha cada mudança na sessão e ejeta
-     pro hub na hora se este painel deixou de ser permitido ou se a edição
-     foi retirada de quem editava. Chame 1x no load do painel, logo depois de
-     guard(). Silenciosa sem Firebase/sessão — nunca trava a página. */
+     acesso — ou a EDIÇÃO — de um operador ONLINE, ele não pode continuar: a conta
+     é DESLOGADA na hora (signOut do Firebase + clearSession + volta pro login no
+     hub), não só ejetada do painel. Vale pra QUALQUER painel revogado (não só o
+     atual) e roda também no HUB (chame sem panelId). Mantém listeners em
+     users/<key>/access|edit enquanto a página está aberta; a 1ª leitura de cada um
+     é só BASELINE (não desloga), e daí qualquer transição "tinha → perdeu" dispara
+     o logout. Silencioso sem Firebase/sessão — nunca trava a página. */
   function revalidateAccess(panelId, opts) {
     opts = opts || {};
     var s = getSession();
@@ -95,13 +116,10 @@
     if (isAdminEmail(s.email)) return;         // admin entra em tudo: nada a revalidar
     var tries = 0;
     (function waitDb() {
-      /* Espera o Firebase estar PRONTO. `revalidateAccess` roda no <head> —
-         ANTES de o painel chamar initializeApp — então nesse instante o SDK
-         existe mas não há app: chamar fb.auth() aí lançava "No Firebase App
-         '[DEFAULT]'" e, sem try/catch, matava o waitDb no 1º tique (os
-         listeners de vigilância nunca subiam). Agora o teste de prontidão fica
-         dentro do try: `fb.apps.length` garante um app inicializado ANTES de
-         tocar em fb.auth(), e qualquer exceção precoce só reagenda. */
+      /* Espera o Firebase estar PRONTO. `revalidateAccess` roda no <head> — ANTES
+         de a página chamar initializeApp — então o SDK existe mas não há app:
+         `fb.apps.length` garante um app inicializado ANTES de tocar em fb.auth(),
+         e qualquer exceção precoce só reagenda (não mata o waitDb). */
       var ready = false;
       try {
         var fbc = global.firebase;
@@ -113,38 +131,53 @@
         return setTimeout(waitDb, 200);
       }
       var fb = global.firebase;
-      /* VIGILÂNCIA AO VIVO (não é mais foto única do load): access e edit
-         ficam observados enquanto o painel está aberto. Revogou o ACESSO →
-         volta pro hub na hora. Revogou a EDIÇÃO de quem estava editando →
-         idem: a pessoa é ejetada em vez de continuar numa tela cheia de
-         ferramentas que o banco já nega (ao voltar, entra com a permissão
-         nova). A comparação é por transição (tinha → perdeu), então quem já
-         entrou sem edição nunca é expulso por não tê-la. */
       var base = fb.database().ref('users/' + emailToKey(s.email));
-      var kicked = false;
-      var kick = function () {
-        if (kicked) return;
-        kicked = true;
-        location.replace((opts.redirect || 'hub.html') +
-          '?denied=' + encodeURIComponent(panelId) + '&revoked=1');
+      var loggedOut = false;
+      var logout = function (motivo) {
+        if (loggedOut) return;
+        loggedOut = true;
+        try { base.child('access').off(); base.child('edit').off(); } catch (e) {}
+        try { clearSession(); } catch (e) {}
+        var go = function () {
+          location.replace((opts.redirect || 'hub.html') + '?revoked=1' +
+            (motivo ? '&painel=' + encodeURIComponent(motivo) : ''));
+        };
+        // desloga do Firebase Auth também, senão a sessão do SDK reergueria o acesso
+        try { fb.auth().signOut().then(go, go); } catch (e) { go(); }
       };
-      var lastEdit = null;
+      /* painéis vigiados: todos menos o Admin (adminOnly nunca vale pra operador).
+         A comparação é por transição (tinha → perdeu) por painel, então quem nunca
+         teve um acesso não é deslogado por não tê-lo. */
+      var watched = PANELS.filter(function (p) { return !p.adminOnly; });
+      var firstA = true, prevA = {};
+      var firstE = true, prevE = {};
       base.child('access').on('value', function (snap) {
         var cur = getSession();
         if (!cur) return;
-        cur.access = snap.val() || {};       // reflete a permissão real do banco na sessão
+        cur.access = snap.val() || {};        // espelha a permissão real do banco na sessão
         saveSession(cur);
-        if (panelId && !canAccess(panelId)) kick();
+        var revogou = false;
+        watched.forEach(function (p) {
+          var now = canAccess(p.id);
+          if (!firstA && prevA[p.id] === true && now !== true) revogou = true;
+          prevA[p.id] = now;
+        });
+        firstA = false;
+        if (revogou) logout(panelId || 'acesso');
       }, function () {});
       base.child('edit').on('value', function (snap) {
         var cur = getSession();
         if (!cur) return;
-        cur.edit = snap.val();               // null = conta pré-migração (canEdit cai no access)
+        cur.edit = snap.val();                // null = conta pré-migração (canEdit cai no access)
         saveSession(cur);
-        if (!panelId) return;
-        var nowEdit = canEdit(panelId);
-        if (lastEdit === true && !nowEdit) kick();
-        lastEdit = nowEdit;
+        var revogou = false;
+        watched.forEach(function (p) {
+          var now = canEdit(p.id);
+          if (!firstE && prevE[p.id] === true && now !== true) revogou = true;
+          prevE[p.id] = now;
+        });
+        firstE = false;
+        if (revogou) logout(panelId || 'edicao');
       }, function () {});
     })();
   }

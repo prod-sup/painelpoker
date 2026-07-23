@@ -149,7 +149,9 @@ const FIELD_DEFS = {
 };
 /* resolve o campo por MAP (manual) ou auto-detecção */
 function fieldInfo(fk, it){
-  const col = MAP[fk];
+  // o MAP manual é do cabeçalho da GLOBAL — aplicá-lo nos Eventos Principais
+  // (outro cabeçalho) só apagaria os campos. Ali vale a auto-detecção.
+  const col = (it && it.liga) ? null : MAP[fk];
   if (col){
     if (!it || !it.extra) return null;
     const v = it.extra[col];
@@ -209,11 +211,11 @@ function calcValueParts(it, info, pctOnly){
   if (raw === null) return {main: info.disp, sub: '', money: null};
   if (raw > 0 && raw < 1){
     const money = (it.buyin != null) ? CriacaoCalc.moneyOf(it.buyin, raw) : null;
-    return {main: CriacaoCalc.pctText(raw), sub: money != null ? fmtMoneyPlain(money) : '', money};
+    return {main: CriacaoCalc.pctText(raw), sub: money != null ? fmtMoneyPlain(money, it) : '', money};
   }
   if (pctOnly) return {main: info.disp, sub: '', money: null};
   const pct = (it.buyin && it.buyin > 0) ? CriacaoCalc.pctText(raw / it.buyin) : '';
-  return {main: fmtMoneyPlain(raw), sub: pct, money: raw, isMoney: true};
+  return {main: fmtMoneyPlain(raw, it), sub: pct, money: raw, isMoney: true};
 }
 
 /* converte o valor cru de um campo pra fração percentual (0–1).
@@ -275,13 +277,13 @@ function specTile(icon, accent, label, mainHtml, sub, hot){
 /* a FICHA: valores (com quanto o fee representa) + especificações destacadas */
 function specSheetHtml(it){
   const money = info => { // valor de célula → $ formatado (Add-on e afins)
-    if (typeof info.raw === 'number') return fmtMoney(info.raw);
+    if (typeof info.raw === 'number') return fmtMoney(info.raw, it);
     const n = parseFloat(String(info.raw).replace(/[^\d.,-]/g, '').replace(',', '.'));
-    return isFinite(n) ? fmtMoney(n) : escHtml(info.disp);
+    return isFinite(n) ? fmtMoney(n, it) : escHtml(info.disp);
   };
   const tiles = [];
-  tiles.push(specTile('buyin','c-felt','Buy-in', fmtMoney(it.buyin), '', true));
-  tiles.push(specTile('prize','c-felt','Prize Pool', fmtMoney(it.garantido), '', true));
+  tiles.push(specTile('buyin','c-felt','Buy-in', fmtMoney(it.buyin, it), '', true));
+  tiles.push(specTile('prize','c-felt','Prize Pool', fmtMoney(it.garantido, it), '', true));
   const af = adminFeeParts(it); if (af) tiles.push(specTile('admin','c-side','Admin Fee', escHtml(af.main), '10% do buy-in / +2% se tiver admin fee', true));
   const e = earlyParts(it);     if (e)  tiles.push(specTile('early','c-sat','Early Bird', escHtml(e.main), e.sub + ' (% das fichas)', true));
   const tk = ticketInfo(it);   if (tk) tiles.push(specTile('ticket','c-gold','Ticket Award', escHtml(tk.disp), '', true));
@@ -304,6 +306,54 @@ function mttKicker(it){
   return m.disp;
 }
 
+/* =========================================================================
+   EVENTOS PRINCIPAIS — a grade da LIGA PRINCIPAL, pré-carregada.
+
+   POR QUE NÃO VEM DE UPLOAD
+   -------------------------
+   Ao contrário da Global MTT (que a GU refaz todo dia), a grade da Liga
+   Principal quase nunca muda. Então ela é DADO ESTÁTICO do repositório
+   (liga-principal-data.js, gerado por scripts/gerar-liga-principal.ps1): a
+   página abre já sabendo os eventos do dia, sem depender de ninguém ter
+   subido planilha nenhuma — e sem depender do Firebase pra montar a lista.
+
+   DUAS DIFERENÇAS QUE IMPORTAM
+   ----------------------------
+   1) MOEDA: os valores da Liga Principal JÁ ESTÃO EM REAIS. Todo item nasce
+      com `brl:true` e fmtMoney/fmtMoneyPlain param de aplicar o × BRL_RATE
+      em cima deles — senão um buy-in de R$ 15 viraria R$ 75 na tela.
+   2) CHAVE: o nome+horário se repete entre as duas grades ("Kick Off 12:00"
+      existe nas duas). Sem prefixo, marcar criado num marcaria no outro —
+      por isso itemKey() prefixa os itens da Liga com "lp|".
+
+   A janela é a MESMA da Global (06:10 → 05:30), então o Corujão de 00:00
+   entra pelo dia seguinte, igual aos outros.
+========================================================================= */
+function buildLigaItems(){
+  if (typeof LIGA_PRINCIPAL_SECTIONS === 'undefined') return [];
+  const pick = day => {
+    const s = LIGA_PRINCIPAL_SECTIONS[day];
+    return s ? {main: s.main || [], side: s.side || [], sat: s.sat || [], unknown: []} : null;
+  };
+  const b = buildSections(pick(WEEKDAY_TOMORROW_EN), pick(WEEKDAY_DAYAFTER_EN));
+  // a Liga vira UM bloco só (Main + Side + Satélites juntos, em ordem de criação),
+  // reordenado pela mesma régua da janela: 06:10 abre o dia, a madrugada fecha
+  const pos = it => { const m = timeToMinutes(it.hora) ?? 9999; return m >= CONF_WINDOW_START_MIN ? m : m + 1440; };
+  return [...b.main, ...b.side, ...b.sat]
+    .map(it => ({...it, brl: true, liga: true}))
+    .sort((a, z) => pos(a) - pos(z));
+}
+const LIGA_ITEMS = buildLigaItems();
+function ligaFields(){ return (typeof LIGA_PRINCIPAL_FIELDS !== 'undefined') ? LIGA_PRINCIPAL_FIELDS : []; }
+
+/* toda a grade da noite — Global (quando carregada) + Liga Principal (sempre).
+   Substitui os `DATA.main + DATA.side + DATA.sat` espalhados: com a Liga no
+   bolo, esquecer um deles daria contagem/prazo/auditoria pela metade. */
+function flatAll(){
+  const g = DATA ? [...DATA.main, ...DATA.side, ...DATA.sat] : [];
+  return [...g, ...LIGA_ITEMS];
+}
+
 /* separa os Side Events em dois blocos: com e sem Admin Fee */
 function sideSplit(){
   const admin = [], noadmin = [];
@@ -320,8 +370,12 @@ const CAT_MAIN   = {key:'main',        cls:'main',     suit:'♠', label:'Main E
 const CAT_SAT    = {key:'sat',         cls:'sat',      suit:'♣', label:'Satélites',                role:'mainSat'};
 const CAT_SIDE_A = {key:'sideAdmin',   cls:'side',     suit:'♥', label:'Side Events · com Admin Fee', role:'sideAdmin'};
 const CAT_SIDE_B = {key:'sideNoAdmin', cls:'sidefree', suit:'♦', label:'Side Events · sem Admin Fee', role:'sideNoAdmin'};
-const SECTIONS = [CAT_MAIN, CAT_SAT, CAT_SIDE_A, CAT_SIDE_B];
+/* a Liga Principal é um produto à parte: grade fixa, valores em real, bloco e
+   função próprios — por isso não se mistura com o split de Admin Fee acima */
+const CAT_LIGA   = {key:'liga',        cls:'liga',     suit:'★', label:'Eventos Principais · Liga Principal', role:'ligaPrincipal'};
+const SECTIONS = [CAT_MAIN, CAT_SAT, CAT_SIDE_A, CAT_SIDE_B, CAT_LIGA];
 function catItems(cat){
+  if (cat.key === 'liga') return LIGA_ITEMS;   // pré-carregada: existe mesmo sem Global
   if (!DATA) return [];
   if (cat.key === 'main') return DATA.main;
   if (cat.key === 'sat')  return DATA.sat;
@@ -330,19 +384,21 @@ function catItems(cat){
 }
 function allWithCat(){
   const s = sideSplit();
-  return [
+  const g = DATA ? [
     ...DATA.main.map(it => ({it, cat: CAT_MAIN})),
     ...s.admin.map(it => ({it, cat: CAT_SIDE_A})),
     ...s.noadmin.map(it => ({it, cat: CAT_SIDE_B})),
     ...DATA.sat.map(it => ({it, cat: CAT_SAT}))
-  ];
+  ] : [];
+  return [...g, ...LIGA_ITEMS.map(it => ({it, cat: CAT_LIGA}))];
 }
 
 /* papéis (função) por operador — chave saneada pro Firebase */
 const ROLE_OPTS = [
   {key:'mainSat',     label:'Main + Satélites'},
   {key:'sideAdmin',   label:'Side c/ Admin Fee'},
-  {key:'sideNoAdmin', label:'Side s/ Admin Fee'}
+  {key:'sideNoAdmin', label:'Side s/ Admin Fee'},
+  {key:'ligaPrincipal', label:'Eventos Principais'}
 ];
 function roleKey(op){ return normText(op).replace(/[.#$\[\]\/]/g,'_'); }
 function roleOf(op){ return ROLES[roleKey(op)] || ''; }
@@ -504,7 +560,8 @@ try{
   setSync('off','Offline (só local)');
 }
 }
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', cnInitFirebase); else cnInitFirebase();
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', () => { cnInitFirebase(); cnBootLiga(); });
+else { cnInitFirebase(); cnBootLiga(); }
 
 /* =========================================================================
    CONTA — a MESMA do Painel/Admin, e SÓ ela: não existe login próprio aqui.
@@ -783,12 +840,27 @@ async function ingestGlobalMatrix(bytes, fileName, source){
    Main e Side: round-robin cronológico. Satélite: grupos inteiros (a receita
    de um grupo é encadeada), sempre pro operador com menos satélites até ali.
 ========================================================================= */
+/* chave do torneio no Firebase (done/ids/overrides/audit).
+   PREFIXO "lp|" pros Eventos Principais: nome+horário se repetem entre a Global
+   e a Liga Principal ("Kick Off 12:00" existe nas duas) — sem o prefixo, marcar
+   criado num marcaria o outro junto. */
 function itemKey(it){
-  return `${normText(it.nome)}|${it.hora}`.replace(/[.#$\[\]\/]/g,'_');
+  return `${it && it.liga ? 'lp|' : ''}${normText(it.nome)}|${it.hora}`.replace(/[.#$\[\]\/]/g,'_');
 }
 function computeAssignments(){
   const asg = {}; // key -> opName
-  if (!DATA || !OPS.length) return asg;
+  if (!OPS.length) return asg;
+
+  /* ── FUNÇÃO 4 · Eventos Principais (Liga Principal) — grade fixa, dividida
+     em round-robin cronológico entre quem está nessa função. Vem antes do
+     resto de propósito: existe mesmo sem Global carregada. ── */
+  const poolLP = opsForRole('ligaPrincipal');
+  if (poolLP.length) LIGA_ITEMS.forEach((it, i) => { asg[itemKey(it)] = poolLP[i % poolLP.length]; });
+
+  if (!DATA){
+    Object.keys(OVERRIDES).forEach(k => { if (OPS.includes(OVERRIDES[k])) asg[k] = OVERRIDES[k]; });
+    return asg;
+  }
 
   // round-robin simples de uma lista dentro de um pool de operadores
   const roundRobin = (list, pool) => {
@@ -840,16 +912,22 @@ function opColor(name){
   const i = OPS.indexOf(name);
   return OP_COLORS[(i >= 0 ? i : 0) % OP_COLORS.length];
 }
-function fmtMoney(vUsd){
+/* Dinheiro. O padrão da página é DÓLAR (Global MTT) com conversão × BRL_RATE
+   quando o operador troca pra real. Os Eventos Principais fogem disso: a
+   planilha da Liga Principal já traz REAL — passar o item (`it.brl`) trava a
+   moeda em R$ e não multiplica nada, senão R$ 15 de buy-in viraria R$ 75. */
+function moneyCur(it){ return (it && it.brl) ? 'brl' : CURRENCY; }
+function moneyVal(v, it){ return (it && it.brl) ? v : (CURRENCY === 'usd' ? v : v * BRL_RATE); }
+function fmtMoney(vUsd, it){
   if (vUsd === null || vUsd === undefined) return '—';
-  const v = CURRENCY === 'usd' ? vUsd : vUsd * BRL_RATE;
+  const v = moneyVal(vUsd, it);
   const s = v.toLocaleString('pt-BR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2});
-  return `<span class="cur">${CURRENCY === 'usd' ? '$' : 'R$'}</span>${s}`;
+  return `<span class="cur">${moneyCur(it) === 'usd' ? '$' : 'R$'}</span>${s}`;
 }
-function fmtMoneyPlain(vUsd){
+function fmtMoneyPlain(vUsd, it){
   if (vUsd === null || vUsd === undefined) return '—';
-  const v = CURRENCY === 'usd' ? vUsd : vUsd * BRL_RATE;
-  return (CURRENCY === 'usd' ? '$ ' : 'R$ ') + v.toLocaleString('pt-BR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2});
+  const v = moneyVal(vUsd, it);
+  return (moneyCur(it) === 'usd' ? '$ ' : 'R$ ') + v.toLocaleString('pt-BR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2});
 }
 
 function onDataReady(fromRemote){
@@ -862,6 +940,15 @@ function onDataReady(fromRemote){
     <span class="pill ok">✓ ${escHtml(DATA.fileName || 'Global MTT')}</span>
     <span class="pill">por ${escHtml(DATA.by || '—')}${when ? ' às ' + when : ''}</span>
     <span class="pill gold">${WEEKDAY_TOMORROW.toLowerCase()} · janela 06:10 → 05:30</span>`;
+  renderAll();
+}
+
+/* BOOT — os Eventos Principais não dependem de upload nem de Firebase, então a
+   página já abre trabalhável: controles à mostra e a grade da Liga na tela. */
+function cnBootLiga(){
+  if (!LIGA_ITEMS.length) return;
+  $('controlsCard').hidden = false;
+  $('actionsBar').hidden = false;
   renderAll();
 }
 
@@ -916,7 +1003,7 @@ document.addEventListener('click', () => {
 }, {once: true});
 function checkDeadlineNotifs(){
   if (!('Notification' in window) || Notification.permission !== 'granted' || !DATA) return;
-  const late = [...DATA.main, ...DATA.side, ...DATA.sat]
+  const late = flatAll()
     .filter(it => !DONE[itemKey(it)] && !NOTIFIED.has(itemKey(it)) && urgency(it) === 'late')
     .slice(0, 3); // no máx. 3 por checagem pra não virar spam
   late.forEach(it => {
@@ -931,7 +1018,7 @@ let TV_OPEN = false;
 function renderTV(){
   if (!TV_OPEN || !DATA) return;
   const asg = computeAssignments();
-  const all = [...DATA.main, ...DATA.side, ...DATA.sat];
+  const all = flatAll();
   const total = all.length, doneCount = all.filter(it => DONE[itemKey(it)]).length;
   const pct = total ? Math.round(doneCount/total*100) : 0;
   const n = nowInSP();
@@ -1129,7 +1216,7 @@ function renderFilters(){
   const counts = {};
   OPS.forEach(o => counts[o] = 0);
   Object.values(asg).forEach(o => { if (o in counts) counts[o]++; });
-  const total = DATA ? DATA.main.length + DATA.side.length + DATA.sat.length : 0;
+  const total = flatAll().length;
   let html = `<button class="fchip ${FILTER==='all'?'on':''}" data-f="all">Todos <span class="cnt">${total}</span></button>`;
   html += OPS.map(o => `
     <button class="fchip ${FILTER===o?'on':''}" data-f="${escHtml(o)}">
@@ -1144,7 +1231,7 @@ function renderAlerts(){
   let html = (DATA && DATA.warnings || []).map(w => `<div class="alert">⚠ ${escHtml(w)}</div>`).join('');
   // erros de criação apontados pela auditoria — o turno corrige e avisa o admin
   if (DATA){
-    const errs = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => auditErr(it));
+    const errs = flatAll().filter(it => auditErr(it));
     if (errs.length){
       const lines = errs.slice(0, 10).map(it => { const a = auditErr(it); return `<b>${escHtml(it.nome)}</b> (${escHtml(it.hora)})${a.motivo ? ' — ' + escHtml(a.motivo) : ''}`; });
       html += `<div class="alert">🛑 <b>Auditoria apontou ${errs.length} erro(s) de criação</b> — corrija no Pokerbyte e avise o admin:<br>${lines.join('<br>')}${errs.length > 10 ? `<br>… e mais ${errs.length - 10}.` : ''}</div>`;
@@ -1191,44 +1278,46 @@ function cnRing(tone, done, total, label){
 let _cnRingsBuilt = false;
 function renderCriacaoRings(){
   const el = document.getElementById('cnRings');
-  if (!el || !DATA) return;
-  const mainSat = [...DATA.main, ...DATA.sat];
+  if (!el) return;
+  const mainSat = DATA ? [...DATA.main, ...DATA.sat] : [];
   const sd = sideSplit();
   const doneOf = arr => arr.filter(it => DONE[itemKey(it)]).length;
   el.innerHTML =
     cnRing('main',     doneOf(mainSat),    mainSat.length,    'Main + Satélites') +
     cnRing('side',     doneOf(sd.admin),   sd.admin.length,   'Side · c/ Admin') +
-    cnRing('sidefree', doneOf(sd.noadmin), sd.noadmin.length, 'Side · s/ Admin');
+    cnRing('sidefree', doneOf(sd.noadmin), sd.noadmin.length, 'Side · s/ Admin') +
+    // 4º anel: a grade fixa da Liga Principal, que existe mesmo sem Global
+    cnRing('liga',     doneOf(LIGA_ITEMS), LIGA_ITEMS.length, 'Eventos Principais');
   if (!_cnRingsBuilt){ _cnRingsBuilt = true; requestAnimationFrame(() => el.classList.add('in')); }
   else el.classList.add('in');
 }
 
 function renderStats(){
-  if (!DATA){ return; }
   renderCriacaoRings();
-  const total = DATA.main.length + DATA.side.length + DATA.sat.length;
-  const doneCount = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => DONE[itemKey(it)]).length;
+  const total = flatAll().length;
+  const doneCount = flatAll().filter(it => DONE[itemKey(it)]).length;
   const pct = total ? Math.round(doneCount/total*100) : 0;
   renderAllDone(total, doneCount);
   const side = sideSplit();
-  const campCount = [...DATA.main, ...DATA.side, ...DATA.sat].filter(hasCampaign).length;
+  const campCount = flatAll().filter(hasCampaign).length;
   $('stTotal').textContent = total;
-  $('stMain').textContent = DATA.main.length + DATA.sat.length;
+  $('stMain').textContent = DATA ? DATA.main.length + DATA.sat.length : 0;
   $('stSideA').textContent = side.admin.length;
   $('stSideB').textContent = side.noadmin.length;
+  $('stLiga').textContent = LIGA_ITEMS.length;
   $('stCampWrap').hidden = campCount === 0;
   $('stCamp').textContent = campCount;
   $('stProg').textContent = pct + '%';
   $('progFill').style.width = pct + '%';
   // torneios estourando prazo (começam em <6h e ainda não criados)
-  const urgAll = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => urgency(it));
+  const urgAll = flatAll().filter(it => urgency(it));
   const lateCount = urgAll.filter(it => urgency(it) === 'late').length;
   $('stUrgWrap').hidden = urgAll.length === 0;
   $('stUrg').textContent = urgAll.length;
   $('stUrg').style.color = lateCount ? '#f06050' : '#e8c860';
   const perOp = OPS.map(o => {
     const asg = computeAssignments();
-    const mine = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => asg[itemKey(it)] === o);
+    const mine = flatAll().filter(it => asg[itemKey(it)] === o);
     const d = mine.filter(it => DONE[itemKey(it)]).length;
     return `${o.split(' ')[0]} ${d}/${mine.length}`;
   }).join(' · ');
@@ -1309,7 +1398,13 @@ function toggleDone(key){
   }
 }
 
-function recipeFields(){ return (DATA && DATA.fields) || []; }
+/* colunas da receita. Cada grade tem o cabeçalho dela: a Global traz o seu no
+   próprio arquivo (DATA.fields); a Liga Principal vem com o dela no módulo
+   estático — misturar os dois deixaria a ficha cheia de "em branco". */
+function recipeFields(it){
+  if (it && it.liga) return ligaFields();
+  return (DATA && DATA.fields) || [];
+}
 
 /* ── ORDEM DE CRIAÇÃO ── a receita segue a ordem em que se DIGITA no app,
    não a ordem das colunas da planilha:
@@ -1328,7 +1423,10 @@ const CREATION_ORDER = [
   { m: n => n.includes('ticket') && n.includes('award') },                          // TICKET AWARD
   { m: n => n.includes('payout') && (n.includes('calculated') || n.includes('calculado')) }, // CALCULATED PAYOUT
   { m: n => n.includes('payout') || n.includes('premiac') },                        // PAYOUT
-  { m: n => n.includes('buy-in') || n.includes('buy in') || n === 'buyin', once: true }, // Buy-in (1x)
+  // Buy-in (1x). O `!size` protege a coluna "Size buy-in" (LOW/MEDIUM/HIGH, que
+  // não é dinheiro): sem ele, ela roubava o lugar do buy-in de verdade na ordem
+  // — ou, com dedup, sumia da receita.
+  { m: n => (n.startsWith('buyin') || n.includes('buy-in') || n.includes('buy in')) && !n.includes('size'), once: true },
   { m: n => (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) && !n.includes('stack') && !n.includes('condition') },
   { m: n => n.includes('stack') && (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) },
   { m: n => n.includes('rebuy') && n.includes('condition') },
@@ -1370,7 +1468,7 @@ function creationWhen(it){
 
 /* linhas da receita que a operação NÃO usa na criação — fora da tabela e do foco */
 const HIDDEN_RECIPE = /num\.?\s*(de\s*)?players|jogadores|\bchat\b/;
-function visibleRecipeFields(){ return creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l)))); }
+function visibleRecipeFields(it){ return creationOrderFields(recipeFields(it).filter(l => !HIDDEN_RECIPE.test(normText(l)))); }
 function recipeText(it, cat){
   // Garantido e Buy-in não entram aqui em cima: já saem UMA vez, na posição
   // deles, dentro da receita ordenada abaixo (ordem de digitação do app)
@@ -1386,17 +1484,17 @@ function recipeText(it, cat){
   if (e) parts.push(`Early Bird: ${e.main}${e.sub ? ' ' + e.sub : ''}`);
   if (hasCampaign(it)){ const c = campInfo(it); parts.push(`✦ CAMPANHA${c ? ': ' + c.disp : ''}`); }
   // receita completa da GU — todos os campos que vão no app, na ordem de criação
-  creationOrderFields(recipeFields()).forEach(label => {
+  creationOrderFields(recipeFields(it)).forEach(label => {
     const v = it.extra ? it.extra[label] : undefined;
     if (v !== undefined && v !== null && v !== '') parts.push(`${label}: ${fmtExtraVal(label, v)}`);
   });
-  if (!recipeFields().length && it.late) parts.push(`Fim do late reg: ${it.late}`);
+  if (!recipeFields(it).length && it.late) parts.push(`Fim do late reg: ${it.late}`);
   return parts.join('\n');
 }
 /* grid com TODOS os campos da receita (mostra também os vazios — quem cria a
    mesa precisa saber que aquele campo fica em branco no app) */
 function recipeGridHtml(it){
-  const fields = recipeFields();
+  const fields = recipeFields(it);
   if (!fields.length) return `<div class="recipe-note">Receita completa indisponível nesta planilha (cabeçalho da Global não foi lido). Recarregue a Global MTT original.</div>`;
   return `<div class="recipe-grid">${creationOrderFields(fields).map(label => {
     const v = it.extra ? it.extra[label] : undefined;
@@ -1515,6 +1613,7 @@ function sectionNoteHtml(cat){
   if (cat.key === 'sat')            msg = '<b>Quem cria o Main cria os Satélites</b> — mesma função.';
   else if (cat.key === 'main')      msg = 'Base da grade — vai junto com os Satélites.';
   else if (cat.key === 'sideAdmin') msg = 'Side Events que <b>cobram Admin Fee</b>.';
+  else if (cat.key === 'liga')      msg = 'Grade fixa da <b>Liga Principal</b> — <b>pré-carregada</b> (não vem da Global) e com valores <b>já em reais</b>.';
   else                              msg = 'Side Events <b>sem Admin Fee</b>.';
   const who = explicit.length ? chips : '<span style="opacity:.7">sem função marcada — todos dividem</span>';
   return `<p class="section-note">${msg} ${who}</p>`;
@@ -1522,12 +1621,14 @@ function sectionNoteHtml(cat){
 
 function renderList(){
   const area = $('listArea');
-  if (!DATA){
-    area.innerHTML = `<div class="empty-state"><span class="moon">🌙</span>Nenhuma planilha carregada ainda pra este dia da grade.<br>Suba a Global MTT acima — ou aguarde: se um parceiro subir, aparece aqui sozinho.</div>`;
-    return;
-  }
   const asg = computeAssignments();
   let html = '';
+  /* sem Global carregada a página NÃO fica vazia: os Eventos Principais são
+     grade fixa e já podem ser criados. O aviso vira um lembrete de que falta
+     a Global — não uma tela morta. */
+  if (!DATA){
+    html += `<div class="empty-state" style="padding:22px 18px"><span class="moon">🌙</span>Global MTT ainda não carregada pra este dia da grade — suba acima (ou aguarde um parceiro).<br><b>Os Eventos Principais abaixo já estão prontos</b>: a grade da Liga Principal é fixa.</div>`;
+  }
 
   SECTIONS.forEach(cat => {
     const items = visibleItems(catItems(cat), asg);
@@ -1543,7 +1644,7 @@ function renderList(){
     html += `<div class="secwrap" data-suit="${cat.suit}">${renderVertical(items, cat, asg)}</div>`;
   });
 
-  if (DATA.unknown && DATA.unknown.length && FILTER === 'all'){
+  if (DATA && DATA.unknown && DATA.unknown.length && FILTER === 'all'){
     html += `
       <div class="section-head">
         <span class="tag" style="background:var(--red-soft);color:var(--red)">⚠ Tipo não reconhecido</span>
@@ -1606,7 +1707,9 @@ function renderVertical(items, cat, asg){
   // FEE, ADMIN FEE e EARLY BIRD crus saem da receita: já estão consolidados nas linhas de cima
   const feeCols = new Set();
   cols.forEach(c => [feeInfo, adminInfo, earlyInfo].forEach(g => { const i = g(c.it); if (i && i.label) feeCols.add(i.label); }));
-  const rows = visibleRecipeFields().filter(l => !feeCols.has(l));
+  // a seção inteira vem da mesma grade (Global ou Liga), então o cabeçalho da
+  // receita sai do primeiro item — é o mesmo pra todas as colunas da tabela
+  const rows = visibleRecipeFields(items[0]).filter(l => !feeCols.has(l));
   return `
     <div class="vwrap"><table class="vtable">
       <tr class="trow-head"><th class="rowlab">Torneio</th>${cell(c => {
@@ -1631,7 +1734,7 @@ function renderVertical(items, cat, asg){
             // Add-on em $; demais campos como se digita no app
             if (label === addonL){
               const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.'));
-              if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n))}</span>`;
+              if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n, c.it))}</span>`;
             }
             // elementos de poker: ticket picotado, ficha de chips, carta do game type, bounty do K.O
             if (label === ticketL) return `<span class="tkt"><span class="stub">Ticket</span><span class="val" title="${escHtml(disp)}">${escHtml(disp)}</span></span>`;
@@ -1807,7 +1910,7 @@ function focusAdvance(){ FOCUS_TARGET = null; FOCUS_ANIMATE = true; renderFocus(
    na descida. Os campos-chave (buy-in, garantido, rake, admin, early, campanha)
    ganham cor na própria linha. */
 function focusFlowHtml(it){
-  const fields = visibleRecipeFields();
+  const fields = visibleRecipeFields(it);
   if (!fields.length)
     return `<div class="recipe-note">Receita completa indisponível nesta planilha (cabeçalho da Global não foi lido). Recarregue a Global MTT original.</div>`;
   const feeL = (feeInfo(it) || {}).label, admL = (adminInfo(it) || {}).label,
@@ -1853,7 +1956,7 @@ function focusFlowHtml(it){
     // Add-on: formata em $
     if (has && accent === 'addon'){
       const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.'));
-      if (isFinite(n) && n > 0) vHtml = escHtml(fmtMoneyPlain(n));
+      if (isFinite(n) && n > 0) vHtml = escHtml(fmtMoneyPlain(n, it));
     }
     const done = FOCUS_ENTERED.has(label);
     return `<div class="frow ${accent} ${has ? '' : 'blank'} ${done ? 'entered' : ''} ${accent ? 'key-line' : ''}" data-field="${escHtml(label)}">
@@ -1915,8 +2018,8 @@ function openCreateConfirm(it, cat, key, onConfirm){
     <div class="sub"><b>${escHtml(it.nome)}</b> · ${escHtml(cat.label)} — bata os números com o que você cadastrou no Pokerbyte.</div>
     <div class="cc-grid">
       ${cci('Horário', escHtml(it.hora))}
-      ${cci('Buy-in', fmtMoney(it.buyin), it.buyin == null)}
-      ${cci('Garantido', fmtMoney(it.garantido), it.garantido == null)}
+      ${cci('Buy-in', fmtMoney(it.buyin, it), it.buyin == null)}
+      ${cci('Garantido', fmtMoney(it.garantido, it), it.garantido == null)}
       ${af ? cci('Admin Fee', escHtml(af.main) + (af.sub ? ` <span style="opacity:.6;font-size:11px">${escHtml(af.sub)}</span>` : '')) : cci('Admin Fee', '—', cat.key !== 'sat')}
       ${e ? cci('Early Bird', escHtml(e.main) + (e.sub ? ` <span style="opacity:.6;font-size:11px">${escHtml(e.sub)}</span>` : '')) : ''}
       ${hasCampaign(it) ? cci('✦ Campanha', escHtml((campInfo(it) || {}).disp || 'ativa'), false) : ''}
@@ -1951,7 +2054,7 @@ function renderFocus(){
   // progresso "digitei" é por torneio — zera ao trocar de torneio
   if (FOCUS_ENTERED_KEY !== key){ FOCUS_ENTERED = new Set(); FOCUS_ENTERED_KEY = key; FOCUS_CURSOR = null; }
   if (!FOCUS_SEEN_AT[key]) FOCUS_SEEN_AT[key] = Date.now();   // #4 início da criação
-  FOCUS_FIELDS = visibleRecipeFields();                      // #2 ordem dos campos (sem Num. Players/Chat)
+  FOCUS_FIELDS = visibleRecipeFields(it);                    // #2 ordem dos campos (sem Num. Players/Chat)
   if (!FOCUS_CURSOR || !FOCUS_FIELDS.includes(FOCUS_CURSOR) || FOCUS_ENTERED.has(FOCUS_CURSOR))
     FOCUS_CURSOR = focusNextField(null);
   const urg = urgency(it);
@@ -2127,7 +2230,7 @@ $('searchInp').addEventListener('input', () => { SEARCH = $('searchInp').value; 
    sem mudança, re-renderizar 10 mil células é desperdício */
 let LAST_URG_SIG = '';
 function urgSignature(){
-  return [...DATA.main, ...DATA.side, ...DATA.sat].map(it => urgency(it) || '-').join('');
+  return flatAll().map(it => urgency(it) || '-').join('');
 }
 setInterval(() => {
   if (!DATA) return;
@@ -2271,7 +2374,7 @@ $('currencySeg').querySelectorAll('button').forEach(b => b.addEventListener('cli
    branco entre grupos), e o total no rodapé. Sem subdivisão por Admin Fee, sem
    colunas de operador, sem cores — igual à planilha que a operação usa no dia. ── */
 $('exportBtn').addEventListener('click', async () => {
-  if (!DATA){ showToast('Carregue a Global primeiro.', true); return; }
+  if (!DATA && !LIGA_ITEMS.length){ showToast('Carregue a Global primeiro.', true); return; }
   try{ await ensureXLSX(); }catch(_){ showToast('A biblioteca de planilhas não carregou — recarregue a página.', true); return; }
   const cur = CURRENCY === 'usd' ? '$' : 'R$';
   const conv = v => v === null || v === undefined ? null : (CURRENCY === 'usd' ? v : Math.round(v * BRL_RATE * 100) / 100);
@@ -2279,11 +2382,11 @@ $('exportBtn').addEventListener('click', async () => {
 
   // main e side já vêm em ordem cronológica do gu-parser (buildSections); sat vem
   // na ordem de leitura da Global, agrupado por groupHeader — igual à Conferência de amanhã
-  const main = DATA.main || [];
-  const side = DATA.side || [];
-  const sat  = DATA.sat  || [];
-  const unknown = DATA.unknown || [];
-  const total = main.length + side.length + sat.length;
+  const main = DATA ? (DATA.main || []) : [];
+  const side = DATA ? (DATA.side || []) : [];
+  const sat  = DATA ? (DATA.sat  || []) : [];
+  const unknown = DATA ? (DATA.unknown || []) : [];
+  const total = main.length + side.length + sat.length + LIGA_ITEMS.length;
   if (!total && !unknown.length){ showToast('Nada para exportar.', true); return; }
 
   // agrupa satélites por groupHeader, preservando a ordem de primeira aparição
@@ -2299,6 +2402,15 @@ $('exportBtn').addEventListener('click', async () => {
   side.forEach(pushRow); if (side.length) blankRow();
   satGroups.forEach(g => { g.forEach(pushRow); blankRow(); });
 
+  /* Eventos Principais em bloco separado e SEMPRE em R$: a grade da Liga já
+     vem em real, então conv() (que multiplica a Global) não entra aqui —
+     o rótulo avisa a moeda pra ninguém somar coisa com coisa. */
+  if (LIGA_ITEMS.length){
+    rows.push(['EVENTOS PRINCIPAIS · LIGA PRINCIPAL — valores em R$']);
+    LIGA_ITEMS.forEach(it => { const key = itemKey(it); rows.push([it.nome, it.hora, it.garantido, it.buyin, idVal(key), asg[key] || '']); });
+    blankRow();
+  }
+
   if (unknown.length){
     blankRow();
     rows.push(['TIPO NÃO RECONHECIDO — verificar coluna TYPE na Global antes de fechar']);
@@ -2307,19 +2419,19 @@ $('exportBtn').addEventListener('click', async () => {
 
   // rodapé de checagem: quem receber a planilha confere se nada foi cortado
   blankRow();
-  rows.push([`Total: ${total} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length}) — ${WEEKDAY_TOMORROW} ${refToLabel(TURNO.refTomorrow)}`]);
+  rows.push([`Total: ${total} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length} · Principais ${LIGA_ITEMS.length}) — ${WEEKDAY_TOMORROW} ${refToLabel(TURNO.refTomorrow)}`]);
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = [{wch:30},{wch:10},{wch:14},{wch:12},{wch:16},{wch:18}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, (WEEKDAY_TOMORROW || 'Criação Noturna').slice(0,31));
   XLSX.writeFile(wb, `CriacaoNoturna_${TOMORROW_ISO}.xlsx`);
-  showToast(`Exportado — ${total} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length}).`);
+  showToast(`Exportado — ${total} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length} · Principais ${LIGA_ITEMS.length}).`);
 });
 
 /* ── resumo pra colar no grupo ── */
 $('summaryBtn').addEventListener('click', async () => {
-  if (!DATA){ showToast('Carregue a Global primeiro.', true); return; }
+  if (!DATA && !LIGA_ITEMS.length){ showToast('Carregue a Global primeiro.', true); return; }
   const asg = computeAssignments();
   const lines = [`🌙 Criação Noturna — ${WEEKDAY_TOMORROW.toLowerCase()} ${refToLabel(TURNO.refTomorrow)}`];
   if (OPS.length){
@@ -2338,8 +2450,8 @@ $('summaryBtn').addEventListener('click', async () => {
   } else {
     SECTIONS.forEach(cat => lines.push(`${cat.label}: ${catItems(cat).length}`));
   }
-  const total = DATA.main.length + DATA.side.length + DATA.sat.length;
-  const doneCount = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => DONE[itemKey(it)]).length;
+  const total = flatAll().length;
+  const doneCount = flatAll().filter(it => DONE[itemKey(it)]).length;
   const avg = avgDurMin();
   lines.push(`\nTotal: ${total} torneios · ${doneCount} criados${avg ? ` · ⏱ ${avg < 1 ? Math.round(avg*60) + 's' : avg.toFixed(1) + 'm'}/torneio` : ''}`);
   try{

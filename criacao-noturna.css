@@ -67,6 +67,14 @@ body > *{position:relative;z-index:1}
     --sidefree-bright: #17998a;
     --sidefree-soft: #e4f6f3;
 
+    /* --liga: Eventos Principais (Liga Principal). Cor FORA da paleta de
+       categorias de propósito — é o único bloco que não vem da Global, e o
+       magenta não colide com main (vermelho), sat (roxo), side (azul) nem
+       sidefree (turquesa) no rodízio de blocos. */
+    --liga: #b8306f;
+    --liga-bright: #c9367c;
+    --liga-soft: #fbe8f1;
+
     --card: #ffffff;
     --card-elevated: #f5f5f7;
 
@@ -105,6 +113,9 @@ body > *{position:relative;z-index:1}
     --sidefree:       #2bb5a4;
     --sidefree-bright:#4dd0c4;
     --sidefree-soft:  rgba(77,208,196,0.14);
+    --liga:           #e0559a;
+    --liga-bright:    #f078b8;
+    --liga-soft:      rgba(240,120,184,0.15);
     --shadow-sm: 0 1px 2px rgba(0,0,0,.45), 0 3px 12px -2px rgba(0,0,0,.4);
     --shadow-md: 0 6px 20px -4px rgba(0,0,0,.55), 0 14px 38px -10px rgba(0,0,0,.5);
     --shadow-lg: 0 18px 44px -12px rgba(0,0,0,.65), 0 34px 76px -22px rgba(0,0,0,.6);
@@ -242,11 +253,12 @@ body > *{position:relative;z-index:1}
   .hstat.c-side .n{color:#5aa8ff}
   .hstat.c-sat .n{color:#b888f0}
   .hstat.c-sidefree .n{color:#4dd0c4}
+  .hstat.c-liga .n{color:#f078b8}
   .hstat.c-prog .n{color:#22d47e}
   .hstat.c-camp .n{color:#c9a84c}
   .hstat.c-camp{background:rgba(201,168,76,.08);border-color:rgba(201,168,76,.28)}
   /* ── ANÉIS DE CRIAÇÃO por função (linha Apple Fitness) ── */
-  .cn-rings{ display:grid; grid-template-columns:repeat(3,minmax(0,200px)); gap:14px; margin-top:22px; }
+  .cn-rings{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,200px)); gap:14px; margin-top:22px; }
   .cn-ring{
     --tone:var(--main-bright);
     position:relative; display:flex; flex-direction:column; align-items:center; gap:2px;
@@ -256,6 +268,7 @@ body > *{position:relative;z-index:1}
   .cn-ring.t-main{ --tone:var(--main-bright); }
   .cn-ring.t-side{ --tone:var(--side-bright); }
   .cn-ring.t-sidefree{ --tone:var(--sidefree-bright); }
+  .cn-ring.t-liga{ --tone:var(--liga-bright); }
   .cn-ring svg{ width:98px; height:98px; transform:rotate(-90deg); }
   .cn-bg{ fill:none; stroke:color-mix(in srgb, var(--tone) 18%, transparent); stroke-width:10; }
   .cn-fg{
@@ -421,6 +434,7 @@ body > *{position:relative;z-index:1}
   .section-head.side .tag{background:var(--side-soft);color:var(--side-bright)}
   .section-head.sat  .tag{background:var(--sat-soft);color:var(--sat-bright)}
   .section-head.sidefree .tag{background:var(--sidefree-soft);color:var(--sidefree-bright)}
+  .section-head.liga .tag{background:var(--liga-soft);color:var(--liga-bright)}
   .section-head h2{font-family:var(--display);font-size:19px;font-weight:750;letter-spacing:-.02em}
   .section-head .cnt{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
   .section-head .line{flex:1;height:1px;background:var(--hairline)}
@@ -896,6 +910,8 @@ body > *{position:relative;z-index:1}
   .op-chip[data-role="sideAdmin"] .role-sel{color:var(--side-bright)}
   .op-chip[data-role="sideNoAdmin"]{border-color:var(--sidefree-bright)}
   .op-chip[data-role="sideNoAdmin"] .role-sel{color:var(--sidefree-bright)}
+  .op-chip[data-role="ligaPrincipal"]{border-color:var(--liga-bright)}
+  .op-chip[data-role="ligaPrincipal"] .role-sel{color:var(--liga-bright)}
 
   /* ── modo foco ── */
   #focusOverlay{

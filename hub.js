@@ -25,6 +25,15 @@
   let db = null, fbReady = false;
 
   let gateWasHidden = true;
+  /* vigia access|edit ao vivo TAMBÉM no hub: se o admin revogar qualquer painel
+     com a pessoa parada aqui, ela é DESLOGADA na hora (revalidateAccess sem
+     panelId observa todos). Uma vez só por sessão (senão duplica listeners). */
+  let _revalStarted = false;
+  function startRevocationWatch(){
+    if(_revalStarted) return;
+    _revalStarted = true;
+    try{ SupremaAuth.revalidateAccess(); }catch(e){}
+  }
   function paintAuthState(){
     session = getSession();
     const gate = $('gate');
@@ -41,6 +50,7 @@
     paintHello();
     applyPanelAccess();
     syncGateVideo();
+    if(session && !session.admin) startRevocationWatch();
   }
 
   /* ── PERMISSÃO POR PAINEL ──
@@ -1750,6 +1760,24 @@
     document.body.appendChild(t);
     requestAnimationFrame(() => { t.style.opacity = '1'; t.style.transform = 'translate(-50%,0)'; });
     setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 5200);
+  }
+
+  // deslogado por revogação de acesso (revalidateAccess manda pra cá com ?revoked=1)
+  if(/[?&]revoked=1/.test(location.search)){
+    const p = new URLSearchParams(location.search).get('painel');
+    history.replaceState(null,'',location.pathname);
+    const t = document.createElement('div');
+    t.setAttribute('role','status'); t.setAttribute('aria-live','polite');
+    t.style.cssText = 'position:fixed;left:50%;bottom:30px;transform:translate(-50%,10px);z-index:99999;'+
+      'display:flex;align-items:center;gap:10px;padding:12px 20px;border-radius:99px;pointer-events:none;'+
+      'background:rgba(14,16,15,.94);border:1px solid rgba(216,181,109,.5);color:#f2ede2;'+
+      'font:600 13px/1.3 var(--text);box-shadow:0 12px 34px -10px rgba(0,0,0,.6);'+
+      'opacity:0;transition:opacity .35s var(--ease),transform .35s var(--ease)';
+    t.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#d8b56d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'+
+      '<span>Seu acesso foi alterado pelo administrador &mdash; entre novamente.</span>';
+    document.body.appendChild(t);
+    requestAnimationFrame(() => { t.style.opacity = '1'; t.style.transform = 'translate(-50%,0)'; });
+    setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 6000);
   }
 
   // primeiro paint (offline / antes do Firebase responder): defaults embutidos

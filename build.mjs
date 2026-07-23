@@ -26,7 +26,7 @@ const JS = [
   // hub e demais painéis
   'hub.js', 'hub-onboarding.js',
   'admin.js', 'admin-actions.js',
-  'criacao-noturna.js', 'criacao-calc.js',
+  'criacao-noturna.js', 'criacao-calc.js', 'liga-principal-data.js',
   'dashboard-mesa-cash.js',
   'eventos.js',
   'tv.js',

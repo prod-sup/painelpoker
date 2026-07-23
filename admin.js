@@ -1404,8 +1404,14 @@ function accessRow(u, p, editable){
   const acc = u.access || {};
   const ed  = u.edit || {};
   const legado = u.edit == null;                 // sem nó `edit` → herda do acesso
-  const sees  = acc[p.id] === true;
-  const edits = editable && (legado ? sees : ed[p.id] === true);
+  // PADRÃO: painéis `p.def` já contam como "Vê" enquanto não houver revogação
+  // explícita (access[id]===false). O resto é opt-in (só com access[id]===true).
+  const sees  = acc[p.id] === true || (p.def && acc[p.id] !== false);
+  // Edição: precisa ver. Painel `p.defEdit` (painel/gu) edita por padrão até
+  // gravarem edit[id]===false. Legado (sem nó edit) herda do "vê".
+  const edits = editable && sees && (legado
+    ? (p.defEdit || acc[p.id] === true)
+    : (ed[p.id] === true || (p.defEdit && ed[p.id] !== false)));
   const see = `<button class="perm-pill see${sees?' on':''}" data-key="${esc(u.key)}" data-panel="${p.id}" data-on="${sees?'1':'0'}" data-act="toggleAccess" data-act-self `+
     `title="${sees?'Vê — clique para tirar o acesso':'Não vê — clique para liberar'}">${sees?'👁 Vê':'○ Sem acesso'}</button>`;
   const edit = editable
@@ -1424,8 +1430,10 @@ async function toggleAccess(btn){
   const key=btn.dataset.key, panel=btn.dataset.panel, next = btn.dataset.on!=='1';
   btn.disabled=true;
   try{
-    // grava true, ou remove a chave quando desliga (mantém o nó limpo)
-    await db.ref(`users/${key}/access/${panel}`).set(next?true:null);
+    // grava true (liberar) ou FALSE explícito (revogar). false — em vez de remover —
+    // é o que vence o acesso-padrão dos painéis `def` E o que o revalidateAccess
+    // observa pra DESLOGAR o operador online na hora.
+    await db.ref(`users/${key}/access/${panel}`).set(next?true:false);
     await loadOps();          // re-pinta a linha (tirar o Vê já apaga o Edita ao lado)
   }catch(e){ alert('Falha ao salvar acesso: '+(e.message||e)); btn.disabled=false; }
 }
@@ -1440,17 +1448,16 @@ async function toggleEdit(btn){
     const ref = db.ref(`users/${key}/edit`);
     const cur = (await ref.once('value')).val();
     if(cur == null){
+      // materializa o nó edit: copia o que já editava + grava ESTE painel como
+      // true/false explícito. false fica gravado de propósito (revoga o defEdit de
+      // painel/gu e é o que o revalidateAccess observa pra deslogar).
       const acc = (await db.ref(`users/${key}/access`).once('value')).val() || {};
       const seed = {};
       EDIT_PANELS.forEach(id => { if(acc[id]===true) seed[id]=true; });
       seed[panel] = next;
-      if(!next) delete seed[panel];
-      await ref.set(Object.keys(seed).length ? seed : { _off:true });   // nó precisa EXISTIR pra regra não herdar
+      await ref.set(seed);   // sempre tem ≥1 chave — nó existe, regra não herda do access
     }else{
-      await ref.child(panel).set(next?true:null);
-      // se esvaziou, mantém o marcador — sem nó, as regras voltariam a herdar do access
-      const left = (await ref.once('value')).val();
-      if(left == null) await ref.set({ _off:true });
+      await ref.child(panel).set(next?true:false);   // true ou false explícito (nunca remove)
     }
     await loadOps();                       // re-pinta a linha (o legado pode ter virado explícito)
   }catch(e){ alert('Falha ao salvar edição: '+(e.message||e)); btn.disabled=false; }
