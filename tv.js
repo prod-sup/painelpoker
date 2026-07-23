@@ -208,6 +208,17 @@ async function loadRecords(){
 const pl = (n, um, muitos) => (n === 1 ? um : muitos);
 const conta = (n, um, muitos) => `${NF_INT.format(n)} ${pl(n, um, muitos)}`;
 
+/* premiação SEMPRE EXATA — o valor que o operador preencheu, nunca abreviado.
+   fmtMoney (radar-core) vira "R$ 9,9 mil" e come os centavos; aqui mostramos o
+   número cheio, na MESMA regra de casas do Painel do Dia: inteiro sem decimais,
+   com centavos mostra os dois. Só a premiação usa isto — garantido/records seguem
+   abreviados (é manchete de telão). */
+function fmtPrem(v){
+  if (v == null || !isFinite(v)) return '—';
+  const dec = v % 1 === 0 ? 0 : 2;
+  return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: 2 });
+}
+
 /* nome de operador pra tela: o Painel do Dia grava e-mail em alguns nós */
 function nomeCurto(s){ return String(s || '').split('@')[0].trim(); }
 
@@ -288,7 +299,7 @@ function spotlightHtml(e, st){
     ${e.camp ? `<div class="tv-chip camp" style="--i:3">✦ CAMPANHA ${CAMP_LABEL[e.camp]}</div>` : ''}
     <div class="tv-stats">
       ${e.garantido != null ? statHtml('garantido', fmtMoney(e.garantido), 's-gtd', 4) : ''}
-      ${lv.prem != null ? statHtml('premiação atual', fmtMoney(lv.prem), 's-prem', 5) : ''}
+      ${lv.prem != null ? statHtml('premiação atual', fmtPrem(lv.prem), 's-prem', 5) : ''}
       ${lv.field != null ? statHtml('jogadores', NF_INT.format(lv.field), 's-field', 6) : ''}
       ${e.buyin != null ? statHtml('buy-in', fmtMoneyFull(e.buyin), '', 7) : ''}
     </div>
@@ -431,7 +442,7 @@ function composeScenes(){
               lv.field != null ? `${conta(lv.field, 'jogador', 'jogadores')}` : null,
             ].filter(Boolean).join(' · ')}</span>
           </span>
-          <span class="dn-prem${p && p.bateu ? ' bateu' : ''}">${fmtMoney(lv.prem)}</span>
+          <span class="dn-prem${p && p.bateu ? ' bateu' : ''}">${fmtPrem(lv.prem)}</span>
           <span class="dn-perf${p ? (p.bateu ? ' bateu' : ' overlay') : ''}">${p ? fmtPerf(p.pct) : ''}
             <small>${p ? (p.bateu ? 'sobre o GTD' : 'de overlay') : 'sem garantido'}</small></span>
           <span class="dn-by">${quem
@@ -794,7 +805,7 @@ function celebrate(ev, val){
     ${suitWatermark(CAT_META[ev.cat].suit)}
     <div class="tv-chip boom" style="--i:0">🎉 PREMIAÇÃO CONFIRMADA</div>
     <h1 class="spot-title">${kinetic(ev.nome, 1)}</h1>
-    <div class="boom-val tv-count">${fmtMoney(val)}</div>
+    <div class="boom-val tv-count">${fmtPrem(val)}</div>
     <div class="boom-sub" style="--i:4">${diff > 0
       ? `superou o garantido de ${fmtMoney(ev.garantido)} em <b>${fmtMoney(diff)}</b>`
       : `bateu o garantido de ${fmtMoney(ev.garantido)}`}</div>
