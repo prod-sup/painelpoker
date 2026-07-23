@@ -170,11 +170,23 @@ function classifyGuTipo(tipo){
   return 'side';                        // TYPE preenchido fora dos radicais = Side por eliminação
 }
 
+/* TYPE VAZIO na coluna D: a GU às vezes deixa a célula em branco em torneio real
+   (#AS Bounty, #AS Battle PKO, #AS Sonic…). Antes isso caía em "tipo não reconhecido"
+   e o torneio ficava FORA da divisão do turno. Aqui deduzimos pelo NOME/garantido —
+   a MESMA heurística do classify() do painel.js, mantidas em sincronia:
+   nome de satélite → sat; garantido gordo (≥20k) → main; senão Side. */
+function classifyGuFallback(nome, garantido) {
+  const n = normText(nome);
+  if (n.includes('seats') || n.includes('seat ') || n.includes('satelite') || n.includes('satellite')) return 'sat';
+  if ((garantido || 0) >= 20000) return 'main';
+  return 'side';
+}
+
 function extractGuDaySection(matrix, weekdayEn, headerCols){
   const gi = guIdx(headerCols);
   const range = findWeekdaySectionRange(matrix, weekdayEn, gi.name);
   if (!range) return null;
-  const main = [], side = [], sat = [], unknown = [], semHora = [], aposGap = [];
+  const main = [], side = [], sat = [], unknown = [], semHora = [], aposGap = [], semTipo = [];
   // na G MTTS o nome de marketing (MTT MARKETING) vem mesclado quando um grupo de
   // satélites tem vários horários — herda o último visto até a próxima linha vazia
   let lastGroupName = null, lastHora = null, emptyCount = 0;
@@ -235,11 +247,19 @@ function extractGuDaySection(matrix, weekdayEn, headerCols){
     if (cat === 'main') main.push(entry);
     else if (cat === 'side') side.push(entry);
     else if (cat === 'sat') sat.push(entry);
-    else if (tipo) unknown.push({...entry, tipo}); // tipo preenchido mas fora dos radicais conhecidos
-    // tipo vazio + nome presente: linha decorativa/rótulo — ignorada em silêncio só se não tiver valores
-    else if (garantido !== null || buyin !== null) unknown.push({...entry, tipo: tipo ?? ''});
+    /* TYPE VAZIO, mas é torneio de VERDADE (tem horário E valores): NÃO pode ficar de
+       fora da divisão do turno. Deduz pelo nome/garantido e registra em semTipo, que
+       vira aviso "confira a coluna D" — incluído no trabalho, mas sinalizado. */
+    else if (garantido !== null || buyin !== null) {
+      const alt = classifyGuFallback(nome, garantido);
+      if (alt === 'main') main.push(entry);
+      else if (alt === 'sat') sat.push({...entry, groupHeader: lastGroupName});
+      else side.push(entry);
+      semTipo.push({nome, hora, cat: alt});
+    }
+    // TYPE vazio E sem valores: linha decorativa/rótulo — ignorada em silêncio
   }
-  return {main, side, sat, unknown, semHora, aposGap, duplicateSection: range.duplicate};
+  return {main, side, sat, unknown, semHora, aposGap, semTipo, duplicateSection: range.duplicate};
 }
 
 /* janela 06:10(amanhã) → 05:30(dia seguinte): mesma montagem da Conferência de amanhã */

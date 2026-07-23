@@ -76,19 +76,28 @@ const variantes = [
   ['14:00', '#V6', 'Tipo de verdade estranho', 'Bounty', 500, 5, null, 0.10, null, null, 10000, 5],
   // TYPE PREENCHIDO fora dos radicais = Side por eliminação (regra da operação)
   ['15:00', '#V7', 'PKO qualquer',              'PKO',    800, 8, null, 0.10, null, null, 10000, 5],
-  // TYPE VAZIO com valores = rede de segurança: fica em "desconhecido", não vira Side sozinho
-  ['16:00', '#V8', 'Sem TYPE mas com valores',  '',       500, 5, null, 0.10, null, null, 10000, 5]
+  /* TYPE VAZIO com valores (o caso real: #AS Bounty, #AS Battle PKO, #AS Sonic) —
+     NÃO pode ficar fora da divisão: entra classificado pelo nome/garantido. */
+  ['16:00', '#V8', 'Sem TYPE mas com valores',  '',       500, 5, null, 0.10, null, null, 10000, 5],
+  ['17:00', '#V9', 'SEATS pro Main',            '',       100, 5, null, 0.10, null, null, 10000, 5],
+  ['18:00', '#V10','Sem TYPE garantido gordo',  '',     50000, 30, null, 0.10, null, null, 10000, 5]
 ];
 const vcols = api.findHeaderCols(variantes);
 const vsec = api.extractGuDaySection(variantes, 'WEDNESDAY', vcols);
-ok(vsec.main.length === 2, '"main event" e "MAIN EVENT" caem em Main, não em desconhecido');
-ok(vsec.side.length === 3 && vsec.side[0].nome === 'Side sem "event"',
+ok(vsec.side.length === 4 && vsec.side[0].nome === 'Side sem "event"',
   '"Side", "Bounty" e "PKO" (TYPE preenchido fora dos radicais) caem em Side por eliminação');
 ok(vsec.side.some(it => it.nome === 'Tipo de verdade estranho') && vsec.side.some(it => it.nome === 'PKO qualquer'),
   'Bounty e PKO viram Side, não desconhecido');
-ok(vsec.sat.length === 2, '"Satelite" e "Satellite" caem em Satélite');
-ok(vsec.unknown.length === 1 && vsec.unknown[0].tipo === '',
-  'só TYPE VAZIO (com valores) fica em desconhecido — a rede de segurança das linhas sem tipo');
+ok(vsec.unknown.length === 0, 'nada mais fica em "tipo não reconhecido" — tudo entra na divisão');
+
+console.log('TYPE VAZIO na coluna D: entra na divisão, classificado pelo nome/garantido');
+ok(vsec.side.some(it => it.nome === 'Sem TYPE mas com valores'), 'TYPE vazio + garantido pequeno → Side');
+ok(vsec.sat.some(it => it.nome === 'SEATS pro Main'), 'TYPE vazio + nome com SEATS → Satélite');
+ok(vsec.main.some(it => it.nome === 'Sem TYPE garantido gordo'), 'TYPE vazio + garantido ≥20k → Main');
+ok(vsec.main.length === 3, 'Main = os 2 por TYPE + o deduzido pelo garantido');
+ok(vsec.sat.length === 3, 'Satélite = os 2 por TYPE + o deduzido pelo nome');
+ok(vsec.semTipo.length === 3, 'os 3 sem TYPE viram AVISO de conferência (não erro que exclui)');
+ok(vsec.semTipo.every(x => x.nome && x.hora && x.cat), 'o aviso diz nome, horário e onde caiu');
 
 console.log('buildSections (janela 06:10 → 05:30)');
 const secTue = api.extractGuDaySection(matrix, 'TUESDAY', cols);

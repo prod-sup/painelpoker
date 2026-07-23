@@ -810,6 +810,14 @@ async function ingestGlobalMatrix(bytes, fileName, source){
   const aposGap = [...secTom.aposGap, ...(secAfter ? secAfter.aposGap : [])];
   if (aposGap.length) warnings.push(`${aposGap.length} linha(s) depois do vão de linhas vazias ficaram de fora: ${aposGap.map(x=>`${x.hora} ${x.nome}`).join(', ')}`);
   if (sections.unknown.length) warnings.push(`${sections.unknown.length} torneio(s) com tipo não reconhecido na coluna TYPE (listados em seção própria).`);
+  /* TYPE vazio na coluna D: o torneio ENTRA na divisão (classificado pelo nome/garantido),
+     mas o aviso pede conferência — antes esses ficavam de fora do trabalho da noite. */
+  const semTipo = [...(secTom.semTipo || []), ...(secAfter ? (secAfter.semTipo || []) : [])];
+  if (semTipo.length){
+    const LBL = { main:'Main', sat:'Satélite', side:'Side' };
+    warnings.push(`${semTipo.length} torneio(s) sem TYPE na coluna D foram classificados pelo nome e ENTRARAM na divisão: ` +
+      semTipo.map(x => `${x.hora} ${x.nome} → ${LBL[x.cat] || x.cat}`).join(', ') + '. Confira a coluna D na Global.');
+  }
 
   const fields = headerCols.filter(c => !isCoreLabel(c.label)).map(c => c.label);
   // diff contra a versão que já estava carregada (a GU corrige a Global durante a noite):
