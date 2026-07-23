@@ -114,31 +114,32 @@ SupremaShell.mountNav('#supNav', {
     <div class="card" id="opCard"><div class="card-head"><h2>Ranking por operador <span class="hint">na janela selecionada</span></h2></div><div id="opTable"></div></div>
   </section>
 
-  <!-- ══ SEÇÕES EM MIGRAÇÃO (passada 2 — hoje vivem no Admin) ══ -->
+  <!-- ══ GRADE POR TORNEIO ══ (migrado do Admin) -->
   <section class="section" id="sec-grade" role="tabpanel" aria-labelledby="tab-grade" tabindex="0" hidden>
-    <div class="soon">
-      <div class="soon-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></div>
-      <h3>Grade por torneio</h3>
-      <p>Cada evento recorrente com <b>runs</b>, garantido médio, prize pool e taxa de overlay — pra enxergar qual torneio sustenta e qual drena a grade.</p>
-      <div class="soon-where">Hoje no <a href="admin.html">Admin › Grade</a> · migra pra cá na próxima passada</div>
+    <div class="card">
+      <div class="card-head"><h2>Grade por torneio <span class="hint">somado na janela · maior buraco primeiro</span></h2></div>
+      <div id="gradeBody"></div>
     </div>
   </section>
 
+  <!-- ══ TENDÊNCIA DE FIELD ══ (migrado do Admin) -->
   <section class="section" id="sec-field" role="tabpanel" aria-labelledby="tab-field" tabindex="0" hidden>
-    <div class="soon">
-      <div class="soon-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg></div>
-      <h3>Tendência de Field</h3>
-      <p>Como o campo (número de jogadores) evolui no tempo, com média móvel — pra separar <b>tendência</b> de ruído do dia a dia.</p>
-      <div class="soon-where">Hoje no <a href="admin.html">Admin › Field trend</a> · migra pra cá na próxima passada</div>
+    <div class="kpis" id="fieldStats"></div>
+    <div class="card">
+      <div class="card-head"><h2>Campo por dia <span class="hint">jogadores · com média móvel de 7 dias</span></h2></div>
+      <div class="legend">
+        <span class="lg"><i class="swatch" style="background:var(--a-teal)"></i>Campo (dia)</span>
+        <span class="lg" style="color:var(--ink-soft,#6e6e73)"><i class="swatch line" style="background:var(--a-amber)"></i>Média móvel (7d)</span>
+      </div>
+      <div class="chart-box"><canvas id="chartFieldTrend"></canvas></div>
     </div>
   </section>
 
+  <!-- ══ HEATMAP DE OVERLAY POR HORÁRIO ══ (migrado do Admin) -->
   <section class="section" id="sec-heatmap" role="tabpanel" aria-labelledby="tab-heatmap" tabindex="0" hidden>
-    <div class="soon">
-      <div class="soon-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
-      <h3>Heatmap de overlay por horário</h3>
-      <p>Onde o overlay se concentra na grade do dia, por faixa de horário — pra atacar o buraco na origem, não só somar o prejuízo.</p>
-      <div class="soon-where">Hoje no <a href="admin.html">Admin › Heatmap</a> · migra pra cá na próxima passada</div>
+    <div class="card">
+      <div class="card-head"><h2>Overlay por faixa de horário <span class="hint">intensidade = taxa de overlay · na janela</span></h2></div>
+      <div id="heatmapBody"></div>
     </div>
   </section>
 </div>

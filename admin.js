@@ -3392,9 +3392,10 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 document.addEventListener('DOMContentLoaded', () => {
   if (!window.SupremaPalette) return;
   const pnorm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  // Grade migrou pro Suprema Analytics; "Dashboard" do admin é desempenho de criação (GU)
   const SECTIONS = [
-    ['audit','Acompanhamento'], ['criacao','Criação (GU)'], ['dashboard','Dashboard'],
-    ['grade','Grade'], ['operadores','Operadores'], ['backup','Backup & Arquivo'],
+    ['audit','Acompanhamento'], ['criacao','Criação (GU)'], ['dashboard','Criação (dashboard)'],
+    ['operadores','Operadores'], ['backup','Backup & Arquivo'],
     ['avisos','Conteúdo do hub']
   ];
   SupremaPalette.register({

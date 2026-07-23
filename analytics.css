@@ -218,3 +218,37 @@ html.dark .soon p{ color:#a6b0aa; }
 }
 html.lite .section.enter > *{ animation:none; }
 html.lite .sectab-ind{ transition:none; }
+
+/* ── GRADE: pílula de taxa de overlay (intensidade por faixa) ── */
+.ovr{ display:inline-block; min-width:42px; text-align:center; font-family:var(--sup-mono,ui-monospace,monospace);
+  font-weight:700; font-size:11.5px; padding:3px 8px; border-radius:7px; letter-spacing:.01em; }
+.ovr-lo{ color:var(--acc); background:color-mix(in srgb, var(--acc) 12%, transparent); }
+.ovr-md{ color:var(--a-amber); background:color-mix(in srgb, var(--a-amber) 15%, transparent); }
+.ovr-hi{ color:#fff; background:var(--a-amber); }
+html.dark .ovr-hi{ color:#0f1110; }
+
+/* ── HEATMAP: grade de faixas de horário, intensidade = taxa de overlay ── */
+.hm-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(74px,1fr)); gap:7px; }
+.hm-cell{
+  --t:0; padding:11px 8px 10px; border-radius:11px; text-align:center; cursor:default;
+  border:1px solid var(--hairline);
+  background:color-mix(in srgb, var(--a-amber) calc(8% + var(--t) * 58%), var(--card));
+  transition:transform .5s var(--sup-ease-expo,ease), box-shadow .25s var(--sup-ease,ease);
+  animation:hmIn .5s var(--sup-ease-expo,ease) both;
+}
+.hm-cell:hover, .hm-cell:focus-visible{ transform:translateY(-3px); box-shadow:var(--sup-shadow-md); outline:none; }
+.hm-hr{ font-family:var(--sup-mono,ui-monospace,monospace); font-size:11px; color:var(--ink-soft,#6e6e73); font-weight:600; }
+.hm-rate{ font-size:19px; font-weight:800; letter-spacing:-.02em; margin:2px 0 1px; color:var(--ink,#1d1d1f); }
+html.dark .hm-rate{ color:#eef2ef; }
+.hm-runs{ font-size:10px; color:var(--ink-soft,#6e6e73); }
+@keyframes hmIn{ from{ opacity:0; transform:translateY(8px) scale(.96); } to{ opacity:1; transform:none; } }
+/* cascata leve por posição */
+.hm-cell:nth-child(2){ animation-delay:.02s } .hm-cell:nth-child(3){ animation-delay:.04s }
+.hm-cell:nth-child(4){ animation-delay:.06s } .hm-cell:nth-child(5){ animation-delay:.08s }
+.hm-cell:nth-child(6){ animation-delay:.10s } .hm-cell:nth-child(7){ animation-delay:.12s }
+.hm-cell:nth-child(n+8){ animation-delay:.14s }
+.hm-legend{ display:flex; align-items:center; gap:10px; margin-top:14px; font-size:11px; color:var(--ink-soft,#6e6e73); }
+.hm-scale{ flex:1; max-width:240px; height:8px; border-radius:99px;
+  background:linear-gradient(90deg, color-mix(in srgb, var(--a-amber) 8%, var(--card)), var(--a-amber)); }
+@media (prefers-reduced-motion: reduce){ .hm-cell{ animation:none; transition:none; } }
+html.lite .hm-cell{ animation:none; }

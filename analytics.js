@@ -36,12 +36,12 @@
     $('darkToggle') && $('darkToggle').addEventListener('click', function () {
       var dark = html.classList.toggle('dark');
       localStorage.setItem('suprema_dark_mode', dark ? '1' : '0'); paint();
-      if (window.__redraw) window.__redraw();   // gráficos re-tema
+      redrawThemedCharts();   // gráficos re-tema
     });
     addEventListener('storage', function (e) {
       if (e.key !== 'suprema_dark_mode' || e.newValue == null) return;
       html.classList.toggle('dark', e.newValue === '1'); paint();
-      if (window.__redraw) window.__redraw();
+      redrawThemedCharts();
     });
   }
   function setSync(on) {
@@ -64,7 +64,13 @@
   }
 
   var _charts = [];
+  var _fieldChart = null;                 // chart da seção Tendência de Field (à parte)
   function destroyCharts() { _charts.forEach(function (c) { try { c.destroy(); } catch (e) {} }); _charts = []; }
+  // re-tema: redesenha overview + (se visível) o gráfico de field
+  function redrawThemedCharts() {
+    if (window.__redraw) window.__redraw();
+    if (window.__drawField && $('sec-field') && !$('sec-field').hidden) window.__drawField();
+  }
 
   /* opções-base compartilhadas (grid recessivo, tooltip estilizado, sem legenda
      nativa — a legenda é HTML no card, mais controlável). */
@@ -159,6 +165,14 @@
     $('opTable').innerHTML = agg.byOperator.length ? tableOp(agg.byOperator) : empty('👥', 'Sem dados por operador.');
     $('worstTable').innerHTML = agg.worst.length ? tableWorst(agg.worst) : empty('🎉', 'Nenhum overlay no período.');
 
+    // seções migradas do Admin (HTML/CSS renderiza mesmo com a seção oculta;
+    // só o gráfico de field precisa da seção visível — desenhado sob demanda)
+    $('gradeBody').innerHTML = (agg.byEvent && agg.byEvent.length) ? tableGrade(agg.byEvent) : empty('🗓️', 'Sem torneios fechados na janela.');
+    $('fieldStats').innerHTML = fieldStatsHtml(agg);
+    $('heatmapBody').innerHTML = (agg.byHour && agg.byHour.length) ? heatmapHtml(agg.byHour) : empty('🕒', 'Sem horário registrado na janela.');
+    window.__drawField = function () { drawFieldTrend(days); };
+    if (!$('sec-field').hidden && window.Chart) drawFieldTrend(days);   // caso o usuário já esteja nela
+
     // gráficos (precisa do Chart.js — pode estar deferido)
     window.__redraw = function () { drawCharts(days); };
     if (window.Chart) drawCharts(days);
@@ -215,6 +229,72 @@
         return '<tr><td>' + esc(r.nome) + '</td><td>' + esc(r.date.slice(5)) + '</td><td class="num">R$ ' + fmt(r.garantido)
           + '</td><td class="num">R$ ' + fmt(r.prizePool) + '</td><td class="num neg">R$ ' + fmt(r.deficit) + '</td></tr>';
       }).join('') + '</tbody></table>';
+  }
+
+  /* ── GRADE por torneio (migrado do Admin) ── */
+  function ovrPill(r) {
+    var cls = r >= 50 ? 'ovr-hi' : r >= 20 ? 'ovr-md' : 'ovr-lo';
+    return '<span class="ovr ' + cls + '">' + r + '%</span>';
+  }
+  function tableGrade(rows) {
+    var maxPrize = rows.reduce(function (m, e) { return Math.max(m, e.prizePool || 0); }, 0) || 1;
+    return '<table><thead><tr><th>Torneio</th><th class="num">Runs</th><th class="num">Gtd médio</th><th class="num">Prize pool</th><th class="num">Overlay</th><th class="num">Taxa ov.</th></tr></thead><tbody>'
+      + rows.slice(0, 40).map(function (e) {
+        var pct = Math.max(3, Math.round((e.prizePool || 0) / maxPrize * 100));
+        return '<tr><td>' + esc(e.nome) + '</td>'
+          + '<td class="num">' + e.runs + '</td>'
+          + '<td class="num">R$ ' + fmt(e.garantidoAvg) + '</td>'
+          + '<td class="num barcell"><span class="fill" style="width:' + pct + '%"></span><span>R$ ' + fmt(e.prizePool) + '</span></td>'
+          + '<td class="num ' + (e.deficit > 0 ? 'neg' : '') + '">R$ ' + fmt(e.deficit) + '</td>'
+          + '<td class="num">' + ovrPill(e.ovRate) + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  /* ── TENDÊNCIA DE FIELD (migrado do Admin): stats + campo/dia com média móvel ── */
+  function movAvg(vals, w) {
+    return vals.map(function (_, i) { var s = 0, n = 0; for (var j = Math.max(0, i - w + 1); j <= i; j++) { s += vals[j]; n++; } return Math.round(s / n); });
+  }
+  function fieldStatsHtml(agg) {
+    var days = agg.days || []; if (!days.length) return '';
+    var f = days.map(function (d) { return d.field; });
+    var avg = Math.round(f.reduce(function (a, b) { return a + b; }, 0) / days.length);
+    var peak = days.reduce(function (m, d) { return d.field > m.field ? d : m; }, days[0]);
+    var last = f.slice(-7), prev = f.slice(-14, -7);
+    var la = last.length ? last.reduce(function (a, b) { return a + b; }, 0) / last.length : 0;
+    var pa = prev.length ? prev.reduce(function (a, b) { return a + b; }, 0) / prev.length : 0;
+    var tr = pa ? Math.round((la - pa) / pa * 100) : null;
+    return [
+      kpi('Campo médio / dia', fmt(avg), 'pos', 'teal', 'jogadores'),
+      kpi('Pico de campo', fmt(peak.field), '', 'teal', 'em ' + peak.date.slice(5)),
+      kpi('Tendência (7d vs 7d)', tr == null ? '—' : ((tr >= 0 ? '+' : '') + tr + '%'), tr >= 0 ? 'pos' : 'warn', tr >= 0 ? 'teal' : 'amber', 'média recente vs anterior'),
+    ].join('');
+  }
+  function drawFieldTrend(days) {
+    if (!window.Chart || !days || !days.length) return;
+    if (_fieldChart) { try { _fieldChart.destroy(); } catch (e) {} _fieldChart = null; }
+    var p = palette();
+    var labels = days.map(function (d) { return d.date.slice(5); });
+    var field = days.map(function (d) { return d.field; });
+    _fieldChart = new Chart($('chartFieldTrend'), {
+      data: {
+        labels: labels, datasets: [
+          { type: 'bar', label: 'Campo', data: field, backgroundColor: p.teal + 'cc', borderRadius: 4, borderSkipped: false, maxBarThickness: 22, order: 2 },
+          { type: 'line', label: 'Média móvel (7d)', data: movAvg(field, 7), borderColor: p.amber, borderWidth: 2, tension: .4, fill: false, pointRadius: 0, pointHoverRadius: 4, order: 1 },
+        ],
+      }, options: baseOpts(p, false),
+    });
+  }
+
+  /* ── HEATMAP de overlay por horário (migrado do Admin) ── */
+  function heatmapHtml(rows) {
+    var cells = rows.map(function (o) {
+      var t = Math.min(1, (o.ovRate || 0) / 100);
+      return '<div class="hm-cell" style="--t:' + t.toFixed(3) + '" tabindex="0" '
+        + 'title="' + o.hour + 'h · ' + o.runs + ' torneios · ' + o.ovCount + ' com overlay · R$ ' + fmt(o.deficit) + ' de buraco">'
+        + '<div class="hm-hr">' + o.hour + 'h</div><div class="hm-rate">' + o.ovRate + '%</div><div class="hm-runs">' + o.runs + ' ev.</div></div>';
+    }).join('');
+    return '<div class="hm-grid">' + cells + '</div>'
+      + '<div class="hm-legend"><span>menos overlay</span><i class="hm-scale"></i><span>mais overlay</span></div>';
   }
 
   /* ── skeleton inicial (evita "salto" e mostra que está carregando) ── */
@@ -292,6 +372,7 @@
       try { tab.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch (e) {}
       if (focus) tab.focus();
       if (sec === 'overview' && window.__redraw) window.__redraw();  // canvas voltou a ser visível
+      if (sec === 'field' && window.__drawField) window.__drawField();
     }
 
     tabs.forEach(function (t) { t.addEventListener('click', function () { activate(t); }); });

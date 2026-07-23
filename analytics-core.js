@@ -64,7 +64,7 @@
         o.events += 1; o.prizePool += prize; o.overlayDeficit += deficit;
         if (r.perf != null && isFinite(num(r.perf))) { o.perfSum += num(r.perf); o.perfN += 1; }
 
-        allRecs.push({ nome: r.nome || 'Torneio', date: date, prizePool: prize, garantido: gtd,
+        allRecs.push({ nome: r.nome || 'Torneio', date: date, hora: r.hora || null, prizePool: prize, garantido: gtd,
           deficit: deficit, field: num(r.field), perf: r.perf != null ? num(r.perf) : null, operador: op });
       });
 
@@ -99,7 +99,43 @@
     var best = allRecs.slice().filter(function (r) { return r.perf != null; })
       .sort(function (a, b) { return b.perf - a.perf; }).slice(0, 10);
 
-    return { days: days, totals: totals, byOperator: byOperator, worst: worst, best: best };
+    // ── por TORNEIO (seção Grade): cada evento recorrente somado no tempo, pra
+    //    ver qual sustenta e qual drena a grade. Ordenado pelo buraco (deficit). ──
+    var evMap = {};
+    allRecs.forEach(function (r) {
+      var e = evMap[r.nome] || (evMap[r.nome] = { nome: r.nome, runs: 0, garantido: 0, prizePool: 0, deficit: 0, ovCount: 0, field: 0, perfSum: 0, perfN: 0 });
+      e.runs += 1; e.garantido += r.garantido; e.prizePool += r.prizePool; e.deficit += r.deficit; e.field += r.field;
+      if (r.deficit > 0) e.ovCount += 1;
+      if (r.perf != null) { e.perfSum += r.perf; e.perfN += 1; }
+    });
+    var byEvent = Object.keys(evMap).map(function (k) {
+      var e = evMap[k];
+      e.garantidoAvg = e.runs ? round(e.garantido / e.runs, 0) : 0;
+      e.prizePoolAvg = e.runs ? round(e.prizePool / e.runs, 0) : 0;
+      e.fieldAvg = e.runs ? round(e.field / e.runs, 0) : 0;
+      e.avgPerf = e.perfN ? round(e.perfSum / e.perfN, 1) : null;
+      e.ovRate = e.runs ? round(e.ovCount / e.runs * 100, 0) : 0;   // % das vezes que deu overlay
+      delete e.perfSum; delete e.perfN;
+      return e;
+    }).sort(function (a, b) { return (b.deficit - a.deficit) || (b.runs - a.runs); });
+
+    // ── por HORÁRIO (seção Heatmap): onde o overlay se concentra na grade do dia,
+    //    por faixa de hora (HH). Só entra registro com hora conhecida. ──
+    var hourMap = {};
+    allRecs.forEach(function (r) {
+      var h = (r.hora != null && String(r.hora).length >= 2) ? String(r.hora).slice(0, 2) : null;
+      if (h == null || !/^\d\d$/.test(h)) return;
+      var o = hourMap[h] || (hourMap[h] = { hour: h, runs: 0, garantido: 0, prizePool: 0, deficit: 0, ovCount: 0 });
+      o.runs += 1; o.garantido += r.garantido; o.prizePool += r.prizePool; o.deficit += r.deficit;
+      if (r.deficit > 0) o.ovCount += 1;
+    });
+    var byHour = Object.keys(hourMap).map(function (k) {
+      var o = hourMap[k];
+      o.ovRate = o.runs ? round(o.ovCount / o.runs * 100, 0) : 0;
+      return o;
+    }).sort(function (a, b) { return a.hour < b.hour ? -1 : 1; });
+
+    return { days: days, totals: totals, byOperator: byOperator, worst: worst, best: best, byEvent: byEvent, byHour: byHour };
   }
 
   var API = { aggregate: aggregate, fmtBRL: fmtBRL };
