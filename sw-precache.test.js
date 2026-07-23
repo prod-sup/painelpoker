@@ -17,8 +17,10 @@ const sw = fs.readFileSync(__dirname + '/sw.js', 'utf8');
 let passed = 0;
 const falhas = [];
 
-/* caminhos '/painelpoker/xxx' listados no precache */
-const precache = [...sw.matchAll(/'\/painelpoker\/([^']+)'/g)].map(m => m[1]);
+/* itens do array STATIC_ASSETS — hoje relativos (ex.: 'hub.js'); a BASE ('/' na
+   Vercel, '/painelpoker/' no GitHub Pages) é aplicada no .map() em runtime. */
+const bloco = (sw.match(/const STATIC_ASSETS\s*=\s*\[([\s\S]*?)\]\.map/) || [, ''])[1];
+const precache = [...bloco.matchAll(/'([^']+)'/g)].map(m => m[1]);
 const noPrecache = new Set(precache);
 
 /* ── 1. todo caminho do precache existe no disco? ── */

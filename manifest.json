@@ -2,7 +2,7 @@
   "name": "Suprema Poker — Painel Operacional",
   "short_name": "Painel Suprema",
   "description": "Painel operacional de torneios Suprema Poker",
-  "start_url": "/painelpoker/",
+  "start_url": "./hub.html",
   "display": "standalone",
   "background_color": "#0a0f0d",
   "theme_color": "#22c55e",

@@ -1,90 +1,95 @@
 // Suprema Poker — Service Worker
 // IMPORTANTE: incremente SW_VERSION a cada deploy — é isso que faz as abas abertas
 // receberem o aviso de "nova versão disponível" e ninguém operar com código velho
-const SW_VERSION = '3.36.0';
+const SW_VERSION = '3.37.0';
 const CACHE_NAME = `suprema-painel-v${SW_VERSION}`;
+// BASE derivada da própria URL do SW: '/' na Vercel (painelpoker.vercel.app/) e
+// '/painelpoker/' no GitHub Pages. Os assets abaixo são RELATIVOS e recebem a base
+// no .map() — assim o precache funciona nos dois hosts sem hardcode de caminho.
+const BASE = self.location.pathname.replace(/sw\.js$/, '');
 const STATIC_ASSETS = [
-  '/painelpoker/',
-  '/painelpoker/index.html',
-  '/painelpoker/criacao-noturna.html',
-  '/painelpoker/gu-parser.js',
-  '/painelpoker/conf-dia.js',
-  '/painelpoker/scripts/lite.js',
-  '/painelpoker/suprema-xlsx.js',
+  'index.html',
+  'criacao-noturna.html',
+  'gu-parser.js',
+  'conf-dia.js',
+  'scripts/lite.js',
+  'suprema-xlsx.js',
   // NÃO precache o xlsx.full.min.js (861KB): o suprema-xlsx.js existe justamente pra baixá-lo
   // só na PRIMEIRA importação/exportação. Precachear aqui trazia os 861KB na instalação do SW
   // pra todo operador, inclusive quem nunca exporta — anulando o carregamento sob demanda.
   // Quem usar a exportação baixa uma vez e o runtime cache (network-first, abaixo) guarda.
-  '/painelpoker/suprema-onboarding.js',
+  'suprema-onboarding.js',
   /* cada .html precacheado precisa dos SEUS js/css também — senão a página abre
      offline mas sem cérebro/estilo na primeira visita sem rede */
-  '/painelpoker/hub.html',
-  '/painelpoker/hub.js',
-  '/painelpoker/hub-onboarding.js',   // o hub.html carrega — estava fora do precache
-  '/painelpoker/hub.css',
-  '/painelpoker/admin.html',
-  '/painelpoker/admin.js',
+  'hub.html',
+  'hub.js',
+  'hub-onboarding.js',   // o hub.html carrega — estava fora do precache
+  'hub.css',
+  'admin.html',
+  'admin.js',
   // sem admin-actions os [data-act] do admin ficam mudos (nenhum botão responde)
-  '/painelpoker/admin-actions.js',
-  '/painelpoker/admin.css',
-  '/painelpoker/criacao-noturna.js',
+  'admin-actions.js',
+  'admin.css',
+  'criacao-noturna.js',
   // criacao-noturna.js DEPENDE de criacao-calc (parsing/fee/early bird):
   // sem ele offline, a receita não renderiza.
-  '/painelpoker/criacao-calc.js',
-  '/painelpoker/criacao-noturna.css',
-  '/painelpoker/dashboard-mesa-cash.html',
-  '/painelpoker/dashboard-mesa-cash.js',
-  '/painelpoker/dashboard-mesa-cash.css',
-  '/painelpoker/eventos.html',
-  '/painelpoker/eventos.css',
-  '/painelpoker/eventos.js',
-  '/painelpoker/radar-core.js',
-  '/painelpoker/analytics.html',
-  '/painelpoker/analytics.css',
-  '/painelpoker/analytics.js',
-  '/painelpoker/analytics-core.js',
+  'criacao-calc.js',
+  'criacao-noturna.css',
+  'dashboard-mesa-cash.html',
+  'dashboard-mesa-cash.js',
+  'dashboard-mesa-cash.css',
+  'eventos.html',
+  'eventos.css',
+  'eventos.js',
+  'radar-core.js',
+  'analytics.html',
+  'analytics.css',
+  'analytics.js',
+  'analytics-core.js',
   // o Worker de parse da Global: sem ele no cache, o Radar/TV offline perdem o
   // caminho rápido e caem no parse síncrono (funciona, mas trava a aba)
-  '/painelpoker/suprema-global-worker.js',
-  '/painelpoker/tv.html',
-  '/painelpoker/tv.css',
-  '/painelpoker/tv.js',
+  'suprema-global-worker.js',
+  'tv.html',
+  'tv.css',
+  'tv.js',
   // O Feltro: o fundo em WebGL da TV. Sem ele o canal cai na rede de nós 2D.
-  '/painelpoker/suprema-feltro.js',
-  '/painelpoker/suprema-tokens.css',
+  'suprema-feltro.js',
+  'suprema-tokens.css',
   // PWA: manifest + ícones precisam existir offline pro app instalado abrir sem rede
-  '/painelpoker/manifest.json',
-  '/painelpoker/icon-192.png',
-  '/painelpoker/icon-512.png',
+  'manifest.json',
+  'icon-192.png',
+  'icon-512.png',
   // shell do "OS": os módulos compartilhados precisam existir offline, senão o
   // gate/sessão/presença/tema não sobem sem rede e a promessa de OS se quebra
-  '/painelpoker/suprema-auth.js',
-  '/painelpoker/suprema-shell.js',
-  '/painelpoker/suprema-palette.js',
-  '/painelpoker/suprema-copiloto.js',
-  '/painelpoker/suprema-db.js',
-  '/painelpoker/suprema-presence.js',
-  '/painelpoker/suprema-motion.js',
-  '/painelpoker/suprema-insights.js',
-  '/painelpoker/painel.css',
-  '/painelpoker/painel.js',
+  'suprema-auth.js',
+  'suprema-shell.js',
+  'suprema-palette.js',
+  'suprema-copiloto.js',
+  'suprema-db.js',
+  'suprema-presence.js',
+  'suprema-motion.js',
+  'suprema-insights.js',
+  'painel.css',
+  'painel.js',
   // painel.js DEPENDE de painel-calc (classify/toNumber/acoes) — sem ele offline
   // o painel não renderiza. painel-actions traduz os [data-act] em cliques:
   // sem ele os botões da nav e dos filtros ficam mudos.
-  '/painelpoker/painel-calc.js',
-  '/painelpoker/painel-actions.js',
+  'painel-calc.js',
+  'painel-actions.js',
   // deps do dashboard cash agora locais (offline-safe)
-  '/painelpoker/vendor/chart.umd.js',
-  '/painelpoker/vendor/phosphor/regular.css',
-  '/painelpoker/vendor/phosphor/fill.css',
-  '/painelpoker/vendor/phosphor/Phosphor.woff2',
-  '/painelpoker/vendor/phosphor/Phosphor-Fill.woff2',
-];
+  'vendor/chart.umd.js',
+  'vendor/phosphor/regular.css',
+  'vendor/phosphor/fill.css',
+  'vendor/phosphor/Phosphor.woff2',
+  'vendor/phosphor/Phosphor-Fill.woff2',
+].map(p => BASE + p);
 
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(STATIC_ASSETS).catch(() => {}))
+      // allSettled + add individual: um asset que falhe (404) não derruba o precache
+      // inteiro — ao contrário do addAll, que é atômico (uma falha zera tudo).
+      .then(cache => Promise.allSettled(STATIC_ASSETS.map(a => cache.add(a))))
       .then(() => self.skipWaiting())
   );
 });
