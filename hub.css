@@ -333,6 +333,8 @@ html.light .aviso[data-tipo="erro"]{ --av-fg:#c0392b }
 .t-eventos{grid-column:span 3;--tint:var(--p-eventos)}
 .t-tv{grid-column:span 3;--tint:var(--p-admin)}
 .t-tv{background:linear-gradient(160deg,#16110a 0%,var(--bg-raise) 62%)}
+/* Criação de Eventos (Kanban externo): dourado da marca, sem céu próprio */
+.t-pipe{grid-column:span 3;--tint:var(--gold)}
 /* tile bloqueado (Mesa Cash é só admin) — visível, mas travado pra operador comum */
 .tile.locked{cursor:not-allowed;filter:saturate(.55)}
 .tile.locked h2,.tile.locked .desc{opacity:.5}
@@ -1711,6 +1713,6 @@ footer{
   .tile{min-height:200px}
   .t-cash{flex-direction:column;align-items:flex-start;gap:8px}
   .t-cash .meta{margin:10px 0 0}
-  .t-eventos,.t-tv{grid-column:span 6}
+  .t-eventos,.t-tv,.t-pipe{grid-column:span 6}
   .hero{padding-top:40px}
 }

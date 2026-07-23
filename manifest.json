@@ -1,11 +1,11 @@
 {
-  "name": "Suprema Poker — Painel Operacional",
-  "short_name": "Painel Suprema",
-  "description": "Painel operacional de torneios Suprema Poker",
+  "name": "Suprema OS — Operação de Poker",
+  "short_name": "Suprema OS",
+  "description": "Sistema operacional de produtos para operação de poker Suprema",
   "start_url": "./hub.html",
   "display": "standalone",
-  "background_color": "#0a0f0d",
-  "theme_color": "#22c55e",
+  "background_color": "#0b0d0c",
+  "theme_color": "#0b0d0c",
   "orientation": "any",
   "icons": [
     {
