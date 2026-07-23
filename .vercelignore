@@ -1,0 +1,57 @@
+# .vercelignore — o `vercel` sobe a pasta inteira; aqui barramos o que NÃO pode
+# ir pro ar. Regra: se não dá pra publicar na internet, ignore aqui.
+# (mesmo espírito do .gitignore deste repo, que já é público)
+
+# --- Dados reais / dumps (NUNCA públicos) ---
+G.U GAME STAT*.xlsx
+*.xlsx
+ruvector.db
+*.db
+firebase_import.json
+
+# --- Credenciais / segredos ---
+*account*.json
+*_secret*
+*.pem
+*.key
+serviceAccount*.json
+.env
+.env.*
+
+# --- Config de infra (não é servida ao cliente) ---
+firebase.json
+database.rules.json
+database.rules.target.json
+deploy.ps1
+
+# --- Backend separado do pipefy (Firebase Functions — não roda na Vercel) ---
+pipefy/
+
+# --- Documentação interna (não expor) ---
+*.md
+!README.md
+
+# --- Testes e diagnóstico ---
+*.test.js
+test.js
+fase1-doctor.html
+
+# --- Toolchain / build (deploy é estático, sem build) ---
+node_modules/
+dist/
+build.mjs
+package.json
+package-lock.json
+skills-lock.json
+*.zip
+
+# --- Ambiente Claude / editores ---
+.claude/
+.vscode/
+.idea/
+
+# --- Lixo do FS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+{,-
