@@ -99,6 +99,15 @@ SupremaShell.mountNav('#supNav', {
       </button>
       <span class="up-hint">Aba <b>G MTTS</b> (GU, dólar) · torneios de <b id="uploadDayLabel">amanhã</b> · janela 06:10 → 05:30 — só uma pessoa do turno precisa subir.</span>
     </div>
+    <!-- Reusar a Global já carregada no Painel do Dia (painel/globalMtt) — sem reenviar o arquivo -->
+    <div class="up-row" style="margin-top:10px">
+      <button class="btn" id="useSharedBtn" type="button" hidden
+        title="Puxar a Global MTT já carregada no Painel do Dia (aba G MTTS) — sem reenviar o arquivo.">
+        <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        Usar a Global do Painel
+      </button>
+      <span class="up-hint" id="sharedHint" hidden></span>
+    </div>
     <input type="file" id="fileInput" accept=".xlsx,.xls" hidden>
     <div class="upload-meta" id="uploadMeta" hidden></div>
     <div class="alerts" id="alerts"></div>

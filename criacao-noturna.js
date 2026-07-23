@@ -427,6 +427,26 @@ try{
       }
     }).catch(()=>{ window._cnSheetLastTs = null; });
   });
+  /* Global COMPARTILHADA do Painel: observa só o timestamp (barato) pra revelar o
+     botão "Usar a Global do Painel" e dizer de quem/qual arquivo. O base64 pesado
+     só é baixado quando o operador clica (useSharedGlobal) — economia de banda. */
+  fbDb.ref('painel/globalMtt/at').on('value', async atSnap => {
+    const at = atSnap.val();
+    const btn = $('useSharedBtn'), hint = $('sharedHint');
+    if (!btn) return;
+    if (!at){ btn.hidden = true; btn.disabled = true; if (hint) hint.hidden = true; return; }
+    btn.hidden = false; btn.disabled = false;
+    if (hint){
+      try{
+        const [fn, by] = await Promise.all([
+          fbDb.ref('painel/globalMtt/filename').once('value'),
+          fbDb.ref('painel/globalMtt/by').once('value')
+        ]);
+        hint.hidden = false;
+        hint.innerHTML = `Disponível no Painel: <b>${escHtml(fn.val() || 'Global MTT.xlsx')}</b>${by.val() ? (' · por ' + escHtml(by.val())) : ''}`;
+      }catch(_){ /* hint é opcional; o botão já funciona */ }
+    }
+  });
   fbDb.ref(`${FB_PATH}/ops`).on('value', s => {
     const v = s.val();
     OPS = Array.isArray(v) ? v.filter(Boolean) : (v ? Object.values(v).filter(Boolean) : []);
@@ -644,6 +664,8 @@ dz.addEventListener('drop', e => {
   if (f) handleFile(f);
 });
 $('fileInput').addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+// "Usar a Global do Painel": puxa painel/globalMtt em vez de reenviar o arquivo
+{ const sb = $('useSharedBtn'); if (sb) sb.addEventListener('click', useSharedGlobal); }
 
 async function handleFile(file){
   // SheetJS sob demanda: baixa na 1ª importação. Se o arquivo cair, avisa em vez de morrer em silêncio.
@@ -654,55 +676,105 @@ async function handleFile(file){
   }
   $('dzTitle').textContent = 'Lendo planilha…';
   try{
-    // a criação é baseada SÓ na aba da GU (G MTTS) — valores em dólar, receita completa
-    const matrix = readSheetMatrix(await file.arrayBuffer(), 'G MTTS');
-    const headerCols = findHeaderCols(matrix);
-    if (!headerCols){
-      showToast('Não encontrei o cabeçalho da aba G MTTS (MTT MARKETING / TYPE / BUY-IN…) — é a Global MTT certa?', true);
-      $('dzTitle').textContent = 'Global MTT';
-      return;
-    }
-    const secTom = extractGuDaySection(matrix, WEEKDAY_TOMORROW_EN, headerCols);
-    const secAfter = extractGuDaySection(matrix, WEEKDAY_DAYAFTER_EN, headerCols);
-    if (!secTom){
-      showToast(`Não encontrei a seção "${WEEKDAY_TOMORROW_EN}" na aba G MTTS — é a Global MTT certa?`, true);
-      $('dzTitle').textContent = 'Global MTT';
-      return;
-    }
-    const sections = buildSections(secTom, secAfter);
-    const warnings = [];
-    if (!secAfter) warnings.push(`Seção "${WEEKDAY_DAYAFTER}" não encontrada — a madrugada de fechamento (até 05:30) pode estar faltando.`);
-    if (secTom.duplicateSection || (secAfter && secAfter.duplicateSection)) warnings.push('Nome de dia duplicado na planilha — confira se as seções usadas são as certas.');
-    const semHora = [...secTom.semHora, ...(secAfter ? secAfter.semHora : [])];
-    if (semHora.length) warnings.push(`${semHora.length} torneio(s) sem horário reconhecível ficaram de fora: ${semHora.map(x=>x.nome).join(', ')}`);
-    const aposGap = [...secTom.aposGap, ...(secAfter ? secAfter.aposGap : [])];
-    if (aposGap.length) warnings.push(`${aposGap.length} linha(s) depois do vão de linhas vazias ficaram de fora: ${aposGap.map(x=>`${x.hora} ${x.nome}`).join(', ')}`);
-    if (sections.unknown.length) warnings.push(`${sections.unknown.length} torneio(s) com tipo não reconhecido na coluna TYPE (listados em seção própria).`);
-
-    const fields = headerCols.filter(c => !isCoreLabel(c.label)).map(c => c.label);
-    // diff contra a versão que já estava carregada (a GU corrige a Global durante a noite):
-    // o que mudou fica marcado — e o que JÁ FOI CRIADO com a receita antiga pede revisão
-    const changes = computeChanges(DATA, sections);
-    if (DATA && changes.length) showToast(`⚠ ${changes.length} alteração(ões) em relação à Global anterior — veja os avisos.`, true);
-    DATA = {...sections, fields, warnings, changes, by: ME || 'Alguém', at: Date.now(), fileName: file.name};
-    onDataReady(false);
-
-    if (fbDb){
-      fbDb.ref(`${FB_PATH}/sheet`).set({
-        json: JSON.stringify({main:sections.main, side:sections.side, sat:sections.sat, unknown:sections.unknown, fields, warnings, changes, fileName:file.name}),
-        // count pequeno pra o hub contar sem baixar a grade inteira (economia de banda)
-        count: sections.main.length + sections.side.length + sections.sat.length,
-        by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP
-      });
-    }
-    logEvent('subiu Global', `${file.name} — ${sections.main.length + sections.side.length + sections.sat.length} torneios${changes.length ? ` (${changes.length} alterações)` : ''}`);
-    showToast(`Global carregada — ${sections.main.length + sections.side.length + sections.sat.length} torneios de ${WEEKDAY_TOMORROW.toLowerCase()}.`);
+    await ingestGlobalMatrix(await file.arrayBuffer(), file.name, 'upload');
   }catch(e){
     console.error(e);
     showToast('Erro ao ler a planilha — confira se é a Global MTT (.xlsx).', true);
   }
   $('dzTitle').textContent = 'Global MTT';
   $('fileInput').value = '';
+}
+
+/* Puxa a Global MTT COMPARTILHADA (painel/globalMtt) — a MESMA que a operação
+   sobe no Painel do Dia — e roda o pipeline da GU (aba G MTTS). Assim o turno
+   noturno não precisa reenviar o arquivo. As regras do RTDB liberam a leitura de
+   painel/globalMtt pra quem tem access 'gu' (ou painel/eventos). */
+async function useSharedGlobal(){
+  if (!fbDb){ showToast('A Global compartilhada precisa do Firebase (offline agora).', true); return; }
+  try{ await ensureXLSX(); }
+  catch(_){
+    showToast('A biblioteca de planilhas não carregou (sem internet?) — verifique a conexão e recarregue a página.', true);
+    return;
+  }
+  const btn = $('useSharedBtn');
+  if (btn) btn.disabled = true;
+  $('dzTitle').textContent = 'Buscando Global do Painel…';
+  try{
+    const v = (await fbDb.ref('painel/globalMtt').once('value')).val();
+    if (!v || !v.data){
+      showToast('Ninguém subiu a Global no Painel do Dia ainda — suba o arquivo aqui ou no Painel.', true);
+      return;
+    }
+    await ingestGlobalMatrix(b64ToBytes(v.data), v.filename || 'Global MTT (Painel).xlsx', 'shared');
+  }catch(e){
+    console.error(e);
+    showToast('Erro ao carregar a Global compartilhada do Painel.', true);
+  }finally{
+    if (btn) btn.disabled = false;
+    $('dzTitle').textContent = 'Global MTT';
+  }
+}
+
+/* base64 (painel/globalMtt.data) → bytes pro readSheetMatrix (XLSX type:'array').
+   Na thread principal de propósito: é um clique pontual (o Radar usa Worker porque
+   OBSERVA a Global a cada mudança; aqui é sob demanda). */
+function b64ToBytes(b64){
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+/* Núcleo do parse — usado pelo upload local E pela Global compartilhada. Recebe a
+   planilha já em bytes (ArrayBuffer/Uint8Array). Lê SÓ a aba G MTTS (GU, dólar),
+   aplica a janela 06:10→05:30, faz o diff contra o que estava carregado e grava a
+   grade em FB_PATH/sheet pra equipe. `source`: 'upload' (arquivo local) ou 'shared'
+   (Global do Painel) — só muda o texto do toast/log. Retorna true se a Global era válida. */
+async function ingestGlobalMatrix(bytes, fileName, source){
+  // a criação é baseada SÓ na aba da GU (G MTTS) — valores em dólar, receita completa
+  const matrix = readSheetMatrix(bytes, 'G MTTS');
+  const headerCols = findHeaderCols(matrix);
+  if (!headerCols){
+    showToast('Não encontrei o cabeçalho da aba G MTTS (MTT MARKETING / TYPE / BUY-IN…) — é a Global MTT certa?', true);
+    return false;
+  }
+  const secTom = extractGuDaySection(matrix, WEEKDAY_TOMORROW_EN, headerCols);
+  const secAfter = extractGuDaySection(matrix, WEEKDAY_DAYAFTER_EN, headerCols);
+  if (!secTom){
+    showToast(`Não encontrei a seção "${WEEKDAY_TOMORROW_EN}" na aba G MTTS — é a Global MTT certa?`, true);
+    return false;
+  }
+  const sections = buildSections(secTom, secAfter);
+  const warnings = [];
+  if (!secAfter) warnings.push(`Seção "${WEEKDAY_DAYAFTER}" não encontrada — a madrugada de fechamento (até 05:30) pode estar faltando.`);
+  if (secTom.duplicateSection || (secAfter && secAfter.duplicateSection)) warnings.push('Nome de dia duplicado na planilha — confira se as seções usadas são as certas.');
+  const semHora = [...secTom.semHora, ...(secAfter ? secAfter.semHora : [])];
+  if (semHora.length) warnings.push(`${semHora.length} torneio(s) sem horário reconhecível ficaram de fora: ${semHora.map(x=>x.nome).join(', ')}`);
+  const aposGap = [...secTom.aposGap, ...(secAfter ? secAfter.aposGap : [])];
+  if (aposGap.length) warnings.push(`${aposGap.length} linha(s) depois do vão de linhas vazias ficaram de fora: ${aposGap.map(x=>`${x.hora} ${x.nome}`).join(', ')}`);
+  if (sections.unknown.length) warnings.push(`${sections.unknown.length} torneio(s) com tipo não reconhecido na coluna TYPE (listados em seção própria).`);
+
+  const fields = headerCols.filter(c => !isCoreLabel(c.label)).map(c => c.label);
+  // diff contra a versão que já estava carregada (a GU corrige a Global durante a noite):
+  // o que mudou fica marcado — e o que JÁ FOI CRIADO com a receita antiga pede revisão
+  const changes = computeChanges(DATA, sections);
+  if (DATA && changes.length) showToast(`⚠ ${changes.length} alteração(ões) em relação à Global anterior — veja os avisos.`, true);
+  DATA = {...sections, fields, warnings, changes, by: ME || 'Alguém', at: Date.now(), fileName, source};
+  onDataReady(false);
+
+  if (fbDb){
+    fbDb.ref(`${FB_PATH}/sheet`).set({
+      json: JSON.stringify({main:sections.main, side:sections.side, sat:sections.sat, unknown:sections.unknown, fields, warnings, changes, fileName}),
+      // count pequeno pra o hub contar sem baixar a grade inteira (economia de banda)
+      count: sections.main.length + sections.side.length + sections.sat.length,
+      by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP
+    });
+  }
+  const total = sections.main.length + sections.side.length + sections.sat.length;
+  logEvent(source === 'shared' ? 'usou Global do Painel' : 'subiu Global',
+    `${fileName} — ${total} torneios${changes.length ? ` (${changes.length} alterações)` : ''}`);
+  showToast(`${source === 'shared' ? 'Global do Painel' : 'Global'} carregada — ${total} torneios de ${WEEKDAY_TOMORROW.toLowerCase()}.`);
+  return true;
 }
 
 /* =========================================================================
