@@ -426,6 +426,47 @@
     return a.onAuthStateChanged(cb);
   }
 
+  /* ── ESPELHO DE TEMA (.dark ↔ [data-theme]) ──────────────────────────────
+     O OS tem dois mecanismos de tema vivos: quase todo painel marca o escuro com
+     a CLASSE html.dark; o dashboard cash usa o ATRIBUTO html[data-theme].
+     suprema-tokens.css já lê os dois, mas o CSS LOCAL de um painel só reage ao
+     sinal que AQUELE painel escreve — então uma regra nova em `html.dark {}`
+     simplesmente "não existe" pra quem está no cash, e vice-versa. É o bug
+     latente que já quase pegou o cash (DESIGN.md §2).
+     Aqui, num lugar só (auth.js roda em TODOS os painéis), mantemos os dois
+     sinais espelhados: mexeu num, o outro acompanha — independente da ordem de
+     carga. ADITIVO: nunca remove o sinal que o painel já escreve nem injeta
+     data-theme="light" onde ninguém usava o atributo (mantém o DOM limpo no
+     claro); só garante o par no escuro, que é o que o CSS de tema escuro precisa.
+     Contra loop: takeRecords() descarta os registros da nossa própria escrita. */
+  (function mirrorThemeSignals() {
+    if (!global.MutationObserver || !global.document) return;
+    var root = document.documentElement;
+    function syncFromClass() {            // a classe mudou → alinha o atributo
+      var isDark = root.classList.contains('dark');
+      var attr = root.getAttribute('data-theme');
+      if (isDark) { if (attr !== 'dark') root.setAttribute('data-theme', 'dark'); }
+      else if (attr !== null && attr !== 'light') root.setAttribute('data-theme', 'light');
+    }
+    function syncFromAttr() {             // o atributo mudou → alinha a classe
+      var wantDark = root.getAttribute('data-theme') === 'dark';
+      if (wantDark !== root.classList.contains('dark')) root.classList.toggle('dark', wantDark);
+    }
+    var obs = new MutationObserver(function (records) {
+      var sawAttr = false, sawClass = false;
+      for (var i = 0; i < records.length; i++) {
+        if (records[i].attributeName === 'data-theme') sawAttr = true;
+        else if (records[i].attributeName === 'class') sawClass = true;
+      }
+      if (sawAttr) syncFromAttr();        // atributo tem prioridade se vierem juntos (raro)
+      else if (sawClass) syncFromClass();
+      obs.takeRecords();                  // limpa os registros que ESTA escrita gerou → sem loop
+    });
+    obs.observe(root, { attributes: true, attributeFilter: ['class', 'data-theme'] });
+    syncFromClass();                      // reconcilia o que o anti-flash inline já marcou
+    obs.takeRecords();
+  })();
+
   global.SupremaAuth = {
     signInEmail: signInEmail, signUpEmail: signUpEmail, sendReset: sendReset, onUser: onUser,
     SESSION_KEY: SESSION_KEY, TRUSTED_KEY: TRUSTED_KEY, THEME_KEY: THEME_KEY, AVATAR_KEY: AVATAR_KEY,

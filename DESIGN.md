@@ -27,6 +27,10 @@ Esta é a fonte de verdade das regras visuais; quando um painel diverge, ele est
 - Claro/escuro via `data-theme` **ou** `.dark` (o cash usa `[data-theme]`, os outros `.dark`) —
   os dois seletores são cobertos em `suprema-tokens.css`. `color-scheme` é setado pra evitar flash
   de tema errado no 1º paint.
+- **Os dois sinais são espelhados automaticamente** por `mirrorThemeSignals()` em
+  [`suprema-auth.js`](suprema-auth.js) (roda em todo painel): mexeu em `.dark`, o `[data-theme]`
+  acompanha e vice-versa. Então CSS local de tema escuro pode usar qualquer um dos dois que funciona
+  em todos os painéis — mas prefira o que o painel já escreve. É aditivo (não suja o DOM no claro).
 - **Cuidado com contraste** (o cash já quase virou bug): corpo ≥ 4,5:1, texto grande ≥ 3:1,
   placeholder ≥ 4,5:1. Cinza claro "pra elegância" é o maior motivo de texto ilegível — puxe pro ink.
 - Anti-flash / auth-guard ficam **inline** no HTML (não extrair).
