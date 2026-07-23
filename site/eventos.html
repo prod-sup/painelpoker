@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Radar de Eventos · Suprema OS</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%23b3475d'>♦</text></svg>">
+<script defer src="suprema-xlsx.js"></script>
+<!-- defer: Firebase (~250KB) fora do caminho crítico. initData() roda no DOMContentLoaded
+     (depois dos deferred) e ainda tem retry via SupremaDB.init() — 100% seguro. -->
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script src="gu-parser.js"></script>
+<script src="radar-core.js"></script>
+<script src="suprema-auth.js"></script>
+<!-- shell (chrome compartilhado): SÍNCRONO — o mount inline do nav roda no parse -->
+<script src="suprema-shell.js"></script>
+<script>
+/* portão: login mora no hub; exige acesso liberado a ESTE painel.
+   anti-flash: aplica o tema salvo antes do primeiro paint. */
+SupremaAuth.guard({ panel:'eventos' }); SupremaAuth.revalidateAccess('eventos');
+if (SupremaAuth.isDarkPreferred()) document.documentElement.classList.add('dark');
+</script>
+<script src="suprema-motion.js"></script>
+<script>
+/* motion enxuto (ref. MotionSites Network Hero): a rede de nós que dá vida ao
+   hero + glow por delegação nos cards. Sem reveal em conteúdo re-renderizado
+   (evita flicker) e sem efeitos que exijam medir o DOM. */
+SupremaMotion.glow('.stat, .fut-card, .route');
+document.addEventListener('DOMContentLoaded', () => {
+  SupremaMotion.magnetic('.btn');
+  /* o hero é NOTURNO nos dois temas (assinatura da casa) — a rede usa sempre
+     a paleta clara, por isso o isDark fixo */
+  SupremaMotion.network('.hero', { c1:'#ef7d93', c2:'#c9a84c', maxNodes:55, isDark: () => true });
+  /* tilt 3D sutil no palco de Main Events (ref. MotionSites; mesma técnica do
+     leque de cartas do Painel do Dia) */
+  SupremaMotion.tilt('.mev-track', { host:'.mev-stage', max:2.6 });
+});
+</script>
+<link rel="stylesheet" href="eventos.css">
+<script src="scripts/lite.js"></script>
+<link rel="stylesheet" href="suprema-tokens.css">
+</head>
+<body>
+
+<!-- chrome via SupremaShell (lacuna S1): a moldura padrão (presença, sync, relógio,
+     operador, tema) mora no módulo; aqui fica só a identidade do Radar. Os ids
+     renderizados são os mesmos de antes, então o eventos.js não muda. -->
+<nav id="supNav"></nav>
+<script>
+SupremaShell.mountNav('#supNav', {
+  mark: `<svg class="brand-mark" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2.6 19 12l-7 9.4L5 12z" stroke="#b3475d" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 7.2 15.6 12 12 16.8 8.4 12z" fill="#b3475d" opacity=".55"/></svg>`,
+  sub: 'Radar de Eventos · Marketing &amp; Atendimento',
+  links: [
+    { href:'hub.html',  label:'♠ OS', title:'Voltar ao hub Suprema OS' },
+    { href:'index.html', label:'Painel do Dia' },
+    { href:'tv.html',   label:'📺 Suprema TV', title:'O canal da casa — modo telão' }
+  ],
+  presenceTitle:'Quem está online agora',
+  timeTitle:'Horário de São Paulo',
+  opTitle:'Sessão ativa'
+});
+</script>
+
+<header class="hero">
+  <div class="hero-inner">
+    <!-- fallback do palco: aparece só enquanto não há Main Event na Global
+         (carregando / Global sem mains). Com mains, o palco assume o lugar. -->
+    <div class="hero-copy" id="heroCopy">
+      <span class="hero-kicker"><span class="k-dot" id="liveDot"></span>A grade da semana, ao vivo</span>
+      <h1>Todo evento tem um <span class="grad">caminho até a mesa</span>.</h1>
+      <p class="hero-sub">A Global MTT pra quem fala com o jogador: a agenda de cada dia,
+        qual satélite premia o <b>ticket</b> de qual torneio, e os eventos futuros em P&amp;D.</p>
+    </div>
+    <!-- palco dos MAIN EVENTS: um por vez, navegação lateral (setas, arrasto,
+         teclado). Pintado por renderMainEvents() em eventos.js. -->
+    <section class="mev-stage" id="mevStage" hidden aria-roledescription="carrossel" aria-label="Main Events de hoje">
+      <div class="mev-head">
+        <span class="hero-kicker"><span class="k-dot" id="mevLiveDot"></span>♠ Main Events de hoje</span>
+        <div class="mev-nav">
+          <button class="mev-arrow" id="mevPrev" aria-label="Main Event anterior">‹</button>
+          <span class="mev-count" id="mevCount">1 / 1</span>
+          <button class="mev-arrow" id="mevNext" aria-label="Próximo Main Event">›</button>
+        </div>
+      </div>
+      <div class="mev-track" id="mevTrack" tabindex="0" aria-label="Main Events — role para o lado ou use as setas"></div>
+      <i class="mev-adv" id="mevAdv" aria-hidden="true"></i>
+      <div class="mev-dots" id="mevDots" aria-hidden="true"></div>
+    </section>
+    <div class="hero-stats">
+      <div class="stat s-live"><span class="n" id="statLive">0</span><span class="l">rolando agora</span></div>
+      <div class="stat"><span class="n" id="statToday">0</span><span class="l">eventos hoje</span></div>
+      <div class="stat s-gtd"><span class="n" id="statGtd">—</span><span class="l">garantidos na semana</span></div>
+      <div class="stat s-fut"><span class="n" id="statFut">0</span><span class="l">eventos futuros</span></div>
+    </div>
+    <span class="source-meta" id="sourceMeta" hidden></span>
+  </div>
+</header>
+
+<div class="controls">
+  <div class="controls-inner">
+    <div class="controls-row">
+      <!-- seleção ÚNICA de dia, na barra de filtros ao lado dos outros filtros:
+           é um radiogroup, não um tablist (o role="tablist" que estava aqui não
+           tinha um único role="tab" dentro — leitor de tela anunciava abas que
+           não existiam). Os itens são pintados por renderDayBar(). -->
+      <div id="dayBar" role="radiogroup" aria-label="Dia da semana"></div>
+      <label class="search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="searchInput" type="search" placeholder="Buscar torneio…" autocomplete="off">
+      </label>
+    </div>
+    <div class="controls-row">
+      <div class="chip-group" id="campChips" role="radiogroup" aria-labelledby="campLbl">
+        <span class="lbl" id="campLbl">Campanha</span>
+        <button class="chip on" role="radio" aria-checked="true"  data-camp="all">Todas</button>
+        <button class="chip"    role="radio" aria-checked="false" data-camp="AS">✦ #AS</button>
+        <button class="chip"    role="radio" aria-checked="false" data-camp="SPS">✦ +SPS</button>
+        <button class="chip"    role="radio" aria-checked="false" data-camp="SPT">✦ +SPT</button>
+        <button class="chip"    role="radio" aria-checked="false" data-camp="none">Sem campanha</button>
+      </div>
+      <div class="chip-group" id="catChips" role="radiogroup" aria-labelledby="catLbl">
+        <span class="lbl" id="catLbl">Categoria</span>
+        <button class="chip on" role="radio" aria-checked="true"  data-cat="all">Tudo</button>
+        <button class="chip"    role="radio" aria-checked="false" data-cat="main">♠ Main</button>
+        <button class="chip"    role="radio" aria-checked="false" data-cat="side">♣ Side</button>
+        <button class="chip"    role="radio" aria-checked="false" data-cat="sat">♦ Satélite</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- skeleton: o ESQUELETO da página (palco + linhas da agenda) com shimmer,
+     em vez de um spinner que esconde tudo — o carregar parece metade do tempo -->
+<div id="loading" class="state-block skel" aria-label="Carregando a Global MTT compartilhada pela operação">
+  <div class="skel-stage sp-shimmer"></div>
+  <div class="skel-row sp-shimmer"></div>
+  <div class="skel-row sp-shimmer"></div>
+  <div class="skel-row sp-shimmer"></div>
+  <p>Distribuindo as cartas… buscando a Global MTT compartilhada pela operação.</p>
+</div>
+
+<div id="emptyState" class="state-block" hidden>
+  <span class="icon">🃏</span>
+  <h3>Nenhuma Global compartilhada ainda</h3>
+  <p>Quando a operação subir a Global MTT no Painel do Dia, a semana inteira aparece aqui sozinha.
+     Se você tem o arquivo em mãos, dá pra ler direto — só neste navegador, sem publicar nada.</p>
+  <button class="btn" data-local-upload>📂 Ler minha Global (.xlsx)</button>
+</div>
+
+<main id="content" hidden>
+
+  <div id="globalDiff" hidden></div>
+
+  <section class="section" id="agendaSection">
+    <!-- container estável e polido: trocar de dia ou mexer num filtro reescreve
+         o miolo daqui, e é isso que o leitor de tela anuncia ("SEXTA 18 jul,
+         12 de 34 eventos · R$ 2,4 mi garantidos"). Sem isto, filtrar no teclado
+         não dava retorno nenhum. -->
+    <div id="agendaHead" aria-live="polite"></div>
+    <div id="agendaList"></div>
+    <p class="ah-sub" style="margin-top:9px">♠ Main · ♣ Side · ♦ Satélite — clique numa linha com 🎟 pra ver a rota do ticket.</p>
+  </section>
+
+  <section class="section" id="routesSection">
+    <div class="section-head">
+      <h2><span class="suit">🎟</span> Rotas de ticket do dia</h2>
+      <span class="hint">satélite → ticket → torneio-alvo (o valor no meio é a entrada que o ticket paga)</span>
+    </div>
+    <p class="section-empty" id="routesEmpty" hidden>Nenhum satélite neste dia com os filtros atuais.</p>
+    <div id="routesWrap"></div>
+  </section>
+
+  <section class="section" id="futSection">
+    <div class="section-head">
+      <h2><span class="suit">✦</span> Eventos futuros</h2>
+      <span class="hint">a seção P&amp;D da Global — o que vem depois de domingo</span>
+    </div>
+    <p class="section-empty" id="futEmpty" hidden>A Global atual não traz eventos futuros anunciados.</p>
+    <div id="futGrid"></div>
+  </section>
+
+</main>
+
+<footer>
+  <b>Radar de Eventos</b> · Suprema OS — leitura viva da Global MTT. Dúvidas sobre a grade? Fale com a operação no Painel do Dia.
+  <input type="file" id="localFile" accept=".xlsx,.xls" hidden>
+</footer>
+
+<script src="suprema-db.js"></script>
+<script src="suprema-presence.js"></script>
+<script src="eventos.js"></script>
+<!-- ⌘K command palette (navegação + ações de fábrica) -->
+<script defer src="suprema-palette.js"></script>
+<script src="suprema-onboarding.js"></script>
+<script>
+/* tour de primeira visita — mesmo dispositivo dos outros painéis (1× por
+   navegador; SupremaOnboarding.restart('eventos', …) pra rever) */
+document.addEventListener('DOMContentLoaded', () => {
+  if (!window.SupremaOnboarding) return;
+  SupremaOnboarding.start('eventos', [
+    { el:'#dayBar', title:'A semana inteira', text:'Navegue pelos dias — as mini-barras mostram o peso de garantidos de cada um, nas cores de Main, Side e Satélite.', side:'bottom' },
+    { el:'#agendaSection', title:'Agenda do dia', text:'Cada linha traz horário, categoria, buy-in e garantido. Hoje, a premiação AO VIVO aparece e acende quando bate o GTD. Clique numa linha pra abrir a rota do ticket.', side:'top' },
+    { el:'#routesSection', title:'Rotas de ticket', text:'De qual satélite se chega em cada torneio — com a régua de saúde dos vínculos no topo e alerta de satélites sem destino.', side:'top' },
+    { el:'#agendaHead', title:'Ferramentas do dia', text:'Exporte o dia em CSV pro Excel ou baixe os cards de divulgação dos maiores garantidos de uma vez.', side:'bottom' },
+  ], { accent:'#b3475d', label:'Radar de Eventos' });
+});
+</script>
+</body>
+</html>

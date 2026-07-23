@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Criação Noturna GU · Suprema OS</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%238c5cc6'>♠</text></svg>">
+<script defer src="suprema-xlsx.js"></script>
+<!-- defer: Firebase (~250KB) fora do caminho crítico. A init foi embrulhada em
+     cnInitFirebase(), chamada no DOMContentLoaded (depois dos deferred). -->
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script src="gu-parser.js"></script>
+<script src="suprema-auth.js"></script>
+<!-- shell (chrome compartilhado): SÍNCRONO — o mount inline do nav roda no parse -->
+<script src="suprema-shell.js"></script>
+<script>/* portão: login mora no hub; exige acesso liberado a ESTE painel */ SupremaAuth.guard({ panel:'gu' }); SupremaAuth.revalidateAccess('gu');</script>
+<script src="suprema-motion.js"></script>
+<script>
+/* motion do Suprema OS (ref. MotionSites): glow no cursor + reveal dos cards
+   + a atmosfera do hub (naipes à deriva) */
+SupremaMotion.glow('.card');
+document.addEventListener('DOMContentLoaded', () => {
+  SupremaMotion.reveal('.card');
+  SupremaMotion.ambient();
+  SupremaMotion.scrollProgress({ tint:'#8c5cc6' });          // roxo da GU
+  SupremaMotion.magnetic('.btn.primary');
+  SupremaMotion.aurora('.hero', { tint1:'rgba(140,92,198,.28)', tint2:'rgba(216,181,109,.16)' });
+  /* rede de nós atrás do hero (Network Hero, estreada no Radar de Eventos) */
+  SupremaMotion.network('.hero', { c1:'#8c5cc6', c2:'#8f6b2d', c1Dark:'#b888f0', c2Dark:'#c9a84c' });
+});
+</script>
+<link rel="stylesheet" href="criacao-noturna.css">
+<script src="scripts/lite.js"></script>
+<link rel="stylesheet" href="suprema-tokens.css">
+</head>
+<body>
+
+<!-- chrome via SupremaShell (lacuna S1): moldura padrão no módulo; aqui só a
+     identidade da Criação Noturna. Mesmos ids de antes → criacao-noturna.js não muda. -->
+<nav id="supNav"></nav>
+<script>
+SupremaShell.mountNav('#supNav', {
+  mark: `<svg class="brand-mark" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10.5" stroke="#8c5cc6" stroke-width="1.6"/><path d="M15.5 12a5 5 0 1 1-4.2-7.4 6 6 0 1 0 4.2 7.4z" fill="#b888f0"/></svg>`,
+  sub: 'Criação Noturna · GU',
+  links: [
+    { href:'hub.html',  label:'♠ OS', title:'Voltar ao hub Suprema OS' },
+    { href:'index.html', label:'← Painel' },
+    { href:'admin.html', label:'Admin' }
+  ],
+  opTitle:'Trocar nome'
+});
+</script>
+
+<header class="hero">
+  <div class="hero-inner">
+    <span class="hero-eyebrow"><span>🌙</span> Turno noturno · 19:00 → 07:00 · eventos do dia seguinte</span>
+    <h1>Criação de torneios <em id="heroDay">—</em></h1>
+    <p class="sub">A <b>receita da GU</b> pro próximo dia da grade (janela 06:10 → 05:30), dividida pelas <b>funções do turno</b>: quem faz o <b>Main Event</b> faz os <b>Satélites</b>; os <b>Side Events</b> se dividem entre <b>com</b> e <b>sem Admin Fee</b>. Rake, admin fee, early bird e campanhas em destaque. Marque cada torneio conforme criar — sincroniza ao vivo.</p>
+    <div class="hero-stats">
+      <div class="hstat c-prog"><div class="n" id="stProg">0%</div><div class="l">Criados</div></div>
+      <div class="hstat"><div class="n" id="stTotal">—</div><div class="l">Torneios</div></div>
+      <div class="hstat c-main"><div class="n" id="stMain">—</div><div class="l">Main + Satélites</div></div>
+      <div class="hstat c-side"><div class="n" id="stSideA">—</div><div class="l">Side · c/ Admin</div></div>
+      <div class="hstat c-sidefree"><div class="n" id="stSideB">—</div><div class="l">Side · s/ Admin</div></div>
+      <div class="hstat c-camp" id="stCampWrap" hidden><div class="n" id="stCamp">—</div><div class="l">✦ Com campanha</div></div>
+      <div class="hstat" id="stUrgWrap" hidden><div class="n" id="stUrg" style="color:#e8c860">—</div><div class="l">Estourando prazo</div></div>
+    </div>
+    <!-- anéis de progresso POR FUNÇÃO do turno (Main+Sat / Side c-Admin / Side s-Admin),
+         a mesma divisão de trabalho da noite — preenchem conforme marca criado -->
+    <div class="cn-rings" id="cnRings" aria-label="Progresso de criação por função"></div>
+    <div class="hero-progress">
+      <div class="bar"><div class="fill" id="progFill"></div></div>
+      <div class="cap" id="progCap">Carregue a Global MTT pra começar</div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- TURNO CONCLUÍDO — pedir a próxima GU -->
+  <div class="alldone" id="allDoneBanner" hidden>
+    <span class="ic">🌙</span>
+    <div>
+      <h3>Turno criou tudo! Suba uma nova GU pra atualizar o cronograma de criação.</h3>
+      <p>Todos os torneios deste dia da grade foram marcados como <b>criados</b>. Carregue a próxima <b>Global MTT (GU)</b> acima pra atualizar o cronograma do próximo dia — lembrando: <b>quem cria é o turno noturno (19:00 → 07:00)</b>; o turno da manhã (07:00 → 19:00) não cria.</p>
+      <button class="go" id="allDoneGo">↑ Subir nova GU agora</button>
+      <button class="go" id="allDoneExport" style="margin-left:8px;background:var(--side)">⬇ Arquivar relatório da noite (.xlsx)</button>
+    </div>
+  </div>
+
+  <!-- UPLOAD — botão compacto, mesmo padrão do painel -->
+  <section class="card upload-slim" id="uploadCard">
+    <div class="up-row">
+      <button class="upload-btn" id="dropZone" title="Carregar Global MTT (.xlsx) — aba G MTTS (GU, dólar). Também aceita arrastar o arquivo aqui.">
+        <svg viewBox="0 0 24 24"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+        <span id="dzTitle">Global MTT</span>
+      </button>
+      <span class="up-hint">Aba <b>G MTTS</b> (GU, dólar) · torneios de <b id="uploadDayLabel">amanhã</b> · janela 06:10 → 05:30 — só uma pessoa do turno precisa subir.</span>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" hidden>
+    <div class="upload-meta" id="uploadMeta" hidden></div>
+    <div class="alerts" id="alerts"></div>
+  </section>
+
+  <!-- CONTROLES -->
+  <section class="card" id="controlsCard" hidden>
+    <div class="controls">
+      <div class="ctrl-group">
+        <span class="ctrl-label">Moeda</span>
+        <div class="seg" id="currencySeg">
+          <button data-cur="usd" class="on">$ Dólar</button>
+          <button data-cur="brl">R$ Real</button>
+        </div>
+      </div>
+      <div class="ctrl-group" style="flex:1;min-width:280px">
+        <span class="ctrl-label">Equipe do turno — atribua a função de cada um</span>
+        <div class="ops-row" id="opsRow"></div>
+        <p class="section-note" style="margin:4px 0 0">
+          <span class="lk"><span class="d" style="background:var(--main-bright)"></span>Main + Satélites</span>
+          <span class="lk"><span class="d" style="background:var(--side-bright)"></span>Side c/ Admin Fee</span>
+          <span class="lk"><span class="d" style="background:var(--sidefree-bright)"></span>Side s/ Admin Fee</span>
+          <span style="opacity:.8">Sem função marcada, todos dividem aquele bloco.</span>
+        </p>
+      </div>
+    </div>
+    <div style="margin-top:20px;display:flex;gap:22px;flex-wrap:wrap;align-items:flex-end">
+      <div class="ctrl-group">
+        <span class="ctrl-label">Filtrar por operador</span>
+        <div class="filter-chips" id="filterChips"></div>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">Busca</span>
+        <input type="search" class="search-inp" id="searchInp" placeholder="Nome ou horário…">
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">&nbsp;</span>
+        <button class="btn primary" id="focusBtn" style="padding:9px 20px">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg>
+          Modo foco — criar próximo
+        </button>
+      </div>
+    </div>
+    <div id="fieldDiag" class="section-note" style="margin:16px 0 0" hidden></div>
+  </section>
+
+  <!-- LISTA -->
+  <section id="listArea">
+    <div class="empty-state" id="emptyState">
+      <span class="moon">🌙</span>
+      Nenhuma planilha carregada ainda pra este dia da grade.<br>
+      Suba a Global MTT acima — ou aguarde: se um parceiro subir, aparece aqui sozinho.
+    </div>
+  </section>
+
+  <div class="actions-bar" id="actionsBar" hidden>
+    <button class="btn primary" id="exportBtn">
+      <svg viewBox="0 0 24 24"><path d="M12 3v12M12 15l-4-4M12 15l4-4"/><path d="M4 18v1a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1"/></svg>
+      Exportar divisão (.xlsx)
+    </button>
+    <button class="btn ghost" id="summaryBtn">
+      <svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 13h6M9 17h4"/></svg>
+      Copiar resumo da divisão
+    </button>
+    <button class="btn ghost" id="handoffBtn" title="Passar seus torneios pendentes para um parceiro">
+      <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/><path d="M3 5v14"/></svg>
+      Passar meus pendentes
+    </button>
+    <button class="btn ghost" id="tvBtn" title="Visão de parede: progresso e prazos em tela cheia, só leitura">
+      <svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      Modo TV
+    </button>
+    <button class="btn ghost" id="logBtn" title="Quem marcou, desmarcou, trocou ID ou passou torneio — trilha da noite">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      Histórico
+    </button>
+  </div>
+
+</main>
+
+<div id="focusOverlay" role="dialog" aria-modal="true" aria-label="Detalhe do item" aria-hidden="true"><div class="focus-card" id="focusCard"></div></div>
+
+<div id="tvOverlay" role="dialog" aria-modal="true" aria-label="Modo TV da criação noturna" aria-hidden="true"><div class="tv-bg" aria-hidden="true"></div><button class="tv-close" id="tvClose" title="Fechar (Esc)">✕</button><div class="tv-inner" id="tvInner"></div></div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+
+<script src="suprema-db.js"></script>
+<!-- criacao-calc: núcleo numérico da receita (parsing, fee %, early bird),
+     puro e testado. Tem que vir ANTES do criacao-noturna.js, que o consome. -->
+<!-- O Feltro: o fundo WebGL da Suprema TV, reaproveitado no modo TV daqui.
+     defer porque só é usado quando o operador abre o telão — não atrasa o
+     carregamento da planilha, que é o caminho crítico da página. -->
+<script defer src="suprema-feltro.js"></script>
+<script src="criacao-calc.js"></script>
+<script src="criacao-noturna.js"></script>
+<!-- ⌘K command palette (navegação + ações de fábrica) -->
+<script defer src="suprema-palette.js"></script>
+<script src="suprema-presence.js"></script>
+<script src="suprema-onboarding.js"></script>
+<script>
+  if (window.SupremaAuth && SupremaAuth.getSession && SupremaAuth.getSession()){
+    SupremaOnboarding.start('criacao', [
+      { el:'#dropZone', title:'Suba a GU aqui', text:'Carregue a Global MTT (aba G MTTS). O sistema separa Main, Side e Satélite e divide entre a equipe automaticamente.', side:'bottom' },
+      { el:'#focusBtn', title:'Modo Foco', text:'Cria os torneios um a um, de cima pra baixo, com a receita completa de cada evento na sua frente.', side:'top' },
+      { el:'#exportBtn', title:'Arquive a noite', text:'No fim do turno, exporta o relatório completo do que foi criado em .xlsx.', side:'top' }
+    ], { accent:'#8c5cc6', label:'Criação Noturna' });
+  }
+</script>
+</body>
+</html>

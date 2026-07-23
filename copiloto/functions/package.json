@@ -1,0 +1,20 @@
+{
+  "name": "suprema-copiloto-functions",
+  "description": "Backend do Copiloto de IA (Claude) do Suprema OS — guarda a ANTHROPIC_API_KEY",
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions:supremaCopiloto"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^6.1.0"
+  },
+  "private": true
+}

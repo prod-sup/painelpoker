@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin · Suprema OS</title>
+<script src="suprema-auth.js"></script>
+<script>
+/* ── PORTÃO DE ACESSO: o login do Suprema OS mora no hub (hub.html).
+   Reconhece quem já está logado OU é admin confiável neste navegador — nesse
+   caso o painel entra direto (ver autoEnterFromSession, abaixo). Quem não é
+   reconhecido volta pro hub ANTES de renderizar. ── */
+SupremaAuth.guard();
+/* admin reconhecido: some com a tela de login ANTES do primeiro paint —
+   o autoEnterFromSession (abaixo) entra direto, sem flash de login.
+   Operador comum NUNCA vê a tela de login daqui: esconde tudo e o
+   autoEnterFromSession devolve pro hub com o aviso de acesso (a exceção
+   é o admin por flag no Firebase, que o autoEnter confirma no banco). */
+var __rec = SupremaAuth.recognize();
+if (__rec.email) document.documentElement.classList.add('admin-reconhecido');
+</script>
+<style>html.admin-reconhecido #loginWrap{display:none !important}</style>
+<script src="suprema-motion.js"></script>
+<script>
+/* motion do Suprema OS (ref. MotionSites): glow no cursor nos cards e KPIs.
+   Sem reveal aqui: o conteúdo do admin nasce dinâmico dentro de abas ocultas,
+   e reveal em elemento oculto o deixaria preso invisível até a aba abrir.
+   busyWatch: enquanto o #loader estiver ligado, fichas caem na ponta do mouse. */
+SupremaMotion.glow('.card, .kpi');
+SupremaMotion.busyWatch('#loader', 'on');
+SupremaMotion.busyAuto();
+document.addEventListener('DOMContentLoaded', () => {
+  SupremaMotion.ambient();                                   // atmosfera de feltro
+  SupremaMotion.scrollProgress({ tint:'#d8b56d' });          // admin longo: progresso no topo
+  SupremaMotion.magnetic('.btn.btn-gold');                   // CTAs dourados magnéticos
+});
+</script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%238f6b2d'>♠</text></svg>">
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://design-1-53c00-default-rtdb.firebaseio.com" crossorigin>
+<link rel="stylesheet" href="admin.css">
+<script src="scripts/lite.js"></script>
+<link rel="stylesheet" href="suprema-tokens.css">
+<script>/* dark antes do primeiro paint — mesma chave do painel/criação */
+(function(){ if(localStorage.getItem('suprema_dark_mode')==='1') document.documentElement.classList.add('dark'); })();</script>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginWrap">
+  <div class="lbox">
+    <div class="llogo">
+      <span class="llogo-suit">♠</span>
+      <h1>Suprema Poker</h1>
+      <p>Área Administrativa</p>
+    </div>
+    <div class="lsep"></div>
+    <div class="lfield"><label>Email</label>
+      <input type="email" id="lEmail" placeholder="email@suprema.group" autocomplete="email">
+    </div>
+    <div class="lfield"><label>Senha</label>
+      <input type="password" id="lPass" placeholder="••••••••" autocomplete="current-password"
+        data-act="loginOnEnter" data-act-on="keydown">
+    </div>
+    <button class="lbtn" id="lBtn" data-act="doLogin">Entrar</button>
+    <div class="lerr" id="lErr"></div>
+  </div>
+</div>
+
+<!-- LOADER -->
+<div id="loader"><div class="spin"></div><p>Carregando...</p></div>
+
+<!-- APP -->
+<div id="app">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="tb-brand">
+      <span class="tb-suit">♠</span>Suprema OS
+      <span class="admin-chip">ADMIN</span>
+    </div>
+    <div class="tb-right">
+      <div class="presence-wrap" id="presenceWrap" title="Operadores online agora" hidden></div>
+      <div class="tb-user">
+        <span class="tb-dot"></span>
+        <span id="adminName">—</span>
+      </div>
+      <button class="btn btn-ghost" data-act="openAuditSummary"><svg viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg> Resumo auditoria</button>
+      <button class="btn btn-ghost" data-act="openNotifHistory"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg> Notificações</button>
+      <button class="btn btn-ghost" data-act="openAdminLog"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Log admin</button>
+      <button class="btn btn-ghost" data-act="openFieldTrend"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Field trend</button>
+      <button class="btn btn-ghost" data-act="openOpRanking"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M8.21 13.89 7 23l5-3 5 3-1.21-9.12"/></svg> Ranking</button>
+      <button class="btn btn-ghost" data-act="openOverlayHeatmap"><svg viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> Heatmap</button>
+      <button class="btn btn-ghost" data-act="openJustifs" style="position:relative">
+        <svg viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg> Justificativas
+        <span id="pendingBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--amber);color:#000;font-size:9px;font-weight:800;border-radius:99px;padding:1px 5px;min-width:14px;text-align:center"></span>
+      </button>
+      <a href="criacao-noturna.html" class="tb-back" title="Criação de torneios do turno noturno (GU)">🌙 Criação GU</a>
+      <a href="index.html" class="tb-back">← Painel</a>
+      <a href="hub.html" class="tb-back" title="Voltar ao hub Suprema OS">♠ OS</a>
+      <button class="tb-btn" id="darkToggle" data-act="toggleDark" title="Alternar modo claro/escuro">🌙</button>
+      <button class="tb-btn" data-act="doLogout">Sair</button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <span class="nav-group">Auditoria</span>
+    <button class="ntab active" data-act="nav" data-arg="audit"><span class="ni"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>Acompanhamento</button>
+    <button class="ntab" data-act="nav" data-arg="criacao"><span class="ni"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></span>Criação (GU)</button>
+    <span class="nav-group">Analytics</span>
+    <button class="ntab" data-act="nav" data-arg="dashboard"><span class="ni"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>Dashboard</button>
+    <button class="ntab" data-act="nav" data-arg="grade"><span class="ni"><svg viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></span>Grade</button>
+    <span class="nav-group">Sistema</span>
+    <button class="ntab" data-act="nav" data-arg="operadores"><span class="ni"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>Operadores</button>
+    <button class="ntab" data-act="nav" data-arg="backup"><span class="ni"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg></span>Backup & Arquivo</button>
+    <button class="ntab" id="navAvisos" data-act="nav" data-arg="avisos"><span class="ni"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>Conteúdo do hub</button>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="app-main">
+
+    <!-- ══ AUDITORIA / ACOMPANHAMENTO ══ -->
+    <div class="page active" id="pageAudit">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow">Auditoria</div>
+          <h1>Acompanhamento de Torneios</h1>
+          <p>Dados preenchidos pelos operadores — mesma visualização do relatório do painel</p>
+        </div>
+        <div class="ph-actions">
+          <button class="btn btn-ghost" id="btnSoAnomalia" data-act="toggleSoAnomalia">⚠ Só anomalias</button>
+          <button class="btn btn-ghost" data-act="batchNotifyAnomalias">📨 Notificar anomalias</button>
+          <button class="btn btn-ghost" data-act="exportAuditXlsx">⬇ Exportar XLSX</button>
+          <button class="btn btn-gold" data-act="loadAudit">Buscar</button>
+        </div>
+      </div>
+      <div class="filters" style="flex-wrap:wrap;gap:8px">
+        <!-- Atalhos de semana -->
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3)">Período</span>
+          <button class="btn btn-ghost btn-sm" data-act="setAuditPeriod" data-arg="today">Hoje</button>
+          <button class="btn btn-ghost btn-sm" data-act="setAuditPeriod" data-arg="week">Esta semana</button>
+          <button class="btn btn-ghost btn-sm" data-act="setAuditPeriod" data-arg="lastweek">Semana passada</button>
+          <button class="btn btn-ghost btn-sm" data-act="setAuditPeriod" data-arg="month">Este mês</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div class="fld"><label>De</label><input type="date" id="auFrom"></div>
+          <div class="fld"><label>Até</label><input type="date" id="auTo"></div>
+        </div>
+        <div class="fld"><label>Categoria</label>
+          <select id="auCat">
+            <option value="">Todas</option>
+            <option value="main">Main Event</option>
+            <option value="side">Side Event</option>
+            <option value="sat">Satélite</option>
+          </select>
+        </div>
+        <div class="fld"><label>Status</label>
+          <select id="auStatus">
+            <option value="">Todos</option>
+            <option value="fechado">Fechado</option>
+            <option value="aberto">Aberto</option>
+            <option value="nf">Não formou</option>
+          </select>
+        </div>
+        <div class="fld"><label>Operador</label>
+          <select id="auOp"><option value="">Todos</option></select>
+        </div>
+        <div class="fld"><label>Torneio</label>
+          <input type="text" id="auSearch" placeholder="Buscar por nome...">
+        </div>
+      </div>
+      <div id="batchActions">
+        <span id="batchCount" style="font-size:12.5px;font-weight:500;color:var(--gold)"></span>
+        <button class="btn btn-gold btn-sm" data-act="batchApprove">✓ Aprovar selecionados</button>
+        <button class="btn btn-ghost btn-sm" data-act="batchDeselect">Cancelar</button>
+      </div>
+      <div id="auditResult"></div>
+    </div>
+
+    <!-- ══ DASHBOARD ══ -->
+    <!-- ══ AUDITORIA DA CRIAÇÃO NOTURNA (GU) ══ -->
+    <div class="page" id="pageCriacao">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow">Auditoria</div>
+          <h1>Criação Noturna (GU)</h1>
+          <p>O que o turno da noite criou, torneio a torneio — marque erros de criação (o alerta aparece na hora na página da criação) e meça a performance de cada operador</p>
+        </div>
+        <div class="ph-actions">
+          <button class="btn btn-ghost" id="btnCnSoErros" data-act="toggleCnErros">⚠ Só erros / anomalias</button>
+          <button class="btn btn-ghost" data-act="exportCnXlsx">⬇ Exportar XLSX</button>
+          <button class="btn btn-gold" data-act="loadCriacao">Buscar</button>
+        </div>
+      </div>
+      <div class="filters" style="flex-wrap:wrap;gap:8px">
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3)">Período</span>
+          <button class="btn btn-ghost btn-sm" data-act="setCnPeriod" data-arg="1">Hoje</button>
+          <button class="btn btn-ghost btn-sm" data-act="setCnPeriod" data-arg="7">7 dias</button>
+          <button class="btn btn-ghost btn-sm" data-act="setCnPeriod" data-arg="30">30 dias</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div class="fld"><label>De</label><input type="date" id="cnFrom"></div>
+          <div class="fld"><label>Até</label><input type="date" id="cnTo"></div>
+        </div>
+        <div class="fld"><label>Operador</label>
+          <select id="cnOp" data-act="renderCn" data-act-on="change"><option value="">Todos</option></select>
+        </div>
+        <div class="fld"><label>Torneio</label>
+          <input type="text" id="cnSearch" placeholder="Buscar por nome..." data-act="debouncedCn" data-act-on="input">
+        </div>
+      </div>
+      <div class="kpi-grid" id="cnKpi"></div>
+      <div class="card" style="margin-bottom:18px">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Performance por operador</h3>
+        <div class="tbl-wrap"><table class="audit-table" id="cnOpsTable"></table></div>
+      </div>
+      <div class="card">
+        <div class="tbl-wrap"><table class="audit-table" id="cnTable"></table></div>
+      </div>
+    </div>
+
+    <div class="page" id="pageDashboard">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow">Analytics</div>
+          <h1>Dashboard</h1>
+          <p>Métricas consolidadas do período</p>
+        </div>
+        <div class="ph-actions">
+          <div class="ptabs" id="dashTabs">
+            <button class="ptab" data-act="setDp" data-arg="7">7d</button>
+            <button class="ptab active" data-act="setDp" data-arg="30">30d</button>
+            <button class="ptab" data-act="setDp" data-arg="90">90d</button>
+          </div>
+        </div>
+      </div>
+      <div class="kpi-grid" id="dashKpi"></div>
+      <div class="card" style="margin-bottom:18px">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:4px">🌙 Criação Noturna (GU) — últimos 30 dias</h3>
+        <div style="font-size:12px;color:var(--ink3);margin-bottom:12px">Produtividade do turno da noite — detalhe na aba <a href="#" data-act="goCriacao" style="color:var(--gold)">Criação (GU)</a></div>
+        <div class="kpi-grid" id="dashCnKpi" style="margin-bottom:0"><div class="kpi"><div class="kpi-label">Carregando…</div></div></div>
+      </div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
+          <div><div class="card-title"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Insights do período</div><div class="card-sub">Anomalias e oportunidades detectadas automaticamente</div></div>
+          <div class="card-actions"><button class="btn btn-ghost btn-sm" data-act="openInsightSettings">⚙ Limiares</button></div>
+        </div>
+        <div class="admin-pad-row" id="dashInsights">
+          <div style="font-size:12px;color:var(--ink3)">Carregando dados...</div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
+          <div><div class="card-title"><svg viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg> Projeção do mês</div>
+               <div class="card-sub">Tendência de premiação e overlay com base nos dias rodados</div></div>
+          <div class="card-actions"><button class="btn btn-ghost btn-sm" data-act="buildMonthProjection">Atualizar</button></div>
+        </div>
+        <div class="admin-pad-row" id="monthProjection">
+          <div style="font-size:12px;color:var(--ink3)">Carregando...</div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
+          <div><div class="card-title"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Comparativo semana a semana</div>
+               <div class="card-sub">Evolução de performance e overlay nas últimas 4 semanas</div></div>
+        </div>
+        <div class="admin-pad-row" id="weeklyComparison">
+          <div style="font-size:12px;color:var(--ink3)">Carregando...</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-title">Top torneios com overlay</div></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>Torneio</th><th>Cat.</th><th class="r">GTD</th>
+              <th class="r">Premiação</th><th class="r">Overlay</th><th class="r">Perf.</th><th>Barra</th><th></th>
+            </tr></thead>
+            <tbody id="dashOverlayTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ GRADE ══ -->
+    <div class="page" id="pageGrade">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow">Analytics</div>
+          <h1>Análise de Grade</h1>
+          <p>Performance histórica por torneio</p>
+        </div>
+        <div class="ph-actions">
+          <div class="ptabs" id="gradeTabs">
+            <button class="ptab" data-act="setGp" data-arg="7">7d</button>
+            <button class="ptab active" data-act="setGp" data-arg="30">30d</button>
+            <button class="ptab" data-act="setGp" data-arg="90">90d</button>
+          </div>
+          <button class="btn btn-ghost" data-act="exportGradeXlsx">⬇ XLSX</button>
+        </div>
+      </div>
+      <div class="filters">
+        <div class="fld"><label>Categoria</label>
+          <select id="gradeCat" data-act="renderGrade" data-act-on="change">
+            <option value="">Todas</option><option value="main">Main Event</option>
+            <option value="side">Side Event</option><option value="sat">Satélite</option>
+          </select>
+        </div>
+        <div class="fld"><label>Ordenar por</label>
+          <select id="gradeSort" data-act="renderGrade" data-act-on="change">
+            <option value="ov_desc">Maior overlay</option>
+            <option value="perf_asc">Pior performance</option>
+            <option value="perf_desc">Melhor performance</option>
+            <option value="runs">Mais rodadas</option>
+          </select>
+        </div>
+        <div class="fld"><label>Buscar</label>
+          <input type="text" id="gradeSearch" placeholder="Nome do torneio..." data-act="debouncedGrade" data-act-on="input">
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div><div class="card-title">Performance por torneio</div><div class="card-sub" id="gradeCount">—</div></div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>Torneio</th><th>Cat.</th><th class="r">Rodadas</th>
+              <th class="r">GTD médio</th><th class="r">Pool médio</th>
+              <th class="r">Perf. média</th><th class="r">Overlay total</th>
+              <th class="r">Taxa OV%</th><th>Risco</th><th></th>
+            </tr></thead>
+            <tbody id="gradeBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ OPERADORES ══ -->
+    <div class="page" id="pageOperadores">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow">Sistema</div>
+          <h1>Operadores</h1>
+          <p>Contas cadastradas com acesso ao painel</p>
+        </div>
+        <div class="ph-actions">
+          <button class="btn" data-act="backfillUidIndex" data-act-self title="Popula uidIndex/<uid> a partir de users/<key>/authUid. Rode 1x antes de publicar as regras de acesso por painel, pra ninguém precisar logar de novo.">Sincronizar acessos (regras)</button>
+          <button class="btn" data-act="backfillEditFlags" data-act-self title="Copia o acesso atual pra permissão de EDIÇÃO de cada conta (quem vê segue editando). Depois disso, ver e editar são chips independentes — dá pra liberar o Painel do Dia pra todo mundo só em leitura.">Separar ver/editar (1ª vez)</button>
+          <button class="btn btn-gold" data-act="openAddOp">+ Novo operador</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div><div class="card-title">Operadores</div><div class="card-sub" id="opCount">—</div></div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>Nome</th><th>Email</th><th class="r">Fixações</th>
+              <th>Admin</th><th>Acesso aos painéis</th><th>Criado em</th><th></th>
+            </tr></thead>
+            <tbody id="opBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ BACKUP & ARQUIVO ══ -->
+    <div class="page" id="pageBackup">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow">Sistema</div>
+          <h1>Backup & Arquivo</h1>
+          <p>Exportação de dados históricos, limpeza automática e integração com Google Sheets</p>
+        </div>
+      </div>
+
+      <!-- Status do banco -->
+      <div class="kpi-grid" id="backupKpi" style="margin-bottom:22px"></div>
+
+      <!-- Export mensal -->
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
+          <div><div class="card-title"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg> Export mensal completo</div>
+               <div class="card-sub">Baixa todos os dados de um mês em XLSX — uma aba por dia</div></div>
+        </div>
+        <div style="padding:16px 18px">
+          <div class="filters" style="margin-bottom:14px">
+            <div class="fld"><label>Mês</label>
+              <select id="bkMonth" style="padding:7px 10px;min-width:140px">
+                <option value="">Selecione...</option>
+              </select>
+            </div>
+            <button class="btn btn-gold" data-act="exportMonthXlsx">⬇ Exportar mês completo</button>
+            <button class="btn btn-ghost" data-act="exportAllTimeXlsx">⬇ Exportar TUDO</button>
+          </div>
+          <div id="bkMonthStatus" style="font-size:12px;color:var(--ink3)"></div>
+        </div>
+      </div>
+
+      <!-- Limpeza automática -->
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
+          <div><div class="card-title"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Limpeza automática</div>
+               <div class="card-sub">Remove dados do Firebase com mais de 90 dias — mantém snapshots e relatórios</div></div>
+          <div class="card-actions">
+            <button class="btn btn-ghost btn-sm" data-act="previewCleanup">Pré-visualizar</button>
+            <button class="btn btn-red btn-sm" data-act="runCleanup">Executar limpeza</button>
+          </div>
+        </div>
+        <div style="padding:16px 18px">
+          <div id="cleanupPreview" style="font-size:12px;color:var(--ink3)">
+            Clique em "Pré-visualizar" para ver quais datas serão removidas.
+          </div>
+        </div>
+      </div>
+
+      <!-- Google Sheets -->
+      <div class="card">
+        <div class="card-head">
+          <div><div class="card-title"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Google Sheets (backup diário)</div>
+               <div class="card-sub">Exporta os dados do dia atual para uma planilha Google automaticamente</div></div>
+          <div class="card-actions">
+            <button class="btn btn-gold btn-sm" data-act="exportToSheets">Enviar hoje para Sheets</button>
+          </div>
+        </div>
+        <div class="admin-stack">
+          <div class="mf" style="margin:0">
+            <label>URL da planilha Google (modo Apps Script)</label>
+            <input type="url" id="sheetsUrl" placeholder="https://script.google.com/macros/s/..."
+              style="padding:8px 11px;font-size:12px">
+          </div>
+          <div class="mf" style="margin:0">
+            <label>Segredo compartilhado (definido em Propriedades do script)</label>
+            <input type="password" id="sheetsSecret" placeholder="Opcional, mas recomendado"
+              style="padding:8px 11px;font-size:12px">
+          </div>
+          <div style="font-size:11px;color:var(--ink3);line-height:1.6">
+            <b>Como configurar:</b> No Google Sheets, vá em Extensões → Apps Script → cole o script abaixo → Implantar → App da Web → copie a URL e cole acima.
+            <button class="btn btn-ghost btn-sm" style="margin-left:8px" data-act="copyAppsScript">📋 Copiar script</button>
+          </div>
+          <div id="sheetsStatus" style="font-size:12px;color:var(--ink3)"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ CENTRO DE EDIÇÃO DO HUB ══ -->
+    <div class="page" id="pageAvisos">
+      <div class="ph">
+        <div>
+          <div class="ph-eyebrow">Sistema</div>
+          <h1>Conteúdo do hub</h1>
+          <p>Tudo que você mantém atualizado no hub em um só lugar — avisos, agenda da casa, links (Fique ligado) e patch notes. As mudanças aparecem no hub em tempo real para todos.</p>
+        </div>
+      </div>
+
+      <div class="hub-edit-nav" id="hubEditNav">
+        <button type="button" class="on" data-sec="secAvisos">Avisos</button>
+        <button type="button" data-sec="secAgenda">Agenda da casa</button>
+        <button type="button" data-sec="secLinks">Fique ligado</button>
+        <button type="button" data-sec="secPatch">Patch notes</button>
+      </div>
+
+      <!-- ─ AVISOS ─ -->
+      <section class="hub-edit-sec on" id="secAvisos">
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
+          <div><div class="card-title" id="avFormTitle">Novo aviso</div>
+               <div class="card-sub">Publica no topo do hub; cada operador pode dispensar no navegador dele</div></div>
+        </div>
+        <div class="admin-stack">
+          <div class="filters" style="gap:12px;margin:0">
+            <div class="fld"><label>Tipo</label>
+              <select id="avTipo">
+                <option value="info">Informativo</option>
+                <option value="aviso">Aviso</option>
+                <option value="erro">Erro (crítico)</option>
+              </select>
+            </div>
+            <div class="fld" style="flex:1;min-width:240px"><label>Título</label>
+              <input type="text" id="avTitulo" maxlength="90" placeholder="Ex: Instabilidade na atualização do app">
+            </div>
+          </div>
+          <div class="mf" style="margin:0">
+            <label>Texto (opcional)</label>
+            <textarea id="avTexto" rows="3" maxlength="600" placeholder="Detalhe o aviso: o que houve, o que fazer, previsão…" style="width:100%;padding:9px 12px;font:inherit;font-size:13px;resize:vertical"></textarea>
+          </div>
+          <label style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2);cursor:pointer">
+            <input type="checkbox" id="avAtivo" checked> Ativo (visível no hub)
+          </label>
+          <div style="display:flex;gap:10px">
+            <button class="btn btn-gold" id="avSaveBtn" data-act="saveAviso">Publicar aviso</button>
+            <button class="btn btn-ghost" id="avCancelBtn" data-act="resetAvisoForm" hidden>Cancelar edição</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div><div class="card-title">Avisos publicados</div><div class="card-sub" id="avCount">—</div></div></div>
+        <div id="avList" style="padding:8px 18px 18px"></div>
+      </div>
+      </section>
+
+      <!-- ─ AGENDA DA CASA ─ -->
+      <section class="hub-edit-sec" id="secAgenda" hidden>
+        <div class="card" style="margin-bottom:18px">
+          <div class="card-head"><div><div class="card-title">Novo evento</div>
+               <div class="card-sub">Aparece no calendário e na lista "Agenda da casa" do hub</div></div></div>
+          <div class="admin-stack">
+            <div class="filters" style="gap:12px;margin:0">
+              <div class="fld"><label>Início</label><input type="date" id="agDate"></div>
+              <div class="fld"><label>Fim <span style="color:var(--ink3)">(opcional)</span></label><input type="date" id="agEnd"></div>
+              <div class="fld"><label>Hora</label><input type="time" id="agTime" value="15:00"></div>
+              <label class="fld" style="flex-direction:row;align-items:center;gap:8px;font-size:13px;color:var(--ink2);cursor:pointer;align-self:flex-end;padding-bottom:8px">
+                <input type="checkbox" id="agAllDay"> Dia inteiro
+              </label>
+            </div>
+            <div class="fld" style="min-width:240px"><label>Nome do evento</label>
+              <input type="text" id="agTitle" maxlength="80" placeholder="Ex: Primeiro 5M Garantidos">
+            </div>
+            <div><button class="btn btn-gold" data-act="saveHubEvent">Adicionar evento</button></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div><div class="card-title">Eventos adicionados</div><div class="card-sub" id="agCount">—</div></div></div>
+          <div id="agList" style="padding:8px 18px 18px"></div>
+        </div>
+      </section>
+
+      <!-- ─ FIQUE LIGADO (LINKS) ─ -->
+      <section class="hub-edit-sec" id="secLinks" hidden>
+        <div class="card" style="margin-bottom:18px">
+          <div class="card-head"><div><div class="card-title">Novo link</div>
+               <div class="card-sub">Campanhas e eventos live que aparecem em "Fique ligado" no hub</div></div></div>
+          <div class="admin-stack">
+            <div class="fld"><label>Link (URL)</label><input type="url" id="lkUrlA" placeholder="https://..."></div>
+            <div class="filters" style="gap:12px;margin:0">
+              <div class="fld" style="flex:1;min-width:200px"><label>Nome</label><input type="text" id="lkTitleA" maxlength="60" placeholder="Ex: Suprema Poker Tour"></div>
+              <div class="fld" style="min-width:160px"><label>Etiqueta <span style="color:var(--ink3)">(opcional)</span></label><input type="text" id="lkTagA" maxlength="30" placeholder="Ex: Evento Live"></div>
+            </div>
+            <div><button class="btn btn-gold" data-act="saveHubLink">Adicionar link</button></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div><div class="card-title">Links adicionados</div><div class="card-sub" id="lkCountA">—</div></div></div>
+          <div id="lkListA" style="padding:8px 18px 18px"></div>
+        </div>
+      </section>
+
+      <!-- ─ PATCH NOTES ─ -->
+      <section class="hub-edit-sec" id="secPatch" hidden>
+        <div class="card">
+          <div class="card-head"><div><div class="card-title">Patch notes</div>
+               <div class="card-sub">Novidades e correções mostradas no board "Patch notes" do hub</div></div>
+            <div class="card-actions"><span id="pnMetaA" style="font-size:11.5px;color:var(--ink3)"></span></div>
+          </div>
+          <div style="padding:16px 18px;display:flex;flex-direction:column;gap:10px">
+            <textarea id="pnTextA" rows="12" spellcheck="false" style="width:100%;padding:12px 14px;font:inherit;font-size:13px;font-family:var(--mono);line-height:1.6;resize:vertical"></textarea>
+            <p style="font-size:11.5px;color:var(--ink3);line-height:1.6;margin:0">Formato: linha com <b>##</b> vira título da versão (ex: <b>## v1.2 · 08/07/2026</b>); linha com <b>-</b> ou <b>*</b> vira item da lista; o resto vira parágrafo.</p>
+            <div style="display:flex;gap:10px"><button class="btn btn-gold" data-act="saveHubPatch">Salvar patch notes</button></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ══ MODAL: Log de Auditoria ══ -->
+    <div class="modal-bg" id="moAdminLog" role="dialog" aria-modal="true" aria-hidden="true">
+      <div class="modal" style="max-width:820px">
+        <h2>📋 Log de auditoria</h2>
+        <div class="msub">Registro imutável de todas as ações do admin — últimas 100</div>
+        <div class="tbl-wrap" style="max-height:460px;overflow-y:auto">
+          <table>
+            <thead><tr><th>Data/Hora</th><th>Ação</th><th>Admin</th><th>Detalhes</th></tr></thead>
+            <tbody id="adminLogBody"></tbody>
+          </table>
+        </div>
+        <div class="modal-actions"><button class="btn btn-ghost" data-act="closeMo" data-arg="moAdminLog" style="flex:1;justify-content:center">Fechar</button></div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL: Tendência de Field ══ -->
+    <div class="modal-bg" id="moFieldTrend" role="dialog" aria-modal="true" aria-hidden="true">
+      <div class="modal" style="max-width:620px">
+        <h2>📈 Tendência de field por torneio</h2>
+        <div class="msub">Comparativo dos últimos 30 dias vs 30-60 dias anteriores — mínimo 2 rodadas em cada período</div>
+        <div class="tbl-wrap" style="max-height:440px;overflow-y:auto">
+          <table>
+            <thead><tr><th>Torneio</th><th class="r">Média ant.</th><th class="r">Média rec.</th><th class="r">Variação</th><th>Tendência</th></tr></thead>
+            <tbody id="fieldTrendBody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--ink3)">Clique em Atualizar</td></tr></tbody>
+          </table>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-gold" data-act="buildFieldTrend">Atualizar</button>
+          <button class="btn btn-ghost" data-act="closeMo" data-arg="moFieldTrend" style="flex:1;justify-content:center">Fechar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL: Histórico de Notificações ══ -->
+    <div class="modal-bg" id="moNotifHistory" role="dialog" aria-modal="true" aria-hidden="true">
+      <div class="modal" style="max-width:780px">
+        <h2>📋 Histórico de notificações</h2>
+        <div class="msub">Todas as notificações enviadas aos operadores</div>
+        <div class="tbl-wrap" style="max-height:460px;overflow-y:auto">
+          <table>
+            <thead><tr><th>Enviado em</th><th>Torneio</th><th>Tipo</th><th>Por</th><th>Status</th><th>Operador</th></tr></thead>
+            <tbody id="notifHistoryBody"></tbody>
+          </table>
+        </div>
+        <div class="modal-actions"><button class="btn btn-ghost" data-act="closeMo" data-arg="moNotifHistory" style="flex:1;justify-content:center">Fechar</button></div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL: Ranking de Operadores ══ -->
+    <div class="modal-bg" id="moOpRanking" role="dialog" aria-modal="true" aria-hidden="true">
+      <div class="modal" style="max-width:680px">
+        <h2>🏆 Ranking de operadores</h2>
+        <div class="msub">Performance dos últimos 30 dias</div>
+        <div class="tbl-wrap" style="max-height:420px;overflow-y:auto">
+          <table>
+            <thead><tr><th>#</th><th>Operador</th><th class="r">Torneios</th><th class="r">Fixados</th><th class="r">Com ID</th><th class="r">Sem prem.</th><th class="r">Notif.</th><th class="r" title="Torneios criados na Criação Noturna (GU), últimos 30 dias">Criados GU</th><th class="r" title="Erros de criação marcados pela auditoria">Erros GU</th></tr></thead>
+            <tbody id="opRankingBody"></tbody>
+          </table>
+        </div>
+        <div class="modal-actions"><button class="btn btn-ghost" data-act="closeMo" data-arg="moOpRanking" style="flex:1;justify-content:center">Fechar</button></div>
+      </div>
+    </div>
+
+    <!-- ══ MODAL: Heatmap de Overlay por Horário ══ -->
+    <div class="modal-bg" id="moHeatmap" role="dialog" aria-modal="true" aria-hidden="true">
+      <div class="modal" style="max-width:580px">
+        <h2>🔥 Overlay por horário</h2>
+        <div class="msub">Distribuição de overlay por faixa de horário — últimos 30 dias</div>
+        <div class="tbl-wrap" style="max-height:440px;overflow-y:auto">
+          <table>
+            <thead><tr><th>Hora</th><th class="r">Torneios</th><th class="r">Com OV</th><th>Taxa OV</th><th class="r">OV Total</th></tr></thead>
+            <tbody id="heatmapBody"></tbody>
+          </table>
+        </div>
+        <div class="modal-actions"><button class="btn btn-ghost" data-act="closeMo" data-arg="moHeatmap" style="flex:1;justify-content:center">Fechar</button></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MODAL: Adicionar operador -->
+<div class="modal-bg" id="moAddOp" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal">
+    <h2>Novo operador</h2>
+    <div class="msub">Cria uma conta com acesso ao painel operacional.</div>
+    <div class="merr" id="aoErr"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="mf" style="margin:0"><label>Nome completo</label>
+        <input type="text" id="aoNome" placeholder="João Silva" autocomplete="off">
+      </div>
+      <div class="mf" style="margin:0"><label>Apelido no painel</label>
+        <input type="text" id="aoApelido" placeholder="João">
+      </div>
+    </div>
+    <div class="mf" style="margin-top:10px"><label>Email</label>
+      <input type="email" id="aoEmail" placeholder="email@suprema.group">
+    </div>
+    <div class="mf">
+      <label>Senha inicial</label>
+      <input type="password" id="aoPass" placeholder="Mínimo 8 caracteres">
+    </div>
+    <div class="mf" style="margin-bottom:18px">
+      <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:12px;color:var(--ink2);cursor:pointer">
+        <input type="checkbox" id="aoAdmin" style="width:14px;height:14px;accent-color:var(--gold)">
+        Acesso administrativo
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-act="closeMo" data-arg="moAddOp">Cancelar</button>
+      <button class="btn btn-gold" id="aoBtn" data-act="createOp">
+        <span id="aoLabel">Criar conta</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Sucesso de criação -->
+<div class="modal-bg" id="moSuccess" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal">
+    <div class="success-icon">✅</div>
+    <h2 style="font-size:18px;margin-bottom:6px">Conta criada!</h2>
+    <div class="msub" id="sucMsg"></div>
+    <div class="success-creds" id="sucCreds"></div>
+    <div class="modal-actions" style="flex-direction:column">
+      <a href="index.html" class="btn btn-gold" style="justify-content:center;text-decoration:none">Ir para o painel</a>
+      <button class="btn btn-ghost" data-act="closeMo" data-arg="moSuccess" style="justify-content:center">Continuar no admin</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Limiares dos insights automáticos -->
+<div class="modal-bg" id="moInsightSettings" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal" style="max-width:420px">
+    <h2>⚙ Limiares dos insights</h2>
+    <div class="msub">Ajuste os gatilhos usados para detectar anomalias no Dashboard. Fica salvo neste navegador.</div>
+    <div class="mf"><label>Overlay diário mínimo pra alertar (R$)</label>
+      <input type="number" id="cfgOverlayDia" step="50">
+    </div>
+    <div class="mf"><label>Taxa de overlay crônico (% das rodadas)</label>
+      <input type="number" id="cfgOverlayTaxa" step="5" min="0" max="100">
+    </div>
+    <div class="mf"><label>Mínimo de NF no período pra alertar</label>
+      <input type="number" id="cfgNfMin" step="1" min="1">
+    </div>
+    <div class="mf"><label>Variação mínima de performance pra destacar (pontos %)</label>
+      <input type="number" id="cfgPerfDiff" step="0.5" min="0">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-act="closeMo" data-arg="moInsightSettings">Cancelar</button>
+      <button class="btn btn-gold" data-act="saveInsightSettings">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Confirmação de ação destrutiva (digitar para confirmar) -->
+<div class="modal-bg" id="moDestructiveConfirm" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal" style="max-width:420px">
+    <h2>⚠️ Remover dados antigos</h2>
+    <div class="msub">
+      Isso vai remover <b><span id="dcCount"></span> dia(s)</b> do Firebase (dados anteriores a <b><span id="dcCutoff"></span></b>).
+      Snapshots e relatórios XLSX serão mantidos, mas os dados ao vivo do painel <b>não podem ser recuperados</b>.
+    </div>
+    <div class="mf">
+      <label>Digite <b>REMOVER</b> para confirmar</label>
+      <input type="text" id="dcInput" autocomplete="off" placeholder="REMOVER">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-act="closeMo" data-arg="moDestructiveConfirm">Cancelar</button>
+      <button class="btn btn-red" id="dcBtn" disabled>Remover definitivamente</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Resumo semanal de auditoria -->
+<div class="modal-bg" id="moAuditSummary" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal" style="max-width:700px">
+    <h2>📋 Resumo de Auditoria</h2>
+    <div class="msub">Dados auditados por período — use para relatório semanal</div>
+    <div class="filters" style="margin:12px 0">
+      <div class="fld"><label>De</label><input type="date" id="sumFrom" style="padding:7px 10px"></div>
+      <div class="fld"><label>Até</label><input type="date" id="sumTo" style="padding:7px 10px"></div>
+      <button class="btn btn-gold" data-act="buildAuditSummary">Gerar</button>
+      <button class="btn btn-ghost" data-act="exportAuditSummaryXlsx">⬇ XLSX</button>
+    </div>
+    <div id="auditSummaryResult" style="max-height:420px;overflow-y:auto"></div>
+    <div class="modal-actions" style="margin-top:12px">
+      <button class="btn btn-ghost" data-act="closeMo" data-arg="moAuditSummary" style="flex:1;justify-content:center">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Notificar erro de operador -->
+<div class="modal-bg" id="moNotif" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal" style="max-width:520px">
+    <h2>📋 Notificar erro ao operador</h2>
+    <div class="msub" id="notifSubtitle">Descreva o erro encontrado para que o operador justifique</div>
+    <div class="merr" id="notifErr"></div>
+
+    <div class="mf">
+      <label>Operador</label>
+      <select id="notifOp">
+        <option value="">Selecione o operador...</option>
+      </select>
+    </div>
+
+    <div class="mf">
+      <label>Tipo de erro</label>
+      <div class="notif-type-row">
+        <button class="notif-type-btn" data-act="selNotifType" data-arg="garantido">Garantido incorreto</button>
+        <button class="notif-type-btn" data-act="selNotifType" data-arg="field">Field errado</button>
+        <button class="notif-type-btn" data-act="selNotifType" data-arg="premiacao">Premiação errada</button>
+        <button class="notif-type-btn" data-act="selNotifType" data-arg="id">ID incorreto</button>
+        <button class="notif-type-btn" data-act="selNotifType" data-arg="criacao">Erro de criação (GU)</button>
+        <button class="notif-type-btn" data-act="selNotifType" data-arg="outro">Outro</button>
+      </div>
+    </div>
+
+    <div class="mf">
+      <label>Torneio</label>
+      <input type="text" id="notifTorneio" placeholder="Nome do torneio..." readonly style="color:var(--ink2)">
+    </div>
+
+    <div class="mf">
+      <label>Descrição do erro</label>
+      <textarea id="notifDesc" rows="3" placeholder="Ex: O garantido registrado foi R$ 5.000 mas o correto era R$ 8.000..."></textarea>
+    </div>
+
+    <div class="mf">
+      <label>Pré-visualização da notificação</label>
+      <div class="notif-preview" id="notifPreview">
+        Selecione o tipo de erro para ver a pré-visualização...
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-act="closeMo" data-arg="moNotif">Cancelar</button>
+      <button class="btn btn-gold" id="notifBtn" data-act="sendNotif">
+        <span id="notifLabel">Enviar notificação</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Justificativas recebidas -->
+<div class="modal-bg" id="moJustifs" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal" style="max-width:620px">
+    <h2>📩 Justificativas recebidas</h2>
+    <div class="msub">Respostas dos operadores às notificações de erro</div>
+    <div id="justifList" style="max-height:420px;overflow-y:auto;margin-top:12px"></div>
+    <div class="modal-actions" style="margin-top:12px">
+      <button class="btn btn-ghost" data-act="closeMo" data-arg="moJustifs" style="flex:1;justify-content:center">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Editar dado auditado -->
+<div class="modal-bg" id="moAudit" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal" style="max-width:500px">
+    <h2>✏️ Corrigir dado auditado</h2>
+    <div class="msub" id="auditSubtitle"></div>
+    <div class="merr" id="auditErr"></div>
+
+    <div class="audit-modal-grid">
+      <div class="audit-val-orig"><span>Premiação original</span><strong id="auditOrigPrem">—</strong></div>
+      <div class="audit-val-orig"><span>Field original</span><strong id="auditOrigField">—</strong></div>
+      <div class="audit-val-orig"><span>Garantido original</span><strong id="auditOrigGar">—</strong></div>
+    </div>
+
+    <div class="mf">
+      <label>Premiação corrigida (R$)</label>
+      <input type="text" inputmode="decimal" id="auditPremInput" placeholder="0,00" data-act="maskBRL" data-act-self data-act-on="input" onblur="fmtBRLInput(this)">
+    </div>
+    <div class="mf">
+      <label>Field corrigido (jogadores)</label>
+      <input type="number" id="auditFieldInput" placeholder="—" step="1" min="0">
+    </div>
+    <div class="mf">
+      <label>Garantido corrigido (R$)</label>
+      <input type="text" inputmode="decimal" id="auditGarInput" placeholder="—" data-act="maskBRL" data-act-self data-act-on="input" onblur="fmtBRLInput(this)">
+    </div>
+    <div class="mf">
+      <label>Observação</label>
+      <textarea id="auditObs" rows="2" placeholder="Ex: Premiação estava incorreta — correto era R$ 1.500"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink2);cursor:pointer">
+        <input type="checkbox" id="auditApproved" style="accent-color:var(--green);width:14px;height:14px">
+        Marcar como aprovado (sem correção)
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-act="closeMo" data-arg="moAudit">Cancelar</button>
+      <button class="btn btn-gold" data-act="saveAudit">
+        <span id="auditBtnLabel">Salvar auditoria</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Confirmação genérica (substitui confirm() nativo) -->
+<div class="modal-bg" id="moConfirm" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal" style="max-width:420px">
+    <h2 id="cfTitle">Confirmar</h2>
+    <div class="msub" id="cfMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="cfCancel" style="flex:1;justify-content:center">Cancelar</button>
+      <button class="btn btn-gold" id="cfOk" style="flex:1;justify-content:center">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Bloquear operador (envia notificação de justificativa) -->
+<div class="modal-bg" id="moBlockOp" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal" style="max-width:460px">
+    <h2>🚫 Suspender operador</h2>
+    <div class="msub" id="blkSub">O operador ficará com o painel suspenso até enviar uma justificativa.</div>
+    <div class="merr" id="blkErr"></div>
+    <div class="mf">
+      <label>Motivo da suspensão</label>
+      <textarea id="blkReason" rows="3" placeholder="Ex: Divergências recorrentes nos dados preenchidos — favor justificar."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-act="closeMo" data-arg="moBlockOp">Cancelar</button>
+      <button class="btn btn-red" id="blkBtn" data-act="confirmBlockOp"><span id="blkLabel">Suspender e notificar</span></button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- defer: Firebase (~250KB) fora do caminho crítico. O boot (initFb + autoEnterFromSession)
+     foi movido pro DOMContentLoaded, que roda depois dos deferred. -->
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script defer src="suprema-xlsx.js"></script>
+<script src="suprema-db.js"></script>
+<script src="admin.js"></script>
+<!-- admin-actions: delegação dos [data-act] que substituíram os 92 handlers
+     inline. Depois do admin.js, que define as funções que ele aciona. -->
+<script src="admin-actions.js"></script>
+<!-- ⌘K command palette (navegação + ações; o admin pluga a busca de seções) -->
+<script defer src="suprema-palette.js"></script>
+<script src="suprema-presence.js"></script>
+<script src="suprema-onboarding.js"></script>
+<script>
+  /* tour do admin — só pra quem já tem sessão (o gate de login não aparece) */
+  if (window.SupremaAuth && SupremaAuth.getSession && SupremaAuth.getSession()){
+    SupremaOnboarding.start('admin', [
+      { el:'.sidebar', title:'Navegação do admin', text:'Auditoria, analytics e sistema. Cada seção abre no painel à direita.', side:'right' },
+      { el:'#navAvisos', title:'Avisos do hub', text:'Publique aqui erros de atualização e informativos — eles aparecem no topo do hub para todos os operadores.', side:'right' }
+    ], { accent:'#c9a84c', label:'Admin', delay:900 });
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suprema OS</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%23d8b56d'>♠</text></svg>">
+<!-- o hub é o launcher do OS: é ele que faz mais sentido instalar na tela de início.
+     Antes só o index.html linkava o manifest, então instalar pelo hub não funcionava. -->
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0a0f0d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- tokens compartilhados da marca ANTES do estilo local: o hub é o único
+     produto sempre-dark, então os valores locais (abaixo) vencem os pontes
+     :root do arquivo — mas os nomes --sup-* ficam disponíveis aqui também -->
+<script src="scripts/lite.js"></script>
+<link rel="stylesheet" href="suprema-tokens.css">
+<link rel="stylesheet" href="hub.css">
+</head>
+<body>
+
+<!-- naipes à deriva no fundo, atrás de tudo -->
+<div class="ambient" aria-hidden="true">
+  <span class="s1">&spades;</span>
+  <span class="s2">&#9829;</span>
+  <span class="s3">&clubs;</span>
+  <span class="s4">&diams;</span>
+  <span class="s5">&spades;</span>
+</div>
+
+<nav>
+  <div class="nav-inner">
+    <span class="brand"><span class="suit">&spades;</span> Suprema <small>OS</small></span>
+    <span class="nav-user" id="navUser" hidden>
+      <button type="button" class="nav-avatar" id="navAvatar" title="Meu perfil" aria-label="Abrir meu perfil">&spades;</button>
+      <b id="navUserName"></b>
+    </span>
+    <span class="presence-wrap" id="presenceWrap" title="Operadores online agora" hidden></span>
+    <span class="nav-time" id="navTime"></span>
+    <button type="button" class="theme-btn" id="themeBtn" title="Alternar tema claro/escuro" aria-label="Alternar tema">&#9790;</button>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-hello" id="heroHello" hidden>
+    <span class="hh-avatar" id="hhAvatar">&spades;</span>
+    <span class="hh-txt">Seja bem-vindo de volta<b id="hhEmail"></b></span>
+  </div>
+  <h1 id="heroTitle">Suprema <span class="os">OS</span></h1>
+  <p>Todas as ferramentas da operação em um lugar. Escolha um produto para entrar.</p>
+
+  <!-- ── centro de comando: turno, próximo evento, missões e "continuar" ── -->
+  <div class="hero-ops" id="heroOps" hidden>
+    <span class="ho-chip" id="hoTurno"><span class="ho-dot" aria-hidden="true"></span><span id="hoTurnoTxt"></span></span>
+    <button type="button" class="ho-chip ho-link" id="hoNext" hidden></button>
+    <button type="button" class="ho-chip ho-link" id="hoMissions" hidden></button>
+    <a class="ho-chip ho-link" id="hoLast" hidden></a>
+  </div>
+</header>
+
+<!-- ── AVISOS DA CASA — erros de atualização e informativos (publicados no admin) ──
+     Fica no topo pra ser visto; some sozinho quando não há aviso ativo. -->
+<section class="avisos" id="avisosSection" hidden aria-label="Avisos da casa">
+  <div class="avisos-list" id="avisosList"></div>
+</section>
+
+<!-- ── MEU DIA — o progresso do operador logo depois do hero (ref. getfluently):
+     sequência (streak), metas do dia e nível em anéis que PREENCHEM conforme a
+     seção entra na tela, + cards de coach conversacionais. Populado por
+     renderMyDay() em hub.js a partir dos MESMOS stats do perfil. -->
+<section class="myday" id="myDay" hidden aria-label="Seu dia na operação">
+  <div class="myday-head">
+    <span class="myday-eyebrow"><span class="suit" aria-hidden="true">&spades;</span> Sua jornada</span>
+    <h2 class="myday-title" id="mydayTitle">Seu dia</h2>
+    <p class="myday-sub" id="mydaySub"></p>
+  </div>
+  <div class="myday-rings" id="mydayRings"></div>
+  <div class="myday-coach" id="mydayCoach"></div>
+</section>
+
+<main class="grid">
+
+  <a class="tile t-painel" href="index.html" style="--i:0" data-panel="painel">
+    <span class="mark" aria-hidden="true">&spades;</span>
+    <h2>Painel do Dia</h2>
+    <p class="desc">A grade de torneios ao vivo: agenda, GU, resultados e checklist do turno, sincronizado entre operadores.</p>
+    <span class="meta">Operação diária <span class="arrow">&rarr;</span>
+      <span class="live" id="livePainel" hidden><span class="pulse"></span><span id="livePainelTxt"></span></span>
+    </span>
+  </a>
+
+  <a class="tile t-admin" href="admin.html" style="--i:1" data-panel="admin">
+    <span class="mark" aria-hidden="true">&diams;</span>
+    <h2>Admin</h2>
+    <p class="desc">Gestão da operação: usuários, períodos, histórico e auditoria.</p>
+    <span class="meta"><span class="lock-badge"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> Somente admin</span><span class="arrow-txt">&Aacute;rea restrita </span><span class="arrow">&rarr;</span></span>
+  </a>
+
+  <a class="tile t-gu" href="criacao-noturna.html" style="--i:2" data-panel="gu">
+    <span class="mark" aria-hidden="true">&#9789;</span>
+    <h2>Criação Noturna</h2>
+    <p class="desc">A receita da GU pro dia seguinte, dividida pelas funções do turno da noite.</p>
+    <span class="meta">GU 19:00 &ndash; 07:00 <span class="arrow">&rarr;</span>
+      <span class="live" id="liveGu" hidden><span class="pulse"></span><span id="liveGuTxt"></span></span>
+    </span>
+  </a>
+
+  <a class="tile t-learn" href="https://prod-sup.github.io/Learn/" style="--i:3" data-panel="learn">
+    <span class="mark" aria-hidden="true">&hearts;</span>
+    <h2>Poker Learn</h2>
+    <p class="desc">Treinamento imersivo: domine cada posição da mesa em uma experiência 3D.</p>
+    <span class="meta">Experi&ecirc;ncia 3D <span class="arrow">&rarr;</span></span>
+  </a>
+
+  <a class="tile t-org" href="https://prod-sup.github.io/Org/" style="--i:4" id="orgLink" data-panel="org">
+    <span class="mark" aria-hidden="true">&#10022;</span>
+    <h2>A Constela&ccedil;&atilde;o</h2>
+    <p class="desc">O organograma vivo do Grupo Suprema: cada estrela &eacute; uma pessoa.</p>
+    <span class="meta">Organograma WebGL <span class="arrow">&rarr;</span></span>
+  </a>
+
+  <a class="tile t-cash" href="dashboard-mesa-cash.html" style="--i:5" data-panel="cash">
+    <span class="mark" aria-hidden="true">&clubs;</span>
+    <div>
+      <h2>Cash Intelligence</h2>
+      <p class="desc">Receita das mesas cash por turno: hist&oacute;rico, comportamento e previs&atilde;o.</p>
+    </div>
+    <span class="meta"><span class="lock-badge"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> Somente admin</span><span class="arrow-txt">An&aacute;lise de dados </span><span class="arrow">&rarr;</span></span>
+  </a>
+
+  <a class="tile t-eventos" href="eventos.html" style="--i:6" data-panel="eventos">
+    <span class="mark" aria-hidden="true">&diams;</span>
+    <h2>Radar de Eventos</h2>
+    <p class="desc">A grade da semana pro Marketing e pro Atendimento &mdash; e qual satélite d&aacute; ticket pra qual torneio.</p>
+    <span class="meta">Marketing &amp; Atendimento <span class="arrow">&rarr;</span></span>
+  </a>
+
+  <a class="tile t-tv" href="tv.html" style="--i:7" data-panel="tv">
+    <span class="mark" aria-hidden="true">&spades;</span>
+    <h2>Suprema TV</h2>
+    <p class="desc">O canal da casa no tel&atilde;o: ao vivo, premia&ccedil;&otilde;es em tempo real e quem criou cada evento.</p>
+    <span class="meta">Broadcast &middot; tela cheia <span class="arrow">&rarr;</span></span>
+  </a>
+
+  <a class="tile t-analytics" href="analytics.html" style="--i:8" data-panel="painel">
+    <span class="mark" aria-hidden="true">&#9650;</span>
+    <h2>Suprema Analytics</h2>
+    <p class="desc">O hist&oacute;rico que cruza o tempo: prize pool, overlay real, campo e performance por dia e por operador.</p>
+    <span class="meta">BI &middot; hist&oacute;rico <span class="arrow">&rarr;</span></span>
+  </a>
+
+</main>
+
+<!-- ── Calendário de eventos + Patch notes ── -->
+<section class="boards">
+
+  <div class="board" id="calBoard" data-suit="&spades;" style="--b:0">
+    <div class="board-head">
+      <span class="suit" aria-hidden="true">&spades;</span>
+      <h2>Agenda da casa</h2>
+      <span class="spacer"></span>
+      <a class="board-admin-link" href="admin.html" hidden>Editar no Admin &#8599;</a>
+    </div>
+    <div class="cal-nav">
+      <button type="button" id="calPrev" aria-label="M&ecirc;s anterior">&lsaquo;</button>
+      <b id="calMonth"></b>
+      <button type="button" id="calNext" aria-label="Pr&oacute;ximo m&ecirc;s">&rsaquo;</button>
+      <button type="button" class="cal-hol-toggle" id="calHolToggle" title="Mostrar/ocultar feriados nacionais" aria-pressed="true">&#9733; Feriados</button>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+    <div class="ev-list" id="evList"></div>
+  </div>
+
+  <div class="board" id="lkBoard" data-suit="&#9829;" style="--b:1">
+    <div class="board-head">
+      <span class="suit" aria-hidden="true">&#9829;</span>
+      <h2>Fique ligado</h2>
+      <span class="spacer"></span>
+      <a class="board-admin-link" href="admin.html" hidden>Editar no Admin &#8599;</a>
+    </div>
+    <div class="lk-list" id="lkList"></div>
+  </div>
+
+  <div class="board" id="pnBoard" data-suit="&diams;" style="--b:2">
+    <div class="board-head">
+      <span class="suit" aria-hidden="true">&diams;</span>
+      <h2>Patch notes</h2>
+      <span class="spacer"></span>
+      <a class="board-admin-link" href="admin.html" hidden>Editar no Admin &#8599;</a>
+    </div>
+    <div class="pn-body" id="pnBody"></div>
+    <div class="pn-meta" id="pnMeta"></div>
+  </div>
+
+  <!-- ── Mesa dos campeões: leaderboard de XP da casa ── -->
+  <div class="board" id="lbBoard" data-suit="&clubs;" style="--b:3">
+    <div class="board-head">
+      <span class="suit" aria-hidden="true">&clubs;</span>
+      <h2>Mesa dos campe&otilde;es</h2>
+      <span class="spacer"></span>
+      <div class="lb-tabs" id="lbTabs" role="tablist" aria-label="Per&iacute;odo do ranking">
+        <button type="button" class="on" data-mode="season">Temporada</button>
+        <button type="button" data-mode="all">Geral</button>
+      </div>
+    </div>
+    <div class="lb-list" id="lbList"><p class="ev-empty">Carregando a mesa&hellip;</p></div>
+  </div>
+
+</section>
+
+<footer>
+  <div class="foot-inner"><span class="suit">&spades;</span> Grupo Suprema</div>
+</footer>
+
+<!-- ── Perfil do operador: identidade, progressão e conta — só aqui no hub ── -->
+<div class="pf-overlay" id="pfOverlay" aria-hidden="true">
+  <div class="pf-panel" role="dialog" aria-modal="true" aria-label="Meu perfil">
+    <div class="pf-hero" id="pfHero" data-banner="felt">
+      <div class="pf-eyebrow"><span class="suit" aria-hidden="true">&spades;</span> Cart&atilde;o do operador</div>
+      <button type="button" class="pf-close" id="pfClose" aria-label="Fechar perfil">&#10005;</button>
+    </div>
+    <div class="pf-avatar-row">
+      <div class="pf-avatar" id="pfAvatar" role="button" tabindex="0" aria-label="Trocar foto de perfil"
+           onkeydown="if(event.key==='Enter'||event.key===' ')this.click()">
+        <span id="pfAvatarContent">&spades;</span>
+        <span class="edit" aria-hidden="true"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l4 4L8 20l-5 1 1-5z"/></svg></span>
+      </div>
+    </div>
+    <div class="pf-id">
+      <h2 id="pfName">&mdash;</h2>
+      <div class="pf-tagline" id="pfEmail"></div>
+      <span class="pf-tag-pill" id="pfTagPill" hidden>&spades; <span id="pfTagTxt"></span></span>
+      <div class="pf-plaque">
+        <i aria-hidden="true"></i>
+        <span class="pf-lvhex"><span class="lv-t">N&iacute;vel</span> <b id="pfLevel">1</b></span>
+        <i aria-hidden="true"></i>
+      </div>
+    </div>
+    <div class="pf-body">
+      <div class="pf-picker" id="pfPicker"><div class="pf-picker-grid" id="pfPickerGrid"></div></div>
+
+      <div class="pf-card">
+        <div class="pf-card-title">Progress&atilde;o <small id="pfXpMeta"></small></div>
+        <div class="pf-level">
+          <span class="pf-rank-badge" id="pfRank" data-rank="ferro" title="Rank por performance: consist&ecirc;ncia de dias ativos, volume e a&ccedil;&otilde;es na opera&ccedil;&atilde;o &mdash; n&atilde;o s&oacute; XP."><b id="pfRankNm">Ferro</b><span>Rank</span></span>
+          <span class="pf-xp">
+            <span class="lbl"><span id="pfXpLbl"></span><span id="pfXpNext"></span></span>
+            <span class="bar"><i id="pfXpBar"></i></span>
+          </span>
+        </div>
+        <div class="pf-statgrid" aria-label="Estat&iacute;sticas da opera&ccedil;&atilde;o">
+          <div class="pf-stat"><span class="ps-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="14" height="18" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h10"/></svg></span><b id="pfStatOpens">0</b><span>Aberturas</span></div>
+          <div class="pf-stat"><span class="ps-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg></span><b id="pfStatDays">0</b><span>Dias ativos</span></div>
+          <div class="pf-stat"><span class="ps-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg></span><b id="pfStatActions">0</b><span>A&ccedil;&otilde;es</span></div>
+          <div class="pf-stat"><span class="ps-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5.5"/></svg></span><b id="pfStatMissions">0</b><span>Miss&otilde;es</span></div>
+        </div>
+        <p class="pf-hint">Cada ferramenta aberta e cada dia ativo rendem XP. Suba de n&iacute;vel pra desbloquear molduras, badges e t&iacute;tulos.</p>
+        <div class="pf-next-reward" id="pfNextReward" hidden>
+          <span class="nr-ic" id="pfNextRewardIc">&#127873;</span>
+          <span class="nr-txt"><b>Pr&oacute;xima recompensa</b><span id="pfNextRewardTxt"></span></span>
+          <span class="nr-xp" id="pfNextRewardXp"></span>
+        </div>
+      </div>
+
+      <div class="pf-card">
+        <div class="pf-card-title">Molduras <small id="pfFrameLbl"></small></div>
+        <div class="pf-frames" id="pfFrames"></div>
+        <p class="pf-hint">A moldura equipada aparece no seu avatar em todo o Suprema OS. Desbloqueie subindo de n&iacute;vel &mdash; e escolha qualquer uma que j&aacute; conquistou.</p>
+      </div>
+
+      <div class="pf-card">
+        <div class="pf-card-title">Banners <small id="pfBannersHint"></small></div>
+        <div class="pf-banner-picker pf-banners" id="pfBannerPicker" aria-label="Escolher banner do cart&atilde;o"></div>
+        <p class="pf-hint">O banner pinta o topo do seu cart&atilde;o. Os raros desbloqueiam com XP.</p>
+      </div>
+
+      <div class="pf-card">
+        <div class="pf-card-title">Miss&otilde;es do dia <small id="pfMissionsHint"></small></div>
+        <div class="pf-missions" id="pfMissions"></div>
+      </div>
+
+      <div class="pf-card">
+        <div class="pf-card-title">Atividade</div>
+        <div class="pf-activity" id="pfActivity"></div>
+      </div>
+
+      <div class="pf-card">
+        <div class="pf-card-title">Badges <small id="pfBadgesHint"></small></div>
+        <div class="pf-badges" id="pfBadges"></div>
+      </div>
+
+      <div class="pf-card">
+        <div class="pf-card-title">T&iacute;tulos <small>escolha o seu</small></div>
+        <div class="pf-titles" id="pfTitles"></div>
+        <p class="pf-hint" id="pfTitlesHint"></p>
+      </div>
+
+      <div class="pf-card">
+        <div class="pf-card-title">Identidade</div>
+        <div class="pf-field">
+          <input type="text" id="pfNick" maxlength="24" placeholder="Apelido (como aparece nos pain&eacute;is)">
+          <button type="button" class="pf-btn" id="pfNickSave" style="flex:none;padding:11px 16px">Salvar</button>
+        </div>
+      </div>
+
+      <div class="pf-card">
+        <div class="pf-card-title">Dados da conta</div>
+        <div id="pfInfo"></div>
+      </div>
+
+      <div class="pf-actions">
+        <button type="button" class="pf-btn danger" id="pfLogout">Sair da conta</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Celebração de level-up: aparece uma vez quando o nível sobe ── -->
+<div class="lvlup" id="lvlUp" aria-hidden="true">
+  <div class="lvlup-card">
+    <div class="lvlup-rays" aria-hidden="true"></div>
+    <div class="lvlup-suits" aria-hidden="true"><span>&spades;</span><span>&hearts;</span><span>&diams;</span><span>&clubs;</span><span>&spades;</span><span>&diams;</span></div>
+    <div class="lvlup-eyebrow">Subiu de n&iacute;vel</div>
+    <div class="lvlup-num" id="lvlUpNum">2</div>
+    <div class="lvlup-sub" id="lvlUpSub"></div>
+    <button type="button" class="lvlup-ok" id="lvlUpOk">Continuar &spades;</button>
+  </div>
+</div>
+
+<!-- ── Gate de autenticação: o login/cadastro do Suprema OS mora aqui.
+     Mesma conta e mesma sessão (suprema_session_v1) de todos os produtos. ── -->
+<div class="gate" id="gate" hidden>
+  <!-- vídeo de fundo (bg.mp4, o mesmo do painel) — se não existir, fica o fundo escuro -->
+  <video class="gate-video" id="gateVideo" muted loop playsinline preload="none" aria-hidden="true"></video>
+  <div class="gate-veil" aria-hidden="true"></div>
+  <div class="gate-card">
+    <div class="gate-brand">
+      <span class="suit" aria-hidden="true">&spades;</span>
+      <h1>Suprema <span>OS</span></h1>
+      <p>Entre com sua conta @suprema.group para acessar os produtos.</p>
+    </div>
+
+    <div class="gate-tabs" id="gateTabs">
+      <button type="button" class="gate-tab active" data-tab="login">Entrar</button>
+      <button type="button" class="gate-tab" data-tab="cadastro">Criar conta</button>
+    </div>
+
+    <!-- LOGIN -->
+    <form id="gLogin" onsubmit="return false">
+      <div class="gate-field"><label for="gLoginEmail">Email corporativo</label>
+        <input type="email" id="gLoginEmail" placeholder="nome@suprema.group" autocomplete="email"></div>
+      <div class="gate-field"><label for="gLoginPw">Senha</label>
+        <input type="password" id="gLoginPw" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="current-password"></div>
+      <div class="gate-error" id="gLoginErr" hidden></div>
+      <button type="submit" class="gate-submit" id="gLoginBtn">Entrar</button>
+      <button type="button" class="gate-link" data-tab="recovery">Esqueci minha senha</button>
+    </form>
+
+    <!-- CADASTRO -->
+    <form id="gCad" hidden onsubmit="return false">
+      <div class="gate-row">
+        <div class="gate-field"><label for="gCadNome">Nome</label>
+          <input type="text" id="gCadNome" autocomplete="given-name"></div>
+        <div class="gate-field"><label for="gCadSobrenome">Sobrenome</label>
+          <input type="text" id="gCadSobrenome" autocomplete="family-name"></div>
+      </div>
+      <div class="gate-field"><label for="gCadApelido">Apelido (como aparece no painel)</label>
+        <input type="text" id="gCadApelido" autocomplete="nickname"></div>
+      <div class="gate-field"><label for="gCadEmail">Email corporativo</label>
+        <input type="email" id="gCadEmail" placeholder="nome@suprema.group" autocomplete="email"></div>
+      <div class="gate-field"><label for="gCadPw">Senha</label>
+        <input type="password" id="gCadPw" placeholder="M&iacute;n. 6 &middot; 1 min&uacute;scula &middot; 1 especial" autocomplete="new-password"></div>
+      <div class="gate-field"><label for="gCadPw2">Confirmar senha</label>
+        <input type="password" id="gCadPw2" autocomplete="new-password"></div>
+      <div class="gate-error" id="gCadErr" hidden></div>
+      <button type="submit" class="gate-submit" id="gCadBtn">Criar conta</button>
+    </form>
+
+    <!-- RECUPERAÇÃO -->
+    <form id="gRec" hidden onsubmit="return false">
+      <div class="gate-field"><label for="gRecEmail">Email corporativo</label>
+        <input type="email" id="gRecEmail" placeholder="nome@suprema.group" autocomplete="email"></div>
+      <div id="gRecStep2" hidden>
+        <div class="gate-field"><label for="gRecCode">C&oacute;digo de 6 d&iacute;gitos</label>
+          <input type="text" id="gRecCode" maxlength="6" inputmode="numeric" style="font-family:var(--mono);letter-spacing:.2em;text-align:center"></div>
+        <div class="gate-field"><label for="gRecPw">Nova senha</label>
+          <input type="password" id="gRecPw" placeholder="M&iacute;n. 6 &middot; 1 min&uacute;scula &middot; 1 especial" autocomplete="new-password"></div>
+      </div>
+      <div class="gate-error" id="gRecErr" hidden></div>
+      <div class="gate-ok" id="gRecOk" hidden></div>
+      <button type="submit" class="gate-submit" id="gRecBtn">Enviar c&oacute;digo</button>
+      <button type="button" class="gate-link" data-tab="login">Voltar ao login</button>
+    </form>
+  </div>
+</div>
+
+<script>
+// Tema: aplica JÁ a última preferência salva neste navegador (sem flash);
+// a preferência POR USUÁRIO (Firebase users/<key>/darkMode) é aplicada no login
+// e sempre que o hub abre com sessão — ver setTheme()/loadUserPrefs() abaixo.
+(function(){
+  const saved = localStorage.getItem('suprema_dark_mode');
+  // mesma regra do painel: sem preferência salva, segue o sistema
+  const dark = saved !== null ? saved === '1' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if (!dark) document.documentElement.classList.add('light');
+})();
+
+// Relógio (mesmo formato do painel)
+function tick(){
+  const el = document.getElementById('navTime');
+  el.textContent = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+}
+// mostra só hora:minuto — 30s basta pra virar o minuto sem wakeups à toa
+tick(); setInterval(tick, 30000);
+
+// A Constelação mora em outro repositório; ajuste a URL publicada aqui quando mudar.
+// Em desenvolvimento local, aponta pro build da pasta vizinha se ela existir.
+if (location.protocol === 'file:') {
+  document.getElementById('orgLink').href = '../Organograma/docs/index.html';
+}
+</script>
+
+<!-- Dados vivos nos tiles: mesmo Firebase dos painéis (leitura exige auth anônimo) -->
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<!-- fonte ÚNICA de sessão/hash/admin/tema do Suprema OS: o hub agora consome o
+     mesmo módulo dos painéis em vez de reimplementar tudo inline (evita divergir
+     a cada correção). Precisa vir ANTES do IIFE do gate, que só delega pra ele. -->
+<script defer src="suprema-auth.js"></script>
+<script defer src="suprema-motion.js"></script>
+<script defer src="suprema-feltro.js"></script>
+<script>
+/* ── A MESA: o fundo do hero em WebGL ──────────────────────────────────────
+   Substitui a rede de nós em canvas 2D (SupremaMotion.network). Não é troca
+   por gosto: o cabeçalho do suprema-feltro.js documenta que o `network` custa
+   O(n²) POR FRAME — com 64 nós são 2016 testes de distância, cada link com seu
+   beginPath/stroke. O hub é a primeira tela do turno e ficava pagando isso.
+   A variante 'mesa' desenha o pano, a luz rasante e a onda do cursor num único
+   passe de shader, e ainda mata o banding do degradê com dither.
+
+   A rede continua como REDE DE SEGURANÇA: sem WebGL, com o shader falhando ou
+   em modo lite, o onFallback devolve o fundo antigo. Escape manual: ?feltro=0
+   Deferred scripts rodam antes do DOMContentLoaded, então as libs já existem. */
+document.addEventListener('DOMContentLoaded', function(){
+  var hero = document.querySelector('.hero');
+  if (!hero) return;
+
+  function redeDeNos(){
+    if (!window.SupremaMotion) return;
+    SupremaMotion.network('.hero', {
+      c1:'#8f6b2d', c2:'#18a36b', c1Dark:'#c9a84c', c2Dark:'#18a36b',
+      isDark: function(){ return !document.documentElement.classList.contains('light'); }
+    });
+  }
+  /* REVERTIDO: a variante 'mesa' está desligada por padrão.
+     Ela ficou ruim por três erros de calibração — trama em frequência 130× num
+     backing store que o Feltro reduz de propósito (vira moiré), composição de
+     16:9 aplicada num hero de ~6:1 (o ruído vira listra) e os 900 motes do
+     telão espremidos em 200px de altura. Nada disso é culpa do WebGL: é
+     shader de tela cheia usado em caixa baixa e larga.
+     Pra experimentar a versão corrigida: hub.html?mesa=1 */
+  if (!window.SupremaFeltro || new URLSearchParams(location.search).get('mesa') !== '1'){
+    redeDeNos(); return;
+  }
+
+  var MESA = SupremaFeltro.mount('.hero', {
+    variant: 'mesa',
+    bg: '#0f1110', gold: '#c9a84c', felt: '#18a36b',
+    onFallback: redeDeNos,
+  });
+  if (!MESA) return;                       // lite/sem WebGL: o mount já cuidou
+  window.__hubMesa = MESA;                 // o perfil usa pra refletir a progressão
+
+  /* cursor: só em ponteiro FINO. Em touch a onda ficaria presa no último
+     toque, o que lê como travamento. E `pointermove` no document (não no
+     hero) pra onda continuar respondendo enquanto o mouse passeia pelos
+     tiles — o hero é o palco, mas a mesa é a página inteira. */
+  if (matchMedia('(hover:hover) and (pointer:fine)').matches){
+    var r = null;
+    var solta = function(){ r = null; };
+    addEventListener('scroll', solta, { passive: true });
+    addEventListener('resize', solta, { passive: true });
+    document.addEventListener('pointermove', function(e){
+      r = r || hero.getBoundingClientRect();          // 1 medição por gesto
+      /* gl_FragCoord tem Y de BAIXO pra cima; o DOM, de cima pra baixo */
+      MESA.mouse((e.clientX - r.left) / r.width, 1 - (e.clientY - r.top) / r.height);
+    }, { passive: true });
+    document.addEventListener('pointerleave', function(){ MESA.mouse(null); });
+  }
+});
+</script>
+<script defer src="hub.js"></script>
+<script defer src="suprema-onboarding.js"></script>
+<script defer src="hub-onboarding.js"></script>
+<script defer src="suprema-presence.js"></script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suprema Analytics · Suprema OS</title>
+<script>
+/* portão: sem sessão do Suprema OS, volta pro hub ANTES de renderizar */
+(function(){ try{
+  var s = JSON.parse(localStorage.getItem('suprema_session_v1') || 'null');
+  if(!s || !s.email || !s.expiresAt || Date.now() > s.expiresAt) location.replace('hub.html');
+}catch(e){ location.replace('hub.html'); } })();
+/* tema salvo, sem flash (mesma chave de todo o OS) */
+(function(){ var d = localStorage.getItem('suprema_dark_mode');
+  var dark = d !== null ? d === '1' : matchMedia('(prefers-color-scheme: dark)').matches;
+  if(dark) document.documentElement.classList.add('dark'); })();
+</script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%2314b8a6'>♠</text></svg>">
+<!-- Chart.js local (defer: só usado depois dos dados) -->
+<script defer src="vendor/chart.umd.js"></script>
+<!-- defer: Firebase fora do caminho crítico; a init roda no DOMContentLoaded -->
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script src="suprema-auth.js"></script>
+<script>/* portão RBAC: quem pode ver o painel do dia pode ver o histórico dele */ SupremaAuth.guard({ panel:'painel' }); SupremaAuth.revalidateAccess('painel');</script>
+<!-- shell (chrome compartilhado): SÍNCRONO — o mount inline do nav roda no parse -->
+<script src="suprema-shell.js"></script>
+<link rel="stylesheet" href="suprema-tokens.css">
+<link rel="stylesheet" href="analytics.css">
+</head>
+<body>
+
+<nav id="supNav"></nav>
+<script>
+SupremaShell.mountNav('#supNav', {
+  mark: `<svg class="brand-mark" viewBox="0 0 24 24" fill="none"><rect x="3" y="12" width="4" height="9" rx="1" fill="#14b8a6"/><rect x="10" y="7" width="4" height="14" rx="1" fill="#14b8a6" opacity=".8"/><rect x="17" y="3" width="4" height="18" rx="1" fill="#14b8a6" opacity=".6"/></svg>`,
+  sub: 'Analytics · histórico',
+  links: [
+    { href:'hub.html',  label:'♠ OS', title:'Voltar ao hub Suprema OS' },
+    { href:'index.html', label:'Painel do Dia' },
+    { href:'dashboard-mesa-cash.html', label:'Cash' }
+  ],
+  opTitle:'Sessão ativa', timeTitle:'Horário de São Paulo'
+});
+</script>
+
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">Inteligência · histórico</div>
+    <h1>Suprema Analytics</h1>
+    <p>O que o dia a dia acumulou: prize pool, overlay real, campo e performance ao longo do tempo — a partir dos fechamentos que o Painel do Dia já grava.</p>
+    <div class="period" id="period">Carregando histórico…</div>
+  </header>
+
+  <section class="kpis" id="kpis"></section>
+
+  <div class="grid2">
+    <div class="card"><h2>Prize pool × garantido por dia</h2><canvas id="chartMoney"></canvas></div>
+    <div class="card"><h2>Eventos e campo por dia</h2><canvas id="chartEvents"></canvas></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card" id="opCard"><h2>Ranking por operador</h2><div id="opTable"></div></div>
+    <div class="card" id="worstCard"><h2>Maiores overlays (o buraco coberto)</h2><div id="worstTable"></div></div>
+  </div>
+</div>
+
+<script src="suprema-db.js"></script>
+<script src="analytics-core.js"></script>
+<script src="analytics.js"></script>
+<script defer src="suprema-palette.js"></script>
+<script defer src="suprema-copiloto.js"></script>
+<script defer src="suprema-presence.js"></script>
+</body>
+</html>

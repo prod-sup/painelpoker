@@ -1,0 +1,224 @@
+/* ============================================================
+   SUPREMA OS — tokens de identidade compartilhados
+   Fonte única da marca: mudou aqui, muda em todos os produtos.
+   Carregado DEPOIS do <style> de cada página: os valores :root
+   daqui vencem os locais; os blocos html.dark de cada app
+   continuam vencendo no modo escuro (especificidade maior),
+   por isso o dark também é definido aqui pra quem usa os nomes
+   compartilhados.
+
+   Produtos e suas cores (modelo Riot: cada produto tem a sua,
+   o sistema tem uma voz só):
+     Painel do Dia ...... verde feltro  #18a36b
+     Admin .............. dourado       #8f6b2d
+     Criação Noturna GU . violeta       #8c5cc6
+     Poker Learn ........ âmbar da mesa #e8933d
+     A Constelação ...... ouro estelar  #d8b56d
+   ============================================================ */
+
+:root{
+  /* -- núcleo da marca ------------------------------------- */
+  --sup-bg:        #fbfbfd;
+  --sup-bg-deep:   #0b0d0c;
+  --sup-ink:       #1d1d1f;
+  --sup-ink-soft:  #6e6e73;
+  --sup-ink-faint: #86868b;
+  --sup-hairline:  rgba(0,0,0,.08);
+  --sup-felt:      #0c5c3f;
+  --sup-felt-bright:#18a36b;
+  /* O DOURADO DA SUPREMA OS — dois valores, um por superfície. Não invente um terceiro:
+     no claro #8f6b2d segura 4,72:1 sobre #fbfbfd (AA); no escuro ele cai pra 4,0:1, por isso
+     existe o --sup-gold-dark (8,53:1 sobre #0b0d0c, AAA). Antes o dourado escuro era um número
+     mágico solto na ponte html.dark, sem nome — e o hub/cash acabaram inventando o próprio
+     (#d8b56d), que ainda por cima é a cor de identidade do Organograma (--sup-p-org). */
+  --sup-gold:      #8f6b2d;   /* dourado da marca — superfícies CLARAS */
+  --sup-gold-dark: #c9a84c;   /* dourado da marca — superfícies ESCURAS */
+  --sup-gold-bright:#ad8a4e;
+  --sup-red:       #c0392b;
+
+  /* -- tipografia ------------------------------------------ */
+  /* Segoe UI Variable/Segoe UI ANTES de Helvetica: no Windows nada da família SF existe
+     e -apple-system/BlinkMacSystemFont não resolvem — a stack caía direto em Arial. */
+  --sup-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", "Helvetica Neue", "Inter", sans-serif;
+  --sup-text:    "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", "Inter", sans-serif;
+  --sup-mono:    "SF Mono", "IBM Plex Mono", ui-monospace, "Roboto Mono", monospace;
+
+  /* -- escala de ESPAÇO ------------------------------------
+     Fecha a lacuna S2 da auditoria: a marca tinha cor/raio/easing como fonte
+     única, mas espaçamento vivia à mão em cada painel (e derivava). Escala 4px,
+     nomes t-shirt. ADITIVO — nada consome ainda; código novo (e a shell futura)
+     passa a ter um vocabulário só. */
+  --sup-space-3xs: 2px;
+  --sup-space-2xs: 4px;
+  --sup-space-xs:  8px;
+  --sup-space-sm:  12px;
+  --sup-space-md:  16px;
+  --sup-space-lg:  24px;
+  --sup-space-xl:  32px;
+  --sup-space-2xl: 48px;
+  --sup-space-3xl: 64px;
+
+  /* -- escala de TIPO (fluida) ------------------------------
+     clamp(min, preferido, max): cresce com a viewport sem media query. Ancorada
+     no 16px de corpo que os painéis já usam. Mesma razão do espaço — parar o
+     drift de tamanho entre telas. */
+  --sup-text-xs:   clamp(.72rem, .70rem + .10vw, .78rem);
+  --sup-text-sm:   clamp(.82rem, .79rem + .15vw, .90rem);
+  --sup-text-base: clamp(.95rem, .92rem + .20vw, 1.05rem);
+  --sup-text-lg:   clamp(1.10rem, 1.03rem + .35vw, 1.30rem);
+  --sup-text-xl:   clamp(1.35rem, 1.20rem + .70vw, 1.80rem);
+  --sup-text-2xl:  clamp(1.80rem, 1.50rem + 1.40vw, 2.60rem);
+  --sup-text-3xl:  clamp(2.40rem, 1.90rem + 2.40vw, 3.80rem);
+  --sup-line-tight: 1.12;
+  --sup-line-base:  1.55;
+
+  /* -- escala de SOMBRA (elevação) --------------------------
+     Os mesmos quatro tons que o painel.css já provou (claro aqui, escuro no
+     bloco html.dark abaixo). Vira fonte única pra acabar com as ~94 sombras
+     hardcoded espalhadas — código novo usa --sup-shadow-*, o antigo migra aos
+     poucos. */
+  --sup-shadow-sm:   0 1px 2px rgba(16,28,22,.05), 0 3px 10px -2px rgba(16,28,22,.06);
+  --sup-shadow-md:   0 4px 14px -3px rgba(16,28,22,.09), 0 10px 30px -8px rgba(16,28,22,.11);
+  --sup-shadow-lg:   0 14px 36px -10px rgba(16,28,22,.16), 0 28px 64px -20px rgba(16,28,22,.20);
+  --sup-shadow-glow: 0 0 0 1px rgba(24,163,107,.14), 0 10px 28px -10px rgba(24,163,107,.24);
+
+  /* -- forma e movimento ----------------------------------- */
+  --sup-radius-sm: 12px;
+  --sup-radius-md: 18px;
+  --sup-radius-lg: 28px;
+  --sup-ease:      cubic-bezier(.22,1,.36,1);
+  --sup-ease-expo: cubic-bezier(.16,1,.3,1);
+
+  /* -- cores por produto -----------------------------------
+     A identidade do OS: chrome igual em todo lado + UM acento por produto. É isto que faz
+     o hub e os painéis parecerem a mesma casa. FONTE ÚNICA — o hub aponta seus --p-* pra cá.
+     O acento do Admin é o próprio dourado da marca, então acompanha a superfície (ver html.dark
+     abaixo); antes o hub tinha uma cópia divergente (#c9a35c) e ninguém percebia. */
+  --sup-p-painel: var(--sup-felt-bright);  /* #18a36b */
+  --sup-p-admin:  var(--sup-gold);         /* #8f6b2d no claro, --sup-gold-dark no escuro */
+  --sup-p-gu:     #8c5cc6;
+  --sup-p-learn:  #e8933d;
+  --sup-p-org:    #d8b56d;                 /* exclusivo do Organograma — não usar como chrome */
+  --sup-p-cash:   #4f8ef7;
+  --sup-p-eventos:#b3475d;                 /* framboesa do Radar de Eventos (Marketing) */
+
+  /* -- categorias de torneio (Main / Side / Satélite) -------
+     O ÚNICO vocabulário de cor que atravessa a operação inteira: o mesmo
+     vermelho-queimado de Main Event que o operador vê na Criação Noturna ele
+     tem que ver no Painel do Dia, no Radar e no telão. Não é acento de produto
+     (esse é um por painel, acima) — é significado, e significado não muda de
+     cor ao trocar de aba.
+     Estava COPIADO em painel.css, criacao-noturna.css, eventos.css e tv.css:
+     mesmos valores, quatro chances de divergir. A TV já tinha divergido no nome
+     (chamava --main-c) e só trazia o tom escuro. É exatamente o que este arquivo
+     existe pra impedir — mesmo caso do --sup-gold, que virou fonte única depois
+     de o hub inventar o próprio dourado.
+     Três tons por categoria, como o resto do sistema:
+       base   → texto/borda em superfície CLARA
+       bright → texto/acento em superfície ESCURA (e realce no claro)
+       soft   → fundo (chip, pílula, linha) */
+  --sup-cat-main:        #9a2d1f;
+  --sup-cat-main-bright: #d8492f;
+  --sup-cat-main-soft:   #fbece7;
+  --sup-cat-side:        #1d5fa3;
+  --sup-cat-side-bright: #2f7fd6;
+  --sup-cat-side-soft:   #e9f1fb;
+  --sup-cat-sat:         #6b3fa0;
+  --sup-cat-sat-bright:  #8c5cc6;
+  --sup-cat-sat-soft:    #f1eaf9;
+
+  /* -- pontes pros nomes que cada app já usa ---------------- */
+  /* Painel / Criação GU */
+  --gold: var(--sup-gold);
+  --ease: var(--sup-ease);
+  --ease-expo: var(--sup-ease-expo);
+  /* Admin (alinha raios à família 12/18) */
+  --r:  var(--sup-radius-sm);
+  --r2: var(--sup-radius-md);
+}
+
+/* dark: o dourado da marca troca de valor conforme a superfície (o do claro não segura
+   contraste no escuro). Um lugar só decide isso — os apps só consomem --gold.
+
+   OS DOIS SELETORES SÃO NECESSÁRIOS: painel/admin/criação marcam o tema com a CLASSE
+   `.dark`, mas o dashboard cash usa `[data-theme="dark"]`. Como este arquivo carrega por
+   ÚLTIMO (é o que o faz vencer os :root internos), cobrir só `html.dark` deixava o cash
+   com o dourado CLARO sobre fundo escuro — 3,89:1, reprova em AA. Se algum painel novo
+   usar outro mecanismo de tema, ele entra aqui. */
+html.dark,
+html[data-theme="dark"]{
+  --gold: var(--sup-gold-dark);
+  /* o acento do Admin É o dourado da marca, então acompanha junto */
+  --sup-p-admin: var(--sup-gold-dark);
+
+  /* sombras da escala S2 sobem de opacidade no escuro (mesmo modelo do painel) */
+  --sup-shadow-sm:   0 1px 2px rgba(0,0,0,.45), 0 3px 12px -2px rgba(0,0,0,.4);
+  --sup-shadow-md:   0 6px 20px -4px rgba(0,0,0,.55), 0 14px 38px -10px rgba(0,0,0,.5);
+  --sup-shadow-lg:   0 18px 44px -12px rgba(0,0,0,.65), 0 34px 76px -22px rgba(0,0,0,.6);
+  --sup-shadow-glow: 0 0 0 1px rgba(34,212,126,.2), 0 12px 32px -10px rgba(34,212,126,.16);
+  /* o framboesa do claro não segura contraste no escuro — mesmo modelo do dourado */
+  --sup-p-eventos: #ef7d93;
+
+  /* as categorias sobem de tom no escuro pelo mesmo motivo do dourado e do
+     framboesa: o #9a2d1f de Main sobre #0f1110 dá ~2,6:1 e some. Os valores
+     abaixo são os que o Painel do Dia e o Radar já usavam no dark — aqui eles
+     só param de viver em dois arquivos. */
+  --sup-cat-main:        #d94f3d;
+  --sup-cat-main-bright: #f06050;
+  --sup-cat-main-soft:   rgba(217,79,61,.14);
+  --sup-cat-side:        #3585e0;
+  --sup-cat-side-bright: #5aa8ff;
+  --sup-cat-side-soft:   rgba(53,133,224,.14);
+  --sup-cat-sat:         #9b61d6;
+  --sup-cat-sat-bright:  #b888f0;
+  --sup-cat-sat-soft:    rgba(155,97,214,.14);
+}
+
+/* ============================================================
+   FOCO DE TECLADO + COLOR-SCHEME — compartilhado por todos os
+   produtos. Antes só o hub tinha :focus-visible; os outros painéis
+   ficavam sem indicação de foco (a11y + operador rápido no teclado).
+   Um anel só, na cor do produto quando ela existe, cinza-marca no
+   fallback. :focus-visible (não :focus) pra não aparecer no clique
+   de mouse. color-scheme evita o flash de tema errado no 1º paint
+   (form controls nativos, scrollbar) mesmo antes do JS rodar.
+   ============================================================ */
+:root{ color-scheme: light; --sup-focus: var(--sup-felt-bright); }
+html.dark,
+html[data-theme="dark"]{ color-scheme: dark; --sup-focus: var(--gold); }
+
+:where(a, button, input, select, textarea, summary, [tabindex], [role="button"], [role="tab"], [role="link"]):focus-visible{
+  outline: 2px solid var(--sup-focus, #18a36b);
+  outline-offset: 2px;
+  border-radius: var(--sup-radius-sm);
+}
+/* No modo leve o foco continua — é a11y, não enfeite */
+html.lite :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible{
+  outline: 2px solid var(--sup-focus, #18a36b) !important;
+}
+
+/* ============================================================
+   MODO LEVE (html.lite) — ligado por scripts/lite.js em PC/rede
+   fraca (pouca RAM, saveData, 2g) ou manualmente (?lite=1).
+   Corta os dois efeitos que mais custam GPU sem quebrar o layout:
+   · backdrop-filter (o "vidro fosco") — o maior custo de composição;
+     o fundo translúcido do elemento continua, só o blur some.
+   · animação/transição contínua — congela pulsos, brilhos e loops
+     que repintam pra sempre. Elementos que "animam pra aparecer"
+     saltam direto pro estado final (visível), então nada some.
+   Cores, sombras e raios ficam: o visual continua o mesmo, só mais
+   barato de compor. Vale em todos os produtos de uma vez.
+   (A redução manual de sombras/blur pesados no Admin/Hub é outro
+   passo, no CSS de cada painel — este bloco é o interruptor global.)
+   ============================================================ */
+html.lite *,
+html.lite *::before,
+html.lite *::after{
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  animation-duration: .001ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .001ms !important;
+}
+html.lite{ scroll-behavior: auto !important; }
