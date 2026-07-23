@@ -51,22 +51,50 @@ SupremaShell.mountNav('#supNav', {
     <div class="eyebrow">Inteligência · histórico</div>
     <h1>Suprema Analytics</h1>
     <p>O que o dia a dia acumulou: prize pool, overlay real, campo e performance ao longo do tempo — a partir dos fechamentos que o Painel do Dia já grava.</p>
-    <div class="period" id="period">Carregando histórico…</div>
+    <div class="hero-foot">
+      <div class="period" id="period">Carregando histórico…</div>
+      <div class="range" id="range" role="group" aria-label="Janela de tempo">
+        <button data-range="7"  aria-pressed="false">7 dias</button>
+        <button data-range="30" aria-pressed="true">30 dias</button>
+        <button data-range="0"  aria-pressed="false">Tudo</button>
+      </div>
+    </div>
   </header>
 
   <section class="kpis" id="kpis"></section>
 
-  <div class="grid2">
-    <div class="card"><h2>Prize pool × garantido por dia</h2><canvas id="chartMoney"></canvas></div>
-    <div class="card"><h2>Eventos e campo por dia</h2><canvas id="chartEvents"></canvas></div>
+  <!-- gráfico principal: dinheiro (uma escala só — tudo em R$) -->
+  <div class="card hero-chart">
+    <div class="card-head">
+      <h2>Prize pool × garantido por dia</h2>
+      <span class="hint">valores em R$</span>
+    </div>
+    <div class="legend">
+      <span class="lg"><i class="swatch" style="background:var(--a-teal)"></i>Prize pool</span>
+      <span class="lg" style="color:var(--ink-soft,#6e6e73)"><i class="swatch dash"></i>Garantido (meta)</span>
+      <span class="lg"><i class="swatch" style="background:var(--a-amber)"></i>Overlay real (buraco coberto)</span>
+    </div>
+    <div class="chart-box"><canvas id="chartMoney"></canvas></div>
   </div>
 
   <div class="grid2">
-    <div class="card" id="opCard"><h2>Ranking por operador</h2><div id="opTable"></div></div>
-    <div class="card" id="worstCard"><h2>Maiores overlays (o buraco coberto)</h2><div id="worstTable"></div></div>
+    <div class="card">
+      <div class="card-head"><h2>Eventos por dia</h2></div>
+      <div class="chart-box sm"><canvas id="chartEvents"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Campo por dia</h2><span class="hint">jogadores</span></div>
+      <div class="chart-box sm"><canvas id="chartField"></canvas></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card" id="opCard"><div class="card-head"><h2>Ranking por operador</h2></div><div id="opTable"></div></div>
+    <div class="card" id="worstCard"><div class="card-head"><h2>Maiores overlays (o buraco coberto)</h2></div><div id="worstTable"></div></div>
   </div>
 </div>
 
+<script src="suprema-motion.js"></script>
 <script src="suprema-db.js"></script>
 <script src="analytics-core.js"></script>
 <script src="analytics.js"></script>
