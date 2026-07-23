@@ -135,7 +135,7 @@
       }
     },
     "historico": {
-      ".read": "auth != null && (auth.token.admin === true || root.child('admins').child(auth.uid).val() === true || auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group' || root.child('users').child(root.child('uidIndex').child(auth.uid).val()).child('access').child('painel').val() === true)",
+      ".read": "auth != null && (auth.token.admin === true || root.child('admins').child(auth.uid).val() === true || auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group' || root.child('users').child(root.child('uidIndex').child(auth.uid).val()).child('access').child('analytics').val() === true || root.child('users').child(root.child('uidIndex').child(auth.uid).val()).child('access').child('painel').val() === true)",
       ".write": "auth != null && (auth.token.admin === true || root.child('admins').child(auth.uid).val() === true || auth.token.email === 'brian.rodrigues@suprema.group' || auth.token.email === 'admin@suprema.group' || auth.token.email === 'brian@suprema.group' || root.child('users').child(root.child('uidIndex').child(auth.uid).val()).child('edit').child('painel').val() === true || (!root.child('users').child(root.child('uidIndex').child(auth.uid).val()).child('edit').exists() && root.child('users').child(root.child('uidIndex').child(auth.uid).val()).child('access').child('painel').val() === true))"
     },
     "eventos": {

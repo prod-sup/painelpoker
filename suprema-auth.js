@@ -36,6 +36,7 @@
      passam por esta trava aqui. */
   var PANELS = [
     { id: 'painel', label: 'Painel do Dia',     file: 'index.html' },
+    { id: 'analytics', label: 'Suprema Analytics', file: 'analytics.html' },
     { id: 'gu',     label: 'Criação Noturna',   file: 'criacao-noturna.html' },
     { id: 'cash',   label: 'Cash Intelligence', file: 'dashboard-mesa-cash.html' },
     { id: 'eventos',label: 'Radar de Eventos',  file: 'eventos.html' },

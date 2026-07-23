@@ -24,7 +24,7 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="suprema-auth.js"></script>
-<script>/* portão RBAC: quem pode ver o painel do dia pode ver o histórico dele */ SupremaAuth.guard({ panel:'painel' }); SupremaAuth.revalidateAccess('painel');</script>
+<script>/* portão RBAC: acesso próprio, liberado por pessoa na aba Operadores do Admin */ SupremaAuth.guard({ panel:'analytics' }); SupremaAuth.revalidateAccess('analytics');</script>
 <!-- shell (chrome compartilhado): SÍNCRONO — o mount inline do nav roda no parse -->
 <script src="suprema-shell.js"></script>
 <link rel="stylesheet" href="suprema-tokens.css">
