@@ -2191,3 +2191,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+/* ── Copiloto de IA: snapshot do estado do Cash ───────────────────────────
+   Entrega ao Copiloto (suprema-copiloto.js) a aba ativa e os KPIs visíveis
+   nela — os mesmos cards .kpi (.kl/.kv/.ks) que o Cash já renderiza. */
+document.addEventListener('DOMContentLoaded', () => {
+  if (!window.SupremaCopiloto) return;
+  SupremaCopiloto.setSnapshot(() => {
+    const activePage = document.querySelector('.pg.on');
+    const snap = { painel: 'Cash / Mesa', aba: activePage ? activePage.id.replace('pg-', '') : null };
+    try {
+      snap.kpis = {};
+      (activePage || document).querySelectorAll('.kpi').forEach(el => {
+        const label = el.querySelector('.kl, .kpi-label')?.textContent?.trim();
+        const val = el.querySelector('.kv, .kpi-val')?.textContent?.trim();
+        if (label && val) snap.kpis[label] = val;
+      });
+    } catch (e) {}
+    return snap;
+  });
+});
