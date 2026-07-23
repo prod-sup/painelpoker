@@ -1495,12 +1495,14 @@
   .unfixed-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:12px; padding-bottom:36px;}
   .ucard{
     position:relative;
-    border:1px solid rgba(192,57,43,0.22); background:#fff; border-radius:14px; padding:16px 16px;
+    /* estado (pendente/fixado) vai na COR da borda inteira + na pílula "Fixado",
+       não numa faixa lateral — o traço só à esquerda era redundante e caía no
+       anti-padrão de side-stripe. */
+    border:1px solid rgba(192,57,43,0.34); background:#fff; border-radius:14px; padding:16px 16px;
     display:flex; flex-direction:column; gap:8px;
-    border-left:3px solid var(--red);
     transition:background .4s var(--ease), border-color .4s var(--ease);
   }
-  .ucard.is-fixed{ background:var(--fixed-bg); border-color:var(--fixed-border); border-left-color:var(--fixed-border); }
+  .ucard.is-fixed{ background:var(--fixed-bg); border-color:var(--fixed-border); }
   .ucard.is-fixed::before{ content:"Fixado"; position:absolute; top:14px; right:14px; font-size:10px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:#1c7a48; background:rgba(52,184,118,0.16); padding:3px 9px; border-radius:99px; }
   .ucard.is-late-pulse::after{
     content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:1;
@@ -3636,13 +3638,14 @@ html.dark .routine-tool-desc b{ color:var(--felt-bright); }
   text-transform:uppercase; color:var(--ink-faint); margin:12px 0 2px;
 }
 .diag-item{
+  /* severidade sai na pílula .diag-sev + no tom da borda/fundo INTEIROS —
+     a faixa lateral era um terceiro sinal redundante (side-stripe, anti-padrão). */
   padding:13px 14px; border-radius:var(--radius-sm);
   border:1px solid var(--hairline); background:var(--card);
-  border-left:3px solid var(--hairline-strong);
 }
-.diag-item.critico{ border-left-color:var(--red,#c0392b); }
-.diag-item.atencao{ border-left-color:var(--gold); }
-.diag-item.info   { border-left-color:var(--felt-bright); }
+.diag-item.critico{ border-color:rgba(192,57,43,.32); background:rgba(192,57,43,.05); }
+.diag-item.atencao{ border-color:rgba(201,168,76,.34); background:rgba(201,168,76,.06); }
+.diag-item.info   { border-color:rgba(24,163,107,.30); background:rgba(24,163,107,.05); }
 .diag-head{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:5px; }
 .diag-sev{
   font-family:var(--mono); font-size:9px; font-weight:800; letter-spacing:.08em;

@@ -17,7 +17,9 @@
   --bdr2:rgba(242,237,226,.05);
   --ink:#f2ede2;
   --ink2:#8f9490;
-  --ink3:#5a5f5a;
+  --ink3:#7d827c;   /* clareado: o #5a5f5a antigo dava ~2,4–2,9:1 no fundo escuro (reprova AA,
+                       mesmo caso já corrigido no tema claro na linha ~50). #7d827c segura ~4,8:1
+                       sobre --bg e ~4,4:1 sobre --surf, sem colar no --ink2 (mantém a hierarquia). */
   --dia:#4f8ef7;
   --dia2:rgba(79,142,247,.12);
   --noite:#a78bfa;

@@ -273,6 +273,20 @@ html.dark .lbox{border-color:var(--border)}
   padding:2px 8px;border-radius:99px;
 }
 .tb-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+/* ── TOOLBAR RESPONSIVA ──────────────────────────────────────────
+   A .tb-right é uma barra cheia (7 ferramentas + 3 links + toggle + sair).
+   Em uma barra FIXA de 52px, com os rótulos visíveis ela precisa de ~1660px;
+   abaixo disso o texto quebrava em 2 linhas e, mais estreito ainda, o "Sair" e
+   o toggle de tema saíam da tela (body tem overflow-x:hidden → cortava). Solução:
+   nunca quebrar o rótulo em 2 linhas e, abaixo de 1660px, colapsar as 7
+   ferramentas para SÓ ícone (title/aria-label garantem o nome acessível). */
+.topbar .btn-ghost{white-space:nowrap}
+@media (max-width:1660px){
+  .topbar .tb-right .btn-ghost .tb-label{
+    position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;
+  }
+  .topbar .tb-right .btn-ghost{padding-left:10px;padding-right:10px;gap:0}
+}
 .tb-user{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2);font-weight:500}
 .tb-dot{
   width:7px;height:7px;border-radius:50%;background:var(--green);
@@ -530,9 +544,10 @@ td.center{text-align:center}
 .audit-day-header{
   display:flex;align-items:center;justify-content:space-between;
   padding:14px 18px;
-  background:linear-gradient(90deg,rgba(201,168,76,.06),transparent);
-  border:1px solid var(--border);
-  border-left:3px solid var(--gold);
+  /* acento dourado vem do degradê + da borda inteira em tom de ouro, não de uma
+     faixa lateral de 3px (side-stripe, anti-padrão). */
+  background:linear-gradient(90deg,rgba(201,168,76,.08),transparent 70%);
+  border:1px solid rgba(201,168,76,.28);
   border-radius:var(--r2);
   margin-bottom:14px;
   box-shadow:var(--sh-1);
