@@ -1393,8 +1393,9 @@ async function loadOps(){
    Bloqueio por padrão: só entra no painel quem tiver users/<key>/access/<id>=true.
    Aqui o admin libera/retira painel por painel, por pessoa. Admin entra em tudo. */
 const ACCESS_PANELS = (window.SupremaAuth && SupremaAuth.PANELS ? SupremaAuth.PANELS : []).filter(p=>!p.adminOnly);
-/* painéis onde VER ≠ EDITAR (têm nós de escrita no RTDB). Learn/Org são
-   externos e Radar é leitura por natureza — edição não se aplica. */
+/* painéis onde VER ≠ EDITAR (têm nós de escrita no RTDB). Learn/Org/Criação de
+   Eventos são externos e Radar é leitura por natureza — edição não se aplica
+   (o hub gateia só a VISUALIZAÇÃO desses via access). */
 const EDIT_PANELS = ['painel','gu','cash','tv'];
 /* Uma LINHA por painel: nome + os dois interruptores (👁 Vê / ✎ Edita) lado a
    lado. Lê-se naturalmente ("Painel do Dia: vê, edita") em vez de cruzar duas
