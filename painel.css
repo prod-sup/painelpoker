@@ -597,14 +597,28 @@
     box-shadow:0 8px 30px -18px rgba(12,30,22,0.5);
   }
   .nav-inner{
-    /* a nav é uma TOOLBAR cheia — precisa de mais largura que o conteúdo (1180px)
-       pra não estourar pra fora da tela em monitores largos */
-    max-width:1480px; margin:0 auto; padding:0 24px;
+    /* a nav é uma TOOLBAR cheia — precisa de mais largura que o conteúdo (1180px).
+       O cap tem que CONTER o conteúdo intrínseco (~1680px): se for menor, os itens
+       transbordam a caixa centralizada e o excesso é jogado pra DIREITA, saindo da
+       tela (body tem overflow-x:hidden, então corta em vez de rolar). 1720 abriga
+       a toolbar cheia; abaixo disso o descarte progressivo (breakpoints acima) tira
+       relógio → sync → externos → âncoras nessa ordem. */
+    max-width:1720px; margin:0 auto; padding:0 24px;
     height:56px; display:flex; align-items:center; justify-content:space-between; gap:12px;
     transition:height .4s var(--ease-expo);
   }
-  @media (max-width:1280px){ .nav-time{display:none;} }
-  @media (max-width:1180px){ .sync-status .sync-label{display:none;} }
+  /* ── DESCARTE PROGRESSIVO DA TOOLBAR ──
+     A nav é uma barra de ferramentas cheia: seu conteúdo intrínseco (~1680px)
+     é maior que a maioria dos laptops (1366/1440/1536). Como o body tem
+     overflow-x:hidden, o excedente não rola — ele é CORTADO à direita, levando
+     o cluster de ferramentas e o botão Global MTT pra "fora da tela".
+     Por isso escondemos os itens na ORDEM do menos essencial pro mais:
+       relógio (≤1690) → rótulo do sync (≤1600) → links externos (≤1560)
+       → âncoras de seção (≤1340) → ferramentas (≤540, mais abaixo).
+     Assim o núcleo operacional (bandeja de ferramentas + Global MTT) nunca é
+     cortado nas larguras reais de uso. */
+  @media (max-width:1720px){ .nav-time{display:none;} }
+  @media (max-width:1615px){ .sync-status .sync-label{display:none;} }
   nav.scrolled .nav-inner{ height:48px; }
   .brand{display:flex; align-items:center; gap:9px; font-size:14.5px; font-weight:600; letter-spacing:-0.01em; flex:none;}
   .brand-mark{width:20px; height:20px; flex:none;}
@@ -893,7 +907,7 @@
   .sync-status.online .sync-dot{ animation:none; }
   @keyframes pulse-sync{ 0%,100%{opacity:1} 50%{opacity:.35} }
   @media (max-width:680px){ .sync-status .sync-label{display:none;} }
-  @media (max-width:820px){ .nav-links{display:none;} }
+  @media (max-width:1400px){ .nav-links{display:none;} }
 
   .upload-btn{
     display:inline-flex; align-items:center; gap:7px;
@@ -970,7 +984,7 @@
     .nav-ext a, .nav-ext .nx-out{ transition:none; }
     .nav-ext a:hover{ transform:none; }
   }
-  @media (max-width:1080px){ .nav-ext{ display:none; } }
+  @media (max-width:1560px){ .nav-ext{ display:none; } }
 
   @media (max-width:540px){
     .nav-inner{padding:0 16px; gap:8px;}
