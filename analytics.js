@@ -258,8 +258,61 @@
     });
   }
 
+  /* ── navegação de seções (a unificação) ────────────────────────────────────
+     Uma aba por superfície de inteligência. O indicador-pílula desliza pro tab
+     ativo (transform/width, barato) e a seção que entra faz um fade-up com
+     cascata. Redesenha os gráficos ao voltar pra Visão Geral (canvas escondido
+     perde o tamanho). Roving tabindex + setas = navegação por teclado. */
+  function wireSections() {
+    var tabs = [].slice.call(document.querySelectorAll('.sectab'));
+    var ind = document.querySelector('.sectab-ind');
+    var bar = document.querySelector('.sectabs');
+    if (!tabs.length || !bar) return;
+
+    function moveInd(tab) {
+      if (!ind || !tab) return;
+      ind.style.width = tab.offsetWidth + 'px';
+      ind.style.transform = 'translateX(' + tab.offsetLeft + 'px)';
+    }
+    function activate(tab, focus) {
+      var sec = tab.getAttribute('data-sec');
+      tabs.forEach(function (t) {
+        var on = t === tab;
+        t.classList.toggle('is-active', on);
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        t.tabIndex = on ? 0 : -1;
+      });
+      [].forEach.call(document.querySelectorAll('.section'), function (s) {
+        if (s.id === 'sec-' + sec) {
+          s.hidden = false; s.classList.add('is-active', 'enter');
+          setTimeout(function () { s.classList.remove('enter'); }, 660);
+        } else { s.hidden = true; s.classList.remove('is-active', 'enter'); }
+      });
+      moveInd(tab);
+      try { tab.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch (e) {}
+      if (focus) tab.focus();
+      if (sec === 'overview' && window.__redraw) window.__redraw();  // canvas voltou a ser visível
+    }
+
+    tabs.forEach(function (t) { t.addEventListener('click', function () { activate(t); }); });
+    bar.addEventListener('keydown', function (e) {
+      var i = tabs.indexOf(document.activeElement); if (i < 0) return;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        var n = e.key === 'ArrowRight' ? (i + 1) % tabs.length : (i - 1 + tabs.length) % tabs.length;
+        activate(tabs[n], true);
+      }
+    });
+
+    var active = document.querySelector('.sectab.is-active') || tabs[0];
+    moveInd(active);
+    // re-mede depois que fontes/layout assentam e em resize
+    addEventListener('load', function () { moveInd(document.querySelector('.sectab.is-active') || tabs[0]); });
+    addEventListener('resize', function () { moveInd(document.querySelector('.sectab.is-active') || tabs[0]); });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
-    chrome(); skeletonKpis(); wireRange(); initData(); wireCopiloto();
+    chrome(); skeletonKpis(); wireRange(); wireSections(); initData(); wireCopiloto();
     if (SM) { try { SM.aurora('.hero', { tint1: 'rgba(15,157,143,.20)', tint2: 'rgba(217,119,6,.10)' }); } catch (e) {} }
   });
 })();

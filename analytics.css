@@ -146,3 +146,75 @@ td.neg{ color:var(--a-amber); } td.pos{ color:var(--acc-bright); }
 .kpi.is-loading .k-val::after{ content:""; display:inline-block; width:70%; height:22px; border-radius:6px; vertical-align:middle;
   background:inherit; }
 html.lite .sk{ animation:none; }
+
+/* ── KPI: acento no RÓTULO (ponto), não faixa lateral ──
+   O ::before de 3px na borda esquerda era um side-stripe (anti-padrão do
+   sistema); o acento agora é um ponto discreto ao lado do rótulo. */
+.kpi::before{ content:none; }
+.kpi .k-label{ display:flex; align-items:center; gap:7px; }
+.kpi .k-label::before{ content:""; width:7px; height:7px; border-radius:50%; flex:none;
+  background:var(--kpi-accent,var(--acc)); box-shadow:0 0 0 3px color-mix(in srgb, var(--kpi-accent,var(--acc)) 16%, transparent); }
+
+/* ── NAV DE SEÇÕES (a unificação) ──────────────────────────────────────────
+   Tabs roláveis (overflow-x) pra nunca cortar em tela estreita, com um
+   indicador-pílula que DESLIZA pro tab ativo (só transform/width — barato). */
+.sectabs{
+  position:relative; display:flex; gap:4px; margin:26px 0 22px; padding-bottom:2px;
+  overflow-x:auto; scrollbar-width:none; box-shadow:inset 0 -1px 0 var(--hairline);
+}
+.sectabs::-webkit-scrollbar{ display:none; }
+.sectab{
+  position:relative; z-index:1; display:inline-flex; align-items:center; gap:8px; flex:none; white-space:nowrap;
+  border:none; background:none; cursor:pointer; font:inherit; font-size:13px; font-weight:600;
+  color:var(--ink-soft,#6e6e73); padding:10px 15px 12px; border-radius:11px 11px 0 0;
+  transition:color .2s var(--sup-ease,ease);
+}
+.sectab svg{ width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; opacity:.85;
+  transition:transform .32s var(--sup-ease-expo,ease); }
+.sectab:hover{ color:var(--ink,#1d1d1f); }
+html.dark .sectab:hover{ color:#eef2ef; }
+.sectab:hover svg{ transform:translateY(-1px); }
+.sectab.is-active{ color:var(--acc); }
+.sectab.is-active svg{ opacity:1; }
+.sectab-soon{
+  font-size:9px; font-weight:800; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--a-amber); background:var(--a-amber-soft); padding:2px 6px; border-radius:5px;
+}
+/* pílula que corre por baixo do tab ativo (posição/tamanho vêm do JS) */
+.sectab-ind{
+  position:absolute; z-index:0; left:0; top:4px; bottom:2px; width:0; border-radius:10px 10px 3px 3px;
+  background:var(--acc-soft); transform:translateX(0);
+  transition:transform .42s var(--sup-ease-expo,ease), width .42s var(--sup-ease-expo,ease);
+  pointer-events:none;
+}
+.sectab-ind::after{ content:""; position:absolute; left:10px; right:10px; bottom:-2px; height:2px; border-radius:2px; background:var(--acc); }
+
+/* ── seções (tabpanels) ── */
+.section{ display:block; }
+.section[hidden]{ display:none; }
+@keyframes secFadeUp{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:none; } }
+.section.enter > *{ animation:secFadeUp .5s var(--sup-ease-expo,ease) both; }
+.section.enter > *:nth-child(2){ animation-delay:.05s; }
+.section.enter > *:nth-child(3){ animation-delay:.10s; }
+.section.enter > *:nth-child(4){ animation-delay:.15s; }
+.section.enter > *:nth-child(n+5){ animation-delay:.20s; }
+
+/* ── estado "em migração" — ensina o que a seção vai trazer, não "vazio" ── */
+.soon{ text-align:center; max-width:540px; margin:8px auto; padding:52px 24px 64px; }
+.soon-ico{ width:58px; height:58px; margin:0 auto 18px; border-radius:17px; display:grid; place-content:center;
+  color:var(--acc); background:var(--acc-soft); }
+.soon-ico svg{ width:27px; height:27px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.soon h3{ font-family:var(--sup-display,inherit); font-size:20px; letter-spacing:-.02em; margin:0 0 9px; }
+.soon p{ color:var(--ink-soft,#6e6e73); line-height:1.6; margin:0 auto 20px; max-width:46ch; }
+html.dark .soon p{ color:#a6b0aa; }
+.soon-where{ font-family:var(--sup-mono,ui-monospace,monospace); font-size:11.5px; color:var(--ink-faint,#86868b); }
+.soon-where a{ color:var(--acc); text-decoration:none; border-bottom:1px solid transparent; transition:border-color .2s; }
+.soon-where a:hover{ border-bottom-color:currentColor; }
+
+@media (prefers-reduced-motion: reduce){
+  .section.enter > *{ animation:none; }
+  .sectab-ind{ transition:none; }
+  .sectab svg{ transition:none; }
+}
+html.lite .section.enter > *{ animation:none; }
+html.lite .sectab-ind{ transition:none; }

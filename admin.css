@@ -341,6 +341,13 @@ html.dark .lbox{border-color:var(--border)}
 }
 .ntab.active .ni{opacity:1}
 @keyframes ntab-pop{0%{transform:scale(.97)}55%{transform:scale(1.02)}100%{transform:scale(1)}}
+/* link pro lar único da inteligência (Suprema Analytics, página à parte) — o
+   teal do produto no ícone + seta de saída indicam que TROCA de página. */
+.ntab-ext{text-decoration:none}
+.ntab-ext .ni{color:#14b8a6;opacity:1}
+html.dark .ntab-ext .ni{color:#2dd4c4}
+.ntab-ext .ext-arrow{margin-left:auto;width:12px;height:12px;flex:none;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:.45;transition:transform .28s var(--ease-expo),opacity .2s}
+.ntab-ext:hover .ext-arrow{opacity:.9;transform:translate(1.5px,-1.5px)}
 
 /* ── MAIN ────────────────────────────────────────────────────── */
 .app-main{margin-left:var(--sidebar);padding-top:var(--topbar);min-height:100vh}
