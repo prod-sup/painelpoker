@@ -87,6 +87,37 @@
   if(!document.hasFocus()) set(true); // já entra congelado se abriu sem foco
 })();
 
+/* ── PERF: congela animações após inatividade ──────────────────────────────
+   win-blurred só cobre a JANELA sem foco. Mas o painel também fica FOCADO e
+   parado por longos períodos (operador observando, ou trabalhando na mesma tela
+   sem mexer no painel) — e aí toda animação infinite continua a 60fps, segurando
+   o compositor à toa. Após 60s sem interação, ligamos body.sp-idle (pausa CSS,
+   ver painel.css). Contrato idêntico ao prefers-reduced-motion: nada de
+   informação se perde (cores/labels de atraso seguem visíveis, só o movimento
+   para); qualquer pointer/tecla/scroll retoma na hora. */
+(function freezeAnimationsWhenIdle(){
+  const IDLE_MS = 60000;
+  let timer = null, lastReset = 0;
+  const sleep = () => document.body.classList.add('sp-idle');
+  const arm   = () => { clearTimeout(timer); timer = setTimeout(sleep, IDLE_MS); };
+  const onActivity = () => {
+    if(document.body.classList.contains('sp-idle')){ // acordou de fato
+      document.body.classList.remove('sp-idle'); arm(); lastReset = Date.now(); return;
+    }
+    const now = Date.now();                          // em uso: rearmar no máx 1x/s
+    if(now - lastReset < 1000) return;               // (pointermove dispara dezenas de vezes/s)
+    lastReset = now; arm();
+  };
+  ['pointerdown','pointermove','keydown','wheel','touchstart'].forEach(ev =>
+    window.addEventListener(ev, onActivity, {passive:true}));
+  window.addEventListener('scroll', onActivity, {passive:true, capture:true});
+  document.addEventListener('visibilitychange', () => {
+    if(document.hidden) clearTimeout(timer);         // aba oculta: browser já freia; não precisa timer
+    else { document.body.classList.remove('sp-idle'); arm(); }
+  });
+  if(document.hasFocus()) arm();
+})();
+
 /* =========================================================================
    STATE
 ========================================================================= */

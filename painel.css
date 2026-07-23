@@ -554,7 +554,15 @@
      freia abas ocultas — não uma janela visível-porém-sem-foco (ex.: painel num monitor
      enquanto você usa o cliente da Suprema no outro). Sem isso, animações infinite mantêm
      a GPU/compositor a 60fps pra sempre, roubando recurso dos outros apps do PC. */
-  body.win-blurred *, body.win-blurred *::before, body.win-blurred *::after{
+  /* body.sp-idle: mesmo congelamento após inatividade prolongada (ligado em
+     freezeAnimationsWhenIdle). O painel fica aberto E focado por longos períodos
+     enquanto o operador observa ou trabalha em outra parte da tela — win-blurred
+     não cobre "focado porém parado", e aí toda animação infinite segura o
+     compositor a 60fps à toa. Nenhuma informação se perde (mesmo contrato do
+     prefers-reduced-motion abaixo: cores/labels de atraso continuam, só o
+     movimento para); qualquer pointer/tecla/scroll retoma na hora. */
+  body.win-blurred *, body.win-blurred *::before, body.win-blurred *::after,
+  body.sp-idle *, body.sp-idle *::before, body.sp-idle *::after{
     animation-play-state: paused !important;
   }
 
@@ -1143,7 +1151,10 @@
     from{ opacity:0; transform:rotate(0deg) translateY(26px) scale(.92); }
     to{ opacity:1; transform:rotate(var(--rot)) translateZ(var(--tz,0px)); }
   }
-  .pcard{ will-change:transform; }
+  /* SEM will-change permanente aqui: card-deal roda UMA vez (.85s forwards) e as
+     cartas ficam estáticas pra sempre depois. Um will-change:transform fixo
+     mantinha uma camada de GPU viva por carta o resto da sessão, à toa — o
+     navegador já promove o transform sozinho durante a animação de entrada. */
 
   /* Ás em destaque: face marfim mais alta, borda e miolo dourados */
   .pcard-ace{
