@@ -226,6 +226,13 @@
 
   function gcRender(){
     const area = document.getElementById('guConfArea');
+    // A Conferência é TRANSPOSTA: cada seção rola na HORIZONTAL (torneios = colunas).
+    // Marcar um ✓ dispara o listener do Firebase → re-render → o scroll caía pro
+    // começo, e quem estava num horário avançado tinha que arrastar tudo de novo.
+    // Guardamos o scroll (horizontal por seção + vertical do drawer) e restauramos.
+    const _prevX = [].map.call(area.querySelectorAll('.gc-scroll'), el => el.scrollLeft);
+    const _scroller = area.closest('.drawer-body') || area;
+    const _prevY = _scroller ? _scroller.scrollTop : 0;
     const dayLbl = document.getElementById('guConfDayLbl');
     const [y,m,d] = DAY_ISO.split('-');
     dayLbl.textContent = `${d}/${m}`;
@@ -289,6 +296,10 @@
         <div class="gc-scroll"><table class="gc-table">${t}</table></div>`;
     });
     area.innerHTML = html || `<div class="gc-empty"><span class="ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3C7 8 3 12 3 15.5A4 4 0 0 0 11 17.3C10.6 19.4 9.5 20.6 7 21.5H17C14.5 20.6 13.4 19.4 13 17.3A4 4 0 0 0 21 15.5C21 12 17 8 12 3Z"/></svg></span>Nada nesse filtro.</div>`;
+    // restaura o scroll guardado no topo da função (horizontal por seção + vertical)
+    const _nowX = area.querySelectorAll('.gc-scroll');
+    _prevX.forEach((x, i) => { if (_nowX[i]) _nowX[i].scrollLeft = x; });
+    if (_scroller && _prevY) _scroller.scrollTop = _prevY;
     area.querySelectorAll('[data-gckey]').forEach(b => b.addEventListener('click', () => gcToggle(b.dataset.gckey)));
   }
   function gcAttach(){

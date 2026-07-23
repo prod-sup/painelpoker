@@ -182,15 +182,18 @@
     if (SM) { try { SM.countUp('.kpi .k-val'); } catch (e) {} }
   }
 
-  /* ── janela de tempo: filtra o histórico cru pelos N dias mais recentes e
-     re-agrega (rankings e totais acompanham a janela). 0 = tudo. ── */
+  /* ── janela de tempo: análise SEMPRE escopada no ano corrente (dados de anos
+     anteriores não entram em nenhuma janela), depois recortada pelos N dias mais
+     recentes. 0 = todo o ano. Os dias vêm como chave `d_AAAA_MM_DD`. ── */
   var _histRaw = {}, _range = 30;
+  var YEAR = String(new Date().getFullYear());
   function applyRange() {
-    var keys = Object.keys(_histRaw).filter(function (k) { return k.charAt(0) !== '_' && _histRaw[k]; }).sort();
-    var sub;
-    if (_range > 0 && keys.length > _range) {
-      sub = {}; keys.slice(-_range).forEach(function (k) { sub[k] = _histRaw[k]; });
-    } else sub = _histRaw;
+    var keys = Object.keys(_histRaw).filter(function (k) {
+      return k.charAt(0) !== '_' && _histRaw[k] && k.indexOf('d_' + YEAR + '_') === 0;
+    }).sort();
+    var use = (_range > 0 && keys.length > _range) ? keys.slice(-_range) : keys;
+    var sub = {};
+    use.forEach(function (k) { sub[k] = _histRaw[k]; });
     paint(A.aggregate(sub));
   }
   function wireRange() {
@@ -329,7 +332,7 @@
       if (!_agg) return { painel: 'Analytics', obs: 'histórico ainda não carregado' };
       return {
         painel: 'Analytics (histórico)',
-        janela: _range ? ('últimos ' + _range + ' dias') : 'tudo',
+        janela: _range ? ('últimos ' + _range + ' dias') : ('todo o ano de ' + YEAR),
         totais: _agg.totals,
         porDia: _agg.days.slice(-30),
         porOperador: _agg.byOperator,
