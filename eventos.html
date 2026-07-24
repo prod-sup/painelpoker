@@ -33,6 +33,8 @@ document.addEventListener('DOMContentLoaded', () => {
   /* o hero é NOTURNO nos dois temas (assinatura da casa) — a rede usa sempre
      a paleta clara, por isso o isDark fixo */
   SupremaMotion.network('.hero', { c1:'#ef7d93', c2:'#c9a84c', maxNodes:55, isDark: () => true });
+  SupremaMotion.aurora('.hero', { tint1:'rgba(239,125,147,.24)', tint2:'rgba(201,168,76,.14)' });
+  SupremaMotion.scrollProgress({ tint:'#ef7d93' });
   /* tilt 3D sutil no palco de Main Events (ref. MotionSites; mesma técnica do
      leque de cartas do Painel do Dia) */
   SupremaMotion.tilt('.mev-track', { host:'.mev-stage', max:2.6 });
@@ -193,9 +195,6 @@ SupremaShell.mountNav('#supNav', {
 <script src="eventos.js"></script>
 <!-- ⌘K command palette (navegação + ações de fábrica) -->
 <script defer src="suprema-palette.js"></script>
-<!-- Copiloto de IA (Claude via Cloud Function): "Pergunte ao Suprema OS". DEPOIS do
-     palette pra auto-registrar a entrada ⌘K. O Radar pluga o snapshot no eventos.js. -->
-<script defer src="suprema-copiloto.js"></script>
 <script src="suprema-onboarding.js"></script>
 <script>
 /* tour de primeira visita — mesmo dispositivo dos outros painéis (1× por

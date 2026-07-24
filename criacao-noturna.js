@@ -149,9 +149,7 @@ const FIELD_DEFS = {
 };
 /* resolve o campo por MAP (manual) ou auto-detecção */
 function fieldInfo(fk, it){
-  // o MAP manual é do cabeçalho da GLOBAL — aplicá-lo nos Eventos Principais
-  // (outro cabeçalho) só apagaria os campos. Ali vale a auto-detecção.
-  const col = (it && it.liga) ? null : MAP[fk];
+  const col = MAP[fk];
   if (col){
     if (!it || !it.extra) return null;
     const v = it.extra[col];
@@ -211,11 +209,11 @@ function calcValueParts(it, info, pctOnly){
   if (raw === null) return {main: info.disp, sub: '', money: null};
   if (raw > 0 && raw < 1){
     const money = (it.buyin != null) ? CriacaoCalc.moneyOf(it.buyin, raw) : null;
-    return {main: CriacaoCalc.pctText(raw), sub: money != null ? fmtMoneyPlain(money, it) : '', money};
+    return {main: CriacaoCalc.pctText(raw), sub: money != null ? fmtMoneyPlain(money) : '', money};
   }
   if (pctOnly) return {main: info.disp, sub: '', money: null};
   const pct = (it.buyin && it.buyin > 0) ? CriacaoCalc.pctText(raw / it.buyin) : '';
-  return {main: fmtMoneyPlain(raw, it), sub: pct, money: raw, isMoney: true};
+  return {main: fmtMoneyPlain(raw), sub: pct, money: raw, isMoney: true};
 }
 
 /* converte o valor cru de um campo pra fração percentual (0–1).
@@ -277,13 +275,13 @@ function specTile(icon, accent, label, mainHtml, sub, hot){
 /* a FICHA: valores (com quanto o fee representa) + especificações destacadas */
 function specSheetHtml(it){
   const money = info => { // valor de célula → $ formatado (Add-on e afins)
-    if (typeof info.raw === 'number') return fmtMoney(info.raw, it);
+    if (typeof info.raw === 'number') return fmtMoney(info.raw);
     const n = parseFloat(String(info.raw).replace(/[^\d.,-]/g, '').replace(',', '.'));
-    return isFinite(n) ? fmtMoney(n, it) : escHtml(info.disp);
+    return isFinite(n) ? fmtMoney(n) : escHtml(info.disp);
   };
   const tiles = [];
-  tiles.push(specTile('buyin','c-felt','Buy-in', fmtMoney(it.buyin, it), '', true));
-  tiles.push(specTile('prize','c-felt','Prize Pool', fmtMoney(it.garantido, it), '', true));
+  tiles.push(specTile('buyin','c-felt','Buy-in', fmtMoney(it.buyin), '', true));
+  tiles.push(specTile('prize','c-felt','Prize Pool', fmtMoney(it.garantido), '', true));
   const af = adminFeeParts(it); if (af) tiles.push(specTile('admin','c-side','Admin Fee', escHtml(af.main), '10% do buy-in / +2% se tiver admin fee', true));
   const e = earlyParts(it);     if (e)  tiles.push(specTile('early','c-sat','Early Bird', escHtml(e.main), e.sub + ' (% das fichas)', true));
   const tk = ticketInfo(it);   if (tk) tiles.push(specTile('ticket','c-gold','Ticket Award', escHtml(tk.disp), '', true));
@@ -306,54 +304,6 @@ function mttKicker(it){
   return m.disp;
 }
 
-/* =========================================================================
-   EVENTOS PRINCIPAIS — a grade da LIGA PRINCIPAL, pré-carregada.
-
-   POR QUE NÃO VEM DE UPLOAD
-   -------------------------
-   Ao contrário da Global MTT (que a GU refaz todo dia), a grade da Liga
-   Principal quase nunca muda. Então ela é DADO ESTÁTICO do repositório
-   (liga-principal-data.js, gerado por scripts/gerar-liga-principal.ps1): a
-   página abre já sabendo os eventos do dia, sem depender de ninguém ter
-   subido planilha nenhuma — e sem depender do Firebase pra montar a lista.
-
-   DUAS DIFERENÇAS QUE IMPORTAM
-   ----------------------------
-   1) MOEDA: os valores da Liga Principal JÁ ESTÃO EM REAIS. Todo item nasce
-      com `brl:true` e fmtMoney/fmtMoneyPlain param de aplicar o × BRL_RATE
-      em cima deles — senão um buy-in de R$ 15 viraria R$ 75 na tela.
-   2) CHAVE: o nome+horário se repete entre as duas grades ("Kick Off 12:00"
-      existe nas duas). Sem prefixo, marcar criado num marcaria no outro —
-      por isso itemKey() prefixa os itens da Liga com "lp|".
-
-   A janela é a MESMA da Global (06:10 → 05:30), então o Corujão de 00:00
-   entra pelo dia seguinte, igual aos outros.
-========================================================================= */
-function buildLigaItems(){
-  if (typeof LIGA_PRINCIPAL_SECTIONS === 'undefined') return [];
-  const pick = day => {
-    const s = LIGA_PRINCIPAL_SECTIONS[day];
-    return s ? {main: s.main || [], side: s.side || [], sat: s.sat || [], unknown: []} : null;
-  };
-  const b = buildSections(pick(WEEKDAY_TOMORROW_EN), pick(WEEKDAY_DAYAFTER_EN));
-  // a Liga vira UM bloco só (Main + Side + Satélites juntos, em ordem de criação),
-  // reordenado pela mesma régua da janela: 06:10 abre o dia, a madrugada fecha
-  const pos = it => { const m = timeToMinutes(it.hora) ?? 9999; return m >= CONF_WINDOW_START_MIN ? m : m + 1440; };
-  return [...b.main, ...b.side, ...b.sat]
-    .map(it => ({...it, brl: true, liga: true}))
-    .sort((a, z) => pos(a) - pos(z));
-}
-const LIGA_ITEMS = buildLigaItems();
-function ligaFields(){ return (typeof LIGA_PRINCIPAL_FIELDS !== 'undefined') ? LIGA_PRINCIPAL_FIELDS : []; }
-
-/* toda a grade da noite — Global (quando carregada) + Liga Principal (sempre).
-   Substitui os `DATA.main + DATA.side + DATA.sat` espalhados: com a Liga no
-   bolo, esquecer um deles daria contagem/prazo/auditoria pela metade. */
-function flatAll(){
-  const g = DATA ? [...DATA.main, ...DATA.side, ...DATA.sat] : [];
-  return [...g, ...LIGA_ITEMS];
-}
-
 /* separa os Side Events em dois blocos: com e sem Admin Fee */
 function sideSplit(){
   const admin = [], noadmin = [];
@@ -370,35 +320,49 @@ const CAT_MAIN   = {key:'main',        cls:'main',     suit:'♠', label:'Main E
 const CAT_SAT    = {key:'sat',         cls:'sat',      suit:'♣', label:'Satélites',                role:'mainSat'};
 const CAT_SIDE_A = {key:'sideAdmin',   cls:'side',     suit:'♥', label:'Side Events · com Admin Fee', role:'sideAdmin'};
 const CAT_SIDE_B = {key:'sideNoAdmin', cls:'sidefree', suit:'♦', label:'Side Events · sem Admin Fee', role:'sideNoAdmin'};
-/* a Liga Principal é um produto à parte: grade fixa, valores em real, bloco e
-   função próprios — por isso não se mistura com o split de Admin Fee acima */
-const CAT_LIGA   = {key:'liga',        cls:'liga',     suit:'★', label:'Eventos Principais · Liga Principal', role:'ligaPrincipal'};
-const SECTIONS = [CAT_MAIN, CAT_SAT, CAT_SIDE_A, CAT_SIDE_B, CAT_LIGA];
-function catItems(cat){
-  if (cat.key === 'liga') return LIGA_ITEMS;   // pré-carregada: existe mesmo sem Global
-  if (!DATA) return [];
-  if (cat.key === 'main') return DATA.main;
-  if (cat.key === 'sat')  return DATA.sat;
+const SECTIONS = [CAT_MAIN, CAT_SAT, CAT_SIDE_A, CAT_SIDE_B];
+const CAT_BY_KEY = {main: CAT_MAIN, sat: CAT_SAT, sideAdmin: CAT_SIDE_A, sideNoAdmin: CAT_SIDE_B};
+
+/* categoria automática (por TYPE/admin fee) de cada item, ANTES de qualquer
+   reatribuição manual — é o ponto de partida que allWithCatAuto() monta */
+function allWithCatAuto(){
   const s = sideSplit();
-  return cat.key === 'sideAdmin' ? s.admin : s.noadmin;
-}
-function allWithCat(){
-  const s = sideSplit();
-  const g = DATA ? [
+  return [
     ...DATA.main.map(it => ({it, cat: CAT_MAIN})),
     ...s.admin.map(it => ({it, cat: CAT_SIDE_A})),
     ...s.noadmin.map(it => ({it, cat: CAT_SIDE_B})),
     ...DATA.sat.map(it => ({it, cat: CAT_SAT}))
-  ] : [];
-  return [...g, ...LIGA_ITEMS.map(it => ({it, cat: CAT_LIGA}))];
+  ];
+}
+/* categoria efetiva: CATEGORY_OVERRIDES (reatribuição manual, "mover de bloco")
+   vence a divisão automática — mesmo padrão de OVERRIDES pro operador */
+function effectiveCat(it, autoCat){
+  const k = CATEGORY_OVERRIDES[itemKey(it)];
+  return (k && CAT_BY_KEY[k]) ? CAT_BY_KEY[k] : autoCat;
+}
+function catItems(cat){
+  if (!DATA) return [];
+  return allWithCatAuto()
+    .filter(({it, cat: autoCat}) => effectiveCat(it, autoCat).key === cat.key)
+    .map(({it}) => it);
+}
+function allWithCat(){
+  if (!DATA) return [];
+  return allWithCatAuto().map(({it, cat: autoCat}) => ({it, cat: effectiveCat(it, autoCat)}));
+}
+function saveCategoryOverride(it, catKey){
+  const k = itemKey(it);
+  if (catKey) CATEGORY_OVERRIDES[k] = catKey; else delete CATEGORY_OVERRIDES[k];
+  if (fbDb) fbDb.ref(`${FB_PATH}/categoryOverrides`).set(CATEGORY_OVERRIDES);
+  else renderAll();
+  logEvent('moveu de bloco', `${it.nome} (${it.hora}) → ${catKey ? CAT_BY_KEY[catKey].label : 'divisão automática'}`);
 }
 
 /* papéis (função) por operador — chave saneada pro Firebase */
 const ROLE_OPTS = [
   {key:'mainSat',     label:'Main + Satélites'},
   {key:'sideAdmin',   label:'Side c/ Admin Fee'},
-  {key:'sideNoAdmin', label:'Side s/ Admin Fee'},
-  {key:'ligaPrincipal', label:'Eventos Principais'}
+  {key:'sideNoAdmin', label:'Side s/ Admin Fee'}
 ];
 function roleKey(op){ return normText(op).replace(/[.#$\[\]\/]/g,'_'); }
 function roleOf(op){ return ROLES[roleKey(op)] || ''; }
@@ -431,6 +395,7 @@ let DONE = {};            // key -> {by, at}
 let IDS = {};             // key -> {val, by, at} — ID do evento no Pokerbyte
 let ROLES = {};           // roleKey(op) -> 'mainSat' | 'sideAdmin' | 'sideNoAdmin'
 let OVERRIDES = {};       // itemKey -> opName — reatribuições manuais (handoff) vencem a divisão
+let CATEGORY_OVERRIDES = {}; // itemKey -> 'main'|'sat'|'sideAdmin'|'sideNoAdmin' — mover de bloco vence a divisão automática
 let MAP = {};             // fieldKey -> rótulo da coluna (mapeamento manual vence a auto-detecção)
 let AUDIT = {};           // itemKey -> {status:'erro', motivo, by, at} — marcado pelo Admin
 let SEARCH = '';
@@ -483,26 +448,6 @@ try{
       }
     }).catch(()=>{ window._cnSheetLastTs = null; });
   });
-  /* Global COMPARTILHADA do Painel: observa só o timestamp (barato) pra revelar o
-     botão "Usar a Global do Painel" e dizer de quem/qual arquivo. O base64 pesado
-     só é baixado quando o operador clica (useSharedGlobal) — economia de banda. */
-  fbDb.ref('painel/globalMtt/at').on('value', async atSnap => {
-    const at = atSnap.val();
-    const btn = $('useSharedBtn'), hint = $('sharedHint');
-    if (!btn) return;
-    if (!at){ btn.hidden = true; btn.disabled = true; if (hint) hint.hidden = true; return; }
-    btn.hidden = false; btn.disabled = false;
-    if (hint){
-      try{
-        const [fn, by] = await Promise.all([
-          fbDb.ref('painel/globalMtt/filename').once('value'),
-          fbDb.ref('painel/globalMtt/by').once('value')
-        ]);
-        hint.hidden = false;
-        hint.innerHTML = `Disponível no Painel: <b>${escHtml(fn.val() || 'Global MTT.xlsx')}</b>${by.val() ? (' · por ' + escHtml(by.val())) : ''}`;
-      }catch(_){ /* hint é opcional; o botão já funciona */ }
-    }
-  });
   fbDb.ref(`${FB_PATH}/ops`).on('value', s => {
     const v = s.val();
     OPS = Array.isArray(v) ? v.filter(Boolean) : (v ? Object.values(v).filter(Boolean) : []);
@@ -533,6 +478,12 @@ try{
     renderAll();
     renderFocus();
   });
+  // categoria manual (Main/Satélite/Side c-fee/Side s-fee) vence a divisão automática
+  fbDb.ref(`${FB_PATH}/categoryOverrides`).on('value', s => {
+    CATEGORY_OVERRIDES = s.val() || {};
+    renderAll();
+    renderFocus();
+  });
   fbDb.ref(`${FB_PATH}/fieldMap`).on('value', s => {
     MAP = s.val() || {};
     renderAll();
@@ -560,8 +511,7 @@ try{
   setSync('off','Offline (só local)');
 }
 }
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', () => { cnInitFirebase(); cnBootLiga(); });
-else { cnInitFirebase(); cnBootLiga(); }
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', cnInitFirebase); else cnInitFirebase();
 
 /* =========================================================================
    CONTA — a MESMA do Painel/Admin, e SÓ ela: não existe login próprio aqui.
@@ -694,7 +644,7 @@ $('opBadge').addEventListener('click', () => {
 });
 
 /* ── modo escuro ── */
-function paintDarkBtn(){ SupremaShell.paintSwitch($('darkToggle'), document.documentElement.classList.contains('dark')); }
+function paintDarkBtn(){ $('darkToggle').textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙'; }
 paintDarkBtn();
 $('darkToggle').addEventListener('click', () => {
   const isDark = document.documentElement.classList.toggle('dark');
@@ -721,8 +671,6 @@ dz.addEventListener('drop', e => {
   if (f) handleFile(f);
 });
 $('fileInput').addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
-// "Usar a Global do Painel": puxa painel/globalMtt em vez de reenviar o arquivo
-{ const sb = $('useSharedBtn'); if (sb) sb.addEventListener('click', useSharedGlobal); }
 
 async function handleFile(file){
   // SheetJS sob demanda: baixa na 1ª importação. Se o arquivo cair, avisa em vez de morrer em silêncio.
@@ -733,7 +681,49 @@ async function handleFile(file){
   }
   $('dzTitle').textContent = 'Lendo planilha…';
   try{
-    await ingestGlobalMatrix(await file.arrayBuffer(), file.name, 'upload');
+    // a criação é baseada SÓ na aba da GU (G MTTS) — valores em dólar, receita completa
+    const matrix = readSheetMatrix(await file.arrayBuffer(), 'G MTTS');
+    const headerCols = findHeaderCols(matrix);
+    if (!headerCols){
+      showToast('Não encontrei o cabeçalho da aba G MTTS (MTT MARKETING / TYPE / BUY-IN…) — é a Global MTT certa?', true);
+      $('dzTitle').textContent = 'Global MTT';
+      return;
+    }
+    const secTom = extractGuDaySection(matrix, WEEKDAY_TOMORROW_EN, headerCols);
+    const secAfter = extractGuDaySection(matrix, WEEKDAY_DAYAFTER_EN, headerCols);
+    if (!secTom){
+      showToast(`Não encontrei a seção "${WEEKDAY_TOMORROW_EN}" na aba G MTTS — é a Global MTT certa?`, true);
+      $('dzTitle').textContent = 'Global MTT';
+      return;
+    }
+    const sections = buildSections(secTom, secAfter);
+    const warnings = [];
+    if (!secAfter) warnings.push(`Seção "${WEEKDAY_DAYAFTER}" não encontrada — a madrugada de fechamento (até 05:30) pode estar faltando.`);
+    if (secTom.duplicateSection || (secAfter && secAfter.duplicateSection)) warnings.push('Nome de dia duplicado na planilha — confira se as seções usadas são as certas.');
+    const semHora = [...secTom.semHora, ...(secAfter ? secAfter.semHora : [])];
+    if (semHora.length) warnings.push(`${semHora.length} torneio(s) sem horário reconhecível ficaram de fora: ${semHora.map(x=>x.nome).join(', ')}`);
+    const aposGap = [...secTom.aposGap, ...(secAfter ? secAfter.aposGap : [])];
+    if (aposGap.length) warnings.push(`${aposGap.length} linha(s) depois do vão de linhas vazias ficaram de fora: ${aposGap.map(x=>`${x.hora} ${x.nome}`).join(', ')}`);
+    if (sections.unknown.length) warnings.push(`${sections.unknown.length} torneio(s) com tipo não reconhecido na coluna TYPE (listados em seção própria).`);
+
+    const fields = headerCols.filter(c => !isCoreLabel(c.label)).map(c => c.label);
+    // diff contra a versão que já estava carregada (a GU corrige a Global durante a noite):
+    // o que mudou fica marcado — e o que JÁ FOI CRIADO com a receita antiga pede revisão
+    const changes = computeChanges(DATA, sections);
+    if (DATA && changes.length) showToast(`⚠ ${changes.length} alteração(ões) em relação à Global anterior — veja os avisos.`, true);
+    DATA = {...sections, fields, warnings, changes, by: ME || 'Alguém', at: Date.now(), fileName: file.name};
+    onDataReady(false);
+
+    if (fbDb){
+      fbDb.ref(`${FB_PATH}/sheet`).set({
+        json: JSON.stringify({main:sections.main, side:sections.side, sat:sections.sat, unknown:sections.unknown, semTipo:sections.semTipo, fields, warnings, changes, fileName:file.name}),
+        // count pequeno pra o hub contar sem baixar a grade inteira (economia de banda)
+        count: sections.main.length + sections.side.length + sections.sat.length,
+        by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP
+      });
+    }
+    logEvent('subiu Global', `${file.name} — ${sections.main.length + sections.side.length + sections.sat.length} torneios${changes.length ? ` (${changes.length} alterações)` : ''}`);
+    showToast(`Global carregada — ${sections.main.length + sections.side.length + sections.sat.length} torneios de ${WEEKDAY_TOMORROW.toLowerCase()}.`);
   }catch(e){
     console.error(e);
     showToast('Erro ao ler a planilha — confira se é a Global MTT (.xlsx).', true);
@@ -742,133 +732,18 @@ async function handleFile(file){
   $('fileInput').value = '';
 }
 
-/* Puxa a Global MTT COMPARTILHADA (painel/globalMtt) — a MESMA que a operação
-   sobe no Painel do Dia — e roda o pipeline da GU (aba G MTTS). Assim o turno
-   noturno não precisa reenviar o arquivo. As regras do RTDB liberam a leitura de
-   painel/globalMtt pra quem tem access 'gu' (ou painel/eventos). */
-async function useSharedGlobal(){
-  if (!fbDb){ showToast('A Global compartilhada precisa do Firebase (offline agora).', true); return; }
-  try{ await ensureXLSX(); }
-  catch(_){
-    showToast('A biblioteca de planilhas não carregou (sem internet?) — verifique a conexão e recarregue a página.', true);
-    return;
-  }
-  const btn = $('useSharedBtn');
-  if (btn) btn.disabled = true;
-  $('dzTitle').textContent = 'Buscando Global do Painel…';
-  try{
-    const v = (await fbDb.ref('painel/globalMtt').once('value')).val();
-    if (!v || !v.data){
-      showToast('Ninguém subiu a Global no Painel do Dia ainda — suba o arquivo aqui ou no Painel.', true);
-      return;
-    }
-    await ingestGlobalMatrix(b64ToBytes(v.data), v.filename || 'Global MTT (Painel).xlsx', 'shared');
-  }catch(e){
-    console.error(e);
-    showToast('Erro ao carregar a Global compartilhada do Painel.', true);
-  }finally{
-    if (btn) btn.disabled = false;
-    $('dzTitle').textContent = 'Global MTT';
-  }
-}
-
-/* base64 (painel/globalMtt.data) → bytes pro readSheetMatrix (XLSX type:'array').
-   Na thread principal de propósito: é um clique pontual (o Radar usa Worker porque
-   OBSERVA a Global a cada mudança; aqui é sob demanda). */
-function b64ToBytes(b64){
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
-}
-
-/* Núcleo do parse — usado pelo upload local E pela Global compartilhada. Recebe a
-   planilha já em bytes (ArrayBuffer/Uint8Array). Lê SÓ a aba G MTTS (GU, dólar),
-   aplica a janela 06:10→05:30, faz o diff contra o que estava carregado e grava a
-   grade em FB_PATH/sheet pra equipe. `source`: 'upload' (arquivo local) ou 'shared'
-   (Global do Painel) — só muda o texto do toast/log. Retorna true se a Global era válida. */
-async function ingestGlobalMatrix(bytes, fileName, source){
-  // a criação é baseada SÓ na aba da GU (G MTTS) — valores em dólar, receita completa
-  const matrix = readSheetMatrix(bytes, 'G MTTS');
-  const headerCols = findHeaderCols(matrix);
-  if (!headerCols){
-    showToast('Não encontrei o cabeçalho da aba G MTTS (MTT MARKETING / TYPE / BUY-IN…) — é a Global MTT certa?', true);
-    return false;
-  }
-  const secTom = extractGuDaySection(matrix, WEEKDAY_TOMORROW_EN, headerCols);
-  const secAfter = extractGuDaySection(matrix, WEEKDAY_DAYAFTER_EN, headerCols);
-  if (!secTom){
-    showToast(`Não encontrei a seção "${WEEKDAY_TOMORROW_EN}" na aba G MTTS — é a Global MTT certa?`, true);
-    return false;
-  }
-  const sections = buildSections(secTom, secAfter);
-  const warnings = [];
-  if (!secAfter) warnings.push(`Seção "${WEEKDAY_DAYAFTER}" não encontrada — a madrugada de fechamento (até 05:30) pode estar faltando.`);
-  if (secTom.duplicateSection || (secAfter && secAfter.duplicateSection)) warnings.push('Nome de dia duplicado na planilha — confira se as seções usadas são as certas.');
-  const semHora = [...secTom.semHora, ...(secAfter ? secAfter.semHora : [])];
-  if (semHora.length) warnings.push(`${semHora.length} torneio(s) sem horário reconhecível ficaram de fora: ${semHora.map(x=>x.nome).join(', ')}`);
-  const aposGap = [...secTom.aposGap, ...(secAfter ? secAfter.aposGap : [])];
-  if (aposGap.length) warnings.push(`${aposGap.length} linha(s) depois do vão de linhas vazias ficaram de fora: ${aposGap.map(x=>`${x.hora} ${x.nome}`).join(', ')}`);
-  if (sections.unknown.length) warnings.push(`${sections.unknown.length} torneio(s) com tipo não reconhecido na coluna TYPE (listados em seção própria).`);
-  /* TYPE vazio na coluna D: o torneio ENTRA na divisão (classificado pelo nome/garantido),
-     mas o aviso pede conferência — antes esses ficavam de fora do trabalho da noite. */
-  const semTipo = [...(secTom.semTipo || []), ...(secAfter ? (secAfter.semTipo || []) : [])];
-  if (semTipo.length){
-    const LBL = { main:'Main', sat:'Satélite', side:'Side' };
-    warnings.push(`${semTipo.length} torneio(s) sem TYPE na coluna D foram classificados pelo nome e ENTRARAM na divisão: ` +
-      semTipo.map(x => `${x.hora} ${x.nome} → ${LBL[x.cat] || x.cat}`).join(', ') + '. Confira a coluna D na Global.');
-  }
-
-  const fields = headerCols.filter(c => !isCoreLabel(c.label)).map(c => c.label);
-  // diff contra a versão que já estava carregada (a GU corrige a Global durante a noite):
-  // o que mudou fica marcado — e o que JÁ FOI CRIADO com a receita antiga pede revisão
-  const changes = computeChanges(DATA, sections);
-  if (DATA && changes.length) showToast(`⚠ ${changes.length} alteração(ões) em relação à Global anterior — veja os avisos.`, true);
-  DATA = {...sections, fields, warnings, changes, by: ME || 'Alguém', at: Date.now(), fileName, source};
-  onDataReady(false);
-
-  if (fbDb){
-    fbDb.ref(`${FB_PATH}/sheet`).set({
-      json: JSON.stringify({main:sections.main, side:sections.side, sat:sections.sat, unknown:sections.unknown, fields, warnings, changes, fileName}),
-      // count pequeno pra o hub contar sem baixar a grade inteira (economia de banda)
-      count: sections.main.length + sections.side.length + sections.sat.length,
-      by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP
-    });
-  }
-  const total = sections.main.length + sections.side.length + sections.sat.length;
-  logEvent(source === 'shared' ? 'usou Global do Painel' : 'subiu Global',
-    `${fileName} — ${total} torneios${changes.length ? ` (${changes.length} alterações)` : ''}`);
-  showToast(`${source === 'shared' ? 'Global do Painel' : 'Global'} carregada — ${total} torneios de ${WEEKDAY_TOMORROW.toLowerCase()}.`);
-  return true;
-}
-
 /* =========================================================================
    DIVISÃO IGUAL — determinística: mesma ordem de equipe + mesma planilha
    ⇒ mesma divisão em qualquer navegador (sem sorteio, sem gravação extra).
    Main e Side: round-robin cronológico. Satélite: grupos inteiros (a receita
    de um grupo é encadeada), sempre pro operador com menos satélites até ali.
 ========================================================================= */
-/* chave do torneio no Firebase (done/ids/overrides/audit).
-   PREFIXO "lp|" pros Eventos Principais: nome+horário se repetem entre a Global
-   e a Liga Principal ("Kick Off 12:00" existe nas duas) — sem o prefixo, marcar
-   criado num marcaria o outro junto. */
 function itemKey(it){
-  return `${it && it.liga ? 'lp|' : ''}${normText(it.nome)}|${it.hora}`.replace(/[.#$\[\]\/]/g,'_');
+  return `${normText(it.nome)}|${it.hora}`.replace(/[.#$\[\]\/]/g,'_');
 }
 function computeAssignments(){
   const asg = {}; // key -> opName
-  if (!OPS.length) return asg;
-
-  /* ── FUNÇÃO 4 · Eventos Principais (Liga Principal) — grade fixa, dividida
-     em round-robin cronológico entre quem está nessa função. Vem antes do
-     resto de propósito: existe mesmo sem Global carregada. ── */
-  const poolLP = opsForRole('ligaPrincipal');
-  if (poolLP.length) LIGA_ITEMS.forEach((it, i) => { asg[itemKey(it)] = poolLP[i % poolLP.length]; });
-
-  if (!DATA){
-    Object.keys(OVERRIDES).forEach(k => { if (OPS.includes(OVERRIDES[k])) asg[k] = OVERRIDES[k]; });
-    return asg;
-  }
+  if (!DATA || !OPS.length) return asg;
 
   // round-robin simples de uma lista dentro de um pool de operadores
   const roundRobin = (list, pool) => {
@@ -920,22 +795,16 @@ function opColor(name){
   const i = OPS.indexOf(name);
   return OP_COLORS[(i >= 0 ? i : 0) % OP_COLORS.length];
 }
-/* Dinheiro. O padrão da página é DÓLAR (Global MTT) com conversão × BRL_RATE
-   quando o operador troca pra real. Os Eventos Principais fogem disso: a
-   planilha da Liga Principal já traz REAL — passar o item (`it.brl`) trava a
-   moeda em R$ e não multiplica nada, senão R$ 15 de buy-in viraria R$ 75. */
-function moneyCur(it){ return (it && it.brl) ? 'brl' : CURRENCY; }
-function moneyVal(v, it){ return (it && it.brl) ? v : (CURRENCY === 'usd' ? v : v * BRL_RATE); }
-function fmtMoney(vUsd, it){
+function fmtMoney(vUsd){
   if (vUsd === null || vUsd === undefined) return '—';
-  const v = moneyVal(vUsd, it);
+  const v = CURRENCY === 'usd' ? vUsd : vUsd * BRL_RATE;
   const s = v.toLocaleString('pt-BR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2});
-  return `<span class="cur">${moneyCur(it) === 'usd' ? '$' : 'R$'}</span>${s}`;
+  return `<span class="cur">${CURRENCY === 'usd' ? '$' : 'R$'}</span>${s}`;
 }
-function fmtMoneyPlain(vUsd, it){
+function fmtMoneyPlain(vUsd){
   if (vUsd === null || vUsd === undefined) return '—';
-  const v = moneyVal(vUsd, it);
-  return (moneyCur(it) === 'usd' ? '$ ' : 'R$ ') + v.toLocaleString('pt-BR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2});
+  const v = CURRENCY === 'usd' ? vUsd : vUsd * BRL_RATE;
+  return (CURRENCY === 'usd' ? '$ ' : 'R$ ') + v.toLocaleString('pt-BR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2});
 }
 
 function onDataReady(fromRemote){
@@ -948,15 +817,6 @@ function onDataReady(fromRemote){
     <span class="pill ok">✓ ${escHtml(DATA.fileName || 'Global MTT')}</span>
     <span class="pill">por ${escHtml(DATA.by || '—')}${when ? ' às ' + when : ''}</span>
     <span class="pill gold">${WEEKDAY_TOMORROW.toLowerCase()} · janela 06:10 → 05:30</span>`;
-  renderAll();
-}
-
-/* BOOT — os Eventos Principais não dependem de upload nem de Firebase, então a
-   página já abre trabalhável: controles à mostra e a grade da Liga na tela. */
-function cnBootLiga(){
-  if (!LIGA_ITEMS.length) return;
-  $('controlsCard').hidden = false;
-  $('actionsBar').hidden = false;
   renderAll();
 }
 
@@ -1011,7 +871,7 @@ document.addEventListener('click', () => {
 }, {once: true});
 function checkDeadlineNotifs(){
   if (!('Notification' in window) || Notification.permission !== 'granted' || !DATA) return;
-  const late = flatAll()
+  const late = [...DATA.main, ...DATA.side, ...DATA.sat]
     .filter(it => !DONE[itemKey(it)] && !NOTIFIED.has(itemKey(it)) && urgency(it) === 'late')
     .slice(0, 3); // no máx. 3 por checagem pra não virar spam
   late.forEach(it => {
@@ -1026,7 +886,7 @@ let TV_OPEN = false;
 function renderTV(){
   if (!TV_OPEN || !DATA) return;
   const asg = computeAssignments();
-  const all = flatAll();
+  const all = [...DATA.main, ...DATA.side, ...DATA.sat];
   const total = all.length, doneCount = all.filter(it => DONE[itemKey(it)]).length;
   const pct = total ? Math.round(doneCount/total*100) : 0;
   const n = nowInSP();
@@ -1224,7 +1084,7 @@ function renderFilters(){
   const counts = {};
   OPS.forEach(o => counts[o] = 0);
   Object.values(asg).forEach(o => { if (o in counts) counts[o]++; });
-  const total = flatAll().length;
+  const total = DATA ? DATA.main.length + DATA.side.length + DATA.sat.length : 0;
   let html = `<button class="fchip ${FILTER==='all'?'on':''}" data-f="all">Todos <span class="cnt">${total}</span></button>`;
   html += OPS.map(o => `
     <button class="fchip ${FILTER===o?'on':''}" data-f="${escHtml(o)}">
@@ -1239,7 +1099,7 @@ function renderAlerts(){
   let html = (DATA && DATA.warnings || []).map(w => `<div class="alert">⚠ ${escHtml(w)}</div>`).join('');
   // erros de criação apontados pela auditoria — o turno corrige e avisa o admin
   if (DATA){
-    const errs = flatAll().filter(it => auditErr(it));
+    const errs = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => auditErr(it));
     if (errs.length){
       const lines = errs.slice(0, 10).map(it => { const a = auditErr(it); return `<b>${escHtml(it.nome)}</b> (${escHtml(it.hora)})${a.motivo ? ' — ' + escHtml(a.motivo) : ''}`; });
       html += `<div class="alert">🛑 <b>Auditoria apontou ${errs.length} erro(s) de criação</b> — corrija no Pokerbyte e avise o admin:<br>${lines.join('<br>')}${errs.length > 10 ? `<br>… e mais ${errs.length - 10}.` : ''}</div>`;
@@ -1250,7 +1110,21 @@ function renderAlerts(){
     const lines = chg.slice(0, 14).map(c => `<b>${escHtml(c.nome)}</b> — ${escHtml(c.campo)}: ${escHtml(fmtChangeVal(c.de))} → ${escHtml(fmtChangeVal(c.para))}`);
     html += `<div class="alert gold">🔄 <b>Global atualizada</b> — ${chg.length} alteração(ões) em relação à versão anterior. Torneios já criados com receita antiga estão marcados com <b>⚠ revisar</b>.<br>${lines.join('<br>')}${chg.length > 14 ? `<br>… e mais ${chg.length - 14}.` : ''}</div>`;
   }
+  // TYPE ausente na coluna D: o torneio ENTROU na divisão (classificado pelo nome/
+  // garantido), mas fica sinalizado — "corrigir" abre o mesmo popover de mover bloco
+  const semTipo = (DATA && DATA.semTipo) || [];
+  if (semTipo.length){
+    const lines = semTipo.slice(0, 10).map(x => {
+      const key = `${normText(x.nome)}|${x.hora}`.replace(/[.#$\[\]\/]/g,'_');
+      return `<b>${escHtml(x.hora)} ${escHtml(x.nome)}</b> → ${escHtml(CAT_BY_KEY[x.cat] ? CAT_BY_KEY[x.cat].label : x.cat)} <button class="alert-fix" data-fixcat="${key}">corrigir</button>`;
+    });
+    html += `<div class="alert">⚠ <b>${semTipo.length} torneio(s) sem TYPE na coluna D</b> foram classificados pelo nome e entraram na divisão — confira a coluna D na Global ou corrija aqui:<br>${lines.join('<br>')}${semTipo.length > 10 ? `<br>… e mais ${semTipo.length - 10}.` : ''}</div>`;
+  }
   el.innerHTML = html;
+  el.querySelectorAll('[data-fixcat]').forEach(b => b.addEventListener('click', () => {
+    const it = findItemByKey(b.dataset.fixcat);
+    if (it) openCategoryPicker(b, it); else showToast('Torneio não encontrado na divisão atual.', true);
+  }));
 }
 
 let ALLDONE_TOASTED = false;
@@ -1286,46 +1160,44 @@ function cnRing(tone, done, total, label){
 let _cnRingsBuilt = false;
 function renderCriacaoRings(){
   const el = document.getElementById('cnRings');
-  if (!el) return;
-  const mainSat = DATA ? [...DATA.main, ...DATA.sat] : [];
+  if (!el || !DATA) return;
+  const mainSat = [...DATA.main, ...DATA.sat];
   const sd = sideSplit();
   const doneOf = arr => arr.filter(it => DONE[itemKey(it)]).length;
   el.innerHTML =
     cnRing('main',     doneOf(mainSat),    mainSat.length,    'Main + Satélites') +
     cnRing('side',     doneOf(sd.admin),   sd.admin.length,   'Side · c/ Admin') +
-    cnRing('sidefree', doneOf(sd.noadmin), sd.noadmin.length, 'Side · s/ Admin') +
-    // 4º anel: a grade fixa da Liga Principal, que existe mesmo sem Global
-    cnRing('liga',     doneOf(LIGA_ITEMS), LIGA_ITEMS.length, 'Eventos Principais');
+    cnRing('sidefree', doneOf(sd.noadmin), sd.noadmin.length, 'Side · s/ Admin');
   if (!_cnRingsBuilt){ _cnRingsBuilt = true; requestAnimationFrame(() => el.classList.add('in')); }
   else el.classList.add('in');
 }
 
 function renderStats(){
+  if (!DATA){ return; }
   renderCriacaoRings();
-  const total = flatAll().length;
-  const doneCount = flatAll().filter(it => DONE[itemKey(it)]).length;
+  const total = DATA.main.length + DATA.side.length + DATA.sat.length;
+  const doneCount = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => DONE[itemKey(it)]).length;
   const pct = total ? Math.round(doneCount/total*100) : 0;
   renderAllDone(total, doneCount);
   const side = sideSplit();
-  const campCount = flatAll().filter(hasCampaign).length;
+  const campCount = [...DATA.main, ...DATA.side, ...DATA.sat].filter(hasCampaign).length;
   $('stTotal').textContent = total;
-  $('stMain').textContent = DATA ? DATA.main.length + DATA.sat.length : 0;
+  $('stMain').textContent = DATA.main.length + DATA.sat.length;
   $('stSideA').textContent = side.admin.length;
   $('stSideB').textContent = side.noadmin.length;
-  $('stLiga').textContent = LIGA_ITEMS.length;
   $('stCampWrap').hidden = campCount === 0;
   $('stCamp').textContent = campCount;
   $('stProg').textContent = pct + '%';
   $('progFill').style.width = pct + '%';
   // torneios estourando prazo (começam em <6h e ainda não criados)
-  const urgAll = flatAll().filter(it => urgency(it));
+  const urgAll = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => urgency(it));
   const lateCount = urgAll.filter(it => urgency(it) === 'late').length;
   $('stUrgWrap').hidden = urgAll.length === 0;
   $('stUrg').textContent = urgAll.length;
   $('stUrg').style.color = lateCount ? '#f06050' : '#e8c860';
   const perOp = OPS.map(o => {
     const asg = computeAssignments();
-    const mine = flatAll().filter(it => asg[itemKey(it)] === o);
+    const mine = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => asg[itemKey(it)] === o);
     const d = mine.filter(it => DONE[itemKey(it)]).length;
     return `${o.split(' ')[0]} ${d}/${mine.length}`;
   }).join(' · ');
@@ -1406,13 +1278,7 @@ function toggleDone(key){
   }
 }
 
-/* colunas da receita. Cada grade tem o cabeçalho dela: a Global traz o seu no
-   próprio arquivo (DATA.fields); a Liga Principal vem com o dela no módulo
-   estático — misturar os dois deixaria a ficha cheia de "em branco". */
-function recipeFields(it){
-  if (it && it.liga) return ligaFields();
-  return (DATA && DATA.fields) || [];
-}
+function recipeFields(){ return (DATA && DATA.fields) || []; }
 
 /* ── ORDEM DE CRIAÇÃO ── a receita segue a ordem em que se DIGITA no app,
    não a ordem das colunas da planilha:
@@ -1431,10 +1297,7 @@ const CREATION_ORDER = [
   { m: n => n.includes('ticket') && n.includes('award') },                          // TICKET AWARD
   { m: n => n.includes('payout') && (n.includes('calculated') || n.includes('calculado')) }, // CALCULATED PAYOUT
   { m: n => n.includes('payout') || n.includes('premiac') },                        // PAYOUT
-  // Buy-in (1x). O `!size` protege a coluna "Size buy-in" (LOW/MEDIUM/HIGH, que
-  // não é dinheiro): sem ele, ela roubava o lugar do buy-in de verdade na ordem
-  // — ou, com dedup, sumia da receita.
-  { m: n => (n.startsWith('buyin') || n.includes('buy-in') || n.includes('buy in')) && !n.includes('size'), once: true },
+  { m: n => n.includes('buy-in') || n.includes('buy in') || n === 'buyin', once: true }, // Buy-in (1x)
   { m: n => (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) && !n.includes('stack') && !n.includes('condition') },
   { m: n => n.includes('stack') && (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) },
   { m: n => n.includes('rebuy') && n.includes('condition') },
@@ -1476,7 +1339,7 @@ function creationWhen(it){
 
 /* linhas da receita que a operação NÃO usa na criação — fora da tabela e do foco */
 const HIDDEN_RECIPE = /num\.?\s*(de\s*)?players|jogadores|\bchat\b/;
-function visibleRecipeFields(it){ return creationOrderFields(recipeFields(it).filter(l => !HIDDEN_RECIPE.test(normText(l)))); }
+function visibleRecipeFields(){ return creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l)))); }
 function recipeText(it, cat){
   // Garantido e Buy-in não entram aqui em cima: já saem UMA vez, na posição
   // deles, dentro da receita ordenada abaixo (ordem de digitação do app)
@@ -1492,17 +1355,17 @@ function recipeText(it, cat){
   if (e) parts.push(`Early Bird: ${e.main}${e.sub ? ' ' + e.sub : ''}`);
   if (hasCampaign(it)){ const c = campInfo(it); parts.push(`✦ CAMPANHA${c ? ': ' + c.disp : ''}`); }
   // receita completa da GU — todos os campos que vão no app, na ordem de criação
-  creationOrderFields(recipeFields(it)).forEach(label => {
+  creationOrderFields(recipeFields()).forEach(label => {
     const v = it.extra ? it.extra[label] : undefined;
     if (v !== undefined && v !== null && v !== '') parts.push(`${label}: ${fmtExtraVal(label, v)}`);
   });
-  if (!recipeFields(it).length && it.late) parts.push(`Fim do late reg: ${it.late}`);
+  if (!recipeFields().length && it.late) parts.push(`Fim do late reg: ${it.late}`);
   return parts.join('\n');
 }
 /* grid com TODOS os campos da receita (mostra também os vazios — quem cria a
    mesa precisa saber que aquele campo fica em branco no app) */
 function recipeGridHtml(it){
-  const fields = recipeFields(it);
+  const fields = recipeFields();
   if (!fields.length) return `<div class="recipe-note">Receita completa indisponível nesta planilha (cabeçalho da Global não foi lido). Recarregue a Global MTT original.</div>`;
   return `<div class="recipe-grid">${creationOrderFields(fields).map(label => {
     const v = it.extra ? it.extra[label] : undefined;
@@ -1621,7 +1484,6 @@ function sectionNoteHtml(cat){
   if (cat.key === 'sat')            msg = '<b>Quem cria o Main cria os Satélites</b> — mesma função.';
   else if (cat.key === 'main')      msg = 'Base da grade — vai junto com os Satélites.';
   else if (cat.key === 'sideAdmin') msg = 'Side Events que <b>cobram Admin Fee</b>.';
-  else if (cat.key === 'liga')      msg = 'Grade fixa da <b>Liga Principal</b> — <b>pré-carregada</b> (não vem da Global) e com valores <b>já em reais</b>.';
   else                              msg = 'Side Events <b>sem Admin Fee</b>.';
   const who = explicit.length ? chips : '<span style="opacity:.7">sem função marcada — todos dividem</span>';
   return `<p class="section-note">${msg} ${who}</p>`;
@@ -1629,14 +1491,12 @@ function sectionNoteHtml(cat){
 
 function renderList(){
   const area = $('listArea');
+  if (!DATA){
+    area.innerHTML = `<div class="empty-state"><span class="moon">🌙</span>Nenhuma planilha carregada ainda pra este dia da grade.<br>Suba a Global MTT acima — ou aguarde: se um parceiro subir, aparece aqui sozinho.</div>`;
+    return;
+  }
   const asg = computeAssignments();
   let html = '';
-  /* sem Global carregada a página NÃO fica vazia: os Eventos Principais são
-     grade fixa e já podem ser criados. O aviso vira um lembrete de que falta
-     a Global — não uma tela morta. */
-  if (!DATA){
-    html += `<div class="empty-state" style="padding:22px 18px"><span class="moon">🌙</span>Global MTT ainda não carregada pra este dia da grade — suba acima (ou aguarde um parceiro).<br><b>Os Eventos Principais abaixo já estão prontos</b>: a grade da Liga Principal é fixa.</div>`;
-  }
 
   SECTIONS.forEach(cat => {
     const items = visibleItems(catItems(cat), asg);
@@ -1647,12 +1507,13 @@ function renderList(){
         <span class="tag"><span class="suit">${cat.suit}</span>${cat.label}</span>
         <span class="cnt">${doneCount}/${items.length} criados</span>
         <span class="line"></span>
+        <button class="vmini blockfs" data-blockfs="${cat.key}" title="Tela cheia deste bloco">⛶</button>
       </div>
       ${sectionNoteHtml(cat)}`;
     html += `<div class="secwrap" data-suit="${cat.suit}">${renderVertical(items, cat, asg)}</div>`;
   });
 
-  if (DATA && DATA.unknown && DATA.unknown.length && FILTER === 'all'){
+  if (DATA.unknown && DATA.unknown.length && FILTER === 'all'){
     html += `
       <div class="section-head">
         <span class="tag" style="background:var(--red-soft);color:var(--red)">⚠ Tipo não reconhecido</span>
@@ -1675,6 +1536,21 @@ function renderList(){
       if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openFocusAt(el.dataset.focus); }
     });
   });
+  area.querySelectorAll('[data-move]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const it = findItemByKey(b.dataset.move);
+    if (it) openCategoryPicker(b, it);
+  }));
+  area.querySelectorAll('[data-fs]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const it = findItemByKey(b.dataset.fs);
+    if (it) openTourFullscreen(it);
+  }));
+  area.querySelectorAll('[data-blockfs]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const cat = CAT_BY_KEY[b.dataset.blockfs];
+    if (cat) openBlockFullscreen(cat);
+  }));
   // ID Pokerbyte: grava ao sair do campo ou no Enter (não a cada tecla, pra não ecoar no parceiro)
   area.querySelectorAll('.id-inp').forEach(inp => {
     inp.addEventListener('change', () => setId(inp.dataset.idkey, inp.value));
@@ -1715,14 +1591,15 @@ function renderVertical(items, cat, asg){
   // FEE, ADMIN FEE e EARLY BIRD crus saem da receita: já estão consolidados nas linhas de cima
   const feeCols = new Set();
   cols.forEach(c => [feeInfo, adminInfo, earlyInfo].forEach(g => { const i = g(c.it); if (i && i.label) feeCols.add(i.label); }));
-  // a seção inteira vem da mesma grade (Global ou Liga), então o cabeçalho da
-  // receita sai do primeiro item — é o mesmo pra todas as colunas da tabela
-  const rows = visibleRecipeFields(items[0]).filter(l => !feeCols.has(l));
+  const rows = visibleRecipeFields().filter(l => !feeCols.has(l));
   return `
     <div class="vwrap"><table class="vtable">
       <tr class="trow-head"><th class="rowlab">Torneio</th>${cell(c => {
         const m = mttKicker(c.it), urg = urgency(c.it);
-        return `<span class="vgo" data-focus="${c.key}" role="button" tabindex="0" title="Abrir este torneio no modo foco" aria-label="Abrir ${escHtml(c.it.nome)} no modo foco">${escHtml(c.it.nome)}</span>` + campBadgeHtml(c.it) + valBadge(c.it, cat) + changeBadge(c.it) + auditBadge(c.it)
+        return `<span class="vname-row"><span class="vgo" data-focus="${c.key}" role="button" tabindex="0" title="Abrir este torneio no modo foco" aria-label="Abrir ${escHtml(c.it.nome)} no modo foco">${escHtml(c.it.nome)}</span>`
+          + `<button class="vmini" data-move="${c.key}" title="Mover pra outro bloco">⇄</button>`
+          + `<button class="vmini" data-fs="${c.key}" title="Tela cheia deste torneio">⛶</button></span>`
+          + campBadgeHtml(c.it) + valBadge(c.it, cat) + changeBadge(c.it) + auditBadge(c.it)
           + (auditErr(c.it) && auditErr(c.it).motivo ? `<br><span style="font-size:10.5px;color:var(--red);font-weight:600">↳ ${escHtml(auditErr(c.it).motivo)}</span>` : '')
           + (urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(c.it)}</span>` : '')
           + (m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : '');
@@ -1742,7 +1619,7 @@ function renderVertical(items, cat, asg){
             // Add-on em $; demais campos como se digita no app
             if (label === addonL){
               const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.'));
-              if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n, c.it))}</span>`;
+              if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n))}</span>`;
             }
             // elementos de poker: ticket picotado, ficha de chips, carta do game type, bounty do K.O
             if (label === ticketL) return `<span class="tkt"><span class="stub">Ticket</span><span class="val" title="${escHtml(disp)}">${escHtml(disp)}</span></span>`;
@@ -1866,6 +1743,72 @@ function openHandoff(anchor){
   openPickMenu(anchor, title, opts);
 }
 
+/* liberdade de turno: mover um torneio pra outro bloco (Main/Satélite/Side
+   c-fee/Side s-fee) — o mesmo popover serve pro botão de cada coluna e pro
+   botão "corrigir" no aviso de TYPE ausente (semTipo) */
+function findItemByKey(key){
+  const hit = allWithCat().find(x => itemKey(x.it) === key);
+  return hit ? hit.it : null;
+}
+/* =========================================================================
+   TELA CHEIA — leitura ampliada de um torneio ou de um bloco inteiro (ex.:
+   girar o telão de lado pro Main Event). Mais leve que o Modo Foco: sem fila,
+   sem "próximo", só a receita grande. Um overlay serve pros dois modos.
+========================================================================= */
+let FS_EL = null;
+function fsEscHandler(e){ if (e.key === 'Escape') closeFullscreenView(); }
+function fsChangeHandler(){ if (!document.fullscreenElement && FS_EL) closeFullscreenView(); }
+function closeFullscreenView(){
+  if (document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+  if (FS_EL){ FS_EL.remove(); FS_EL = null; }
+  document.removeEventListener('keydown', fsEscHandler, true);
+  document.removeEventListener('fullscreenchange', fsChangeHandler);
+}
+function mountFullscreenView(bodyHtml, extraCls){
+  closeFullscreenView(); closePickMenu(); closeFocus();
+  const el = document.createElement('div');
+  el.className = `fs-overlay ${extraCls || ''}`;
+  el.innerHTML = `<button class="fs-close" title="Fechar (Esc)">✕</button>${bodyHtml}`;
+  document.body.appendChild(el);
+  FS_EL = el;
+  el.querySelector('.fs-close').addEventListener('click', closeFullscreenView);
+  el.addEventListener('click', e => { if (e.target === el) closeFullscreenView(); });
+  document.addEventListener('keydown', fsEscHandler, true);
+  document.addEventListener('fullscreenchange', fsChangeHandler);
+  try{ (el.requestFullscreen ? el : document.documentElement).requestFullscreen().catch(()=>{}); }catch(_){}
+  return el;
+}
+function openTourFullscreen(it){
+  mountFullscreenView(`
+    <div class="fs-tour">
+      <div class="fs-tour-hora">${escHtml(it.hora)}</div>
+      <h2 class="fs-tour-name">${escHtml(it.nome)}</h2>
+      <div class="fs-recipe fs-recipe-grid">${focusFlowHtml(it)}</div>
+    </div>`, 'fs-tour-mode');
+}
+function openBlockFullscreen(cat){
+  const asg = computeAssignments();
+  const items = visibleItems(catItems(cat), asg);
+  if (!items.length){ showToast('Bloco vazio.'); return; }
+  mountFullscreenView(`
+    <div class="fs-block ${cat.cls}">
+      <div class="fs-block-head"><span class="suit">${cat.suit}</span>${cat.label}</div>
+      <div class="fs-block-body">${renderVertical(items, cat, asg)}</div>
+    </div>`, 'fs-block-mode');
+}
+
+function openCategoryPicker(anchor, it){
+  const current = CATEGORY_OVERRIDES[itemKey(it)] || null;
+  const catColor = cat => ({main:'var(--main)', sat:'var(--sat)', sideAdmin:'var(--side)', sideNoAdmin:'var(--sidefree)'})[cat.key];
+  const opts = SECTIONS.map(cat => ({
+    label: `${cat.suit} ${cat.label}${current === cat.key ? ' (atual)' : ''}`,
+    color: catColor(cat), initial: cat.suit,
+    onPick: () => saveCategoryOverride(it, cat.key)
+  }));
+  if (current) opts.push({label:'↺ Restaurar divisão automática', color:'var(--ink-soft)', initial:'↺', onPick: () => saveCategoryOverride(it, null)});
+  openPickMenu(anchor, `Mover "${it.nome}" para:`, opts);
+}
+
 let FOCUS_TARGET = null; // clicou num torneio da tabela → foco abre direto nele
 function openFocusAt(key){
   if (DONE[key]){ showToast('Esse torneio já foi criado.'); return; }
@@ -1918,7 +1861,7 @@ function focusAdvance(){ FOCUS_TARGET = null; FOCUS_ANIMATE = true; renderFocus(
    na descida. Os campos-chave (buy-in, garantido, rake, admin, early, campanha)
    ganham cor na própria linha. */
 function focusFlowHtml(it){
-  const fields = visibleRecipeFields(it);
+  const fields = visibleRecipeFields();
   if (!fields.length)
     return `<div class="recipe-note">Receita completa indisponível nesta planilha (cabeçalho da Global não foi lido). Recarregue a Global MTT original.</div>`;
   const feeL = (feeInfo(it) || {}).label, admL = (adminInfo(it) || {}).label,
@@ -1964,7 +1907,7 @@ function focusFlowHtml(it){
     // Add-on: formata em $
     if (has && accent === 'addon'){
       const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.'));
-      if (isFinite(n) && n > 0) vHtml = escHtml(fmtMoneyPlain(n, it));
+      if (isFinite(n) && n > 0) vHtml = escHtml(fmtMoneyPlain(n));
     }
     const done = FOCUS_ENTERED.has(label);
     return `<div class="frow ${accent} ${has ? '' : 'blank'} ${done ? 'entered' : ''} ${accent ? 'key-line' : ''}" data-field="${escHtml(label)}">
@@ -2026,8 +1969,8 @@ function openCreateConfirm(it, cat, key, onConfirm){
     <div class="sub"><b>${escHtml(it.nome)}</b> · ${escHtml(cat.label)} — bata os números com o que você cadastrou no Pokerbyte.</div>
     <div class="cc-grid">
       ${cci('Horário', escHtml(it.hora))}
-      ${cci('Buy-in', fmtMoney(it.buyin, it), it.buyin == null)}
-      ${cci('Garantido', fmtMoney(it.garantido, it), it.garantido == null)}
+      ${cci('Buy-in', fmtMoney(it.buyin), it.buyin == null)}
+      ${cci('Garantido', fmtMoney(it.garantido), it.garantido == null)}
       ${af ? cci('Admin Fee', escHtml(af.main) + (af.sub ? ` <span style="opacity:.6;font-size:11px">${escHtml(af.sub)}</span>` : '')) : cci('Admin Fee', '—', cat.key !== 'sat')}
       ${e ? cci('Early Bird', escHtml(e.main) + (e.sub ? ` <span style="opacity:.6;font-size:11px">${escHtml(e.sub)}</span>` : '')) : ''}
       ${hasCampaign(it) ? cci('✦ Campanha', escHtml((campInfo(it) || {}).disp || 'ativa'), false) : ''}
@@ -2062,7 +2005,7 @@ function renderFocus(){
   // progresso "digitei" é por torneio — zera ao trocar de torneio
   if (FOCUS_ENTERED_KEY !== key){ FOCUS_ENTERED = new Set(); FOCUS_ENTERED_KEY = key; FOCUS_CURSOR = null; }
   if (!FOCUS_SEEN_AT[key]) FOCUS_SEEN_AT[key] = Date.now();   // #4 início da criação
-  FOCUS_FIELDS = visibleRecipeFields(it);                    // #2 ordem dos campos (sem Num. Players/Chat)
+  FOCUS_FIELDS = visibleRecipeFields();                      // #2 ordem dos campos (sem Num. Players/Chat)
   if (!FOCUS_CURSOR || !FOCUS_FIELDS.includes(FOCUS_CURSOR) || FOCUS_ENTERED.has(FOCUS_CURSOR))
     FOCUS_CURSOR = focusNextField(null);
   const urg = urgency(it);
@@ -2238,7 +2181,7 @@ $('searchInp').addEventListener('input', () => { SEARCH = $('searchInp').value; 
    sem mudança, re-renderizar 10 mil células é desperdício */
 let LAST_URG_SIG = '';
 function urgSignature(){
-  return flatAll().map(it => urgency(it) || '-').join('');
+  return [...DATA.main, ...DATA.side, ...DATA.sat].map(it => urgency(it) || '-').join('');
 }
 setInterval(() => {
   if (!DATA) return;
@@ -2382,7 +2325,7 @@ $('currencySeg').querySelectorAll('button').forEach(b => b.addEventListener('cli
    branco entre grupos), e o total no rodapé. Sem subdivisão por Admin Fee, sem
    colunas de operador, sem cores — igual à planilha que a operação usa no dia. ── */
 $('exportBtn').addEventListener('click', async () => {
-  if (!DATA && !LIGA_ITEMS.length){ showToast('Carregue a Global primeiro.', true); return; }
+  if (!DATA){ showToast('Carregue a Global primeiro.', true); return; }
   try{ await ensureXLSX(); }catch(_){ showToast('A biblioteca de planilhas não carregou — recarregue a página.', true); return; }
   const cur = CURRENCY === 'usd' ? '$' : 'R$';
   const conv = v => v === null || v === undefined ? null : (CURRENCY === 'usd' ? v : Math.round(v * BRL_RATE * 100) / 100);
@@ -2390,11 +2333,11 @@ $('exportBtn').addEventListener('click', async () => {
 
   // main e side já vêm em ordem cronológica do gu-parser (buildSections); sat vem
   // na ordem de leitura da Global, agrupado por groupHeader — igual à Conferência de amanhã
-  const main = DATA ? (DATA.main || []) : [];
-  const side = DATA ? (DATA.side || []) : [];
-  const sat  = DATA ? (DATA.sat  || []) : [];
-  const unknown = DATA ? (DATA.unknown || []) : [];
-  const total = main.length + side.length + sat.length + LIGA_ITEMS.length;
+  const main = DATA.main || [];
+  const side = DATA.side || [];
+  const sat  = DATA.sat  || [];
+  const unknown = DATA.unknown || [];
+  const total = main.length + side.length + sat.length;
   if (!total && !unknown.length){ showToast('Nada para exportar.', true); return; }
 
   // agrupa satélites por groupHeader, preservando a ordem de primeira aparição
@@ -2410,15 +2353,6 @@ $('exportBtn').addEventListener('click', async () => {
   side.forEach(pushRow); if (side.length) blankRow();
   satGroups.forEach(g => { g.forEach(pushRow); blankRow(); });
 
-  /* Eventos Principais em bloco separado e SEMPRE em R$: a grade da Liga já
-     vem em real, então conv() (que multiplica a Global) não entra aqui —
-     o rótulo avisa a moeda pra ninguém somar coisa com coisa. */
-  if (LIGA_ITEMS.length){
-    rows.push(['EVENTOS PRINCIPAIS · LIGA PRINCIPAL — valores em R$']);
-    LIGA_ITEMS.forEach(it => { const key = itemKey(it); rows.push([it.nome, it.hora, it.garantido, it.buyin, idVal(key), asg[key] || '']); });
-    blankRow();
-  }
-
   if (unknown.length){
     blankRow();
     rows.push(['TIPO NÃO RECONHECIDO — verificar coluna TYPE na Global antes de fechar']);
@@ -2427,19 +2361,19 @@ $('exportBtn').addEventListener('click', async () => {
 
   // rodapé de checagem: quem receber a planilha confere se nada foi cortado
   blankRow();
-  rows.push([`Total: ${total} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length} · Principais ${LIGA_ITEMS.length}) — ${WEEKDAY_TOMORROW} ${refToLabel(TURNO.refTomorrow)}`]);
+  rows.push([`Total: ${total} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length}) — ${WEEKDAY_TOMORROW} ${refToLabel(TURNO.refTomorrow)}`]);
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = [{wch:30},{wch:10},{wch:14},{wch:12},{wch:16},{wch:18}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, (WEEKDAY_TOMORROW || 'Criação Noturna').slice(0,31));
   XLSX.writeFile(wb, `CriacaoNoturna_${TOMORROW_ISO}.xlsx`);
-  showToast(`Exportado — ${total} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length} · Principais ${LIGA_ITEMS.length}).`);
+  showToast(`Exportado — ${total} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length}).`);
 });
 
 /* ── resumo pra colar no grupo ── */
 $('summaryBtn').addEventListener('click', async () => {
-  if (!DATA && !LIGA_ITEMS.length){ showToast('Carregue a Global primeiro.', true); return; }
+  if (!DATA){ showToast('Carregue a Global primeiro.', true); return; }
   const asg = computeAssignments();
   const lines = [`🌙 Criação Noturna — ${WEEKDAY_TOMORROW.toLowerCase()} ${refToLabel(TURNO.refTomorrow)}`];
   if (OPS.length){
@@ -2458,8 +2392,8 @@ $('summaryBtn').addEventListener('click', async () => {
   } else {
     SECTIONS.forEach(cat => lines.push(`${cat.label}: ${catItems(cat).length}`));
   }
-  const total = flatAll().length;
-  const doneCount = flatAll().filter(it => DONE[itemKey(it)]).length;
+  const total = DATA.main.length + DATA.side.length + DATA.sat.length;
+  const doneCount = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => DONE[itemKey(it)]).length;
   const avg = avgDurMin();
   lines.push(`\nTotal: ${total} torneios · ${doneCount} criados${avg ? ` · ⏱ ${avg < 1 ? Math.round(avg*60) + 's' : avg.toFixed(1) + 'm'}/torneio` : ''}`);
   try{

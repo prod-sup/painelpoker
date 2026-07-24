@@ -1,18 +1,12 @@
 /* ── Suprema Analytics ── página do BI histórico ─────────────────────────────
    Lê o nó `historico` (fechamentos diários do Painel), passa pelo motor puro
    analytics-core.js e desenha KPIs + gráficos (Chart.js) + rankings. Chrome via
-   SupremaShell; dados via SupremaDB (fachada do Firebase, defer-safe).
-
-   Cores das séries VALIDADAS p/ daltonismo (dataviz): teal = magnitude (prize
-   pool / eventos / campo), âmbar = déficit (overlay real). Garantido NÃO é série
-   — é meta, então vira LINHA DE REFERÊNCIA neutra tracejada (evita o gráfico de
-   dois eixos, que inventa correlação). Uma escala Y por gráfico, sempre. */
+   SupremaShell; dados via SupremaDB (fachada do Firebase, defer-safe). */
 (function () {
   'use strict';
   var A = window.SupremaAnalytics;
   var fmt = A ? A.fmtBRL : function (n) { return String(n); };
   var $ = function (id) { return document.getElementById(id); };
-  var SM = window.SupremaMotion;
 
   /* ── chrome: relógio, operador, tema (ids vêm da shell) ── */
   function tickClock() {
@@ -31,17 +25,17 @@
     } catch (e) {}
     // tema (chave compartilhada + sync entre abas)
     var html = document.documentElement;
-    var paint = function () { var b = $('darkToggle'); if (b) SupremaShell.paintSwitch(b, html.classList.contains('dark')); };
+    var paint = function () { var b = $('darkToggle'); if (b) b.textContent = html.classList.contains('dark') ? '☀️' : '🌙'; };
     paint();
     $('darkToggle') && $('darkToggle').addEventListener('click', function () {
       var dark = html.classList.toggle('dark');
       localStorage.setItem('suprema_dark_mode', dark ? '1' : '0'); paint();
-      redrawThemedCharts();   // gráficos re-tema
+      if (window.__redraw) window.__redraw();   // gráficos re-tema
     });
     addEventListener('storage', function (e) {
       if (e.key !== 'suprema_dark_mode' || e.newValue == null) return;
       html.classList.toggle('dark', e.newValue === '1'); paint();
-      redrawThemedCharts();
+      if (window.__redraw) window.__redraw();
     });
   }
   function setSync(on) {
@@ -50,180 +44,124 @@
     var lbl = el.querySelector('.sync-label'); if (lbl) lbl.textContent = on ? 'Sincronizado' : 'Offline';
   }
 
-  /* ── paleta do tema pros gráficos (série teal + âmbar, validadas) ── */
+  /* ── cores do tema pros gráficos ── */
+  function css(v, fb) { return (getComputedStyle(document.documentElement).getPropertyValue(v) || fb).trim() || fb; }
   function palette() {
     var dark = document.documentElement.classList.contains('dark');
     return {
-      teal:  dark ? '#12ab9b' : '#0f9d8f',                              // prize pool / eventos / campo
-      amber: dark ? '#cf8020' : '#d97706',                             // overlay real (déficit)
-      ref:   dark ? 'rgba(233,238,235,.5)' : 'rgba(29,29,31,.42)',     // garantido = meta (neutro)
-      grid:  dark ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.05)',
-      ink:   dark ? '#8b968f' : '#86868b',
-      tip:   dark ? '#0b0d0c' : '#1d1d1f',
+      acc: css('--acc-bright', '#14b8a6'),
+      gold: dark ? '#c9a84c' : '#8f6b2d',
+      warn: '#e8933d',
+      grid: dark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.06)',
+      ink: dark ? '#a6b0aa' : '#6e6e73',
     };
   }
 
   var _charts = [];
-  var _fieldChart = null;                 // chart da seção Tendência de Field (à parte)
   function destroyCharts() { _charts.forEach(function (c) { try { c.destroy(); } catch (e) {} }); _charts = []; }
-  // re-tema: redesenha overview + (se visível) o gráfico de field
-  function redrawThemedCharts() {
-    if (window.__redraw) window.__redraw();
-    if (window.__drawField && $('sec-field') && !$('sec-field').hidden) window.__drawField();
-  }
-
-  /* opções-base compartilhadas (grid recessivo, tooltip estilizado, sem legenda
-     nativa — a legenda é HTML no card, mais controlável). */
-  function baseOpts(p, moneyTip) {
-    return {
-      responsive: true, maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: p.tip, titleColor: '#fff', bodyColor: '#e9e9ec',
-          borderWidth: 0, padding: 11, cornerRadius: 12, boxPadding: 6,
-          usePointStyle: true, titleFont: { size: 11, weight: '600' }, bodyFont: { size: 12 },
-          callbacks: moneyTip ? {
-            label: function (ctx) { return ' ' + ctx.dataset.label + ': R$ ' + fmt(ctx.parsed.y); }
-          } : {
-            label: function (ctx) { return ' ' + ctx.dataset.label + ': ' + fmt(ctx.parsed.y); }
-          },
-        },
-      },
-      scales: {
-        x: { grid: { display: false }, border: { display: false }, ticks: { color: p.ink, font: { size: 10 }, maxRotation: 0, autoSkipPadding: 14 } },
-        y: { grid: { color: p.grid }, border: { display: false }, beginAtZero: true,
-             ticks: { color: p.ink, font: { size: 10 }, maxTicksLimit: 6,
-                      callback: function (v) { return moneyTip ? fmt(v) : v; } } },
-      },
-    };
-  }
 
   var _agg = null;
-  function drawCharts(days) {
-    if (!window.Chart || !days.length) return;
-    destroyCharts();
-    var p = palette();
-    var labels = days.map(function (d) { return d.date.slice(5); });   // MM-DD
-
-    // ── DINHEIRO: prize pool (área teal) + garantido (meta, linha tracejada
-    //    neutra) + overlay real (barras âmbar). TUDO em R$ → uma escala só. ──
-    _charts.push(new Chart($('chartMoney'), {
-      data: {
-        labels: labels,
-        datasets: [
-          { type: 'bar', label: 'Overlay real', data: days.map(function (d) { return d.overlayDeficit; }),
-            backgroundColor: p.amber, borderRadius: 4, borderSkipped: false, maxBarThickness: 26, order: 3 },
-          { type: 'line', label: 'Prize pool', data: days.map(function (d) { return d.prizePool; }),
-            borderColor: p.teal, backgroundColor: p.teal + '22', borderWidth: 2, tension: .35, fill: true,
-            order: 1, pointRadius: 0, pointHoverRadius: 5, pointHoverBackgroundColor: p.teal, pointHoverBorderColor: '#fff', pointHoverBorderWidth: 2 },
-          { type: 'line', label: 'Garantido (meta)', data: days.map(function (d) { return d.garantido; }),
-            borderColor: p.ref, borderDash: [5, 5], borderWidth: 1.5, tension: 0, fill: false, order: 2, pointRadius: 0, pointHoverRadius: 0 },
-        ],
-      }, options: baseOpts(p, true),
-    }));
-
-    // ── EVENTOS por dia (barras teal, escala própria) ──
-    _charts.push(new Chart($('chartEvents'), {
-      data: { labels: labels, datasets: [
-        { type: 'bar', label: 'Eventos', data: days.map(function (d) { return d.events; }),
-          backgroundColor: p.teal, borderRadius: 4, borderSkipped: false, maxBarThickness: 26 } ] },
-      options: baseOpts(p, false),
-    }));
-
-    // ── CAMPO por dia (área teal, escala própria) ──
-    _charts.push(new Chart($('chartField'), {
-      data: { labels: labels, datasets: [
-        { type: 'line', label: 'Campo', data: days.map(function (d) { return d.field; }),
-          borderColor: p.teal, backgroundColor: p.teal + '22', borderWidth: 2, tension: .35, fill: true,
-          pointRadius: 0, pointHoverRadius: 5, pointHoverBackgroundColor: p.teal, pointHoverBorderColor: '#fff', pointHoverBorderWidth: 2 } ] },
-      options: baseOpts(p, false),
-    }));
-  }
-
-  function paint(agg) {
-    _agg = agg;
-    var t = agg.totals, days = agg.days;
+  function render(hist) {
+    _agg = A.aggregate(hist);
+    var t = _agg.totals, days = _agg.days;
 
     // período
-    var per = $('period'); per.classList.remove('is-error');
-    if (days.length) per.textContent = 'De ' + days[0].date + ' a ' + days[days.length - 1].date + ' · ' + t.days + ' dia(s) fechado(s)';
-    else per.textContent = 'Sem histórico ainda — os fechamentos do Painel aparecem aqui.';
+    if (days.length) $('period').textContent = 'De ' + days[0].date + ' a ' + days[days.length - 1].date + ' · ' + t.days + ' dia(s) fechado(s)';
+    else { $('period').textContent = 'Sem histórico ainda — os fechamentos do Painel aparecem aqui.'; }
 
     // KPIs
     $('kpis').innerHTML = [
-      kpi('Prize pool total', 'R$ ' + fmt(t.prizePool), 'acc', 'teal', t.events + ' eventos'),
-      kpi('Garantido total', 'R$ ' + fmt(t.garantido), '', 'ink', ''),
-      kpi('Overlay real', 'R$ ' + fmt(t.overlayDeficit), 'warn', 'amber', 'o buraco coberto pela casa'),
-      kpi('Campo total', fmt(t.field), 'pos', 'teal', 'jogadores'),
-      kpi('Performance média', t.avgPerf == null ? '—' : (t.avgPerf + '%'), t.avgPerf >= 0 ? 'pos' : 'warn', 'gold', 'prize vs garantido'),
-      kpi('Dias fechados', String(t.days), '', 'ink', ''),
+      kpi('Prize pool total', 'R$ ' + fmt(t.prizePool), 'acc', t.events + ' eventos'),
+      kpi('Garantido total', 'R$ ' + fmt(t.garantido), '', ''),
+      kpi('Overlay real', 'R$ ' + fmt(t.overlayDeficit), 'warn', 'o buraco coberto pela casa'),
+      kpi('Campo total', fmt(t.field), 'pos', 'jogadores'),
+      kpi('Performance média', t.avgPerf == null ? '—' : (t.avgPerf + '%'), t.avgPerf >= 0 ? 'pos' : 'warn', 'prize vs garantido'),
+      kpi('Dias fechados', String(t.days), '', ''),
     ].join('');
+    animateKpis();
 
     // tabelas
-    $('opTable').innerHTML = agg.byOperator.length ? tableOp(agg.byOperator) : empty('👥', 'Sem dados por operador.');
-    $('worstTable').innerHTML = agg.worst.length ? tableWorst(agg.worst) : empty('🎉', 'Nenhum overlay no período.');
-
-    // seções migradas do Admin (HTML/CSS renderiza mesmo com a seção oculta;
-    // só o gráfico de field precisa da seção visível — desenhado sob demanda)
-    $('gradeBody').innerHTML = (agg.byEvent && agg.byEvent.length) ? tableGrade(agg.byEvent) : empty('🗓️', 'Sem torneios fechados na janela.');
-    $('fieldStats').innerHTML = fieldStatsHtml(agg);
-    $('heatmapBody').innerHTML = (agg.byHour && agg.byHour.length) ? heatmapHtml(agg.byHour) : empty('🕒', 'Sem horário registrado na janela.');
-    window.__drawField = function () { drawFieldTrend(days); };
-    if (!$('sec-field').hidden && window.Chart) drawFieldTrend(days);   // caso o usuário já esteja nela
+    $('opTable').innerHTML = _agg.byOperator.length ? tableOp(_agg.byOperator) : '<div class="empty">Sem dados por operador.</div>';
+    $('worstTable').innerHTML = _agg.worst.length ? tableWorst(_agg.worst) : '<div class="empty">Nenhum overlay no período. 🎉</div>';
 
     // gráficos (precisa do Chart.js — pode estar deferido)
     window.__redraw = function () { drawCharts(days); };
     if (window.Chart) drawCharts(days);
     else { var t0 = Date.now(); (function wait() { if (window.Chart) drawCharts(days); else if (Date.now() - t0 < 8000) setTimeout(wait, 120); })(); }
-
-    // motion: números rolam + cartões surgem (uma vez)
-    if (SM) { try { SM.countUp('.kpi .k-val'); } catch (e) {} }
   }
 
-  /* ── janela de tempo: análise SEMPRE escopada no ano corrente (dados de anos
-     anteriores não entram em nenhuma janela), depois recortada pelos N dias mais
-     recentes. 0 = todo o ano. Os dias vêm como chave `d_AAAA_MM_DD`. ── */
-  var _histRaw = {}, _range = 30;
-  var YEAR = String(new Date().getFullYear());
-  function applyRange() {
-    var keys = Object.keys(_histRaw).filter(function (k) {
-      return k.charAt(0) !== '_' && _histRaw[k] && k.indexOf('d_' + YEAR + '_') === 0;
-    }).sort();
-    var use = (_range > 0 && keys.length > _range) ? keys.slice(-_range) : keys;
-    var sub = {};
-    use.forEach(function (k) { sub[k] = _histRaw[k]; });
-    paint(A.aggregate(sub));
+  function drawCharts(days) {
+    if (!window.Chart || !days.length) return;
+    destroyCharts();
+    var p = palette();
+    var labels = days.map(function (d) { return d.date.slice(5); });   // MM-DD
+    var opts = function (extra) {
+      return Object.assign({
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: p.ink, boxWidth: 12, font: { size: 11 } } } },
+        scales: {
+          x: { grid: { color: p.grid }, ticks: { color: p.ink, font: { size: 10 } } },
+          y: { grid: { color: p.grid }, ticks: { color: p.ink, font: { size: 10 } } },
+        },
+      }, extra || {});
+    };
+    // dinheiro: prize pool (linha acc) vs garantido (linha gold) + overlay real (barra warn)
+    _charts.push(new Chart($('chartMoney'), {
+      data: {
+        labels: labels,
+        datasets: [
+          { type: 'bar', label: 'Overlay real', data: days.map(function (d) { return d.overlayDeficit; }), backgroundColor: p.warn + '55', borderColor: p.warn, borderWidth: 1, order: 3 },
+          { type: 'line', label: 'Prize pool', data: days.map(function (d) { return d.prizePool; }), borderColor: p.acc, backgroundColor: p.acc + '22', tension: .3, fill: true, order: 1, pointRadius: 2 },
+          { type: 'line', label: 'Garantido', data: days.map(function (d) { return d.garantido; }), borderColor: p.gold, borderDash: [5, 4], tension: .3, fill: false, order: 2, pointRadius: 0 },
+        ],
+      }, options: opts(),
+    }));
+    // eventos (barra) + campo (linha, eixo próprio)
+    _charts.push(new Chart($('chartEvents'), {
+      data: {
+        labels: labels,
+        datasets: [
+          { type: 'bar', label: 'Eventos', data: days.map(function (d) { return d.events; }), backgroundColor: p.acc + '99', yAxisID: 'y', order: 2 },
+          { type: 'line', label: 'Campo', data: days.map(function (d) { return d.field; }), borderColor: p.gold, tension: .3, yAxisID: 'y1', order: 1, pointRadius: 2 },
+        ],
+      },
+      options: opts({
+        scales: {
+          x: { grid: { color: p.grid }, ticks: { color: p.ink, font: { size: 10 } } },
+          y: { position: 'left', grid: { color: p.grid }, ticks: { color: p.ink, font: { size: 10 } }, beginAtZero: true },
+          y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: p.ink, font: { size: 10 } }, beginAtZero: true },
+        },
+      }),
+    }));
   }
-  function wireRange() {
-    var box = $('range'); if (!box) return;
-    box.addEventListener('click', function (e) {
-      var b = e.target.closest('button[data-range]'); if (!b) return;
-      _range = parseInt(b.getAttribute('data-range'), 10) || 0;
-      [].forEach.call(box.querySelectorAll('button'), function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
-      applyRange();
-    });
+
+  /* ── entrada dos KPIs: Anime.js faz o stagger de opacidade/posição (os cards
+     chegam via innerHTML depois do fetch do histórico — reveal() por scroll
+     não pega esse caso, já está tudo acima da dobra); countUp anima os números
+     em cima do valor final que já está no DOM. ── */
+  var calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function animateKpis() {
+    if (window.SupremaMotion) SupremaMotion.countUp('.kpi .k-val', { duration: 700 });
+    if (!calm && window.anime) {
+      anime({
+        targets: '#kpis .kpi',
+        opacity: [0, 1], translateY: [10, 0],
+        delay: anime.stagger(60), duration: 520, easing: 'easeOutCubic',
+      });
+    }
   }
 
   /* ── helpers de HTML ── */
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
-  function empty(icon, msg) { return '<div class="empty"><span class="big">' + icon + '</span>' + esc(msg) + '</div>'; }
-  function kpi(label, val, cls, accent, sub) {
-    return '<div class="kpi" data-accent="' + accent + '"><div class="k-label">' + esc(label) + '</div>'
-      + '<div class="k-val ' + (cls || '') + '">' + esc(val) + '</div>'
-      + (sub ? '<div class="k-sub">' + esc(sub) + '</div>' : '') + '</div>';
+  function kpi(label, val, cls, sub) {
+    return '<div class="kpi"><div class="k-label">' + esc(label) + '</div><div class="k-val ' + (cls || '') + '">' + esc(val) + '</div>' + (sub ? '<div class="k-sub">' + esc(sub) + '</div>' : '') + '</div>';
   }
   function tableOp(rows) {
-    var max = rows.reduce(function (m, o) { return Math.max(m, o.prizePool || 0); }, 0) || 1;
     return '<table><thead><tr><th>Operador</th><th class="num">Eventos</th><th class="num">Prize pool</th><th class="num">Overlay</th><th class="num">Perf</th></tr></thead><tbody>'
-      + rows.map(function (o, i) {
-        var pct = Math.max(3, Math.round((o.prizePool || 0) / max * 100));
-        return '<tr><td class="op-cell"><span class="rank' + (i === 0 ? ' top' : '') + '">' + (i + 1) + '</span>' + esc(o.operador) + '</td>'
-          + '<td class="num">' + o.events + '</td>'
-          + '<td class="num barcell"><span class="fill" style="width:' + pct + '%"></span><span>R$ ' + fmt(o.prizePool) + '</span></td>'
-          + '<td class="num ' + (o.overlayDeficit > 0 ? 'neg' : '') + '">R$ ' + fmt(o.overlayDeficit) + '</td>'
-          + '<td class="num ' + (o.avgPerf >= 0 ? 'pos' : 'neg') + '">' + (o.avgPerf == null ? '—' : o.avgPerf + '%') + '</td></tr>';
+      + rows.map(function (o) {
+        return '<tr><td>' + esc(o.operador) + '</td><td class="num">' + o.events + '</td><td class="num">R$ ' + fmt(o.prizePool)
+          + '</td><td class="num ' + (o.overlayDeficit > 0 ? 'neg' : '') + '">R$ ' + fmt(o.overlayDeficit)
+          + '</td><td class="num ' + (o.avgPerf >= 0 ? 'pos' : 'neg') + '">' + (o.avgPerf == null ? '—' : o.avgPerf + '%') + '</td></tr>';
       }).join('') + '</tbody></table>';
   }
   function tableWorst(rows) {
@@ -234,93 +172,13 @@
       }).join('') + '</tbody></table>';
   }
 
-  /* ── GRADE por torneio (migrado do Admin) ── */
-  function ovrPill(r) {
-    var cls = r >= 50 ? 'ovr-hi' : r >= 20 ? 'ovr-md' : 'ovr-lo';
-    return '<span class="ovr ' + cls + '">' + r + '%</span>';
-  }
-  function tableGrade(rows) {
-    var maxPrize = rows.reduce(function (m, e) { return Math.max(m, e.prizePool || 0); }, 0) || 1;
-    return '<table><thead><tr><th>Torneio</th><th class="num">Runs</th><th class="num">Gtd médio</th><th class="num">Prize pool</th><th class="num">Overlay</th><th class="num">Taxa ov.</th></tr></thead><tbody>'
-      + rows.slice(0, 40).map(function (e) {
-        var pct = Math.max(3, Math.round((e.prizePool || 0) / maxPrize * 100));
-        return '<tr><td>' + esc(e.nome) + '</td>'
-          + '<td class="num">' + e.runs + '</td>'
-          + '<td class="num">R$ ' + fmt(e.garantidoAvg) + '</td>'
-          + '<td class="num barcell"><span class="fill" style="width:' + pct + '%"></span><span>R$ ' + fmt(e.prizePool) + '</span></td>'
-          + '<td class="num ' + (e.deficit > 0 ? 'neg' : '') + '">R$ ' + fmt(e.deficit) + '</td>'
-          + '<td class="num">' + ovrPill(e.ovRate) + '</td></tr>';
-      }).join('') + '</tbody></table>';
-  }
-
-  /* ── TENDÊNCIA DE FIELD (migrado do Admin): stats + campo/dia com média móvel ── */
-  function movAvg(vals, w) {
-    return vals.map(function (_, i) { var s = 0, n = 0; for (var j = Math.max(0, i - w + 1); j <= i; j++) { s += vals[j]; n++; } return Math.round(s / n); });
-  }
-  function fieldStatsHtml(agg) {
-    var days = agg.days || []; if (!days.length) return '';
-    var f = days.map(function (d) { return d.field; });
-    var avg = Math.round(f.reduce(function (a, b) { return a + b; }, 0) / days.length);
-    var peak = days.reduce(function (m, d) { return d.field > m.field ? d : m; }, days[0]);
-    var last = f.slice(-7), prev = f.slice(-14, -7);
-    var la = last.length ? last.reduce(function (a, b) { return a + b; }, 0) / last.length : 0;
-    var pa = prev.length ? prev.reduce(function (a, b) { return a + b; }, 0) / prev.length : 0;
-    var tr = pa ? Math.round((la - pa) / pa * 100) : null;
-    return [
-      kpi('Campo médio / dia', fmt(avg), 'pos', 'teal', 'jogadores'),
-      kpi('Pico de campo', fmt(peak.field), '', 'teal', 'em ' + peak.date.slice(5)),
-      kpi('Tendência (7d vs 7d)', tr == null ? '—' : ((tr >= 0 ? '+' : '') + tr + '%'), tr >= 0 ? 'pos' : 'warn', tr >= 0 ? 'teal' : 'amber', 'média recente vs anterior'),
-    ].join('');
-  }
-  function drawFieldTrend(days) {
-    if (!window.Chart || !days || !days.length) return;
-    if (_fieldChart) { try { _fieldChart.destroy(); } catch (e) {} _fieldChart = null; }
-    var p = palette();
-    var labels = days.map(function (d) { return d.date.slice(5); });
-    var field = days.map(function (d) { return d.field; });
-    _fieldChart = new Chart($('chartFieldTrend'), {
-      data: {
-        labels: labels, datasets: [
-          { type: 'bar', label: 'Campo', data: field, backgroundColor: p.teal + 'cc', borderRadius: 4, borderSkipped: false, maxBarThickness: 22, order: 2 },
-          { type: 'line', label: 'Média móvel (7d)', data: movAvg(field, 7), borderColor: p.amber, borderWidth: 2, tension: .4, fill: false, pointRadius: 0, pointHoverRadius: 4, order: 1 },
-        ],
-      }, options: baseOpts(p, false),
-    });
-  }
-
-  /* ── HEATMAP de overlay por horário (migrado do Admin) ── */
-  function heatmapHtml(rows) {
-    var cells = rows.map(function (o) {
-      var t = Math.min(1, (o.ovRate || 0) / 100);
-      return '<div class="hm-cell" style="--t:' + t.toFixed(3) + '" tabindex="0" '
-        + 'title="' + o.hour + 'h · ' + o.runs + ' torneios · ' + o.ovCount + ' com overlay · R$ ' + fmt(o.deficit) + ' de buraco">'
-        + '<div class="hm-hr">' + o.hour + 'h</div><div class="hm-rate">' + o.ovRate + '%</div><div class="hm-runs">' + o.runs + ' ev.</div></div>';
-    }).join('');
-    return '<div class="hm-grid">' + cells + '</div>'
-      + '<div class="hm-legend"><span>menos overlay</span><i class="hm-scale"></i><span>mais overlay</span></div>';
-  }
-
-  /* ── skeleton inicial (evita "salto" e mostra que está carregando) ── */
-  function skeletonKpis() {
-    var cells = ['teal', 'ink', 'amber', 'teal', 'gold', 'ink'];
-    $('kpis').innerHTML = cells.map(function (a) {
-      return '<div class="kpi is-loading" data-accent="' + a + '"><div class="k-label sk" style="width:60%;height:11px">&nbsp;</div><div class="k-val sk">&nbsp;</div></div>';
-    }).join('');
-  }
-
   /* ── dados via SupremaDB (defer-safe: espera o firebase) ── */
   function initData() {
     if (!window.SupremaDB || !SupremaDB.init()) { setTimeout(initData, 300); return; }
     SupremaDB.requireUser(function () {
       setSync(true);
-      SupremaDB.getValue('historico').then(function (hist) { _histRaw = hist || {}; applyRange(); })
-        .catch(function (e) {
-          console.error('[analytics] falha ao ler historico:', e);
-          var why = (e && (e.code || e.message)) ? ' (' + (e.code || e.message) + ')' : '';
-          var per = $('period'); per.classList.add('is-error');
-          per.textContent = 'Não foi possível ler o histórico' + why + '.';
-          $('kpis').innerHTML = '';
-        });
+      SupremaDB.getValue('historico').then(function (hist) { render(hist || {}); })
+        .catch(function () { $('period').textContent = 'Não foi possível ler o histórico.'; });
     });
     if (SupremaDB.onConnection) SupremaDB.onConnection(function (ok) { setSync(ok); });
   }
@@ -332,7 +190,6 @@
       if (!_agg) return { painel: 'Analytics', obs: 'histórico ainda não carregado' };
       return {
         painel: 'Analytics (histórico)',
-        janela: _range ? ('últimos ' + _range + ' dias') : ('todo o ano de ' + YEAR),
         totais: _agg.totals,
         porDia: _agg.days.slice(-30),
         porOperador: _agg.byOperator,
@@ -341,62 +198,5 @@
     });
   }
 
-  /* ── navegação de seções (a unificação) ────────────────────────────────────
-     Uma aba por superfície de inteligência. O indicador-pílula desliza pro tab
-     ativo (transform/width, barato) e a seção que entra faz um fade-up com
-     cascata. Redesenha os gráficos ao voltar pra Visão Geral (canvas escondido
-     perde o tamanho). Roving tabindex + setas = navegação por teclado. */
-  function wireSections() {
-    var tabs = [].slice.call(document.querySelectorAll('.sectab'));
-    var ind = document.querySelector('.sectab-ind');
-    var bar = document.querySelector('.sectabs');
-    if (!tabs.length || !bar) return;
-
-    function moveInd(tab) {
-      if (!ind || !tab) return;
-      ind.style.width = tab.offsetWidth + 'px';
-      ind.style.transform = 'translateX(' + tab.offsetLeft + 'px)';
-    }
-    function activate(tab, focus) {
-      var sec = tab.getAttribute('data-sec');
-      tabs.forEach(function (t) {
-        var on = t === tab;
-        t.classList.toggle('is-active', on);
-        t.setAttribute('aria-selected', on ? 'true' : 'false');
-        t.tabIndex = on ? 0 : -1;
-      });
-      [].forEach.call(document.querySelectorAll('.section'), function (s) {
-        if (s.id === 'sec-' + sec) {
-          s.hidden = false; s.classList.add('is-active', 'enter');
-          setTimeout(function () { s.classList.remove('enter'); }, 660);
-        } else { s.hidden = true; s.classList.remove('is-active', 'enter'); }
-      });
-      moveInd(tab);
-      try { tab.scrollIntoView({ inline: 'nearest', block: 'nearest' }); } catch (e) {}
-      if (focus) tab.focus();
-      if (sec === 'overview' && window.__redraw) window.__redraw();  // canvas voltou a ser visível
-      if (sec === 'field' && window.__drawField) window.__drawField();
-    }
-
-    tabs.forEach(function (t) { t.addEventListener('click', function () { activate(t); }); });
-    bar.addEventListener('keydown', function (e) {
-      var i = tabs.indexOf(document.activeElement); if (i < 0) return;
-      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-        e.preventDefault();
-        var n = e.key === 'ArrowRight' ? (i + 1) % tabs.length : (i - 1 + tabs.length) % tabs.length;
-        activate(tabs[n], true);
-      }
-    });
-
-    var active = document.querySelector('.sectab.is-active') || tabs[0];
-    moveInd(active);
-    // re-mede depois que fontes/layout assentam e em resize
-    addEventListener('load', function () { moveInd(document.querySelector('.sectab.is-active') || tabs[0]); });
-    addEventListener('resize', function () { moveInd(document.querySelector('.sectab.is-active') || tabs[0]); });
-  }
-
-  document.addEventListener('DOMContentLoaded', function () {
-    chrome(); skeletonKpis(); wireRange(); wireSections(); initData(); wireCopiloto();
-    if (SM) { try { SM.aurora('.hero', { tint1: 'rgba(15,157,143,.20)', tint2: 'rgba(217,119,6,.10)' }); } catch (e) {} }
-  });
+  document.addEventListener('DOMContentLoaded', function () { chrome(); initData(); wireCopiloto(); });
 })();

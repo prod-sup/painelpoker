@@ -106,6 +106,10 @@ ok(built.side.some(it => it.nome === 'Side Mananha'), 'horário ≥ 06:10 do dia
 ok(!built.side.some(it => it.nome === 'Side Madrugada'), '05:00 do PRÓPRIO dia fica de fora (pertence à véspera)');
 ok(built.side.some(it => it.nome === 'Side de Terça') === false, '12:00 do dia seguinte fica de fora (só madrugada ≤ 05:30 entra)');
 
+console.log('semTipo sobrevive a buildSections (aviso de TYPE ausente chega até a Criação Noturna)');
+const builtVar = api.buildSections(vsec, null);
+ok(Array.isArray(builtVar.semTipo) && builtVar.semTipo.length === vsec.semTipo.length, 'buildSections propaga o semTipo da seção, não descarta');
+
 console.log('formatadores');
 ok(api.cellToHHMM(0.25) === '06:00', 'fração de dia vira HH:MM');
 ok(api.timeToMinutes('06:10') === 370, 'HH:MM vira minutos');

@@ -274,5 +274,6 @@ function buildSections(sectionTomorrow, sectionDayAfter){
   const side = chronoSort([...(sectionTomorrow ? inWindow(sectionTomorrow.side) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.side) : [])]);
   const sat = [...(sectionTomorrow ? inWindow(sectionTomorrow.sat) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.sat) : [])];
   const unknown = [...(sectionTomorrow ? inWindow(sectionTomorrow.unknown) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.unknown) : [])];
-  return { main, side, sat, unknown };
+  const semTipo = [...(sectionTomorrow ? inWindow(sectionTomorrow.semTipo) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.semTipo) : [])];
+  return { main, side, sat, unknown, semTipo };
 }
