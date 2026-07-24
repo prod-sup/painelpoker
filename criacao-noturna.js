@@ -1724,7 +1724,9 @@ function openPickMenu(anchor, title, options){
   m.className = 'pop-menu'; m.id = 'popMenu';
   m.innerHTML = `<div class="ph">${escHtml(title)}</div>` + options.map((o,i) =>
     `<button class="pm" data-i="${i}"><span class="avatar" style="background:${o.color || 'var(--felt)'}">${escHtml(o.initial || '')}</span>${escHtml(o.label)}</button>`).join('');
-  document.body.appendChild(m);
+  // em tela cheia NATIVA só descendentes do elemento fullscreen aparecem — anexa
+  // o popover à tela cheia ativa (mover bloco dentro do fullscreen), senão ao body
+  (document.fullscreenElement || document.body).appendChild(m);
   const r = anchor.getBoundingClientRect();
   m.style.left = Math.max(12, Math.min(r.left, window.innerWidth - m.offsetWidth - 12)) + 'px';
   m.style.top = Math.min(r.bottom + 6, window.innerHeight - m.offsetHeight - 12) + 'px';
