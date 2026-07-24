@@ -83,12 +83,21 @@ a,button{font-family:inherit;cursor:pointer;text-decoration:none;color:inherit;b
 /* pill do produto — mesmo desenho dos outros painéis do OS */
 .brand-sub{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--dia);background:var(--dia2);padding:3px 9px;border-radius:99px;flex:none}
 .brand-sep{width:1px;height:14px;background:var(--bdr);margin:0 14px}
-.nav{display:flex;gap:1px;flex:1;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+/* mesma família do nav-pill do Painel do Dia — indicador que desliza, mas aqui
+   sem trilho externo (a barra tem 10 abas e rola horizontal; um pill envolvendo
+   tudo não caberia) — cada aba ativa vira uma pill azul (--dia, cor do Cash)
+   que desliza pra trás da aba certa. cashNavIndicator movido por moveNavIndicator() em .js */
+.nav{position:relative; display:flex;gap:1px;flex:1;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .nav::-webkit-scrollbar{display:none}
-.nt{padding:5px 12px;border-radius:7px;font-size:11px;font-weight:700;color:var(--ink3);letter-spacing:.01em;transition:color .12s,background .12s;position:relative;white-space:nowrap;flex-shrink:0}
-.nt:hover{color:var(--ink2);background:var(--bdr)}
-.nt.on{color:var(--ink);background:var(--surf2)}
-.nt.on::after{content:'';position:absolute;left:12px;right:12px;bottom:-9px;height:2px;border-radius:2px;background:var(--dia)}
+.nav-indicator{
+  position:absolute; top:0; left:0; height:100%; width:0;
+  background:var(--dia); border-radius:7px; z-index:0;
+  transition:transform .35s cubic-bezier(.4,0,.2,1), width .35s cubic-bezier(.4,0,.2,1);
+}
+.nt{padding:5px 12px;border-radius:7px;font-size:11px;font-weight:700;color:var(--ink3);letter-spacing:.01em;transition:color .15s;position:relative;z-index:1;white-space:nowrap;flex-shrink:0}
+.nt:hover{color:var(--ink2)}
+.nt.on{color:#fff}
+@media (prefers-reduced-motion: reduce){ .nav-indicator{transition:none} }
 .hdr-r{display:flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:0}
 @media(max-width:860px){
   .hdr{padding:0 14px;gap:10px}

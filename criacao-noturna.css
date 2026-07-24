@@ -345,6 +345,26 @@ body > *{position:relative;z-index:1}
   .upload-btn:active{transform:translateY(0) scale(.97)}
   .upload-btn.drag{outline:2px dashed var(--felt-bright);outline-offset:3px}
   .upload-btn svg{width:14px;height:14px;flex:none;stroke:currentColor;stroke-width:2.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+  /* Global MTT: mesmo círculo-que-expande do Painel do Dia — só o ícone por
+     padrão, revela o texto no hover. Continua aceitando arrastar-soltar
+     (o listener de drag não depende do tamanho do botão). */
+  #dropZone{
+    width:38px; height:38px; padding:0; gap:0; justify-content:center;
+    border-radius:50%; overflow:hidden;
+    transition:width .3s var(--ease), border-radius .3s var(--ease), filter .25s var(--ease), transform .25s var(--ease);
+  }
+  #dropZone span{
+    width:0; opacity:0; white-space:nowrap; overflow:hidden;
+    transition:width .3s var(--ease), opacity .2s var(--ease), margin-left .3s var(--ease);
+  }
+  #dropZone:hover{ width:134px; border-radius:99px; }
+  #dropZone:hover span{ width:auto; opacity:1; margin-left:2px; }
+  #dropZone.drag{ width:134px; border-radius:99px; }
+  #dropZone.drag span{ width:auto; opacity:1; margin-left:2px; }
+  @media (prefers-reduced-motion: reduce){
+    #dropZone, #dropZone span{ transition:none; }
+  }
   .up-hint{font-size:12px;color:var(--ink-soft);line-height:1.5;flex:1;min-width:220px}
   .up-hint b{color:var(--ink)}
   .upload-meta{

@@ -3722,7 +3722,9 @@ function ingest(rows, filename, fromRemote=false){
   document.getElementById('heroStats').hidden = false;
   document.getElementById('heroEyebrow').classList.remove('empty');
   document.getElementById('heroEyebrowText').textContent = filename ? `Painel atualizado — ${filename}` : 'Painel atualizado';
-  document.getElementById('heroSub').textContent = `${rows.length} torneios carregados — ${RESULTS.length} já fechados, ${UPCOMING.length} na agenda.`;
+  // a contagem "N torneios carregados..." virou ruído — os KPIs logo abaixo (Garantido,
+  // Não fixados etc.) já dizem os números reais; some com a linha depois do 1º load
+  document.getElementById('heroSub').hidden = true;
 
   computeStats();
   renderUnfixed();

@@ -1013,6 +1013,7 @@ $('allDoneExport').addEventListener('click', () => $('exportBtn').click());
    em vez de achar que "não tem". */
 function renderFieldDiag(){
   const el = $('fieldDiag');
+  el.hidden = true; return;   // oculto a pedido — a lógica fica pronta pra religar se precisar
   if (!DATA){ el.hidden = true; return; }
   const labels = recipeFields();
   const probe = {extra: Object.fromEntries(labels.map(l => [l, 1]))};
@@ -1125,7 +1126,7 @@ function renderAlerts(){
       const key = itemKey(x);
       return `<b>${escHtml(x.hora)} ${escHtml(x.nome)}</b> → ${escHtml(CAT_BY_KEY[x.cat] ? CAT_BY_KEY[x.cat].label : x.cat)} <button class="alert-fix" data-fixcat="${key}">corrigir</button>`;
     });
-    html += `<div class="alert">⚠ <b>${semTipo.length} torneio(s) sem TYPE na coluna D</b> foram classificados pelo nome e entraram na divisão — confira a coluna D na Global ou corrija aqui:<br>${lines.join('<br>')}${semTipo.length > 10 ? `<br>… e mais ${semTipo.length - 10}.` : ''}</div>`;
+    html += `<div class="alert gold">🔎 <b>${semTipo.length} torneio(s) sem TYPE na coluna D</b> — já entraram na divisão, classificados pelo nome. Confira ou corrija aqui se estiver errado:<br>${lines.join('<br>')}${semTipo.length > 10 ? `<br>… e mais ${semTipo.length - 10}.` : ''}</div>`;
   }
   el.innerHTML = html;
   el.querySelectorAll('[data-fixcat]').forEach(b => b.addEventListener('click', () => {

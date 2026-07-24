@@ -250,12 +250,21 @@ function detectShift(){
 detectShift();
 
 // ══════════════════════════════ PAGE NAV
+function moveNavIndicator(btn){
+  const ind=document.getElementById('cashNavIndicator');
+  if(!ind||!btn)return;
+  ind.style.width=btn.offsetWidth+'px';
+  ind.style.transform=`translateX(${btn.offsetLeft}px)`;
+}
+function initNavIndicator(){ moveNavIndicator(document.querySelector('.nt.on')); }
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', initNavIndicator); else initNavIndicator();
+window.addEventListener('resize', () => moveNavIndicator(document.querySelector('.nt.on')));
 function pg(id,btn){
   document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nt').forEach(b=>b.classList.remove('on'));
   const page=document.getElementById('pg-'+id);
   page.classList.add('on');
-  if(btn)btn.classList.add('on');
+  if(btn){btn.classList.add('on'); moveNavIndicator(btn);}
   // Os gráficos são todos criados de uma vez com as páginas ocultas (display:none),
   // então o Chart.js os mede com largura 0. Ao revelar a página, forçamos um resize
   // pra cada canvas remedir o container agora visível — sem isso a troca de aba fazia
