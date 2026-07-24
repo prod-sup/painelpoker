@@ -130,14 +130,41 @@ nav{
 .brand .suit{color:var(--gold);font-size:19px;line-height:1}
 .brand small{font-family:var(--mono);font-weight:400;color:var(--ink-faint);font-size:11px;margin-left:4px}
 .nav-time{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
-/* toggle claro/escuro — preferência salva por usuário */
-.theme-btn{
-  border:1px solid var(--hairline);background:none;border-radius:99px;
-  width:32px;height:32px;cursor:pointer;font-size:14px;line-height:1;
-  color:var(--ink-soft);display:flex;align-items:center;justify-content:center;
-  transition:border-color .3s var(--ease), color .3s var(--ease), transform .3s var(--ease);
+/* toggle claro/escuro — preferência salva por usuário
+   (estilo "day/night switch", padrão comum no Uiverse): a trilha e o polegar
+   reagem só à classe html.light já alternada por setTheme() em hub.js — nenhum
+   estado novo em JS, só a pintura muda. */
+.theme-toggle{
+  border:0;background:none;padding:0;cursor:pointer;flex:none;
+  width:44px;height:24px;-webkit-tap-highlight-color:transparent;
 }
-.theme-btn:hover{border-color:var(--gold);color:var(--gold);transform:rotate(15deg)}
+.theme-toggle .tt-track{
+  position:relative;display:block;width:100%;height:100%;border-radius:99px;
+  border:1px solid var(--hairline);
+  background:linear-gradient(135deg,#1b2230,#0d1119);
+  transition:border-color .3s var(--ease), background .4s var(--ease);
+}
+.theme-toggle:hover .tt-track{border-color:var(--gold)}
+.theme-toggle .tt-thumb{
+  position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#fff,#d8d8e0);
+  box-shadow:0 1px 3px rgba(0,0,0,.4);
+  transition:transform .4s cubic-bezier(.34,1.56,.64,1), background .4s var(--ease);
+}
+/* ícones viajam DENTRO do polegar (não fixos na trilha) e trocam por crossfade —
+   evita o polegar tampar o ícone parado do lado pra onde ele desliza */
+.theme-toggle .tt-icon{
+  position:absolute;width:11px;height:11px;
+  transition:opacity .25s var(--ease), transform .35s var(--ease);
+  pointer-events:none;
+}
+.theme-toggle .tt-sun{color:#e8a23a;opacity:1;transform:scale(1) rotate(0)}
+.theme-toggle .tt-moon{color:#e8e6f0;opacity:0;transform:scale(.4) rotate(-90deg)}
+html.light .theme-toggle .tt-track{background:linear-gradient(135deg,#fef3d8,#fde8b8)}
+html.light .theme-toggle .tt-thumb{transform:translateX(20px);background:linear-gradient(135deg,#2b2f3a,#181b22)}
+html.light .theme-toggle .tt-sun{opacity:0;transform:scale(.4) rotate(90deg)}
+html.light .theme-toggle .tt-moon{opacity:1;transform:scale(1) rotate(0)}
 
 /* ---------- hero ---------- */
 .hero{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:56px 28px 34px}
@@ -416,6 +443,7 @@ html.light .aviso[data-tipo="erro"]{ --av-fg:#c0392b }
 .gate-ok{margin:2px 0 10px;font-size:12.5px;color:var(--felt)}
 .gate-ok[hidden]{display:none}
 .gate-submit{
+  position:relative;overflow:hidden;
   width:100%;padding:12px 0;margin-top:4px;border:0;border-radius:12px;cursor:pointer;
   background:var(--gold);color:#14100a;font-family:var(--text);font-size:14px;font-weight:700;
   transition:transform .2s var(--ease), filter .2s var(--ease);
@@ -423,6 +451,13 @@ html.light .aviso[data-tipo="erro"]{ --av-fg:#c0392b }
 .gate-submit:hover{filter:brightness(1.08)}
 .gate-submit:active{transform:scale(.985)}
 .gate-submit:disabled{opacity:.55;cursor:default}
+/* sweep de brilho no hover (padrão "shine button" do Uiverse) */
+.gate-submit::after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.55) 48%,rgba(255,255,255,.55) 52%,transparent 70%);
+  transform:translateX(-120%);transition:transform .7s var(--ease);pointer-events:none;
+}
+.gate-submit:hover::after{transform:translateX(120%)}
 .gate-link{
   display:block;margin:14px auto 0;border:0;background:none;cursor:pointer;
   font-family:var(--text);font-size:12.5px;color:var(--ink-soft);text-decoration:underline;text-underline-offset:3px;
@@ -465,7 +500,11 @@ html.light .aviso[data-tipo="erro"]{ --av-fg:#c0392b }
   transition:border-color .3s var(--ease), color .3s var(--ease), background .3s var(--ease);
 }
 .lb-tabs button:hover{border-color:var(--gold);color:var(--gold)}
-.lb-tabs button.on{background:var(--gold);border-color:var(--gold);color:#14100a}
+.lb-tabs button.on{
+  background:var(--gold);border-color:var(--gold);color:#14100a;
+  animation:lbTabPop .35s var(--ease);
+}
+@keyframes lbTabPop{ 0%{transform:scale(.9)} 55%{transform:scale(1.06)} 100%{transform:scale(1)} }
 /* pódio: os 3 primeiros como cartas de campeão (2º · 1º · 3º) */
 .lb-podium{
   display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:8px;align-items:end;
@@ -1528,11 +1567,17 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{ animati
 @keyframes lvlup-pop{ from{transform:scale(.4);opacity:0} 70%{transform:scale(1.08)} to{transform:none;opacity:1} }
 .lvlup-sub{ position:relative;font-size:13px;color:rgba(242,237,226,.75);max-width:300px;margin:0 auto }
 .lvlup-ok{
-  position:relative;margin-top:22px;border:0;border-radius:99px;padding:11px 30px;cursor:pointer;
+  position:relative;overflow:hidden;margin-top:22px;border:0;border-radius:99px;padding:11px 30px;cursor:pointer;
   font-weight:800;font-size:13px;background:var(--gold);color:#14100a;
   transition:transform .2s var(--ease);
 }
 .lvlup-ok:hover{ transform:translateY(-1px) scale(1.03) }
+.lvlup-ok::after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.55) 48%,rgba(255,255,255,.55) 52%,transparent 70%);
+  transform:translateX(-120%);transition:transform .7s var(--ease);pointer-events:none;
+}
+.lvlup-ok:hover::after{transform:translateX(120%)}
 /* naipes que sobem da base do cartão (one-shot ao abrir) */
 .lvlup-suits span{
   position:absolute;bottom:-30px;font-size:20px;opacity:0;pointer-events:none;color:var(--gold);
