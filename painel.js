@@ -7991,29 +7991,6 @@ window.addEventListener('storage', e => {
   paintDark(document.getElementById('darkToggle'), isDark);
 });
 
-/* ── Gaveta neumórfica (menu lateral) ── aditiva ao nav de topo */
-(function neuMenu(){
-  const open = document.getElementById('nmOpen');
-  const drawer = document.getElementById('nmDrawer');
-  const back = document.getElementById('nmBackdrop');
-  if(!open || !drawer || !back) return;
-  const show = () => {
-    back.hidden = false; requestAnimationFrame(() => back.classList.add('show'));
-    drawer.classList.add('open'); drawer.setAttribute('aria-hidden','false');
-    open.setAttribute('aria-expanded','true');
-  };
-  const hide = () => {
-    back.classList.remove('show'); drawer.classList.remove('open');
-    drawer.setAttribute('aria-hidden','true'); open.setAttribute('aria-expanded','false');
-    setTimeout(() => { back.hidden = true; }, 320);
-  };
-  open.addEventListener('click', show);
-  back.addEventListener('click', hide);
-  document.getElementById('nmClose')?.addEventListener('click', hide);
-  drawer.querySelectorAll('.nm-item').forEach(a => a.addEventListener('click', hide));
-  document.addEventListener('keydown', e => { if(e.key === 'Escape' && drawer.classList.contains('open')) hide(); });
-})();
-
 /* =========================================================================
    AVISO DE PLANILHA DESATUALIZADA APÓS MEIA-NOITE
    A planilha do dia (RAW_ROWS) tem um campo uploadedAt do Firebase.

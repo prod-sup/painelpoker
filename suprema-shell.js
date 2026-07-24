@@ -79,7 +79,7 @@
       return '<button class="op-badge" id="opBadge"' + title + '><span class="avatar" id="opAvatar">?</span><span id="opName">—</span></button>';
     },
     toggle: function (o){
-      return '<button class="icon-btn sup-switch" id="darkToggle" aria-pressed="false" title="' + esc(o.toggleTitle || 'Alternar modo claro/escuro') + '">' + SWITCH_INNER + '</button>';
+      return '<button class="sup-switch" id="darkToggle" aria-pressed="false" title="' + esc(o.toggleTitle || 'Alternar modo claro/escuro') + '">' + SWITCH_INNER + '</button>';
     }
   };
 
