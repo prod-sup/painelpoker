@@ -7543,6 +7543,14 @@ window.addEventListener('scroll', () => {
 const spyLinks = [...document.querySelectorAll('.nav-links a[href^="#"]')].map(a => ({
   a, id: a.getAttribute('href').slice(1)
 }));
+/* desliza a pill preta (.nav-indicator) até em cima do link ativo — mede a
+   posição real do link (largura varia por texto) em vez de posições fixas */
+const navIndicator = document.getElementById('navIndicator');
+function moveIndicator(a){
+  if (!navIndicator || !a) return;
+  navIndicator.style.width = a.offsetWidth + 'px';
+  navIndicator.style.transform = `translateX(${a.offsetLeft - 4}px)`;
+}
 if ('IntersectionObserver' in window){
   const _spyById = {};
   spyLinks.forEach(({a, id}) => { _spyById[id] = a; });
@@ -7550,11 +7558,20 @@ if ('IntersectionObserver' in window){
     entries.forEach(e => {
       if (e.isIntersecting){
         spyLinks.forEach(({a}) => a.classList.remove('active'));
-        _spyById[e.target.id]?.classList.add('active');
+        const active = _spyById[e.target.id];
+        active?.classList.add('active');
+        moveIndicator(active);
       }
     });
   }, { rootMargin: '-14% 0px -80% 0px', threshold: 0 });
   spyLinks.forEach(({id}) => { const s = document.getElementById(id); if (s) spyIO.observe(s); });
+  // nenhuma seção cruzou a banda ainda (ex.: topo da página, tudo abaixo da dobra) —
+  // a pill começa em cima do primeiro link em vez de ficar com largura 0
+  requestAnimationFrame(() => { if (!spyLinks.some(({a}) => a.classList.contains('active')) && spyLinks[0]) moveIndicator(spyLinks[0].a); });
+  window.addEventListener('resize', () => {
+    const active = spyLinks.find(({a}) => a.classList.contains('active'));
+    if (active) moveIndicator(active.a);
+  });
 }
 
 document.querySelectorAll('.reveal').forEach(el => io.observe(el));

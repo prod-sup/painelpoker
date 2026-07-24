@@ -636,79 +636,49 @@
   .bchip, .bchip-b{ transition:transform .32s var(--ease-expo); }
   @media (prefers-reduced-motion: reduce){ .bchip, .bchip-b{ transition:none; } }
   @media (max-width:680px){ .brand-chips{ display:none; } }
-  /* ── NAV OUSADO — pill de feltro que "senta" no link ativo (scroll-spy) e
-     naipe da casa que pula acima no hover. Só transform/opacity.
-     Fonte = var(--text) (a mesma dos outros painéis) e compacto pra NÃO estourar
-     a largura da nav, que já é cheia de ferramentas. ── */
-  .nav-links{display:flex; gap:2px; font-size:12px; color:var(--ink-soft); flex:none;}
+  /* ── NAV ISLAND — pill de feltro escuro com indicador dourado/feltro que
+     desliza pro link ativo. Mecânica emprestada de um pill preto genérico, mas
+     na cor da casa (feltro + dourado) — preto puro destoava do resto da página
+     (creme/feltro/dourado, "uma voz só"). O scroll-spy (painel.js) só troca a
+     classe .active; moveIndicator() (mesmo arquivo) mede a posição do link
+     ativo e desliza o .nav-indicator até lá. */
+  .nav-links{
+    position:relative; display:flex; align-items:center; gap:1px; flex:none;
+    background:#0d2419; border-radius:99px; padding:4px;
+  }
+  html.dark .nav-links{ background:#123625; }   /* levemente mais clara que o --bg escuro, senão funde */
+  .nav-links .nav-indicator{
+    position:absolute; top:4px; left:4px; height:calc(100% - 8px); width:0;
+    border-radius:99px; z-index:1;
+    background:linear-gradient(135deg, var(--felt), var(--felt-bright));
+    box-shadow:0 4px 14px -6px rgba(34,212,126,.7);
+    transition:transform .4s cubic-bezier(.4,0,.2,1), width .4s cubic-bezier(.4,0,.2,1);
+  }
   .nav-links a{
-    position:relative; isolation:isolate; white-space:nowrap;
-    padding:6px 11px; border-radius:99px;
-    font-family:var(--text); font-weight:700; letter-spacing:.01em;
-    transition:color .25s var(--ease), transform .25s var(--ease);
+    position:relative; z-index:2; white-space:nowrap;
+    padding:7px 13px; border-radius:99px;
+    font-family:var(--text); font-size:12px; font-weight:600; letter-spacing:.01em;
+    color:rgba(232,237,233,.5);
+    transition:color .3s ease, transform .15s ease;
   }
-  /* pill que cresce por trás do texto (hover) e vira feltro sólido no ativo */
-  .nav-links a::before{
-    content:""; position:absolute; inset:0; z-index:-1; border-radius:99px;
-    background:color-mix(in srgb, var(--felt) 13%, transparent);
-    opacity:0; transform:scale(.8);
-    transition:opacity .28s var(--ease-quart), transform .45s var(--ease-expo), background-color .28s;
-  }
-  /* naipe que pula acima do link no hover — marcador lúdico, zero layout shift */
-  .nav-links a::after{
-    content:"♠"; position:absolute; left:50%; top:-9px; z-index:1;
-    font-size:9px; color:var(--felt-bright); line-height:1;
-    opacity:0; transform:translateX(-50%) translateY(5px) scale(.5) rotate(-90deg);
-    transition:opacity .3s var(--ease-quart), transform .45s var(--ease-expo);
-    pointer-events:none;
-  }
-  .nav-links a:nth-child(1)::after{ content:"♦"; color:var(--gold); }
-  .nav-links a:nth-child(3)::after{ content:"♥"; color:#e05a5a; }
-  .nav-links a:nth-child(4)::after{ content:"♣"; }
-  .nav-links a:last-child::after{ content:none; }   /* "♠ OS" já tem o naipe no texto */
+  .nav-links a:hover{ color:rgba(232,237,233,.85); }
+  .nav-links a.active{ color:#fff; }
+  .nav-links a:active{ transform:scale(.94); transition-duration:.1s; }
 
-  /* ── ♠ OS: SAÍDA pro hub, não seção da página ──
-     Estava idêntico às âncoras (mesma pill de feltro, mesmo peso), então lia
-     como "mais uma seção pra rolar". Divisória + naipe dourado + sem a pill de
-     scroll-spy deixam claro que este link TROCA de produto. */
+  /* ── ♠ OS: SAÍDA pro hub, não seção da página — mesma pill de feltro, mas
+     fora do grupo que desliza (o scroll-spy nunca marca ela como .active) */
   .nav-links a.nav-os{
     display:inline-flex; align-items:center; gap:5px;
-    margin-left:9px; padding-left:14px;
-    color:var(--ink-faint); font-weight:650;
+    margin-left:6px; padding-left:15px; color:rgba(232,237,233,.5); font-weight:600;
   }
-  .nav-links a.nav-os::before{ background:var(--gold-soft); }   /* pill discreta, dourada */
-  .nav-links a.nav-os .nav-os-suit{
-    font-size:11px; color:var(--gold); line-height:1;
-    transition:transform .3s var(--ease-expo);
+  .nav-links a.nav-os::before{
+    content:''; position:absolute; left:0; top:50%; transform:translateY(-50%);
+    width:1px; height:14px; background:rgba(232,237,233,.18);
   }
-  /* divisória: separa o grupo de âncoras do destino externo.
-     `:last-child` aqui não é decorativo — sem ele esta regra EMPATA em
-     especificidade com `.nav-links a:last-child::after{content:none}` e só
-     venceria pela ordem no arquivo, quebrando se alguém reordenasse. */
-  .nav-links a.nav-os:last-child::after{
-    content:""; position:absolute; left:0; top:50%; transform:translateY(-50%);
-    width:1px; height:15px; background:var(--hairline-strong);
-    opacity:1; border-radius:0;
-  }
+  .nav-links a.nav-os .nav-os-suit{ font-size:11px; line-height:1; color:var(--gold); }
   .nav-links a.nav-os:hover{ color:var(--gold); }
-  .nav-links a.nav-os:hover::after{ opacity:1; transform:translateY(-50%); }
-  .nav-links a.nav-os:hover .nav-os-suit{ transform:translateY(-1px) rotate(-8deg); }
-  /* scroll-spy nunca deve "acender" um link que sai da página */
-  .nav-links a.nav-os.active{ color:var(--gold); }
-  .nav-links a.nav-os.active::before{ background:var(--gold-soft); box-shadow:none; }
-  .nav-links a:hover{ color:var(--ink); transform:translateY(-1px); }
-  .nav-links a:hover::before{ opacity:1; transform:scale(1); }
-  .nav-links a:hover::after{ opacity:1; transform:translateX(-50%) translateY(0) scale(1) rotate(0deg); }
-  .nav-links a.active{ color:#fff; }
-  .nav-links a.active::before{
-    opacity:1; transform:scale(1);
-    background:linear-gradient(135deg, var(--felt), var(--felt-bright));
-    box-shadow:0 6px 18px -8px rgba(24,163,107,.75);
-  }
-  html.dark .nav-links a.active{ color:#fff; }
-  .nav-links a:active{ transform:translateY(0) scale(.96); transition-duration:.1s; }
   @media (prefers-reduced-motion: reduce){
-    .nav-links a, .nav-links a::before, .nav-links a::after{ transition:none; }
+    .nav-links .nav-indicator, .nav-links a{ transition:none; }
     nav, .nav-inner{ transition:none; }
   }
   .nav-right{display:flex; align-items:center; gap:9px; min-width:0;}
@@ -944,29 +914,33 @@
   /* ── links externos da operação (Criação GU / Admin) — antes eram âncoras
      soltas com estilo inline fora da .nav-inner; agora são pills da casa ── */
   .nav-ext{ display:flex; align-items:center; gap:6px; flex:none; }
+  /* mesma pill de feltro do .nav-links — sólida, sem indicador deslizante
+     (são destinos de SAÍDA, não estado local pra marcar como "ativo") */
   .nav-ext a{
     display:inline-flex; align-items:center; gap:5px;
     font-size:11px; font-weight:700; letter-spacing:.01em; white-space:nowrap;
-    color:var(--ink-soft); padding:5px 11px; border-radius:99px;
-    border:1px solid var(--hairline-strong);
-    transition:color .25s var(--ease), border-color .25s var(--ease),
-               background-color .25s var(--ease), transform .25s var(--ease);
+    color:rgba(232,237,233,.5); padding:6px 12px; border-radius:99px;
+    background:#0d2419;
+    transition:color .25s var(--ease), background-color .25s var(--ease), transform .25s var(--ease);
   }
+  html.dark .nav-ext a{ background:#123625; }
   /* ícones herdam a cor do link (currentColor) — é o ponto de trocar o emoji */
   .nav-ext .nx-ic{ width:12px; height:12px; flex:none; opacity:.85; }
   .nav-ext .nx-out{
     width:11px; height:11px; flex:none; opacity:.5;
     transition:transform .28s var(--ease-expo), opacity .25s var(--ease);
   }
-  .nav-ext a:hover{ color:var(--gold); border-color:var(--gold); background:var(--gold-soft); transform:translateY(-1px); }
+  .nav-ext a:hover{ color:var(--gold); background:#173222; transform:translateY(-1px); }
+  html.dark .nav-ext a:hover{ background:#1a4530; }
   /* a seta "sai" na diagonal no hover — reforça que o link troca de página */
   .nav-ext a:hover .nx-out{ opacity:1; transform:translate(1.5px,-1.5px); }
   .nav-ext a:hover .nx-ic{ opacity:1; }
 
   /* Admin é destino privilegiado e raro: fica mais discreto que a Criação GU
      (rotina do turno) até receber hover, pra hierarquia bater com o uso. */
-  .nav-ext a#adminNavLink{ color:var(--ink-faint); border-color:var(--hairline); }
-  .nav-ext a#adminNavLink:hover{ color:var(--gold); border-color:var(--gold); }
+  .nav-ext a#adminNavLink{ color:rgba(232,237,233,.38); }
+  .nav-ext a#adminNavLink:hover{ color:var(--gold); background:#173222; }
+  html.dark .nav-ext a#adminNavLink:hover{ background:#1a4530; }
 
   @media (prefers-reduced-motion: reduce){
     .nav-ext a, .nav-ext .nx-out{ transition:none; }
