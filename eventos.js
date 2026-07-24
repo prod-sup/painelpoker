@@ -1672,7 +1672,7 @@ setInterval(() => { if (MODEL){ renderHero(); refreshAgendaStatus(); refreshMevS
 
 (function themeAndUser(){
   const html = document.documentElement;
-  const apply = dark => { html.classList.toggle('dark', dark); document.getElementById('darkToggle').textContent = dark ? '🌙' : '☀️'; };
+  const apply = dark => { html.classList.toggle('dark', dark); SupremaShell.paintSwitch(document.getElementById('darkToggle'), dark); };
   apply(SupremaAuth.wireThemeSync(apply));
   document.getElementById('darkToggle').addEventListener('click', () => {
     const dark = !html.classList.contains('dark');

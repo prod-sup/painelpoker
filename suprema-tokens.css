@@ -222,3 +222,44 @@ html.lite *::after{
   transition-duration: .001ms !important;
 }
 html.lite{ scroll-behavior: auto !important; }
+
+/* ============================================================
+   SUP-SWITCH — toggle claro/escuro compartilhado (adaptação do
+   "splendid-panda" do Uiverse à marca Suprema). Sol | pílula | lua.
+   TOTALMENTE dirigido por [aria-pressed] no próprio botão:
+   aria-pressed="true"  = modo ESCURO (knob à direita, lua acesa)
+   aria-pressed="false" = modo CLARO  (knob à esquerda, sol aceso)
+   Cada painel só precisa: dar a classe .sup-switch ao botão do tema,
+   pôr o markup interno (.sw-*) uma vez, e manter aria-pressed em dia.
+   Assim vale nos dois sistemas de tema (html.dark e html.light) sem
+   depender de qual classe o painel usa — o estado é do botão, não do html.
+   ============================================================ */
+button.sup-switch{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 5px;border:0;background:none;cursor:pointer;
+  border-radius:99px;line-height:1;-webkit-tap-highlight-color:transparent;
+  transition:background .3s var(--sup-ease,ease);
+}
+button.sup-switch:hover{background:color-mix(in srgb, var(--sup-gold,#c9a84c) 12%, transparent)}
+button.sup-switch .sw-flank{
+  width:14px;height:14px;flex:none;
+  transition:opacity .3s var(--sup-ease,ease), transform .4s var(--sup-ease,ease), color .3s var(--sup-ease,ease);
+}
+button.sup-switch .sw-sun{color:var(--sup-gold,#c9a84c);opacity:1}
+button.sup-switch .sw-moon{color:var(--sup-ink-soft,#9aa);opacity:.4}
+button.sup-switch[aria-pressed="true"] .sw-sun{opacity:.4;transform:scale(.85)}
+button.sup-switch[aria-pressed="true"] .sw-moon{opacity:1;color:#cfd7e6;transform:scale(1)}
+button.sup-switch .sw-pill{
+  position:relative;width:34px;height:18px;flex:none;border-radius:99px;
+  border:1px solid var(--sup-hairline,rgba(140,140,140,.3));
+  background:linear-gradient(135deg,#fef3d8,#f6e6b8);
+  transition:background .4s var(--sup-ease,ease), border-color .3s var(--sup-ease,ease);
+}
+button.sup-switch[aria-pressed="true"] .sw-pill{background:linear-gradient(135deg,#20262f,#12151b)}
+button.sup-switch .sw-knob{
+  position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;
+  background:linear-gradient(135deg,var(--sup-gold-bright,#e8c766),var(--sup-gold,#c9a84c));
+  box-shadow:0 1px 3px rgba(0,0,0,.35);
+  transition:transform .4s cubic-bezier(.34,1.56,.64,1);
+}
+button.sup-switch[aria-pressed="true"] .sw-knob{transform:translateX(16px)}

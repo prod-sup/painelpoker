@@ -31,7 +31,7 @@
     } catch (e) {}
     // tema (chave compartilhada + sync entre abas)
     var html = document.documentElement;
-    var paint = function () { var b = $('darkToggle'); if (b) b.textContent = html.classList.contains('dark') ? '☀️' : '🌙'; };
+    var paint = function () { var b = $('darkToggle'); if (b) SupremaShell.paintSwitch(b, html.classList.contains('dark')); };
     paint();
     $('darkToggle') && $('darkToggle').addEventListener('click', function () {
       var dark = html.classList.toggle('dark');

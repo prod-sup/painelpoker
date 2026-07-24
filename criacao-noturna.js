@@ -694,7 +694,7 @@ $('opBadge').addEventListener('click', () => {
 });
 
 /* ── modo escuro ── */
-function paintDarkBtn(){ $('darkToggle').textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙'; }
+function paintDarkBtn(){ SupremaShell.paintSwitch($('darkToggle'), document.documentElement.classList.contains('dark')); }
 paintDarkBtn();
 $('darkToggle').addEventListener('click', () => {
   const isDark = document.documentElement.classList.toggle('dark');

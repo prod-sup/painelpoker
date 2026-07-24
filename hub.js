@@ -183,7 +183,7 @@
      - aplica na hora e guarda em localStorage (pro próximo load não piscar)
      - persiste em users/<key>/darkMode; no login a preferência do usuário vence */
   function isDark(){ return !document.documentElement.classList.contains('light'); }
-  function applyThemeBtn(){ $('themeBtn').setAttribute('aria-checked', isDark() ? 'true' : 'false'); }
+  function applyThemeBtn(){ $('themeBtn').setAttribute('aria-pressed', isDark() ? 'true' : 'false'); }
   function setTheme(dark, persist){
     document.documentElement.classList.toggle('light', !dark);
     try{ localStorage.setItem('suprema_dark_mode', dark ? '1' : '0'); }catch(e){}

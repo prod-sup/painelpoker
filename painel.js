@@ -7966,14 +7966,21 @@ if(shiftTextarea){
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const isDark = saved !== null ? saved === '1' : prefersDark;
   if(isDark) document.documentElement.classList.add('dark');
-  const btn = document.getElementById('darkToggle');
-  if(btn) btn.textContent = isDark ? '☀️' : '🌙';
+  paintDark(document.getElementById('darkToggle'), isDark);
 })();
+
+/* pinta o switch (sol|pílula|lua). Usa o helper compartilhado da shell quando
+   presente; sem ele, cai no glifo antigo pra não quebrar. */
+function paintDark(btn, isDark){
+  if(!btn) return;
+  if(window.SupremaShell && SupremaShell.paintSwitch) SupremaShell.paintSwitch(btn, isDark);
+  else btn.textContent = isDark ? '☀️' : '🌙';
+}
 
 document.getElementById('darkToggle')?.addEventListener('click', () => {
   const isDark = document.documentElement.classList.toggle('dark');
   localStorage.setItem('suprema_dark_mode', isDark ? '1' : '0');
-  document.getElementById('darkToggle').textContent = isDark ? '☀️' : '🌙';
+  paintDark(document.getElementById('darkToggle'), isDark);
 });
 
 /* Ecossistema: se o tema mudar em outra aba/página (hub, admin...), acompanha na hora */
@@ -7981,9 +7988,31 @@ window.addEventListener('storage', e => {
   if(e.key !== 'suprema_dark_mode' || e.newValue === null) return;
   const isDark = e.newValue === '1';
   document.documentElement.classList.toggle('dark', isDark);
-  const btn = document.getElementById('darkToggle');
-  if(btn) btn.textContent = isDark ? '☀️' : '🌙';
+  paintDark(document.getElementById('darkToggle'), isDark);
 });
+
+/* ── Gaveta neumórfica (menu lateral) ── aditiva ao nav de topo */
+(function neuMenu(){
+  const open = document.getElementById('nmOpen');
+  const drawer = document.getElementById('nmDrawer');
+  const back = document.getElementById('nmBackdrop');
+  if(!open || !drawer || !back) return;
+  const show = () => {
+    back.hidden = false; requestAnimationFrame(() => back.classList.add('show'));
+    drawer.classList.add('open'); drawer.setAttribute('aria-hidden','false');
+    open.setAttribute('aria-expanded','true');
+  };
+  const hide = () => {
+    back.classList.remove('show'); drawer.classList.remove('open');
+    drawer.setAttribute('aria-hidden','true'); open.setAttribute('aria-expanded','false');
+    setTimeout(() => { back.hidden = true; }, 320);
+  };
+  open.addEventListener('click', show);
+  back.addEventListener('click', hide);
+  document.getElementById('nmClose')?.addEventListener('click', hide);
+  drawer.querySelectorAll('.nm-item').forEach(a => a.addEventListener('click', hide));
+  document.addEventListener('keydown', e => { if(e.key === 'Escape' && drawer.classList.contains('open')) hide(); });
+})();
 
 /* =========================================================================
    AVISO DE PLANILHA DESATUALIZADA APÓS MEIA-NOITE

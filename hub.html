@@ -40,13 +40,10 @@
     </span>
     <span class="presence-wrap" id="presenceWrap" title="Operadores online agora" hidden></span>
     <span class="nav-time" id="navTime"></span>
-    <button type="button" class="theme-toggle" id="themeBtn" role="switch" aria-checked="true" title="Alternar tema claro/escuro" aria-label="Alternar tema">
-      <span class="tt-track" aria-hidden="true">
-        <span class="tt-thumb">
-          <svg class="tt-icon tt-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2.5 12h2M19.5 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>
-          <svg class="tt-icon tt-moon" viewBox="0 0 24 24" fill="currentColor"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></svg>
-        </span>
-      </span>
+    <button type="button" class="sup-switch" id="themeBtn" aria-pressed="true" title="Alternar tema claro/escuro" aria-label="Alternar tema">
+      <svg class="sw-flank sw-sun" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708z"/></svg>
+      <span class="sw-pill"><span class="sw-knob"></span></span>
+      <svg class="sw-flank sw-moon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/></svg>
     </button>
   </div>
 </nav>
@@ -65,6 +62,25 @@
     <button type="button" class="ho-chip ho-link" id="hoNext" hidden></button>
     <button type="button" class="ho-chip ho-link" id="hoMissions" hidden></button>
     <a class="ho-chip ho-link" id="hoLast" hidden></a>
+  </div>
+
+  <!-- ── CLIMA — widget ao vivo (adaptação do "loud-fox-60" do Uiverse), dados
+       reais de São Paulo via Open-Meteo (sem chave). Expande no hover pra mostrar
+       umidade, vento, sensação e pressão. Populado por wx.js inline abaixo. -->
+  <div class="wx" id="wxWidget" aria-label="Clima agora em São Paulo" hidden>
+    <div class="wx-head">
+      <span class="wx-icon" id="wxIcon" aria-hidden="true"></span>
+      <span class="wx-temp"><b id="wxTemp">--°</b><i id="wxCity">São Paulo</i></span>
+    </div>
+    <div class="wx-body">
+      <div class="wx-grid">
+        <div class="wx-cell"><span>Umidade</span><b id="wxHum">--</b></div>
+        <div class="wx-cell"><span>Vento</span><b id="wxWind">--</b></div>
+        <div class="wx-cell"><span>Sensação</span><b id="wxFeel">--</b></div>
+        <div class="wx-cell"><span>Pressão</span><b id="wxPress">--</b></div>
+      </div>
+      <div class="wx-status" id="wxStatus">—</div>
+    </div>
   </div>
 </header>
 
@@ -390,7 +406,17 @@
       <div class="gate-field"><label for="gCadPw2">Confirmar senha</label>
         <input type="password" id="gCadPw2" autocomplete="new-password"></div>
       <div class="gate-error" id="gCadErr" hidden></div>
-      <button type="submit" class="gate-submit" id="gCadBtn">Criar conta</button>
+      <button type="submit" class="gate-submit gate-register" id="gCadBtn">
+        Criar conta
+        <span class="inner-button" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="26" height="26" class="reg-arrow">
+            <defs><linearGradient id="regIconGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#f6e6b8"/><stop offset="100%" style="stop-color:#c9a84c"/>
+            </linearGradient></defs>
+            <path fill="url(#regIconGrad)" d="M4 15a1 1 0 0 0 1 1h19.586l-4.292 4.292a1 1 0 0 0 1.414 1.414l6-6a.99.99 0 0 0 .292-.702V15c0-.13-.026-.26-.078-.382a.99.99 0 0 0-.216-.324l-6-6a1 1 0 0 0-1.414 1.414L24.586 14H5a1 1 0 0 0-1 1z"/>
+          </svg>
+        </span>
+      </button>
     </form>
 
     <!-- RECUPERAÇÃO -->
@@ -430,6 +456,52 @@ function tick(){
 // mostra só hora:minuto — 30s basta pra virar o minuto sem wakeups à toa
 tick(); setInterval(tick, 30000);
 
+/* ── CLIMA (Open-Meteo, sem chave) ────────────────────────────────────────
+   Dados reais de São Paulo. Open-Meteo é gratuito e não exige API key, então
+   nada de segredo no repo público. Falha silenciosa: se a rede cair, o widget
+   fica oculto em vez de mostrar traços — clima é enfeite, não pode virar erro. */
+(function weather(){
+  const $ = id => document.getElementById(id);
+  const el = $('wxWidget'); if (!el) return;
+  const SP = { lat:-23.55, lon:-46.63 };
+  // WMO weather code → { ícone, rótulo PT, situação }
+  const ICON = {
+    sun:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>',
+    cloud:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 18a4.5 4.5 0 0 1-.5-8.97A6 6 0 0 1 17.7 10 4 4 0 0 1 17.5 18z"/></svg>',
+    partly:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><path d="M8 1.5V3M2.5 8H4M3.6 3.6l1 1M12.4 3.6l-1 1M8 12h.01"/><path d="M10.5 18a4 4 0 0 1-.4-7.98A5 5 0 0 1 20 12a3.5 3.5 0 0 1-.5 6z"/></svg>',
+    rain:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 14a4.5 4.5 0 0 1-.5-8.97A6 6 0 0 1 17.7 6 4 4 0 0 1 17.5 14z"/><path d="M8 18l-1 2.5M12 18l-1 2.5M16 18l-1 2.5"/></svg>',
+    storm:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 13a4.5 4.5 0 0 1-.5-8.97A6 6 0 0 1 17.7 5 4 4 0 0 1 17.5 13z"/><path d="M12 12l-2.5 4H12l-1.5 4"/></svg>',
+    snow:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 14a4.5 4.5 0 0 1-.5-8.97A6 6 0 0 1 17.7 6 4 4 0 0 1 17.5 14z"/><path d="M8 19h.01M12 18h.01M16 19h.01"/></svg>',
+    fog:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9h16M4 13h16M6 17h12M6 5h12"/></svg>'
+  };
+  function decode(code){
+    if (code === 0) return { ic:'sun', txt:'Céu limpo', st:'Bom dia' };
+    if (code <= 2)  return { ic:'partly', txt:'Parcialmente nublado', st:'Agradável' };
+    if (code === 3) return { ic:'cloud', txt:'Nublado', st:'Encoberto' };
+    if (code <= 48) return { ic:'fog', txt:'Névoa', st:'Baixa visão' };
+    if (code <= 67) return { ic:'rain', txt:'Chuva', st:'Leve o guarda-chuva' };
+    if (code <= 77) return { ic:'snow', txt:'Neve', st:'Frio' };
+    if (code <= 82) return { ic:'rain', txt:'Pancadas', st:'Leve o guarda-chuva' };
+    if (code <= 86) return { ic:'snow', txt:'Neve', st:'Frio' };
+    return { ic:'storm', txt:'Tempestade', st:'Cuidado' };
+  }
+  const url = 'https://api.open-meteo.com/v1/forecast?latitude='+SP.lat+'&longitude='+SP.lon
+    + '&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,surface_pressure,weather_code'
+    + '&timezone=America%2FSao_Paulo';
+  fetch(url).then(r => r.ok ? r.json() : Promise.reject(r.status)).then(d => {
+    const c = d && d.current; if (!c) throw 'sem dados';
+    const w = decode(c.weather_code);
+    $('wxIcon').innerHTML = ICON[w.ic] || ICON.cloud;
+    $('wxTemp').textContent = Math.round(c.temperature_2m) + '°';
+    $('wxHum').textContent  = Math.round(c.relative_humidity_2m) + '%';
+    $('wxWind').textContent = Math.round(c.wind_speed_10m) + ' km/h';
+    $('wxFeel').textContent = Math.round(c.apparent_temperature) + '°';
+    $('wxPress').textContent= Math.round(c.surface_pressure) + ' mb';
+    $('wxStatus').textContent = w.txt + ' · ' + w.st;
+    el.hidden = false;
+  }).catch(() => { el.hidden = true; });
+})();
+
 // A Constelação mora em outro repositório; ajuste a URL publicada aqui quando mudar.
 // Em desenvolvimento local, aponta pro build da pasta vizinha se ela existir.
 if (location.protocol === 'file:') {
@@ -465,8 +537,11 @@ document.addEventListener('DOMContentLoaded', function(){
 
   function redeDeNos(){
     if (!window.SupremaMotion) return;
+    // Apple-sério: constelação esparsa e quase-monocromática (dourado contido +
+    // cinza neutro; nada de verde feltro). Menos nós, links mais longos = calma.
     SupremaMotion.network('.hero', {
-      c1:'#8f6b2d', c2:'#18a36b', c1Dark:'#c9a84c', c2Dark:'#18a36b',
+      c1:'#8f6b2d', c2:'#5a5a62', c1Dark:'#9c7d3e', c2Dark:'#54545c',
+      maxNodes: 34, linkDist: 155,
       isDark: function(){ return !document.documentElement.classList.contains('light'); }
     });
   }
@@ -511,5 +586,11 @@ document.addEventListener('DOMContentLoaded', function(){
 <script defer src="suprema-onboarding.js"></script>
 <script defer src="hub-onboarding.js"></script>
 <script defer src="suprema-presence.js"></script>
+
+<!-- Motion refinado com Anime.js (v4, vendorizado) — entrada do hero em cascata,
+     reveal on-scroll dos cards/boards e do grid. Filosofia Apple: presente mas
+     nunca espetáculo. Respeita prefers-reduced-motion e degrada sem a lib. -->
+<script defer src="vendor/anime.umd.min.js"></script>
+<script defer src="hub-motion.js"></script>
 </body>
 </html>

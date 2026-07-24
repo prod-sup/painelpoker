@@ -3692,3 +3692,88 @@ html.dark .routine-tool-desc b{ color:var(--felt-bright); }
 
 /* badge do header: vermelho quando há crítico, dourado quando só atenção */
 #diagBadge.has-critico{ background:var(--red,#c0392b); color:#fff; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MENU NEUMÓRFICO — gaveta de navegação lateral (adaptação do
+   warm-vampirebat-45 do Uiverse ao tema Suprema: em vez do cinza-claro
+   #e0e5ec, base escura da marca com o mesmo relevo de sombra dupla e o
+   dourado como acento). Aditivo: não altera o nav de topo existente.
+   ═══════════════════════════════════════════════════════════════════════ */
+/* botão hambúrguer que abre a gaveta */
+.nm-open{
+  display:flex;flex-direction:column;justify-content:center;gap:4px;
+  width:38px;height:38px;padding:0 10px;margin-right:6px;flex:none;cursor:pointer;
+  border:0;border-radius:12px;background:var(--card,#16181d);
+  box-shadow:4px 4px 9px rgba(0,0,0,.5), -4px -4px 9px rgba(255,255,255,.03);
+  transition:box-shadow .25s ease, transform .2s ease;
+}
+.nm-open span{display:block;height:2px;border-radius:2px;background:var(--gold,#c9a84c);transition:width .25s ease}
+.nm-open span:nth-child(1){width:16px}
+.nm-open span:nth-child(2){width:12px}
+.nm-open span:nth-child(3){width:16px}
+.nm-open:hover{box-shadow:2px 2px 5px rgba(0,0,0,.5), -2px -2px 5px rgba(255,255,255,.04)}
+.nm-open:hover span{width:16px}
+.nm-open:active{transform:scale(.95)}
+
+.nm-backdrop{
+  position:fixed;inset:0;z-index:1400;background:rgba(0,0,0,.5);
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
+  opacity:0;transition:opacity .3s ease;
+}
+.nm-backdrop.show{opacity:1}
+.nm-backdrop[hidden]{display:none}
+
+.nm-drawer{
+  position:fixed;top:0;left:0;bottom:0;z-index:1401;width:290px;max-width:82vw;
+  display:flex;flex-direction:column;gap:14px;padding:22px 18px;
+  background:var(--bg,#101216);
+  box-shadow:9px 0 26px rgba(0,0,0,.55);
+  transform:translateX(-104%);transition:transform .38s cubic-bezier(.4,0,.2,1);
+  overflow-y:auto;
+}
+.nm-drawer.open{transform:translateX(0)}
+.nm-title{
+  display:flex;align-items:center;gap:8px;
+  font-family:var(--display);font-size:20px;font-weight:600;color:var(--ink-soft);
+  padding:4px 8px 12px;
+}
+.nm-title b{color:var(--gold,#c9a84c);font-weight:700}
+.nm-close{
+  margin-left:auto;width:30px;height:30px;flex:none;cursor:pointer;
+  border:0;border-radius:9px;background:var(--card,#16181d);color:var(--ink-soft);font-size:13px;
+  box-shadow:3px 3px 7px rgba(0,0,0,.5), -3px -3px 7px rgba(255,255,255,.03);
+  transition:color .2s ease, box-shadow .2s ease;
+}
+.nm-close:hover{color:var(--gold);box-shadow:inset 2px 2px 5px rgba(0,0,0,.5), inset -2px -2px 5px rgba(255,255,255,.03)}
+.nm-list{display:flex;flex-direction:column;gap:11px}
+.nm-item{
+  display:flex;align-items:center;gap:14px;
+  padding:13px 16px;border-radius:14px;text-decoration:none;
+  color:var(--ink-soft);font-size:15px;font-weight:500;
+  box-shadow:5px 5px 11px rgba(0,0,0,.5), -5px -5px 11px rgba(255,255,255,.028);
+  transition:box-shadow .28s ease, color .28s ease, transform .18s ease;
+}
+.nm-item .nm-ic{
+  width:24px;height:24px;flex:none;display:flex;align-items:center;justify-content:center;
+  border-radius:8px;font-size:13px;color:var(--gold,#c9a84c);
+  box-shadow:inset 3px 3px 6px rgba(0,0,0,.45), inset -3px -3px 6px rgba(255,255,255,.03);
+  transition:box-shadow .28s ease;
+}
+.nm-item:hover{color:var(--ink);box-shadow:3px 3px 6px rgba(0,0,0,.5), -3px -3px 6px rgba(255,255,255,.04);transform:translateX(2px)}
+.nm-item.is-active{
+  color:var(--gold);
+  box-shadow:inset 5px 5px 11px rgba(0,0,0,.5), inset -5px -5px 11px rgba(255,255,255,.03);
+}
+.nm-item.is-active .nm-ic{box-shadow:0 0 0 1px color-mix(in srgb, var(--gold) 40%, transparent)}
+.nm-sep{height:1px;margin:3px 12px;background:var(--hairline,rgba(255,255,255,.08))}
+
+/* modo claro do painel (html:not(.dark)): inverte as luzes do relevo */
+html:not(.dark) .nm-open,
+html:not(.dark) .nm-close,
+html:not(.dark) .nm-item{box-shadow:5px 5px 11px rgba(163,177,198,.5), -5px -5px 11px rgba(255,255,255,.9)}
+html:not(.dark) .nm-item .nm-ic{box-shadow:inset 3px 3px 6px rgba(163,177,198,.5), inset -3px -3px 6px rgba(255,255,255,.9)}
+html:not(.dark) .nm-item.is-active{box-shadow:inset 5px 5px 11px rgba(163,177,198,.5), inset -5px -5px 11px rgba(255,255,255,.9)}
+
+@media (prefers-reduced-motion:reduce){
+  .nm-drawer,.nm-backdrop,.nm-item,.nm-open span{transition:none}
+}

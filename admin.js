@@ -30,7 +30,7 @@ const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replac
 /* ── modo escuro — compartilha a preferência com painel e criação ── */
 function paintDarkBtn(){
   const b = document.getElementById('darkToggle');
-  if(b) b.textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+  if(b) b.setAttribute('aria-pressed', document.documentElement.classList.contains('dark') ? 'true' : 'false');
 }
 function toggleDark(){
   const on = document.documentElement.classList.toggle('dark');

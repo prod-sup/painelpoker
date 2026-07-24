@@ -101,6 +101,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 <nav id="nav">
   <div class="nav-inner">
+    <!-- menu neumórfico (adaptação do warm-vampirebat-45 do Uiverse ao tema
+         Suprema): abre a gaveta de navegação lateral. Aditivo — o nav de topo
+         continua igual; a gaveta é um extra pra quem prefere o menu vertical. -->
+    <button type="button" class="nm-open" id="nmOpen" aria-label="Abrir menu" aria-expanded="false" aria-controls="nmDrawer">
+      <span></span><span></span><span></span>
+    </button>
     <div class="brand">
       <svg class="brand-mark" viewBox="0 0 24 24" fill="none">
         <circle cx="12" cy="12" r="10.5" stroke="#0c5c3f" stroke-width="1.6"/>
@@ -213,6 +219,26 @@ document.addEventListener('DOMContentLoaded', () => {
     </div>
   </div>
 </nav>
+
+<!-- ── GAVETA NEUMÓRFICA (warm-vampirebat-45 adaptado) ── navegação vertical
+     do Suprema OS, aditiva ao nav de topo. Fecha no backdrop, no ✕ ou no Esc. -->
+<div class="nm-backdrop" id="nmBackdrop" hidden></div>
+<aside class="nm-drawer" id="nmDrawer" aria-label="Menu Suprema OS" aria-hidden="true">
+  <div class="nm-title">Suprema <b>OS</b>
+    <button type="button" class="nm-close" id="nmClose" aria-label="Fechar menu">&#10005;</button>
+  </div>
+  <nav class="nm-list">
+    <a class="nm-item is-active" href="#topo"><span class="nm-ic">&spades;&#xFE0E;</span>Painel do Dia</a>
+    <a class="nm-item" href="#nao-fixados"><span class="nm-ic">&#9776;</span>Não fixados</a>
+    <a class="nm-item" href="#agenda"><span class="nm-ic">&#9636;</span>Agenda</a>
+    <a class="nm-item" href="#resultados"><span class="nm-ic">&#9733;</span>Resultados</a>
+    <a class="nm-item" href="#learn"><span class="nm-ic">&hearts;&#xFE0E;</span>Learn</a>
+    <div class="nm-sep"></div>
+    <a class="nm-item" href="hub.html"><span class="nm-ic">&spades;&#xFE0E;</span>OS · Hub</a>
+    <a class="nm-item" href="criacao-noturna.html"><span class="nm-ic">&#9790;</span>Criação GU</a>
+    <a class="nm-item" href="admin.html"><span class="nm-ic">&diams;&#xFE0E;</span>Admin</a>
+  </nav>
+</aside>
 
 <div class="drawer-overlay" id="checklistDrawerOverlay">
   <aside class="drawer" id="checklistDrawer" role="dialog" aria-modal="true" aria-label="Checklist diário">

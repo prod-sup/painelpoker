@@ -38,6 +38,24 @@
 
   function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
 
+  /* markup interno do sup-switch (sol | pílula | lua) — estático; o estado mora
+     no aria-pressed do botão e o CSS (suprema-tokens.css) faz o resto. Fonte
+     ÚNICA pra todos os painéis: shell chama aqui; hub/admin/cash referenciam. */
+  var SWITCH_INNER =
+      '<svg class="sw-flank sw-sun" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708z"/></svg>'
+    + '<span class="sw-pill"><span class="sw-knob"></span></span>'
+    + '<svg class="sw-flank sw-moon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/></svg>';
+
+  /* aplica o switch a um botão de tema existente: garante a classe, injeta o
+     markup uma vez e reflete o estado. dark=true → modo escuro. Idempotente:
+     pode ser chamado a cada troca de tema sem duplicar o markup. */
+  function paintSwitch(btn, dark){
+    if (!btn) return;
+    btn.classList.add('sup-switch');
+    if (!btn.querySelector('.sw-pill')) btn.innerHTML = SWITCH_INNER;
+    btn.setAttribute('aria-pressed', dark ? 'true' : 'false');
+  }
+
   /* ── builders de cada controle-padrão (defaults = dialeto eventos/criação) ── */
   var CTRL = {
     presence: function (o){
@@ -61,7 +79,7 @@
       return '<button class="op-badge" id="opBadge"' + title + '><span class="avatar" id="opAvatar">?</span><span id="opName">—</span></button>';
     },
     toggle: function (o){
-      return '<button class="icon-btn" id="darkToggle" title="' + esc(o.toggleTitle || 'Alternar modo claro/escuro') + '">' + (o.toggleGlyph || '☀️') + '</button>';
+      return '<button class="icon-btn sup-switch" id="darkToggle" aria-pressed="false" title="' + esc(o.toggleTitle || 'Alternar modo claro/escuro') + '">' + SWITCH_INNER + '</button>';
     }
   };
 
@@ -119,5 +137,5 @@
     if (el) el.outerHTML = controls(opts || {});
   }
 
-  global.SupremaShell = { navHTML: navHTML, mountNav: mountNav, controls: controls, mountControls: mountControls };
+  global.SupremaShell = { navHTML: navHTML, mountNav: mountNav, controls: controls, mountControls: mountControls, switchInner: SWITCH_INNER, paintSwitch: paintSwitch };
 })(window);
