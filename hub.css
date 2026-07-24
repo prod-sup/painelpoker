@@ -162,7 +162,7 @@ nav{
 .hh-txt{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint)}
 .hh-txt b{display:block;font-family:var(--text);font-size:13px;font-weight:500;letter-spacing:-.01em;text-transform:none;color:var(--ink-soft);margin-top:4px}
 
-/* clima de Sorocaba — card decorativo perto da saudação, canto do hero */
+/* clima de Sorocaba — card decorativo perto da saudação, canto do hero. */
 .weather-card{
   position:absolute;top:112px;right:22px;z-index:2;width:150px;
   display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;
@@ -170,8 +170,11 @@ nav{
   background:color-mix(in srgb, var(--bg-raise) 78%, transparent);
   border:1px solid var(--hairline);backdrop-filter:blur(20px);
   box-shadow:var(--sup-shadow-md,0 8px 24px rgba(0,0,0,.25));
+  transition:transform .3s var(--sup-ease,ease), box-shadow .3s var(--sup-ease,ease);
 }
 .weather-card[hidden]{display:none}
+.weather-card:hover{transform:translateY(-2px);box-shadow:var(--sup-shadow-lg,0 14px 36px rgba(0,0,0,.3))}
+@media (prefers-reduced-motion:reduce){ .weather-card{transition:none} }
 .weather-card .wc-city{
   margin:0;font-family:var(--mono);font-size:9.5px;font-weight:800;
   letter-spacing:.14em;text-transform:uppercase;color:var(--gold);

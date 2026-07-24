@@ -97,6 +97,30 @@
     else { var t0 = Date.now(); (function wait() { if (window.Chart) drawCharts(days); else if (Date.now() - t0 < 8000) setTimeout(wait, 120); })(); }
   }
 
+  /* ── teto de eixo resistente a outlier ──
+     Um único dia com valor absurdo (erro de digitação/duplicação na planilha
+     de origem) faz o Chart.js esticar o eixo Y até esse valor — achatando TODOS
+     os outros dias a quase-zero (o "gráfico bugado" reportado). Em vez de seguir
+     o valor máximo cego, o teto acompanha a MEDIANA; se o maior valor passar de
+     4x a mediana, o eixo trava num teto razoável e a barra do dia fora da curva
+     fica visualmente CORTADA — sinaliza o outlier em vez de esconder o resto. */
+  function robustMax(values) {
+    var vals = values.filter(function (v) { return v > 0; }).slice().sort(function (a, b) { return a - b; });
+    if (!vals.length) return { max: undefined, clipped: false };
+    var median = vals[Math.floor(vals.length / 2)];
+    var trueMax = vals[vals.length - 1];
+    var cap = median * 4;
+    if (median > 0 && trueMax > cap) return { max: cap, clipped: true };
+    return { max: undefined, clipped: false };
+  }
+  function warnClipped(cardSelector, label) {
+    var h2 = document.querySelector(cardSelector + ' h2'); if (!h2 || h2.querySelector('.clip-warn')) return;
+    var b = document.createElement('span'); b.className = 'clip-warn';
+    b.textContent = ' ⚠';
+    b.title = label + ': pelo menos um dia passa muito da mediana dos outros — o eixo travou num teto razoável e essa barra aparece cortada no topo. Provavelmente um valor errado naquele dia no histórico (Firebase) — vale conferir.';
+    h2.appendChild(b);
+  }
+
   function drawCharts(days) {
     if (!window.Chart || !days.length) return;
     destroyCharts();
@@ -113,6 +137,9 @@
       }, extra || {});
     };
     // dinheiro: prize pool (linha acc) vs garantido (linha gold) + overlay real (barra warn)
+    var moneyVals = days.map(function (d) { return d.prizePool; }).concat(days.map(function (d) { return d.garantido; }));
+    var moneyCap = robustMax(moneyVals);
+    if (moneyCap.clipped) warnClipped('.card:has(#chartMoney)', 'Prize pool × garantido');
     _charts.push(new Chart($('chartMoney'), {
       data: {
         labels: labels,
@@ -121,9 +148,12 @@
           { type: 'line', label: 'Prize pool', data: days.map(function (d) { return d.prizePool; }), borderColor: p.acc, backgroundColor: p.acc + '22', tension: .3, fill: true, order: 1, pointRadius: 2 },
           { type: 'line', label: 'Garantido', data: days.map(function (d) { return d.garantido; }), borderColor: p.gold, borderDash: [5, 4], tension: .3, fill: false, order: 2, pointRadius: 0 },
         ],
-      }, options: opts(),
+      }, options: opts({ scales: { y: { grid: { color: p.grid }, ticks: { color: p.ink, font: { size: 10 } }, max: moneyCap.max } } }),
     }));
     // eventos (barra) + campo (linha, eixo próprio)
+    var evCap = robustMax(days.map(function (d) { return d.events; }));
+    var fieldCap = robustMax(days.map(function (d) { return d.field; }));
+    if (evCap.clipped || fieldCap.clipped) warnClipped('.card:has(#chartEvents)', 'Eventos × campo');
     _charts.push(new Chart($('chartEvents'), {
       data: {
         labels: labels,
@@ -135,8 +165,8 @@
       options: opts({
         scales: {
           x: { grid: { color: p.grid }, ticks: { color: p.ink, font: { size: 10 } } },
-          y: { position: 'left', grid: { color: p.grid }, ticks: { color: p.ink, font: { size: 10 } }, beginAtZero: true },
-          y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: p.ink, font: { size: 10 } }, beginAtZero: true },
+          y: { position: 'left', grid: { color: p.grid }, ticks: { color: p.ink, font: { size: 10 } }, beginAtZero: true, max: evCap.max },
+          y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: p.ink, font: { size: 10 } }, beginAtZero: true, max: fieldCap.max },
         },
       }),
     }));
