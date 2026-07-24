@@ -643,8 +643,15 @@ $('opBadge').addEventListener('click', () => {
   }
 });
 
-/* ── modo escuro ── */
-function paintDarkBtn(){ $('darkToggle').textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙'; }
+/* ── modo escuro ──
+   pinta o switch (sol|pílula|lua) real — .textContent aqui destruía o markup
+   SVG que a shell montou (SupremaShell.paintSwitch pinta sem derrubar o desenho) */
+function paintDarkBtn(){
+  const b = $('darkToggle');
+  const dark = document.documentElement.classList.contains('dark');
+  if (window.SupremaShell && SupremaShell.paintSwitch) SupremaShell.paintSwitch(b, dark);
+  else if (b) b.textContent = dark ? '☀️' : '🌙';
+}
 paintDarkBtn();
 $('darkToggle').addEventListener('click', () => {
   const isDark = document.documentElement.classList.toggle('dark');

@@ -25,7 +25,14 @@
     } catch (e) {}
     // tema (chave compartilhada + sync entre abas)
     var html = document.documentElement;
-    var paint = function () { var b = $('darkToggle'); if (b) b.textContent = html.classList.contains('dark') ? '☀️' : '🌙'; };
+    // pinta o switch (sol|pílula|lua) real — usar .textContent aqui destruía
+    // o markup SVG do .sup-switch (a shell monta o botão, mas quem pinta o
+    // estado sem derrubar o desenho é SupremaShell.paintSwitch)
+    var paint = function () {
+      var b = $('darkToggle'); if (!b) return;
+      if (window.SupremaShell && SupremaShell.paintSwitch) SupremaShell.paintSwitch(b, html.classList.contains('dark'));
+      else b.textContent = html.classList.contains('dark') ? '☀️' : '🌙';
+    };
     paint();
     $('darkToggle') && $('darkToggle').addEventListener('click', function () {
       var dark = html.classList.toggle('dark');

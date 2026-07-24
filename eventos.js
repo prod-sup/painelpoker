@@ -1672,7 +1672,14 @@ setInterval(() => { if (MODEL){ renderHero(); refreshAgendaStatus(); refreshMevS
 
 (function themeAndUser(){
   const html = document.documentElement;
-  const apply = dark => { html.classList.toggle('dark', dark); SupremaShell.paintSwitch(document.getElementById('darkToggle'), dark); };
+  // pinta o switch (sol|pílula|lua) real — .textContent aqui destruía o markup
+  // SVG que a shell montou (SupremaShell.paintSwitch pinta sem derrubar o desenho)
+  const apply = dark => {
+    html.classList.toggle('dark', dark);
+    const b = document.getElementById('darkToggle');
+    if (window.SupremaShell && SupremaShell.paintSwitch) SupremaShell.paintSwitch(b, dark);
+    else if (b) b.textContent = dark ? '🌙' : '☀️';
+  };
   apply(SupremaAuth.wireThemeSync(apply));
   document.getElementById('darkToggle').addEventListener('click', () => {
     const dark = !html.classList.contains('dark');
@@ -1718,31 +1725,5 @@ document.addEventListener('DOMContentLoaded', () => {
           run: () => { try { pickDay(e.weekday); } catch (err) {} }
         }));
     }
-  });
-});
-
-/* ── Copiloto de IA: snapshot do estado do Radar ──────────────────────────
-   Entrega ao Copiloto (suprema-copiloto.js) os stats do hero e a agenda do
-   dia selecionado — o mesmo recorte que visibleDayEvents() já monta pra tela. */
-document.addEventListener('DOMContentLoaded', () => {
-  if (!window.SupremaCopiloto) return;
-  SupremaCopiloto.setSnapshot(() => {
-    const snap = { painel: 'Radar de Eventos' };
-    try {
-      snap.stats = {
-        rolandoAgora: document.getElementById('statLive')?.textContent?.trim(),
-        eventosHoje: document.getElementById('statToday')?.textContent?.trim(),
-        garantidoSemana: document.getElementById('statGtd')?.textContent?.trim(),
-        eventosFuturos: document.getElementById('statFut')?.textContent?.trim()
-      };
-    } catch (e) {}
-    try {
-      snap.diaSelecionado = state.day;
-      const evs = typeof visibleDayEvents === 'function' ? visibleDayEvents() : [];
-      snap.eventosDoDia = evs.slice(0, 60).map(e => ({
-        nome: e.nome, hora: e.hora, categoria: e.cat, garantido: e.garantido, buyin: e.buyin, campanha: e.camp
-      }));
-    } catch (e) {}
-    return snap;
   });
 });

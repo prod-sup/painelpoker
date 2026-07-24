@@ -40,7 +40,7 @@
     </span>
     <span class="presence-wrap" id="presenceWrap" title="Operadores online agora" hidden></span>
     <span class="nav-time" id="navTime"></span>
-    <button type="button" class="theme-btn" id="themeBtn" title="Alternar tema claro/escuro" aria-label="Alternar tema">&#9790;</button>
+    <button type="button" class="sup-switch" id="themeBtn" aria-pressed="false" title="Alternar tema claro/escuro" aria-label="Alternar tema"></button>
   </div>
 </nav>
 
@@ -48,6 +48,17 @@
   <div class="hero-hello" id="heroHello" hidden>
     <span class="hh-avatar" id="hhAvatar">&spades;</span>
     <span class="hh-txt">Seja bem-vindo de volta<b id="hhEmail"></b></span>
+  </div>
+  <!-- clima de Sorocaba (Open-Meteo, sem chave) — decorativo, some sozinho se a API falhar -->
+  <div class="weather-card" id="weatherCard" hidden aria-hidden="true">
+    <p class="wc-city">Sorocaba</p>
+    <p class="wc-desc" id="wcDesc">—</p>
+    <div class="wc-icon" id="wcIcon">🌤️</div>
+    <p class="wc-temp" id="wcTemp">—°</p>
+    <div class="wc-minmax">
+      <div class="wc-mm"><span class="wc-label">Mín</span><span class="wc-val" id="wcMin">—°</span></div>
+      <div class="wc-mm"><span class="wc-label">Máx</span><span class="wc-val" id="wcMax">—°</span></div>
+    </div>
   </div>
   <h1 id="heroTitle">Suprema <span class="os">OS</span></h1>
   <p>Todas as ferramentas da operação em um lugar. Escolha um produto para entrar.</p>
@@ -439,6 +450,8 @@ if (location.protocol === 'file:') {
      mesmo módulo dos painéis em vez de reimplementar tudo inline (evita divergir
      a cada correção). Precisa vir ANTES do IIFE do gate, que só delega pra ele. -->
 <script defer src="suprema-auth.js"></script>
+<!-- markup do switch de tema (sol|nuvens|lua) — mesmo componente de todo o Suprema OS -->
+<script defer src="suprema-shell.js"></script>
 <script defer src="suprema-motion.js"></script>
 <script defer src="suprema-feltro.js"></script>
 <script>

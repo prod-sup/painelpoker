@@ -214,7 +214,10 @@ function renderIntelCards(elId,cards){
 function applyTheme(t){
   document.documentElement.setAttribute('data-theme',t);
   const btn=document.getElementById('themeToggle');
-  if(btn)btn.innerHTML=t==='light'?'<i class="ph ph-sun"></i>':'<i class="ph ph-moon"></i>';
+  // pinta o switch (trilho|nuvens|lua) real — o cash usa data-theme (não a
+  // classe .dark), mas o switch é o MESMO componente de todo o Suprema OS
+  if(window.SupremaShell && SupremaShell.paintSwitch) SupremaShell.paintSwitch(btn, t!=='light');
+  else if(btn) btn.innerHTML=t==='light'?'<i class="ph ph-sun"></i>':'<i class="ph ph-moon"></i>';
 }
 function toggleTheme(){
   const cur=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';

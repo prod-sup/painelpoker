@@ -39,6 +39,8 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="suprema-auth.js"></script>
 <script>/* portão: login mora no hub; exige acesso liberado a ESTE painel */ SupremaAuth.guard({ panel:'cash' }); SupremaAuth.revalidateAccess('cash');</script>
+<!-- markup do switch de tema (sol|nuvens|lua) — mesmo componente de todo o Suprema OS -->
+<script src="suprema-shell.js"></script>
 <script src="suprema-motion.js"></script>
 <script>
 /* motion do Suprema OS (ref. MotionSites): glow azul (a tinta do Cash) + reveal */
@@ -90,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
     </div>
     <a href="hub.html" class="hub-link" title="Voltar ao hub Suprema OS">♠ OS</a>
     <div class="brand-sep"></div>
-    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Alternar tema" aria-label="Alternar tema claro/escuro"><i class="ph ph-moon"></i></button>
+    <button class="sup-switch" id="themeToggle" onclick="toggleTheme()" aria-pressed="false" title="Alternar tema" aria-label="Alternar tema claro/escuro"></button>
     <button class="theme-toggle" id="tvBtn" onclick="tvEnter()" title="Modo TV — telão em tela cheia com rotação automática" aria-label="Modo TV"><i class="ph ph-monitor-play"></i></button>
     <select id="daySel" title="Dia exibido no dashboard" onchange="onDaySel(this.value)"
       style="height:32px;border-radius:8px;padding:0 10px;font-size:11px;font-weight:700;background:var(--surf);color:var(--ink);border:1px solid var(--bdr);cursor:pointer;max-width:190px">

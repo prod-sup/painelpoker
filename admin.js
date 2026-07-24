@@ -27,10 +27,14 @@ let _toastTm;
 /* ── UTILS ──────────────────────────────────────────────────── */
 const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
-/* ── modo escuro — compartilha a preferência com painel e criação ── */
+/* ── modo escuro — compartilha a preferência com painel e criação ──
+   pinta o switch (sol|pílula|lua) real — SupremaShell.paintSwitch monta o
+   markup SVG na primeira pintura e só troca aria-pressed nas seguintes */
 function paintDarkBtn(){
   const b = document.getElementById('darkToggle');
-  if(b) b.setAttribute('aria-pressed', document.documentElement.classList.contains('dark') ? 'true' : 'false');
+  const dark = document.documentElement.classList.contains('dark');
+  if(window.SupremaShell && SupremaShell.paintSwitch) SupremaShell.paintSwitch(b, dark);
+  else if(b) b.textContent = dark ? '☀️' : '🌙';
 }
 function toggleDark(){
   const on = document.documentElement.classList.toggle('dark');
@@ -1393,9 +1397,8 @@ async function loadOps(){
    Bloqueio por padrão: só entra no painel quem tiver users/<key>/access/<id>=true.
    Aqui o admin libera/retira painel por painel, por pessoa. Admin entra em tudo. */
 const ACCESS_PANELS = (window.SupremaAuth && SupremaAuth.PANELS ? SupremaAuth.PANELS : []).filter(p=>!p.adminOnly);
-/* painéis onde VER ≠ EDITAR (têm nós de escrita no RTDB). Learn/Org/Criação de
-   Eventos são externos e Radar é leitura por natureza — edição não se aplica
-   (o hub gateia só a VISUALIZAÇÃO desses via access). */
+/* painéis onde VER ≠ EDITAR (têm nós de escrita no RTDB). Learn/Org são
+   externos e Radar é leitura por natureza — edição não se aplica. */
 const EDIT_PANELS = ['painel','gu','cash','tv'];
 /* Uma LINHA por painel: nome + os dois interruptores (👁 Vê / ✎ Edita) lado a
    lado. Lê-se naturalmente ("Painel do Dia: vê, edita") em vez de cruzar duas
@@ -1404,14 +1407,8 @@ function accessRow(u, p, editable){
   const acc = u.access || {};
   const ed  = u.edit || {};
   const legado = u.edit == null;                 // sem nó `edit` → herda do acesso
-  // PADRÃO: painéis `p.def` já contam como "Vê" enquanto não houver revogação
-  // explícita (access[id]===false). O resto é opt-in (só com access[id]===true).
-  const sees  = acc[p.id] === true || (p.def && acc[p.id] !== false);
-  // Edição: precisa ver. Painel `p.defEdit` (painel/gu) edita por padrão até
-  // gravarem edit[id]===false. Legado (sem nó edit) herda do "vê".
-  const edits = editable && sees && (legado
-    ? (p.defEdit || acc[p.id] === true)
-    : (ed[p.id] === true || (p.defEdit && ed[p.id] !== false)));
+  const sees  = acc[p.id] === true;
+  const edits = editable && (legado ? sees : ed[p.id] === true);
   const see = `<button class="perm-pill see${sees?' on':''}" data-key="${esc(u.key)}" data-panel="${p.id}" data-on="${sees?'1':'0'}" data-act="toggleAccess" data-act-self `+
     `title="${sees?'Vê — clique para tirar o acesso':'Não vê — clique para liberar'}">${sees?'👁 Vê':'○ Sem acesso'}</button>`;
   const edit = editable
@@ -1430,10 +1427,8 @@ async function toggleAccess(btn){
   const key=btn.dataset.key, panel=btn.dataset.panel, next = btn.dataset.on!=='1';
   btn.disabled=true;
   try{
-    // grava true (liberar) ou FALSE explícito (revogar). false — em vez de remover —
-    // é o que vence o acesso-padrão dos painéis `def` E o que o revalidateAccess
-    // observa pra DESLOGAR o operador online na hora.
-    await db.ref(`users/${key}/access/${panel}`).set(next?true:false);
+    // grava true, ou remove a chave quando desliga (mantém o nó limpo)
+    await db.ref(`users/${key}/access/${panel}`).set(next?true:null);
     await loadOps();          // re-pinta a linha (tirar o Vê já apaga o Edita ao lado)
   }catch(e){ alert('Falha ao salvar acesso: '+(e.message||e)); btn.disabled=false; }
 }
@@ -1448,16 +1443,17 @@ async function toggleEdit(btn){
     const ref = db.ref(`users/${key}/edit`);
     const cur = (await ref.once('value')).val();
     if(cur == null){
-      // materializa o nó edit: copia o que já editava + grava ESTE painel como
-      // true/false explícito. false fica gravado de propósito (revoga o defEdit de
-      // painel/gu e é o que o revalidateAccess observa pra deslogar).
       const acc = (await db.ref(`users/${key}/access`).once('value')).val() || {};
       const seed = {};
       EDIT_PANELS.forEach(id => { if(acc[id]===true) seed[id]=true; });
       seed[panel] = next;
-      await ref.set(seed);   // sempre tem ≥1 chave — nó existe, regra não herda do access
+      if(!next) delete seed[panel];
+      await ref.set(Object.keys(seed).length ? seed : { _off:true });   // nó precisa EXISTIR pra regra não herdar
     }else{
-      await ref.child(panel).set(next?true:false);   // true ou false explícito (nunca remove)
+      await ref.child(panel).set(next?true:null);
+      // se esvaziou, mantém o marcador — sem nó, as regras voltariam a herdar do access
+      const left = (await ref.once('value')).val();
+      if(left == null) await ref.set({ _off:true });
     }
     await loadOps();                       // re-pinta a linha (o legado pode ter virado explícito)
   }catch(e){ alert('Falha ao salvar edição: '+(e.message||e)); btn.disabled=false; }
@@ -3400,10 +3396,9 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 document.addEventListener('DOMContentLoaded', () => {
   if (!window.SupremaPalette) return;
   const pnorm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  // Grade migrou pro Suprema Analytics; "Dashboard" do admin é desempenho de criação (GU)
   const SECTIONS = [
-    ['audit','Acompanhamento'], ['criacao','Criação (GU)'], ['dashboard','Criação (dashboard)'],
-    ['operadores','Operadores'], ['backup','Backup & Arquivo'],
+    ['audit','Acompanhamento'], ['criacao','Criação (GU)'], ['dashboard','Dashboard'],
+    ['grade','Grade'], ['operadores','Operadores'], ['backup','Backup & Arquivo'],
     ['avisos','Conteúdo do hub']
   ];
   SupremaPalette.register({

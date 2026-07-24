@@ -183,7 +183,12 @@
      - aplica na hora e guarda em localStorage (pro próximo load não piscar)
      - persiste em users/<key>/darkMode; no login a preferência do usuário vence */
   function isDark(){ return !document.documentElement.classList.contains('light'); }
-  function applyThemeBtn(){ $('themeBtn').setAttribute('aria-pressed', isDark() ? 'true' : 'false'); }
+  // pinta o switch (trilho|nuvens|lua) real — mesmo componente de todo o Suprema OS
+  function applyThemeBtn(){
+    const btn = $('themeBtn');
+    if(window.SupremaShell && SupremaShell.paintSwitch) SupremaShell.paintSwitch(btn, isDark());
+    else if(btn) btn.setAttribute('aria-pressed', isDark() ? 'true' : 'false');
+  }
   function setTheme(dark, persist){
     document.documentElement.classList.toggle('light', !dark);
     // .dark em paralelo: hub.css nunca lê essa classe (só .light importa aqui),
@@ -206,6 +211,57 @@
     document.documentElement.classList.toggle('dark', dark);
     applyThemeBtn();
   });
+
+  /* ── clima de Sorocaba (Open-Meteo, sem chave) ──
+     Decorativo, perto da saudação no hero. Cache de 30min no localStorage pra
+     não bater na API a cada load; falha em silêncio (o card fica hidden). */
+  const WEATHER_ICON = { // WMO weather code → emoji
+    0:'☀️', 1:'🌤️', 2:'⛅', 3:'☁️',
+    45:'🌫️', 48:'🌫️',
+    51:'🌦️', 53:'🌦️', 55:'🌦️', 56:'🌧️', 57:'🌧️',
+    61:'🌧️', 63:'🌧️', 65:'🌧️', 66:'🌧️', 67:'🌧️',
+    71:'🌨️', 73:'🌨️', 75:'🌨️', 77:'🌨️',
+    80:'🌧️', 81:'🌧️', 82:'🌧️', 85:'🌨️', 86:'🌨️',
+    95:'⛈️', 96:'⛈️', 99:'⛈️',
+  };
+  const WEATHER_DESC = {
+    0:'Céu limpo', 1:'Poucas nuvens', 2:'Parcialmente nublado', 3:'Nublado',
+    45:'Neblina', 48:'Neblina',
+    51:'Garoa fraca', 53:'Garoa', 55:'Garoa forte', 56:'Garoa gelada', 57:'Garoa gelada',
+    61:'Chuva fraca', 63:'Chuva', 65:'Chuva forte', 66:'Chuva gelada', 67:'Chuva gelada',
+    71:'Neve fraca', 73:'Neve', 75:'Neve forte', 77:'Grãos de neve',
+    80:'Pancada de chuva', 81:'Pancada de chuva', 82:'Pancada forte', 85:'Pancada de neve', 86:'Pancada de neve',
+    95:'Trovoada', 96:'Trovoada c/ granizo', 99:'Trovoada c/ granizo',
+  };
+  function paintWeather(w){
+    const el = $('weatherCard'); if(!el || !w) return;
+    $('wcIcon').textContent = WEATHER_ICON[w.code] || '🌡️';
+    $('wcDesc').textContent = WEATHER_DESC[w.code] || '—';
+    $('wcTemp').textContent = Math.round(w.temp) + '°';
+    $('wcMin').textContent = Math.round(w.min) + '°';
+    $('wcMax').textContent = Math.round(w.max) + '°';
+    el.hidden = false;
+  }
+  function loadWeather(){
+    const CACHE_KEY = 'suprema_weather_sorocaba_v1', TTL = 30 * 60 * 1000;
+    try{
+      const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+      if(cached && Date.now() - cached.at < TTL){ paintWeather(cached.w); return; }
+    }catch(e){}
+    // Sorocaba-SP: -23.5015,-47.4526
+    fetch('https://api.open-meteo.com/v1/forecast?latitude=-23.5015&longitude=-47.4526&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=America%2FSao_Paulo&forecast_days=1')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(d => {
+        const w = {
+          code: d.current.weather_code, temp: d.current.temperature_2m,
+          min: d.daily.temperature_2m_min[0], max: d.daily.temperature_2m_max[0],
+        };
+        try{ localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), w })); }catch(e){}
+        paintWeather(w);
+      })
+      .catch(() => {}); // sem internet/API fora do ar: card fica hidden, sem quebrar o hub
+  }
+  loadWeather();
 
   /* preferências salvas do usuário (tema por usuário + avatar do painel) */
   function loadUserPrefs(){
