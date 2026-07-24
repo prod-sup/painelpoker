@@ -23,10 +23,12 @@ const css = fs.readFileSync(__dirname + '/hub.css', 'utf8');
 let passed = 0;
 const falhas = [];
 
-/* tiles que definem background com gradiente de cor ESCURA (#0x/#1x) */
+/* tiles que definem background com gradiente "céu" que desemboca em --bg-raise
+   (escuro no dark) — a cor de entrada tanto pode ser um hex cru quanto um
+   color-mix(...)/var(--gold) (forma atual, ref. .t-tv/.t-gu/.t-learn) */
 const escuros = [...css.matchAll(
-  /^\.(t-[\w-]+)\{background:\s*linear-gradient\(160deg,\s*(#[0-9a-f]{6})/gmi
-)].map(m => ({ classe: m[1], cor: m[2] }));
+  /^\.(t-[\w-]+)\{background:\s*linear-gradient\(160deg,\s*(.+?),\s*var\(--bg-raise\)/gmi
+)].map(m => ({ classe: m[1], cor: m[2].trim() }));
 
 console.log('\ntiles com céu escuro precisam de contraparte no tema claro:');
 assert.ok(escuros.length >= 3, 'esperava achar ao menos 3 tiles com gradiente escuro, achei ' + escuros.length);

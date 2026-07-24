@@ -1115,7 +1115,7 @@ function renderAlerts(){
   const semTipo = (DATA && DATA.semTipo) || [];
   if (semTipo.length){
     const lines = semTipo.slice(0, 10).map(x => {
-      const key = `${normText(x.nome)}|${x.hora}`.replace(/[.#$\[\]\/]/g,'_');
+      const key = itemKey(x);
       return `<b>${escHtml(x.hora)} ${escHtml(x.nome)}</b> → ${escHtml(CAT_BY_KEY[x.cat] ? CAT_BY_KEY[x.cat].label : x.cat)} <button class="alert-fix" data-fixcat="${key}">corrigir</button>`;
     });
     html += `<div class="alert">⚠ <b>${semTipo.length} torneio(s) sem TYPE na coluna D</b> foram classificados pelo nome e entraram na divisão — confira a coluna D na Global ou corrija aqui:<br>${lines.join('<br>')}${semTipo.length > 10 ? `<br>… e mais ${semTipo.length - 10}.` : ''}</div>`;
@@ -1527,13 +1527,24 @@ function renderList(){
 
   if (!html) html = `<div class="empty-state"><span class="moon">🃏</span>Nada nesse filtro.</div>`;
   area.innerHTML = html;
+  wireVerticalArea(area);
+}
 
+/* liga os controles de uma tabela `renderVertical` (data-done/data-focus/data-move/
+   data-fs/.id-inp/data-expand/data-copy) — usada tanto na lista normal (renderList)
+   quanto dentro do bloco em tela cheia (openBlockFullscreen), que reaproveita o
+   MESMO html de renderVertical e por isso precisa dos MESMOS listeners, senão os
+   botões ficam mudos lá dentro. `opts.closeFsFirst` fecha a tela cheia antes de
+   abrir o Modo Foco (senão os dois overlays ficam abertos ao mesmo tempo). */
+function wireVerticalArea(area, opts){
+  opts = opts || {};
   area.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
   area.querySelectorAll('[data-focus]').forEach(el => {
-    el.addEventListener('click', () => openFocusAt(el.dataset.focus));
+    const go = () => { if (opts.closeFsFirst) closeFullscreenView(); openFocusAt(el.dataset.focus); };
+    el.addEventListener('click', go);
     /* teclado: o nome é role="button" — Enter/Espaço abrem o modo foco */
     el.addEventListener('keydown', ev => {
-      if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openFocusAt(el.dataset.focus); }
+      if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); go(); }
     });
   });
   area.querySelectorAll('[data-move]').forEach(b => b.addEventListener('click', e => {
@@ -1779,22 +1790,32 @@ function mountFullscreenView(bodyHtml, extraCls){
   return el;
 }
 function openTourFullscreen(it){
-  mountFullscreenView(`
+  const el = mountFullscreenView(`
     <div class="fs-tour">
       <div class="fs-tour-hora">${escHtml(it.hora)}</div>
       <h2 class="fs-tour-name">${escHtml(it.nome)}</h2>
       <div class="fs-recipe fs-recipe-grid">${focusFlowHtml(it)}</div>
     </div>`, 'fs-tour-mode');
+  // leitura ampliada: só o botão de copiar valor funciona aqui (sem fila/"digitei"
+  // do Modo Foco — focusFlowHtml() é reaproveitado só pelo HTML, não pelo estado)
+  el.querySelectorAll('.fcopy').forEach(btn => btn.addEventListener('click', async e => {
+    e.stopPropagation();
+    try{ await navigator.clipboard.writeText(btn.dataset.fcopy || ''); showToast('Valor copiado 📋'); }
+    catch(err){ showToast('Não consegui copiar.', true); }
+  }));
 }
 function openBlockFullscreen(cat){
   const asg = computeAssignments();
   const items = visibleItems(catItems(cat), asg);
   if (!items.length){ showToast('Bloco vazio.'); return; }
-  mountFullscreenView(`
+  const el = mountFullscreenView(`
     <div class="fs-block ${cat.cls}">
       <div class="fs-block-head"><span class="suit">${cat.suit}</span>${cat.label}</div>
       <div class="fs-block-body">${renderVertical(items, cat, asg)}</div>
     </div>`, 'fs-block-mode');
+  // mesma tabela de renderList — precisa dos MESMOS listeners (mover bloco, marcar
+  // criado, copiar, ID, tela cheia por torneio), senão os botões ficam mudos aqui dentro
+  wireVerticalArea(el.querySelector('.fs-block-body'), { closeFsFirst: true });
 }
 
 function openCategoryPicker(anchor, it){

@@ -50,7 +50,7 @@
     var dark = document.documentElement.classList.contains('dark');
     return {
       acc: css('--acc-bright', '#14b8a6'),
-      gold: dark ? '#c9a84c' : '#8f6b2d',
+      gold: css('--gold', dark ? '#c9a84c' : '#8f6b2d'),
       warn: '#e8933d',
       grid: dark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.06)',
       ink: dark ? '#a6b0aa' : '#6e6e73',

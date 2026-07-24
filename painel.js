@@ -717,36 +717,6 @@ function generateShiftSummary(){
   }).catch(()=> showToast('✓ Resumo gerado no drawer de relatório'));
 }
 
-/* ══ 8. Comparativo dia vs média histórica ══ */
-function updateVsMedia(){
-  const el = document.getElementById('statVsMedia');
-  if(!el) return;
-  if(!Object.keys(_historico).length){ el.textContent=''; return; }
-
-  // Calcular overlay médio por dia dos últimos 30 dias
-  const hoje = nowInSP();
-  const hojeStr = `${hoje.year}-${String(hoje.month).padStart(2,'0')}-${String(hoje.day).padStart(2,'0')}`;
-  let totalOvHist = 0, diasHist = 0;
-
-  fbDb.ref('historico').orderByKey().limitToLast(30).once('value').then(snap=>{
-    const data = snap.val()||{};
-    Object.entries(data).forEach(([dayKey, torneios])=>{
-      if(!torneios||typeof torneios!=='object') return;
-      if(dayKey === `d_${hojeStr.replace(/-/g,'_')}`) return; // pular hoje
-      let ovDia = 0;
-      Object.values(torneios).forEach(t=>{ if(t&&t.perf!=null) ovDia += (t.overlay||0)-(t.garantido||0); });
-      if(ovDia !== 0){ totalOvHist += ovDia; diasHist++; }
-    });
-    if(!diasHist){ el.textContent=''; return; }
-    const mediaOv = totalOvHist / diasHist;
-    const hojeOv = RESULTS.reduce((s,r)=>s+((r.premiacao||0)-(r.garantido||0)),0);
-    const diff = hojeOv - mediaOv;
-    const sign = diff >= 0 ? '+' : '';
-    el.textContent = `vs média: ${sign}R$ ${fmtBRL(Math.abs(diff),0)}`;
-    el.style.color = diff >= 0 ? 'var(--felt-bright)' : 'var(--red)';
-  }).catch(()=>{});
-}
-
 /* ── Log de atividade ── */
 const _activityLog=[];
 
@@ -1518,36 +1488,6 @@ function doLogin(){
    só carrega para os emails desta lista.
 ──────────────────────────────────────────────────────────────── */
 
-/* Roteamento hash — #admin ↔ painel */
-function routeHash(){
-  const isAdm = location.hash === '#admin';
-  ['hero','nao-fixados','agenda','resultados','learn'].forEach(id=>{
-    const el = document.getElementById(id);
-    if(el) el.style.display = isAdm ? 'none' : '';
-  });
-  const adm = document.getElementById('adminPage');
-  if(adm){
-    if(isAdm){
-      adm.style.display = 'block';
-      // Verifica se usuário tem permissão
-      if(!_session || !isAdmin(_session.email)){
-        adm.innerHTML = `
-          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70vh;text-align:center;gap:16px;padding:40px;">
-            <div style="font-size:48px;">♠</div>
-            <div style="font-size:22px;font-weight:700;color:var(--ink)">Área Restrita</div>
-            <div style="font-size:14px;color:var(--ink-soft);max-width:340px;line-height:1.6">Esta área é exclusiva para administradores do Suprema Poker.<br>Faça login com uma conta autorizada.</div>
-            <a href="#" onclick="location.hash='';return false;" style="margin-top:8px;padding:10px 24px;border-radius:10px;background:var(--felt);color:#fff;text-decoration:none;font-size:13px;font-weight:700;">← Voltar ao Painel</a>
-          </div>`;
-        return;
-      }
-      // Admin autorizado — inicializa
-      if(typeof initAdminPage === 'function') initAdminPage();
-    } else {
-      adm.style.display = 'none';
-    }
-  }
-}
-window.addEventListener('hashchange', routeHash);
 
 /* ── Funções que foram removidas com o admin mas ainda são referenciadas ── */
 
@@ -1564,9 +1504,6 @@ function revealAdminNav(){
   const link = document.getElementById('adminNavLink');
   if(link) link.style.display = '';
 }
-
-// initAdminPage — admin está em admin.html, não mais embutido
-function initAdminPage(){ /* admin movido para admin.html */ }
 
 // loadMesasCashFromB64 — carrega planilha de mesas cash a partir de base64 (vinda do Firebase)
 function loadMesasCashFromB64(b64, filename, uploadedAt, fromRemote, uploadedBy){
@@ -2019,12 +1956,6 @@ document.getElementById('welcomeCloseBtn').addEventListener('click', () => {
 if(OPERATOR_NAME) document.getElementById('opBadge').textContent = OPERATOR_NAME;
 if(_session) setTimeout(initUserNotifListener, 1500);
 if(_session && isAdmin(_session.email)) revealAdminNav();
-// mostra botão 2FA se já tem sessão ativa
-if(_session){
-}
-
-const _legacyForm = document.getElementById('operatorForm');
-if(_legacyForm) _legacyForm.addEventListener('submit', e => e.preventDefault());
 
 promptOperatorNameIfNeeded();
 

@@ -186,6 +186,10 @@
   function applyThemeBtn(){ $('themeBtn').setAttribute('aria-pressed', isDark() ? 'true' : 'false'); }
   function setTheme(dark, persist){
     document.documentElement.classList.toggle('light', !dark);
+    // .dark em paralelo: hub.css nunca lê essa classe (só .light importa aqui),
+    // mas suprema-tokens.css e o mirrorThemeSignals (suprema-auth.js) esperam ela
+    // no escuro pra ligar o bloco de tema escuro compartilhado — ver anti-flash acima
+    document.documentElement.classList.toggle('dark', dark);
     try{ localStorage.setItem('suprema_dark_mode', dark ? '1' : '0'); }catch(e){}
     applyThemeBtn();
     if(persist && session && db && fbReady){
@@ -197,7 +201,9 @@
   // ecossistema: tema trocado em outra aba/página (painel, admin...) reflete aqui na hora
   window.addEventListener('storage', e => {
     if(e.key !== 'suprema_dark_mode' || e.newValue === null) return;
-    document.documentElement.classList.toggle('light', e.newValue !== '1');
+    const dark = e.newValue === '1';
+    document.documentElement.classList.toggle('light', !dark);
+    document.documentElement.classList.toggle('dark', dark);
     applyThemeBtn();
   });
 

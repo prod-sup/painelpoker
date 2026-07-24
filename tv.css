@@ -8,7 +8,7 @@
 
 :root{
   --bg:#0b0c10; --ink:#f0ede8; --ink-soft:#8b9088;
-  --gold:#c9a84c; --gold-hi:#e8c884; --felt:#22d47e;
+  --gold:var(--sup-gold-dark); --gold-hi:#e8c884; --felt:#22d47e;
   --live:#f36b70; --camp:#f4a9ba;
   /* categorias: fonte única em suprema-tokens.css. A TV é sempre noturna
      (html class="dark"), então cai no bloco dark dos tokens sozinha. Antes

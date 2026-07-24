@@ -211,17 +211,10 @@ function renderIntelCards(elId,cards){
 }
 
 // ══════════════════════════════ THEME TOGGLE
-// markup do sup-switch (sol|pílula|lua) — cash não carrega a shell, então o
-// markup vive aqui; o estado é o aria-pressed e o CSS de suprema-tokens.css faz o resto
-const SUP_SWITCH_INNER='<svg class="sw-flank sw-sun" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708z"/></svg><span class="sw-pill"><span class="sw-knob"></span></span><svg class="sw-flank sw-moon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/></svg>';
 function applyTheme(t){
   document.documentElement.setAttribute('data-theme',t);
   const btn=document.getElementById('themeToggle');
-  if(btn){
-    btn.classList.add('sup-switch');
-    if(!btn.querySelector('.sw-pill')) btn.innerHTML=SUP_SWITCH_INNER;
-    btn.setAttribute('aria-pressed', t==='dark'?'true':'false');
-  }
+  if(btn)btn.innerHTML=t==='light'?'<i class="ph ph-sun"></i>':'<i class="ph ph-moon"></i>';
 }
 function toggleTheme(){
   const cur=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';
@@ -2041,7 +2034,7 @@ function tvSceneList(){
   }
   if(D.tiers&&D.tiers.length){
     const mx=Math.max(...D.tiers.map(t=>t.fee),1);
-    const tc={Micro:'#5a5f5a',Low:'#a78bfa',Mid:'#4f8ef7',High:'#fbbf24',VHigh:'#d8b56d'};
+    const tc={Micro:'#5a5f5a',Low:'#a78bfa',Mid:'#4f8ef7',High:'#fbbf24',VHigh:'#c9a84c'};
     list.push({name:'Stakes',html(){return`
       <div class="tv-kicker">Stakes · rake por faixa de blind</div>
       <div class="tv-h">Onde o dinheiro está hoje</div>
@@ -2060,7 +2053,7 @@ function tvSceneList(){
       <div class="tv-bars">${top.map((t,i)=>`
         <div class="tv-bar" style="transition-delay:${i*90}ms">
           <div class="n">${t.name}<small>${t.type} · ${t.players} players · ${f(t.dur,1)}h</small></div>
-          <div class="track"><div class="fill" style="width:${t.fee/mx*100}%;background:linear-gradient(90deg,#d8b56d,#fbbf24);transition-delay:${.25+i*.09}s"></div></div>
+          <div class="track"><div class="fill" style="width:${t.fee/mx*100}%;background:linear-gradient(90deg,#c9a84c,#fbbf24);transition-delay:${.25+i*.09}s"></div></div>
           <div class="val">R$ ${f(t.fee,0)}</div>
         </div>`).join('')}</div>`;},run(){}});
   }
@@ -2196,25 +2189,5 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }));
     }
-  });
-});
-
-/* ── Copiloto de IA: snapshot do estado do Cash ───────────────────────────
-   Entrega ao Copiloto (suprema-copiloto.js) a aba ativa e os KPIs visíveis
-   nela — os mesmos cards .kpi (.kl/.kv/.ks) que o Cash já renderiza. */
-document.addEventListener('DOMContentLoaded', () => {
-  if (!window.SupremaCopiloto) return;
-  SupremaCopiloto.setSnapshot(() => {
-    const activePage = document.querySelector('.pg.on');
-    const snap = { painel: 'Cash / Mesa', aba: activePage ? activePage.id.replace('pg-', '') : null };
-    try {
-      snap.kpis = {};
-      (activePage || document).querySelectorAll('.kpi').forEach(el => {
-        const label = el.querySelector('.kl, .kpi-label')?.textContent?.trim();
-        const val = el.querySelector('.kv, .kpi-val')?.textContent?.trim();
-        if (label && val) snap.kpis[label] = val;
-      });
-    } catch (e) {}
-    return snap;
   });
 });

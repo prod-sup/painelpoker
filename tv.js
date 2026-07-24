@@ -822,7 +822,7 @@ function confetti(cv, ms){
   const ctx = cv.getContext('2d');
   const dpr = Math.min(2, devicePixelRatio || 1);
   const W = cv.width = innerWidth * dpr, H = cv.height = innerHeight * dpr;
-  const COLORS = ['#e8c884','#c9a84c','#22d47e','#f4a9ba','#5aa8ff','#f0ede8'];
+  const COLORS = ['#e8c884',GOLD,'#22d47e','#f4a9ba','#5aa8ff','#f0ede8'];
   const P = Array.from({ length: 150 }, () => ({
     x: Math.random()*W, y: -Math.random()*H*.4,
     vx: (Math.random()-.5)*2.4*dpr, vy: (1.6+Math.random()*2.6)*dpr,
@@ -977,11 +977,11 @@ let FELTRO = null;
 function mountBackground(){
   const paraOCanvas2D = () => {
     FELTRO = null;
-    SupremaMotion.network('.tv-bg', { c1:'#c9a84c', c2:'#22d47e', maxNodes:64, linkDist:150, isDark: () => true });
+    SupremaMotion.network('.tv-bg', { c1:GOLD, c2:'#22d47e', maxNodes:64, linkDist:150, isDark: () => true });
   };
   if (new URLSearchParams(location.search).get('feltro') === '0'){ paraOCanvas2D(); return; }
   FELTRO = SupremaFeltro.mount('.tv-bg', {
-    bg:'#0b0c10', gold:'#c9a84c', felt:'#22d47e',
+    bg:'#0b0c10', gold:GOLD, felt:'#22d47e',
     onFallback: paraOCanvas2D,
   });
   if (FELTRO) console.info(`[SupremaTV] fundo O Feltro no ar — tier "${FELTRO.tier()}"`);
