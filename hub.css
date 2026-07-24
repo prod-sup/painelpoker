@@ -1717,6 +1717,14 @@ footer{
     -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
     animation:sheen 5.5s ease-in-out infinite;
   }
+  /* o naipe-acento fica FORA do sheen: com background-clip:text a parte do glifo
+     que a fonte desenha acima da caixa não recebe o gradiente e some (parecia
+     "cortado" em algumas fontes). Cor sólida resolve — o brilho num naipe pequeno
+     nem era perceptível. Precisa vir DEPOIS do .os pra vencer (mesma especificidade). */
+  .hero h1 .os-suit{
+    background:none;-webkit-background-clip:border-box;background-clip:border-box;
+    -webkit-text-fill-color:var(--gold);color:var(--gold);animation:none;
+  }
   @keyframes sheen{0%,100%{background-position:180% 0}50%{background-position:-80% 0}}
   /* naipes do fundo à deriva, bem lentos */
   .ambient span{animation:drift 26s ease-in-out infinite}
