@@ -357,6 +357,15 @@ table.t td.m{color:var(--ink2)}
 @keyframes spin{to{transform:rotate(360deg)}}
 .theme-toggle{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;color:var(--ink3);transition:color .12s,background .12s;flex-shrink:0}
 .theme-toggle:hover{color:var(--ink);background:var(--bdr)}
+/* link de volta pro hub: precisa ser claramente distinto dos ícones de utilidade
+   (tema/TV) ao lado — mesmo texto "♠ OS" usado nos outros painéis do OS, não só
+   um glifo solto do mesmo tamanho/estilo dos botões de ação */
+.hub-link{
+  display:flex;align-items:center;gap:5px;height:28px;padding:0 10px;border-radius:99px;
+  font-size:12px;font-weight:700;color:var(--ink2);background:var(--surf2);
+  border:1px solid var(--bdr);flex-shrink:0;transition:color .12s,background .12s,border-color .12s;
+}
+.hub-link:hover{color:var(--ink);border-color:var(--ink3)}
 
 /* ── RESUMO EXECUTIVO ── */
 .rs-range{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:12px}

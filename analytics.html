@@ -34,7 +34,10 @@
    cards, rede de nós + aurora atrás do hero na tinta teal do Analytics. */
 SupremaMotion.glow('.kpi, .card');
 document.addEventListener('DOMContentLoaded', () => {
-  SupremaMotion.reveal('.card');
+  /* só os cards de TABELA — os de gráfico ficam de fora: o Chart.js mede o
+     tamanho do canvas no resize, e pegar o card no meio da transição do
+     reveal (transform) tira a medida errada e nasce com o gráfico bugado */
+  SupremaMotion.reveal('#opCard, #worstCard');
   SupremaMotion.scrollProgress({ tint:'#14b8a6' });
   SupremaMotion.aurora('.hero', { tint1:'rgba(20,184,166,.22)', tint2:'rgba(143,107,45,.14)' });
   SupremaMotion.network('.hero', { c1:'#0f9d8f', c2:'#8f6b2d', c1Dark:'#5eead4', c2Dark:'#c9a84c' });

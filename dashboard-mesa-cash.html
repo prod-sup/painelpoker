@@ -88,7 +88,8 @@ document.addEventListener('DOMContentLoaded', () => {
       <span class="pulse dia" id="shiftPulse"></span>
       <span id="shiftLabel">Turno Dia</span>
     </div>
-    <a href="hub.html" class="theme-toggle" title="Voltar ao hub Suprema OS" style="text-decoration:none;font-size:13px">♠</a>
+    <a href="hub.html" class="hub-link" title="Voltar ao hub Suprema OS">♠ OS</a>
+    <div class="brand-sep"></div>
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Alternar tema" aria-label="Alternar tema claro/escuro"><i class="ph ph-moon"></i></button>
     <button class="theme-toggle" id="tvBtn" onclick="tvEnter()" title="Modo TV — telão em tela cheia com rotação automática" aria-label="Modo TV"><i class="ph ph-monitor-play"></i></button>
     <select id="daySel" title="Dia exibido no dashboard" onchange="onDaySel(this.value)"
@@ -728,9 +729,6 @@ document.addEventListener('DOMContentLoaded', () => {
 <script src="dashboard-mesa-cash.js"></script>
 <!-- ⌘K command palette (navegação + ações; o cash pluga a busca de seções) -->
 <script defer src="suprema-palette.js"></script>
-<!-- Copiloto de IA (Claude via Cloud Function): "Pergunte ao Suprema OS". DEPOIS do
-     palette pra auto-registrar a entrada ⌘K. O Cash pluga o snapshot no dashboard-mesa-cash.js. -->
-<script defer src="suprema-copiloto.js"></script>
 <script src="suprema-presence.js"></script>
 <script src="suprema-onboarding.js"></script>
 <script>
