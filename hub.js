@@ -90,7 +90,7 @@
     const name = session.displayName || session.apelido || session.nome || session.email.split('@')[0];
     hello.hidden = false;
     $('hhEmail').textContent = session.email;
-    title.innerHTML = `${name.replace(/[<>&]/g,'')} <span class="os">&spades;</span>`;
+    title.innerHTML = `${name.replace(/[<>&]/g,'')}<span class="os os-suit">&spades;</span>`;
     paintAvatar();
     try{ renderHeroOps(); }catch(e){}
   }

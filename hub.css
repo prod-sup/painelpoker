@@ -199,6 +199,12 @@ nav{
   text-wrap:balance;
 }
 .hero h1 .os{color:var(--gold);font-weight:600}
+/* o naipe ao lado do nome vira ACENTO, não um segundo "nome": menor, elevado
+   como um sufixo de marca (estilo Apple), com respiro à esquerda */
+.hero h1 .os-suit{
+  font-size:.5em; vertical-align:.55em; margin-left:.22em;
+  display:inline-block; filter:drop-shadow(0 2px 8px rgba(201,168,76,.28));
+}
 .hero p{margin:22px 0 0;max-width:34ch;color:var(--ink-soft);font-size:clamp(17px,2vw,21px);line-height:1.5;letter-spacing:-.01em;text-wrap:pretty}
 /* centro de comando: chips discretos, borda fina — nada de vidro chamativo */
 .hero-ops{display:flex;flex-wrap:wrap;gap:8px;margin-top:32px}

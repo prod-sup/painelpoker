@@ -18,12 +18,14 @@
   --border:  var(--sup-hairline);
   --border2: rgba(0,0,0,.05);
 
-  /* Accent — Apple system blue */
-  /* dourado da casa — o MESMO --gold do painel/criação (azul ficou só semântico) */
-  --gold:    var(--sup-gold);
-  --gold2:   var(--sup-gold-bright);
-  --goldf:   rgba(143,107,45,.09);
-  --goldb:   rgba(143,107,45,.28);
+  /* Acento do Admin: GRAFITE/AÇO (não o dourado da marca) — o dourado lia como
+     "marrom" e não combinava com o painel de controle. Grafite frio = cara de
+     "sistema/ajustes" (Apple), e se distingue dos produtos coloridos.
+     Os nomes de token seguem --gold* pra não reescrever 30+ usos; só o VALOR muda. */
+  --gold:    #4b5a6e;
+  --gold2:   #64748b;
+  --goldf:   rgba(75,90,110,.09);
+  --goldb:   rgba(75,90,110,.28);
 
   /* Ink hierarchy — tokens compartilhados (mesmos valores de sempre) */
   --ink:     var(--sup-ink);
@@ -57,7 +59,7 @@
   --sh-1: 0 1px 2px rgba(0,0,0,.04), 0 1px 1px rgba(0,0,0,.03);
   --sh-2: 0 4px 14px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
   --sh-3: 0 24px 60px rgba(0,0,0,.12), 0 4px 12px rgba(0,0,0,.06);
-  --sh-focus: 0 0 0 4px rgba(143,107,45,.20);
+  --sh-focus: 0 0 0 4px rgba(75,90,110,.20);
 
   /* Curvas cinematográficas (motion layer) */
   --ease-expo:  cubic-bezier(.16,1,.3,1);
@@ -90,10 +92,11 @@ html.dark{
   --border:  rgba(255,255,255,.10);
   --border2: rgba(255,255,255,.055);
 
-  --gold:    var(--sup-gold-dark);
-  --gold2:   #e0c06a;
-  --goldf:   rgba(201,168,76,.14);
-  --goldb:   rgba(201,168,76,.35);
+  /* grafite/aço no escuro — mais claro pra contrastar no fundo escuro */
+  --gold:    #8fa3ba;
+  --gold2:   #b0c0d2;
+  --goldf:   rgba(143,163,186,.14);
+  --goldb:   rgba(143,163,186,.35);
 
   --ink:     #e8ede9;
   --ink2:    #9aa79d;
@@ -113,7 +116,7 @@ html.dark{
   --sh-1: 0 1px 2px rgba(0,0,0,.4), 0 1px 1px rgba(0,0,0,.3);
   --sh-2: 0 4px 14px rgba(0,0,0,.5), 0 1px 2px rgba(0,0,0,.35);
   --sh-3: 0 24px 60px rgba(0,0,0,.65), 0 4px 12px rgba(0,0,0,.4);
-  --sh-focus: 0 0 0 4px rgba(201,168,76,.28);
+  --sh-focus: 0 0 0 4px rgba(143,163,186,.28);
 
   --glass:     rgba(24,27,25,.72);
   --glass2:    rgba(15,17,16,.72);
@@ -128,8 +131,8 @@ html.dark{
 
   color-scheme:dark;
 }
-/* no dark o dourado é CLARO (#c9a84c) — texto sobre ele tem que ser escuro,
-   igual aos badges dourados do painel/criação */
+/* no dark o acento grafite é CLARO — texto sobre ele (botões sólidos) tem que
+   ser escuro pra contrastar */
 html.dark .btn-gold,
 html.dark .ntab.active,
 html.dark .lbtn,
@@ -160,14 +163,14 @@ a{color:inherit;text-decoration:none}
 ::-webkit-scrollbar-thumb{background:rgba(0,0,0,.18);border-radius:99px;border:2px solid transparent;background-clip:content-box}
 ::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.32);background-clip:content-box;border:2px solid transparent}
 
-::selection{background:rgba(143,107,45,.22)}
+::selection{background:rgba(75,90,110,.22)}
 
 /* ── LOGIN ───────────────────────────────────────────────────── */
 #loginWrap{
   display:flex;align-items:center;justify-content:center;
   min-height:100vh;
   background:
-    radial-gradient(1200px 600px at 80% -10%, rgba(143,107,45,.10), transparent 60%),
+    radial-gradient(1200px 600px at 80% -10%, rgba(75,90,110,.10), transparent 60%),
     radial-gradient(900px 500px at 10% 110%, rgba(191,90,242,.08), transparent 60%),
     linear-gradient(180deg,#fafafd,#eef0f5);
   position:relative;
@@ -219,9 +222,9 @@ html.dark .lbox{border-color:var(--border)}
   color:#fff;font-size:14px;font-weight:600;letter-spacing:-.01em;
   cursor:pointer;transition:transform .08s,box-shadow .15s,filter .15s;
   margin-top:10px;
-  box-shadow:0 6px 16px rgba(143,107,45,.32), inset 0 1px 0 rgba(255,255,255,.25);
+  box-shadow:0 6px 16px rgba(75,90,110,.32), inset 0 1px 0 rgba(255,255,255,.25);
 }
-.lbtn:hover{filter:brightness(1.05);box-shadow:0 10px 24px rgba(143,107,45,.4), inset 0 1px 0 rgba(255,255,255,.25)}
+.lbtn:hover{filter:brightness(1.05);box-shadow:0 10px 24px rgba(75,90,110,.4), inset 0 1px 0 rgba(255,255,255,.25)}
 .lbtn:active{transform:translateY(1px)}
 .lbtn:disabled{opacity:.5;cursor:not-allowed;transform:none;filter:none;box-shadow:none}
 .lerr{font-size:12px;color:var(--red);margin-top:10px;min-height:16px;text-align:center}
@@ -297,21 +300,21 @@ html.dark .lbox{border-color:var(--border)}
 .tb-right .btn-ghost,
 .tb-right .tb-back,
 .tb-right .tb-btn{
-  background:#241d0e; color:rgba(232,230,224,.6); border:none; box-shadow:none;
+  background:#222a33; color:rgba(230,234,240,.62); border:none; box-shadow:none;
   border-radius:99px; font-weight:600;
   transition:color .25s, background-color .25s, transform .25s;
 }
 html.dark .tb-right .btn-ghost,
 html.dark .tb-right .tb-back,
-html.dark .tb-right .tb-btn{ background:#2e2612; }
+html.dark .tb-right .tb-btn{ background:#2a343f; }
 .tb-right .btn-ghost:hover,
 .tb-right .tb-back:hover,
 .tb-right .tb-btn:hover{
-  background:#3a2f16; color:var(--gold); transform:translateY(-1px);
+  background:#2e3a46; color:#fff; transform:translateY(-1px);
 }
 html.dark .tb-right .btn-ghost:hover,
 html.dark .tb-right .tb-back:hover,
-html.dark .tb-right .tb-btn:hover{ background:#463a1c; }
+html.dark .tb-right .tb-btn:hover{ background:#3a4756; }
 .tb-right .btn-ghost svg,
 .tb-right .tb-back svg{ opacity:.85; }
 @media (prefers-reduced-motion: reduce){
@@ -350,7 +353,7 @@ html.dark .tb-right .tb-btn:hover{ background:#463a1c; }
 .ntab:active{transform:scale(.98)}
 .ntab.active{
   background:var(--gold);color:#fff;font-weight:500;
-  box-shadow:0 2px 6px rgba(143,107,45,.28);
+  box-shadow:0 2px 6px rgba(75,90,110,.28);
   animation:ntab-pop .3s cubic-bezier(.16,1,.3,1);
 }
 .ntab.active .ni{opacity:1}
@@ -451,9 +454,9 @@ html.dark .tb-right .tb-btn:hover{ background:#463a1c; }
 .btn-gold{
   background:linear-gradient(180deg,var(--gold2),var(--gold));
   color:#fff;
-  box-shadow:0 2px 6px rgba(143,107,45,.28), inset 0 1px 0 rgba(255,255,255,.2);
+  box-shadow:0 2px 6px rgba(75,90,110,.28), inset 0 1px 0 rgba(255,255,255,.2);
 }
-.btn-gold:hover{filter:brightness(1.05);box-shadow:0 4px 12px rgba(143,107,45,.36), inset 0 1px 0 rgba(255,255,255,.2)}
+.btn-gold:hover{filter:brightness(1.05);box-shadow:0 4px 12px rgba(75,90,110,.36), inset 0 1px 0 rgba(255,255,255,.2)}
 .btn-ghost{
   background:var(--s1);color:var(--ink);border:1px solid var(--border);
   box-shadow:var(--sh-1);
@@ -558,7 +561,7 @@ td.center{text-align:center}
 .audit-day-header{
   display:flex;align-items:center;justify-content:space-between;
   padding:14px 18px;
-  background:linear-gradient(90deg,rgba(201,168,76,.06),transparent);
+  background:linear-gradient(90deg,rgba(143,163,186,.06),transparent);
   border:1px solid var(--border);
   border-left:3px solid var(--gold);
   border-radius:var(--r2);
@@ -700,7 +703,7 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{animatio
   letter-spacing:-.005em;box-shadow:var(--sh-1);
 }
 .notif-type-btn:hover{border-color:var(--gold);color:var(--gold);background:var(--goldf)}
-.notif-type-btn.sel{background:var(--gold);border-color:var(--gold);color:#fff;box-shadow:0 2px 8px rgba(143,107,45,.28)}
+.notif-type-btn.sel{background:var(--gold);border-color:var(--gold);color:#fff;box-shadow:0 2px 8px rgba(75,90,110,.28)}
 .notif-preview{
   background:var(--s2);border:1px solid var(--border);border-radius:11px;
   padding:14px;font-size:13px;color:var(--ink2);line-height:1.6;
@@ -740,12 +743,12 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{animatio
 a.tb-back{text-decoration:none}
 
 /* ── Auditoria: edição inline ── */
-.audit-edited { background: rgba(201,168,76,.05) !important; }
+.audit-edited { background: rgba(143,163,186,.05) !important; }
 .audit-edited td { color: var(--ink) !important; }
 .badge-auditado{
   display:inline-flex;align-items:center;gap:3px;padding:2px 7px;
   border-radius:99px;font-size:9px;font-weight:700;letter-spacing:.05em;
-  background:rgba(201,168,76,.12);color:var(--gold);border:1px solid rgba(201,168,76,.2);
+  background:rgba(143,163,186,.12);color:var(--gold);border:1px solid rgba(143,163,186,.2);
 }
 .audit-edit-btn{
   padding:3px 8px;border-radius:6px;font-size:10px;font-weight:700;
