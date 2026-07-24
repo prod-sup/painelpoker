@@ -610,14 +610,9 @@
   nav.scrolled .nav-inner{ height:48px; }
   .brand{display:flex; align-items:center; gap:9px; font-size:14.5px; font-weight:600; letter-spacing:-0.01em; flex:none;}
   .brand-mark{width:20px; height:20px; flex:none;}
-  /* pill do produto — mesmo desenho do Radar/Criação: wordmark "Suprema OS" + produto na cor dele */
-  .brand-sub{
-    font-size:10.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
-    color:var(--felt); background:var(--felt-soft);
-    padding:3px 9px; border-radius:99px; flex:none;
-  }
-  html.dark .brand-sub{ color:var(--felt-bright); }
-  @media (max-width:680px){ .brand-sub{ display:none; } }
+  /* sem a pill "Painel do Dia" ao lado, o wordmark é a única identidade na nav —
+     ganha peso/tamanho pra carregar sozinho */
+  .brand-text{ font-family:var(--display); font-size:16px; font-weight:700; letter-spacing:-.015em; }
   /* ── fichas da marca ──
      Sobreposição era de 8px em discos de 17px: o silhueta virava uma CÁPSULA
      com um círculo na ponta e lia como toggle ligado. Agora a de trás fica mais
@@ -875,10 +870,29 @@
     transition:transform .25s var(--ease), background .25s var(--ease);
     white-space:nowrap; flex:none;
   }
-  .upload-btn:hover{background:var(--felt); transform:translateY(-1px);}
+  .upload-btn:hover{background:var(--felt-bright); transform:translateY(-1px);}
   .upload-btn:active{transform:translateY(0) scale(.96); transition-duration:.12s;}
   .upload-btn svg{width:13px; height:13px; flex:none;}
   #fileInput{display:none;}
+
+  /* Global MTT da nav: círculo por padrão (só o ícone), expande revelando o
+     texto no hover — ganha espaço na barra sem esconder a ação principal do
+     painel. Só este botão (id) — os outros .upload-btn (estado vazio, gavetas
+     de conferência) continuam sempre expandidos, são CTAs grandes, não ícone de nav. */
+  #uploadGlobalBtn{
+    width:38px; height:38px; padding:0; gap:0; justify-content:center;
+    border-radius:50%; overflow:hidden;
+    transition:width .3s var(--ease), border-radius .3s var(--ease), background .25s var(--ease), transform .25s var(--ease);
+  }
+  #uploadGlobalBtn span{
+    width:0; opacity:0; white-space:nowrap; overflow:hidden;
+    transition:width .3s var(--ease), opacity .2s var(--ease), margin-left .3s var(--ease);
+  }
+  #uploadGlobalBtn:hover{ width:134px; border-radius:99px; }
+  #uploadGlobalBtn:hover span{ width:auto; opacity:1; margin-left:2px; }
+  @media (prefers-reduced-motion: reduce){
+    #uploadGlobalBtn, #uploadGlobalBtn span{ transition:none; }
+  }
 
   .clear-btn{
     display:inline-flex; align-items:center; justify-content:center;
@@ -3149,7 +3163,7 @@
 .gup-text span{font-size:12px;color:var(--ink-soft)}
 .gup-btn{
   flex:none;padding:8px 14px;border-radius:9px;border:none;
-  background:var(--gold);color:#1a1000;font-size:12px;font-weight:700;
+  background:var(--felt);color:#fff;font-size:12px;font-weight:700;
   cursor:pointer;white-space:nowrap;
 }
 .gup-btn:hover{opacity:.85}

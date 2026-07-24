@@ -329,16 +329,18 @@ body > *{position:relative;z-index:1}
   /* upload — botão compacto, mesmo desenho do "Global MTT" do painel */
   .upload-slim{padding:16px 22px}
   .up-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  /* mesma cor do botão Global MTT do Painel do Dia (--felt) — o dourado da marca
+     fica reservado pra categoria/tag/detalhe, não pra essa ação específica */
   .upload-btn{
     display:inline-flex;align-items:center;gap:8px;
     font-family:var(--text);font-size:13px;font-weight:700;
-    background:var(--gold);color:#1a1206;
+    background:var(--felt);color:#fff;
     padding:10px 20px;border-radius:99px;border:none;cursor:pointer;
     transition:transform .25s var(--ease), filter .25s var(--ease), box-shadow .25s;
     white-space:nowrap;flex:none;
-    box-shadow:0 0 0 1px rgba(173,138,78,.3), 0 6px 18px -6px rgba(201,168,76,.55);
+    box-shadow:0 0 0 1px rgba(24,163,107,.3), 0 6px 18px -6px rgba(24,163,107,.45);
   }
-  html.dark .upload-btn{color:#100b02}
+  html.dark .upload-btn{color:#fff}
   .upload-btn:hover{filter:brightness(1.07);transform:translateY(-1px)}
   .upload-btn:active{transform:translateY(0) scale(.97)}
   .upload-btn.drag{outline:2px dashed var(--felt-bright);outline-offset:3px}
