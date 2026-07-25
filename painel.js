@@ -96,7 +96,7 @@
    informação se perde (cores/labels de atraso seguem visíveis, só o movimento
    para); qualquer pointer/tecla/scroll retoma na hora. */
 (function freezeAnimationsWhenIdle(){
-  const IDLE_MS = 60000;
+  const IDLE_MS = 30000;   // pausa o movimento após 30s parado (era 60s) — metade do tempo segurando a GPU à toa
   let timer = null, lastReset = 0;
   const sleep = () => document.body.classList.add('sp-idle');
   const arm   = () => { clearTimeout(timer); timer = setTimeout(sleep, IDLE_MS); };

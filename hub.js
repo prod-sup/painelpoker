@@ -601,9 +601,11 @@
   }
   function holidays(y){ return holidayCache[y] || (holidayCache[y] = holidaysForYear(y)); }
   function holidayName(isoDate){ return holidays(+isoDate.slice(0,4))[isoDate] || null; }
-  // preferência do usuário: ocultar feriados no calendário/lista (persistida)
-  let hideHolidays = false;
-  try{ hideHolidays = localStorage.getItem('hub_hide_holidays_v1') === '1'; }catch(e){}
+  // preferência do usuário: ocultar feriados no calendário/lista (persistida).
+  // PADRÃO = OCULTO (pedido do Brian): quem cria conta e entra não vê feriados até
+  // ligar no toggle. Só uma escolha EXPLÍCITA anterior (chave presente) vence o padrão.
+  let hideHolidays = true;
+  try{ const v = localStorage.getItem('hub_hide_holidays_v1'); if (v !== null) hideHolidays = v === '1'; }catch(e){}
 
   function allEvents(){
     const list = DEFAULT_EVENTS.filter(e => !hiddenSeeds[e.id]).map(e => ({...e, seed:true}));

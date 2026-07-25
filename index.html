@@ -203,6 +203,10 @@ document.addEventListener('DOMContentLoaded', () => {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2.2"/><path d="M8 2.5v3M16 2.5v3M3 9.5h18"/><path d="M12 13v5M9.5 15.5h5"/></svg>
         <span id="addTorneioBadge" class="checklist-badge" hidden>0</span>
       </button>
+      <i class="tsep" aria-hidden="true"></i>
+      <button class="clear-btn" id="liteToggle" title="Modo leve — corta blur e animações contínuas pra deixar o painel mais leve neste PC" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10H13z"/></svg>
+      </button>
       </div>
       <button class="upload-btn" id="uploadGlobalBtn" title="Carregar Global MTT (.xlsx) → alimenta o painel direto" style="background:var(--felt);color:#fff;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
@@ -213,6 +217,27 @@ document.addEventListener('DOMContentLoaded', () => {
     </div>
   </div>
 </nav>
+<script>
+/* Modo leve — liga/desliga html.lite na hora (CSS em suprema-tokens.css) e persiste
+   em localStorage 'suprema_lite' (mesma chave do scripts/lite.js, então cola no próximo load).
+   Inline de propósito: precisa refletir o estado no 1º paint, junto do anti-flash. */
+(function(){
+  var b = document.getElementById('liteToggle');
+  if(!b) return;
+  function sync(){
+    var on = document.documentElement.classList.contains('lite');
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', String(on));
+  }
+  sync();
+  b.addEventListener('click', function(){
+    var on = document.documentElement.classList.toggle('lite');
+    try{ localStorage.setItem('suprema_lite', on ? '1' : '0'); }catch(e){}
+    sync();
+    try{ if(typeof showToast === 'function') showToast(on ? 'Modo leve ligado — visual mais econômico ⚡' : 'Modo leve desligado — visual completo'); }catch(e){}
+  });
+})();
+</script>
 
 <div class="drawer-overlay" id="checklistDrawerOverlay">
   <aside class="drawer" id="checklistDrawer" role="dialog" aria-modal="true" aria-label="Checklist diário">

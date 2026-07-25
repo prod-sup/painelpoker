@@ -228,7 +228,7 @@ function rawToPct(it, info){
 function adminFeeParts(it){
   const pctTx = p => (Math.round(p * 10000) / 100).toLocaleString('pt-BR') + '%';
   const decTx = p => it.buyin != null
-    ? ' = ' + ((CURRENCY === 'usd' ? it.buyin : it.buyin * BRL_RATE) * p).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})
+    ? ' = ' + (toDisplayCur(it.buyin, it.brl) * p).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})
     : '';
   const f = rawToPct(it, feeActive(it)), a = rawToPct(it, adminActive(it));
   if (!f && !a) return null;
@@ -341,29 +341,21 @@ function buildLiga(){
   const t = norm(LIGA_PRINCIPAL_SECTIONS[WEEKDAY_TOMORROW_EN]);
   const a = norm(LIGA_PRINCIPAL_SECTIONS[WEEKDAY_DAYAFTER_EN]);
   const secs = buildSections(t, a);                 // aplica a janela 06:10→05:30 e ordena
-  const tag = (arr, c) => (arr||[]).map(it => ({...it, ligaCat:c, liga:true}));
+  // brl:true faz os cálculos de dinheiro (fmtMoney/adminFee) lerem o valor como REAL
+  const tag = (arr, c) => (arr||[]).map(it => ({...it, ligaCat:c, liga:true, brl:true}));
   const all = [...tag(secs.main,'main'), ...tag(secs.side,'side'), ...tag(secs.sat,'sat')];
   const wrap = m => (m == null ? 99999 : (m >= CONF_WINDOW_START_MIN ? m : m + 1440)); // madrugada vai pro fim
   return all.sort((x,y) => wrap(timeToMinutes(x.hora)) - wrap(timeToMinutes(y.hora)));
 }
-/* moeda da Liga (BRL nativo): respeita o toggle $/R$ do app sem mexer nos itens */
-function fmtLigaMoney(vBrl){
-  if (vBrl === null || vBrl === undefined || vBrl === '') return '—';
-  const n = typeof vBrl === 'number' ? vBrl : parseFloat(String(vBrl).replace(/[^\d.,-]/g,'').replace(',','.'));
-  if (!isFinite(n)) return escHtml(String(vBrl));
-  const v = CURRENCY === 'usd' ? n / BRL_RATE : n;
-  return (CURRENCY === 'usd' ? '$ ' : 'R$ ') + v.toLocaleString('pt-BR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2});
+// colunas da receita da Liga (esquema próprio), na MESMA ordem de digitação da GU, sem "Action".
+// Função (não const) porque depende de HIDDEN_RECIPE/creationOrderFields, definidos mais abaixo.
+function ligaFields(){
+  if (typeof LIGA_PRINCIPAL_FIELDS === 'undefined') return [];
+  return creationOrderFields(LIGA_PRINCIPAL_FIELDS.filter(l => !HIDDEN_RECIPE.test(normText(l)) && normText(l) !== 'action'));
 }
-/* receita copiável da Liga — valores CRUS da planilha (BRL), é o que se digita ao criar */
-function ligaRecipeText(it){
-  const e = it.extra || {};
-  const out = [`★ ${it.nome} — ${it.hora}${it.groupHeader ? ' · grupo ' + it.groupHeader : ''}`];
-  (typeof LIGA_PRINCIPAL_FIELDS !== 'undefined' ? LIGA_PRINCIPAL_FIELDS : Object.keys(e)).forEach(f => {
-    const v = e[f];
-    if (v !== undefined && v !== null && v !== '' && normText(f) !== 'action') out.push(`${f}: ${fmtExtraVal(f, v)}`);
-  });
-  return out.join('\n');
-}
+// categoria da seção Eventos Principais — mesma estrutura das outras (renderVertical),
+// mas plain:true (sem mover/foco/tela-cheia, que dependem da grade DATA); fields entram no render
+const CAT_LIGA = {key:'liga', cls:'liga', suit:'★', label:'Eventos Principais', role:'ligaPrincipal', plain:true};
 
 /* categoria automática (por TYPE/admin fee) de cada item, ANTES de qualquer
    reatribuição manual — é o ponto de partida que allWithCatAuto() monta */
@@ -402,9 +394,10 @@ function saveCategoryOverride(it, catKey){
 
 /* papéis (função) por operador — chave saneada pro Firebase */
 const ROLE_OPTS = [
-  {key:'mainSat',     label:'Main + Satélites'},
-  {key:'sideAdmin',   label:'Side c/ Admin Fee'},
-  {key:'sideNoAdmin', label:'Side s/ Admin Fee'}
+  {key:'mainSat',      label:'Main + Satélites'},
+  {key:'sideAdmin',    label:'Side c/ Admin Fee'},
+  {key:'sideNoAdmin',  label:'Side s/ Admin Fee'},
+  {key:'ligaPrincipal',label:'★ Eventos Principais'}
 ];
 function roleKey(op){ return normText(op).replace(/[.#$\[\]\/]/g,'_'); }
 function roleOf(op){ return ROLES[roleKey(op)] || ''; }
@@ -433,7 +426,6 @@ const FB_PATH = `painel/${TOMORROW_ISO}/criacaoNoturna`;
 let fbDb = null;
 let DATA = null;          // {main, side, sat[], unknown, warnings, by, at}
 let LIGA = buildLiga();   // Eventos Principais do dia (grade fixa, BRL) — independe da Global
-let LIGA_DONE = {};       // key -> {by, at} — "criado" dos Eventos Principais (Firebase /ligaDone)
 let OPS = [];             // nomes da equipe
 let DONE = {};            // key -> {by, at}
 let IDS = {};             // key -> {val, by, at} — ID do evento no Pokerbyte
@@ -502,8 +494,6 @@ try{
     renderAll();
     renderFocus(); // se o modo foco estiver aberto, o parceiro marcando também avança a fila
   });
-  // "criado" dos Eventos Principais (Liga) — path próprio, não mistura com o /done da GU
-  fbDb.ref(`${FB_PATH}/ligaDone`).on('value', s => { LIGA_DONE = s.val() || {}; renderAll(); });
   fbDb.ref(`${FB_PATH}/ids`).on('value', s => {
     IDS = s.val() || {};
     // não re-renderizar a lista enquanto alguém digita um ID — só atualiza os inputs parados
@@ -849,15 +839,21 @@ function opColor(name){
   const i = OPS.indexOf(name);
   return OP_COLORS[(i >= 0 ? i : 0) % OP_COLORS.length];
 }
-function fmtMoney(vUsd){
-  if (vUsd === null || vUsd === undefined) return '—';
-  const v = CURRENCY === 'usd' ? vUsd : vUsd * BRL_RATE;
+/* converte o valor guardado pra moeda em exibição. Itens da GU guardam DÓLAR
+   (×5 no R$); itens da Liga (it.brl) guardam REAL (÷5 no US$). Um lugar só decide. */
+function toDisplayCur(v, brl){
+  return brl ? (CURRENCY === 'usd' ? v / BRL_RATE : v)
+             : (CURRENCY === 'usd' ? v : v * BRL_RATE);
+}
+function fmtMoney(vStored, it){
+  if (vStored === null || vStored === undefined) return '—';
+  const v = toDisplayCur(vStored, it && it.brl);
   const s = v.toLocaleString('pt-BR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2});
   return `<span class="cur">${CURRENCY === 'usd' ? '$' : 'R$'}</span>${s}`;
 }
-function fmtMoneyPlain(vUsd){
-  if (vUsd === null || vUsd === undefined) return '—';
-  const v = CURRENCY === 'usd' ? vUsd : vUsd * BRL_RATE;
+function fmtMoneyPlain(vStored, it){
+  if (vStored === null || vStored === undefined) return '—';
+  const v = toDisplayCur(vStored, it && it.brl);
   return (CURRENCY === 'usd' ? '$ ' : 'R$ ') + v.toLocaleString('pt-BR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2});
 }
 
@@ -1167,7 +1163,8 @@ function renderAlerts(){
   }
   // TYPE ausente na coluna D: o torneio ENTROU na divisão (classificado pelo nome/
   // garantido), mas fica sinalizado — "corrigir" abre o mesmo popover de mover bloco
-  const semTipo = (DATA && DATA.semTipo) || [];
+  // já resolvidos (o operador clicou "corrigir" e escolheu um bloco → tem override) somem daqui
+  const semTipo = ((DATA && DATA.semTipo) || []).filter(x => !CATEGORY_OVERRIDES[itemKey(x)]);
   if (semTipo.length){
     const lines = semTipo.slice(0, 10).map(x => {
       const key = itemKey(x);
@@ -1395,7 +1392,7 @@ function creationWhen(it){
 /* linhas da receita que a operação NÃO usa na criação — fora da tabela e do foco */
 const HIDDEN_RECIPE = /num\.?\s*(de\s*)?players|jogadores|\bchat\b/;
 function visibleRecipeFields(){ return creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l)))); }
-function recipeText(it, cat){
+function recipeText(it, cat, fields){
   // Garantido e Buy-in não entram aqui em cima: já saem UMA vez, na posição
   // deles, dentro da receita ordenada abaixo (ordem de digitação do app)
   const parts = [
@@ -1409,12 +1406,13 @@ function recipeText(it, cat){
   if (af) parts.push(`Admin Fee (Rake/Fee + Admin): ${af.main}${af.sub ? ' ' + af.sub : ''}`);
   if (e) parts.push(`Early Bird: ${e.main}${e.sub ? ' ' + e.sub : ''}`);
   if (hasCampaign(it)){ const c = campInfo(it); parts.push(`✦ CAMPANHA${c ? ': ' + c.disp : ''}`); }
-  // receita completa da GU — todos os campos que vão no app, na ordem de criação
-  creationOrderFields(recipeFields()).forEach(label => {
+  // receita completa — fields próprios da seção (Liga) ou os da GU, na ordem de criação
+  const list = fields || creationOrderFields(recipeFields());
+  list.forEach(label => {
     const v = it.extra ? it.extra[label] : undefined;
     if (v !== undefined && v !== null && v !== '') parts.push(`${label}: ${fmtExtraVal(label, v)}`);
   });
-  if (!recipeFields().length && it.late) parts.push(`Fim do late reg: ${it.late}`);
+  if (!list.length && it.late) parts.push(`Fim do late reg: ${it.late}`);
   return parts.join('\n');
 }
 /* grid com TODOS os campos da receita (mostra também os vazios — quem cria a
@@ -1539,65 +1537,39 @@ function sectionNoteHtml(cat){
   if (cat.key === 'sat')            msg = '<b>Quem cria o Main cria os Satélites</b> — mesma função.';
   else if (cat.key === 'main')      msg = 'Base da grade — vai junto com os Satélites.';
   else if (cat.key === 'sideAdmin') msg = 'Side Events que <b>cobram Admin Fee</b>.';
+  else if (cat.key === 'liga')      msg = 'Grade FIXA da <b>Liga Principal</b> (pré-carregada, valores em R$) — independe da Global.';
   else                              msg = 'Side Events <b>sem Admin Fee</b>.';
   const who = explicit.length ? chips : '<span style="opacity:.7">sem função marcada — todos dividem</span>';
   return `<p class="section-note">${msg} ${who}</p>`;
 }
 
-/* ── EVENTOS PRINCIPAIS (Liga) — seção própria, destacada, grade fixa em BRL ── */
+/* ── EVENTOS PRINCIPAIS (Liga) — seção própria, MESMA estrutura das outras
+   (renderVertical); grade fixa em R$, "criado" no mesmo /done, divisão pela
+   função ligaPrincipal (ou todos, se ninguém marcou). ── */
+function ligaAssignments(){
+  const asg = {};
+  const pool = opsForRole('ligaPrincipal');
+  if (pool.length) LIGA.forEach((it, i) => { asg[itemKey(it)] = pool[i % pool.length]; });
+  Object.keys(OVERRIDES).forEach(k => { if (OPS.includes(OVERRIDES[k])) asg[k] = OVERRIDES[k]; });
+  return asg;
+}
 function renderLiga(){
-  const done = LIGA.filter(it => LIGA_DONE[itemKey(it)]).length;
+  const done = LIGA.filter(it => DONE[itemKey(it)]).length;
   const st = $('stLiga');
   if (st) st.textContent = LIGA.length ? `${done}/${LIGA.length}` : '—';
   if (!LIGA.length) return '';
   const q = normText(SEARCH);
   const vis = q ? LIGA.filter(it => normText(it.nome).includes(q)) : LIGA;
   if (!vis.length) return '';
-  const suit = {main:'♠', side:'♥', sat:'♣'};
-  const rows = vis.map(it => {
-    const key = itemKey(it), dn = !!LIGA_DONE[key], e = it.extra || {};
-    const modal = e['MODALIDADE'] || e['Game Type'] || '';
-    const struct = e['STRUCTURE'] || '';
-    const chips = e['CHIPS'] != null ? fmtExtraVal('CHIPS', e['CHIPS']) : '';
-    const late = it.late || e['LATE REG.'] || '';
-    return `<tr class="${dn ? 'liga-done' : ''}">
-      <td class="mono lg-h">${escHtml(it.hora)}</td>
-      <td class="lg-n"><span class="lg-suit">${suit[it.ligaCat] || '★'}</span>${escHtml(it.nome)}${modal ? `<span class="lg-tag">${escHtml(String(modal))}</span>` : ''}</td>
-      <td class="mono">${fmtLigaMoney(it.buyin)}</td>
-      <td class="mono">${it.garantido ? fmtLigaMoney(it.garantido) : '<span style="opacity:.4">—</span>'}</td>
-      <td class="lg-x">${struct ? escHtml(String(struct)) : '—'}</td>
-      <td class="mono lg-x">${chips ? escHtml(String(chips)) : '—'}</td>
-      <td class="mono lg-x">${late ? escHtml(String(late)) : '—'}</td>
-      <td class="lg-act">
-        <button class="copy-btn" data-ligacopy="${escHtml(ligaRecipeText(it))}" title="Copiar receita"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
-        <button class="chk ${dn ? 'on' : ''}" data-ligadone="${escHtml(key)}" role="checkbox" aria-checked="${dn ? 'true' : 'false'}" title="${dn ? 'Criado' : 'Marcar como criado'}" aria-label="${dn ? 'Desmarcar ' : 'Marcar '}${escHtml(it.nome)} como criado"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
-      </td>
-    </tr>`;
-  }).join('');
+  const cat = {...CAT_LIGA, fields: ligaFields()};
   return `
     <div class="section-head liga">
       <span class="tag"><span class="suit">★</span>Eventos Principais</span>
       <span class="cnt">${done}/${LIGA.length} criados · grade fixa</span>
       <span class="line"></span>
     </div>
-    <p class="section-note">Grade fixa da <b>Liga Principal</b> — os eventos principais do dia, pré-carregados (independem da Global). Valores em ${CURRENCY === 'usd' ? 'US$ (÷5 do R$)' : 'R$'}.</p>
-    <div class="secwrap liga-sec" data-suit="★"><div class="vwrap"><table class="vtable liga-table">
-      <tr class="trow-head"><th class="rowlab">Hora</th><th>Torneio</th><th>Buy-in</th><th>Garantido</th><th>Estrutura</th><th>Chips</th><th>Late reg</th><th>Criado</th></tr>
-      ${rows}
-    </table></div></div>`;
-}
-function toggleLigaDone(key){
-  const cur = LIGA_DONE[key];
-  if (!fbDb){ if (cur) delete LIGA_DONE[key]; else LIGA_DONE[key] = {by: ME || 'Alguém', at: Date.now()}; renderAll(); return; }
-  if (cur){ fbDb.ref(`${FB_PATH}/ligaDone/${key}`).remove(); logEvent('desmarcou principal', key); }
-  else { fbDb.ref(`${FB_PATH}/ligaDone/${key}`).set({by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP}); logEvent('criou principal', key); }
-}
-function wireLiga(area){
-  area.querySelectorAll('[data-ligadone]').forEach(b => b.addEventListener('click', () => toggleLigaDone(b.dataset.ligadone)));
-  area.querySelectorAll('[data-ligacopy]').forEach(el => el.addEventListener('click', async () => {
-    try{ await navigator.clipboard.writeText(el.dataset.ligacopy); showToast('Receita copiada 📋'); }
-    catch(e){ showToast('Não consegui copiar — copie manualmente.', true); }
-  }));
+    ${sectionNoteHtml(cat)}
+    <div class="secwrap liga-sec" data-suit="★">${renderVertical(vis, cat, ligaAssignments())}</div>`;
 }
 
 function renderList(){
@@ -1605,7 +1577,7 @@ function renderList(){
   const ligaHtml = renderLiga();
   if (!DATA){
     area.innerHTML = ligaHtml + `<div class="empty-state"><span class="moon">🌙</span>Nenhuma planilha carregada ainda pra este dia da grade.<br>Suba a Global MTT acima — ou aguarde: se um parceiro subir, aparece aqui sozinho.</div>`;
-    wireLiga(area);
+    wireVerticalArea(area);
     return;
   }
   const asg = computeAssignments();
@@ -1641,7 +1613,6 @@ function renderList(){
   if (!html) html = `<div class="empty-state"><span class="moon">🃏</span>Nada nesse filtro.</div>`;
   area.innerHTML = html;
   wireVerticalArea(area);
-  wireLiga(area);
 }
 
 /* liga os controles de uma tabela `renderVertical` (data-done/data-focus/data-move/
@@ -1716,14 +1687,17 @@ function renderVertical(items, cat, asg){
   // FEE, ADMIN FEE e EARLY BIRD crus saem da receita: já estão consolidados nas linhas de cima
   const feeCols = new Set();
   cols.forEach(c => [feeInfo, adminInfo, earlyInfo].forEach(g => { const i = g(c.it); if (i && i.label) feeCols.add(i.label); }));
-  const rows = visibleRecipeFields().filter(l => !feeCols.has(l));
+  // cat.fields = esquema próprio da seção (Liga tem colunas diferentes da GU); default = GU
+  const rows = (cat.fields || visibleRecipeFields()).filter(l => !feeCols.has(l));
+  // cat.plain (Liga): sem os mini-botões mover/foco/tela-cheia — eles dependem da grade DATA
+  const plain = !!cat.plain;
   return `
     <div class="vwrap"><table class="vtable">
       <tr class="trow-head"><th class="rowlab">Torneio</th>${cell(c => {
         const m = mttKicker(c.it), urg = urgency(c.it);
-        return `<span class="vname-row"><span class="vgo" data-focus="${c.key}" role="button" tabindex="0" title="Abrir este torneio no modo foco" aria-label="Abrir ${escHtml(c.it.nome)} no modo foco">${escHtml(c.it.nome)}</span>`
-          + `<button class="vmini" data-move="${c.key}" title="Mover pra outro bloco">⇄</button>`
-          + `<button class="vmini" data-fs="${c.key}" title="Tela cheia deste torneio">⛶</button></span>`
+        return `<span class="vname-row"><span class="${plain ? '' : 'vgo'}"${plain ? '' : ` data-focus="${c.key}" role="button" tabindex="0" title="Abrir este torneio no modo foco" aria-label="Abrir ${escHtml(c.it.nome)} no modo foco"`}>${escHtml(c.it.nome)}</span>`
+          + (plain ? '' : `<button class="vmini" data-move="${c.key}" title="Mover pra outro bloco">⇄</button>`)
+          + (plain ? '' : `<button class="vmini" data-fs="${c.key}" title="Tela cheia deste torneio">⛶</button>`) + `</span>`
           + campBadgeHtml(c.it) + valBadge(c.it, cat) + changeBadge(c.it) + auditBadge(c.it)
           + (auditErr(c.it) && auditErr(c.it).motivo ? `<br><span style="font-size:10.5px;color:var(--red);font-weight:600">↳ ${escHtml(auditErr(c.it).motivo)}</span>` : '')
           + (urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(c.it)}</span>` : '')
@@ -1744,7 +1718,7 @@ function renderVertical(items, cat, asg){
             // Add-on em $; demais campos como se digita no app
             if (label === addonL){
               const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.'));
-              if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n))}</span>`;
+              if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n, c.it))}</span>`;
             }
             // elementos de poker: ticket picotado, ficha de chips, carta do game type, bounty do K.O
             if (label === ticketL) return `<span class="tkt"><span class="stub">Ticket</span><span class="val" title="${escHtml(disp)}">${escHtml(disp)}</span></span>`;
@@ -1764,7 +1738,7 @@ function renderVertical(items, cat, asg){
         <button class="chk ${c.done ? 'on' : ''}" data-done="${c.key}" role="checkbox" aria-checked="${c.done ? 'true' : 'false'}"
           aria-label="${c.done ? `Criado por ${escHtml((DONE[c.key]||{}).by || '—')} — desmarcar` : `Marcar ${escHtml(c.it.nome)} como criado`}"
           title="${c.done ? `Criado por ${escHtml((DONE[c.key]||{}).by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
-        <button class="copy-btn" data-copy="${escHtml(recipeText(c.it, cat.label))}" title="Copiar receita" style="margin-left:6px;display:inline-grid;vertical-align:middle"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>`)}</tr>
+        <button class="copy-btn" data-copy="${escHtml(recipeText(c.it, cat.label, cat.fields))}" title="Copiar receita" style="margin-left:6px;display:inline-grid;vertical-align:middle"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>`)}</tr>
     </table></div>`;
 }
 

@@ -904,6 +904,8 @@
      vermelho em 12 botões gritava "perigo" o tempo todo */
   .clear-btn:hover{ color:var(--felt-bright); border-color:var(--felt-bright); background:var(--felt-soft); transform:translateY(-1px); }
   .clear-btn:active{ transform:scale(.92); transition-duration:.1s; }
+  /* Modo leve ligado: o botão fica no dourado da marca pra deixar claro que o visual está econômico */
+  #liteToggle.active{ color:var(--gold); border-color:color-mix(in srgb, var(--gold) 55%, transparent); background:var(--gold-soft); }
   .clear-btn svg{width:14px; height:14px;}
 
   /* ── BANDEJA DE FERRAMENTAS: os 12 botões agrupados numa cápsula só, com
