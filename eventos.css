@@ -211,7 +211,7 @@ h1{
 /* O destaque do h1 é COR SÓLIDA, não gradiente no texto.
    `background-clip:text` num degradê é decoração que não significa nada: o
    "caminho até a mesa" não tem três valores pra justificar três cores. Pior, ele
-   torra o contraste no meio do percurso (o #c9a84c da ponta dá ~4,4:1 sobre o
+   torra o contraste no meio do percurso (o #e6c34f da ponta dá ~4,4:1 sobre o
    hero noturno, contra 8,9:1 do dourado claro) e apaga o texto inteiro se o
    background-clip falhar. O dourado da casa, chapado, diz a mesma coisa e é
    legível de ponta a ponta — a ênfase já vem do peso e do tamanho. */
@@ -296,7 +296,7 @@ h1 .grad{ color:var(--sup-gold-dark); }
    badge — de relance se sabe QUAL campanha está no palco. Sem stripe de
    borda: a cor entra como LUZ, não como listra. */
 .mev-slide[data-camp="AS"]{ --mev-camp:#f4a9ba }
-.mev-slide[data-camp="SPS"]{ --mev-camp:#c9a84c }
+.mev-slide[data-camp="SPS"]{ --mev-camp:#e6c34f }
 .mev-slide[data-camp="SPT"]{ --mev-camp:#22d47e }
 .mev-slide[data-camp]{
   background:

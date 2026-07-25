@@ -53,7 +53,7 @@
       '.spp-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;cursor:pointer;',
       '  scroll-margin:8px}',
       '.spp-item .spp-ico{width:26px;height:26px;flex:none;display:grid;place-content:center;border-radius:8px;',
-      '  background:rgba(255,255,255,.05);color:#c9a84c;font-size:14px;border:1px solid rgba(255,255,255,.07)}',
+      '  background:rgba(255,255,255,.05);color:#e6c34f;font-size:14px;border:1px solid rgba(255,255,255,.07)}',
       '.spp-item .spp-tt{flex:1;min-width:0}',
       '.spp-item .spp-t{font-size:14px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.spp-item .spp-s{font-size:11.5px;color:#a6b0aa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}',

@@ -473,7 +473,7 @@ document.addEventListener('DOMContentLoaded', function(){
   function redeDeNos(){
     if (!window.SupremaMotion) return;
     SupremaMotion.network('.hero', {
-      c1:'#8f6b2d', c2:'#18a36b', c1Dark:'#c9a84c', c2Dark:'#18a36b',
+      c1:'#8f6c14', c2:'#18a36b', c1Dark:'#e6c34f', c2Dark:'#18a36b',
       isDark: function(){ return !document.documentElement.classList.contains('light'); }
     });
   }
@@ -490,7 +490,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
   var MESA = SupremaFeltro.mount('.hero', {
     variant: 'mesa',
-    bg: '#0f1110', gold: '#c9a84c', felt: '#18a36b',
+    bg: '#0f1110', gold: '#e6c34f', felt: '#18a36b',
     onFallback: redeDeNos,
   });
   if (!MESA) return;                       // lite/sem WebGL: o mount já cuidou

@@ -1917,13 +1917,13 @@ const TV_RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
 let TV_FELTRO=null;
 /* matiz por cena, na ordem de tvSceneList(): Resumo, Turnos, Ritmo, Stakes,
    Top mesas, Eventos. Cores da paleta da casa (as mesmas do painel). */
-const TV_SCENE_ACCENT=['#22d47e','#4f8ef7','#c9a84c','#a78bfa','#e0a33c','#f36b70'];
+const TV_SCENE_ACCENT=['#22d47e','#4f8ef7','#e6c34f','#a78bfa','#e0a33c','#f36b70'];
 
 function tvMountFeltro(){
   if(TV_FELTRO)return;
   if(typeof SupremaFeltro==='undefined')return;      // defer ainda não chegou / lite
   TV_FELTRO=SupremaFeltro.mount('#tvMode .tv-bg',{
-    bg:'#0b0c10', gold:'#c9a84c', felt:'#22d47e',
+    bg:'#0b0c10', gold:'#e6c34f', felt:'#22d47e',
     onFallback(){ tvFeltroOff(); },                  // shader não compilou: volta pros blobs
   });
   const el=document.getElementById('tvMode');
@@ -2046,7 +2046,7 @@ function tvSceneList(){
   }
   if(D.tiers&&D.tiers.length){
     const mx=Math.max(...D.tiers.map(t=>t.fee),1);
-    const tc={Micro:'#5a5f5a',Low:'#a78bfa',Mid:'#4f8ef7',High:'#fbbf24',VHigh:'#c9a84c'};
+    const tc={Micro:'#5a5f5a',Low:'#a78bfa',Mid:'#4f8ef7',High:'#fbbf24',VHigh:'#e6c34f'};
     list.push({name:'Stakes',html(){return`
       <div class="tv-kicker">Stakes · rake por faixa de blind</div>
       <div class="tv-h">Onde o dinheiro está hoje</div>
@@ -2065,7 +2065,7 @@ function tvSceneList(){
       <div class="tv-bars">${top.map((t,i)=>`
         <div class="tv-bar" style="transition-delay:${i*90}ms">
           <div class="n">${t.name}<small>${t.type} · ${t.players} players · ${f(t.dur,1)}h</small></div>
-          <div class="track"><div class="fill" style="width:${t.fee/mx*100}%;background:linear-gradient(90deg,#c9a84c,#fbbf24);transition-delay:${.25+i*.09}s"></div></div>
+          <div class="track"><div class="fill" style="width:${t.fee/mx*100}%;background:linear-gradient(90deg,#e6c34f,#fbbf24);transition-delay:${.25+i*.09}s"></div></div>
           <div class="val">R$ ${f(t.fee,0)}</div>
         </div>`).join('')}</div>`;},run(){}});
   }

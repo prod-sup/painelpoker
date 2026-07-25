@@ -23,6 +23,7 @@
   const BASE = `painel/${DAY_ISO}/criacaoNoturna`;
   let gcSheet = null, gcConf = {}, gcIds = {}, gcAttached = false, gcSearch = '';
   let gcHideDone = false, gcSrc = null; // gcSrc = {fileName, by, at} da sheet em uso
+  let gcFs = null;                      // cls da seção em tela cheia ('main'|'side'|'sat') ou null
 
   const gcKey = it => `${normText(it.nome)}|${it.hora}`.replace(/[.#$\[\]\/]/g,'_');   // = itemKey da Criação
 
@@ -36,39 +37,35 @@
      Time Bank.
      Campos fora da lista entram DEPOIS, na ordem original da planilha;
      Garantido e Buy-in aparecem UMA vez; "Num. players"/"Chat" ficam fora. */
+  /* ORDEM DAS COLUNAS pedida pela GU (jul/2026) — esta é a sequência do quadro,
+     de cima pra baixo (a tabela é TRANSPOSTA: cada slot vira uma LINHA). "Torneio"
+     e "Horário" são renderizados fixos ANTES desta lista, por isso ela começa no MTT.
+     `key:true` = coluna-chave (dinheiro/estrutura crítica) que ganha destaque forte.
+     Campos que a planilha traga fora desta lista (K.O, payout, time bank…) entram
+     DEPOIS, esmaecidos. `once:true` = aparece uma vez só (dedup de garantido/buy-in). */
   const GC_CREATION_ORDER = [
-    { m: n => n === 'mtt' },                                                          // Torneio (nome interno)
-    /* Game Type logo abaixo do MTT: é a primeira coisa que se decide sobre um
-       torneio (Hold'em? PLO? Omaha 5?) e a que muda a leitura de tudo que vem
-       depois. Sem slot próprio ele caía no `remaining` e ia parar no FIM da
-       tabela, longe do nome — quem confere lia a receita inteira sem saber de
-       qual jogo ela era.
-       Padrões copiados do `gametype` da Criação Noturna (criacao-noturna.js:136),
-       inclusive o excl de "early game" — que é OUTRO campo e tem slot próprio
-       mais abaixo. Renomeou a coluna na planilha? Muda nos dois. */
+    { m: n => n === 'mtt' },                                                          // MTT (nome curto)
+    { m: n => n.includes('ticket') && n.includes('award'), key: true },              // TICKET AWARD
+    { m: n => n.includes('max') && n.includes('table') },                            // MAX. TABLE
+    { m: n => n.includes('early game') },                                            // Early game
+    { m: n => n.includes('pos late') },                                              // Pós Late Reg. (normText tira o acento)
+    { m: n => n.includes('final table') },                                           // Final Table
+    { m: n => n.includes('late') && n.includes('reg') && !n.includes('break')
+              && !n.includes('hour') && !n.includes('pos') && !n.includes('final') },// LATE REG.
+    { m: n => n.includes('buy-in') || n.includes('buy in') || n === 'buyin', once: true, key: true }, // BUY-IN (1x)
+    { m: n => n.includes('admin') && n.includes('fee'), key: true },                 // ADMIN FEE
+    { m: n => n.includes('prize pool') || n.includes('guarant') || n.includes('garantido'), once: true, key: true }, // PRIZE POOL USD (1x)
+    { m: n => n === 'chips' || n.includes('chip stack') || n.includes('starting stack') || n.includes('stack inicial'), key: true }, // CHIPS
+    { m: n => n.includes('early bird'), key: true },                                 // EARLY BIRD (0-20% = 20% das CHIPS)
+    { m: n => n.includes('rebuy') && n.includes('condition') },                      // REBUY CONDITION
+    { m: n => (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) && !n.includes('stack') && !n.includes('condition') }, // REENTRY/REBUY
+    { m: n => n.includes('stack') && (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) }, // STACK REENTRY/REBUY
+    { m: n => (n.includes('add-on') || n.includes('addon')) && !n.includes('stack') }, // ADD-ON
+    { m: n => n.includes('stack') && (n.includes('add-on') || n.includes('addon')) }, // STACK ADD-ON
     { m: n => (/game\s*type/.test(n) || /variante/.test(n) || /modalidade/.test(n) || n === 'game')
               && !/early\s*game/.test(n) },                                          // Game Type
-    { m: n => /(^|[^a-z])k\.?\s*o\b/.test(n) || n.includes('knock') },                // K.O (REG/PROG/OFF)
-    { m: n => n.includes('max') && n.includes('table') },                             // MAX. TABLE
-    { m: n => n.includes('prize pool') || n.includes('guarant') || n.includes('garantido'), once: true }, // Garantido (1x)
-    { m: n => n.includes('ticket') && n.includes('award') },                          // TICKET AWARD
-    { m: n => n.includes('payout') && (n.includes('calculated') || n.includes('calculado')) }, // CALCULATED PAYOUT
-    { m: n => n.includes('payout') || n.includes('premiac') },                        // PAYOUT
-    { m: n => n.includes('buy-in') || n.includes('buy in') || n === 'buyin', once: true }, // Buy-in (1x)
-    { m: n => (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) && !n.includes('stack') && !n.includes('condition') },
-    { m: n => n.includes('stack') && (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) },
-    { m: n => n.includes('rebuy') && n.includes('condition') },
-    { m: n => (n.includes('add-on') || n.includes('addon')) && !n.includes('stack') },
-    { m: n => n.includes('stack') && (n.includes('add-on') || n.includes('addon')) },
-    { m: n => n.includes('break') && n.includes('late') },                            // BREAK LATE REG.
-    { m: n => n.includes('admin') && n.includes('fee') },                             // Admin Fee
-    { m: n => n.includes('structure') || n.includes('estrutura') },                   // STRUCTURE
-    { m: n => n === 'chips' || n.includes('chip stack') || n.includes('starting stack') || n.includes('stack inicial') },
-    { m: n => n.includes('early game') },                                             // Early game (blinds)
-    { m: n => n.includes('pos late') },                                               // Pós Late Reg. (normText tira o acento)
-    { m: n => n.includes('final table') },                                            // Final Table
-    { m: n => n.includes('early bird') },                                             // Early Bird
-    { m: n => n.includes('time bank') || n === 'tb' },                                // TIME BANK
+    { m: n => n.includes('structure') || n.includes('estrutura') },                  // STRUCTURE
+    { m: n => n.includes('hour late') || n.includes('hora late') },                  // Hour late register
   ];
   // além dos campos que a Criação esconde, some o "Action" da planilha —
   // aqui a linha Action é o botão de conferido do checklist, duplicaria
@@ -89,6 +86,8 @@
     if (GC_HIDDEN_RECIPE.test(n)) return true;
     return GC_FEE_FIELD.test(n) && !GC_FEE_EXCETO.test(n);
   }
+  /* devolve [{label, hi, key}]: hi=true nas colunas da lista da GU (destacadas),
+     hi=false no que sobrou (esmaecido no fim); key=true nas colunas-chave. */
   function gcOrderFields(fields){
     const remaining = fields.slice(), out = [];
     GC_CREATION_ORDER.forEach(slot => {
@@ -96,13 +95,13 @@
       for (let i = 0; i < remaining.length; ){
         if (slot.m(normText(remaining[i]))){
           if (!claimed){
-            out.push(remaining[i]); remaining.splice(i, 1); claimed = true;
+            out.push({label: remaining[i], hi: true, key: !!slot.key}); remaining.splice(i, 1); claimed = true;
             if (!slot.once) break;               // sem dedup: para no primeiro
           } else remaining.splice(i, 1);          // duplicata de Garantido/Buy-in: fora
         } else i++;
       }
     });
-    return out.concat(remaining);                 // o que sobrou vai pro fim, na ordem da planilha
+    return out.concat(remaining.map(label => ({label, hi: false, key: false}))); // sobra esmaecida no fim
   }
   function gcVisibleFields(){
     return gcOrderFields(((gcSheet && gcSheet.fields) || []).filter(l => !gcHiddenField(l)));
@@ -272,28 +271,33 @@
       const cell = (fn, cls) => cols.map(c => `<td class="${c.ok ? 'gc-ok' : ''} ${cls || ''}">${fn(c)}</td>`).join('');
       let t = `<tr class="gc-head"><th class="gc-rowlab">Torneio</th>${cell(c => escHtml(c.it.nome), 'gc-name')}</tr>`;
       t += `<tr><th class="gc-rowlab key">Horário</th>${cell(c => escHtml(c.it.hora || '—'), 'gc-time')}</tr>`;
-      // linhas-chave destacadas: mesmos campos que a Criação põe em evidência
-      const isKeyRow = n => /admin fee|early bird|buy-?in|prize pool|guarant|garantido/.test(n);
-      gcVisibleFields().forEach(label => {
-        const n = normText(label);
+      // colunas na ordem/destaque da GU (gcVisibleFields → {label, hi, key})
+      gcVisibleFields().forEach(f => {
+        const label = f.label, n = normText(label);
         // Admin Fee sai já CALCULADA (Rake 10% / +2%, com o decimal do buy-in), igual à Criação
         const isAdmin = /admin\s*fee|taxa\s*administ|adm\.?\s*fee/.test(n) && !/early/.test(n);
         const val = c => {
           if (isAdmin){ const af = gcAdminFeeVal(c.it); if (af) return escHtml(af); }
           return gcFmtExtra(label, c.it.extra ? c.it.extra[label] : undefined);
         };
-        t += `<tr><th class="gc-rowlab ${isKeyRow(n) ? 'key' : ''}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(val, /chips|prize pool|buy-?in/.test(n) ? 'gc-num' : '')}</tr>`;
+        const labCls = `${f.key ? 'gc-key' : ''} ${f.hi ? 'gc-hi' : 'gc-dim'}`.trim();
+        t += `<tr class="${f.key ? 'gc-keyrow' : ''}"><th class="gc-rowlab ${labCls}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(val, /chips|prize pool|buy-?in|ticket|admin\s*fee/.test(n) ? 'gc-num' : '')}</tr>`;
       });
       t += `<tr><th class="gc-rowlab">ID Pokerbyte</th>${cell(c => gcIds[c.key] ? escHtml(gcIds[c.key].val) : '<span class="gc-noid" title="Sem ID cadastrado — confira se o torneio foi criado no app">sem ID</span>', 'gc-num')}</tr>`;
       t += `<tr><th class="gc-rowlab key">Action</th>${cell(c =>
         `<button class="gc-chk ${c.ok ? 'on' : ''}" data-gckey="${escHtml(c.key)}" title="${c.ok ? 'Conferido por ' + escHtml(c.by) : 'Marcar como conferido'}"><svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>${c.by ? `<span class="gc-by">${escHtml(c.by)}</span>` : ''}`, 'gc-act')}</tr>`;
       html += `
-        <div class="gc-sec ${sec.cls}">
-          <span class="tag"><span class="suit">${sec.suit}</span>${sec.label}</span>
-          <span class="cnt">${secDone}/${sec.items.length} conferidos</span>
-          <span class="line"></span>
-        </div>
-        <div class="gc-scroll"><table class="gc-table">${t}</table></div>`;
+        <div class="gc-secwrap" data-sec="${sec.cls}">
+          <div class="gc-sec ${sec.cls}">
+            <span class="tag"><span class="suit">${sec.suit}</span>${sec.label}</span>
+            <span class="cnt">${secDone}/${sec.items.length} conferidos</span>
+            <span class="line"></span>
+            <button class="gc-fs-btn" type="button" data-fs="${sec.cls}" title="Tela cheia deste quadro (Esc pra sair)" aria-label="Tela cheia deste quadro">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+            </button>
+          </div>
+          <div class="gc-scroll"><table class="gc-table">${t}</table></div>
+        </div>`;
     });
     area.innerHTML = html || `<div class="gc-empty"><span class="ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3C7 8 3 12 3 15.5A4 4 0 0 0 11 17.3C10.6 19.4 9.5 20.6 7 21.5H17C14.5 20.6 13.4 19.4 13 17.3A4 4 0 0 0 21 15.5C21 12 17 8 12 3Z"/></svg></span>Nada nesse filtro.</div>`;
     // restaura o scroll guardado no topo da função (horizontal por seção + vertical)
@@ -301,7 +305,36 @@
     _prevX.forEach((x, i) => { if (_nowX[i]) _nowX[i].scrollLeft = x; });
     if (_scroller && _prevY) _scroller.scrollTop = _prevY;
     area.querySelectorAll('[data-gckey]').forEach(b => b.addEventListener('click', () => gcToggle(b.dataset.gckey)));
+    // tela cheia por quadro — liga os botões e reaplica o estado após o re-render
+    area.querySelectorAll('[data-fs]').forEach(b => b.addEventListener('click', () => gcToggleFs(b.dataset.fs)));
+    if (gcFs){
+      const w = area.querySelector(`.gc-secwrap[data-sec="${gcFs}"]`);
+      if (w) w.classList.add('gc-fs'); else gcSetFs(null);
+    }
   }
+  /* TELA CHEIA POR QUADRO — expande UMA seção sobre a tela toda (CSS position:fixed,
+     transição fluida). Estado guardado em gcFs pra sobreviver ao re-render do Firebase. */
+  function gcSetFs(cls){
+    gcFs = cls;
+    document.body.classList.toggle('gc-fs-lock', !!cls);
+    // expande o drawer a 100vw pra o inset:0 do quadro cobrir a viewport (ver painel.css)
+    const drawer = document.getElementById('guConfDrawer');
+    if (drawer) drawer.classList.toggle('gc-has-fs', !!cls);
+  }
+  function gcToggleFs(cls){
+    const area = document.getElementById('guConfArea');
+    const w = area && area.querySelector(`.gc-secwrap[data-sec="${cls}"]`);
+    if (!w) return;
+    const on = !w.classList.contains('gc-fs');
+    // só uma seção em tela cheia por vez
+    area.querySelectorAll('.gc-secwrap.gc-fs').forEach(el => el.classList.remove('gc-fs'));
+    if (on) w.classList.add('gc-fs');
+    gcSetFs(on ? cls : null);
+  }
+  // Esc sai da tela cheia (sem fechar o drawer)
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && gcFs){ e.stopPropagation(); gcToggleFs(gcFs); }
+  }, true);
   function gcAttach(){
     if (gcAttached || !fbDb) return;
     /* só com auth viva: leitura negada CANCELA o listener (mesma corrida do
@@ -361,6 +394,7 @@
     if (semHora.length) showToast(`Atenção: ${semHora.length} torneio(s) sem horário reconhecível ficaram de fora: ${semHora.map(x=>x.nome).slice(0,3).join(', ')}${semHora.length>3?'…':''}`, true);
     if (secToday.duplicateSection || (secNext && secNext.duplicateSection)) showToast('Atenção: nome de dia duplicado na planilha — confira se a seção usada é a certa.', true);
     if (sections.unknown.length) showToast(`Atenção: ${sections.unknown.length} torneio(s) com tipo não reconhecido na coluna TYPE ficaram de fora.`, true);
+    if (sections.tipoColMissing) showToast('⚠ Coluna TYPE não encontrada — classifiquei tudo pelo nome/garantido. Confira a divisão Main/Side.', true);
     // diff contra o que a equipe já estava conferindo (publicado pelo noturno ou por upload anterior)
     const changes = gcComputeChanges(gcSheet, sections);
     gcSheet = {...sections, fields, fileName, changes};
@@ -425,10 +459,15 @@
     }
   });
 
+  // fecha o drawer saindo antes de qualquer quadro em tela cheia
+  function gcCloseDrawer(){
+    if (gcFs) gcToggleFs(gcFs);
+    closeDrawer('guConfDrawerOverlay');
+  }
   document.getElementById('guConfToggle').addEventListener('click', () => { openDrawer('guConfDrawerOverlay'); gcAttach(); gcRender(); });
-  document.getElementById('guConfDrawerClose').addEventListener('click', () => closeDrawer('guConfDrawerOverlay'));
+  document.getElementById('guConfDrawerClose').addEventListener('click', gcCloseDrawer);
   document.getElementById('guConfDrawerOverlay').addEventListener('click', (e) => {
-    if (e.target.id === 'guConfDrawerOverlay') closeDrawer('guConfDrawerOverlay');
+    if (e.target.id === 'guConfDrawerOverlay') gcCloseDrawer();
   });
   let gcSearchT = null;
   document.getElementById('guConfSearch').addEventListener('input', function(){

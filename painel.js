@@ -1921,7 +1921,7 @@ function launchConfetti(){
   const container = document.getElementById('wsConfetti');
   if(!container) return;
   container.innerHTML = '';
-  const colors = ['#22d47e','#0c5c3f','#c9a84c','#ffffff','#a0ffcc','#18a36b'];
+  const colors = ['#22d47e','#0c5c3f','#e6c34f','#ffffff','#a0ffcc','#18a36b'];
   for(let i = 0; i < 60; i++){
     const piece = document.createElement('div');
     piece.className = 'confetti-piece';

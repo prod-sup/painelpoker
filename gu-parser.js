@@ -85,6 +85,20 @@ function findWeekdaySectionRange(matrix, weekdayName, nameIdx){
    que a pessoa digita no app pra criar a mesa. Em vez de fixar 30 índices,
    achamos a LINHA DE CABEÇALHO na planilha e mapeamos as colunas pelo nome:
    se a GU adicionar/mover coluna, continua funcionando. */
+/* rótulo da coluna TYPE/categoria — TOLERANTE à grafia da GU: "TYPE", "TIPO",
+   "TIPO DE TORNEIO", "Categoria"... Um lugar só decide o que é a coluna TYPE
+   (o gate do cabeçalho E o guIdx usam esta função), então nunca mais diverge.
+   NUNCA casa "Game Type" (coluna diferente, com slot próprio na receita) — era
+   a armadilha do match frouxo. RAIZ DO PROBLEMA RECORRENTE: o match EXATO
+   (=== 'type') virava -1 quando a GU renomeava a coluna, e aí TODO torneio caía
+   no fallback por garantido (≥20k = main, resto = side) → Main Event virava Side
+   e a divisão do turno quebrava, sem aviso nenhum. */
+function isTypeLabel(n){
+  if (/game/.test(n)) return false;                       // "Game Type" não é a coluna TYPE
+  return n === 'type' || n === 'tipo'
+      || /(^|[^a-z])(type|tipo)([^a-z]|$)/.test(n)         // "tipo de torneio", "type —…"
+      || /categoria|category/.test(n);
+}
 function findHeaderCols(matrix){
   const clean = v => typeof v === 'string' && v.trim() ? v.replace(/\s+/g,' ').trim() : '';
   for (let i = 0; i < Math.min(matrix.length, 80); i++){
@@ -92,7 +106,15 @@ function findHeaderCols(matrix){
     if (!row) continue;
     const norm = row.map(c => typeof c === 'string' ? normText(c) : '');
     const mttIdx = norm.findIndex(x => x === 'mtt');
-    if (mttIdx >= 0 && norm.some(x => x === 'tipo' || x === 'type') && norm.some(x => x.includes('buy'))){
+    // ÂNCORA do cabeçalho = MTT + BUY-IN. A coluna TYPE deixou de ser obrigatória
+    // aqui de propósito: se a GU remover/renomear o TYPE além do reconhecível, o
+    // cabeçalho AINDA é achado, o guIdx.tipo vira -1 e a classificação cai no
+    // fallback por nome/garantido COM aviso (tipoColMissing) — em vez de rejeitar
+    // a planilha inteira com "cabeçalho não encontrado". Prize/guarantido entram
+    // como âncora extra pra não casar uma linha solta que só tenha "mtt" e "buy".
+    const hasBuy = norm.some(x => x.includes('buy'));
+    const hasAnchor = norm.some(isTypeLabel) || norm.some(x => x.includes('prize') || x.includes('guarant'));
+    if (mttIdx >= 0 && hasBuy && hasAnchor){
       // na Global real o cabeçalho ocupa DUAS linhas ("BLINDS UP (min)" em cima,
       // "Early game / Pós Late Reg. / Final Table..." embaixo) — mescla as duas,
       // mas só se a linha de baixo não for já uma linha de torneio (coluna MTT vazia)
@@ -125,9 +147,9 @@ function guIdx(headerCols){
     hora: find(n => n === 'hora' || n === 'horario'),
     name: name >= 0 ? name : shortName,
     shortName,
-    tipo: find(n => n === 'type' || n === 'tipo'),
+    tipo: find(isTypeLabel),                                  // tolerante à grafia (ver isTypeLabel)
     prize: find(n => n.includes('prize pool') || n.includes('guaranteed')),
-    buyin: find(n => n === 'buy-in' || n === 'buy in' || n === 'buyin'),
+    buyin: find(n => /buy[\s-]?in/.test(n) && !n.includes('size')),
     hourLate: find(n => n.includes('hour late') || n.includes('hora late'))
   };
 }
@@ -259,7 +281,9 @@ function extractGuDaySection(matrix, weekdayEn, headerCols){
     }
     // TYPE vazio E sem valores: linha decorativa/rótulo — ignorada em silêncio
   }
-  return {main, side, sat, unknown, semHora, aposGap, semTipo, duplicateSection: range.duplicate};
+  // coluna TYPE não achada no cabeçalho: TUDO passou pelo fallback por nome/garantido.
+  // Sinaliza pra virar aviso GRITANTE (antes isso era silencioso — a origem do bug crônico).
+  return {main, side, sat, unknown, semHora, aposGap, semTipo, tipoColMissing: gi.tipo < 0, duplicateSection: range.duplicate};
 }
 
 /* janela 06:10(amanhã) → 05:30(dia seguinte): mesma montagem da Conferência de amanhã */
@@ -275,5 +299,6 @@ function buildSections(sectionTomorrow, sectionDayAfter){
   const sat = [...(sectionTomorrow ? inWindow(sectionTomorrow.sat) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.sat) : [])];
   const unknown = [...(sectionTomorrow ? inWindow(sectionTomorrow.unknown) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.unknown) : [])];
   const semTipo = [...(sectionTomorrow ? inWindow(sectionTomorrow.semTipo) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.semTipo) : [])];
-  return { main, side, sat, unknown, semTipo };
+  const tipoColMissing = !!(sectionTomorrow && sectionTomorrow.tipoColMissing);
+  return { main, side, sat, unknown, semTipo, tipoColMissing };
 }

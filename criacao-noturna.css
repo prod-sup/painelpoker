@@ -263,7 +263,7 @@ body > *{position:relative;z-index:1}
   .hstat.c-sidefree .n{color:#4dd0c4}
   .hstat.c-liga .n{color:#f078b8}
   .hstat.c-prog .n{color:#22d47e}
-  .hstat.c-camp .n{color:#c9a84c}
+  .hstat.c-camp .n{color:#e6c34f}
   .hstat.c-camp{background:rgba(201,168,76,.08);border-color:rgba(201,168,76,.28)}
   /* ── ANÉIS DE CRIAÇÃO por função (linha Apple Fitness) ── */
   .cn-rings{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,200px)); gap:14px; margin-top:22px; }
@@ -465,6 +465,27 @@ body > *{position:relative;z-index:1}
   .section-head.sat  .tag{background:var(--sat-soft);color:var(--sat-bright)}
   .section-head.sidefree .tag{background:var(--sidefree-soft);color:var(--sidefree-bright)}
   .section-head.liga .tag{background:var(--liga-soft);color:var(--liga-bright)}
+  /* ── EVENTOS PRINCIPAIS (Liga) — grade fixa destacada, valores em R$/US$ ── */
+  .liga-sec .vwrap{
+    border-color:color-mix(in srgb, var(--liga) 42%, var(--hairline));
+    box-shadow:0 0 0 1px color-mix(in srgb, var(--liga) 20%, transparent), var(--shadow-sm);
+    max-height:none;
+  }
+  .liga-table td.lg-h{color:var(--liga-bright);font-weight:750}
+  .liga-table td.lg-n{font-weight:650;white-space:normal;max-width:300px;line-height:1.32}
+  .liga-table .lg-suit{color:var(--liga-bright);margin-right:6px;font-size:12px}
+  .liga-table .lg-tag{
+    display:inline-block;margin-left:8px;padding:1px 8px;border-radius:99px;
+    font-size:10px;font-weight:700;letter-spacing:.03em;vertical-align:middle;
+    background:var(--liga-soft);color:var(--liga-bright);
+  }
+  .liga-table td.lg-x{color:var(--ink-soft)}
+  .liga-table td.lg-act{white-space:nowrap;text-align:right}
+  .liga-table td.lg-act .copy-btn{margin-right:6px}
+  .liga-table tr.liga-done td{opacity:.5}
+  .liga-table tr.liga-done td.lg-n{text-decoration:line-through}
+  .liga-table tr.liga-done td.lg-act{opacity:1}
+  .liga-table .chk.on{background:var(--liga-bright);border-color:var(--liga-bright)}
   .section-head h2{font-family:var(--display);font-size:19px;font-weight:750;letter-spacing:-.02em}
   .section-head .cnt{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
   .section-head .line{flex:1;height:1px;background:var(--hairline)}

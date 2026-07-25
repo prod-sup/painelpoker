@@ -493,7 +493,7 @@ table.t td.m{color:var(--ink2)}
   background:#0b0d0c;color:#f2ede2;font-family:var(--sans);
   /* --tv-gold era #d8b56d (acento do Organograma, --sup-p-org) — trocado pro
      dourado escuro real da marca, o mesmo que TV_SCENE_ACCENT já usa (js) */
-  --tv-dia:#4f8ef7;--tv-noite:#a78bfa;--tv-green:#34d399;--tv-gold:#c9a84c;--tv-red:#f87171;
+  --tv-dia:#4f8ef7;--tv-noite:#a78bfa;--tv-green:#34d399;--tv-gold:#e6c34f;--tv-red:#f87171;
   --tv-ink2:#9ba19c;--tv-ink3:#6a706a;--tv-bdr:rgba(242,237,226,.09);
 }
 body.tv-on #tvMode{display:flex}

@@ -110,6 +110,39 @@ console.log('semTipo sobrevive a buildSections (aviso de TYPE ausente chega até
 const builtVar = api.buildSections(vsec, null);
 ok(Array.isArray(builtVar.semTipo) && builtVar.semTipo.length === vsec.semTipo.length, 'buildSections propaga o semTipo da seção, não descarta');
 
+console.log('coluna TYPE renomeada / ausente (a origem do bug crônico)');
+/* cabeçalho com a coluna TYPE RENOMEADA para "TIPO DE TORNEIO" e com uma coluna
+   "GAME TYPE" logo ao lado — o match tem que achar a TYPE e IGNORAR a Game Type. */
+const HR1 = ['HORA','MTT','MTT MARKETING','TIPO DE TORNEIO','GAME TYPE','PRIZE POOL USD','BUY-IN','FEE'];
+const renomeada = [
+  ['G MTTS'], [], HR1, [null],
+  [null, null, 'THURSDAY', null],
+  ['20:00', '#R1', 'Main renomeado', 'Main Event', 'NLH', 30000, 50, 0.10],
+  ['21:00', '#R2', 'Side renomeado', 'Side Event', 'PLO5', 2000, 15, 0.10]
+];
+const rcols = api.findHeaderCols(renomeada);
+ok(rcols, 'acha o cabeçalho mesmo com a coluna TYPE renomeada');
+const rgi = api.guIdx(rcols);
+ok(rgi.tipo === 3, 'guIdx aponta pra "TIPO DE TORNEIO", NÃO pra "GAME TYPE"');
+const rsec = api.extractGuDaySection(renomeada, 'THURSDAY', rcols);
+ok(rsec && rsec.main.length === 1 && rsec.side.length === 1, 'Main/Side classificados certo pela coluna renomeada');
+ok(rsec.tipoColMissing === false, 'coluna TYPE encontrada → sem flag de ausência');
+
+/* cabeçalho SEM nenhuma coluna TYPE-ish: tem que sinalizar tipoColMissing pra virar aviso,
+   e ainda assim classificar tudo pelo fallback (nada some da divisão). */
+const HS1 = ['HORA','MTT','MTT MARKETING','PRIZE POOL USD','BUY-IN','FEE'];
+const semColuna = [
+  ['G MTTS'], [], HS1, [null],
+  [null, null, 'FRIDAY', null],
+  ['20:00', '#F1', 'Sem coluna type gordo', 50000, 50, 0.10],
+  ['21:00', '#F2', 'Sem coluna type magro', 1000, 10, 0.10]
+];
+const scols = api.findHeaderCols(semColuna);
+ok(scols && api.guIdx(scols).tipo === -1, 'sem coluna TYPE-ish acha o cabeçalho (âncora PRIZE) e tipo fica -1');
+const ssec = api.extractGuDaySection(semColuna, 'FRIDAY', scols);
+ok(ssec.tipoColMissing === true, 'coluna TYPE ausente → flag tipoColMissing pra virar aviso');
+ok(ssec.main.length === 1 && ssec.side.length === 1, 'mesmo sem TYPE, tudo entra na divisão pelo fallback (nada some)');
+
 console.log('formatadores');
 ok(api.cellToHHMM(0.25) === '06:00', 'fração de dia vira HH:MM');
 ok(api.timeToMinutes('06:10') === 370, 'HH:MM vira minutos');

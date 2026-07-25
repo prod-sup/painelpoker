@@ -40,7 +40,7 @@
 
    USO:
      const tv = SupremaFeltro.mount('.tv-bg', {
-       gold:'#c9a84c', felt:'#22d47e', bg:'#0b0c10',
+       gold:'#e6c34f', felt:'#22d47e', bg:'#0b0c10',
        onFallback: () => SupremaMotion.network('.tv-bg', {...})
      });
      tv.accent('#f06050'); tv.heat(1); tv.pulse(); tv.boom();
@@ -366,7 +366,7 @@ void main(){
 
     const COL = {
       bg:   hexRgb(opts.bg   || '#0b0c10'),
-      gold: hexRgb(opts.gold || '#c9a84c'),
+      gold: hexRgb(opts.gold || '#e6c34f'),
       felt: hexRgb(opts.felt || '#22d47e'),
     };
 
@@ -379,7 +379,7 @@ void main(){
 
     /* estado dirigido pela TV. O alvo é PERSEGUIDO, não atribuído: sem a
        suavização a cor da categoria trocaria num estalo no corte de cena. */
-    let accent = hexRgb(opts.gold || '#c9a84c');
+    let accent = hexRgb(opts.gold || '#e6c34f');
     let accentTo = accent.slice();
     let heat = 0, heatTo = 0, pulse = 0, boom = 0;
     /* (-1,-1) = sem cursor: o shader da mesa checa `uMouse.x >= 0.0` e pula a

@@ -25,7 +25,7 @@
   --felt:      var(--sup-felt-bright);
 
   /* cor de cada produto — FONTE ÚNICA no suprema-tokens.css.
-     Aqui só apelidamos. Antes eram cópias e o admin já tinha divergido (#c9a35c vs #8f6b2d). */
+     Aqui só apelidamos. Antes eram cópias e o admin já tinha divergido (#c9a35c vs #8f6c14). */
   --p-painel:  var(--sup-p-painel);
   --p-admin:   var(--sup-p-admin);
   --p-gu:      var(--sup-p-gu);
@@ -53,7 +53,7 @@ html.light{
   --ink-faint: #6e6e73;
   --hairline:  rgba(0,0,0,.10);
   --hairline-strong: rgba(0,0,0,.16);
-  --gold:      var(--sup-gold);   /* dourado da marca no claro (#8f6b2d, 4,72:1 — AA) */
+  --gold:      var(--sup-gold);   /* dourado da marca no claro (#8f6c14, 4,72:1 — AA) */
   --gold-soft: rgba(143,107,45,.09);
   --felt:      #0e7a4e;
 }
@@ -608,7 +608,7 @@ html.light .aviso[data-tipo="erro"]{ --av-fg:#c0392b }
   font-family:var(--mono);font-size:10px;font-weight:800;padding:2px 10px;border-radius:99px;
 }
 .lb-champ.c1{padding-top:22px;border-color:color-mix(in srgb, var(--gold) 55%, transparent);background:var(--gold-soft)}
-.lb-champ.c1 .lc-pos{background:linear-gradient(150deg,#f0d79a,#c9a84c);color:#14100a}
+.lb-champ.c1 .lc-pos{background:linear-gradient(150deg,#f0d79a,#e6c34f);color:#14100a}
 .lb-champ.c2 .lc-pos{background:linear-gradient(150deg,#e8edf3,#aab4c4);color:#14100a}
 .lb-champ.c3 .lc-pos{background:linear-gradient(150deg,#b07f47,#7d5a34);color:#f2ede2}
 .lb-champ.me{box-shadow:0 0 0 2px color-mix(in srgb, var(--gold) 40%, transparent)}
@@ -634,7 +634,7 @@ html.light .aviso[data-tipo="erro"]{ --av-fg:#c0392b }
   font-family:var(--mono);font-size:12px;font-weight:800;color:var(--ink-soft);
   border:1px solid var(--hairline);
 }
-.lb-pos.p1{color:#14100a;background:linear-gradient(150deg,#f0d79a,#c9a84c);border-color:transparent}
+.lb-pos.p1{color:#14100a;background:linear-gradient(150deg,#f0d79a,#e6c34f);border-color:transparent}
 .lb-pos.p2{color:#14100a;background:linear-gradient(150deg,#e8edf3,#aab4c4);border-color:transparent}
 .lb-pos.p3{color:#f2ede2;background:linear-gradient(150deg,#b07f47,#7d5a34);border-color:transparent}
 .lb-face{
@@ -889,9 +889,9 @@ html.light .ev-form input[type=date],html.light .ev-form input[type=time]{color-
   border:2px dashed rgba(242,237,226,.55);
   box-shadow:0 0 0 3px color-mix(in srgb, var(--chip) 75%, #000 20%), 0 4px 10px -3px rgba(0,0,0,.5);
   transition:transform .4s var(--ease);
-  --chip:#8f6b2d;
+  --chip:#8f6c14;
 }
-.lk-chip.gold{--chip:#8f6b2d}
+.lk-chip.gold{--chip:#8f6c14}
 .lk-chip.felt{--chip:#0f7a4e}
 .lk-body{min-width:0}
 .lk-body b{display:block;font-size:13.5px;letter-spacing:-.01em}
@@ -1202,7 +1202,7 @@ html.light .ev-form input[type=date],html.light .ev-form input[type=time]{color-
 }
 /* Etapa 5 · OURO — camadas douradas, linhas luminosas e a primeira aura */
 [data-tier="4"]::before{ padding:3.5px;
-  background:conic-gradient(from var(--frameAngle),#a97a2e,#e3c176 16%,#fff3cf 26%,#d8b56d 40%,#8f6b2d 55%,#f6e6b8 72%,#fff6dc 80%,#c9a84c 90%,#a97a2e);
+  background:conic-gradient(from var(--frameAngle),#a97a2e,#e3c176 16%,#fff3cf 26%,#d8b56d 40%,#8f6c14 55%,#f6e6b8 72%,#fff6dc 80%,#e6c34f 90%,#a97a2e);
   animation:frameSweep 9s linear infinite;
 }
 /* Etapa 6 · PLATINA — gelo vivo, tecnológico, sweep rápido + halo respirando */
@@ -1220,7 +1220,7 @@ html.light .ev-form input[type=date],html.light .ev-form input[type=time]{color-
 [data-tier="7"]::before{ padding:5px;
   background:
     conic-gradient(from calc(var(--frameAngle) * -1), transparent 0 40%, rgba(255,255,255,.5) 50%, transparent 60% 100%),
-    conic-gradient(from var(--frameAngle),#8f6b2d,#ffe9b0 10%,#fffdf4 16%,#d8b56d 26%,#0f7a4e 38%,#22d47e 46%,#9ff0c8 52%,#d8b56d 62%,#b98cff 72%,#fff3cf 82%,#e8c778 92%,#8f6b2d);
+    conic-gradient(from var(--frameAngle),#8f6c14,#ffe9b0 10%,#fffdf4 16%,#d8b56d 26%,#0f7a4e 38%,#22d47e 46%,#9ff0c8 52%,#d8b56d 62%,#b98cff 72%,#fff3cf 82%,#e8c778 92%,#8f6c14);
   animation:frameSweep 4s linear infinite;
 }
 /* micro-interação: passar o mouse no avatar acelera a varredura da moldura */
@@ -1387,7 +1387,7 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{ animati
 .pf-banner-picker button[data-b="neural"]{ background:linear-gradient(150deg,#1c3b73,#050912) }
 .pf-banner-picker button[data-b="galaxy"]{ background:linear-gradient(150deg,#3b2a80,#090616) }
 .pf-banner-picker button[data-b="quantum"]{ background:linear-gradient(150deg,#155a80,#3a2260) }
-.pf-banner-picker button[data-b="core"]{ background:linear-gradient(150deg,#8f6b2d,#0a0703) }
+.pf-banner-picker button[data-b="core"]{ background:linear-gradient(150deg,#8f6c14,#0a0703) }
 
 /* rank por performance: pílula ao lado do nível, tingida pela liga */
 .pf-rank-badge{

@@ -396,8 +396,8 @@
   /* ── REDE DE NÓS (ref. MotionSites "Network Hero", estreada no Radar de
      Eventos): partículas à deriva que se conectam por proximidade, num canvas
      atrás do conteúdo do hero. Cada produto passa as SUAS cores (hex):
-       SupremaMotion.network('.hero', { c1:'#18a36b', c2:'#8f6b2d',
-                                        c1Dark:'#2bd393', c2Dark:'#c9a84c' });
+       SupremaMotion.network('.hero', { c1:'#18a36b', c2:'#8f6c14',
+                                        c1Dark:'#2bd393', c2Dark:'#e6c34f' });
      Perf/craft: um rAF por host, pausado quando a aba perde o foco E quando o
      hero sai da tela (IntersectionObserver); densidade proporcional à área;
      desliga em prefers-reduced-motion e no modo leve (html.lite). ── */
@@ -426,8 +426,8 @@
         });
         var ctx = cv.getContext('2d');
         var dpr = Math.min(2, global.devicePixelRatio || 1);
-        var light = [ hexRgb(opts.c1 || '#8f6b2d'), hexRgb(opts.c2 || '#18a36b') ];
-        var dark  = [ hexRgb(opts.c1Dark || opts.c1 || '#c9a84c'), hexRgb(opts.c2Dark || opts.c2 || '#2bd393') ];
+        var light = [ hexRgb(opts.c1 || '#8f6c14'), hexRgb(opts.c2 || '#18a36b') ];
+        var dark  = [ hexRgb(opts.c1Dark || opts.c1 || '#e6c34f'), hexRgb(opts.c2Dark || opts.c2 || '#2bd393') ];
         var W = 0, H = 0, nodes = [], raf = 0, visible = true, focused = !document.hidden;
         var LINK = (opts.linkDist || 130) * dpr;
         function size(){

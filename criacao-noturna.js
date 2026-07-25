@@ -323,6 +323,48 @@ const CAT_SIDE_B = {key:'sideNoAdmin', cls:'sidefree', suit:'♦', label:'Side E
 const SECTIONS = [CAT_MAIN, CAT_SAT, CAT_SIDE_A, CAT_SIDE_B];
 const CAT_BY_KEY = {main: CAT_MAIN, sat: CAT_SAT, sideAdmin: CAT_SIDE_A, sideNoAdmin: CAT_SIDE_B};
 
+/* =========================================================================
+   EVENTOS PRINCIPAIS (LIGA PRINCIPAL) — grade FIXA, pré-carregada de
+   liga-principal-data.js (LIGA_PRINCIPAL_SECTIONS). VALORES EM REAIS. É uma
+   seção PRÓPRIA, destacada (★ --liga), independente da Global MTT: aparece
+   mesmo antes de subir planilha. Reconstruída em jul/2026 — o esqueleto
+   (HTML #stLiga/legenda, CSS .section-head.liga/.hstat.c-liga, sw.js) tinha
+   sobrado órfão depois que o JS que consumia LIGA_PRINCIPAL foi removido num
+   refactor; por isso "os Eventos Principais sumiram".
+   Nota de moeda: como o resto do app raciocina em dólar (×5 no toggle R$), a
+   Liga é BRL nativa; fmtLigaMoney faz a ponte (mostra R$ como está, US$ = ÷5),
+   e a receita copiada leva o valor CRU da planilha (é o que se digita ao criar).
+========================================================================= */
+function buildLiga(){
+  if (typeof LIGA_PRINCIPAL_SECTIONS === 'undefined') return [];
+  const norm = s => ({main:(s&&s.main)||[], side:(s&&s.side)||[], sat:(s&&s.sat)||[], unknown:[], semTipo:[], semHora:[]});
+  const t = norm(LIGA_PRINCIPAL_SECTIONS[WEEKDAY_TOMORROW_EN]);
+  const a = norm(LIGA_PRINCIPAL_SECTIONS[WEEKDAY_DAYAFTER_EN]);
+  const secs = buildSections(t, a);                 // aplica a janela 06:10→05:30 e ordena
+  const tag = (arr, c) => (arr||[]).map(it => ({...it, ligaCat:c, liga:true}));
+  const all = [...tag(secs.main,'main'), ...tag(secs.side,'side'), ...tag(secs.sat,'sat')];
+  const wrap = m => (m == null ? 99999 : (m >= CONF_WINDOW_START_MIN ? m : m + 1440)); // madrugada vai pro fim
+  return all.sort((x,y) => wrap(timeToMinutes(x.hora)) - wrap(timeToMinutes(y.hora)));
+}
+/* moeda da Liga (BRL nativo): respeita o toggle $/R$ do app sem mexer nos itens */
+function fmtLigaMoney(vBrl){
+  if (vBrl === null || vBrl === undefined || vBrl === '') return '—';
+  const n = typeof vBrl === 'number' ? vBrl : parseFloat(String(vBrl).replace(/[^\d.,-]/g,'').replace(',','.'));
+  if (!isFinite(n)) return escHtml(String(vBrl));
+  const v = CURRENCY === 'usd' ? n / BRL_RATE : n;
+  return (CURRENCY === 'usd' ? '$ ' : 'R$ ') + v.toLocaleString('pt-BR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2});
+}
+/* receita copiável da Liga — valores CRUS da planilha (BRL), é o que se digita ao criar */
+function ligaRecipeText(it){
+  const e = it.extra || {};
+  const out = [`★ ${it.nome} — ${it.hora}${it.groupHeader ? ' · grupo ' + it.groupHeader : ''}`];
+  (typeof LIGA_PRINCIPAL_FIELDS !== 'undefined' ? LIGA_PRINCIPAL_FIELDS : Object.keys(e)).forEach(f => {
+    const v = e[f];
+    if (v !== undefined && v !== null && v !== '' && normText(f) !== 'action') out.push(`${f}: ${fmtExtraVal(f, v)}`);
+  });
+  return out.join('\n');
+}
+
 /* categoria automática (por TYPE/admin fee) de cada item, ANTES de qualquer
    reatribuição manual — é o ponto de partida que allWithCatAuto() monta */
 function allWithCatAuto(){
@@ -390,6 +432,8 @@ const FB_PATH = `painel/${TOMORROW_ISO}/criacaoNoturna`;
 
 let fbDb = null;
 let DATA = null;          // {main, side, sat[], unknown, warnings, by, at}
+let LIGA = buildLiga();   // Eventos Principais do dia (grade fixa, BRL) — independe da Global
+let LIGA_DONE = {};       // key -> {by, at} — "criado" dos Eventos Principais (Firebase /ligaDone)
 let OPS = [];             // nomes da equipe
 let DONE = {};            // key -> {by, at}
 let IDS = {};             // key -> {val, by, at} — ID do evento no Pokerbyte
@@ -458,6 +502,8 @@ try{
     renderAll();
     renderFocus(); // se o modo foco estiver aberto, o parceiro marcando também avança a fila
   });
+  // "criado" dos Eventos Principais (Liga) — path próprio, não mistura com o /done da GU
+  fbDb.ref(`${FB_PATH}/ligaDone`).on('value', s => { LIGA_DONE = s.val() || {}; renderAll(); });
   fbDb.ref(`${FB_PATH}/ids`).on('value', s => {
     IDS = s.val() || {};
     // não re-renderizar a lista enquanto alguém digita um ID — só atualiza os inputs parados
@@ -712,6 +758,7 @@ async function handleFile(file){
     const aposGap = [...secTom.aposGap, ...(secAfter ? secAfter.aposGap : [])];
     if (aposGap.length) warnings.push(`${aposGap.length} linha(s) depois do vão de linhas vazias ficaram de fora: ${aposGap.map(x=>`${x.hora} ${x.nome}`).join(', ')}`);
     if (sections.unknown.length) warnings.push(`${sections.unknown.length} torneio(s) com tipo não reconhecido na coluna TYPE (listados em seção própria).`);
+    if (sections.tipoColMissing) warnings.push('⚠ Coluna TYPE não encontrada no cabeçalho da G MTTS — classifiquei TUDO pelo nome/garantido (fallback). Confira a divisão Main/Side ou renomeie a coluna pra "TYPE" na Global.');
 
     const fields = headerCols.filter(c => !isCoreLabel(c.label)).map(c => c.label);
     // diff contra a versão que já estava carregada (a GU corrige a Global durante a noite):
@@ -960,7 +1007,7 @@ function tvMountFeltro(){
      legítimo — não é degradação visível. */
   if (typeof SupremaFeltro === 'undefined') return;
   TV_FELTRO = SupremaFeltro.mount('#tvOverlay .tv-bg', {
-    bg:'#090c0a', gold:'#c9a84c', felt:'#22d47e',
+    bg:'#090c0a', gold:'#e6c34f', felt:'#22d47e',
     onFallback(){ TV_FELTRO = null; },   // shader não compilou: fundo chapado
   });
 }
@@ -982,7 +1029,7 @@ function tvDriveFeltro(pct, all){
   const base = pendentes.length || 1;
   TV_FELTRO.heat(Math.min(1, (atrasados * 2 + emRisco) / base));
 
-  TV_FELTRO.accent(pct >= 100 ? '#c9a84c' : atrasados ? '#e0a33c' : '#22d47e');
+  TV_FELTRO.accent(pct >= 100 ? '#e6c34f' : atrasados ? '#e0a33c' : '#22d47e');
 
   /* pulse a cada torneio novo criado; boom só na virada pro 100% (não a cada
      re-render, senão o telão explode em loop enquanto ninguém mexe) */
@@ -1497,14 +1544,72 @@ function sectionNoteHtml(cat){
   return `<p class="section-note">${msg} ${who}</p>`;
 }
 
+/* ── EVENTOS PRINCIPAIS (Liga) — seção própria, destacada, grade fixa em BRL ── */
+function renderLiga(){
+  const done = LIGA.filter(it => LIGA_DONE[itemKey(it)]).length;
+  const st = $('stLiga');
+  if (st) st.textContent = LIGA.length ? `${done}/${LIGA.length}` : '—';
+  if (!LIGA.length) return '';
+  const q = normText(SEARCH);
+  const vis = q ? LIGA.filter(it => normText(it.nome).includes(q)) : LIGA;
+  if (!vis.length) return '';
+  const suit = {main:'♠', side:'♥', sat:'♣'};
+  const rows = vis.map(it => {
+    const key = itemKey(it), dn = !!LIGA_DONE[key], e = it.extra || {};
+    const modal = e['MODALIDADE'] || e['Game Type'] || '';
+    const struct = e['STRUCTURE'] || '';
+    const chips = e['CHIPS'] != null ? fmtExtraVal('CHIPS', e['CHIPS']) : '';
+    const late = it.late || e['LATE REG.'] || '';
+    return `<tr class="${dn ? 'liga-done' : ''}">
+      <td class="mono lg-h">${escHtml(it.hora)}</td>
+      <td class="lg-n"><span class="lg-suit">${suit[it.ligaCat] || '★'}</span>${escHtml(it.nome)}${modal ? `<span class="lg-tag">${escHtml(String(modal))}</span>` : ''}</td>
+      <td class="mono">${fmtLigaMoney(it.buyin)}</td>
+      <td class="mono">${it.garantido ? fmtLigaMoney(it.garantido) : '<span style="opacity:.4">—</span>'}</td>
+      <td class="lg-x">${struct ? escHtml(String(struct)) : '—'}</td>
+      <td class="mono lg-x">${chips ? escHtml(String(chips)) : '—'}</td>
+      <td class="mono lg-x">${late ? escHtml(String(late)) : '—'}</td>
+      <td class="lg-act">
+        <button class="copy-btn" data-ligacopy="${escHtml(ligaRecipeText(it))}" title="Copiar receita"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+        <button class="chk ${dn ? 'on' : ''}" data-ligadone="${escHtml(key)}" role="checkbox" aria-checked="${dn ? 'true' : 'false'}" title="${dn ? 'Criado' : 'Marcar como criado'}" aria-label="${dn ? 'Desmarcar ' : 'Marcar '}${escHtml(it.nome)} como criado"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `
+    <div class="section-head liga">
+      <span class="tag"><span class="suit">★</span>Eventos Principais</span>
+      <span class="cnt">${done}/${LIGA.length} criados · grade fixa</span>
+      <span class="line"></span>
+    </div>
+    <p class="section-note">Grade fixa da <b>Liga Principal</b> — os eventos principais do dia, pré-carregados (independem da Global). Valores em ${CURRENCY === 'usd' ? 'US$ (÷5 do R$)' : 'R$'}.</p>
+    <div class="secwrap liga-sec" data-suit="★"><div class="vwrap"><table class="vtable liga-table">
+      <tr class="trow-head"><th class="rowlab">Hora</th><th>Torneio</th><th>Buy-in</th><th>Garantido</th><th>Estrutura</th><th>Chips</th><th>Late reg</th><th>Criado</th></tr>
+      ${rows}
+    </table></div></div>`;
+}
+function toggleLigaDone(key){
+  const cur = LIGA_DONE[key];
+  if (!fbDb){ if (cur) delete LIGA_DONE[key]; else LIGA_DONE[key] = {by: ME || 'Alguém', at: Date.now()}; renderAll(); return; }
+  if (cur){ fbDb.ref(`${FB_PATH}/ligaDone/${key}`).remove(); logEvent('desmarcou principal', key); }
+  else { fbDb.ref(`${FB_PATH}/ligaDone/${key}`).set({by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP}); logEvent('criou principal', key); }
+}
+function wireLiga(area){
+  area.querySelectorAll('[data-ligadone]').forEach(b => b.addEventListener('click', () => toggleLigaDone(b.dataset.ligadone)));
+  area.querySelectorAll('[data-ligacopy]').forEach(el => el.addEventListener('click', async () => {
+    try{ await navigator.clipboard.writeText(el.dataset.ligacopy); showToast('Receita copiada 📋'); }
+    catch(e){ showToast('Não consegui copiar — copie manualmente.', true); }
+  }));
+}
+
 function renderList(){
   const area = $('listArea');
+  const ligaHtml = renderLiga();
   if (!DATA){
-    area.innerHTML = `<div class="empty-state"><span class="moon">🌙</span>Nenhuma planilha carregada ainda pra este dia da grade.<br>Suba a Global MTT acima — ou aguarde: se um parceiro subir, aparece aqui sozinho.</div>`;
+    area.innerHTML = ligaHtml + `<div class="empty-state"><span class="moon">🌙</span>Nenhuma planilha carregada ainda pra este dia da grade.<br>Suba a Global MTT acima — ou aguarde: se um parceiro subir, aparece aqui sozinho.</div>`;
+    wireLiga(area);
     return;
   }
   const asg = computeAssignments();
-  let html = '';
+  let html = ligaHtml;
 
   SECTIONS.forEach(cat => {
     const items = visibleItems(catItems(cat), asg);
@@ -1536,6 +1641,7 @@ function renderList(){
   if (!html) html = `<div class="empty-state"><span class="moon">🃏</span>Nada nesse filtro.</div>`;
   area.innerHTML = html;
   wireVerticalArea(area);
+  wireLiga(area);
 }
 
 /* liga os controles de uma tabela `renderVertical` (data-done/data-focus/data-move/

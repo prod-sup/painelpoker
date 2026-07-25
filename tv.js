@@ -725,7 +725,7 @@ let _onAir = false, _scenes = [], _idx = 0, _timer = null;
 /* as cores das categorias, iguais às de tv.css (--main-c/--side-c/--sat-c) — é
    a mesma família que a operação já lê nas linhas do Radar. O fundo passa a
    falar essa língua junto com o texto. */
-const GOLD = '#c9a84c';
+const GOLD = '#e6c34f';
 const CAT_ACCENT = { main:'#f06050', side:'#5aa8ff', sat:'#b888f0' };
 
 function renderScene(sc){

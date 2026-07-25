@@ -1527,7 +1527,7 @@ function buildPromoCanvas(spec){
 
   /* topo: marca */
   ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = '#c9a84c';
+  ctx.fillStyle = '#e6c34f';
   ctx.font = `700 30px ${DISPLAY}`;
   ctx.save(); ctx.translate(PAD, 132);
   ctx.fillText('♦', 0, 0);

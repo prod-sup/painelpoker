@@ -31,9 +31,13 @@
      existe o --sup-gold-dark (8,53:1 sobre #0b0d0c, AAA). Antes o dourado escuro era um número
      mágico solto na ponte html.dark, sem nome — e o hub/cash acabaram inventando o próprio
      (#d8b56d), que ainda por cima é a cor de identidade do Organograma (--sup-p-org). */
-  --sup-gold:      #8f6b2d;   /* dourado da marca — superfícies CLARAS */
-  --sup-gold-dark: #c9a84c;   /* dourado da marca — superfícies ESCURAS */
-  --sup-gold-bright:#ad8a4e;
+  /* Ouro ÂMBAR QUENTE (jul/2026): o #8f6b2d antigo puxava marrom. Este é mais
+     saturado e um grau mais amarelo (hue ~43° vs 38°) — cara de ouro, não de bronze —
+     sem perder contraste: #8f6c14 segura 4,73:1 sobre #fbfbfd (AA). O escuro #e6c34f
+     dá 10,6:1 sobre #0b0d0c (AAA). Mesmo modelo de dois valores por superfície. */
+  --sup-gold:      #8f6c14;   /* dourado da marca — superfícies CLARAS */
+  --sup-gold-dark: #e6c34f;   /* dourado da marca — superfícies ESCURAS */
+  --sup-gold-bright:#b0851c;
   --sup-red:       #c0392b;
 
   /* -- tipografia ------------------------------------------ */

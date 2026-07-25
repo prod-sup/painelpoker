@@ -729,10 +729,10 @@
   .presence-avatar[data-tier="1"]::before{ background:conic-gradient(from var(--frameAngle),#4a4e56,#5c626c 22%,#7d848f 36%,#9aa1ac 44%,#6d737e 56%,#51555e 74%,#4a4e56); }
   .presence-avatar[data-tier="2"]::before{ background:conic-gradient(from var(--frameAngle),#6e4d29,#9a6d3a 18%,#c99a5f 34%,#f0d29a 42%,#c99a5f 50%,#7d5a34 68%,#8a6236 84%,#6e4d29); }
   .presence-avatar[data-tier="3"]::before{ background:conic-gradient(from var(--frameAngle),#7e8896,#aab4c4 20%,#eef3fa 33%,#aab4c4 46%,#8b95a4 62%,#dfe7f1 80%,#7e8896); }
-  .presence-avatar[data-tier="4"]::before{ background:conic-gradient(from var(--frameAngle),#a97a2e,#e3c176 16%,#fff3cf 26%,#d8b56d 40%,#8f6b2d 55%,#f6e6b8 72%,#fff6dc 80%,#c9a84c 90%,#a97a2e); }
+  .presence-avatar[data-tier="4"]::before{ background:conic-gradient(from var(--frameAngle),#a97a2e,#e3c176 16%,#fff3cf 26%,#d8b56d 40%,#8f6c14 55%,#f6e6b8 72%,#fff6dc 80%,#e6c34f 90%,#a97a2e); }
   .presence-avatar[data-tier="5"]::before{ background:conic-gradient(from var(--frameAngle),#9fb0c6,#ffffff 14%,#c7d4e6 30%,#eef4fb 44%,#aebccf 58%,#ffffff 72%,#dce6f2 86%,#9fb0c6); }
   .presence-avatar[data-tier="6"]::before{ background:conic-gradient(from var(--frameAngle),#d8b56d,#22d47e 18%,#9ff0c8 28%,#5ad0ff 40%,#b98cff 56%,#ffd98a 70%,#fff3cf 78%,#22d47e 88%,#d8b56d); }
-  .presence-avatar[data-tier="7"]::before{ background:conic-gradient(from var(--frameAngle),#8f6b2d,#ffe9b0 10%,#fffdf4 16%,#d8b56d 26%,#0f7a4e 38%,#22d47e 46%,#9ff0c8 52%,#d8b56d 62%,#b98cff 72%,#fff3cf 82%,#e8c778 92%,#8f6b2d); }
+  .presence-avatar[data-tier="7"]::before{ background:conic-gradient(from var(--frameAngle),#8f6c14,#ffe9b0 10%,#fffdf4 16%,#d8b56d 26%,#0f7a4e 38%,#22d47e 46%,#9ff0c8 52%,#d8b56d 62%,#b98cff 72%,#fff3cf 82%,#e8c778 92%,#8f6c14); }
   @keyframes presence-pop{ from{ transform:scale(0); opacity:0; } to{ transform:scale(1); opacity:1; } }
   @media (max-width:680px){ .presence-wrap{ display:none; } }
   .nav-time{font-family:var(--mono); font-size:11px; color:var(--ink-soft); letter-spacing:0.02em; white-space:nowrap;}
@@ -2234,13 +2234,54 @@
 
   /* diff GU × versão anterior — quadro de alterações no topo da lista */
   .gc-alerts{
-    border:1px solid color-mix(in srgb, var(--gold, #c9a84c) 45%, transparent);
-    background:color-mix(in srgb, var(--gold, #c9a84c) 8%, transparent);
+    border:1px solid color-mix(in srgb, var(--gold, #e6c34f) 45%, transparent);
+    background:color-mix(in srgb, var(--gold, #e6c34f) 8%, transparent);
     border-radius:12px; padding:12px 14px; margin-bottom:16px;
     font-size:12px; line-height:1.55; color:var(--ink);
   }
   .gc-alerts .ttl{ font-weight:700; margin-bottom:6px; }
   .gc-alerts .row{ font-family:var(--mono); font-size:11.5px; padding:2px 0; }
+
+  /* ── CONFERÊNCIA DO DIA: destaque das colunas + tela cheia por quadro (pedido GU) ── */
+  /* rolagem mais fluida (momentum no touch, suave no teclado/scrollIntoView) */
+  .gc-scroll{ scroll-behavior:smooth; -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
+  /* colunas da LISTA da GU = destacadas; o que sobra fica esmaecido no fim */
+  .gc-table th.gc-rowlab.gc-hi{ color:var(--ink); }
+  .gc-table th.gc-rowlab.gc-dim{ opacity:.5; font-weight:700; }
+  /* colunas-chave (dinheiro/estrutura) no dourado da marca, com a linha inteira tingida */
+  .gc-table th.gc-rowlab.gc-key{ color:var(--gold); background:var(--gold-soft, color-mix(in srgb, var(--gold) 14%, var(--card-strong,#f5f5f7))); }
+  .gc-table tr.gc-keyrow td{ background:color-mix(in srgb, var(--gold) 6%, var(--card)); }
+  html.dark .gc-table tr.gc-keyrow td{ background:color-mix(in srgb, var(--gold) 12%, var(--card)); }
+  .gc-table tr.gc-keyrow td.gc-ok{ opacity:.5; }
+
+  /* botão de tela cheia no cabeçalho de cada quadro */
+  .gc-secwrap{ position:relative; }
+  .gc-fs-btn{
+    flex:none; width:30px; height:30px; margin-left:2px; display:grid; place-items:center;
+    border:1px solid var(--hairline-strong); border-radius:9px; background:var(--card);
+    color:var(--ink-soft); cursor:pointer; padding:0;
+    transition:color .18s var(--ease,ease), border-color .18s var(--ease,ease), background-color .18s var(--ease,ease), transform .12s var(--ease,ease);
+  }
+  .gc-fs-btn svg{ width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+  .gc-fs-btn:hover{ color:var(--gold); border-color:var(--gold); }
+  .gc-fs-btn:active{ transform:scale(.9); }
+
+  /* quadro em TELA CHEIA — cobre a tela toda, entra com transição fluida.
+     O .drawer tem transform+will-change (containing block), então position:fixed
+     ancoraria no painel, não na viewport. Por isso, com um quadro em tela cheia,
+     expandimos o PRÓPRIO drawer a 100vw: aí o inset:0 abaixo cobre a tela inteira. */
+  #guConfDrawer.gc-has-fs{ width:100vw; max-width:100vw; transition:width .34s var(--ease-expo, cubic-bezier(.16,1,.3,1)); }
+  .gc-secwrap.gc-fs{
+    position:fixed; inset:0; z-index:1200; margin:0; padding:16px 20px 20px;
+    background:var(--bg); display:flex; flex-direction:column; gap:10px;
+    animation:gc-fs-in .34s var(--ease-expo, cubic-bezier(.16,1,.3,1)) both;
+  }
+  .gc-secwrap.gc-fs .gc-sec{ margin:2px 0; }
+  .gc-secwrap.gc-fs .gc-scroll{ max-height:none; flex:1 1 auto; border-radius:16px; }
+  .gc-secwrap.gc-fs .gc-fs-btn{ color:var(--gold); border-color:var(--gold); background:var(--gold-soft); }
+  @keyframes gc-fs-in{ from{ opacity:0; transform:scale(.985); } to{ opacity:1; transform:none; } }
+  body.gc-fs-lock{ overflow:hidden; }
+  @media (prefers-reduced-motion: reduce){ .gc-secwrap.gc-fs{ animation:none; } .gc-scroll{ scroll-behavior:auto; } }
 
   /* "usar a Global compartilhada" — presente nas 3 conferências */
   .shared-global-btn{

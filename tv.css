@@ -232,7 +232,7 @@ body{
 .credit-chip.maker b{color:var(--gold-hi)}
 .cc-av{
   width:1.7em;height:1.7em;border-radius:99px;display:grid;place-items:center;
-  background:linear-gradient(135deg,var(--gold),#8f6b2d);color:#0b0c10;
+  background:linear-gradient(135deg,var(--gold),#8f6c14);color:#0b0c10;
   font-weight:800;font-size:.8em;
 }
 
@@ -347,7 +347,7 @@ body{
 .dn-by small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dn-av{
   flex:0 0 auto;width:2.1em;height:2.1em;border-radius:99px;display:grid;place-items:center;
-  background:linear-gradient(135deg,var(--gold),#8f6b2d);color:#0b0c10;
+  background:linear-gradient(135deg,var(--gold),#8f6c14);color:#0b0c10;
   font-weight:800;font-size:1em;
 }
 .dn-av.has-face{background:rgba(255,255,255,.08);font-size:1.3em}
@@ -587,7 +587,7 @@ body{
 .mk-av{
   width:clamp(34px,3vw,52px);height:clamp(34px,3vw,52px);border-radius:99px;
   display:grid;place-items:center;font-weight:800;font-size:clamp(15px,1.4vw,23px);
-  background:linear-gradient(135deg,var(--gold),#8f6b2d);color:#0b0c10;
+  background:linear-gradient(135deg,var(--gold),#8f6c14);color:#0b0c10;
 }
 .mk-name{font-weight:750;font-size:clamp(16px,1.6vw,26px)}
 .mk-n{font-size:clamp(11px,1vw,16px);font-weight:700;letter-spacing:.08em;color:var(--gold-hi)}
@@ -703,7 +703,7 @@ body.tv-awake .tv-btn{opacity:.6;pointer-events:auto}
 .rec-ico{font-size:clamp(28px,3vw,50px);line-height:1}
 .rec-av{
   display:inline-grid;place-items:center;width:1.5em;height:1.5em;border-radius:99px;
-  background:linear-gradient(135deg,var(--gold),#8f6b2d);color:#0b0c10;
+  background:linear-gradient(135deg,var(--gold),#8f6c14);color:#0b0c10;
   font-size:.75em;font-weight:800;
 }
 .rec-label{font-size:clamp(12px,1.1vw,17px);font-weight:800;letter-spacing:.2em;color:var(--ink-soft)}

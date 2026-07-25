@@ -139,10 +139,10 @@
       '.sp-av[data-tier="1"]::before{background:conic-gradient(from var(--fa),#4a4e56,#5c626c 22%,#7d848f 36%,#9aa1ac 44%,#6d737e 56%,#51555e 74%,#4a4e56)}' +
       '.sp-av[data-tier="2"]::before{background:conic-gradient(from var(--fa),#6e4d29,#9a6d3a 18%,#c99a5f 34%,#f0d29a 42%,#c99a5f 50%,#7d5a34 68%,#8a6236 84%,#6e4d29)}' +
       '.sp-av[data-tier="3"]::before{background:conic-gradient(from var(--fa),#7e8896,#aab4c4 20%,#eef3fa 33%,#aab4c4 46%,#8b95a4 62%,#dfe7f1 80%,#7e8896)}' +
-      '.sp-av[data-tier="4"]::before{background:conic-gradient(from var(--fa),#a97a2e,#e3c176 16%,#fff3cf 26%,#d8b56d 40%,#8f6b2d 55%,#f6e6b8 72%,#fff6dc 80%,#c9a84c 90%,#a97a2e)}' +
+      '.sp-av[data-tier="4"]::before{background:conic-gradient(from var(--fa),#a97a2e,#e3c176 16%,#fff3cf 26%,#d8b56d 40%,#8f6c14 55%,#f6e6b8 72%,#fff6dc 80%,#e6c34f 90%,#a97a2e)}' +
       '.sp-av[data-tier="5"]::before{background:conic-gradient(from var(--fa),#9fb0c6,#ffffff 14%,#c7d4e6 30%,#eef4fb 44%,#aebccf 58%,#ffffff 72%,#dce6f2 86%,#9fb0c6)}' +
       '.sp-av[data-tier="6"]::before{background:conic-gradient(from var(--fa),#d8b56d,#22d47e 18%,#9ff0c8 28%,#5ad0ff 40%,#b98cff 56%,#ffd98a 70%,#fff3cf 78%,#22d47e 88%,#d8b56d)}' +
-      '.sp-av[data-tier="7"]::before{background:conic-gradient(from var(--fa),#8f6b2d,#ffe9b0 10%,#fffdf4 16%,#d8b56d 26%,#0f7a4e 38%,#22d47e 46%,#9ff0c8 52%,#d8b56d 62%,#b98cff 72%,#fff3cf 82%,#e8c778 92%,#8f6b2d)}';
+      '.sp-av[data-tier="7"]::before{background:conic-gradient(from var(--fa),#8f6c14,#ffe9b0 10%,#fffdf4 16%,#d8b56d 26%,#0f7a4e 38%,#22d47e 46%,#9ff0c8 52%,#d8b56d 62%,#b98cff 72%,#fff3cf 82%,#e8c778 92%,#8f6c14)}';
     document.head.appendChild(st);
   }
 
