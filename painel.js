@@ -2185,12 +2185,22 @@ LAST_KNOWN_DATE = todayPathSP();
 
 function cleanupOldDailyNodes(){
   if (!fbReady) return;
-  fbDb.ref('painel').once('value').then(snap => {
-    const data = snap.val();
-    if (!data) return;
+  // ECONOMIA DE BANDA: só precisamos das CHAVES de data pra decidir o que apagar —
+  // NÃO do conteúdo. Um `.once('value')` no nó `painel` inteiro arrastava os ~45 dias
+  // de grade + premiação + criação noturna de uma vez (dezenas de MB por sessão × cada
+  // aba × cada operador) — foi o que fez o egress do Firebase voltar a subir. A query
+  // REST `?shallow=true` devolve só `{ "2026-07-27": true, ... }` (uns bytes).
+  const auth = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth() : null;
+  const user = auth && auth.currentUser;
+  if (!user) return; // sem token não dá pra ler; tenta de novo na próxima sessão
+  user.getIdToken().then(token => {
+    const url = `${FIREBASE_CONFIG.databaseURL}/painel.json?shallow=true&auth=${encodeURIComponent(token)}`;
+    return fetch(url).then(r => r.ok ? r.json() : null);
+  }).then(keys => {
+    if (!keys) return;
     const n = nowInSP();
     const todayUTC = Date.UTC(n.year, n.month-1, n.day);
-    Object.keys(data).forEach(dateKey => {
+    Object.keys(keys).forEach(dateKey => {
       const m = dateKey.match(/^(\d{4})-(\d{2})-(\d{2})$/);
       if (!m) return; // ignora qualquer chave que não seja data (proteção contra estrutura inesperada)
       const keyUTC = Date.UTC(+m[1], +m[2]-1, +m[3]);
@@ -2199,7 +2209,7 @@ function cleanupOldDailyNodes(){
         fbDb.ref(`painel/${dateKey}`).remove().catch(() => {}); // falha silenciosa — não é crítico, tenta de novo na próxima sessão
       }
     });
-  }).catch(() => {}); // sem permissão de leitura na raiz, ou offline — não é crítico, só não limpa dessa vez
+  }).catch(() => {}); // sem permissão, offline, ou fetch bloqueado — não é crítico, só não limpa dessa vez
 }
 
 function loadFixedMap(){
