@@ -35,14 +35,17 @@
      saturado e um grau mais amarelo (hue ~43° vs 38°) — cara de ouro, não de bronze —
      sem perder contraste: #8f6c14 segura 4,73:1 sobre #fbfbfd (AA). O escuro #e6c34f
      dá 10,6:1 sobre #0b0d0c (AAA). Mesmo modelo de dois valores por superfície. */
-  --sup-gold:      #8f6c14;   /* dourado da marca — superfícies CLARAS (âncora de contraste AA p/ texto pequeno) */
-  --sup-gold-dark: #ecca6e;   /* CHAMPAGNE luminoso — superfícies ESCURAS (jul/2026: #e6c34f lia opaco/marrom) */
-  --sup-gold-bright:#b0851c;   /* realce/acento em superfície clara (≥3:1 p/ UI e texto grande) */
-  /* GRADIENTE champagne p/ WORDMARKS / títulos grandes — é o visual da ref "Grade MTT":
-     pálido no topo → rico embaixo, com brilho metálico. Só p/ display grande (aplicar via
-     .sup-gold-text). No claro é um gradiente mais fundo (mantém contraste); no escuro
-     abre no champagne cheio. */
-  --sup-gold-grad: linear-gradient(180deg, #a8801c 0%, #7c5e10 100%);
+  /* ACENTO DA MARCA = LARANJA (jul/2026, pedido do Brian: trocar o dourado por laranja).
+     Os nomes --sup-gold* ficaram como APELIDO LEGADO — o valor é laranja. Mesmo modelo de
+     dois tons por superfície do dourado: o laranja VIVO reprova AA como texto pequeno sobre
+     branco, então o claro usa um laranja mais FUNDO (âncora AA) e o escuro abre no vivo. */
+  --sup-gold:      #b35d02;   /* laranja fundo — superfícies CLARAS (âncora AA: ~4,6:1 sobre #fbfbfd) */
+  --sup-gold-dark: #f7941d;   /* laranja VIVO — superfícies ESCURAS (o tom da referência) */
+  --sup-gold-bright:#d9741a;   /* realce/acento em superfície clara (≥3:1 p/ UI e texto grande) */
+  /* GRADIENTE laranja p/ WORDMARKS / títulos grandes (o visual metálico da ref): claro no topo
+     → rico embaixo. Só p/ display grande (via .sup-gold-text). No claro é mais fundo (contraste);
+     no escuro abre no laranja cheio. */
+  --sup-gold-grad: linear-gradient(180deg, #d9741a 0%, #a85200 100%);
   --sup-red:       #c0392b;
 
   /* -- tipografia ------------------------------------------ */
@@ -89,7 +92,7 @@
   --sup-shadow-sm:   0 1px 2px rgba(16,28,22,.05), 0 3px 10px -2px rgba(16,28,22,.06);
   --sup-shadow-md:   0 4px 14px -3px rgba(16,28,22,.09), 0 10px 30px -8px rgba(16,28,22,.11);
   --sup-shadow-lg:   0 14px 36px -10px rgba(16,28,22,.16), 0 28px 64px -20px rgba(16,28,22,.20);
-  --sup-shadow-glow: 0 0 0 1px rgba(176,133,28,.14), 0 10px 28px -10px rgba(176,133,28,.24);
+  --sup-shadow-glow: 0 0 0 1px rgba(200,105,25,.14), 0 10px 28px -10px rgba(200,105,25,.24);
 
   /* -- forma e movimento ----------------------------------- */
   --sup-radius-sm: 12px;
@@ -164,14 +167,14 @@ html[data-theme="dark"]{
   /* o acento do Admin (e agora do Painel) É o dourado da marca, então acompanha junto */
   --sup-p-admin: var(--sup-gold-dark);
   --sup-p-painel: var(--sup-gold-dark);
-  /* champagne CHEIO no escuro — o gradiente da ref "Grade MTT" */
-  --sup-gold-grad: linear-gradient(180deg, #f7e6a6 0%, #e8c86c 50%, #caa64e 100%);
+  /* laranja CHEIO no escuro — o gradiente metálico do wordmark */
+  --sup-gold-grad: linear-gradient(180deg, #ffb15a 0%, #f7941d 50%, #e07d17 100%);
 
   /* sombras da escala S2 sobem de opacidade no escuro (mesmo modelo do painel) */
   --sup-shadow-sm:   0 1px 2px rgba(0,0,0,.45), 0 3px 12px -2px rgba(0,0,0,.4);
   --sup-shadow-md:   0 6px 20px -4px rgba(0,0,0,.55), 0 14px 38px -10px rgba(0,0,0,.5);
   --sup-shadow-lg:   0 18px 44px -12px rgba(0,0,0,.65), 0 34px 76px -22px rgba(0,0,0,.6);
-  --sup-shadow-glow: 0 0 0 1px rgba(230,195,79,.2), 0 12px 32px -10px rgba(230,195,79,.16);
+  --sup-shadow-glow: 0 0 0 1px rgba(247,148,29,.2), 0 12px 32px -10px rgba(247,148,29,.16);
   /* o framboesa do claro não segura contraste no escuro — mesmo modelo do dourado */
   --sup-p-eventos: #ef7d93;
 
