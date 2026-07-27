@@ -35,9 +35,14 @@
      saturado e um grau mais amarelo (hue ~43° vs 38°) — cara de ouro, não de bronze —
      sem perder contraste: #8f6c14 segura 4,73:1 sobre #fbfbfd (AA). O escuro #e6c34f
      dá 10,6:1 sobre #0b0d0c (AAA). Mesmo modelo de dois valores por superfície. */
-  --sup-gold:      #8f6c14;   /* dourado da marca — superfícies CLARAS */
-  --sup-gold-dark: #e6c34f;   /* dourado da marca — superfícies ESCURAS */
-  --sup-gold-bright:#b0851c;
+  --sup-gold:      #8f6c14;   /* dourado da marca — superfícies CLARAS (âncora de contraste AA p/ texto pequeno) */
+  --sup-gold-dark: #ecca6e;   /* CHAMPAGNE luminoso — superfícies ESCURAS (jul/2026: #e6c34f lia opaco/marrom) */
+  --sup-gold-bright:#b0851c;   /* realce/acento em superfície clara (≥3:1 p/ UI e texto grande) */
+  /* GRADIENTE champagne p/ WORDMARKS / títulos grandes — é o visual da ref "Grade MTT":
+     pálido no topo → rico embaixo, com brilho metálico. Só p/ display grande (aplicar via
+     .sup-gold-text). No claro é um gradiente mais fundo (mantém contraste); no escuro
+     abre no champagne cheio. */
+  --sup-gold-grad: linear-gradient(180deg, #a8801c 0%, #7c5e10 100%);
   --sup-red:       #c0392b;
 
   /* -- tipografia ------------------------------------------ */
@@ -159,6 +164,8 @@ html[data-theme="dark"]{
   /* o acento do Admin (e agora do Painel) É o dourado da marca, então acompanha junto */
   --sup-p-admin: var(--sup-gold-dark);
   --sup-p-painel: var(--sup-gold-dark);
+  /* champagne CHEIO no escuro — o gradiente da ref "Grade MTT" */
+  --sup-gold-grad: linear-gradient(180deg, #f7e6a6 0%, #e8c86c 50%, #caa64e 100%);
 
   /* sombras da escala S2 sobem de opacidade no escuro (mesmo modelo do painel) */
   --sup-shadow-sm:   0 1px 2px rgba(0,0,0,.45), 0 3px 12px -2px rgba(0,0,0,.4);
@@ -204,6 +211,25 @@ html[data-theme="dark"]{ color-scheme: dark; --sup-focus: var(--gold); }
 /* No modo leve o foco continua — é a11y, não enfeite */
 html.lite :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible{
   outline: 2px solid var(--sup-focus, #8f6c14) !important;
+}
+
+/* ============================================================
+   WORDMARK CHAMPAGNE — o dourado "Grade MTT": gradiente metálico
+   recortado no texto. Use SÓ em display grande/negrito (title, wordmark,
+   número de destaque) — em texto pequeno o recorte perde contraste.
+   Tem fallback sólido (color) p/ navegadores sem background-clip:text.
+   ============================================================ */
+.sup-gold-text{
+  color: var(--sup-gold);
+  background: var(--sup-gold-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+html.dark .sup-gold-text,
+html[data-theme="dark"] .sup-gold-text{ color: var(--sup-gold-dark); }
+@supports not ((-webkit-background-clip:text) or (background-clip:text)){
+  .sup-gold-text{ -webkit-text-fill-color: currentColor; background: none; }
 }
 
 /* ============================================================

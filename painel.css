@@ -101,10 +101,10 @@
     --hairline:        rgba(255,255,255,0.06);
     --hairline-strong: rgba(255,255,255,0.11);
 
-    /* ── CHROME dourado champagne (antes verde feltro) — calibrado pro dark ── */
-    --felt:        #c9a23a;
-    --felt-bright: #e6c34f;
-    --felt-soft:   rgba(230,195,79,0.16);
+    /* ── CHROME champagne LUMINOSO (antes verde feltro) — calibrado pro dark ── */
+    --felt:        #d8b25a;
+    --felt-bright: #ecca6e;
+    --felt-soft:   rgba(236,202,110,0.16);
 
     /* ── SUCESSO / FEITO segue VERDE no dark (Fixado, positivo) ── */
     --ok:          #0e6b40;
@@ -188,7 +188,7 @@
     border-color: var(--hairline-strong);
     color: var(--ink-soft);
   }
-  html.dark .tf-now:hover{ background: var(--felt); color: #fff; }
+  html.dark .tf-now:hover{ background: var(--felt); color: var(--bg); }
   html.dark .id-input-submit{
     background: var(--card-elevated) !important;
     border-color: var(--hairline-strong) !important;
@@ -537,7 +537,7 @@
     text-rendering:optimizeLegibility;
     overflow-x:hidden;
   }
-  ::selection{background:var(--felt-bright); color:#fff;}
+  ::selection{background:var(--felt-bright); color:var(--bg);}
   img,svg{display:block;}
   a{color:inherit; text-decoration:none;}
   button{font:inherit;}
@@ -759,7 +759,7 @@
     white-space:nowrap; flex:none; transition:background-color .2s var(--ease),border-color .2s var(--ease),color .2s var(--ease),transform .2s var(--ease),box-shadow .2s var(--ease),opacity .2s var(--ease); max-width:120px; overflow:hidden; text-overflow:ellipsis;
   }
   .op-badge:empty{display:none;}
-  .op-badge:hover{ background:var(--felt); color:#fff; }
+  .op-badge:hover{ background:var(--felt); color:var(--bg); }
   .op-overlay{
     position:fixed; inset:0; z-index:600; background:rgba(12,18,15,0.82);
     display:flex; align-items:center; justify-content:center;
@@ -780,7 +780,7 @@
   }
   .op-modal-input:focus{ border-color:var(--felt-bright); }
   .op-modal-submit{
-    width:100%; font-family:var(--text); font-size:14px; font-weight:700; color:#fff;
+    width:100%; font-family:var(--text); font-size:14px; font-weight:700; color:var(--bg);
     background:var(--felt); border:none; border-radius:12px; padding:12px; cursor:pointer;
     transition:background .2s var(--ease);
   }
@@ -886,7 +886,7 @@
     transition:transform .25s var(--ease), background .25s var(--ease);
     white-space:nowrap; flex:none;
   }
-  .upload-btn:hover{background:var(--felt-bright); transform:translateY(-1px);}
+  .upload-btn:hover{background:var(--felt-bright); color:var(--bg); transform:translateY(-1px);}
   .upload-btn:active{transform:translateY(0) scale(.96); transition-duration:.12s;}
   .upload-btn svg{width:13px; height:13px; flex:none;}
   #fileInput{display:none;}
@@ -1022,8 +1022,10 @@
   }
   h1.hero-title em{
     font-style:normal;
-    background:linear-gradient(100deg, var(--felt) 0%, var(--felt-bright) 55%, var(--gold) 100%);
-    -webkit-background-clip:text; background-clip:text; color:transparent;
+    /* champagne metálico vertical (pálido no topo → rico embaixo) — o look "Grade MTT" */
+    color: var(--gold);
+    background: var(--sup-gold-grad);
+    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
   }
   .hero-sub{
     font-size:clamp(15px,1.8vw,18.5px); color:var(--ink-soft); max-width:560px;
@@ -1456,7 +1458,7 @@
   .chip[data-cat="soon"].active .soon-status-dot{background:#fff;}
   .soon-status-dot{background:var(--warn-border);}
   .chip[data-cat="running"]{background:var(--felt-soft); color:var(--felt);}
-  .chip[data-cat="running"].active{background:var(--felt); color:#fff;}
+  .chip[data-cat="running"].active{background:var(--felt); color:var(--bg);}
   .chip[data-cat="running"].active .running-dot{background:#fff;}
   /* pulso do "ao vivo": anel via pseudo com transform:scale (compositor) em vez de
      box-shadow animado (repaint por frame) — mesmo visual, custo bem menor */
@@ -1562,7 +1564,7 @@
     background:var(--felt-soft); border:none; border-radius:99px; padding:7px 14px; cursor:pointer; flex:none;
     transition:background-color .2s var(--ease),border-color .2s var(--ease),color .2s var(--ease),transform .2s var(--ease),box-shadow .2s var(--ease),opacity .2s var(--ease);
   }
-  .tf-now:hover{ background:var(--felt); color:#fff; }
+  .tf-now:hover{ background:var(--felt); color:var(--bg); }
   .tf-clear{
     font-family:var(--text); font-size:12.5px; font-weight:600; color:var(--ink-soft);
     background:#f1f1f3; border:none; border-radius:99px; padding:7px 14px; cursor:pointer; flex:none;
@@ -1667,7 +1669,7 @@
   html.dark .tf-wheel-colon{ color:var(--ink); }
   html.dark .tf-wheel-selection-bar{ background:var(--felt-soft); box-shadow:inset 0 0 0 1px var(--felt); }
   html.dark .tf-sheet-done{ background:var(--felt-bright); color:#0d1210; }
-  html.dark .tf-sheet-done:hover{ background:var(--felt); color:#fff; }
+  html.dark .tf-sheet-done:hover{ background:var(--felt); color:var(--bg); }
 
   .grid-cards{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
   @media (max-width:900px){ .grid-cards{grid-template-columns:repeat(2,1fr);} }
@@ -2220,7 +2222,7 @@
   }
   .gc-chk:hover{ border-color:var(--felt); }
   .gc-chk:active{ transform:scale(.88); }
-  .gc-chk.on{ background:var(--felt); border-color:var(--felt); color:#fff; }
+  .gc-chk.on{ background:var(--felt); border-color:var(--felt); color:var(--bg); }
   .gc-chk svg{ width:13px; height:13px; stroke:currentColor; stroke-width:3.2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
   .gc-by{ display:block; font-size:9px; color:var(--ink-soft); font-family:var(--mono); margin-top:2px; }
   .gc-empty{ text-align:center; padding:48px 16px; color:var(--ink-soft); font-size:13px; line-height:1.6; }
@@ -2603,7 +2605,7 @@
     background:var(--card);cursor:pointer;font-size:12px;font-weight:600;
     color:var(--ink-soft);font-family:var(--text);transition:background-color .15s,border-color .15s,color .15s,transform .15s,box-shadow .15s,opacity .15s;
   }
-  .audit-tab.active{ background:var(--felt);border-color:var(--felt);color:#fff; }
+  .audit-tab.active{ background:var(--felt);border-color:var(--felt);color:var(--bg); }
   .audit-tab:hover:not(.active){ background:var(--felt-soft);border-color:var(--felt-bright);color:var(--felt); }
 
   /* ── Garantido editável no card ── */
@@ -2798,7 +2800,7 @@
   .notif-banner-actions{display:flex;gap:6px;margin-top:8px}
   .notif-allow{
     padding:6px 14px;border-radius:8px;border:none;cursor:pointer;
-    background:var(--felt);color:#fff;font-size:12px;font-weight:700;
+    background:var(--felt);color:var(--bg);font-size:12px;font-weight:700;
     font-family:var(--text);transition:background-color .2s,border-color .2s,color .2s,transform .2s,box-shadow .2s,opacity .2s;
   }
   .notif-allow:hover{background:var(--felt-bright)}
@@ -2953,8 +2955,8 @@
   .up-hero{
     position:relative; padding:26px 24px 58px; overflow:hidden;
     background:
-      radial-gradient(120% 90% at 85% -10%, rgba(212,175,55,.28), transparent 55%),
-      linear-gradient(135deg,#3a2f0d 0%,#1c1608 100%);
+      radial-gradient(120% 90% at 85% -10%, rgba(236,202,110,.30), transparent 55%),
+      linear-gradient(135deg,#1a160b 0%,#0c0a05 100%);
   }
   .up-hero::after{ /* naipes em marca d'água, bem discretos */
     content:'♠ ♦ ♣ ♥'; position:absolute; right:-6px; bottom:-18px;
@@ -3222,7 +3224,7 @@
 .gup-text span{font-size:12px;color:var(--ink-soft)}
 .gup-btn{
   flex:none;padding:8px 14px;border-radius:9px;border:none;
-  background:var(--felt);color:#fff;font-size:12px;font-weight:700;
+  background:var(--felt);color:var(--bg);font-size:12px;font-weight:700;
   cursor:pointer;white-space:nowrap;
 }
 .gup-btn:hover{opacity:.85}
@@ -3259,7 +3261,7 @@
 .mdr-field input[type=date]:focus{border-color:var(--gold);outline:none}
 .mdr-load{
   padding:9px 18px;border-radius:9px;border:none;align-self:flex-end;
-  background:var(--felt);color:#fff;font-size:13px;font-weight:700;cursor:pointer;
+  background:var(--felt);color:var(--bg);font-size:13px;font-weight:700;cursor:pointer;
 }
 .mdr-load:hover{opacity:.85}
 .mdr-export{
@@ -3360,7 +3362,7 @@
 }
 .activity-btn:hover{background:var(--card-elevated);color:var(--ink)}
 .activity-badge{
-  background:var(--felt);color:#fff;border-radius:99px;
+  background:var(--felt);color:var(--bg);border-radius:99px;
   font-size:9px;font-weight:800;padding:1px 5px;min-width:16px;text-align:center;
 }
 
@@ -3593,7 +3595,7 @@ html.dark .routine-tool-desc b{ color:var(--felt-bright); }
 .addt-submit{
   font-family:inherit; font-size:13px; font-weight:700; cursor:pointer;
   padding:10px 18px; border:none; border-radius:10px;
-  background:var(--felt); color:#fff; transition:background-color .18s, transform .12s;
+  background:var(--felt); color:var(--bg); transition:background-color .18s, transform .12s;
 }
 .addt-submit:hover{ background:var(--felt-bright); }
 .addt-submit:active{ transform:translateY(1px); }
