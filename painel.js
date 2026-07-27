@@ -4011,8 +4011,11 @@ function renderUnfixed(){
 
   const fragment = document.createDocumentFragment();
 
-  // No modo compacto, não mostrar os ucards de flag
-  if(!_compactMode){
+  // O alerta "Não fixados" aparece em AMBOS os modos: no compacto ele estava
+  // desligado (só mostrava o contador, com a lista vazia embaixo), e ao trocar
+  // pra compacto o tick de 60s esvaziava o que já estava na tela — dava a
+  // impressão de "some depois de um tempo". É a lista de pendências urgentes;
+  // precisa aparecer independente do modo de visualização da agenda.
   withFlag.forEach(({row:r, cat, flag}) => {
     const key = r._key;
     const card = document.createElement('div');
@@ -4047,7 +4050,6 @@ function renderUnfixed(){
     `;
     fragment.appendChild(card);
   });
-  } // fim if(!_compactMode)
 
   grid.appendChild(fragment);
 

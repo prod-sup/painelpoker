@@ -75,6 +75,7 @@ const STATIC_ASSETS = [
   'suprema-presence.js',
   'suprema-motion.js',
   'suprema-insights.js',
+  'suprema-footer.js',
   'painel.css',
   'painel.js',
   // painel.js DEPENDE de painel-calc (classify/toNumber/acoes) — sem ele offline

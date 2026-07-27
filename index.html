@@ -17,7 +17,7 @@
   }catch(e){ location.replace('hub.html'); }
 })();
 </script>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%2318a36b'>♠</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%238f6c14'>♠</text></svg>">
 <meta name="description" content="Acompanhamento dos torneios Suprema Poker. Garantidos, resultados e performance, atualizados a partir da planilha diária.">
 <!-- XLSX (~900KB) só é usado em upload/exportar (ação do usuário), nunca no load:
      defer tira ele do caminho crítico → a página pinta na hora e ele carrega em paralelo. -->
@@ -47,9 +47,9 @@ SupremaMotion.busyAuto();
 document.addEventListener('DOMContentLoaded', () => {
   SupremaMotion.ambient();
   SupremaMotion.magnetic('.opj-btn-primary');
-  SupremaMotion.aurora('.hero', { tint1:'rgba(24,163,107,.26)', tint2:'rgba(216,181,109,.16)' });
+  SupremaMotion.aurora('.hero', { tint1:'rgba(176,133,28,.24)', tint2:'rgba(216,181,109,.16)' });
   /* rede de nós atrás do hero (Network Hero, estreada no Radar de Eventos) */
-  SupremaMotion.network('.hero', { c1:'#18a36b', c2:'#8f6c14', c2Dark:'#e6c34f' });
+  SupremaMotion.network('.hero', { c1:'#b0851c', c2:'#8f6c14', c2Dark:'#e6c34f' });
 });
 </script>
 <link rel="stylesheet" href="painel.css">
@@ -103,8 +103,8 @@ document.addEventListener('DOMContentLoaded', () => {
   <div class="nav-inner">
     <div class="brand">
       <svg class="brand-mark" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="10.5" stroke="#0c5c3f" stroke-width="1.6"/>
-        <path d="M7.5 12.5 L10.5 15.5 L16.5 8.5" stroke="#18a36b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="12" cy="12" r="10.5" stroke="#6b5210" stroke-width="1.6"/>
+        <path d="M7.5 12.5 L10.5 15.5 L16.5 8.5" stroke="#8f6c14" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <span class="brand-text">Suprema OS</span>
       <!-- fichas da casa. As bordas entalhadas (stroke-dasharray) são o que faz
@@ -550,8 +550,8 @@ document.addEventListener('DOMContentLoaded', () => {
   @keyframes opjPulse{ 0%,100%{ opacity:1; } 50%{ opacity:.4; } }
   .opj-status-txt{ font-size:13.5px; font-weight:700; }
   .opj-status-val{ margin-left:auto; font-family:var(--mono); font-size:13px; font-weight:700; }
-  .opj-s-batido{ color:var(--felt-bright); } .opj-s-batido .opj-status-dot{ background:var(--felt-bright); color:var(--felt-bright); }
-  .opj-s-ok{ color:var(--felt-bright); } .opj-s-ok .opj-status-dot{ background:var(--felt-bright); color:var(--felt-bright); }
+  .opj-s-batido{ color:var(--ok-bright); } .opj-s-batido .opj-status-dot{ background:var(--ok-bright); color:var(--ok-bright); }
+  .opj-s-ok{ color:var(--ok-bright); } .opj-s-ok .opj-status-dot{ background:var(--ok-bright); color:var(--ok-bright); }
   .opj-s-risco{ color:var(--gold); } .opj-s-risco .opj-status-dot{ background:var(--gold); color:var(--gold); }
   .opj-s-overlay{ color:var(--red); } .opj-s-overlay .opj-status-dot{ background:var(--red); color:var(--red); }
   .opj-s-idle{ color:var(--ink-soft); } .opj-s-idle .opj-status-dot{ background:var(--ink-soft); color:var(--ink-soft); animation:none; }
@@ -560,7 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
   .opj-metric{ background:var(--card); padding:10px 8px; text-align:center; }
   .opj-metric-label{ font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); }
   .opj-metric-val{ font-family:var(--mono); font-size:15px; font-weight:700; color:var(--ink); margin-top:3px; }
-  .opj-metric-val.pos{ color:var(--felt-bright); } .opj-metric-val.neg{ color:var(--red); } .opj-metric-val.gold{ color:var(--gold); }
+  .opj-metric-val.pos{ color:var(--ok-bright); } .opj-metric-val.neg{ color:var(--red); } .opj-metric-val.gold{ color:var(--gold); }
   .opj-metric-sub{ font-size:9px; color:var(--ink-soft); margin-top:1px; }
 
   .opj-chart-wrap{ padding:12px 12px 4px; }
@@ -598,7 +598,7 @@ document.addEventListener('DOMContentLoaded', () => {
   .opj-tl-delta{ font-family:var(--mono); font-size:11px; color:var(--felt-bright); }
   .opj-tl-delta.zero{ color:var(--ink-soft); }
   .opj-tl-ov{ font-family:var(--mono); font-size:11px; font-weight:700; text-align:right; }
-  .opj-tl-ov.pos{ color:var(--felt-bright); } .opj-tl-ov.neg{ color:var(--red); }
+  .opj-tl-ov.pos{ color:var(--ok-bright); } .opj-tl-ov.neg{ color:var(--red); }
   .opj-tl-empty{ font-size:12px; color:var(--ink-soft); text-align:center; padding:12px 0; }
 
   .opj-settings{ border-top:1px solid var(--hairline); }
@@ -990,23 +990,23 @@ document.addEventListener('DOMContentLoaded', () => {
 <div id="wbOverlay" style="display:none;position:fixed;inset:0;z-index:850;pointer-events:none;">
   <div id="wbCard" style="
     position:absolute;bottom:32px;left:50%;transform:translateX(-50%) translateY(20px);
-    background:linear-gradient(135deg,#0c5c3f 0%,#0a3d2a 100%);
-    border:1px solid rgba(34,212,126,0.3);border-radius:20px;
+    background:linear-gradient(135deg,#3a2f0d 0%,#221a05 100%);
+    border:1px solid rgba(230,195,79,0.32);border-radius:20px;
     padding:20px 28px;min-width:320px;max-width:440px;width:calc(100vw - 48px);
-    box-shadow:0 24px 60px rgba(0,0,0,0.4),0 0 0 1px rgba(34,212,126,0.1);
+    box-shadow:0 24px 60px rgba(0,0,0,0.4),0 0 0 1px rgba(230,195,79,0.12);
     display:flex;align-items:center;gap:18px;
     opacity:0;transition:opacity .4s var(--ease),transform .5s var(--ease);
     pointer-events:auto;
   ">
     <div id="wbAvatar" style="
       width:52px;height:52px;border-radius:14px;flex:none;
-      background:linear-gradient(135deg,rgba(34,212,126,0.25) 0%,rgba(24,163,107,0.4) 100%);
-      border:1.5px solid rgba(34,212,126,0.4);
+      background:linear-gradient(135deg,rgba(230,195,79,0.25) 0%,rgba(176,133,28,0.4) 100%);
+      border:1.5px solid rgba(230,195,79,0.4);
       display:flex;align-items:center;justify-content:center;
-      font-size:22px;font-weight:800;color:#22d47e;font-family:var(--display);
+      font-size:22px;font-weight:800;color:#e6c34f;font-family:var(--display);
     "></div>
     <div style="flex:1;min-width:0;">
-      <div id="wbGreeting" style="font-size:11px;font-weight:700;color:rgba(34,212,126,0.7);text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px;"></div>
+      <div id="wbGreeting" style="font-size:11px;font-weight:700;color:rgba(230,195,79,0.78);text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px;"></div>
       <div id="wbName" style="font-size:18px;font-weight:700;color:#fff;font-family:var(--display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
       <div id="wbSub" style="font-size:12px;color:rgba(255,255,255,0.45);margin-top:2px;font-family:var(--mono);"></div>
     </div>
@@ -1354,7 +1354,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <p>A versão com mais cartas na mão — 6 — ainda usando só 2 delas pra montar a jogada. É a variante mais imprevisível do Omaha: com tantas combinações possíveis, mãos fortes são bem mais comuns e os pots tendem a ser maiores.</p>
       </div>
 
-      <div class="learn-card reveal" style="--lc-color:var(--felt-bright); --lc-soft:rgba(24,163,107,0.12);">
+      <div class="learn-card reveal" style="--lc-color:var(--felt-bright); --lc-soft:rgba(176,133,28,0.12);">
         <span class="lc-watermark">♠</span>
         <span class="lc-num">V</span>
         <div class="lc-head"><span class="lc-tag">Chinês</span></div>
@@ -1461,9 +1461,10 @@ document.addEventListener('DOMContentLoaded', () => {
       { el:'#routineToggle', title:'Conferência de hoje', text:'A lista de todos os torneios do dia pra você ir marcando enquanto confere cada um no app da Suprema.', side:'bottom' },
       { el:'#guConfToggle', title:'Conferência do dia (GU)', text:'A receita completa dos eventos, coluna a coluna — Admin Fee já calculada e sincronizada com a equipe.', side:'bottom' },
       { el:'#overlayCalcToggle', title:'Calculadora de Overlay', text:'Calcula pote, rake e overlay de cada torneio na hora, com histórico do dia.', side:'bottom' }
-    ], { accent:'#18a36b', label:'Painel do Dia' });
+    ], { accent:'#8f6c14', label:'Painel do Dia' });
   }
 </script>
+<script defer src="suprema-footer.js"></script>
 
 </body>
 </html>

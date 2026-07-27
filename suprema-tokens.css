@@ -84,7 +84,7 @@
   --sup-shadow-sm:   0 1px 2px rgba(16,28,22,.05), 0 3px 10px -2px rgba(16,28,22,.06);
   --sup-shadow-md:   0 4px 14px -3px rgba(16,28,22,.09), 0 10px 30px -8px rgba(16,28,22,.11);
   --sup-shadow-lg:   0 14px 36px -10px rgba(16,28,22,.16), 0 28px 64px -20px rgba(16,28,22,.20);
-  --sup-shadow-glow: 0 0 0 1px rgba(24,163,107,.14), 0 10px 28px -10px rgba(24,163,107,.24);
+  --sup-shadow-glow: 0 0 0 1px rgba(176,133,28,.14), 0 10px 28px -10px rgba(176,133,28,.24);
 
   /* -- forma e movimento ----------------------------------- */
   --sup-radius-sm: 12px;
@@ -98,7 +98,11 @@
      o hub e os painéis parecerem a mesma casa. FONTE ÚNICA — o hub aponta seus --p-* pra cá.
      O acento do Admin é o próprio dourado da marca, então acompanha a superfície (ver html.dark
      abaixo); antes o hub tinha uma cópia divergente (#c9a35c) e ninguém percebia. */
-  --sup-p-painel: var(--sup-felt-bright);  /* #18a36b */
+  /* O acento do Painel do Dia virou DOURADO champagne (antes verde feltro): o Brian
+     pediu pra tirar o verde do chrome de todos os produtos. O verde (--sup-felt*)
+     continua vivo, mas só como SIGNIFICADO de sucesso/feito (Fixado, positivo), não
+     como cor de produto. Painel e Admin passam a compartilhar o dourado da casa. */
+  --sup-p-painel: var(--sup-gold);         /* dourado (claro/escuro seguem a superfície) */
   --sup-p-admin:  var(--sup-gold);         /* #8f6b2d no claro, --sup-gold-dark no escuro */
   --sup-p-gu:     #8c5cc6;
   --sup-p-learn:  #e8933d;
@@ -152,14 +156,15 @@
 html.dark,
 html[data-theme="dark"]{
   --gold: var(--sup-gold-dark);
-  /* o acento do Admin É o dourado da marca, então acompanha junto */
+  /* o acento do Admin (e agora do Painel) É o dourado da marca, então acompanha junto */
   --sup-p-admin: var(--sup-gold-dark);
+  --sup-p-painel: var(--sup-gold-dark);
 
   /* sombras da escala S2 sobem de opacidade no escuro (mesmo modelo do painel) */
   --sup-shadow-sm:   0 1px 2px rgba(0,0,0,.45), 0 3px 12px -2px rgba(0,0,0,.4);
   --sup-shadow-md:   0 6px 20px -4px rgba(0,0,0,.55), 0 14px 38px -10px rgba(0,0,0,.5);
   --sup-shadow-lg:   0 18px 44px -12px rgba(0,0,0,.65), 0 34px 76px -22px rgba(0,0,0,.6);
-  --sup-shadow-glow: 0 0 0 1px rgba(34,212,126,.2), 0 12px 32px -10px rgba(34,212,126,.16);
+  --sup-shadow-glow: 0 0 0 1px rgba(230,195,79,.2), 0 12px 32px -10px rgba(230,195,79,.16);
   /* o framboesa do claro não segura contraste no escuro — mesmo modelo do dourado */
   --sup-p-eventos: #ef7d93;
 
@@ -187,18 +192,18 @@ html[data-theme="dark"]{
    de mouse. color-scheme evita o flash de tema errado no 1º paint
    (form controls nativos, scrollbar) mesmo antes do JS rodar.
    ============================================================ */
-:root{ color-scheme: light; --sup-focus: var(--sup-felt-bright); }
+:root{ color-scheme: light; --sup-focus: var(--sup-gold); }
 html.dark,
 html[data-theme="dark"]{ color-scheme: dark; --sup-focus: var(--gold); }
 
 :where(a, button, input, select, textarea, summary, [tabindex], [role="button"], [role="tab"], [role="link"]):focus-visible{
-  outline: 2px solid var(--sup-focus, #18a36b);
+  outline: 2px solid var(--sup-focus, #8f6c14);
   outline-offset: 2px;
   border-radius: var(--sup-radius-sm);
 }
 /* No modo leve o foco continua — é a11y, não enfeite */
 html.lite :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible{
-  outline: 2px solid var(--sup-focus, #18a36b) !important;
+  outline: 2px solid var(--sup-focus, #8f6c14) !important;
 }
 
 /* ============================================================
