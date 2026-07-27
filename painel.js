@@ -6178,6 +6178,7 @@ function ovcGenerateImage(){
   const sel = document.getElementById('ovcTorneioSelect');
   const row = sel?.value ? rowByKey(sel.value) : null;
   const nome = (row?.nome || 'Torneio').toString();
+  const hora = (row?.hora || '').toString().trim();
 
   const rake = ovcRakePercent();
   const rakePct = Math.round(rake*100);
@@ -6198,125 +6199,159 @@ function ovcGenerateImage(){
   const weekday = WD[new Date(n.year, n.month-1, n.day).getDay()];
   const dateStr = `${String(n.day).padStart(2,'0')}/${String(n.month).padStart(2,'0')}`;
 
+  const moneyShort = x => 'R$ ' + fmtBRL(x, x%1===0?0:2);
+
+  // ── paleta premium (independe do tema — o card é sempre o "broadcast" escuro) ──
+  const C = {
+    ink:'#ffffff', inkSoft:'#c9c4ba', inkFaint:'#8f8a80',
+    orange:'#f7941d', orangeHi:'#ffbe6b', band:'#232228',
+    panel:'#f6f8fc', zebra:'#e9eef7', panelInk:'#191b22', panelInk2:'#5a6070', panelBorder:'#d5dae6',
+    potInk:'#2a1800', redBg:'#f3ddd6', redInk:'#b32a16', greenBg:'#dcefe3', greenInk:'#1b7a47',
+  };
+  const FONT = 'Segoe UI, "Helvetica Neue", Arial, sans-serif';
+
   // ── geometria (px lógicos; escala 2× pra nitidez) ──
-  const S = 2;
-  const W = 620, headH = 96, rowH = 32, tableTop = headH + 10;
-  const bodyRows = 1 /*head*/ + 3 /*linhas*/ + 3 /*pote/gar/overlay*/;
-  const H = tableTop + bodyRows*rowH + 14;
+  const S = 2, W = 1000, P = 40;
+  const headTop = 44, logoS = 104, tTop = 200;
+  const thH = 50, rH = 56, potH = 68, garH = 54, ovH = 64, footH = 70;
+  const contH = thH + 3*rH + potH + garH + ovH;
+  const H = tTop + contH + footH;
   const cv = document.createElement('canvas');
   cv.width = W*S; cv.height = H*S;
   const ctx = cv.getContext('2d');
   ctx.scale(S, S);
   ctx.textBaseline = 'middle';
-  const FONT = 'Segoe UI, "Helvetica Neue", Arial, sans-serif';
-  const rr = (x,y,w,h,r) => { if(ctx.roundRect){ ctx.beginPath(); ctx.roundRect(x,y,w,h,r); } else { ctx.beginPath(); ctx.rect(x,y,w,h); } };
+  const setLS = v => { try{ ctx.letterSpacing = v; }catch(e){} };
+  const path = (x,y,w,h,r) => { ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(x,y,w,h,r); else ctx.rect(x,y,w,h); };
 
-  // fundo do card (charcoal com leve gradiente)
-  const bg = ctx.createLinearGradient(0,0,0,H);
-  bg.addColorStop(0,'#464646'); bg.addColorStop(1,'#383838');
-  rr(0,0,W,H,18); ctx.fillStyle = bg; ctx.fill();
+  // ── fundo do card: gradiente escuro + brilho laranja no canto do logo + ♠ d'água ──
+  path(0,0,W,H,26); ctx.save(); ctx.clip();
+  const bgGrad = ctx.createLinearGradient(0,0,W,H);
+  bgGrad.addColorStop(0,'#2b2a31'); bgGrad.addColorStop(1,'#131317');
+  ctx.fillStyle = bgGrad; ctx.fillRect(0,0,W,H);
+  const glow = ctx.createRadialGradient(150,110,10,150,110,470);
+  glow.addColorStop(0,'rgba(247,148,29,.20)'); glow.addColorStop(1,'rgba(247,148,29,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = 'rgba(255,255,255,.028)'; ctx.font = `700 380px ${FONT}`; ctx.textAlign='right'; ctx.textBaseline='alphabetic';
+  ctx.fillText('♠', W+80, H+130); ctx.textBaseline='middle';
+  ctx.restore();
 
-  // ── cabeçalho ──
-  // emblema laranja (espada da marca) num quadrado arredondado
-  const bx = 22, by = 22, bs = 52;
-  const og = ctx.createLinearGradient(bx,by,bx,by+bs);
-  og.addColorStop(0,'#ffb15a'); og.addColorStop(1,'#e07d17');
-  rr(bx,by,bs,bs,12); ctx.fillStyle = og; ctx.fill();
-  ctx.fillStyle = '#2a1a05'; ctx.font = `700 30px ${FONT}`; ctx.textAlign = 'center';
-  ctx.fillText('♠', bx+bs/2, by+bs/2+2);
+  // ── logo (emblema laranja com sombra, brilho interno e ♠) ──
+  ctx.save();
+  ctx.shadowColor='rgba(247,148,29,.45)'; ctx.shadowBlur=24; ctx.shadowOffsetY=6;
+  const lg = ctx.createLinearGradient(P,headTop,P,headTop+logoS);
+  lg.addColorStop(0,'#ffb15a'); lg.addColorStop(1,'#e07d17');
+  path(P,headTop,logoS,logoS,26); ctx.fillStyle=lg; ctx.fill();
+  ctx.restore();
+  path(P+3,headTop+3,logoS-6,logoS*0.5,22);
+  const lh = ctx.createLinearGradient(P,headTop,P,headTop+logoS*0.5);
+  lh.addColorStop(0,'rgba(255,255,255,.35)'); lh.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=lh; ctx.fill();
+  path(P+1,headTop+1,logoS-2,logoS-2,25); ctx.lineWidth=1.5; ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.stroke();
+  ctx.fillStyle='#3a2100'; ctx.font=`700 56px ${FONT}`; ctx.textAlign='center';
+  ctx.fillText('♠', P+logoS/2, headTop+logoS/2+3);
 
-  // dia + data (linha 1) e nome do torneio (linha 2), alinhados à direita
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#ffffff'; ctx.font = `700 20px ${FONT}`;
-  ctx.fillText(`${weekday}   -  ${dateStr}`, W-24, by+14);
-  ctx.font = `800 24px ${FONT}`;
-  ctx.fillText(nome, W-24, by+46);
+  // ── cabeçalho: dia/data · nome (sólido, auto-fit) · chips de horário e garantido ──
+  const rightX = W-P;
+  ctx.textAlign='right';
+  setLS('2px'); ctx.fillStyle=C.inkSoft; ctx.font=`700 16px ${FONT}`;
+  ctx.fillText(`${weekday.toUpperCase()}  ·  ${dateStr}`, rightX, headTop+16);
+  setLS('0px');
+  let nameSize=50; ctx.font=`800 ${nameSize}px ${FONT}`;
+  const nameMaxW = rightX - (P+logoS+30);
+  while(nameSize>28 && ctx.measureText(nome).width>nameMaxW){ nameSize-=2; ctx.font=`800 ${nameSize}px ${FONT}`; }
+  ctx.fillStyle=C.ink; ctx.fillText(nome, rightX, headTop+58);
 
-  // ── tabela ──
-  const x0 = 12, tW = W - 24;
-  // colunas: Descrição | Ações | R$ | Rake -x% | Total
-  const cols = [
-    { key:'desc',  w:0.30, align:'left'   },
-    { key:'acoes', w:0.16, align:'center' },
-    { key:'rs',    w:0.17, align:'center' },
-    { key:'rake',  w:0.18, align:'center' },
-    { key:'total', w:0.19, align:'center' },
-  ];
-  let acc = x0; cols.forEach(c => { c.x = acc; c.px = acc + 12; c.cw = tW*c.w; acc += tW*c.w; });
-  const colCenter = c => c.x + c.cw/2;
+  const chips=[];
+  if(hora) chips.push({ t:`às ${hora}`, bg:'rgba(247,148,29,.18)', bd:'rgba(247,148,29,.55)', ink:C.orangeHi });
+  if(gar>0) chips.push({ t:`GTD  ${moneyShort(gar)}`, bg:'rgba(255,255,255,.08)', bd:'rgba(255,255,255,.20)', ink:'#e9e5dc' });
+  if(chips.length){
+    ctx.font=`700 15px ${FONT}`;
+    const chH=32, gap=10, pad=15;
+    const ws = chips.map(c=>ctx.measureText(c.t).width + pad*2);
+    let x = rightX - ws.reduce((a,b)=>a+b,0) - gap*(chips.length-1);
+    const cy = headTop+98;
+    chips.forEach((c,i)=>{
+      path(x, cy-chH/2, ws[i], chH, chH/2); ctx.fillStyle=c.bg; ctx.fill();
+      ctx.lineWidth=1.2; ctx.strokeStyle=c.bd; ctx.stroke();
+      ctx.fillStyle=c.ink; ctx.textAlign='left'; ctx.fillText(c.t, x+pad, cy+1);
+      x += ws[i]+gap;
+    });
+    ctx.textAlign='right';
+  }
 
-  const cellText = (txt, c, y, opts={}) => {
-    ctx.fillStyle = opts.color || '#16181d';
-    ctx.font = `${opts.weight||600} ${opts.size||13}px ${FONT}`;
-    ctx.textAlign = c.align==='left' ? 'left' : 'center';
-    const tx = c.align==='left' ? c.px : colCenter(c);
-    ctx.fillText(txt, tx, y);
-  };
-  const gridLine = (y) => { ctx.strokeStyle='rgba(120,120,120,.55)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x0+tW,y); ctx.stroke(); };
+  // ── container da tabela (cantos arredondados + clip) ──
+  const cx=P, cw=W-2*P, ipad=24;
+  const rTotal = cx+cw-ipad, rRake=rTotal-175, rRS=rRake-165, rAcoes=rRS-160, descL=cx+ipad;
+  path(cx, tTop, cw, contH, 16); ctx.save(); ctx.clip();
 
-  let y = tableTop;
-  // header da tabela (charcoal, texto branco)
-  ctx.fillStyle = '#3a3a3a'; ctx.fillRect(x0, y, tW, rowH);
-  const heads = ['Descrição','Ações','R$', `Rake\n-${rakePct}%`, 'Total'];
-  cols.forEach((c,i) => {
-    ctx.fillStyle = '#ffffff'; ctx.font = `700 12px ${FONT}`;
-    ctx.textAlign = c.align==='left' ? 'left' : 'center';
-    const tx = c.align==='left' ? c.px : colCenter(c);
-    const parts = heads[i].split('\n');
-    if(parts.length>1){ ctx.fillText(parts[0], tx, y+rowH/2-6); ctx.fillText(parts[1], tx, y+rowH/2+7); }
-    else ctx.fillText(heads[i], tx, y+rowH/2);
+  let y=tTop;
+  // header da tabela (band escuro + acento laranja embaixo)
+  ctx.fillStyle=C.band; ctx.fillRect(cx,y,cw,thH);
+  ctx.fillStyle=C.orange; ctx.fillRect(cx, y+thH-2.5, cw, 2.5);
+  setLS('.5px'); ctx.font=`700 13px ${FONT}`;
+  ctx.textAlign='left'; ctx.fillStyle=C.inkSoft; ctx.fillText('DESCRIÇÃO', descL, y+thH/2);
+  ctx.textAlign='right';
+  ctx.fillText('AÇÕES', rAcoes, y+thH/2);
+  ctx.fillText('R$', rRS, y+thH/2);
+  ctx.fillText(`RAKE -${rakePct}%`, rRake, y+thH/2);
+  ctx.fillStyle=C.orangeHi; ctx.fillText('TOTAL', rTotal, y+thH/2);
+  setLS('0px');
+  y+=thH;
+
+  // linhas de dados (painel claro, zebra, números à direita e tabulares)
+  rows.forEach(([label,l],i)=>{
+    ctx.fillStyle = i%2 ? C.zebra : C.panel; ctx.fillRect(cx,y,cw,rH);
+    const yc=y+rH/2;
+    ctx.textAlign='left'; ctx.fillStyle=C.panelInk; ctx.font=`600 18px ${FONT}`;
+    ctx.fillText(label, descL, yc);
+    ctx.textAlign='right'; ctx.font=`600 17px ${FONT}`; ctx.fillStyle=C.panelInk2;
+    if(l.a>0) ctx.fillText(fmtBRL(l.a,0), rAcoes, yc);
+    if(l.v>0){ ctx.fillText(money(l.v), rRS, yc); ctx.fillText(money(l.net), rRake, yc); }
+    if(l.a>0||l.v>0){ ctx.font=`800 18px ${FONT}`; ctx.fillStyle=C.panelInk; ctx.fillText(money(l.total), rTotal, yc); }
+    ctx.strokeStyle=C.panelBorder; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(cx,y+rH-.5); ctx.lineTo(cx+cw,y+rH-.5); ctx.stroke();
+    y+=rH;
   });
-  y += rowH;
 
-  // linhas de dados (fundo azul-claro tipo planilha)
-  rows.forEach(([label, l]) => {
-    ctx.fillStyle = '#e9f0fb'; ctx.fillRect(x0, y, tW, rowH);
-    const yc = y + rowH/2;
-    cellText(label, cols[0], yc, { weight:600 });
-    if(l.a>0)              cellText(fmtBRL(l.a,0), cols[1], yc);
-    if(l.v>0)             cellText(money(l.v),   cols[2], yc);
-    if(l.v>0)             cellText(money(l.net), cols[3], yc);
-    if(l.a>0||l.v>0)      cellText(money(l.total), cols[4], yc, { weight:700 });
-    gridLine(y);
-    // bordas verticais das células
-    ctx.strokeStyle='rgba(150,165,190,.5)'; ctx.lineWidth=1;
-    cols.forEach(c => { ctx.beginPath(); ctx.moveTo(c.x, y); ctx.lineTo(c.x, y+rowH); ctx.stroke(); });
-    y += rowH;
-  });
-  gridLine(y);
+  // faixa "Colocou no Pote" (band + chip laranja de destaque no valor)
+  ctx.fillStyle=C.band; ctx.fillRect(cx,y,cw,potH);
+  let yc=y+potH/2;
+  ctx.textAlign='left'; ctx.fillStyle=C.ink; ctx.font=`800 19px ${FONT}`;
+  ctx.fillText('Colocou no Pote', descL, yc);
+  const potTxt=money(pote); const ptw=ctx.measureText(potTxt).width, cpad=16, chw=ptw+cpad*2, chh=38;
+  const chGrad=ctx.createLinearGradient(0,yc-chh/2,0,yc+chh/2); chGrad.addColorStop(0,'#ffb15a'); chGrad.addColorStop(1,'#ef8a1e');
+  path(rTotal-chw, yc-chh/2, chw, chh, chh/2); ctx.fillStyle=chGrad; ctx.fill();
+  ctx.fillStyle=C.potInk; ctx.textAlign='right'; ctx.font=`800 19px ${FONT}`; ctx.fillText(potTxt, rTotal-cpad, yc+1);
+  y+=potH;
 
-  // faixa "Colocou no Pote" (charcoal + caixa azul do valor)
-  const bandLabel = (label, valTxt, boxColor, valColor, underline) => {
-    ctx.fillStyle = '#3a3a3a'; ctx.fillRect(x0, y, tW, rowH);
-    const yc = y + rowH/2;
-    const labelRight = cols[4].x; // label ocupa até a coluna Total
-    ctx.fillStyle = '#ffffff'; ctx.font = `800 15px ${FONT}`; ctx.textAlign='center';
-    ctx.fillText(label, x0 + (labelRight-x0)/2, yc);
-    if(underline){ const tw = ctx.measureText(label).width; ctx.strokeStyle='#ffffff'; ctx.lineWidth=1.4; ctx.beginPath(); ctx.moveTo(x0+(labelRight-x0)/2 - tw/2, yc+11); ctx.lineTo(x0+(labelRight-x0)/2 + tw/2, yc+11); ctx.stroke(); }
-    // caixa do valor na coluna Total
-    if(boxColor){ ctx.fillStyle = boxColor; ctx.fillRect(cols[4].x, y+3, cols[4].cw, rowH-6); }
-    ctx.fillStyle = valColor; ctx.font = `800 14px ${FONT}`; ctx.textAlign='center';
-    ctx.fillText(valTxt, colCenter(cols[4]), yc);
-    gridLine(y); y += rowH;
-  };
-  bandLabel('Colocou no Pote', money(pote), '#cfe0f5', '#14304a', true);
-  bandLabel('Garantido', money(gar), null, '#ffffff', true);
+  // faixa "Garantido"
+  ctx.fillStyle=C.band; ctx.fillRect(cx,y,cw,garH);
+  yc=y+garH/2;
+  ctx.textAlign='left'; ctx.fillStyle=C.inkSoft; ctx.font=`700 17px ${FONT}`; ctx.fillText('Garantido', descL, yc);
+  ctx.textAlign='right'; ctx.fillStyle=C.ink; ctx.font=`800 18px ${FONT}`; ctx.fillText(moneyShort(gar), rTotal, yc);
+  y+=garH;
 
-  // faixa "Overlay" — fundo salmão + texto vermelho quando há overlay
+  // faixa "Overlay" — vermelho quando há overlay, verde quando não há
   const hasOv = gar>0 && overlay>0;
-  ctx.fillStyle = hasOv ? '#e7a48c' : '#cfe9d8'; ctx.fillRect(x0, y, tW, rowH);
-  const yOv = y + rowH/2, ovLabelR = cols[4].x;
-  const ovColor = hasOv ? '#b02a17' : '#1c7a48';
-  ctx.fillStyle = ovColor; ctx.font = `800 15px ${FONT}`; ctx.textAlign='center';
-  ctx.fillText('Overlay', x0 + (ovLabelR-x0)/2, yOv);
-  const ovtw = ctx.measureText('Overlay').width; ctx.strokeStyle=ovColor; ctx.lineWidth=1.4;
-  ctx.beginPath(); ctx.moveTo(x0+(ovLabelR-x0)/2 - ovtw/2, yOv+11); ctx.lineTo(x0+(ovLabelR-x0)/2 + ovtw/2, yOv+11); ctx.stroke();
-  ctx.font = `800 14px ${FONT}`; ctx.textAlign='center';
-  const ovTxt = gar<=0 ? '—' : (overlay>0 ? '-'+money(overlay) : 'Sem overlay');
-  ctx.fillText(ovTxt, colCenter(cols[4]), yOv);
-  gridLine(y);
-  // moldura externa da tabela
-  ctx.strokeStyle='rgba(120,120,120,.55)'; ctx.lineWidth=1; ctx.strokeRect(x0, tableTop, tW, (y+rowH)-tableTop);
+  ctx.fillStyle = hasOv ? C.redBg : C.greenBg; ctx.fillRect(cx,y,cw,ovH);
+  yc=y+ovH/2;
+  const ovInk = hasOv ? C.redInk : C.greenInk;
+  ctx.textAlign='left'; ctx.fillStyle=ovInk; ctx.font=`800 19px ${FONT}`; ctx.fillText('Overlay', descL, yc);
+  ctx.textAlign='right'; ctx.font=`800 20px ${FONT}`;
+  const ovTxt = gar<=0 ? '—' : (overlay>0 ? '- '+money(overlay) : 'Sem overlay 🎉');
+  ctx.fillText(ovTxt, rTotal, yc);
+  y+=ovH;
+
+  ctx.restore(); // fim clip do container
+  path(cx,tTop,cw,contH,16); ctx.lineWidth=1; ctx.strokeStyle='rgba(255,255,255,.10)'; ctx.stroke();
+
+  // ── rodapé: assinatura da marca ──
+  ctx.textAlign='center';
+  setLS('1.5px'); ctx.font=`700 14px ${FONT}`; ctx.fillStyle=C.orange;
+  ctx.fillText('SUPREMA POKER', W/2, tTop+contH+footH/2 - 9);
+  setLS('.5px'); ctx.font=`600 12px ${FONT}`; ctx.fillStyle=C.inkFaint;
+  ctx.fillText('@supremapoker.br', W/2, tTop+contH+footH/2 + 12);
+  setLS('0px');
 
   // ── exporta: baixa + tenta copiar ──
   const safeName = nome.replace(/[^\wÀ-ſ ]+/g,'').trim().replace(/\s+/g,'-') || 'torneio';
