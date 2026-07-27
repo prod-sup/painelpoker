@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="6" rx="1.6"/><rect x="2" y="15" width="20" height="6" rx="1.6"/><path d="M6 6h.01M6 18h.01"/></svg>
       </button>
       <i class="tsep" aria-hidden="true"></i>
-      <button class="clear-btn" id="routineToggle" title="Conferência de hoje">
+      <button class="clear-btn" id="routineToggle" title="Conferência">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
       </button>
       <button class="clear-btn" id="guConfToggle" title="Conferência do dia (GU) — todas as colunas da receita dos eventos de hoje">
@@ -333,36 +333,13 @@ document.addEventListener('DOMContentLoaded', () => {
 </div>
 
 <div class="drawer-overlay" id="routineDrawerOverlay">
-  <aside class="drawer drawer-wide" id="routineDrawer" role="dialog" aria-modal="true" aria-label="Conferência de hoje">
+  <aside class="drawer drawer-wide" id="routineDrawer" role="dialog" aria-modal="true" aria-label="Conferência">
     <div class="drawer-head">
-      <div class="drawer-title">Conferência de hoje</div>
+      <div class="drawer-title">Conferência</div>
       <button class="drawer-close" id="routineDrawerClose" type="button" aria-label="Fechar">✕</button>
     </div>
     <div class="drawer-body">
-      <p class="routine-tool-desc">Suba a planilha <b>Global MTT</b> de hoje. Gera a lista de todos os torneios do dia, em ordem de horário, pra você ir marcando enquanto confere cada um manualmente no app da Suprema. Compartilhado com seu parceiro e reseta sozinho amanhã.</p>
-      <label class="routine-upload">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
-        <span id="globalTodayFileLabel">Carregar planilha Global MTT de hoje (.xlsx)</span>
-        <input type="file" id="globalTodayFileInput" accept=".xlsx" hidden>
-      </label>
-      <button type="button" class="shared-global-btn" id="confHojeSharedBtn" hidden></button>
-      <div class="conf-progress" id="confHojeProgress" hidden>
-        <span class="progress-count" id="confHojeProgressCount">0 de 0 conferidos</span>
-        <div class="progress-track"><div class="progress-fill" id="confHojeProgressFill" style="width:0%"></div></div>
-      </div>
-      <div class="conf-hoje-controls" id="confHojeControls" hidden>
-        <div class="server-search conf-hoje-search">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-          <input type="text" id="confHojeSearchInput" placeholder="Buscar torneio ou horário..." autocomplete="off">
-        </div>
-        <button class="chip" id="confHojeHideDoneBtn" type="button">Ocultar conferidos</button>
-      </div>
-      <div id="confHojeList"></div>
-
-      <div class="drawer-section-divider"></div>
-
-      <div class="drawer-section-title">Conferência de amanhã</div>
-      <p class="routine-tool-desc">Suba a planilha <b>Global MTT</b> novamente (mesmo que já tenha carregado acima). Mostra aqui na tela os torneios do próximo dia — Main Events, Side Events e Satélites (agrupados por torneio) — pegando tudo que começa entre <b>06:10 de amanhã</b> e <b>05:30 do dia seguinte</b>, com Garantido e Buy-in já em dólar.</p>
+      <p class="routine-tool-desc">Suba a planilha <b>Global MTT</b> e confira aqui os torneios do <b>próximo dia</b> — Main Events, Side Events e Satélites (agrupados por torneio) — tudo que começa entre <b>06:10 de amanhã</b> e <b>05:30 do dia seguinte</b>, com Garantido e Buy-in já em dólar. Compartilhado com seu parceiro.</p>
       <label class="routine-upload">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
         <span id="globalTomorrowFileLabel">Carregar planilha Global MTT (.xlsx)</span>
@@ -477,10 +454,17 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="ovc-sync-badge" id="ovcSyncBadge">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
         <span>Pote aplicado à premiação do card</span>
+        <button type="button" id="ovcGoToCardBtn" class="ovc-gotocard-btn" title="Abrir o card desse torneio na agenda">Ir para o card
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
       </div>
 
       <!-- Ações -->
       <div class="ovc-actions">
+        <button class="routine-download" id="ovcImageBtn" type="button" style="background:var(--felt);color:var(--bg);" title="Gerar imagem do overlay (baixa e copia)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+          Gerar imagem
+        </button>
         <button class="routine-download" id="ovcCopyBtn" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           Copiar
@@ -1458,7 +1442,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (window.SupremaAuth && SupremaAuth.getSession && SupremaAuth.getSession()){
     SupremaOnboarding.start('painel', [
       { el:'#uploadGlobalBtn', title:'Comece pela Global MTT', text:'Carregue a planilha do dia aqui — ela alimenta a grade, os resultados e as conferências automaticamente.', side:'bottom' },
-      { el:'#routineToggle', title:'Conferência de hoje', text:'A lista de todos os torneios do dia pra você ir marcando enquanto confere cada um no app da Suprema.', side:'bottom' },
+      { el:'#routineToggle', title:'Conferência', text:'Suba a Global MTT e confira os torneios do próximo dia, já em dólar e agrupados por torneio.', side:'bottom' },
       { el:'#guConfToggle', title:'Conferência do dia (GU)', text:'A receita completa dos eventos, coluna a coluna — Admin Fee já calculada e sincronizada com a equipe.', side:'bottom' },
       { el:'#overlayCalcToggle', title:'Calculadora de Overlay', text:'Calcula pote, rake e overlay de cada torneio na hora, com histórico do dia.', side:'bottom' }
     ], { accent:'#e07d17', label:'Painel do Dia' });

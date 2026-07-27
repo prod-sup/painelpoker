@@ -6170,6 +6170,197 @@ document.getElementById('ovcCopyBtn').addEventListener('click', () => {
 });
 
 /* =========================================================================
+   IMAGEM DO OVERLAY — renderiza um card compartilhável (WhatsApp/telão) com
+   as infos da calculadora, no layout de planilha que o Brian pediu. Canvas
+   puro (offline-safe, sem lib): baixa PNG e tenta copiar pra área de transferência.
+========================================================================= */
+function ovcGenerateImage(){
+  const sel = document.getElementById('ovcTorneioSelect');
+  const row = sel?.value ? rowByKey(sel.value) : null;
+  const nome = (row?.nome || 'Torneio').toString();
+
+  const rake = ovcRakePercent();
+  const rakePct = Math.round(rake*100);
+  const line = (aId, vId) => { const a = ovcNum(aId), v = ovcNum(vId), net = v*(1-rake); return { a, v, net, total:a*net }; };
+  const rows = [
+    ['Buy-in', line('ovcBuyinAcoes','ovcBuyinValor')],
+    ['Rebuys', line('ovcRebuysAcoes','ovcRebuysValor')],
+    ['Add-on', line('ovcAddonAcoes','ovcAddonValor')],
+  ];
+  const pote = rows.reduce((s,[,l]) => s + l.total, 0);
+  const gar  = ovcNum('ovcGarantido');
+  const overlay = gar - pote; // >0 → tem overlay
+  const money = x => 'R$ ' + fmtBRL(x, 2);
+
+  // data / dia da semana (relógio operacional)
+  const n = nowInSP();
+  const WD = ['Domingo','Segunda-Feira','Terça-Feira','Quarta-Feira','Quinta-Feira','Sexta-Feira','Sábado'];
+  const weekday = WD[new Date(n.year, n.month-1, n.day).getDay()];
+  const dateStr = `${String(n.day).padStart(2,'0')}/${String(n.month).padStart(2,'0')}`;
+
+  // ── geometria (px lógicos; escala 2× pra nitidez) ──
+  const S = 2;
+  const W = 620, headH = 96, rowH = 32, tableTop = headH + 10;
+  const bodyRows = 1 /*head*/ + 3 /*linhas*/ + 3 /*pote/gar/overlay*/;
+  const H = tableTop + bodyRows*rowH + 14;
+  const cv = document.createElement('canvas');
+  cv.width = W*S; cv.height = H*S;
+  const ctx = cv.getContext('2d');
+  ctx.scale(S, S);
+  ctx.textBaseline = 'middle';
+  const FONT = 'Segoe UI, "Helvetica Neue", Arial, sans-serif';
+  const rr = (x,y,w,h,r) => { if(ctx.roundRect){ ctx.beginPath(); ctx.roundRect(x,y,w,h,r); } else { ctx.beginPath(); ctx.rect(x,y,w,h); } };
+
+  // fundo do card (charcoal com leve gradiente)
+  const bg = ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#464646'); bg.addColorStop(1,'#383838');
+  rr(0,0,W,H,18); ctx.fillStyle = bg; ctx.fill();
+
+  // ── cabeçalho ──
+  // emblema laranja (espada da marca) num quadrado arredondado
+  const bx = 22, by = 22, bs = 52;
+  const og = ctx.createLinearGradient(bx,by,bx,by+bs);
+  og.addColorStop(0,'#ffb15a'); og.addColorStop(1,'#e07d17');
+  rr(bx,by,bs,bs,12); ctx.fillStyle = og; ctx.fill();
+  ctx.fillStyle = '#2a1a05'; ctx.font = `700 30px ${FONT}`; ctx.textAlign = 'center';
+  ctx.fillText('♠', bx+bs/2, by+bs/2+2);
+
+  // dia + data (linha 1) e nome do torneio (linha 2), alinhados à direita
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#ffffff'; ctx.font = `700 20px ${FONT}`;
+  ctx.fillText(`${weekday}   -  ${dateStr}`, W-24, by+14);
+  ctx.font = `800 24px ${FONT}`;
+  ctx.fillText(nome, W-24, by+46);
+
+  // ── tabela ──
+  const x0 = 12, tW = W - 24;
+  // colunas: Descrição | Ações | R$ | Rake -x% | Total
+  const cols = [
+    { key:'desc',  w:0.30, align:'left'   },
+    { key:'acoes', w:0.16, align:'center' },
+    { key:'rs',    w:0.17, align:'center' },
+    { key:'rake',  w:0.18, align:'center' },
+    { key:'total', w:0.19, align:'center' },
+  ];
+  let acc = x0; cols.forEach(c => { c.x = acc; c.px = acc + 12; c.cw = tW*c.w; acc += tW*c.w; });
+  const colCenter = c => c.x + c.cw/2;
+
+  const cellText = (txt, c, y, opts={}) => {
+    ctx.fillStyle = opts.color || '#16181d';
+    ctx.font = `${opts.weight||600} ${opts.size||13}px ${FONT}`;
+    ctx.textAlign = c.align==='left' ? 'left' : 'center';
+    const tx = c.align==='left' ? c.px : colCenter(c);
+    ctx.fillText(txt, tx, y);
+  };
+  const gridLine = (y) => { ctx.strokeStyle='rgba(120,120,120,.55)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x0+tW,y); ctx.stroke(); };
+
+  let y = tableTop;
+  // header da tabela (charcoal, texto branco)
+  ctx.fillStyle = '#3a3a3a'; ctx.fillRect(x0, y, tW, rowH);
+  const heads = ['Descrição','Ações','R$', `Rake\n-${rakePct}%`, 'Total'];
+  cols.forEach((c,i) => {
+    ctx.fillStyle = '#ffffff'; ctx.font = `700 12px ${FONT}`;
+    ctx.textAlign = c.align==='left' ? 'left' : 'center';
+    const tx = c.align==='left' ? c.px : colCenter(c);
+    const parts = heads[i].split('\n');
+    if(parts.length>1){ ctx.fillText(parts[0], tx, y+rowH/2-6); ctx.fillText(parts[1], tx, y+rowH/2+7); }
+    else ctx.fillText(heads[i], tx, y+rowH/2);
+  });
+  y += rowH;
+
+  // linhas de dados (fundo azul-claro tipo planilha)
+  rows.forEach(([label, l]) => {
+    ctx.fillStyle = '#e9f0fb'; ctx.fillRect(x0, y, tW, rowH);
+    const yc = y + rowH/2;
+    cellText(label, cols[0], yc, { weight:600 });
+    if(l.a>0)              cellText(fmtBRL(l.a,0), cols[1], yc);
+    if(l.v>0)             cellText(money(l.v),   cols[2], yc);
+    if(l.v>0)             cellText(money(l.net), cols[3], yc);
+    if(l.a>0||l.v>0)      cellText(money(l.total), cols[4], yc, { weight:700 });
+    gridLine(y);
+    // bordas verticais das células
+    ctx.strokeStyle='rgba(150,165,190,.5)'; ctx.lineWidth=1;
+    cols.forEach(c => { ctx.beginPath(); ctx.moveTo(c.x, y); ctx.lineTo(c.x, y+rowH); ctx.stroke(); });
+    y += rowH;
+  });
+  gridLine(y);
+
+  // faixa "Colocou no Pote" (charcoal + caixa azul do valor)
+  const bandLabel = (label, valTxt, boxColor, valColor, underline) => {
+    ctx.fillStyle = '#3a3a3a'; ctx.fillRect(x0, y, tW, rowH);
+    const yc = y + rowH/2;
+    const labelRight = cols[4].x; // label ocupa até a coluna Total
+    ctx.fillStyle = '#ffffff'; ctx.font = `800 15px ${FONT}`; ctx.textAlign='center';
+    ctx.fillText(label, x0 + (labelRight-x0)/2, yc);
+    if(underline){ const tw = ctx.measureText(label).width; ctx.strokeStyle='#ffffff'; ctx.lineWidth=1.4; ctx.beginPath(); ctx.moveTo(x0+(labelRight-x0)/2 - tw/2, yc+11); ctx.lineTo(x0+(labelRight-x0)/2 + tw/2, yc+11); ctx.stroke(); }
+    // caixa do valor na coluna Total
+    if(boxColor){ ctx.fillStyle = boxColor; ctx.fillRect(cols[4].x, y+3, cols[4].cw, rowH-6); }
+    ctx.fillStyle = valColor; ctx.font = `800 14px ${FONT}`; ctx.textAlign='center';
+    ctx.fillText(valTxt, colCenter(cols[4]), yc);
+    gridLine(y); y += rowH;
+  };
+  bandLabel('Colocou no Pote', money(pote), '#cfe0f5', '#14304a', true);
+  bandLabel('Garantido', money(gar), null, '#ffffff', true);
+
+  // faixa "Overlay" — fundo salmão + texto vermelho quando há overlay
+  const hasOv = gar>0 && overlay>0;
+  ctx.fillStyle = hasOv ? '#e7a48c' : '#cfe9d8'; ctx.fillRect(x0, y, tW, rowH);
+  const yOv = y + rowH/2, ovLabelR = cols[4].x;
+  const ovColor = hasOv ? '#b02a17' : '#1c7a48';
+  ctx.fillStyle = ovColor; ctx.font = `800 15px ${FONT}`; ctx.textAlign='center';
+  ctx.fillText('Overlay', x0 + (ovLabelR-x0)/2, yOv);
+  const ovtw = ctx.measureText('Overlay').width; ctx.strokeStyle=ovColor; ctx.lineWidth=1.4;
+  ctx.beginPath(); ctx.moveTo(x0+(ovLabelR-x0)/2 - ovtw/2, yOv+11); ctx.lineTo(x0+(ovLabelR-x0)/2 + ovtw/2, yOv+11); ctx.stroke();
+  ctx.font = `800 14px ${FONT}`; ctx.textAlign='center';
+  const ovTxt = gar<=0 ? '—' : (overlay>0 ? '-'+money(overlay) : 'Sem overlay');
+  ctx.fillText(ovTxt, colCenter(cols[4]), yOv);
+  gridLine(y);
+  // moldura externa da tabela
+  ctx.strokeStyle='rgba(120,120,120,.55)'; ctx.lineWidth=1; ctx.strokeRect(x0, tableTop, tW, (y+rowH)-tableTop);
+
+  // ── exporta: baixa + tenta copiar ──
+  const safeName = nome.replace(/[^\wÀ-ſ ]+/g,'').trim().replace(/\s+/g,'-') || 'torneio';
+  cv.toBlob(async (blob) => {
+    if(!blob){ showToast('Não consegui gerar a imagem.'); return; }
+    try {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `overlay-${safeName}-${dateStr.replace('/','-')}.png`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+    } catch(e){}
+    let copied = false;
+    try {
+      if(navigator.clipboard && window.ClipboardItem){
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        copied = true;
+      }
+    } catch(e){}
+    showToast(copied ? 'Imagem gerada — baixada e copiada.' : 'Imagem do overlay baixada.');
+  }, 'image/png');
+}
+document.getElementById('ovcImageBtn')?.addEventListener('click', ovcGenerateImage);
+
+/* "Ir para o card": fecha a calculadora e rola até o card do torneio selecionado,
+   com um flash pra o operador achar de imediato onde o pote foi aplicado. */
+function ovcGoToCard(){
+  const key = document.getElementById('ovcTorneioSelect')?.value;
+  if(!key){ showToast('Selecione o torneio primeiro.'); return; }
+  closeDrawer('overlayCalcDrawerOverlay');
+  setTimeout(() => {
+    const card = document.querySelector(`.tcard[data-key="${key}"], .compact-table tbody tr[data-key="${key}"], .ucard[data-key="${key}"]`);
+    if(card){
+      card.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'center' });
+      card.classList.add('card-flash');
+      setTimeout(() => card.classList.remove('card-flash'), 1800);
+    } else {
+      showToast('Card não está visível na agenda atual (verifique os filtros).');
+    }
+  }, 300);
+}
+document.getElementById('ovcGoToCardBtn')?.addEventListener('click', ovcGoToCard);
+
+/* =========================================================================
    UTILITÁRIOS DE PLANILHA — normText, readSheetMatrix, cellToHHMM,
    timeToMinutes e allWeekdayNamesNorm vêm de gu-parser.js (parser
    compartilhado com a Criação Noturna, carregado antes deste arquivo).
@@ -6392,7 +6583,7 @@ function confHojeItemId(cat, hora, nome){
   return slug;
 }
 
-document.getElementById('globalTodayFileInput').addEventListener('change', async (e) => {
+document.getElementById('globalTodayFileInput')?.addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
   await ensureXLSX();                 // SheetJS sob demanda
@@ -6466,6 +6657,7 @@ function renderConfHoje(){ renderConfHojeList(); }
 function renderConfHojeList(){
   const listEl = document.getElementById('confHojeList');
   const progressEl = document.getElementById('confHojeProgress');
+  if (!listEl) return; // Conferência de hoje foi removida da UI (só existe "amanhã" agora)
   if (!CONFHOJE_ITEMS.length){ listEl.innerHTML = ''; progressEl.hidden = true; document.getElementById('confHojeControls').hidden = true; return; }
 
   const total = CONFHOJE_ITEMS.length;
@@ -6530,11 +6722,11 @@ function renderConfHojeList(){
   });
 }
 
-document.getElementById('confHojeSearchInput').addEventListener('input', (e) => {
+document.getElementById('confHojeSearchInput')?.addEventListener('input', (e) => {
   CONFHOJE_SEARCH = e.target.value.trim();
   renderConfHojeList();
 });
-document.getElementById('confHojeHideDoneBtn').addEventListener('click', (e) => {
+document.getElementById('confHojeHideDoneBtn')?.addEventListener('click', (e) => {
   CONFHOJE_HIDE_DONE = !CONFHOJE_HIDE_DONE;
   e.currentTarget.classList.toggle('active', CONFHOJE_HIDE_DONE);
   renderConfHojeList();
@@ -8444,13 +8636,13 @@ function reinitDayListeners(){
     else computeStats();
   });
 
-  // Checklist e confhoje
+  // Checklist
   fbDb.ref(`${FB_BASE_PATH}/checklist`).on('value', snap => {
     CHECKLIST_MAP = snap.val()||{}; saveChecklistMapLocal(CHECKLIST_MAP); renderChecklist();
   });
-  fbDb.ref(`${FB_BASE_PATH}/confhoje`).on('value', snap => {
-    CONFHOJE_MAP = snap.val()||{}; saveConfHojeMapLocal(CONFHOJE_MAP); renderConfHoje();
-  });
+  // A "Conferência de hoje" (checklist manual) foi removida da UI — sobrou só a
+  // "Conferência" (de amanhã, que não persiste estado no Firebase). O listener do
+  // nó `confhoje` foi desligado de propósito pra não gastar egress à toa.
 }
 
 function showGlobalUpdatePrompt(){

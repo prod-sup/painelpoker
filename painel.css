@@ -2511,13 +2511,30 @@
     display:none;align-items:center;gap:8px;margin:-6px 0 14px;
     padding:8px 12px;border-radius:var(--radius-sm);
     background:var(--fixed-bg);border:1px solid var(--fixed-border);
-    font-size:12px;font-weight:600;color:var(--felt);
+    font-size:12px;font-weight:600;color:var(--ok);
   }
   .ovc-sync-badge svg{ width:14px;height:14px;flex:none; }
   .ovc-sync-badge.show{ display:flex; }
   .ovc-sync-badge.pulse{ animation:ovc-sync-pulse .6s var(--ease); }
   @keyframes ovc-sync-pulse{ 0%{ transform:scale(.97); } 40%{ transform:scale(1.015); } 100%{ transform:scale(1); } }
   @media (prefers-reduced-motion: reduce){ .ovc-sync-badge.pulse{ animation:none; } }
+  /* botão "Ir para o card" dentro do badge de pote aplicado */
+  .ovc-gotocard-btn{
+    margin-left:auto; display:inline-flex; align-items:center; gap:4px;
+    font-family:var(--text); font-size:11.5px; font-weight:700; color:var(--bg);
+    background:var(--felt); border:none; border-radius:99px; padding:5px 11px; cursor:pointer;
+    white-space:nowrap; transition:transform .15s var(--ease), background .2s var(--ease);
+  }
+  .ovc-gotocard-btn svg{ width:13px; height:13px; }
+  .ovc-gotocard-btn:hover{ background:var(--felt-bright); transform:translateX(2px); }
+  /* flash de destaque ao "Ir para o card" — anel laranja pulsante */
+  @keyframes card-flash-kf{
+    0%{ box-shadow:0 0 0 0 color-mix(in srgb, var(--felt) 70%, transparent); }
+    30%{ box-shadow:0 0 0 4px color-mix(in srgb, var(--felt) 45%, transparent); }
+    100%{ box-shadow:0 0 0 0 transparent; }
+  }
+  .card-flash{ animation:card-flash-kf 1.8s var(--ease); border-color:var(--felt) !important; }
+  @media (prefers-reduced-motion: reduce){ .card-flash{ animation:none; outline:2px solid var(--felt); outline-offset:2px; } }
 
   .diff-summary{ display:flex; gap:8px; flex-wrap:wrap; margin:14px 0 10px; }
   .diff-pill{ font-family:var(--mono); font-size:11.5px; font-weight:700; padding:5px 11px; border-radius:99px; }
