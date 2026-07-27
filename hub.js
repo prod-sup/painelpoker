@@ -858,12 +858,13 @@
   let pfStatsLoaded = false; // só true após uma leitura BEM-SUCEDIDA de users/<key>/stats
   let pfTag = null;
 
-  function pfXp(){ return pfStats.opens*XP_PER_OPEN + pfStats.days*XP_PER_DAY + pfStats.actions*XP_PER_ACTION + missionsTotal()*XP_PER_MISSION; }
+  function pfXp(){ return pfStats.opens*XP_PER_OPEN + pfStats.days*XP_PER_DAY + pfStats.actions*XP_PER_ACTION + missionsTotal()*XP_PER_MISSION + (pfStats.bonusXp||0); }
 
   /* transforma o snapshot cru de users/<key>/stats no shape que o perfil usa */
   function pfSetStatsFromSnap(v){
     pfStats = {
       opens: v.opens||0,
+      bonusXp: v.bonusXp||0,   // XP concedido manualmente pelo admin (grant), ex.: dar Diamante
       days: v.days ? Object.keys(v.days).length : 0,
       actions: v.actions ? Object.values(v.actions).reduce((a,n) => a + (+n||0), 0) : 0,
       tools: v.tools || {},

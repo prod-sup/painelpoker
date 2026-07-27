@@ -1248,6 +1248,23 @@ document.addEventListener('DOMContentLoaded', () => {
   </div>
 </section>
 
+<!-- ── Eventos Principais (Liga Principal, grade fixa em R$) ──
+     Vêm de liga-principal-data.js (dado local, sem upload/Firebase). São cards com a
+     MESMA lógica de preencher e de overlay dos da Global, mas numa seção separada
+     porque são BRL (não entram nas estatísticas em dólar da Global). -->
+<section class="upcoming" id="principais" hidden>
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div>
+        <span class="section-tag" style="color:var(--main);background:var(--main-soft)"><span class="tag-suit">♠</span>Principais</span>
+        <h2 class="section-title">Eventos Principais do dia.</h2>
+        <p class="section-desc">A grade fixa da Liga Principal, em R$ — preencha premiação e field; o overlay usa a mesma lógica dos cards da Global. <span id="principaisCount"></span></p>
+      </div>
+    </div>
+    <div class="grid-cards" id="principaisGrid"></div>
+  </div>
+</section>
+
 <section class="results" id="resultados">
   <div class="wrap results-inner">
     <div class="section-head reveal">
@@ -1420,6 +1437,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 <!-- painel-calc: a matemática de dinheiro (Ações/overlay/perf), pura e testada.
      Tem que vir ANTES do painel.js, que a consome. -->
+<!-- grade fixa dos Eventos Principais (Liga Principal, R$) — usada pela seção "Principais" -->
+<script src="liga-principal-data.js"></script>
 <script src="painel-calc.js"></script>
 <script src="painel.js"></script>
 <!-- painel-actions: delegação dos [data-act] que substituíram os 44 handlers

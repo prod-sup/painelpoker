@@ -128,7 +128,11 @@ let RAW_ROWS = [];        // raw parsed rows from the sheet
    reconstruído junto com RAW_ROWS (ver setRawRows) e derruba isso pra O(chaves). */
 let ROW_BY_KEY = new Map();
 function rowByKey(key){ return ROW_BY_KEY.get(key); }
-function reindexRows(){ ROW_BY_KEY = new Map(RAW_ROWS.map(r => [r._key, r])); }
+/* Os Eventos Principais (Liga Principal, BRL) vivem num array próprio — FORA de RAW_ROWS
+   pra não entrar nas estatísticas/agenda em dólar da Global — mas SÃO indexados aqui pra
+   que rowByKey/calculadora de overlay/preenchimento por data-key funcionem igual. */
+let PRINCIPAIS_ROWS = [];
+function reindexRows(){ ROW_BY_KEY = new Map([...RAW_ROWS, ...PRINCIPAIS_ROWS].map(r => [r._key, r])); }
 let UPCOMING = [];
 let _compactMode = localStorage.getItem('suprema_compact_mode_v1') === '1';        // open tournaments (no premiação yet)
 let RESULTS = [];         // closed tournaments (premiação filled)
@@ -3161,6 +3165,17 @@ function setSharedSheet(rows, filename){
 if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initFirebaseSync);
 else initFirebaseSync();
 
+/* Eventos Principais (Liga Principal, R$): grade fixa local — monta as chaves e pinta a
+   seção assim que o DOM está pronto (independe da Global). Um catch-up ~1,8s depois pega
+   o preenchimento (premiação/field/fixado/garantido) que chega dos listeners do Firebase. */
+function initPrincipais(){ try{ buildPrincipaisRows(); renderPrincipais(); }catch(e){} }
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initPrincipais);
+else initPrincipais();
+setTimeout(() => {
+  const grid = document.getElementById('principaisGrid');
+  if(grid && !grid.contains(document.activeElement)){ try{ renderPrincipais(); }catch(e){} }
+}, 1800);
+
 /* bfcache: o Chrome congela o WebSocket do RTDB ao guardar a página no back-forward
    cache e loga "WebSocket connection failed / already in CLOSING state" no console.
    Desconectar de forma limpa ANTES de entrar no cache (pagehide persistido) e religar
@@ -3651,6 +3666,119 @@ async function addManualTournament(dados){
   }
   logActivity(`➕ <b>${escHtml(row._by || 'Alguém')}</b> adicionou o torneio manual <b>${escHtml(row.nome)}</b> (${escHtml(row.hora || '--:--')})`, '➕');
   return id;
+}
+
+/* =========================================================================
+   EVENTOS PRINCIPAIS — grade fixa da Liga Principal (BRL), como cards preenchíveis
+   numa seção própria. Reconstruídos do dado local (liga-principal-data.js) a cada
+   carga: sem upload, sem gravar rows no Firebase (só o PREENCHIMENTO persiste, pelas
+   mesmas chaves). Ficam FORA de RAW_ROWS (não entram nas estatísticas em dólar), mas
+   indexados no ROW_BY_KEY — então preencher premiação/field, fixar, copiar e a
+   Calculadora de Overlay funcionam pela mesma lógica dos cards da Global.
+========================================================================= */
+function buildPrincipaisRows(){
+  PRINCIPAIS_ROWS = [];
+  if(typeof LIGA_PRINCIPAL_SECTIONS === 'undefined') { reindexRows(); return; }
+  const wd = (todayWeekdayName('en') || '').toUpperCase();
+  const sec = LIGA_PRINCIPAL_SECTIONS[wd];
+  if(sec){
+    const mk = (it, tipo) => {
+      const r = {
+        nome: String(it.nome||'').trim(), hora: it.hora || null, late: it.late || null,
+        garantido: it.garantido != null ? it.garantido : null,
+        buyin: it.buyin != null ? it.buyin : null,
+        premiacao: null, premFromSheet:false, explicitNF:false, overlay:null,
+        field:null, acoes: (it.extra && it.extra.Action) || null, perf:null, check:null,
+        tipo, highlighted:false, brl:true, _principal:true,
+      };
+      r._key = rowKey(r);
+      return r;
+    };
+    (sec.main||[]).forEach(it => PRINCIPAIS_ROWS.push(mk(it,'main')));
+    (sec.side||[]).forEach(it => PRINCIPAIS_ROWS.push(mk(it,'side')));
+    (sec.sat ||[]).forEach(it => PRINCIPAIS_ROWS.push(mk(it,'sat')));
+  }
+  reindexRows(); // registra as chaves das Principais pra rowByKey/overlay/preenchimento
+}
+
+function renderPrincipais(){
+  const grid = document.getElementById('principaisGrid');
+  const section = document.getElementById('principais');
+  if(!grid || !section) return;
+  grid.querySelectorAll('.tcard').forEach(el => { try{ animVisibilityIO.unobserve(el); }catch(e){} });
+  grid.innerHTML = '';
+  if(!PRINCIPAIS_ROWS.length){ section.hidden = true; return; }
+  section.hidden = false;
+  const countEl = document.getElementById('principaisCount');
+  if(countEl) countEl.textContent = `${PRINCIPAIS_ROWS.length} evento${PRINCIPAIS_ROWS.length>1?'s':''} do dia`;
+
+  const sorted = [...PRINCIPAIS_ROWS].sort((a,b)=>(timeToMinutes(a.hora)??9999)-(timeToMinutes(b.hora)??9999));
+  const frag = document.createDocumentFragment();
+  sorted.forEach((t, idx) => {
+    const key = t._key;
+    const cat = classify(t);
+    const fixed = isFixed(key);
+    const el = document.createElement('div');
+    el.className = `tcard reveal${fixed ? ' is-fixed' : ''}`;
+    el.dataset.key = key;
+    el.style.setProperty('--cat-bright', `var(--${cat}-bright)`);
+    el.style.transitionDelay = `${Math.min(idx,18)*28}ms`;
+    const crownHtml = cat === 'main' ? CROWN_SVG : '';
+    const gar = getGarantidoEffective(key) != null ? getGarantidoEffective(key) : t.garantido;
+    el.innerHTML = `
+      <div class="tcard-top">
+        <div>
+          <div class="tcard-name-row">${crownHtml}<div class="tcard-name">${escHtml(t.nome)}</div><span class="tcard-manual-badge" style="background:var(--main-soft);color:var(--main)" title="Evento Principal — grade fixa da Liga Principal (R$)">PRINCIPAL</span></div>
+          <span class="cat-tag ${cat}"><span class="cat-suit">${CAT_SUIT[cat]}</span>${CAT_LABEL[cat]}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+          <div class="tcard-time">${t.hora || '—'}</div>
+        </div>
+      </div>
+      <div class="tcard-grid">
+        <div class="tcard-field"><div class="k">Garantido</div><div class="v gold">${gar!=null ? 'R$ '+fmtBRL(gar) : '—'}</div></div>
+        <div class="tcard-field"><div class="k">Buy-in</div><div class="v">${fmtBuyin(t.buyin)}</div></div>
+      </div>
+      ${t.late ? `<div class="tcard-late">Late até <b>${escHtml(t.late)}</b></div>` : ''}
+      <div class="tcard-op-fields">
+        <div class="tcard-op-field">
+          <label class="tcard-prem-label">Premiação (R$)</label>
+          <input type="text" inputmode="decimal" placeholder="—" class="tcard-prem-input" data-key="${key}"
+            value="${t.premiacao != null ? fmtBRL(t.premiacao, t.premiacao % 1 === 0 ? 0 : 2) : ''}"
+            oninput="onCardPremiacaoInput(this)" onfocus="this.select()" onblur="formatPremInput(this)">
+        </div>
+        <div class="tcard-op-field">
+          <label class="tcard-prem-label">Field (jogadores)</label>
+          <input type="number" step="1" min="0" placeholder="—" class="tcard-field-input" data-key="${key}"
+            value="${getField(key) || ''}" oninput="onCardFieldInput(this)">
+        </div>
+      </div>
+      <div class="tcard-overlay-preview" id="tcard-ov-${key}"></div>
+      <div class="copy-row">
+        <input type="text" class="id-input" placeholder="ID do evento" value="${escHtml(getId(key))}" data-key="${key}">
+        <button class="copy-btn" data-key="${key}" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+          <span>Copiar</span>
+        </button>
+      </div>
+      <span class="id-dup-warning" hidden></span>
+      <div class="tcard-status-row">
+        <label class="fix-check">
+          <input type="checkbox" data-key="${key}" class="fix-toggle" ${fixed ? 'checked' : ''}>
+          <span>${fixed ? (fixedBy(key) ? `Fixado por ${escHtml(fixedBy(key))}` : 'Fixado') : 'Marcar como fixado'}</span>
+        </label>
+      </div>
+    `;
+    frag.appendChild(el);
+  });
+  grid.appendChild(frag);
+  requestAnimationFrame(() => { grid.querySelectorAll('.tcard.reveal').forEach(el => el.classList.add('in')); });
+  wireCardInteractions(grid);
+  // pinta os previews de overlay já calculados (premiação/field preenchidos)
+  PRINCIPAIS_ROWS.forEach(t => {
+    const f = getField(t._key);
+    if(t.premiacao != null || f != null) renderCardOverlayPreview(t._key, t, t.premiacao, f);
+  });
 }
 
 /* Remove um torneio manual (adicionado por engano). O trabalho já feito no card
@@ -8979,28 +9107,32 @@ function ovcPopulateTournamentSelect(){
 
   sel.innerHTML = '<option value="">— Selecione um torneio do dia —</option>';
 
-  if(!RAW_ROWS.length) return;
-
   // ordena cronologicamente (05:00 → 04:59 do dia seguinte)
   const DAY_START = 5 * 60;
-  const rows = RAW_ROWS
-    .filter(r => r.nome && r.garantido > 0)
-    .slice()
-    .sort((a, b) => {
-      const ma = timeToMinutes(a.hora) || 0;
-      const mb = timeToMinutes(b.hora) || 0;
-      return (ma >= DAY_START ? ma : ma + 1440) - (mb >= DAY_START ? mb : mb + 1440);
-    });
-
-  rows.forEach(r => {
+  const sorter = (a, b) => {
+    const ma = timeToMinutes(a.hora) || 0, mb = timeToMinutes(b.hora) || 0;
+    return (ma >= DAY_START ? ma : ma + 1440) - (mb >= DAY_START ? mb : mb + 1440);
+  };
+  const optFor = r => {
     const cat = classify(r);
     const opt = document.createElement('option');
     opt.value = r._key;
     const horaStr = r.hora ? ` ${r.hora}` : '';
     const catLabel = { main: '♠', side: '♣', sat: '♦' }[cat] || '';
-    opt.textContent = `${catLabel} ${horaStr}  ${r.nome}  —  R$ ${fmtBRL(r.garantido, 0)}`;
-    sel.appendChild(opt);
-  });
+    opt.textContent = `${catLabel} ${horaStr}  ${r.nome}  —  R$ ${fmtBRL(r.garantido || 0, 0)}`;
+    return opt;
+  };
+
+  // torneios da Global (dólar)
+  RAW_ROWS.filter(r => r.nome && r.garantido > 0).slice().sort(sorter).forEach(r => sel.appendChild(optFor(r)));
+
+  // Eventos Principais (Liga Principal, R$) — mesmo select, mesma lógica de overlay
+  if(PRINCIPAIS_ROWS.length){
+    const og = document.createElement('optgroup');
+    og.label = 'Principais (Liga Principal · R$)';
+    [...PRINCIPAIS_ROWS].filter(r => r.nome).sort(sorter).forEach(r => og.appendChild(optFor(r)));
+    sel.appendChild(og);
+  }
 
   // restaura seleção anterior se ainda existe
   if(prev) sel.value = prev;

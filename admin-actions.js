@@ -94,9 +94,69 @@
     return /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v;
   }
 
+  /* ── ADMIN LIMITADO (só leitura) ──────────────────────────────────────
+     O admin NÃO-Suprema pode: navegar, ver/renderizar/abrir modais de leitura,
+     filtrar períodos e EXPORTAR os XLSX. Nada que ALTERE dado. É um ALLOWLIST:
+     o que não estiver aqui é bloqueado (bloquear é o default seguro — liberar uma
+     escrita por engano seria falha). As regras do RTDB são a autoridade real; isto
+     é a trava de UI que evita cliques que só falhariam no servidor. */
+  const LIMITED_ALLOW = new Set([
+    'nav', 'doLogin', 'doLogout', 'toggleDark', 'loginOnEnter',
+    'setDp', 'setGp', 'setCnPeriod', 'setAuditPeriod',
+    'renderGrade', 'renderCn', 'loadAudit', 'loadCriacao', 'debouncedGrade', 'debouncedCn',
+    'goCriacao', 'goToAuditFor',
+    'openAdminLog', 'openJustifs', 'openNotifHistory', 'openOpRanking', 'openOverlayHeatmap',
+    'openAuditSummary', 'openInsightSettings', 'openFieldTrend',
+    'buildAuditSummary', 'buildFieldTrend', 'buildMonthProjection',
+    'toggleSoAnomalia', 'toggleCnErros', 'toggleCheckAll', 'updateBatchActions',
+    'previewCleanup', 'closeMo', 'maskBRL',
+    // EXPORTAR XLSX (leitura → arquivo). exportToSheets fica FORA: escreve no Sheets.
+    'exportAuditXlsx', 'exportAuditSummaryXlsx', 'exportGradeXlsx', 'exportCnXlsx',
+    'exportMonthXlsx', 'exportAllTimeXlsx', 'copyAppsScript',
+  ]);
+  let _roToastAt = 0, _roToastEl = null;
+  function roToast(msg) {
+    try {
+      if (!document.body) return;
+      if (!_roToastEl) {
+        var st = document.createElement('style');
+        st.textContent = '.sp-ro-toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,10px);z-index:99999;' +
+          'max-width:min(92vw,440px);padding:11px 18px;border-radius:14px;pointer-events:none;text-align:center;' +
+          'background:rgba(20,18,14,.96);border:1px solid rgba(247,148,29,.5);color:#f4ede0;' +
+          'font:600 13px/1.4 "Segoe UI",system-ui,sans-serif;box-shadow:0 14px 40px -12px rgba(0,0,0,.7);' +
+          'opacity:0;transition:opacity .25s ease,transform .25s ease}.sp-ro-toast.on{opacity:1;transform:translate(-50%,0)}';
+        document.head.appendChild(st);
+        _roToastEl = document.createElement('div');
+        _roToastEl.className = 'sp-ro-toast';
+        _roToastEl.setAttribute('role', 'status');
+        document.body.appendChild(_roToastEl);
+      }
+      _roToastEl.textContent = msg;
+      _roToastEl.classList.add('on');
+      clearTimeout(roToast._t);
+      roToast._t = setTimeout(function () { _roToastEl.classList.remove('on'); }, 3400);
+    } catch (e) { console.warn(msg); }
+  }
+  function limitedBlocked(act) {
+    try {
+      var A = window.SupremaAuth;
+      if (!A || !A.isLimitedAdmin) return false;
+      var r = A.recognize ? A.recognize() : null;
+      if (!r || !A.isLimitedAdmin(r.email)) return false;   // não é admin limitado → não bloqueia
+      if (LIMITED_ALLOW.has(act)) return false;
+      // ação de escrita: bloqueia + avisa (no máx. 1 toast a cada 2,5s)
+      if (Date.now() - _roToastAt > 2500) {
+        _roToastAt = Date.now();
+        roToast('Modo leitura — só o Admin Suprema altera dados. Você pode consultar e exportar os XLSX.');
+      }
+      return true;
+    } catch (e) { return false; }
+  }
+
   function run(el, ev) {
     const act = el.getAttribute('data-act');
     if (!act) return;
+    if (limitedBlocked(act)) return;   // admin limitado: barra qualquer ação que não seja leitura/export
     const argRaw = el.getAttribute('data-arg');
 
     if (LOCAL[act]) { LOCAL[act](el, argRaw, ev); return; }

@@ -83,6 +83,7 @@ const STATIC_ASSETS = [
   // sem ele os botões da nav e dos filtros ficam mudos.
   'painel-calc.js',
   'painel-actions.js',
+  'liga-principal-data.js',
   // deps do dashboard cash agora locais (offline-safe)
   'vendor/chart.umd.js',
   'vendor/phosphor/regular.css',

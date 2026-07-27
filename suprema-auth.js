@@ -17,14 +17,33 @@
   var THEME_KEY   = 'suprema_dark_mode';
   var AVATAR_KEY  = 'suprema_user_avatar_v1';
 
-  /* administradores da casa — a mesma lista que cada painel repetia inline */
-  var ADMIN_EMAILS = [
+  /* ── DOIS NÍVEIS DE ADMIN (jul/2026) ──────────────────────────────────
+     · ADMIN SUPREMA: poder total (lê E edita tudo, inclusive o painel Admin).
+     · admin (limitado): só LEITURA dos painéis + acessa o painel Admin e
+       EXPORTA os XLSX — não altera NADA (nem nos painéis, nem no Admin).
+     A distinção é por e-mail aqui (UI/guarda); as regras do RTDB
+     (database.rules.json) são a autoridade real: o limitado tem read, não write. */
+  var lowerEmail = function (email) { return String(email || '').toLowerCase().trim(); };
+  var ADMIN_SUPREMA_EMAILS = [
     'brian@suprema.group',
     'admin@suprema.group',
-    'brian.rodrigues@suprema.group'
+    'brian.rodrigues@suprema.group',
+    'felipe.souza@suprema.group'
   ];
+  var LIMITED_ADMIN_EMAILS = [
+    'fechamento@suprema.group'
+  ];
+  /* "admin" (qualquer nível) = reconhecido como admin p/ ACESSO (entra no painel
+     Admin e enxerga todos os painéis). A EDIÇÃO é separada (ver canEdit). */
+  var ADMIN_EMAILS = ADMIN_SUPREMA_EMAILS.concat(LIMITED_ADMIN_EMAILS);
   var isAdminEmail = function (email) {
-    return ADMIN_EMAILS.indexOf(String(email || '').toLowerCase().trim()) !== -1;
+    return ADMIN_EMAILS.indexOf(lowerEmail(email)) !== -1;
+  };
+  var isSupremaAdmin = function (email) {
+    return ADMIN_SUPREMA_EMAILS.indexOf(lowerEmail(email)) !== -1;
+  };
+  var isLimitedAdmin = function (email) {
+    return LIMITED_ADMIN_EMAILS.indexOf(lowerEmail(email)) !== -1;
   };
 
   /* ── PAINÉIS + PERMISSÃO DE ACESSO ──
@@ -84,7 +103,11 @@
   function canEdit(panelId) {
     var r = recognize();
     var s = getSession();
-    if (r.isAdmin || (s && s.admin === true)) return true;
+    // Admin Suprema edita tudo; admin LIMITADO é somente-leitura em qualquer painel
+    // (a checagem do limitado vem ANTES da flag `s.admin` do hub, senão ele herdaria edição).
+    if (isSupremaAdmin(r.email)) return true;
+    if (isLimitedAdmin(r.email)) return false;
+    if (s && s.admin === true) return true;   // admin não-listado (flag do hub) = tratado como full
     if (!s) return false;
     // ver é pré-requisito de editar — e isto também tira a edição de quem teve o
     // ACESSO revogado (access[id]===false), sem depender do mapa `edit`.
@@ -505,6 +528,8 @@
     signInEmail: signInEmail, signUpEmail: signUpEmail, sendReset: sendReset, onUser: onUser,
     SESSION_KEY: SESSION_KEY, TRUSTED_KEY: TRUSTED_KEY, THEME_KEY: THEME_KEY, AVATAR_KEY: AVATAR_KEY,
     ADMIN_EMAILS: ADMIN_EMAILS, isAdminEmail: isAdminEmail,
+    ADMIN_SUPREMA_EMAILS: ADMIN_SUPREMA_EMAILS, LIMITED_ADMIN_EMAILS: LIMITED_ADMIN_EMAILS,
+    isSupremaAdmin: isSupremaAdmin, isLimitedAdmin: isLimitedAdmin,
     getSession: getSession, saveSession: saveSession, clearSession: clearSession,
     setTrustedAdmin: setTrustedAdmin, getTrustedAdmin: getTrustedAdmin,
     recognize: recognize, guard: guard, revalidateAccess: revalidateAccess, emailToKey: emailToKey,
