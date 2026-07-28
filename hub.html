@@ -364,7 +364,13 @@
       <div class="gate-field"><label for="gLoginEmail">Email corporativo</label>
         <input type="email" id="gLoginEmail" placeholder="nome@suprema.group" autocomplete="email"></div>
       <div class="gate-field"><label for="gLoginPw">Senha</label>
-        <input type="password" id="gLoginPw" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="current-password"></div>
+        <div class="password-field-wrapper">
+          <input type="password" id="gLoginPw" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="current-password">
+          <button type="button" class="password-toggle" data-target="gLoginPw" title="Mostrar/ocultar senha" aria-label="Toggle password visibility">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
       <div class="gate-error" id="gLoginErr" hidden></div>
       <button type="submit" class="gate-submit" id="gLoginBtn">Entrar</button>
       <button type="button" class="gate-link" data-tab="recovery">Esqueci minha senha</button>
@@ -383,9 +389,21 @@
       <div class="gate-field"><label for="gCadEmail">Email corporativo</label>
         <input type="email" id="gCadEmail" placeholder="nome@suprema.group" autocomplete="email"></div>
       <div class="gate-field"><label for="gCadPw">Senha</label>
-        <input type="password" id="gCadPw" placeholder="M&iacute;n. 6 &middot; 1 min&uacute;scula &middot; 1 especial" autocomplete="new-password"></div>
+        <div class="password-field-wrapper">
+          <input type="password" id="gCadPw" placeholder="M&iacute;n. 6 &middot; 1 min&uacute;scula &middot; 1 especial" autocomplete="new-password">
+          <button type="button" class="password-toggle" data-target="gCadPw" title="Mostrar/ocultar senha" aria-label="Toggle password visibility">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
       <div class="gate-field"><label for="gCadPw2">Confirmar senha</label>
-        <input type="password" id="gCadPw2" autocomplete="new-password"></div>
+        <div class="password-field-wrapper">
+          <input type="password" id="gCadPw2" autocomplete="new-password">
+          <button type="button" class="password-toggle" data-target="gCadPw2" title="Mostrar/ocultar senha" aria-label="Toggle password visibility">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
       <div class="gate-error" id="gCadErr" hidden></div>
       <button type="submit" class="gate-submit" id="gCadBtn">Criar conta</button>
     </form>
@@ -398,7 +416,13 @@
         <div class="gate-field"><label for="gRecCode">C&oacute;digo de 6 d&iacute;gitos</label>
           <input type="text" id="gRecCode" maxlength="6" inputmode="numeric" style="font-family:var(--mono);letter-spacing:.2em;text-align:center"></div>
         <div class="gate-field"><label for="gRecPw">Nova senha</label>
-          <input type="password" id="gRecPw" placeholder="M&iacute;n. 6 &middot; 1 min&uacute;scula &middot; 1 especial" autocomplete="new-password"></div>
+          <div class="password-field-wrapper">
+            <input type="password" id="gRecPw" placeholder="M&iacute;n. 6 &middot; 1 min&uacute;scula &middot; 1 especial" autocomplete="new-password">
+            <button type="button" class="password-toggle" data-target="gRecPw" title="Mostrar/ocultar senha" aria-label="Toggle password visibility">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
       </div>
       <div class="gate-error" id="gRecErr" hidden></div>
       <div class="gate-ok" id="gRecOk" hidden></div>
@@ -469,6 +493,20 @@ if (location.protocol === 'file:') {
 document.addEventListener('DOMContentLoaded', function(){
   var hero = document.querySelector('.hero');
   if (!hero) return;
+
+  // Password visibility toggle — ANTES de qualquer return
+  document.querySelectorAll('.password-toggle').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.preventDefault();
+      var targetId = this.getAttribute('data-target');
+      var input = document.getElementById(targetId);
+      if (!input) return;
+      var isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      this.setAttribute('aria-pressed', !isPassword);
+      this.classList.toggle('active', !isPassword);
+    });
+  });
 
   function redeDeNos(){
     if (!window.SupremaMotion) return;

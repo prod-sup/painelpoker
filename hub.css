@@ -498,6 +498,18 @@ html.light .aviso[data-tipo="erro"]{ --av-fg:#c0392b }
 }
 .gate-field input:focus{border-color:var(--gold);background:rgba(242,237,226,.08)}
 .gate-field input::placeholder{color:var(--ink-faint)}
+.password-field-wrapper{position:relative;display:flex;align-items:center}
+.password-field-wrapper input{padding-right:44px}
+.password-toggle{
+  position:absolute;right:11px;top:50%;transform:translateY(-50%);
+  background:none;border:none;padding:6px;color:var(--ink-soft);
+  cursor:pointer;outline:none;display:flex;align-items:center;justify-content:center;
+  transition:color .2s var(--ease);z-index:10;
+}
+.password-toggle:hover{color:var(--gold)}
+.password-toggle:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:4px}
+.password-toggle.active svg{opacity:.7}
+.password-toggle svg{transition:opacity .2s var(--ease)}
 .gate-row{display:flex;gap:10px}
 .gate-row .gate-field{flex:1}
 .gate-error{margin:2px 0 10px;font-size:12.5px;color:#e85555}

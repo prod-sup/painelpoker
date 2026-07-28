@@ -4219,7 +4219,14 @@ function renderUpcoming(){
     });
   }
   if (upcomingPremFilter !== 'all'){
-    filtered = filtered.filter(t => upcomingPremFilter === 'com' ? t.premiacao != null : t.premiacao == null);
+    filtered = filtered.filter(t => {
+      if (upcomingPremFilter === 'com') {
+        return t.premiacao != null;
+      } else {
+        // Filtro "sem premiação": exclui NF (não formou) pois não está aguardando premiação
+        return t.premiacao == null && getId(t._key).toUpperCase() !== 'NF' && !t.explicitNF;
+      }
+    });
   }
   if (upcomingCampFilter !== 'all'){
     filtered = filtered.filter(t => campanhaTipoDe(t) === upcomingCampFilter);
@@ -4342,9 +4349,11 @@ function renderUpcoming(){
       if(isNF)  tr.classList.add('is-nf');
 
       const catTd   = '<td style="width:4px;padding:0"><span class="ctr-cat-bar" style="background:'+catColor+'"></span></td>';
-      const nomeTd  = '<td class="ctr-nome" title="'+escHtml(t.nome||'')+'">'+escHtml(t.nome||'\u2014')
+      const lateInfo = t.late ? ` \u00b7 Late at\u00e9 ${escHtml(t.late)}` : '';
+      const nomeTd  = '<td class="ctr-nome" title="'+escHtml(t.nome||'')+lateInfo+'">'+escHtml(t.nome||'\u2014')
                     + (t._manual ? ' <span class="tcard-manual-badge" title="Adicionado \u00e0 m\u00e3o \u2014 n\u00e3o veio da Global">MANUAL</span>' : '')
                     + (t.proxCronograma ? ' <span style="font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px;background:rgba(96,165,250,.14);color:#60a5fa;letter-spacing:.04em">PR\u00d3X. CRONOGRAMA</span>' : '')
+                    + (t.late ? ' <span style="font-size:9px;font-weight:600;padding:1px 5px;border-radius:4px;background:rgba(251,146,60,.14);color:#fb923c;letter-spacing:.03em">Late at\u00e9 '+escHtml(t.late)+'</span>' : '')
                     + '</td>';
       const horaTd  = '<td class="ctr-hora">'+(t.hora||'\u2014')+'</td>';
       const garTd   = '<td class="ctr-gar">'+(garVal!=null?'R$'+fmtBRL(garVal,0):'\u2014')+'</td>';
@@ -6075,6 +6084,7 @@ function onCardPremiacaoInput(input){
       // input apagado — mantém preview com valor salvo, não descarta
       renderCardOverlayPreview(key, row, row.premiacao, getField(key));
     } else {
+      // Deletar premiação: mover item de volta pra "sem premiação"
       row.premiacao = null;
       if(fbReady) fbDb.ref(`${FB_BASE_PATH}/premiacao/${key}`).remove();
       // Remover do localStorage também
@@ -6083,6 +6093,17 @@ function onCardPremiacaoInput(input){
         delete pm[key];
         localStorage.setItem('suprema_prem_v1', JSON.stringify(pm));
       } catch(e){}
+      // Recalcular RESULTS e UPCOMING para refletir a mudança de status
+      RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
+      UPCOMING = [...RAW_ROWS];
+      UNFIXED  = computeUnfixed();
+      document.getElementById('statUnfixed').textContent = UNFIXED.length;
+      computeStats();
+      updateProgress();
+      renderUnfixed();
+      renderCardOverlayPreview(key, row, null, getField(key));
+      debouncedRenderResults();
+      logActivity(`<b>${OPERATOR_NAME||'Você'}</b> removeu premiação de <b>${row?.nome||key}</b>`, '💰');
     }
   }, 300);
 }
@@ -8585,7 +8606,26 @@ function formatPremInput(inp){
 
 function parsePremInput(inp){
   // Extrai número de "R$ 1.500,00" ou "1500" ou "1500.50"
+  // Suporta operações tipo Excel: "=2000+500" ou "=1000*1.5"
   let s = inp.value.trim();
+
+  // Operação Excel-like: "=2000+500" → calcula
+  if(s.startsWith('=')){
+    const expr = s.slice(1).trim();
+    try {
+      // Valida que só tem números, operadores básicos e espaços
+      if(/^[\d+\-*/(). ,]+$/.test(expr.replace(/\s/g,''))){
+        // Substitui vírgula por ponto pra safe eval
+        const safe = expr.replace(/,/g,'.');
+        // eslint-disable-next-line no-eval
+        const result = eval(safe);
+        const num = parseFloat(result);
+        if(!isNaN(num) && num > 0) return Math.round(num * 100) / 100;
+      }
+    } catch(e){}
+    return null; // operação inválida
+  }
+
   // Remove "R$", espaços
   s = s.replace(/R\$\s*/g,'');
   // Se tem vírgula como decimal (formato pt-BR: 1.500,00)

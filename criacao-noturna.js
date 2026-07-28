@@ -430,13 +430,20 @@ let OPS = [];             // nomes da equipe
 let DONE = {};            // key -> {by, at}
 let IDS = {};             // key -> {val, by, at} — ID do evento no Pokerbyte
 let ROLES = {};           // roleKey(op) -> 'mainSat' | 'sideAdmin' | 'sideNoAdmin'
-let OVERRIDES = {};       // itemKey -> opName — reatribuições manuais (handoff) vencem a divisão
+let OVERRIDES = {};       // itemKey -> opName — DONOS (modelo "pegar tarefa"): quem puxou cada torneio pra si. Vazio = livre.
 let CATEGORY_OVERRIDES = {}; // itemKey -> 'main'|'sat'|'sideAdmin'|'sideNoAdmin' — mover de bloco vence a divisão automática
 let MAP = {};             // fieldKey -> rótulo da coluna (mapeamento manual vence a auto-detecção)
 let AUDIT = {};           // itemKey -> {status:'erro', motivo, by, at} — marcado pelo Admin
 let SEARCH = '';
 let CURRENCY = localStorage.getItem('cn_currency') || 'usd';
 let FILTER = 'all';
+/* linhas (campos da receita) que ESTE navegador escondeu — preferência de leitura
+   pessoal, por isso localStorage (não sincroniza pra equipe). */
+let HIDDEN_FIELDS = new Set((() => { try{ return JSON.parse(localStorage.getItem('cn_hidden_fields') || '[]'); }catch(e){ return []; } })());
+function persistHidden(){ try{ localStorage.setItem('cn_hidden_fields', JSON.stringify([...HIDDEN_FIELDS])); }catch(e){} }
+function hideField(label){ HIDDEN_FIELDS.add(label); persistHidden(); renderAll(); renderFocus(); }
+function showField(label){ HIDDEN_FIELDS.delete(label); persistHidden(); renderAll(); renderFocus(); }
+function showAllFields(){ HIDDEN_FIELDS.clear(); persistHidden(); renderAll(); renderFocus(); }
 
 function setSync(state, label){
   const el = $('syncStatus');
@@ -785,48 +792,12 @@ async function handleFile(file){
 function itemKey(it){
   return `${normText(it.nome)}|${it.hora}`.replace(/[.#$\[\]\/]/g,'_');
 }
+/* DIVISÃO "PEGAR TAREFA" (pull): não há round-robin nem funções. Cada torneio
+   começa SEM dono; quem vai criar clica em "pegar" e vira o dono (OVERRIDES).
+   asg[key] = dono, ou undefined = livre. Vale pra Global e pra Liga do mesmo
+   jeito — um mapa só. Guarda: se o dono saiu da equipe, o item volta a livre. */
 function computeAssignments(){
-  const asg = {}; // key -> opName
-  if (!DATA || !OPS.length) return asg;
-
-  // round-robin simples de uma lista dentro de um pool de operadores
-  const roundRobin = (list, pool) => {
-    if (!pool.length) return;
-    let cursor = 0;
-    list.forEach(it => { asg[itemKey(it)] = pool[cursor++ % pool.length]; });
-  };
-
-  /* ── FUNÇÃO 1 · Main + Satélites — mesmo pool: quem cria o Main cria os
-     Satélites. Os Main Events vão em round-robin cronológico; cada GRUPO de
-     satélites (receita encadeada) vai inteiro pro operador do pool com menos
-     carga até ali, equilibrando dentro da própria função. ── */
-  const poolMS = opsForRole('mainSat');
-  const loadMS = Object.fromEntries(poolMS.map(o => [o,0]));
-  let msCursor = 0;
-  DATA.main.forEach(it => {
-    const op = poolMS[msCursor++ % poolMS.length];
-    asg[itemKey(it)] = op; loadMS[op]++;
-  });
-  const order = [], groups = {};
-  DATA.sat.forEach(it => {
-    const k = it.groupHeader || it.nome;
-    if (!groups[k]){ groups[k] = []; order.push(k); }
-    groups[k].push(it);
-  });
-  order.forEach(k => {
-    const op = poolMS.reduce((best,o) => loadMS[o] < loadMS[best] ? o : best, poolMS[0]);
-    groups[k].forEach(it => asg[itemKey(it)] = op);
-    loadMS[op] += groups[k].length;
-  });
-
-  /* ── FUNÇÕES 2 e 3 · Side com / sem Admin Fee — pools próprios, cada bloco
-     dividido igualmente entre quem está naquela função. ── */
-  const {admin, noadmin} = sideSplit();
-  roundRobin(admin,   opsForRole('sideAdmin'));
-  roundRobin(noadmin, opsForRole('sideNoAdmin'));
-
-  /* reatribuições manuais (handoff de turno) vencem a divisão automática,
-     desde que o destino ainda esteja na equipe */
+  const asg = {}; // key -> opName (dono)
   Object.keys(OVERRIDES).forEach(k => { if (OPS.includes(OVERRIDES[k])) asg[k] = OVERRIDES[k]; });
   return asg;
 }
@@ -871,6 +842,9 @@ function onDataReady(fromRemote){
 }
 
 function renderAllNow(){
+  // preserva a rolagem: reconstruir a lista não pode teleportar a página pro topo
+  // (marcar criado, pegar, sync do parceiro… tudo re-renderiza)
+  const sy = window.scrollY, sx = window.scrollX;
   renderOps();
   renderFilters();
   renderAlerts();
@@ -878,6 +852,12 @@ function renderAllNow(){
   renderFieldDiag();
   renderList();
   renderTV();
+  if (window.scrollY !== sy || window.scrollX !== sx) window.scrollTo(sx, sy);
+  // tela cheia acompanha o sync ao vivo — se um parceiro pega/cria um torneio, a
+  // planilha/coluna aberta reflete na hora (rolagem preservada)
+  if (FS && FS_EL) renderFS();
+  updateSelBar();
+  updateMyHud();
 }
 /* PERF: os listeners do Firebase disparam em rajada (done + ids + roles no mesmo
    segundo) — agrupa tudo num render só, em vez de reconstruir a tabela 3–4x */
@@ -1089,18 +1069,18 @@ function renderFieldDiag(){
 function renderOps(){
   const row = $('opsRow');
   if (!row) return;
-  let html = OPS.map(o => {
-    const r = roleOf(o);
-    const opts = `<option value="">Função…</option>` + ROLE_OPTS.map(ro =>
-      `<option value="${ro.key}" ${r === ro.key ? 'selected' : ''}>${ro.label}</option>`).join('');
-    return `
-    <span class="op-chip" ${r ? `data-role="${r}"` : ''}>
+  // no modelo "pegar tarefa" não há função por operador — o chip mostra só quantos
+  // torneios a pessoa já pegou (leitura rápida do equilíbrio da noite)
+  const asg = computeAssignments();
+  const load = {};
+  Object.values(asg).forEach(o => { load[o] = (load[o] || 0) + 1; });
+  let html = OPS.map(o => `
+    <span class="op-chip">
       <span class="avatar" style="background:${opColor(o)}">${escHtml(o.trim()[0].toUpperCase())}</span>
-      ${escHtml(o)}
-      <select class="role-sel" data-op="${escHtml(o)}" title="Função de ${escHtml(o)} no turno">${opts}</select>
+      ${escHtml(o)}${normText(o) === normText(ME) ? ' <em class="you">(você)</em>' : ''}
+      <span class="op-load" title="Torneios que ${escHtml(o.split(' ')[0])} pegou">${load[o] || 0}</span>
       <button class="rm" data-op="${escHtml(o)}" title="Remover do turno">×</button>
-    </span>`;
-  }).join('');
+    </span>`).join('');
   html += `
     <span class="op-add">
       <input type="text" id="opAddInput" placeholder="Nome do operador" maxlength="30">
@@ -1111,7 +1091,6 @@ function renderOps(){
   }
   row.innerHTML = html;
   row.querySelectorAll('.rm').forEach(b => b.addEventListener('click', () => saveOps(OPS.filter(o => o !== b.dataset.op))));
-  row.querySelectorAll('.role-sel').forEach(sel => sel.addEventListener('change', () => setRole(sel.dataset.op, sel.value)));
   const addOp = () => {
     const v = $('opAddInput').value.trim();
     if (!v) return;
@@ -1134,9 +1113,13 @@ function renderFilters(){
   const asg = computeAssignments();
   const counts = {};
   OPS.forEach(o => counts[o] = 0);
-  Object.values(asg).forEach(o => { if (o in counts) counts[o]++; });
-  const total = DATA ? DATA.main.length + DATA.side.length + DATA.sat.length : 0;
+  // conta todos os torneios do dia (Global + Liga) pra saber quantos estão livres
+  const allItems = DATA ? [...DATA.main, ...DATA.side, ...DATA.sat, ...LIGA] : [...LIGA];
+  let free = 0;
+  allItems.forEach(it => { const o = asg[itemKey(it)]; if (o in counts) counts[o]++; else free++; });
+  const total = allItems.length;
   let html = `<button class="fchip ${FILTER==='all'?'on':''}" data-f="all">Todos <span class="cnt">${total}</span></button>`;
+  html += `<button class="fchip free ${FILTER==='free'?'on':''}" data-f="free" title="Só os torneios que ninguém pegou ainda">✋ Livres <span class="cnt">${free}</span></button>`;
   html += OPS.map(o => `
     <button class="fchip ${FILTER===o?'on':''}" data-f="${escHtml(o)}">
       ${escHtml(o)}${normText(o)===normText(ME) ? ' (você)' : ''} <span class="cnt">${counts[o] || 0}</span>
@@ -1391,7 +1374,7 @@ function creationWhen(it){
 
 /* linhas da receita que a operação NÃO usa na criação — fora da tabela e do foco */
 const HIDDEN_RECIPE = /num\.?\s*(de\s*)?players|jogadores|\bchat\b/;
-function visibleRecipeFields(){ return creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l)))); }
+function visibleRecipeFields(){ return creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l)) && !HIDDEN_FIELDS.has(l))); }
 function recipeText(it, cat, fields){
   // Garantido e Buy-in não entram aqui em cima: já saem UMA vez, na posição
   // deles, dentro da receita ordenada abaixo (ordem de digitação do app)
@@ -1515,7 +1498,9 @@ function applyExpanded(){
 }
 
 function visibleItems(list, asg){
-  let out = FILTER === 'all' ? list : list.filter(it => asg[itemKey(it)] === FILTER);
+  let out = FILTER === 'all' ? list
+    : FILTER === 'free' ? list.filter(it => !asg[itemKey(it)])
+    : list.filter(it => asg[itemKey(it)] === FILTER);
   if (SEARCH){
     const q = normText(SEARCH);
     out = out.filter(it => normText(it.nome).includes(q) || it.hora.startsWith(SEARCH.trim()) || (it.groupHeader && normText(it.groupHeader).includes(q)));
@@ -1527,71 +1512,96 @@ function opTagHtml(op){
   if (!op) return `<span class="op-tag none">sem equipe</span>`;
   return `<span class="op-tag" style="background:${opColor(op)}"><span class="dot">${escHtml(op.trim()[0].toUpperCase())}</span>${escHtml(op.split(' ')[0])}</span>`;
 }
+/* célula "pegar tarefa": livre → botão pegar; meu → chip "você" (clique solta/passa);
+   de outro → chip do dono (clique assume/passa). Tudo abre pelo mesmo reassignItem. */
+function claimCellHtml(c){
+  if (!c.op) return `<button class="claimbtn" data-claim="${c.key}" title="Pegar este torneio pra você">✋ pegar</button>`;
+  const mine = normText(c.op) === normText(ME);
+  return `<button class="op-tag claim-op${mine ? ' mine' : ''}" data-reassign="${c.key}" style="background:${opColor(c.op)}"
+    title="${mine ? 'Seu — clique pra soltar ou passar' : 'Clique pra assumir ou passar'}"><span class="dot">${escHtml(c.op.trim()[0].toUpperCase())}</span>${escHtml(c.op.split(' ')[0])}${mine ? ' · você' : ''}</button>`;
+}
 
-/* nota abaixo do cabeçalho da seção: explica a função e quem está nela */
+/* nota abaixo do cabeçalho da seção: no modelo "pegar tarefa" mostra a divisão
+   AO VIVO deste bloco — quantos cada um pegou e quantos ainda estão livres. */
 function sectionNoteHtml(cat){
-  const explicit = OPS.filter(o => roleOf(o) === cat.role);
-  const chips = explicit.map(o =>
-    `<span class="lk"><span class="d" style="background:${opColor(o)}"></span>${escHtml(o.split(' ')[0])}</span>`).join('');
-  let msg;
-  if (cat.key === 'sat')            msg = '<b>Quem cria o Main cria os Satélites</b> — mesma função.';
-  else if (cat.key === 'main')      msg = 'Base da grade — vai junto com os Satélites.';
-  else if (cat.key === 'sideAdmin') msg = 'Side Events que <b>cobram Admin Fee</b>.';
-  else if (cat.key === 'liga')      msg = 'Grade FIXA da <b>Liga Principal</b> (pré-carregada, valores em R$) — independe da Global.';
-  else                              msg = 'Side Events <b>sem Admin Fee</b>.';
-  const who = explicit.length ? chips : '<span style="opacity:.7">sem função marcada — todos dividem</span>';
-  return `<p class="section-note">${msg} ${who}</p>`;
+  const asg = computeAssignments();
+  const items = cat.key === 'liga' ? LIGA : catItems(cat);
+  const byOp = {};
+  let free = 0;
+  items.forEach(it => { const o = asg[itemKey(it)]; if (o) byOp[o] = (byOp[o] || 0) + 1; else free++; });
+  const chips = Object.keys(byOp).map(o =>
+    `<span class="lk"><span class="d" style="background:${opColor(o)}"></span>${escHtml(o.split(' ')[0])} ${byOp[o]}</span>`).join('');
+  const freeTxt = free
+    ? `<span class="lk free"><span class="d"></span>${free} livre${free > 1 ? 's' : ''}</span>`
+    : (items.length ? '<span class="lk done-note">✓ tudo pego</span>' : '');
+  let hint = '';
+  if (cat.key === 'liga') hint = 'Grade FIXA da <b>Liga Principal</b> (R$, independe da Global). ';
+  return `<p class="section-note">✋ <b>Clique em "pegar"</b> num torneio pra assumir. ${hint}${chips} ${freeTxt}</p>`;
 }
 
 /* ── EVENTOS PRINCIPAIS (Liga) — seção própria, MESMA estrutura das outras
    (renderVertical); grade fixa em R$, "criado" no mesmo /done, divisão pela
    função ligaPrincipal (ou todos, se ninguém marcou). ── */
-function ligaAssignments(){
-  const asg = {};
-  const pool = opsForRole('ligaPrincipal');
-  if (pool.length) LIGA.forEach((it, i) => { asg[itemKey(it)] = pool[i % pool.length]; });
-  Object.keys(OVERRIDES).forEach(k => { if (OPS.includes(OVERRIDES[k])) asg[k] = OVERRIDES[k]; });
-  return asg;
-}
+/* Liga usa o MESMO mapa de donos (pegar tarefa) — os Eventos Principais entram
+   na divisão como qualquer outro bloco. */
+function ligaAssignments(){ return computeAssignments(); }
 function renderLiga(){
   const done = LIGA.filter(it => DONE[itemKey(it)]).length;
   const st = $('stLiga');
   if (st) st.textContent = LIGA.length ? `${done}/${LIGA.length}` : '—';
   if (!LIGA.length) return '';
-  const q = normText(SEARCH);
-  const vis = q ? LIGA.filter(it => normText(it.nome).includes(q)) : LIGA;
+  const vis = visibleItems(LIGA, ligaAssignments());
   if (!vis.length) return '';
   const cat = {...CAT_LIGA, fields: ligaFields()};
+  const asg = ligaAssignments();
+  const freeCount = vis.filter(it => !asg[itemKey(it)]).length;
   return `
     <div class="section-head liga">
+      ${selBlockBoxHtml('liga')}
       <span class="tag"><span class="suit">★</span>Eventos Principais</span>
       <span class="cnt">${done}/${LIGA.length} criados · grade fixa</span>
       <span class="line"></span>
+      ${freeCount ? `<button class="blockclaim" data-claimfree="liga" title="Pegar pra mim todos os ${freeCount} torneios livres deste bloco">✋ Pegar livres (${freeCount})</button>` : ''}
+      <button class="vmini blockfs" data-blockfs="liga" title="Tela cheia deste bloco">⛶</button>
     </div>
     ${sectionNoteHtml(cat)}
     <div class="secwrap liga-sec" data-suit="★">${renderVertical(vis, cat, ligaAssignments())}</div>`;
 }
 
+/* barra de reexibir: só aparece quando há linha(s) oculta(s). Fica no topo da
+   lista pra o operador nunca "perder" um campo que escondeu sem querer. */
+function hiddenFieldsBarHtml(){
+  if (!HIDDEN_FIELDS.size) return '';
+  const chips = [...HIDDEN_FIELDS].map(l =>
+    `<button class="hf-chip" data-showfield="${escHtml(l)}" title="Reexibir a linha ${escHtml(l)}">${EYE_OFF} ${escHtml(l)}</button>`).join('');
+  return `<div class="hidden-fields-bar"><b>${HIDDEN_FIELDS.size} linha(s) oculta(s):</b> ${chips}
+    <button class="hf-all" data-showallfields>reexibir tudo</button></div>`;
+}
+
 function renderList(){
   const area = $('listArea');
   const ligaHtml = renderLiga();
+  const hiddenBar = hiddenFieldsBarHtml();
   if (!DATA){
-    area.innerHTML = ligaHtml + `<div class="empty-state"><span class="moon">🌙</span>Nenhuma planilha carregada ainda pra este dia da grade.<br>Suba a Global MTT acima — ou aguarde: se um parceiro subir, aparece aqui sozinho.</div>`;
+    area.innerHTML = hiddenBar + ligaHtml + `<div class="empty-state"><span class="moon">🌙</span>Nenhuma planilha carregada ainda pra este dia da grade.<br>Suba a Global MTT acima — ou aguarde: se um parceiro subir, aparece aqui sozinho.</div>`;
     wireVerticalArea(area);
     return;
   }
   const asg = computeAssignments();
-  let html = ligaHtml;
+  let html = hiddenBar + ligaHtml;
 
   SECTIONS.forEach(cat => {
     const items = visibleItems(catItems(cat), asg);
     if (!items.length) return;
     const doneCount = items.filter(it => DONE[itemKey(it)]).length;
+    const freeCount = items.filter(it => !asg[itemKey(it)]).length;
     html += `
       <div class="section-head ${cat.cls}">
+        ${selBlockBoxHtml(cat.key)}
         <span class="tag"><span class="suit">${cat.suit}</span>${cat.label}</span>
         <span class="cnt">${doneCount}/${items.length} criados</span>
         <span class="line"></span>
+        ${freeCount ? `<button class="blockclaim" data-claimfree="${cat.key}" title="Pegar pra mim todos os ${freeCount} torneios livres deste bloco">✋ Pegar livres (${freeCount})</button>` : ''}
         <button class="vmini blockfs" data-blockfs="${cat.key}" title="Tela cheia deste bloco">⛶</button>
       </div>
       ${sectionNoteHtml(cat)}`;
@@ -1623,7 +1633,10 @@ function renderList(){
    abrir o Modo Foco (senão os dois overlays ficam abertos ao mesmo tempo). */
 function wireVerticalArea(area, opts){
   opts = opts || {};
-  area.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
+  area.querySelectorAll('[data-done]').forEach(el => {
+    el.addEventListener('mousedown', e => e.preventDefault());  // não rolar a página ao focar
+    el.addEventListener('click', () => toggleDone(el.dataset.done));
+  });
   area.querySelectorAll('[data-focus]').forEach(el => {
     const go = () => { if (opts.closeFsFirst) closeFullscreenView(); openFocusAt(el.dataset.focus); };
     el.addEventListener('click', go);
@@ -1644,9 +1657,25 @@ function wireVerticalArea(area, opts){
   }));
   area.querySelectorAll('[data-blockfs]').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
-    const cat = CAT_BY_KEY[b.dataset.blockfs];
+    const k = b.dataset.blockfs;
+    const cat = k === 'liga' ? CAT_LIGA : CAT_BY_KEY[k];
     if (cat) openBlockFullscreen(cat);
   }));
+  // pegar tarefa (pull): pegar / assumir / passar / soltar
+  area.querySelectorAll('[data-claim]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); claimItem(b.dataset.claim); }));
+  area.querySelectorAll('[data-reassign]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); reassignItem(b, b.dataset.reassign); }));
+  // seleção em massa — span não recebe foco, então nem rola; shift-clique = faixa
+  area.querySelectorAll('[data-sel]').forEach(b => {
+    b.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); toggleSel(b.dataset.sel, e.shiftKey, b); });
+  });
+  area.querySelectorAll('[data-selblock]').forEach(b => {
+    b.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); selectBlock(b.dataset.selblock); });
+  });
+  area.querySelectorAll('[data-claimfree]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); claimFreeInBlock(b.dataset.claimfree); }));
+  // ocultar / reexibir linhas (campos da receita) — preferência de leitura por navegador
+  area.querySelectorAll('[data-hidefield]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); hideField(b.dataset.hidefield); }));
+  area.querySelectorAll('[data-showfield]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); showField(b.dataset.showfield); }));
+  area.querySelectorAll('[data-showallfields]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); showAllFields(); }));
   // ID Pokerbyte: grava ao sair do campo ou no Enter (não a cada tecla, pra não ecoar no parceiro)
   area.querySelectorAll('.id-inp').forEach(inp => {
     inp.addEventListener('change', () => setId(inp.dataset.idkey, inp.value));
@@ -1667,6 +1696,46 @@ function wireVerticalArea(area, opts){
   }));
 }
 
+/* contexto de destaque da receita: quais rótulos são "chave" (viram negrito) e
+   qual coluna é ticket/chips/game type/K.O/add-on. Usado pela tabela transposta
+   E pela planilha em tela cheia — pra os dois destacarem o MESMO jeito. */
+function recipeCtx(items){
+  const keyLabels = new Set();
+  items.forEach(it => [feeInfo, adminInfo, earlyInfo, ticketInfo, payoutInfo, calcPayoutInfo, rebuyInfo, addonInfo, chipsInfo, structureInfo, gameTypeInfo, koInfo]
+    .forEach(g => { const i = g(it); if (i && i.label) keyLabels.add(i.label); }));
+  const labelOf = getter => { const it0 = items.find(it => getter(it)); return it0 ? getter(it0).label : null; };
+  return { keyLabels, addonL: labelOf(addonInfo), ticketL: labelOf(ticketInfo),
+    chipsL: labelOf(chipsInfo), gameL: labelOf(gameTypeInfo), koL: labelOf(koInfo) };
+}
+// FEE / ADMIN FEE / EARLY BIRD crus: consolidados em linhas próprias, saem da receita
+function recipeFeeCols(items){
+  const s = new Set();
+  items.forEach(it => [feeInfo, adminInfo, earlyInfo].forEach(g => { const i = g(it); if (i && i.label) s.add(i.label); }));
+  return s;
+}
+const RECIPE_SUITS = ['♠','♥','♦','♣'];
+// valor de UM campo da receita com o destaque certo (ticket picotado, ficha de
+// chips, carta do game type, bounty do K.O, add-on em $, campo-chave em negrito)
+function recipeValueCellHtml(it, label, ctx){
+  const v = it.extra ? it.extra[label] : undefined;
+  const has = v !== undefined && v !== null && v !== '';
+  if (!has) return `<span class="mono" style="color:var(--ink-soft);opacity:.5">—</span>`;
+  const disp = fmtExtraVal(label, v);
+  if (label === ctx.addonL){
+    const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.'));
+    if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n, it))}</span>`;
+  }
+  if (label === ctx.ticketL) return `<span class="tkt"><span class="stub">Ticket</span><span class="val" title="${escHtml(disp)}">${escHtml(disp)}</span></span>`;
+  if (label === ctx.chipsL) return `<span class="pchip">${escHtml(disp)}</span>`;
+  if (label === ctx.gameL){
+    const idx = [...normText(disp)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 4;
+    return `<span class="gcard"><span class="suit ${idx === 1 || idx === 2 ? 'red' : ''}">${RECIPE_SUITS[idx]}</span>${escHtml(disp)}</span>`;
+  }
+  if (label === ctx.koL && !/^(off|nao|não|no|-|—)$/i.test(String(disp).trim()))
+    return `<span class="kochip"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg>${escHtml(disp)}</span>`;
+  return `<span class="mono" style="${ctx.keyLabels.has(label) ? 'font-weight:700' : ''}">${escHtml(disp)}</span>`;
+}
+
 /* vertical (única visão): planilha transposta — campos nas linhas, torneios nas
    colunas, na ordem em que se digita no app. Campos-chave com rótulo destacado. */
 function renderVertical(items, cat, asg){
@@ -1674,35 +1743,31 @@ function renderVertical(items, cat, asg){
     const key = itemKey(it);
     return {it, key, done: !!DONE[key], op: asg[key]};
   });
-  const cell = (fn, cls) => cols.map(c => `<td class="${c.done ? 'done-col' : ''} ${cls || ''}">${fn(c)}</td>`).join('');
-  // rótulos das colunas-chave pra destacar a linha correspondente da receita
-  const keyLabels = new Set();
-  cols.forEach(c => [feeInfo, adminInfo, earlyInfo, ticketInfo, payoutInfo, calcPayoutInfo, rebuyInfo, addonInfo, chipsInfo, structureInfo, gameTypeInfo, koInfo]
-    .forEach(g => { const i = g(c.it); if (i && i.label) keyLabels.add(i.label); }));
-  // rótulo da coluna de cada campo temático (ticket, chips, game type, k.o)
-  const labelOf = getter => { const c0 = cols.find(c => getter(c.it)); return c0 ? getter(c0.it).label : null; };
-  const addonL = labelOf(addonInfo), ticketL = labelOf(ticketInfo), chipsL = labelOf(chipsInfo),
-        gameL = labelOf(gameTypeInfo), koL = labelOf(koInfo);
-  const SUITS = ['♠','♥','♦','♣'];
+  // colCls: classe por-coluna (ex.: destacar "os meus")
+  const cell = (fn, cls, colCls) => cols.map(c => `<td class="${c.done ? 'done-col' : ''} ${cls || ''} ${colCls ? colCls(c) : ''}">${fn(c)}</td>`).join('');
+  const mineCls = c => c.op && normText(c.op) === normText(ME) ? 'mine-col' : '';
+  // contexto de destaque (rótulos-chave + campos temáticos) — compartilhado com a planilha
+  const ctx = recipeCtx(items);
+  const keyLabels = ctx.keyLabels;
   // FEE, ADMIN FEE e EARLY BIRD crus saem da receita: já estão consolidados nas linhas de cima
-  const feeCols = new Set();
-  cols.forEach(c => [feeInfo, adminInfo, earlyInfo].forEach(g => { const i = g(c.it); if (i && i.label) feeCols.add(i.label); }));
+  const feeCols = recipeFeeCols(items);
   // cat.fields = esquema próprio da seção (Liga tem colunas diferentes da GU); default = GU
-  const rows = (cat.fields || visibleRecipeFields()).filter(l => !feeCols.has(l));
+  // HIDDEN_FIELDS: linhas que o operador ocultou pra limpar a leitura (por navegador)
+  const rows = (cat.fields || visibleRecipeFields()).filter(l => !feeCols.has(l) && !HIDDEN_FIELDS.has(l));
   // cat.plain (Liga): sem os mini-botões mover/foco/tela-cheia — eles dependem da grade DATA
   const plain = !!cat.plain;
   return `
     <div class="vwrap"><table class="vtable">
       <tr class="trow-head"><th class="rowlab">Torneio</th>${cell(c => {
         const m = mttKicker(c.it), urg = urgency(c.it);
-        return `<span class="vname-row"><span class="${plain ? '' : 'vgo'}"${plain ? '' : ` data-focus="${c.key}" role="button" tabindex="0" title="Abrir este torneio no modo foco" aria-label="Abrir ${escHtml(c.it.nome)} no modo foco"`}>${escHtml(c.it.nome)}</span>`
+        return `<span class="vname-row">${selBoxHtml(c.key)}<span class="${plain ? '' : 'vgo'}"${plain ? '' : ` data-focus="${c.key}" role="button" tabindex="0" title="Abrir este torneio no modo foco" aria-label="Abrir ${escHtml(c.it.nome)} no modo foco"`}>${escHtml(c.it.nome)}</span>`
           + (plain ? '' : `<button class="vmini" data-move="${c.key}" title="Mover pra outro bloco">⇄</button>`)
           + (plain ? '' : `<button class="vmini" data-fs="${c.key}" title="Tela cheia deste torneio">⛶</button>`) + `</span>`
           + campBadgeHtml(c.it) + valBadge(c.it, cat) + changeBadge(c.it) + auditBadge(c.it)
           + (auditErr(c.it) && auditErr(c.it).motivo ? `<br><span style="font-size:10.5px;color:var(--red);font-weight:600">↳ ${escHtml(auditErr(c.it).motivo)}</span>` : '')
           + (urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(c.it)}</span>` : '')
           + (m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : '');
-      }, 'vname')}</tr>
+      }, 'vname', mineCls)}</tr>
       <tr><th class="rowlab">Horário</th>${cell(c => `<span class="thora">${escHtml(c.it.hora)}</span>`)}</tr>
       <tr><th class="rowlab key">Criar em</th>${cell(c => `<span class="mono" style="font-weight:700">${escHtml(creationWhen(c.it))}</span>`)}</tr>
       <tr><th class="rowlab">Admin Fee</th>${cell(c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
@@ -1710,29 +1775,9 @@ function renderVertical(items, cat, asg){
       ${cols.some(c => hasCampaign(c.it)) ? `<tr><th class="rowlab">Campanha</th>${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : ''}
       ${cat.key === 'sat' ? `<tr><th class="rowlab">Grupo</th>${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : ''}
       ${rows.length
-        ? rows.map(label => `<tr><th class="rowlab ${keyLabels.has(label) ? 'key' : ''}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(c => {
-            const v = c.it.extra ? c.it.extra[label] : undefined;
-            const has = v !== undefined && v !== null && v !== '';
-            if (!has) return `<span class="mono" style="color:var(--ink-soft);opacity:.5">—</span>`;
-            const disp = fmtExtraVal(label, v);
-            // Add-on em $; demais campos como se digita no app
-            if (label === addonL){
-              const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.'));
-              if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n, c.it))}</span>`;
-            }
-            // elementos de poker: ticket picotado, ficha de chips, carta do game type, bounty do K.O
-            if (label === ticketL) return `<span class="tkt"><span class="stub">Ticket</span><span class="val" title="${escHtml(disp)}">${escHtml(disp)}</span></span>`;
-            if (label === chipsL) return `<span class="pchip">${escHtml(disp)}</span>`;
-            if (label === gameL){
-              const idx = [...normText(disp)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 4;
-              return `<span class="gcard"><span class="suit ${idx === 1 || idx === 2 ? 'red' : ''}">${SUITS[idx]}</span>${escHtml(disp)}</span>`;
-            }
-            if (label === koL && !/^(off|nao|não|no|-|—)$/i.test(String(disp).trim()))
-              return `<span class="kochip"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg>${escHtml(disp)}</span>`;
-            return `<span class="mono" style="${keyLabels.has(label) ? 'font-weight:700' : ''}">${escHtml(disp)}</span>`;
-          })}</tr>`).join('')
+        ? rows.map(label => `<tr><th class="rowlab hideable ${keyLabels.has(label) ? 'key' : ''}" title="${escHtml(label)}"><span class="rl-txt">${escHtml(label)}</span><button class="rl-hide" data-hidefield="${escHtml(label)}" title="Ocultar a linha ${escHtml(label)}" aria-label="Ocultar linha ${escHtml(label)}">${EYE_OPEN}</button></th>${cell(c => recipeValueCellHtml(c.it, label, ctx))}</tr>`).join('')
         : `<tr><th class="rowlab">Late reg</th>${cell(c => `<span class="mono" style="color:var(--ink-soft)">${c.it.late ? escHtml(c.it.late) : '—'}</span>`)}</tr>`}
-      <tr><th class="rowlab">Operador</th>${cell(c => opTagHtml(c.op))}</tr>
+      <tr><th class="rowlab">Operador</th>${cell(c => claimCellHtml(c), '', mineCls)}</tr>
       <tr><th class="rowlab">ID Pokerbyte</th>${cell(c => idInputHtml(c.key, 'width:110px'))}</tr>
       <tr><th class="rowlab">Criado</th>${cell(c => `
         <button class="chk ${c.done ? 'on' : ''}" data-done="${c.key}" role="checkbox" aria-checked="${c.done ? 'true' : 'false'}"
@@ -1813,7 +1858,189 @@ function openPickMenu(anchor, title, options){
   m.querySelectorAll('.pm').forEach(b => b.addEventListener('click', () => { const o = options[+b.dataset.i]; closePickMenu(); o.onPick(); }));
   setTimeout(() => document.addEventListener('mousedown', pickMenuOutside, true), 0);
 }
-function myOp(){ return OPS.find(o => normText(o) === normText(ME)) || (FILTER !== 'all' ? FILTER : null); }
+function myOp(){ return OPS.find(o => normText(o) === normText(ME)) || (FILTER !== 'all' && FILTER !== 'free' ? FILTER : null); }
+
+/* ── SELEÇÃO EM MASSA (dividir sem ser um-por-um) ─────────────────────────
+   marca vários torneios e pega/passa/solta TODOS de uma vez. A caixinha de
+   seleção fica no nome; a barra flutuante aparece quando há ≥1 marcado. */
+const SELECTED = new Set();
+let LAST_SEL = null;   // pra shift-clique (faixa)
+// SPAN (não button) de propósito: span sem tabindex NÃO recebe foco no clique, então
+// o navegador nunca rola pra "trazer o foco à vista" — 0px de deslize, definitivo.
+function selBoxHtml(key){
+  const on = SELECTED.has(key);
+  return `<span class="selbox ${on ? 'on' : ''}" data-sel="${key}" role="checkbox" aria-checked="${on}" title="Selecionar · shift-clique = faixa" aria-label="Selecionar torneio"></span>`;
+}
+function selBlockBoxHtml(catKey){
+  const keys = selblockKeys(catKey);
+  const all = keys.length && keys.every(k => SELECTED.has(k));
+  return `<span class="selbox selall ${all ? 'on' : ''}" data-selblock="${catKey}" role="checkbox" aria-checked="${all}" title="Selecionar / limpar o bloco inteiro" aria-label="Selecionar bloco"></span>`;
+}
+function selblockKeys(catKey){
+  const cat = catKey === 'liga' ? null : CAT_BY_KEY[catKey];
+  if (catKey !== 'liga' && !cat) return [];
+  const items = visibleItems(catKey === 'liga' ? LIGA : catItems(cat), computeAssignments());
+  return items.map(itemKey);
+}
+// ordem dos torneios como estão na tela (pro range do shift-clique), no MESMO
+// contexto do clique (lista normal ou tela cheia)
+function orderedSelKeys(el){
+  const scope = (el && el.closest('.fs-overlay')) || document.getElementById('listArea') || document;
+  return [...scope.querySelectorAll('[data-sel]:not(.selall)')].map(b => b.dataset.sel);
+}
+function toggleSel(key, shift, el){
+  const sx = window.scrollX, sy = window.scrollY;   // trava anti-deslize
+  if (shift && LAST_SEL && LAST_SEL !== key){
+    // FAIXA: seleciona tudo entre o último clicado e este
+    const keys = orderedSelKeys(el);
+    let i = keys.indexOf(LAST_SEL), j = keys.indexOf(key);
+    if (i >= 0 && j >= 0){ if (i > j){ const t = i; i = j; j = t; } for (let x = i; x <= j; x++) SELECTED.add(keys[x]); }
+    else { if (SELECTED.has(key)) SELECTED.delete(key); else SELECTED.add(key); }
+  } else {
+    if (SELECTED.has(key)) SELECTED.delete(key); else SELECTED.add(key);
+  }
+  LAST_SEL = key;
+  syncSelUI(); updateSelBar();
+  if (window.scrollX !== sx || window.scrollY !== sy) window.scrollTo(sx, sy);
+}
+function selectBlock(catKey){
+  const keys = selblockKeys(catKey);
+  const all = keys.length && keys.every(k => SELECTED.has(k));
+  if (all) keys.forEach(k => SELECTED.delete(k)); else keys.forEach(k => SELECTED.add(k));
+  if (keys.length) LAST_SEL = keys[keys.length - 1];
+  syncSelUI(); updateSelBar();
+}
+// espelha o estado de SELECTED no DOM sem re-render (checkboxes, linha da planilha,
+// caixas de "bloco todo")
+function syncSelUI(){
+  document.querySelectorAll('[data-sel]').forEach(b => {
+    const on = SELECTED.has(b.dataset.sel);
+    b.classList.toggle('on', on); b.setAttribute('aria-checked', on);
+  });
+  document.querySelectorAll('.fs-sheet tbody tr').forEach(tr => {
+    const sb = tr.querySelector('[data-sel]'); if (sb) tr.classList.toggle('sel', SELECTED.has(sb.dataset.sel));
+  });
+  document.querySelectorAll('[data-selblock]').forEach(b => {
+    const keys = selblockKeys(b.dataset.selblock);
+    const all = keys.length && keys.every(k => SELECTED.has(k));
+    b.classList.toggle('on', all); b.setAttribute('aria-checked', all);
+  });
+}
+function clearSel(){
+  SELECTED.clear(); LAST_SEL = null;
+  syncSelUI(); updateSelBar();
+}
+// pega/passa/solta TODOS os selecionados de uma vez
+function bulkClaim(op){
+  if (!op){ showToast('Defina seu nome (operador) pra pegar torneios.', true); return; }
+  if (!OPS.some(o => normText(o) === normText(op))) saveOps([...OPS, op]);
+  SELECTED.forEach(k => OVERRIDES[k] = op);
+  const n = SELECTED.size;
+  saveOverrides(); logEvent('pegou em massa', `${n} torneio(s) → ${op}`);
+  SELECTED.clear(); updateSelBar(); showToast(`${n} torneio(s) para ${op.split(' ')[0]}.`); renderAll(); renderFocus();
+}
+function bulkRelease(){
+  const n = SELECTED.size;
+  SELECTED.forEach(k => delete OVERRIDES[k]);
+  saveOverrides(); logEvent('soltou em massa', `${n}`);
+  SELECTED.clear(); updateSelBar(); showToast(`${n} torneio(s) soltos.`); renderAll(); renderFocus();
+}
+function openBulkAssign(anchor){
+  const me = myOp() || (ME && !OPS.some(o => normText(o) === normText(ME)) ? ME : null);
+  const opts = [];
+  if (me) opts.push({label:`✋ Pegar pra mim (${me.split(' ')[0]})`, color:opColor(me), initial:me.trim()[0].toUpperCase(), onPick:() => bulkClaim(me)});
+  OPS.filter(o => normText(o) !== normText(me || '')).forEach(o =>
+    opts.push({label:`Passar pra ${o.split(' ')[0]}`, color:opColor(o), initial:o.trim()[0].toUpperCase(), onPick:() => bulkClaim(o)}));
+  opts.push({label:`Soltar (deixar livre)`, color:'var(--ink-soft)', initial:'✕', onPick: bulkRelease});
+  openPickMenu(anchor, `${SELECTED.size} selecionado(s) →`, opts);
+}
+// barra flutuante — criada uma vez, some/aparece conforme a seleção
+function updateSelBar(){
+  let bar = $('selBar');
+  if (!SELECTED.size){ if (bar) bar.remove(); return; }
+  if (!bar){
+    bar = document.createElement('div');
+    bar.id = 'selBar'; bar.className = 'sel-bar';
+    document.body.appendChild(bar);
+  }
+  const me = myOp();
+  bar.innerHTML = `<span class="n">${SELECTED.size}</span> selecionado(s)
+    <button class="sb-btn primary" data-sb="me">✋ Pegar pra mim</button>
+    <button class="sb-btn" data-sb="assign">Passar / soltar ▾</button>
+    <button class="sb-btn ghost" data-sb="clear">Limpar</button>`;
+  bar.querySelector('[data-sb="me"]').onclick = () => bulkClaim(me || ME);
+  bar.querySelector('[data-sb="assign"]').onclick = e => openBulkAssign(e.currentTarget);
+  bar.querySelector('[data-sb="clear"]').onclick = clearSel;
+}
+// HUD flutuante: "quantos EU tenho pra criar" — bate o olho sem filtrar. Clicar
+// alterna o filtro pra só os meus. Some quando não tenho nada atribuído.
+function updateMyHud(){
+  const me = OPS.find(o => normText(o) === normText(ME));
+  let hud = $('myHud');
+  if (!me || !DATA){ if (hud) hud.remove(); return; }
+  const asg = computeAssignments();
+  const mine = [...DATA.main, ...DATA.side, ...DATA.sat, ...LIGA].filter(it => asg[itemKey(it)] === me);
+  if (!mine.length){ if (hud) hud.remove(); return; }
+  const done = mine.filter(it => DONE[itemKey(it)]).length, pend = mine.length - done;
+  if (!hud){
+    hud = document.createElement('button'); hud.id = 'myHud'; hud.className = 'my-hud';
+    document.body.appendChild(hud);
+    hud.addEventListener('click', () => { FILTER = (FILTER === me ? 'all' : me); renderAll(); });
+  }
+  hud.classList.toggle('on', FILTER === me);
+  hud.title = FILTER === me ? 'Mostrando só os seus — clique pra ver todos' : 'Clique pra ver só os seus';
+  hud.innerHTML = `<span class="hud-av" style="background:${opColor(me)}">${escHtml(me.trim()[0].toUpperCase())}</span>`
+    + `<span class="hud-txt"><b>${pend}</b> a criar${done ? ` <span class="hud-done">· ${done} ✓</span>` : ''}</span>`;
+}
+// atalho por bloco: pegar TODOS os livres do bloco pra mim (o caso comum:
+// "eu faço os Side c/ Admin") — nada de clicar um a um
+function claimFreeInBlock(catKey){
+  const me = myOp() || ME;
+  if (!me){ showToast('Defina seu nome (operador) pra pegar torneios.', true); return; }
+  if (!OPS.some(o => normText(o) === normText(me))) saveOps([...OPS, me]);
+  const items = (catKey === 'liga' ? LIGA : catItems(CAT_BY_KEY[catKey]));
+  let n = 0;
+  items.forEach(it => { const k = itemKey(it); if (!OVERRIDES[k]){ OVERRIDES[k] = me; n++; } });
+  if (!n){ showToast('Nenhum torneio livre neste bloco.'); return; }
+  saveOverrides(); logEvent('pegou bloco', `${n} livre(s) → ${me}`);
+  showToast(`${n} torneio(s) livres para você.`); renderAll(); renderFocus();
+}
+
+/* ── PEGAR TAREFA (pull) ──────────────────────────────────────────────────
+   pegar = virar dono; soltar = livre de novo; passar = trocar o dono. Grava em
+   OVERRIDES (mesma via de sync do handoff), então aparece ao vivo pra equipe. */
+function claimItem(key){
+  let op = myOp();
+  // atalho: se você ainda não está na equipe, o "pegar" te inclui e já assume
+  if (!op && ME){
+    if (!OPS.some(o => normText(o) === normText(ME))) saveOps([...OPS, ME]);
+    op = ME;
+  }
+  if (!op){ showToast('Defina seu nome no topo (operador) pra pegar torneios.', true); return; }
+  OVERRIDES[key] = op; saveOverrides();
+  logEvent('pegou torneio', `${key} → ${op}`);
+  renderAll(); renderFocus();
+}
+function releaseItem(key){
+  delete OVERRIDES[key]; saveOverrides();
+  logEvent('soltou torneio', key);
+  renderAll(); renderFocus();
+}
+function reassignItem(anchor, key){
+  const cur = OVERRIDES[key];
+  const me = myOp() || (ME && !OPS.some(o => normText(o) === normText(ME)) ? ME : null);
+  const opts = [];
+  if (me && normText(cur || '') !== normText(me))
+    opts.push({label:`Assumir pra mim (${me.split(' ')[0]})`, color:opColor(me), initial:me.trim()[0].toUpperCase(),
+      onPick: () => { if (!OPS.some(o => normText(o) === normText(me))) saveOps([...OPS, me]); OVERRIDES[key] = me; saveOverrides(); logEvent('assumiu torneio', `${key} → ${me}`); renderAll(); renderFocus(); }});
+  OPS.filter(o => o !== cur && normText(o) !== normText(me || '')).forEach(o =>
+    opts.push({label:`Passar pra ${o.split(' ')[0]}`, color:opColor(o), initial:o.trim()[0].toUpperCase(),
+      onPick: () => { OVERRIDES[key] = o; saveOverrides(); logEvent('passou torneio', `${key} → ${o}`); renderAll(); renderFocus(); }}));
+  opts.push({label:'Soltar (deixar livre)', color:'var(--ink-soft)', initial:'✕', onPick: () => releaseItem(key)});
+  const it = findItemByKey(key);
+  openPickMenu(anchor, cur ? `"${(it && it.nome) || 'torneio'}" — de ${cur.split(' ')[0]}` : 'Atribuir torneio', opts);
+}
+
 function myPending(){
   const asg = computeAssignments();
   const op = myOp();
@@ -1828,20 +2055,21 @@ function handoffTo(items, toOp){
   logEvent('passou pendentes', `${items.length} torneio(s) → ${toOp}`);
   showToast(`${items.length} torneio(s) passados para ${toOp.split(' ')[0]}.`);
 }
-function resetOverrides(){ OVERRIDES = {}; saveOverrides(); logEvent('restaurou divisão automática', ''); showToast('Divisão automática restaurada.'); }
+function resetOverrides(){ OVERRIDES = {}; saveOverrides(); logEvent('soltou todos', ''); showToast('Todos os torneios foram soltos (livres).'); }
 function openHandoff(anchor){
   const {op, items} = myPending();
-  if (!op){ showToast('Entre na equipe (ou filtre por você) pra passar torneios.', true); return; }
+  if (!op){ showToast('Entre na equipe (ou filtre por você) pra passar seus torneios.', true); return; }
   const others = OPS.filter(o => o !== op);
   const opts = others.map(o => ({
     label: `${o.split(' ')[0]} — assumir ${items.length}`, color: opColor(o), initial: o.trim()[0].toUpperCase(),
     onPick: () => handoffTo(items, o)
   }));
-  if (!items.length && !Object.keys(OVERRIDES).length){ showToast('Você não tem pendentes pra passar.'); return; }
-  if (Object.keys(OVERRIDES).length) opts.push({label:'↺ Restaurar divisão automática', color:'var(--ink-soft)', initial:'↺', onPick: resetOverrides});
+  // soltar tudo que EU peguei (volta pra livre) — útil no fim do turno
+  if (items.length) opts.push({label:`✋ Soltar meus ${items.length} pendente(s)`, color:'var(--ink-soft)', initial:'✕',
+    onPick: () => { items.forEach(it => delete OVERRIDES[itemKey(it)]); saveOverrides(); logEvent('soltou pendentes', `${items.length}`); showToast(`${items.length} torneio(s) soltos.`); }});
+  if (!items.length){ showToast('Você não pegou nenhum torneio pendente pra passar.'); return; }
   if (!opts.length){ showToast('Sem parceiros na equipe pra receber.', true); return; }
-  const title = items.length ? `Passar ${items.length} pendente(s) de ${op.split(' ')[0]} para:` : 'Divisão manual ativa:';
-  openPickMenu(anchor, title, opts);
+  openPickMenu(anchor, `Passar ${items.length} pendente(s) de ${op.split(' ')[0]} para:`, opts);
 }
 
 /* liberdade de turno: mover um torneio pra outro bloco (Main/Satélite/Side
@@ -1857,55 +2085,186 @@ function findItemByKey(key){
    sem "próximo", só a receita grande. Um overlay serve pros dois modos.
 ========================================================================= */
 let FS_EL = null;
-function fsEscHandler(e){ if (e.key === 'Escape') closeFullscreenView(); }
+// tela cheia unificada: FS = { catKey, mode, idx }. mode: 'sheet' (planilha Global
+// MTT) | 'cols' (tabela transposta) | 'event' (um torneio grande, com setas).
+let FS = null;
+let FS_MODE = localStorage.getItem('cn_fs_mode');            // preferência sheet/cols
+if (FS_MODE !== 'cols' && FS_MODE !== 'sheet') FS_MODE = 'sheet';
+// olhinho: aberto = linha visível (clique oculta); fechado = oculta (clique reexibe)
+const EYE_OPEN = `<svg viewBox="0 0 24 24" class="eye"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const EYE_OFF  = `<svg viewBox="0 0 24 24" class="eye"><path d="M9.9 5.1A9.5 9.5 0 0 1 12 5c6.4 0 10 7 10 7a17.7 17.7 0 0 1-2.2 3.1M6.2 6.2A17.7 17.7 0 0 0 2 12s3.6 7 10 7a9.3 9.3 0 0 0 4-.9"/><path d="m3 3 18 18"/></svg>`;
+function fsEscHandler(e){
+  if (e.key === 'Escape'){ closeFullscreenView(); return; }
+  // no modo Evento as setas do teclado trocam de torneio
+  if (FS && FS.mode === 'event'){
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown'){ e.preventDefault(); fsStep(1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp'){ e.preventDefault(); fsStep(-1); }
+  }
+}
 function fsChangeHandler(){ if (!document.fullscreenElement && FS_EL) closeFullscreenView(); }
 function closeFullscreenView(){
   if (document.fullscreenElement) document.exitFullscreen().catch(()=>{});
   if (FS_EL){ FS_EL.remove(); FS_EL = null; }
+  FS = null;
   document.removeEventListener('keydown', fsEscHandler, true);
   document.removeEventListener('fullscreenchange', fsChangeHandler);
 }
-function mountFullscreenView(bodyHtml, extraCls){
-  closeFullscreenView(); closePickMenu(); closeFocus();
+/* monta o overlay UMA vez e entra em fullscreen nativo UMA vez. Trocar de modo/
+   evento depois só atualiza o miolo (setFullscreenBody) — nunca re-pede fullscreen.
+   Se JÁ está em tela cheia (abrir um torneio de dentro do bloco), REAPROVEITA o
+   overlay: sair+reentrar do fullscreen disparava uma corrida que fechava a tela
+   recém-aberta ("voltava"). */
+function mountFullscreenView(){
+  closePickMenu(); closeFocus();
+  FS = null;
+  if (FS_EL){ FS_EL.innerHTML = ''; return FS_EL; }
   const el = document.createElement('div');
-  el.className = `fs-overlay ${extraCls || ''}`;
-  el.innerHTML = `<button class="fs-close" title="Fechar (Esc)">✕</button>${bodyHtml}`;
+  el.className = 'fs-overlay';
   document.body.appendChild(el);
   FS_EL = el;
-  el.querySelector('.fs-close').addEventListener('click', closeFullscreenView);
   el.addEventListener('click', e => { if (e.target === el) closeFullscreenView(); });
   document.addEventListener('keydown', fsEscHandler, true);
   document.addEventListener('fullscreenchange', fsChangeHandler);
   try{ (el.requestFullscreen ? el : document.documentElement).requestFullscreen().catch(()=>{}); }catch(_){}
   return el;
 }
-function openTourFullscreen(it){
-  const el = mountFullscreenView(`
-    <div class="fs-tour">
-      <div class="fs-tour-hora">${escHtml(it.hora)}</div>
-      <h2 class="fs-tour-name">${escHtml(it.nome)}</h2>
-      <div class="fs-recipe fs-recipe-grid">${focusFlowHtml(it)}</div>
-    </div>`, 'fs-tour-mode');
-  // leitura ampliada: só o botão de copiar valor funciona aqui (sem fila/"digitei"
-  // do Modo Foco — focusFlowHtml() é reaproveitado só pelo HTML, não pelo estado)
+function setFullscreenBody(bodyHtml){
+  if (!FS_EL) return null;
+  FS_EL.innerHTML = `<button class="fs-close" title="Fechar (Esc)">✕</button>${bodyHtml}`;
+  FS_EL.querySelector('.fs-close').addEventListener('click', closeFullscreenView);
+  return FS_EL;
+}
+// só o copiar-valor funciona na leitura ampliada (sem fila/"digitei" do Modo Foco)
+function wireFsCopy(el){
   el.querySelectorAll('.fcopy').forEach(btn => btn.addEventListener('click', async e => {
     e.stopPropagation();
     try{ await navigator.clipboard.writeText(btn.dataset.fcopy || ''); showToast('Valor copiado 📋'); }
     catch(err){ showToast('Não consegui copiar.', true); }
   }));
 }
+function fsCatByKey(k){ return k === 'liga' ? {...CAT_LIGA, fields: ligaFields()} : CAT_BY_KEY[k]; }
+function fsItems(catKey){ return visibleItems(catKey === 'liga' ? LIGA : catItems(CAT_BY_KEY[catKey]), computeAssignments()); }
+// a qual bloco um torneio pertence (pra abrir a tela cheia dele no bloco certo)
+function fsResolveCatKey(it){
+  if (LIGA.some(x => itemKey(x) === itemKey(it))) return 'liga';
+  const hit = allWithCat().find(x => itemKey(x.it) === itemKey(it));
+  return hit ? hit.cat.key : 'main';
+}
+
+/* PLANILHA (estilo Global MTT): torneios nas LINHAS, campos nas COLUNAS — rola
+   pra baixo pela grade inteira. Horário + torneio ficam fixos na rolagem lateral.
+   MESMOS destaques do modo normal (contexto de receita + colunas de fee/early). */
+function fsSheetHtml(items, cat, asg){
+  const ctx = recipeCtx(items);
+  const feeCols = recipeFeeCols(items);
+  const fields = (cat.fields || visibleRecipeFields()).filter(l => !feeCols.has(l) && !HIDDEN_FIELDS.has(l));
+  const hasCamp = items.some(hasCampaign);
+  const isSat = cat.key === 'sat';
+  const th = `<th class="c-h">${selBlockBoxHtml(cat.key)}Horário</th><th class="c-n">Torneio</th><th>Operador</th><th>Criar em</th>`
+    + `<th>Admin Fee</th><th>Early Bird</th>`
+    + (hasCamp ? `<th>Campanha</th>` : '')
+    + (isSat ? `<th>Grupo</th>` : '')
+    + fields.map(f => `<th class="c-field${ctx.keyLabels.has(f) ? ' key' : ''}">${escHtml(f)}<button class="rl-hide" data-hidefield="${escHtml(f)}" title="Ocultar a coluna ${escHtml(f)}" aria-label="Ocultar coluna ${escHtml(f)}">${EYE_OPEN}</button></th>`).join('')
+    + `<th>ID</th><th class="c-done">Criado</th>`;
+  const body = items.map(it => {
+    const key = itemKey(it), done = !!DONE[key], op = asg[key];
+    const adm = adminFeeParts(it), ear = earlyParts(it);
+    const fcells = fields.map(label => `<td>${recipeValueCellHtml(it, label, ctx)}</td>`).join('');
+    return `<tr class="${done ? 'done' : ''} ${SELECTED.has(key) ? 'sel' : ''} ${op && normText(op) === normText(ME) ? 'mine' : ''}">
+      <td class="c-h thora">${selBoxHtml(key)}${escHtml(it.hora)}</td>
+      <td class="c-n tname">${escHtml(it.nome)} ${campBadgeHtml(it)} ${valBadge(it, cat)} <button class="vmini" data-fs="${key}" title="Abrir este torneio em tela cheia">⛶</button></td>
+      <td>${claimCellHtml({it, key, op})}</td>
+      <td class="mono">${escHtml(creationWhen(it))}</td>
+      <td>${adm ? `<span class="calc-chip admin">${escHtml(adm.main)}${adm.sub ? `<span class="amt">${escHtml(adm.sub)}</span>` : ''}</span>` : '<span class="dash">—</span>'}</td>
+      <td>${ear ? `<span class="calc-chip early">${escHtml(ear.main)}${ear.sub ? `<span class="amt">${escHtml(ear.sub)}</span>` : ''}</span>` : '<span class="dash">—</span>'}</td>
+      ${hasCamp ? `<td>${hasCampaign(it) ? campBadgeHtml(it) : '<span class="dash">—</span>'}</td>` : ''}
+      ${isSat ? `<td><span style="font-size:11px;color:var(--sat-bright);font-weight:700">${escHtml(it.groupHeader || '—')}</span></td>` : ''}
+      ${fcells}
+      <td>${idInputHtml(key, 'width:96px')}</td>
+      <td class="c-done"><button class="chk ${done ? 'on' : ''}" data-done="${key}" role="checkbox" aria-checked="${done ? 'true' : 'false'}" aria-label="${done ? 'Criado — desmarcar' : 'Marcar como criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button></td>
+    </tr>`;
+  }).join('');
+  return `<div class="fs-sheet"><table><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+// EVENTO: um torneio grande, receita fluindo em colunas pra preencher a tela
+function fsEventHtml(items, cat, asg){
+  const it = items[FS.idx], multi = items.length > 1, key = itemKey(it), op = asg[key], done = !!DONE[key];
+  return `
+    ${multi ? `<button class="fs-arrow prev" data-fsprev aria-label="Torneio anterior">‹</button>` : ''}
+    <div class="fs-tour">
+      <div class="fs-tour-top">
+        <div><span class="fs-tour-hora">${escHtml(it.hora)}</span><h2 class="fs-tour-name">${escHtml(it.nome)} ${campBadgeHtml(it)} ${valBadge(it, cat)}</h2></div>
+        <div class="fs-eventnav">
+          ${multi ? `<span class="fs-count">${FS.idx + 1} / ${items.length}</span>` : ''}
+          ${claimCellHtml({it, key, op})}
+          <button class="chk ${done ? 'on' : ''}" data-done="${key}" role="checkbox" aria-checked="${done ? 'true' : 'false'}" title="${done ? 'Criado' : 'Marcar criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
+        </div>
+      </div>
+      <div class="fs-recipe fs-recipe-flow">${focusFlowHtml(it)}</div>
+    </div>
+    ${multi ? `<button class="fs-arrow next" data-fsnext aria-label="Próximo torneio">›</button>` : ''}`;
+}
 function openBlockFullscreen(cat){
+  mountFullscreenView();
+  FS = { catKey: cat.key, mode: FS_MODE, idx: 0 };
+  renderFS();
+}
+function openTourFullscreen(it){
+  const catKey = fsResolveCatKey(it);
+  const items = fsItems(catKey);
+  let idx = items.findIndex(x => itemKey(x) === itemKey(it));
+  if (idx < 0) idx = 0;
+  mountFullscreenView();
+  FS = { catKey, mode: 'event', idx };
+  renderFS();
+}
+function renderFS(){
+  if (!FS || !FS_EL) return;
+  const cat = fsCatByKey(FS.catKey);
   const asg = computeAssignments();
-  const items = visibleItems(catItems(cat), asg);
-  if (!items.length){ showToast('Bloco vazio.'); return; }
-  const el = mountFullscreenView(`
-    <div class="fs-block ${cat.cls}">
-      <div class="fs-block-head"><span class="suit">${cat.suit}</span>${cat.label}</div>
-      <div class="fs-block-body">${renderVertical(items, cat, asg)}</div>
-    </div>`, 'fs-block-mode');
-  // mesma tabela de renderList — precisa dos MESMOS listeners (mover bloco, marcar
-  // criado, copiar, ID, tela cheia por torneio), senão os botões ficam mudos aqui dentro
-  wireVerticalArea(el.querySelector('.fs-block-body'), { closeFsFirst: true });
+  const items = fsItems(FS.catKey);
+  if (!items.length){ showToast('Bloco vazio.'); closeFullscreenView(); return; }
+  FS.idx = Math.max(0, Math.min(FS.idx, items.length - 1));
+  const seg = [['sheet','▥ Planilha'], ['cols','▤ Colunas'], ['event','⛶ Evento']]
+    .map(([m, lab]) => `<button class="fs-seg-btn ${FS.mode === m ? 'on' : ''}" data-fsmode="${m}">${lab}</button>`).join('');
+  // preserva rolagem da planilha/colunas entre re-renders (sync ao vivo não teleporta)
+  const prevScrollEl = FS_EL.querySelector('.fs-sheet, .fs-block-body');
+  const scroll = prevScrollEl ? {t: prevScrollEl.scrollTop, l: prevScrollEl.scrollLeft} : null;
+  let body;
+  if (FS.mode === 'sheet') body = fsSheetHtml(items, cat, asg);
+  else if (FS.mode === 'cols') body = `<div class="fs-block-body">${renderVertical(items, cat, asg)}</div>`;
+  else body = fsEventHtml(items, cat, asg);
+  const el = setFullscreenBody(`
+    <div class="fs-view ${cat.cls} mode-${FS.mode}">
+      <div class="fs-head">
+        <div class="fs-title"><span class="suit">${cat.suit}</span>${cat.label} <span class="fs-count">${items.length} torneios</span></div>
+        <div class="fs-seg">${seg}</div>
+      </div>
+      ${body}
+    </div>`);
+  el.querySelectorAll('[data-fsmode]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    FS.mode = b.dataset.fsmode;
+    if (FS.mode !== 'event'){ FS_MODE = FS.mode; localStorage.setItem('cn_fs_mode', FS_MODE); }
+    renderFS();
+  }));
+  // listeners compartilhados com a lista normal (marcar criado, ID, ⛶, pegar/passar,
+  // ocultar coluna, selecionar) — a tabela é a MESMA de renderList
+  wireVerticalArea(el, { closeFsFirst: true });
+  wireFsCopy(el);
+  if (scroll){ const s = el.querySelector('.fs-sheet, .fs-block-body'); if (s){ s.scrollTop = scroll.t; s.scrollLeft = scroll.l; } }
+  if (FS.mode === 'event'){
+    const p = el.querySelector('[data-fsprev]'), n = el.querySelector('[data-fsnext]');
+    if (p) p.addEventListener('click', e => { e.stopPropagation(); fsStep(-1); });
+    if (n) n.addEventListener('click', e => { e.stopPropagation(); fsStep(1); });
+  }
+}
+function fsStep(d){
+  if (!FS) return;
+  const items = fsItems(FS.catKey), n = items.length;
+  if (!n) return;
+  FS.idx = (FS.idx + d + n) % n;
+  renderFS();
 }
 
 function openCategoryPicker(anchor, it){
@@ -2439,17 +2798,20 @@ $('exportBtn').addEventListener('click', async () => {
   if (!DATA){ showToast('Carregue a Global primeiro.', true); return; }
   try{ await ensureXLSX(); }catch(_){ showToast('A biblioteca de planilhas não carregou — recarregue a página.', true); return; }
   const cur = CURRENCY === 'usd' ? '$' : 'R$';
-  const conv = v => v === null || v === undefined ? null : (CURRENCY === 'usd' ? v : Math.round(v * BRL_RATE * 100) / 100);
-  const asg = computeAssignments(); // itemKey -> operador da divisão
+  // ciente da moeda por item: Liga guarda REAL (it.brl), Global guarda DÓLAR —
+  // toDisplayCur decide, igual à tela, pra a Principal não sair convertida errada
+  const conv = (v, it) => v === null || v === undefined ? null : Math.round(toDisplayCur(v, it && it.brl) * 100) / 100;
+  const asg = computeAssignments(); // itemKey -> dono (pegar tarefa)
 
   // main e side já vêm em ordem cronológica do gu-parser (buildSections); sat vem
   // na ordem de leitura da Global, agrupado por groupHeader — igual à Conferência de amanhã
   const main = DATA.main || [];
   const side = DATA.side || [];
   const sat  = DATA.sat  || [];
+  const liga = LIGA || [];
   const unknown = DATA.unknown || [];
   const total = main.length + side.length + sat.length;
-  if (!total && !unknown.length){ showToast('Nada para exportar.', true); return; }
+  if (!total && !unknown.length && !liga.length){ showToast('Nada para exportar.', true); return; }
 
   // agrupa satélites por groupHeader, preservando a ordem de primeira aparição
   const satOrder = [], satMap = {};
@@ -2457,29 +2819,37 @@ $('exportBtn').addEventListener('click', async () => {
   const satGroups = satOrder.map(k => satMap[k]);
 
   const rows = [['Torneio', 'Horário', `Garantido (${cur})`, `Buy in (${cur})`, 'ID', 'Operador']];
-  const pushRow = it => { const key = itemKey(it); rows.push([it.nome, it.hora, conv(it.garantido), conv(it.buyin), idVal(key), asg[key] || '']); };
+  const pushRow = it => { const key = itemKey(it); rows.push([it.nome, it.hora, conv(it.garantido, it), conv(it.buyin, it), idVal(key), asg[key] || '']); };
   const blankRow = () => rows.push([]);
 
   main.forEach(pushRow); if (main.length) blankRow();
   side.forEach(pushRow); if (side.length) blankRow();
   satGroups.forEach(g => { g.forEach(pushRow); blankRow(); });
 
+  // ★ Eventos Principais (Liga) — a divisão da noite conta a Principal também
+  if (liga.length){
+    blankRow();
+    rows.push(['★ EVENTOS PRINCIPAIS (grade fixa da Liga)']);
+    liga.forEach(pushRow);
+    blankRow();
+  }
+
   if (unknown.length){
     blankRow();
     rows.push(['TIPO NÃO RECONHECIDO — verificar coluna TYPE na Global antes de fechar']);
-    unknown.forEach(it => { const key = itemKey(it); rows.push([it.nome, it.hora, conv(it.garantido), conv(it.buyin), idVal(key), asg[key] || '', it.tipo ?? '']); });
+    unknown.forEach(it => { const key = itemKey(it); rows.push([it.nome, it.hora, conv(it.garantido, it), conv(it.buyin, it), idVal(key), asg[key] || '', it.tipo ?? '']); });
   }
 
   // rodapé de checagem: quem receber a planilha confere se nada foi cortado
   blankRow();
-  rows.push([`Total: ${total} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length}) — ${WEEKDAY_TOMORROW} ${refToLabel(TURNO.refTomorrow)}`]);
+  rows.push([`Total: ${total + liga.length} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length} · Principais ${liga.length}) — ${WEEKDAY_TOMORROW} ${refToLabel(TURNO.refTomorrow)}`]);
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = [{wch:30},{wch:10},{wch:14},{wch:12},{wch:16},{wch:18}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, (WEEKDAY_TOMORROW || 'Criação Noturna').slice(0,31));
   XLSX.writeFile(wb, `CriacaoNoturna_${TOMORROW_ISO}.xlsx`);
-  showToast(`Exportado — ${total} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length}).`);
+  showToast(`Exportado — ${total + liga.length} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length} · Principais ${liga.length}).`);
 });
 
 /* ── resumo pra colar no grupo ── */
@@ -2499,12 +2869,16 @@ $('summaryBtn').addEventListener('click', async () => {
           lines.push(`  ${cat.label}: ${mine.length}${camp ? ` (✦${camp} campanha)` : ''} — ${mine.map(it => it.hora).join(', ')}`);
         }
       });
+      // Eventos Principais (Liga) entram na divisão como os demais blocos
+      const mineLiga = LIGA.filter(it => asg[itemKey(it)] === o);
+      if (mineLiga.length) lines.push(`  ★ Eventos Principais: ${mineLiga.length} — ${mineLiga.map(it => it.hora).join(', ')}`);
     });
   } else {
     SECTIONS.forEach(cat => lines.push(`${cat.label}: ${catItems(cat).length}`));
+    if (LIGA.length) lines.push(`★ Eventos Principais: ${LIGA.length}`);
   }
-  const total = DATA.main.length + DATA.side.length + DATA.sat.length;
-  const doneCount = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => DONE[itemKey(it)]).length;
+  const total = DATA.main.length + DATA.side.length + DATA.sat.length + LIGA.length;
+  const doneCount = [...DATA.main, ...DATA.side, ...DATA.sat, ...LIGA].filter(it => DONE[itemKey(it)]).length;
   const avg = avgDurMin();
   lines.push(`\nTotal: ${total} torneios · ${doneCount} criados${avg ? ` · ⏱ ${avg < 1 ? Math.round(avg*60) + 's' : avg.toFixed(1) + 'm'}/torneio` : ''}`);
   try{

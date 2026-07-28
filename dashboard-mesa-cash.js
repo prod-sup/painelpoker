@@ -2135,19 +2135,45 @@ function tvEnter(){
   tick(); TV.clock=setInterval(tick,1000);
   tvTickerFill(); tvShow(0);
   try{document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().catch(()=>{});}catch(_){ }
-  // re-sincroniza o dataset a cada 5 min (novos imports aparecem sozinhos no telão)
-  TV.refresh=setInterval(async()=>{
+  // re-render local do telão a cada 5 min (relógio/ticker/cena) — NÃO toca o Firebase.
+  // O dataset era re-baixado INTEIRO aqui a cada 5 min (listRaw = mesasCashData de
+  // todos os dias): 288 downloads/dia do nó pesado num telão 24/7, e crescendo —
+  // era o campeão do egress. A re-sincronização agora é por LISTENER (tvAttachData):
+  // o RTDB só manda o nó quando um import muda de verdade, então parado = zero banda.
+  TV.refresh=setInterval(()=>{
     try{
-      const sel=document.getElementById('daySel');
-      if(sel&&sel.value!=='__demo__'){await onDaySel(sel.value);}
       if(TV.on){const d2=document.getElementById('tvDate');if(d2)d2.textContent=KPI_DEMO.date||'';tvTickerFill();tvShow(TV.scene);}
     }catch(e){console.error('tv refresh',e);}
   },5*60*1000);
+  tvAttachData();
   if(location.hash!=='#tv')try{history.replaceState(null,'','#tv');}catch(_){ }
+}
+// ── re-sync do telão por LISTENER (substitui o poll que re-baixava tudo) ──
+// mesasCashData é escrito só quando alguém importa um dia. O .on('value') manda
+// o nó APENAS nessas mudanças: telão parado não gera download nenhum, e um novo
+// import ainda "aparece sozinho" no telão — sem os 288 downloads/dia do poll.
+let _tvDataOff=null;
+function tvAttachData(){
+  if(!fbOk||!db||_tvDataOff)return;
+  const ref=db.ref(RTDB_DATA);
+  let first=true;               // 1ª emissão = estado atual (já renderizado no start): ignora
+  const h=ref.on('value',()=>{
+    if(first){first=false;return;}
+    tvResyncData();
+  });
+  _tvDataOff=()=>{try{ref.off('value',h);}catch(_){}_tvDataOff=null;};
+}
+async function tvResyncData(){
+  try{
+    const sel=document.getElementById('daySel');
+    if(sel&&sel.value!=='__demo__'){await onDaySel(sel.value);}
+    if(TV.on){const d2=document.getElementById('tvDate');if(d2)d2.textContent=KPI_DEMO.date||'';tvTickerFill();tvShow(TV.scene);}
+  }catch(e){console.error('tv resync',e);}
 }
 function tvExit(){
   if(!TV.on)return;
   TV.on=false;
+  if(_tvDataOff)_tvDataOff();
   clearTimeout(TV.rot);clearInterval(TV.clock);clearInterval(TV.refresh);
   if(TV.chart){try{TV.chart.destroy()}catch(_){}TV.chart=null;}
   tvUnmountFeltro();                     // libera o contexto WebGL ao fechar

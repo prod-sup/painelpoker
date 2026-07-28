@@ -1932,8 +1932,17 @@
         if (parts.length) show('livePainel', 'livePainelTxt', parts.join(' · '));
         else document.getElementById('livePainel').hidden = true;
       };
-      // presence é leitura pública — pode anexar já
-      db.ref('presence').on('value', s => { pOnline = s.numChildren(); paintPainel(); });
+      // presence é leitura pública — pode anexar já.
+      // Conta POR FILHO, não com .on('value'): um listener de valor no nó
+      // inteiro rebaixava TODO o presence a cada batimento de qualquer sessão
+      // (a cada 60s × N sessões) só pra atualizar um número — a regressão
+      // O(N²) que já tinha estourado o egress. child_added/removed manda só o
+      // delta. numChildren local == mesma contagem de antes, sem o custo.
+      const presSeen = Object.create(null);
+      const presRef = db.ref('presence');
+      const paintPresence = () => { pOnline = Object.keys(presSeen).length; paintPainel(); };
+      presRef.on('child_added',   s => { presSeen[s.key] = 1; paintPresence(); });
+      presRef.on('child_removed', s => { delete presSeen[s.key]; paintPresence(); });
 
       // Criação GU: progresso da noite (torneios criados / total da receita)
       const guBase = `painel/${tomorrow}/criacaoNoturna`;

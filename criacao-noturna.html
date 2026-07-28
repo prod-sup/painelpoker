@@ -57,7 +57,7 @@ SupremaShell.mountNav('#supNav', {
   <div class="hero-inner">
     <span class="hero-eyebrow"><span>🌙</span> Turno noturno · 19:00 → 07:00 · eventos do dia seguinte</span>
     <h1>Criação de torneios <em id="heroDay">—</em></h1>
-    <p class="sub">A <b>receita da GU</b> pro próximo dia da grade (janela 06:10 → 05:30), dividida pelas <b>funções do turno</b>: quem faz o <b>Main Event</b> faz os <b>Satélites</b>; os <b>Side Events</b> se dividem entre <b>com</b> e <b>sem Admin Fee</b>. Rake, admin fee, early bird e campanhas em destaque. Marque cada torneio conforme criar — sincroniza ao vivo.</p>
+    <p class="sub">A <b>receita da GU</b> pro próximo dia da grade (janela 06:10 → 05:30), em blocos de <b>Main + Satélites</b>, <b>Side Events</b> e <b>Eventos Principais</b>. A divisão é no <b>pegar tarefa</b>: cada torneio começa livre e quem vai criar clica em <b>✋ pegar</b> — todo mundo vê ao vivo quem está com o quê. Rake, admin fee, early bird e campanhas em destaque. Marque cada torneio conforme criar.</p>
     <div class="hero-stats">
       <div class="hstat c-prog"><div class="n" id="stProg">0%</div><div class="l">Criados</div></div>
       <div class="hstat"><div class="n" id="stTotal">—</div><div class="l">Torneios</div></div>
@@ -125,14 +125,10 @@ SupremaShell.mountNav('#supNav', {
         </div>
       </div>
       <div class="ctrl-group" style="flex:1;min-width:280px">
-        <span class="ctrl-label">Equipe do turno — atribua a função de cada um</span>
+        <span class="ctrl-label">Equipe do turno — quem está criando hoje</span>
         <div class="ops-row" id="opsRow"></div>
         <p class="section-note" style="margin:4px 0 0">
-          <span class="lk"><span class="d" style="background:var(--main-bright)"></span>Main + Satélites</span>
-          <span class="lk"><span class="d" style="background:var(--side-bright)"></span>Side c/ Admin Fee</span>
-          <span class="lk"><span class="d" style="background:var(--sidefree-bright)"></span>Side s/ Admin Fee</span>
-          <span class="lk"><span class="d" style="background:var(--liga-bright)"></span>Eventos Principais</span>
-          <span style="opacity:.8">Sem função marcada, todos dividem aquele bloco.</span>
+          <span style="opacity:.85">Adicione quem está no turno. A divisão é no <b>✋ pegar tarefa</b>: cada um clica no torneio pra assumir — o número no chip mostra quantos cada pessoa pegou. Sem funções fixas; dá pra soltar ou passar a qualquer momento.</span>
         </p>
       </div>
     </div>
@@ -217,7 +213,7 @@ SupremaShell.mountNav('#supNav', {
 <script>
   if (window.SupremaAuth && SupremaAuth.getSession && SupremaAuth.getSession()){
     SupremaOnboarding.start('criacao', [
-      { el:'#dropZone', title:'Suba a GU aqui', text:'Carregue a Global MTT (aba G MTTS). O sistema separa Main, Side e Satélite e divide entre a equipe automaticamente.', side:'bottom' },
+      { el:'#dropZone', title:'Suba a GU aqui', text:'Carregue a Global MTT (aba G MTTS). O sistema separa Main, Side e Satélite. A divisão é no ✋ pegar tarefa: cada um clica no torneio que vai criar.', side:'bottom' },
       { el:'#focusBtn', title:'Modo Foco', text:'Cria os torneios um a um, de cima pra baixo, com a receita completa de cada evento na sua frente.', side:'top' },
       { el:'#exportBtn', title:'Arquive a noite', text:'No fim do turno, exporta o relatório completo do que foi criado em .xlsx.', side:'top' }
     ], { accent:'#8c5cc6', label:'Criação Noturna' });
