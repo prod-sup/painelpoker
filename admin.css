@@ -600,6 +600,20 @@ td.center{text-align:center}
 .audit-table tbody tr:hover td{background:var(--s2)}
 .audit-table tr.nf td{color:var(--ink3);font-style:italic}
 .audit-table tr.overlay td.ov-val{color:var(--red);font-weight:600}
+
+/* ── AUDITORIA NO CELULAR = PLANILHA (estilo Google Sheets) ──
+   Mesmo tratamento do modo compacto do painel: a tabela rola livre na horizontal
+   (nenhuma coluna congelada — já rola dentro do .tbl-wrap), o cabeçalho fica no
+   topo, e no celular ganham gridlines discretas + alvos de toque maiores. */
+@media (max-width:600px){
+  .audit-table th,
+  .audit-table td{ border-right:1px solid var(--border2); }
+  .audit-table td{ padding:12px 13px; }
+  .audit-table .row-check,
+  .audit-table #checkAll{ width:18px !important;height:18px !important; }  /* venci o width inline de 14px */
+  .audit-edit-btn,
+  .btn-notif{ padding:9px 11px; }
+}
 .audit-total{
   padding:11px 16px;background:var(--s2);border-top:1px solid var(--border);
   display:flex;gap:24px;font-size:12.5px;color:var(--ink2);font-family:var(--mono);

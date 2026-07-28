@@ -3439,77 +3439,24 @@
 .ctr-op-at{ display:block;font-family:var(--mono);font-size:9.5px;color:var(--ink-soft);margin-top:1px;letter-spacing:.02em; }
 .ctr-op-none{ color:var(--ink-soft);opacity:.55; }
 
-/* ── COLUNA CONGELADA (sticky) ──
-   A tabela compacta é larga e rola na horizontal (sobretudo no celular). Sem
-   isto, ao rolar pra ver Ações/ID/Fixou o NOME do torneio saía da tela e a linha
-   virava um monte de números sem dono. Congelamos a barrinha de categoria + o
-   Torneio à esquerda: o nome acompanha a rolagem e você sempre sabe de qual
-   torneio é a linha. Fundo opaco pra o conteúdo não vazar por baixo. */
-.compact-table th:first-child,
-.compact-table td:first-child{ position:sticky;left:0;z-index:2;background:var(--card); }
-.compact-table th.ctr-nome,
-.compact-table td.ctr-nome{
-  position:sticky;left:3px;z-index:2;background:var(--card);
-  box-shadow:7px 0 9px -7px rgba(0,0,0,.22);
-}
-.compact-table thead th:first-child,
-.compact-table thead th.ctr-nome{ z-index:3;background:var(--card-elevated); }
-.compact-table tbody tr:hover td:first-child,
-.compact-table tbody tr:hover td.ctr-nome{ background:var(--card-elevated); }
-.compact-table tbody tr.is-fixed td:first-child,
-.compact-table tbody tr.is-fixed td.ctr-nome{ background:#eef7f0; }
-html.dark .compact-table th:first-child,
-html.dark .compact-table td:first-child,
-html.dark .compact-table th.ctr-nome,
-html.dark .compact-table td.ctr-nome{ background:var(--card); }
-html.dark .compact-table tbody tr.is-fixed td:first-child,
-html.dark .compact-table tbody tr.is-fixed td.ctr-nome{ background:#16241b; }
+/* Só o cabeçalho fica fixo no topo ao rolar a página (como o Google Sheets), pra
+   os nomes das colunas não sumirem. NENHUMA coluna é congelada — a grade rola
+   livre nas duas direções. */
+.compact-table thead th{ position:sticky;top:0;z-index:2; }
 
-/* ── MODO COMPACTO NO CELULAR = CARDS ──
-   Uma tabela de 12 colunas rolando de lado é péssima no dedão. No celular cada
-   LINHA vira um card empilhado: sem rolagem horizontal, cada campo ganha rótulo
-   (via data-label) e os inputs ficam grandes e fáceis de tocar. A borda esquerda
-   herda a cor da categoria (--catc, setada na linha). */
+/* ── MODO COMPACTO NO CELULAR = TABELA (rola livre, estilo Google Sheets) ──
+   Continua sendo TABELA no celular. A grade rola livre na horizontal (nenhuma
+   coluna congelada) e o cabeçalho acompanha no topo. Aqui só engrossamos os
+   alvos de toque (inputs, checkbox, copiar) e damos linhas com gridlines
+   discretas pra leitura de planilha. */
 @media (max-width:600px){
-  .compact-table-wrap{ border:none;overflow:visible;border-radius:0;background:transparent; }
-  .compact-table{ display:block;min-width:0;width:100%; }
-  .compact-table thead{ display:none; }
-  .compact-table tbody{ display:block; }
-  .compact-table tbody tr{
-    display:grid;grid-template-columns:1fr 1fr;gap:11px 12px;align-items:start;
-    padding:13px 14px 15px;margin-bottom:12px;
-    border:1px solid var(--hairline-strong);
-    border-left:4px solid var(--catc,var(--hairline-strong));
-    border-radius:14px;background:var(--card);box-shadow:0 1px 2px rgba(0,0,0,.05);
-  }
-  .compact-table tbody tr.is-fixed{ background:rgba(34,197,94,.06); }
-  .compact-table tbody tr:hover{ background:var(--card); }
-  .compact-table tbody td{
-    display:flex;flex-direction:column;gap:3px;padding:0;border:none;
-    position:static;left:auto;box-shadow:none;background:transparent;
-    max-width:none;min-width:0;font-size:13.5px;text-align:left;
-  }
-  .compact-table tbody td::before{
-    content:attr(data-label);
-    font-size:8.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);
-  }
-  .compact-table td.ctr-catcell{ display:none; }               /* cor foi pra borda do card */
-  .compact-table td.ctr-nome{
-    grid-column:1/-1;position:static;left:auto;box-shadow:none;
-    font-size:15px;white-space:normal;max-width:none;overflow:visible;
-  }
-  .compact-table td.ctr-nome::before{ display:none; }
-  .compact-table td[data-label="Premiação"]{ grid-column:1/-1; }  /* input principal, largo */
-  .compact-table td[data-label="ID"]{ grid-column:1/-1; }
-  .compact-table td.ctr-op{ max-width:none; }
-  .compact-table td.ctr-op .ctr-op-name{ max-width:none; }
-  .compact-table td.ctr-op .ctr-op-at{ margin-top:0; }
-  /* inputs grandes e cômodos pro dedo */
-  .compact-table .ctr-inp,
-  .compact-table .ctr-inp-id{ width:100%;min-width:0;padding:11px 12px;font-size:15px; }
-  .compact-table .ctr-copy-btn{ padding:11px; }
+  .compact-table tbody td{ padding:9px 11px;border-right:1px solid var(--hairline); }
+  .compact-table thead th{ border-right:1px solid var(--hairline); }
+  .compact-table .ctr-inp{ padding:9px 10px;min-width:104px;font-size:13px; }
+  .compact-table .ctr-inp-id{ padding:9px 10px;min-width:96px;font-size:12px; }
   .compact-table .fix-toggle,
-  .compact-table td.ctr-fixcell input{ width:22px;height:22px; }
+  .compact-table td.ctr-fixcell input{ width:20px;height:20px; }
+  .compact-table .ctr-copy-btn{ padding:9px; }
 }
 .ctr-copy-btn{
   padding:6px;flex:none;
