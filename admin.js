@@ -1407,7 +1407,10 @@ function accessRow(u, p, editable){
   const acc = u.access || {};
   const ed  = u.edit || {};
   const legado = u.edit == null;                 // sem nó `edit` → herda do acesso
-  const sees  = acc[p.id] === true;
+  // ciente do DEFAULT: painel/gu (def) valem enquanto não forem explicitamente
+  // `false`; o resto é opt-in (só com === true). Espelha o canAccess do cliente,
+  // senão a linha mostrava "Sem acesso" pra quem entra por padrão.
+  const sees  = acc[p.id] === true || (p.def && acc[p.id] !== false);
   const edits = editable && (legado ? sees : ed[p.id] === true);
   const see = `<button class="perm-pill see${sees?' on':''}" data-key="${esc(u.key)}" data-panel="${p.id}" data-on="${sees?'1':'0'}" data-act="toggleAccess" data-act-self `+
     `title="${sees?'Vê — clique para tirar o acesso':'Não vê — clique para liberar'}">${sees?'👁 Vê':'○ Sem acesso'}</button>`;
@@ -1427,8 +1430,10 @@ async function toggleAccess(btn){
   const key=btn.dataset.key, panel=btn.dataset.panel, next = btn.dataset.on!=='1';
   btn.disabled=true;
   try{
-    // grava true, ou remove a chave quando desliga (mantém o nó limpo)
-    await db.ref(`users/${key}/access/${panel}`).set(next?true:null);
+    // liga = true; desliga = FALSE explícito (não null). Pra painéis default
+    // (painel/gu) o null voltaria pro padrão liberado — a revogação não pegava.
+    // false revoga de verdade em qualquer painel e casa com as regras (`!== false`).
+    await db.ref(`users/${key}/access/${panel}`).set(next?true:false);
     await loadOps();          // re-pinta a linha (tirar o Vê já apaga o Edita ao lado)
   }catch(e){ alert('Falha ao salvar acesso: '+(e.message||e)); btn.disabled=false; }
 }
@@ -1446,11 +1451,10 @@ async function toggleEdit(btn){
       const acc = (await db.ref(`users/${key}/access`).once('value')).val() || {};
       const seed = {};
       EDIT_PANELS.forEach(id => { if(acc[id]===true) seed[id]=true; });
-      seed[panel] = next;
-      if(!next) delete seed[panel];
+      seed[panel] = next;   // false explícito revoga defEdit (painel/gu); true libera
       await ref.set(Object.keys(seed).length ? seed : { _off:true });   // nó precisa EXISTIR pra regra não herdar
     }else{
-      await ref.child(panel).set(next?true:null);
+      await ref.child(panel).set(next?true:false);   // false = revoga de verdade (não null)
       // se esvaziou, mantém o marcador — sem nó, as regras voltariam a herdar do access
       const left = (await ref.once('value')).val();
       if(left == null) await ref.set({ _off:true });

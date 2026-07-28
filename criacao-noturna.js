@@ -512,10 +512,8 @@ try{
       });
     } else renderAll();
   });
-  fbDb.ref(`${FB_PATH}/roles`).on('value', s => {
-    ROLES = s.val() || {};
-    renderAll();
-  });
+  // (o nó /roles saiu com o modelo "pegar tarefa" — sem funções fixas. Listener
+  //  removido: era egress à toa, ROLES não é mais usado na divisão.)
   fbDb.ref(`${FB_PATH}/overrides`).on('value', s => {
     OVERRIDES = s.val() || {};
     renderAll();

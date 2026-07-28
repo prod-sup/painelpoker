@@ -64,9 +64,9 @@
     { id: 'gu',     label: 'Criação Noturna',   file: 'criacao-noturna.html',    def: true, defEdit: true },
     { id: 'cash',   label: 'Cash Intelligence', file: 'dashboard-mesa-cash.html' },
     { id: 'eventos',label: 'Radar de Eventos',  file: 'eventos.html' },
-    { id: 'pipe',   label: 'Criação de Eventos', url: 'https://pipesuprema.vercel.app', external: true, def: true },
-    { id: 'tv',     label: 'Suprema TV',        file: 'tv.html',                 def: true },
-    { id: 'learn',  label: 'Poker Learn',       url: 'https://prod-sup.github.io/Learn/', external: true, def: true },
+    { id: 'pipe',   label: 'Criação de Eventos', url: 'https://pipesuprema.vercel.app', external: true },
+    { id: 'tv',     label: 'Suprema TV',        file: 'tv.html' },
+    { id: 'learn',  label: 'Poker Learn',       url: 'https://prod-sup.github.io/Learn/', external: true },
     { id: 'org',    label: 'A Constelação',     url: 'https://prod-sup.github.io/Org/',   external: true },
     { id: 'admin',  label: 'Admin',             file: 'admin.html', adminOnly: true }
   ];
@@ -130,8 +130,9 @@
      hub), não só ejetada do painel. Vale pra QUALQUER painel revogado (não só o
      atual) e roda também no HUB (chame sem panelId). Mantém listeners em
      users/<key>/access|edit enquanto a página está aberta; a 1ª leitura de cada um
-     é só BASELINE (não desloga), e daí qualquer transição "tinha → perdeu" dispara
-     o logout. Silencioso sem Firebase/sessão — nunca trava a página. */
+     é só BASELINE (não desloga), e daí QUALQUER mudança de acesso/edição (ganhou
+     OU perdeu) dispara o logout — re-login limpo garante sincronia total.
+     Silencioso sem Firebase/sessão — nunca trava a página. */
   function revalidateAccess(panelId, opts) {
     opts = opts || {};
     var s = getSession();
@@ -182,7 +183,9 @@
         var revogou = false;
         watched.forEach(function (p) {
           var now = canAccess(p.id);
-          if (!firstA && prevA[p.id] === true && now !== true) revogou = true;
+          // QUALQUER mudança de visualização (ganhou OU perdeu) desloga: o admin
+          // mexeu na permissão → re-login limpo, sessão 100% sincronizada.
+          if (!firstA && prevA[p.id] !== now) revogou = true;
           prevA[p.id] = now;
         });
         firstA = false;
@@ -196,7 +199,7 @@
         var revogou = false;
         watched.forEach(function (p) {
           var now = canEdit(p.id);
-          if (!firstE && prevE[p.id] === true && now !== true) revogou = true;
+          if (!firstE && prevE[p.id] !== now) revogou = true;   // qualquer mudança de edição desloga
           prevE[p.id] = now;
         });
         firstE = false;
