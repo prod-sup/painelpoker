@@ -1533,7 +1533,12 @@ function accessCell(u){
 }
 let _accessKey=null;
 function renderAccessModal(){
-  const u=_opsCache[_accessKey]; if(!u) return;
+  const raw=_opsCache[_accessKey]; if(!raw) return;
+  // _opsCache é indexado por key, mas o VALOR não tem `.key` — e accessRow usa
+  // u.key pra gravar data-key nos botões Vê/Edita. Sem isso os toggles saíam com
+  // data-key="" e o toggleAccess gravava em users//access/… (caminho errado) —
+  // era o "não acontece nada" ao dar acesso. Reanexa a key aqui.
+  const u = {...raw, key:_accessKey};
   document.getElementById('acName').textContent = u.apelido||u.nome||_accessKey.replace(/_dot_/g,'.').replace(/_at_/g,'@');
   document.getElementById('acBody').innerHTML = ACCESS_PANELS.map(p => accessRow(u, p, EDIT_PANELS.includes(p.id))).join('');
 }

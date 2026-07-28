@@ -1558,13 +1558,56 @@ function initUserNotifListener(){
       showJustifModal(pending, emailKey);
       return;
     }
-    // Notificações normais (sem bloqueio)
+    // Notificações normais (sem bloqueio): antes eram um toast fugaz marcado como
+    // "seen" na hora — o operador piscava e perdia (ex.: anomalias em lote). Agora
+    // viram um CARD persistente no canto, que só some quando ele clica "Entendi"
+    // (aí sim marca seen). Sobrevive a reload até ser reconhecido.
     Object.entries(notifs).forEach(([id, n]) => {
       if(!n || n.seen || n.justified || n.resolved) return;
-      fbDb.ref(`userNotifs/${emailKey}/${id}/seen`).set(true).catch(()=>{});
-      showToast(n.msg || '⚠ Nova notificação do admin: ' + (n.typeLabel||'Verifique o painel admin.'), true);
+      showNotifCard(id, n, emailKey);
     });
   });
+}
+
+/* ── CARD DE NOTIFICAÇÃO (não-bloqueante) ──
+   Pilha no canto: persistente, animada e dispensável. Micro-interações: entrada
+   slow-out (translateY+scale), selo com pulso único de atenção (staging), botão
+   com feedback de toque; saída slow-in. Respeita prefers-reduced-motion. Só marca
+   `seen` quando o operador clica "Entendi" — nada some sem ele ver. */
+const NOTIF_ICON = { anomalia:'⚠️', garantido:'💰', field:'👥', premiacao:'🏆', id:'🔖', criacao:'🌙', bloqueio:'🚫', outro:'📋' };
+function showNotifCard(id, n, emailKey){
+  if(document.getElementById('snx-'+id)) return;              // já na tela — evita duplicar no re-fire do listener
+  let stack = document.getElementById('snxStack');
+  if(!stack){ stack = document.createElement('div'); stack.id='snxStack'; stack.className='snx-stack'; document.body.appendChild(stack); }
+
+  const icon = NOTIF_ICON[n.type] || '📋';
+  const tag  = escHtml(n.typeLabel || 'Notificação do admin');
+  const body = escHtml(n.desc || n.msg || 'Verifique com o admin.');
+  const torn = n.torneio ? '<div class="snx-torn">🎯 '+escHtml(n.torneio)+'</div>' : '';
+  const when = n.sentAt ? new Date(n.sentAt).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+
+  const card = document.createElement('div');
+  card.id = 'snx-'+id; card.className = 'snx-card'; card.setAttribute('role','alert');
+  card.innerHTML =
+      '<div class="snx-seal">'+icon+'</div>'
+    + '<div class="snx-main">'
+    +   '<div class="snx-tag">'+tag+'</div>'
+    +   '<div class="snx-body">'+body+'</div>'
+    +   torn
+    +   (when ? '<div class="snx-when">'+when+'</div>' : '')
+    +   '<button class="snx-ok" type="button">Entendi</button>'
+    + '</div>'
+    + '<button class="snx-x" type="button" aria-label="Dispensar">✕</button>';
+  stack.appendChild(card);
+  requestAnimationFrame(()=> card.classList.add('in'));
+
+  const dismiss = () => {
+    fbDb.ref(`userNotifs/${emailKey}/${id}/seen`).set(true).catch(()=>{});
+    card.classList.add('out');
+    setTimeout(()=>{ card.remove(); if(stack && !stack.children.length) stack.remove(); }, 260);
+  };
+  card.querySelector('.snx-ok').addEventListener('click', dismiss);
+  card.querySelector('.snx-x').addEventListener('click', dismiss);
 }
 
 function showJustifModal(pending, emailKey){

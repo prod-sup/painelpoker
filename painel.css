@@ -3820,3 +3820,64 @@ html.dark .routine-tool-desc b{ color:var(--felt-bright); }
 /* badge do header: vermelho quando há crítico, dourado quando só atenção */
 #diagBadge.has-critico{ background:var(--red,#c0392b); color:#fff; }
 
+
+/* ── PILHA DE NOTIFICAÇÕES DO OPERADOR (não-bloqueantes) ──
+   Cards persistentes no canto: o operador precisa clicar "Entendi" pra dispensar
+   (não somem sozinhos, como o toast antigo). Micro-interações (skill): entrada
+   slow-out com translateY+scale, selo com um pulso de atenção, botão com feedback
+   de toque, saída slow-in. Usa tokens → acompanha claro/escuro. */
+.snx-stack{
+  position:fixed; z-index:1150; right:18px; bottom:18px;
+  display:flex; flex-direction:column; gap:12px;
+  width:min(360px, calc(100vw - 36px)); pointer-events:none;
+}
+.snx-card{
+  pointer-events:auto; position:relative;
+  display:flex; gap:13px; padding:15px 15px 15px 16px;
+  background:var(--card); border:1px solid var(--hairline);
+  border-left:4px solid var(--warn-text);
+  border-radius:16px; box-shadow:var(--shadow-lg);
+  opacity:0; transform:translateY(16px) scale(.97);
+  transition:opacity .32s var(--ease-expo), transform .32s var(--ease-expo);
+}
+.snx-card.in{ opacity:1; transform:none; }
+.snx-card.out{ opacity:0; transform:translateX(40px); transition:opacity .24s ease-in, transform .24s ease-in; }
+.snx-seal{
+  flex:none; width:38px; height:38px; border-radius:11px;
+  display:grid; place-items:center; font-size:19px;
+  background:var(--warn-bg);
+}
+.snx-card.in .snx-seal{ animation:snx-pulse .5s var(--ease-expo) .2s; }
+@keyframes snx-pulse{ 0%{transform:scale(1)} 45%{transform:scale(1.14)} 100%{transform:scale(1)} }
+.snx-main{ flex:1; min-width:0; }
+.snx-tag{
+  font-size:9.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--warn-text); margin-bottom:4px;
+}
+.snx-body{ font-size:13px; line-height:1.5; color:var(--ink); word-break:break-word; }
+.snx-torn{ font-size:12px; color:var(--ink-soft); margin-top:5px; }
+.snx-when{ font-size:10.5px; font-family:var(--mono); color:var(--ink-soft); margin-top:6px; }
+.snx-ok{
+  margin-top:11px; padding:8px 16px; border:none; border-radius:9px; cursor:pointer;
+  background:var(--felt); color:#fff; font:inherit; font-size:12.5px; font-weight:700;
+  transition:transform .1s ease-out, box-shadow .1s ease-out, filter .15s;
+}
+.snx-ok:hover{ transform:translateY(-1px); box-shadow:0 3px 10px -2px rgba(0,0,0,.25); filter:brightness(1.05); }
+.snx-ok:active{ transform:scale(.97); }
+.snx-x{
+  position:absolute; top:9px; right:9px; width:26px; height:26px;
+  border:none; background:transparent; color:var(--ink-soft); cursor:pointer;
+  border-radius:7px; font-size:13px; line-height:1;
+  transition:background .14s, color .14s;
+}
+.snx-x:hover{ background:var(--hairline); color:var(--ink); }
+@media (prefers-reduced-motion:reduce){
+  .snx-card{ transition:opacity .2s linear; transform:none; }
+  .snx-card.in{ transform:none; } .snx-card.out{ transform:none; }
+  .snx-card.in .snx-seal{ animation:none; }
+  .snx-ok:hover,.snx-ok:active{ transform:none; }
+}
+/* celular: pilha encostada embaixo, largura total confortável */
+@media (max-width:600px){
+  .snx-stack{ right:12px; left:12px; bottom:12px; width:auto; }
+}
