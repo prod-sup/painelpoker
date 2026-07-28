@@ -5,7 +5,7 @@
 /* ── CONFIG ─────────────────────────────────────────────────── */
 /* config do Firebase: fonte ÚNICA no suprema-db.js (SupremaDB.CONFIG) */
 const ADMIN_EMAILS = [
-  'brian@suprema.group','admin@suprema.group','brian.rodrigues@suprema.group'
+  'brian@suprema.group','admin@suprema.group','brian.rodrigues@suprema.group','bruno.larotonda@suprema.group'
 ];
 const COL_HEADERS = ['Torneio','Hora','Late Reg.','Tipo','Garantido','Buy-in','Premiação','Overlay','Field','Ações','Perf. %','Fixado por','ID','Status'];
 const COL_WIDTHS  = [32,7,12,13,13,11,13,12,8,8,9,18,12,11];

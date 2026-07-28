@@ -28,7 +28,8 @@
     'brian@suprema.group',
     'admin@suprema.group',
     'brian.rodrigues@suprema.group',
-    'felipe.souza@suprema.group'
+    'felipe.souza@suprema.group',
+    'bruno.larotonda@suprema.group'
   ];
   var LIMITED_ADMIN_EMAILS = [
     'fechamento@suprema.group'

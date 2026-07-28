@@ -8,7 +8,7 @@
 /* escape de HTML — nomes de modalidade/tipo vêm do XLSX que o operador sobe;
    sem isso, um rótulo com "<...>" quebraria o render (mesma defesa dos outros painéis). */
 const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-const ADMIN_EMAILS=['brian@suprema.group','admin@suprema.group','brian.rodrigues@suprema.group'];
+const ADMIN_EMAILS=['brian@suprema.group','admin@suprema.group','brian.rodrigues@suprema.group','bruno.larotonda@suprema.group'];
 const PBKDF2_ITER=150000;
 const eKey=e=>e.toLowerCase().replace(/\./g,'_dot_').replace(/@/g,'_at_');
 function bufToHex(buf){return[...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');}

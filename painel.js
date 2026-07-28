@@ -1500,6 +1500,7 @@ const ADMIN_EMAILS = [
   'brian@suprema.group',
   'admin@suprema.group',
   'brian.rodrigues@suprema.group',
+  'bruno.larotonda@suprema.group',
 ];
 function isAdmin(email){ return ADMIN_EMAILS.includes((email||'').toLowerCase()); }
 
