@@ -3465,14 +3465,51 @@ html.dark .compact-table td.ctr-nome{ background:var(--card); }
 html.dark .compact-table tbody tr.is-fixed td:first-child,
 html.dark .compact-table tbody tr.is-fixed td.ctr-nome{ background:#16241b; }
 
-/* ── TOQUE NO CELULAR ──
-   Inputs e checkbox maiores pra acertar com o dedo; linha um pouco mais alta. */
-@media (max-width:640px){
-  .compact-table tbody td{ padding:9px 10px; }
-  .compact-table .ctr-inp{ padding:8px 9px;min-width:92px;font-size:12px; }
-  .compact-table .ctr-inp-id{ padding:8px 9px;min-width:84px;font-size:11px; }
-  .compact-table .fix-toggle{ width:20px;height:20px; }
-  .compact-table .ctr-copy-btn{ padding:8px; }
+/* ── MODO COMPACTO NO CELULAR = CARDS ──
+   Uma tabela de 12 colunas rolando de lado é péssima no dedão. No celular cada
+   LINHA vira um card empilhado: sem rolagem horizontal, cada campo ganha rótulo
+   (via data-label) e os inputs ficam grandes e fáceis de tocar. A borda esquerda
+   herda a cor da categoria (--catc, setada na linha). */
+@media (max-width:600px){
+  .compact-table-wrap{ border:none;overflow:visible;border-radius:0;background:transparent; }
+  .compact-table{ display:block;min-width:0;width:100%; }
+  .compact-table thead{ display:none; }
+  .compact-table tbody{ display:block; }
+  .compact-table tbody tr{
+    display:grid;grid-template-columns:1fr 1fr;gap:11px 12px;align-items:start;
+    padding:13px 14px 15px;margin-bottom:12px;
+    border:1px solid var(--hairline-strong);
+    border-left:4px solid var(--catc,var(--hairline-strong));
+    border-radius:14px;background:var(--card);box-shadow:0 1px 2px rgba(0,0,0,.05);
+  }
+  .compact-table tbody tr.is-fixed{ background:rgba(34,197,94,.06); }
+  .compact-table tbody tr:hover{ background:var(--card); }
+  .compact-table tbody td{
+    display:flex;flex-direction:column;gap:3px;padding:0;border:none;
+    position:static;left:auto;box-shadow:none;background:transparent;
+    max-width:none;min-width:0;font-size:13.5px;text-align:left;
+  }
+  .compact-table tbody td::before{
+    content:attr(data-label);
+    font-size:8.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);
+  }
+  .compact-table td.ctr-catcell{ display:none; }               /* cor foi pra borda do card */
+  .compact-table td.ctr-nome{
+    grid-column:1/-1;position:static;left:auto;box-shadow:none;
+    font-size:15px;white-space:normal;max-width:none;overflow:visible;
+  }
+  .compact-table td.ctr-nome::before{ display:none; }
+  .compact-table td[data-label="Premiação"]{ grid-column:1/-1; }  /* input principal, largo */
+  .compact-table td[data-label="ID"]{ grid-column:1/-1; }
+  .compact-table td.ctr-op{ max-width:none; }
+  .compact-table td.ctr-op .ctr-op-name{ max-width:none; }
+  .compact-table td.ctr-op .ctr-op-at{ margin-top:0; }
+  /* inputs grandes e cômodos pro dedo */
+  .compact-table .ctr-inp,
+  .compact-table .ctr-inp-id{ width:100%;min-width:0;padding:11px 12px;font-size:15px; }
+  .compact-table .ctr-copy-btn{ padding:11px; }
+  .compact-table .fix-toggle,
+  .compact-table td.ctr-fixcell input{ width:22px;height:22px; }
 }
 .ctr-copy-btn{
   padding:6px;flex:none;

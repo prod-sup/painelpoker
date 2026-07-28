@@ -4351,31 +4351,32 @@ function renderUpcoming(){
       tr.dataset.key = key;
       if(fixed) tr.classList.add('is-fixed');
       if(isNF)  tr.classList.add('is-nf');
+      tr.style.setProperty('--catc', catColor);   // cor da categoria — usada como borda do card no mobile
 
-      const catTd   = '<td style="width:4px;padding:0"><span class="ctr-cat-bar" style="background:'+catColor+'"></span></td>';
+      const catTd   = '<td class="ctr-catcell" style="width:4px;padding:0"><span class="ctr-cat-bar" style="background:'+catColor+'"></span></td>';
       const lateInfo = t.late ? ` \u00b7 Late at\u00e9 ${escHtml(t.late)}` : '';
       const nomeTd  = '<td class="ctr-nome" title="'+escHtml(t.nome||'')+lateInfo+'">'+escHtml(t.nome||'\u2014')
                     + (t._manual ? ' <span class="tcard-manual-badge" title="Adicionado \u00e0 m\u00e3o \u2014 n\u00e3o veio da Global">MANUAL</span>' : '')
                     + (t.proxCronograma ? ' <span style="font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px;background:rgba(96,165,250,.14);color:#60a5fa;letter-spacing:.04em">PR\u00d3X. CRONOGRAMA</span>' : '')
                     + (t.late ? ' <span style="font-size:9px;font-weight:600;padding:1px 5px;border-radius:4px;background:rgba(251,146,60,.14);color:#fb923c;letter-spacing:.03em">Late at\u00e9 '+escHtml(t.late)+'</span>' : '')
                     + '</td>';
-      const horaTd  = '<td class="ctr-hora">'+(t.hora||'\u2014')+'</td>';
-      const garTd   = '<td class="ctr-gar">'+(garVal!=null?'R$'+fmtBRL(garVal,0):'\u2014')+'</td>';
+      const horaTd  = '<td class="ctr-hora" data-label="Hora">'+(t.hora||'\u2014')+'</td>';
+      const garTd   = '<td class="ctr-gar" data-label="GTD">'+(garVal!=null?'R$'+fmtBRL(garVal,0):'\u2014')+'</td>';
       // card do pr\u00f3ximo cronograma: s\u00f3 fixa\u00e7\u00e3o \u2014 premia\u00e7\u00e3o/field pertencem ao quadro do dia seguinte
-      const soFixar = '<td style="padding:3px 5px;color:var(--ink-soft);font-size:11px;font-style:italic" title="Evento do pr\u00f3ximo cronograma \u2014 premia\u00e7\u00e3o e field entram no quadro do pr\u00f3ximo dia">s\u00f3 fixar</td>';
+      const soFixar = '<td class="ctr-sofixar" data-label="Premia\u00e7\u00e3o" style="padding:3px 5px;color:var(--ink-soft);font-size:11px;font-style:italic" title="Evento do pr\u00f3ximo cronograma \u2014 premia\u00e7\u00e3o e field entram no quadro do pr\u00f3ximo dia">s\u00f3 fixar</td>';
       const premTd  = t.proxCronograma ? soFixar
-                    : '<td style="padding:3px 5px"><input class="ctr-inp tcard-prem-input'+(premVal!=null?' has-value':'')+'"'
+                    : '<td data-label="Premia\u00e7\u00e3o" style="padding:3px 5px"><input class="ctr-inp tcard-prem-input'+(premVal!=null?' has-value':'')+'"'
                     + ' data-key="'+key+'" type="text" inputmode="decimal"'
                     + ' placeholder="R$ \u2014" value="'+premFmt+'"'
                     + ' oninput="onCardPremiacaoInput(this)"'
                     + ' onblur="formatPremInput(this)" onfocus="this.select()"></td>';
-      const ovTd    = t.proxCronograma ? '<td class="ctr-ov" id="tci-ov-'+key+'">\u2014</td>'
-                    : '<td class="ctr-ov'+ovCls+'" id="tci-ov-'+key+'">'+ovTxt+'</td>';
-      const fieldTd = t.proxCronograma ? '<td style="padding:3px 5px;color:var(--ink-soft)">\u2014</td>'
-                    : '<td style="padding:3px 5px"><input class="ctr-inp tcard-field-input"'
+      const ovTd    = t.proxCronograma ? '<td class="ctr-ov" data-label="Overlay" id="tci-ov-'+key+'">\u2014</td>'
+                    : '<td class="ctr-ov'+ovCls+'" data-label="Overlay" id="tci-ov-'+key+'">'+ovTxt+'</td>';
+      const fieldTd = t.proxCronograma ? '<td class="ctr-sofixar" data-label="Field" style="padding:3px 5px;color:var(--ink-soft)">\u2014</td>'
+                    : '<td data-label="Field" style="padding:3px 5px"><input class="ctr-inp tcard-field-input"'
                     + ' data-key="'+key+'" type="number" min="0"'
                     + ' placeholder="\u2014" value="'+(fieldVal!=null?fieldVal:'')+'"></td>';
-      const idTd    = '<td style="padding:3px 5px"><div style="display:flex;gap:4px;align-items:center">'
+      const idTd    = '<td data-label="ID" style="padding:3px 5px"><div style="display:flex;gap:4px;align-items:center">'
                     + '<input class="ctr-inp-id id-input'+(currentId?' has-value':'')+'" style="flex:1;min-width:0"'
                     + ' data-key="'+key+'" type="text"'
                     + ' placeholder="ID" value="'+escHtml(currentId)+'">'
@@ -4386,22 +4387,22 @@ function renderUpcoming(){
       // cronograma não tem premiação/field próprios (são do dia seguinte), então fica "—".
       const acoesVal = t.proxCronograma ? null
                      : PainelCalc.acoes({ premiacao: premVal, buyin: t.buyin, field: fieldVal, cat, isCamp: hasCampanha(t) });
-      const acoesTd  = '<td class="ctr-acoes">'+(acoesVal!=null ? fmtBRL(acoesVal,0) : '—')+'</td>';
+      const acoesTd  = '<td class="ctr-acoes" data-label="Ações">'+(acoesVal!=null ? fmtBRL(acoesVal,0) : '—')+'</td>';
       // Quem fixou e quem preencheu a premiação (rastreados no painel — fixedBy/premBy),
       // com o HORÁRIO da ação embaixo do nome (fixedAt/premByAt). Cards do próximo cronograma
       // só permitem fixar; "Prem. por" fica vazio (—). Nome longo trunca (title mostra tudo).
-      const opCellTd = (name, at) => name
-        ? '<td class="ctr-op" title="'+escHtml(name)+(at?' · '+at:'')+'"><span class="ctr-op-name">'+escHtml(name)+'</span>'+(at?'<span class="ctr-op-at">'+at+'</span>':'')+'</td>'
-        : '<td class="ctr-op"><span class="ctr-op-none">—</span></td>';
-      const fixByTd  = opCellTd(fixedBy(key), fixedAt(key));
-      const premByTd = opCellTd(premBy(key), premByAt(key));
+      const opCellTd = (name, at, label) => name
+        ? '<td class="ctr-op" data-label="'+label+'" title="'+escHtml(name)+(at?' · '+at:'')+'"><span class="ctr-op-name">'+escHtml(name)+'</span>'+(at?'<span class="ctr-op-at">'+at+'</span>':'')+'</td>'
+        : '<td class="ctr-op" data-label="'+label+'"><span class="ctr-op-none">—</span></td>';
+      const fixByTd  = opCellTd(fixedBy(key), fixedAt(key), 'Fixou');
+      const premByTd = opCellTd(premBy(key), premByAt(key), 'Prem. por');
       // Side Event que não precisa ser fixado (needsFix=false): mostra o checkbox já "marcado"
       // visualmente, mas esmaecido e desabilitado — não é uma marcação real de responsabilidade,
       // só indica que não há nada pra fazer aqui.
       const fixTd   = needsFix
-        ? '<td style="text-align:center;padding:3px"><input type="checkbox" class="fix-toggle"'+(fixed?' checked':'')
+        ? '<td class="ctr-fixcell" data-label="Fixado" style="text-align:center;padding:3px"><input type="checkbox" class="fix-toggle"'+(fixed?' checked':'')
           + ' data-key="'+key+'" style="width:15px;height:15px;accent-color:var(--felt);cursor:pointer"></td>'
-        : '<td style="text-align:center;padding:3px"><input type="checkbox" checked disabled'
+        : '<td class="ctr-fixcell" data-label="Fixado" style="text-align:center;padding:3px"><input type="checkbox" checked disabled'
           + ' title="Não precisa ser fixado" style="width:15px;height:15px;accent-color:var(--ink-soft);opacity:.4;cursor:default"></td>';
       tr.innerHTML = catTd+nomeTd+horaTd+garTd+premTd+ovTd+fieldTd+acoesTd+idTd+fixByTd+premByTd+fixTd;
       tbody.appendChild(tr);
