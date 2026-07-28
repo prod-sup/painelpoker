@@ -4312,13 +4312,16 @@ function renderUpcoming(){
         tbl.innerHTML = '<caption class="sr-only">Torneios em aberto, modo compacto</caption>'
           + '<thead><tr>'
           + '<th scope="col" style="width:4px;padding:0"></th>'
-          + '<th scope="col" style="min-width:200px">Torneio</th>'
+          + '<th scope="col" class="ctr-nome" style="min-width:200px">Torneio</th>'
           + '<th scope="col" style="width:65px;text-align:center">Hora</th>'
           + '<th scope="col" style="width:100px;text-align:right">GTD</th>'
           + '<th scope="col" style="width:120px">Premiação</th>'
           + '<th scope="col" style="width:100px;text-align:right">Overlay</th>'
           + '<th scope="col" style="width:80px">Field</th>'
+          + '<th scope="col" style="width:64px;text-align:right">Ações</th>'
           + '<th scope="col" style="width:132px">ID</th>'
+          + '<th scope="col" style="width:120px">Fixou</th>'
+          + '<th scope="col" style="width:120px">Prem. por</th>'
           + '<th scope="col" style="width:36px;text-align:center">Fix</th>'
           + '</tr></thead><tbody id="compactTbody"></tbody>';
         wrap.appendChild(tbl);
@@ -4331,7 +4334,7 @@ function renderUpcoming(){
       if (t.proxCronograma && !proxDividerAdded){
         proxDividerAdded = true;
         const divTr = document.createElement('tr');
-        divTr.innerHTML = '<td colspan="9" style="padding:10px 8px 6px;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#60a5fa;border-top:2px solid rgba(96,165,250,.35)">Próx. cronograma — madrugada de amanhã · somente fixação</td>';
+        divTr.innerHTML = '<td colspan="12" style="padding:10px 8px 6px;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#60a5fa;border-top:2px solid rgba(96,165,250,.35)">Próx. cronograma — madrugada de amanhã · somente fixação</td>';
         tbody.appendChild(divTr);
       }
 
@@ -4379,6 +4382,19 @@ function renderUpcoming(){
                     + '<button class="copy-btn ctr-copy-btn" data-key="'+key+'" type="button" title="Copiar dados do torneio">'
                     + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>'
                     + '</button></div></td>';
+      // Ações = premiação ÷ buy-in líquido (mesma regra do card — painel-calc). Próximo
+      // cronograma não tem premiação/field próprios (são do dia seguinte), então fica "—".
+      const acoesVal = t.proxCronograma ? null
+                     : PainelCalc.acoes({ premiacao: premVal, buyin: t.buyin, field: fieldVal, cat, isCamp: hasCampanha(t) });
+      const acoesTd  = '<td class="ctr-acoes">'+(acoesVal!=null ? fmtBRL(acoesVal,0) : '—')+'</td>';
+      // Quem fixou e quem preencheu a premiação (rastreados no painel — fixedBy/premBy),
+      // com o HORÁRIO da ação embaixo do nome (fixedAt/premByAt). Cards do próximo cronograma
+      // só permitem fixar; "Prem. por" fica vazio (—). Nome longo trunca (title mostra tudo).
+      const opCellTd = (name, at) => name
+        ? '<td class="ctr-op" title="'+escHtml(name)+(at?' · '+at:'')+'"><span class="ctr-op-name">'+escHtml(name)+'</span>'+(at?'<span class="ctr-op-at">'+at+'</span>':'')+'</td>'
+        : '<td class="ctr-op"><span class="ctr-op-none">—</span></td>';
+      const fixByTd  = opCellTd(fixedBy(key), fixedAt(key));
+      const premByTd = opCellTd(premBy(key), premByAt(key));
       // Side Event que não precisa ser fixado (needsFix=false): mostra o checkbox já "marcado"
       // visualmente, mas esmaecido e desabilitado — não é uma marcação real de responsabilidade,
       // só indica que não há nada pra fazer aqui.
@@ -4387,7 +4403,7 @@ function renderUpcoming(){
           + ' data-key="'+key+'" style="width:15px;height:15px;accent-color:var(--felt);cursor:pointer"></td>'
         : '<td style="text-align:center;padding:3px"><input type="checkbox" checked disabled'
           + ' title="Não precisa ser fixado" style="width:15px;height:15px;accent-color:var(--ink-soft);opacity:.4;cursor:default"></td>';
-      tr.innerHTML = catTd+nomeTd+horaTd+garTd+premTd+ovTd+fieldTd+idTd+fixTd;
+      tr.innerHTML = catTd+nomeTd+horaTd+garTd+premTd+ovTd+fieldTd+acoesTd+idTd+fixByTd+premByTd+fixTd;
       tbody.appendChild(tr);
       return;
     }
@@ -8915,6 +8931,9 @@ function buildSnapshotRows(){
       fixadoEm:  fixedAt(key) || null,
       status:    (getId(key)||'').toUpperCase() === 'NF' || r.explicitNF
                    ? 'NF' : (prem != null ? 'Fechado' : 'Aberto'),
+      // madrugada do dia SEGUINTE mostrada cedo só pra fixação — a auditoria do admin
+      // usa essa flag pra NÃO contar o evento no dia de hoje (pertence ao quadro de amanhã)
+      proxCronograma: r.proxCronograma || false,
     };
   });
 }

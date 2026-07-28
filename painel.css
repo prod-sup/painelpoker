@@ -3430,6 +3430,50 @@
 .ctr-ov{ font-family:var(--mono);font-size:11px;font-weight:700;white-space:nowrap;text-align:right; }
 .ctr-ov.neg{ color:var(--red); }
 .ctr-ov.pos{ color:var(--felt-bright); }
+/* Ações — nº de entradas estimado (premiação ÷ buy-in líquido) */
+.ctr-acoes{ font-family:var(--mono);font-size:11px;font-weight:700;white-space:nowrap;text-align:right;color:var(--amber); }
+/* Fixou / Prem. por — operador (nome) + horário da ação embaixo. Chip discreto
+   com a inicial pra dar identidade visual sem pesar (mesma pegada dos cards). */
+.ctr-op{ color:var(--ink);font-size:11px;max-width:130px; }
+.ctr-op-name{ display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;font-weight:600; }
+.ctr-op-at{ display:block;font-family:var(--mono);font-size:9.5px;color:var(--ink-soft);margin-top:1px;letter-spacing:.02em; }
+.ctr-op-none{ color:var(--ink-soft);opacity:.55; }
+
+/* ── COLUNA CONGELADA (sticky) ──
+   A tabela compacta é larga e rola na horizontal (sobretudo no celular). Sem
+   isto, ao rolar pra ver Ações/ID/Fixou o NOME do torneio saía da tela e a linha
+   virava um monte de números sem dono. Congelamos a barrinha de categoria + o
+   Torneio à esquerda: o nome acompanha a rolagem e você sempre sabe de qual
+   torneio é a linha. Fundo opaco pra o conteúdo não vazar por baixo. */
+.compact-table th:first-child,
+.compact-table td:first-child{ position:sticky;left:0;z-index:2;background:var(--card); }
+.compact-table th.ctr-nome,
+.compact-table td.ctr-nome{
+  position:sticky;left:3px;z-index:2;background:var(--card);
+  box-shadow:7px 0 9px -7px rgba(0,0,0,.22);
+}
+.compact-table thead th:first-child,
+.compact-table thead th.ctr-nome{ z-index:3;background:var(--card-elevated); }
+.compact-table tbody tr:hover td:first-child,
+.compact-table tbody tr:hover td.ctr-nome{ background:var(--card-elevated); }
+.compact-table tbody tr.is-fixed td:first-child,
+.compact-table tbody tr.is-fixed td.ctr-nome{ background:#eef7f0; }
+html.dark .compact-table th:first-child,
+html.dark .compact-table td:first-child,
+html.dark .compact-table th.ctr-nome,
+html.dark .compact-table td.ctr-nome{ background:var(--card); }
+html.dark .compact-table tbody tr.is-fixed td:first-child,
+html.dark .compact-table tbody tr.is-fixed td.ctr-nome{ background:#16241b; }
+
+/* ── TOQUE NO CELULAR ──
+   Inputs e checkbox maiores pra acertar com o dedo; linha um pouco mais alta. */
+@media (max-width:640px){
+  .compact-table tbody td{ padding:9px 10px; }
+  .compact-table .ctr-inp{ padding:8px 9px;min-width:92px;font-size:12px; }
+  .compact-table .ctr-inp-id{ padding:8px 9px;min-width:84px;font-size:11px; }
+  .compact-table .fix-toggle{ width:20px;height:20px; }
+  .compact-table .ctr-copy-btn{ padding:8px; }
+}
 .ctr-copy-btn{
   padding:6px;flex:none;
 }

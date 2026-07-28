@@ -411,6 +411,10 @@ function mergeDayInto(date, snap, day){
         if(!_allData[date].rows[existingK].buyin) _allData[date].rows[existingK].buyin = r.buyin;
         if(!_allData[date].rows[existingK].garantido) _allData[date].rows[existingK].garantido = r.garantido;
         if(!_allData[date].rows[existingK].late && r.late) _allData[date].rows[existingK].late = r.late;
+        // Próximo cronograma: o snapshot (buildSnapshotRows) NÃO grava essa flag, mas o
+        // sheet.rows ao vivo grava. Sem copiar aqui, o evento da madrugada de amanhã ficava
+        // sem a marca e escapava do filtro da auditoria (flatRows). A flag do sheet manda.
+        if(r.proxCronograma) _allData[date].rows[existingK].proxCronograma = true;
         // A chave rk_ do painel ao vivo pode divergir da do snapshot (o hash inclui o garantido,
         // que muda entre os dois) — o ID/premiação/field digitados no card ficam gravados sob a
         // chave ao vivo. Guardar como alias pra busca achar os dados do evento em qualquer chave.
@@ -542,6 +546,12 @@ function flatRows(fromDate, toDate){
     const seenInDay = new Set();
     Object.entries(day.rows).forEach(([key,r])=>{
       if(!r||typeof r!=='object')return;
+      // Próximo cronograma: a madrugada do dia SEGUINTE que o painel mostra cedo
+      // só pra fixação antecipada (late register). Esses eventos pertencem ao
+      // quadro de amanhã — aparecem no painel só visualmente, com badge, e NÃO
+      // entram na auditoria/analytics de hoje (senão contam no dia errado). A
+      // flag vem do sheet.rows publicado pelo painel (globalSectionToRows).
+      if(r.proxCronograma)return;
       const dedupeKey = `${(r.nome||'').trim()}|${(r.hora||'').trim()}`;
       if(seenInDay.has(dedupeKey)) return; // já processado este torneio neste dia
       seenInDay.add(dedupeKey);
@@ -977,6 +987,7 @@ async function loadAudit(){
           ${cc.label}
           <span class="audit-group-count">${count} torneio${count>1?'s':''}</span>
         </div>
+        <div class="tbl-wrap">
         <table class="audit-table">
           <thead><tr>
             <th style="width:32px"><input type="checkbox" id="checkAll" data-act="toggleCheckAll" data-act-self data-act-on="change" style="accent-color:var(--gold);width:14px;height:14px"></th>
@@ -987,6 +998,7 @@ async function loadAudit(){
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table>
+        </div>
         <div class="audit-total">
           <span>Total (${count})</span>
           <span>GTD <strong>R$ ${brl(sumGar)}</strong></span>

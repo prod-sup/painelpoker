@@ -51,16 +51,19 @@
     return 0.10;
   }
 
-  /* ── MULTIPLICADOR DO BUY-IN LÍQUIDO (rake factor) ──
-     Main Event ............... × 0.88
-     Satélite ................. × 0.95
-     Side Event COM campanha .. × 0.88
-     Side Event SEM campanha .. × 0.90   ← confirmado; já esteve documentado
-                                            como 0.95 e divergia do código. */
+  /* ── MULTIPLICADOR DO BUY-IN LÍQUIDO (rake factor) = 1 − rake ──
+     ESPELHA o calcRake (que é a fonte da verdade do rake): o desconto depende de
+     satélite/campanha, NÃO de "ser Main". Antes o Main levava um 0.88 fixo (12%),
+     que divergia do calcRake ("o resto 10%") e inflava as ações — ex.: 25K WarmUp
+     (Main sem campanha, buy-in 110, prem 30.591) dava 316 em vez de 309 corretos
+     (30.591 ÷ (110 × 0.90) = 309).
+       Satélite .............. × 0.95  (5%)
+       Campanha (#AS/SPT/SPS)  × 0.88  (12%)
+       Demais (inclui Main) .. × 0.90  (10%) */
   function rakeFactor(cat, isCamp) {
-    if (cat === 'main') return 0.88;
     if (cat === 'sat') return 0.95;
-    return isCamp ? 0.88 : 0.90;
+    if (isCamp) return 0.88;
+    return 0.90;
   }
 
   /* ── AÇÕES = premiação ÷ buy-in líquido ──

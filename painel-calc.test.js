@@ -18,8 +18,9 @@ function ok(cond, name) { assert.ok(cond, name); passed++; console.log('  ✓ ' 
 /* ── 1. multiplicadores: o valor de cada categoria ── */
 console.log('\nrake factor por categoria:');
 {
-  eq(C.rakeFactor('main', false), 0.88, 'Main Event');
-  eq(C.rakeFactor('main', true),  0.88, 'Main Event com campanha (campanha não muda)');
+  // o fator segue o rake (calcRake): satélite/campanha, NÃO "ser Main".
+  eq(C.rakeFactor('main', false), 0.90, 'Main SEM campanha (10% → 0.90, não 0.88)');
+  eq(C.rakeFactor('main', true),  0.88, 'Main COM campanha (12% → 0.88)');
   eq(C.rakeFactor('sat',  false), 0.95, 'Satélite');
   eq(C.rakeFactor('side', true),  0.88, 'Side COM campanha');
   eq(C.rakeFactor('side', false), 0.90, 'Side SEM campanha (0.90, NÃO 0.95)');
@@ -32,8 +33,10 @@ console.log('\ncálculo de Ações:');
   eq(C.acoes({ premiacao: 50000, buyin: 500, cat: 'side', isCamp: false }), 111.1, 'side sem campanha');
   // 50.000 ÷ (500 × 0.88) = 113.6
   eq(C.acoes({ premiacao: 50000, buyin: 500, cat: 'side', isCamp: true }), 113.6, 'side com campanha');
-  // 50.000 ÷ (500 × 0.88) = 113.6
-  eq(C.acoes({ premiacao: 50000, buyin: 500, cat: 'main', isCamp: false }), 113.6, 'main');
+  // Main sem campanha usa 0.90 (10%): 50.000 ÷ (500 × 0.90) = 111.1
+  eq(C.acoes({ premiacao: 50000, buyin: 500, cat: 'main', isCamp: false }), 111.1, 'main sem campanha (0.90)');
+  // 25K WarmUp real: 30.591 ÷ (110 × 0.90) = 309.0 (antes dava 316 com 0.88)
+  eq(C.acoes({ premiacao: 30591, buyin: 110, cat: 'main', isCamp: false }), 309.0, 'WarmUp: 309, não 316');
   // 10.000 ÷ (50 × 0.95) = 210.5
   eq(C.acoes({ premiacao: 10000, buyin: 50, cat: 'sat', isCamp: false }), 210.5, 'satélite');
 
@@ -54,8 +57,8 @@ console.log('\nAções sem dado suficiente:');
   eq(C.acoes({ premiacao: 0,     buyin: 500,  cat: 'main' }), null, 'premiação zero não conta');
   // antes da premiação sair, o field é a estimativa
   eq(C.acoes({ premiacao: null, field: 87, buyin: 500, cat: 'main' }), 87, 'usa field como estimativa');
-  // premiação real vence a estimativa
-  eq(C.acoes({ premiacao: 50000, field: 87, buyin: 500, cat: 'main' }), 113.6, 'premiação real vence o field');
+  // premiação real vence a estimativa (main sem campanha → 0.90): 50.000 ÷ (500 × 0.90) = 111.1
+  eq(C.acoes({ premiacao: 50000, field: 87, buyin: 500, cat: 'main' }), 111.1, 'premiação real vence o field');
 }
 
 /* ── 4. Overlay = premiação − garantido ── */

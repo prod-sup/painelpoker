@@ -511,7 +511,7 @@ html.dark .tb-right .tb-btn:hover{ background:#3a4756; }
 .fld input:focus,.fld select:focus{outline:none;border-color:var(--gold);box-shadow:var(--sh-focus)}
 
 /* ── TABLE ───────────────────────────────────────────────────── */
-.tbl-wrap{overflow-x:auto}
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
 thead th{
   padding:11px 16px;text-align:left;font-size:12px;font-weight:500;
@@ -582,6 +582,11 @@ td.center{text-align:center}
 .audit-group-header.sat{background:var(--purplef);color:var(--purple-tx)}
 .audit-group-count{margin-left:auto;font-size:11px;font-weight:500;opacity:.75}
 .audit-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;background:var(--s2)}
+/* 14 colunas não cabem no celular: sem um piso de largura a tabela era espremida
+   e o overflow:hidden do .audit-group cortava as colunas sem deixar rolar. Com o
+   min-width ela mantém a largura legível e o .tbl-wrap (que agora a envolve) rola
+   na horizontal. No desktop o container é mais largo, então width:100% prevalece. */
+.audit-group .tbl-wrap .audit-table{min-width:960px}
 .audit-table th{
   padding:10px 14px;font-size:11.5px;font-weight:500;
   color:var(--ink2);background:var(--s2);
@@ -780,6 +785,27 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
   margin-bottom:10px;
 }
 .c-amber{ color:var(--amber,#f59e0b) !important; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TABLET — a topbar do admin carrega MUITA ferramenta (7 botões + Criação GU +
+   Painel + OS + tema + Sair). Num iPad landscape (~1024–1194px) o layout ainda é
+   o de desktop, mas essa fileira não cabe e estourava pra fora da borda direita,
+   rolando a página pro lado. Aqui a sidebar continua vertical (há largura de
+   sobra); só a topbar enxuga: ferramentas/links/tema/sair migram pro ☰, que passa
+   a aparecer já em tablet (o botão base vive no suprema-tokens.css). ≤820px o
+   bloco abaixo assume e ainda vira a sidebar em barra horizontal.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width:1280px){
+  .topbar{padding-right:64px}          /* espaço à direita pro botão ☰ (fixed) */
+  .tb-user{max-width:30vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tb-right{gap:8px}
+  .tb-right > .btn,
+  .tb-right .tb-back,
+  .tb-right .sup-switch,
+  .tb-right .tb-btn,
+  .tb-right .presence-wrap{ display:none; }
+  #supMobBtn{ display:flex; }          /* ID vence o .sup-mob-btn{display:none} dos tokens */
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    MOBILE / REFLOW RESPONSIVO — o admin funciona no celular como no PC:
