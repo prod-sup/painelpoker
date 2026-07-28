@@ -133,6 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="ph-actions">
           <button class="btn btn-ghost" id="btnSoAnomalia" data-act="toggleSoAnomalia">⚠ Só anomalias</button>
           <button class="btn btn-ghost" data-act="batchNotifyAnomalias">📨 Notificar anomalias</button>
+          <button class="btn btn-ghost" data-act="approveAllAudit" title="Marca todos os torneios da lista como conferidos (aprovado, sem correção) — não toca nos já auditados">✓ Conferir todos</button>
           <button class="btn btn-ghost" data-act="exportAuditXlsx">⬇ Exportar XLSX</button>
           <button class="btn btn-gold" data-act="loadAudit">Buscar</button>
         </div>
@@ -911,6 +912,19 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- admin-actions: delegação dos [data-act] que substituíram os 92 handlers
      inline. Depois do admin.js, que define as funções que ele aciona. -->
 <script src="admin-actions.js"></script>
+<script>
+  /* menu ☰ mobile: navegação entre painéis + as ferramentas do admin (que não
+     cabem na topbar no celular). Os data-act são pegos pela delegação global. */
+  SupremaShell.mobileMenu({ current:'admin', extra:{ label:'Ferramentas do admin', items:[
+    { label:'Resumo auditoria', act:'openAuditSummary', glyph:'📋' },
+    { label:'Notificações',     act:'openNotifHistory', glyph:'✉️' },
+    { label:'Log admin',        act:'openAdminLog',     glyph:'≣' },
+    { label:'Field trend',      act:'openFieldTrend',   glyph:'📈' },
+    { label:'Ranking',          act:'openOpRanking',    glyph:'🏆' },
+    { label:'Heatmap',          act:'openOverlayHeatmap', glyph:'🔥' },
+    { label:'Justificativas',   act:'openJustifs',      glyph:'✍️' }
+  ]}});
+</script>
 <!-- ⌘K command palette (navegação + ações; o admin pluga a busca de seções) -->
 <script defer src="suprema-palette.js"></script>
 <script src="suprema-presence.js"></script>

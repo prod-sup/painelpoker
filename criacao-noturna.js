@@ -664,7 +664,7 @@ if ('serviceWorker' in navigator){
     if (e.data && e.data.type === 'sw-updated' && !$('swBar')){
       const bar = document.createElement('div');
       bar.id = 'swBar';
-      bar.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:150;background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:99px;font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);cursor:pointer';
+      bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));max-width:440px;margin-inline:auto;z-index:150;background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:16px;font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);cursor:pointer;text-align:center;line-height:1.4';
       bar.innerHTML = `Nova versão (v${escHtml(String(e.data.version))}) — <u>clique para atualizar</u>`;
       bar.addEventListener('click', () => location.reload());
       document.body.appendChild(bar);

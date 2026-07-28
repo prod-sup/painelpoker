@@ -3260,7 +3260,7 @@ if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('message', (e) => {
     if (e.data && e.data.type === 'sw-updated'){
       const bar = document.createElement('div');
-      bar.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:99999;background:var(--ink,#111);color:#fff;padding:10px 18px;border-radius:99px;font-size:13px;font-weight:600;box-shadow:0 6px 24px rgba(0,0,0,.35);cursor:pointer;display:flex;gap:10px;align-items:center';
+      bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));max-width:440px;margin-inline:auto;z-index:99999;background:var(--ink,#111);color:#fff;padding:12px 18px;border-radius:16px;font-size:13px;font-weight:600;box-shadow:0 6px 24px rgba(0,0,0,.35);cursor:pointer;display:flex;gap:8px;align-items:center;justify-content:center;text-align:center;line-height:1.4';
       bar.innerHTML = `Nova versão do painel (v${e.data.version}) — <u>clique para atualizar</u>`;
       bar.addEventListener('click', () => location.reload());
       document.body.appendChild(bar);

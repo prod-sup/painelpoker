@@ -787,10 +787,17 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
    tabelas rolam na horizontal, modais viram quase tela cheia. Mesmas funções.
    ═══════════════════════════════════════════════════════════════════════════ */
 @media (max-width:820px){
-  /* topbar: a marca encolhe pra sobrar espaço pros botões da direita */
+  /* topbar enxuta: marca + operador. TODAS as ferramentas/links/tema/sair migram
+     pro menu ☰ (drawer) — não cabem no header e ficavam cortados. */
   .tb-brand{width:auto;padding-right:12px}
-  .topbar{padding:0 12px}
-  .tb-user{max-width:38vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .topbar{padding:0 64px 0 12px}      /* espaço à direita pro botão ☰ (fixed) */
+  .tb-user{max-width:44vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tb-right{gap:8px}
+  .tb-right > .btn,
+  .tb-right .tb-back,
+  .tb-right .sup-switch,
+  .tb-right .tb-btn,
+  .tb-right .presence-wrap{ display:none; }
 
   /* sidebar → barra horizontal fixa logo abaixo da topbar */
   .sidebar{
@@ -829,8 +836,9 @@ tr.anomalia{ background:rgba(239,68,68,.03) !important; }
   .filters{flex-direction:column;align-items:stretch}
   .filters .fld{width:100%}
   .ph{flex-direction:column;align-items:stretch}
-  .ph-actions{width:100%}
-  .ph-actions .btn{flex:1 1 auto;justify-content:center}
+  /* botões de ação embrulham 2 por linha (em vez de espremer 4 e cortar) */
+  .ph-actions{width:100%;flex-wrap:wrap;gap:8px}
+  .ph-actions .btn{flex:1 1 calc(50% - 4px);justify-content:center;min-height:44px}
   .page{padding:16px 12px 64px}
 }
 

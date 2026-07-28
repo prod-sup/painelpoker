@@ -141,5 +141,113 @@
     if (el) el.outerHTML = controls(opts || {});
   }
 
-  global.SupremaShell = { navHTML: navHTML, mountNav: mountNav, controls: controls, mountControls: mountControls, switchInner: SWITCH_INNER, paintSwitch: paintSwitch };
+  /* ── MENU MOBILE (drawer) ──────────────────────────────────────────────
+     No celular os links de navegação entre painéis somem (não cabem no header)
+     — então todo painel ganha um botão ☰ que abre um drawer com TODOS os
+     produtos que a pessoa acessa + tema + sair. Um lugar só (shell), igual em
+     todos. Chame `SupremaShell.mobileMenu({ current:'gu' })` depois de montar o
+     nav. Idempotente (cria uma vez). */
+  var PANEL_ACCENT = {
+    painel:'#18a36b', gu:'#8c5cc6', cash:'#4f8ef7', eventos:'#b3475d',
+    learn:'#e8933d', analytics:'#4f8ef7', tv:'#c9a84c', pipe:'#b3475d',
+    admin:'#c9a84c', org:'#c9a84c'
+  };
+  function panelHref(p){ return p.external ? p.url : (p.file || (p.id === 'hub' ? 'hub.html' : '')); }
+  function mobileMenu(opts){
+    opts = opts || {};
+    var current = opts.current || '';
+    var Auth = global.SupremaAuth;
+    if (document.getElementById('supMobBtn')) return;   // já instalado
+
+    // botão ☰ (só aparece no mobile, via CSS)
+    var btn = document.createElement('button');
+    btn.id = 'supMobBtn'; btn.className = 'sup-mob-btn'; btn.type = 'button';
+    btn.setAttribute('aria-label', 'Abrir menu de navegação');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.innerHTML = '<span></span><span></span><span></span>';
+    document.body.appendChild(btn);
+
+    // painéis que a pessoa acessa (deny-by-default já resolvido no canAccess)
+    var panels = (Auth && Auth.PANELS ? Auth.PANELS : []).filter(function (p){
+      if (p.adminOnly) return !!(Auth && Auth.canAccess && Auth.canAccess(p.id));
+      return !Auth || !Auth.canAccess ? true : Auth.canAccess(p.id);
+    });
+    function row(p){
+      var here = p.id === current;
+      var accent = PANEL_ACCENT[p.id] || '#c9a84c';
+      var href = panelHref(p);
+      var ext = p.external ? ' target="_blank" rel="noopener"' : '';
+      return '<a class="sup-mob-row' + (here ? ' here' : '') + '" href="' + esc(href) + '"' + ext
+        + (here ? ' aria-current="page"' : '') + ' style="--rc:' + accent + '">'
+        +   '<span class="rc-dot"></span>'
+        +   '<span class="rc-lab">' + esc(p.label) + (p.external ? ' <span class="rc-ext">↗</span>' : '') + '</span>'
+        +   (here ? '<span class="rc-here">você está aqui</span>' : '<span class="rc-go">›</span>')
+        + '</a>';
+    }
+    var dark = !!(Auth && Auth.isDarkPreferred && Auth.isDarkPreferred());
+    var drawer = document.createElement('div');
+    drawer.id = 'supMobDrawer'; drawer.className = 'sup-mob-drawer'; drawer.hidden = true;
+    drawer.innerHTML =
+        '<div class="smd-scrim" data-smd-close></div>'
+      + '<aside class="smd-panel" role="dialog" aria-modal="true" aria-label="Navegação">'
+      +   '<div class="smd-head">'
+      +     '<span class="smd-brand">♠ Suprema OS</span>'
+      +     '<button class="smd-x" type="button" aria-label="Fechar menu" data-smd-close>✕</button>'
+      +   '</div>'
+      +   '<div class="smd-scroll">'
+      +   '<div class="smd-sec-label">Ir para</div>'
+      +   '<nav class="smd-list">' + panels.map(row).join('')
+      +     '<a class="sup-mob-row" href="hub.html" style="--rc:#c9a84c"><span class="rc-dot"></span><span class="rc-lab">♠ Hub — todos os produtos</span><span class="rc-go">›</span></a>'
+      +   '</nav>'
+      +   (opts.extra && opts.extra.items && opts.extra.items.length
+          ? '<div class="smd-sec-label">' + esc(opts.extra.label || 'Ferramentas') + '</div>'
+            + '<div class="smd-list">' + opts.extra.items.map(function (t){
+                return '<button class="sup-mob-row smd-tool" type="button" data-act="' + esc(t.act) + '"'
+                  + (t.arg ? ' data-arg="' + esc(t.arg) + '"' : '') + '>'
+                  + '<span class="rc-glyph">' + (t.glyph || '•') + '</span>'
+                  + '<span class="rc-lab">' + esc(t.label) + '</span><span class="rc-go">›</span></button>';
+              }).join('') + '</div>'
+          : '')
+      +   '</div>'
+      +   '<div class="smd-foot">'
+      +     '<button class="smd-act" type="button" data-smd-theme aria-pressed="' + (dark ? 'true' : 'false') + '">'
+      +       '<span class="sa-ic">' + (dark ? '☀️' : '🌙') + '</span><span data-smd-theme-lab>' + (dark ? 'Modo claro' : 'Modo escuro') + '</span>'
+      +     '</button>'
+      +     '<button class="smd-act danger" type="button" data-smd-logout><span class="sa-ic">⏻</span>Sair</button>'
+      +   '</div>'
+      + '</aside>';
+    document.body.appendChild(drawer);
+
+    function open(){ drawer.hidden = false; document.body.classList.add('smd-open'); btn.setAttribute('aria-expanded','true');
+      requestAnimationFrame(function(){ drawer.classList.add('on'); }); }
+    function close(){ drawer.classList.remove('on'); btn.setAttribute('aria-expanded','false'); document.body.classList.remove('smd-open');
+      setTimeout(function(){ drawer.hidden = true; }, 260); }
+    btn.addEventListener('click', function(){ drawer.hidden ? open() : close(); });
+    // fecha ao tocar no scrim/✕, num link de painel, ou numa ferramenta (a ação
+    // dela — via delegação [data-act] do document — abre por cima)
+    drawer.addEventListener('click', function(e){
+      if (e.target.closest('[data-smd-close]') || e.target.closest('.sup-mob-row')) close();
+    });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !drawer.hidden) close(); });
+
+    // tema no drawer (mesma fonte de verdade dos painéis)
+    drawer.querySelector('[data-smd-theme]').addEventListener('click', function(){
+      var nowDark = !document.documentElement.classList.contains('dark');
+      document.documentElement.classList.toggle('dark', nowDark);
+      if (Auth && Auth.setThemePref) Auth.setThemePref(nowDark);
+      this.setAttribute('aria-pressed', nowDark ? 'true' : 'false');
+      this.querySelector('.sa-ic').textContent = nowDark ? '☀️' : '🌙';
+      this.querySelector('[data-smd-theme-lab]').textContent = nowDark ? 'Modo claro' : 'Modo escuro';
+      // repinta qualquer sup-switch existente no header
+      document.querySelectorAll('.sup-switch').forEach(function(sw){ paintSwitch(sw, nowDark); });
+    });
+    drawer.querySelector('[data-smd-logout]').addEventListener('click', function(){
+      try { if (Auth && Auth.clearSession) Auth.clearSession(); } catch(e){}
+      try { if (global.firebase && firebase.auth) { firebase.auth().signOut().then(go, go); return; } } catch(e){}
+      go();
+      function go(){ location.href = 'hub.html'; }
+    });
+  }
+
+  global.SupremaShell = { navHTML: navHTML, mountNav: mountNav, controls: controls, mountControls: mountControls, switchInner: SWITCH_INNER, paintSwitch: paintSwitch, mobileMenu: mobileMenu };
 })(window);

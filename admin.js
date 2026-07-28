@@ -2065,6 +2065,40 @@ function enrichWithAudit(rows){
 }
 
 /* ── EXPORTS ─────────────────────────────────────────────────── */
+/* ── CONFERIR TODOS ──
+   Marca de uma vez TODOS os torneios visíveis (o conjunto já filtrado em
+   _auditRows) que ainda não foram auditados como "aprovado — sem correção":
+   mantém os valores como estão, só registra que o admin conferiu. Um write só
+   (update em lote) — barato. Os já auditados (corrigido/aprovado) não são tocados. */
+async function approveAllAudit(){
+  if(!fbOk){ toast('Firebase não conectado','err'); return; }
+  const pending = _auditRows.filter(r => r.nome && !r._audited);
+  if(!pending.length){ toast('Todos os torneios da lista já foram conferidos.'); return; }
+  if(!confirm(`Marcar ${pending.length} torneio(s) como CONFERIDOS (aprovado, sem correção)?\n\nOs valores ficam exatamente como estão — é só o registro de que você conferiu.`)) return;
+  const now = Date.now(), updates = {}, entries = [];
+  pending.forEach(r => {
+    const entry = {
+      premiacaoOriginal: r.premiacao ?? null, fieldOriginal: r.field ?? null, garantidoOriginal: r.garantido ?? null,
+      premiacaoAuditada: r.premiacao ?? null, fieldAuditado: r.field ?? null, garantidoAuditado: r.garantido ?? null,
+      status: 'aprovado', obs: null, auditadoEm: now, auditadoPor: _email || 'admin',
+      nome: r.nome, hora: r.hora
+    };
+    updates[`auditoria/${r.date}/${r.key}`] = entry;
+    entries.push({r, entry});
+  });
+  try{
+    await db.ref().update(updates);                        // 1 write em lote (barato)
+    // espelha no estado local (igual ao batchApprove) pra refletir sem re-ler tudo
+    entries.forEach(({r, entry}) => {
+      if(!_auditData[r.date]) _auditData[r.date] = {};
+      _auditData[r.date][r.key] = entry;
+      r._audited = true; r._auditEntry = entry;
+    });
+    toast(`✓ ${pending.length} torneio(s) conferidos (aprovados sem correção)`, 'ok');
+    loadAudit();
+  }catch(e){ toast('Falha ao conferir: ' + (e.message || e), 'err'); }
+}
+
 async function exportAuditXlsx(){
   await ensureXLSX();                 // SheetJS sob demanda
   if(!_auditRows.length){toast('Carregue os dados primeiro','err');return;}
@@ -2097,8 +2131,11 @@ async function exportAuditXlsx(){
       g.rows.forEach(r=>{
         const drRow=aoa.length;
         const ov=r.overlay??'',perf=r.perf??'';
+        // COL_HEADERS: …Overlay(7) · Field(8) · Ações(9) · Perf(10)… — o Field
+        // estava caindo na coluna Ações (índice 9) e a coluna Field saía vazia.
+        // Field = nº de jogadores; Ações = arrecadação líquida (field×buyin−rake).
         aoa.push([r.nome,r.hora,r.late,catLabel(r.cat),
-          r.garantido??'',r.buyin??'',r.premiacao??'',ov,'',r.field??'',perf,
+          r.garantido??'',r.buyin??'',r.premiacao??'',ov,r.field??'',r.fieldNet??'',perf,
           r.fixBy||r.idBy||'',r.id,statusLabel(r.status)]);
         cnt++;if(r.garantido)sg+=r.garantido;if(r.premiacao)sp+=r.premiacao;if(r.overlay)so+=r.overlay;
         if(r.status==='nf')for(let c=0;c<14;c++)styleMap[XLSX.utils.encode_cell({r:drRow,c})]={font:{color:{rgb:'888888'},italic:true},fill:{fgColor:{rgb:'F5F5F5'}}};

@@ -73,7 +73,7 @@
     'buildAuditSummary', 'buildFieldTrend', 'buildMonthProjection',
     'saveAudit', 'saveAviso', 'saveHubLink', 'saveHubEvent', 'saveHubPatch',
     'saveInsightSettings', 'resetAvisoForm',
-    'sendNotif', 'selNotifType', 'batchApprove', 'batchDeselect', 'batchNotifyAnomalias',
+    'sendNotif', 'selNotifType', 'batchApprove', 'batchDeselect', 'batchNotifyAnomalias', 'approveAllAudit',
     'toggleSoAnomalia', 'toggleCnErros',
     'exportAuditXlsx', 'exportAuditSummaryXlsx', 'exportGradeXlsx', 'exportCnXlsx',
     'exportMonthXlsx', 'exportAllTimeXlsx', 'exportToSheets', 'copyAppsScript',
