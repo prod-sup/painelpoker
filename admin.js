@@ -589,12 +589,19 @@ function flatRows(fromDate, toDate){
       const buyin = r.buyin ?? null;
       const rakeEst = buyin ? (buyin <= 10 ? 0 : buyin <= 50 ? 0.1 : buyin <= 200 ? 0.12 : 0.15) : 0;
       const fieldNet = field != null && buyin ? Math.round(field * buyin * (1 - rakeEst)) : null;
+      const cat = classify(r);
+      // Ações = premiação ÷ buy-in líquido — MESMO cálculo do painel (PainelCalc,
+      // coberto por teste), pra a auditoria bater com o card. Antes da premiação
+      // sair, usa o field como estimativa; sem dado, null → "—".
+      const acoes = (typeof PainelCalc!=='undefined')
+        ? PainelCalc.acoes({ premiacao: prem, buyin, field, cat, isCamp: PainelCalc.hasCampanha(r) })
+        : null;
       out.push({
         date, key,
         nome:r.nome||'', hora:r.hora||'', late:r.late||'',
-        tipo:r.tipo||'', cat:classify(r),
+        tipo:r.tipo||'', cat,
         garantido:gar, buyin, rakeEst,
-        premiacao:prem, overlay:ov, perf, field, fieldNet,
+        premiacao:prem, overlay:ov, perf, field, fieldNet, acoes,
         id:idVal, idBy, fixBy, fixAt, status,
       });
     });
@@ -965,6 +972,7 @@ async function loadAudit(){
           <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.premiacaoOriginal!==r.premiacao?'c-gold':''}">${r.premiacao!=null?'R$ '+brl(r.premiacao,2):'—'}</td>
           <td class="r mono ov-val">${r.overlay!=null?'R$ '+brl(r.overlay,2):'—'}</td>
           <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.fieldOriginal!==r.field?'c-gold':''}">${r.field!=null?r.field:'—'}</td>
+          <td class="r mono">${r.acoes!=null?brl(Math.round(r.acoes),0):'—'}</td>
           <td class="r mono">${r.perf!=null?`<span class="perf ${r.perf>=0?'pos':'neg'}">${pct(r.perf,2)}</span>`:'—'}</td>
           <td class="c-ink2">${esc(r.fixBy||r.idBy||'—')}</td>
           <td class="mono c-ink2">${esc(r.id)}</td>
@@ -993,7 +1001,7 @@ async function loadAudit(){
             <th style="width:32px"><input type="checkbox" id="checkAll" data-act="toggleCheckAll" data-act-self data-act-on="change" style="accent-color:var(--gold);width:14px;height:14px"></th>
             <th>Torneio</th><th>Hora</th><th>Late</th>
             <th class="r">GTD</th><th class="r">Buy-in</th><th class="r">Premiação</th>
-            <th class="r">Overlay</th><th class="r">Field</th><th class="r">Perf.</th>
+            <th class="r">Overlay</th><th class="r">Field</th><th class="r">Ações</th><th class="r">Perf.</th>
             <th>Operador</th><th>ID</th><th>Status</th><th>Auditoria</th>
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
@@ -2237,11 +2245,12 @@ async function exportAuditXlsx(){
       g.rows.forEach(r=>{
         const drRow=aoa.length;
         const ov=r.overlay??'',perf=r.perf??'';
-        // COL_HEADERS: …Overlay(7) · Field(8) · Ações(9) · Perf(10)… — o Field
-        // estava caindo na coluna Ações (índice 9) e a coluna Field saía vazia.
-        // Field = nº de jogadores; Ações = arrecadação líquida (field×buyin−rake).
+        // COL_HEADERS: …Overlay(7) · Field(8) · Ações(9) · Perf(10)…
+        // Field = nº de jogadores; Ações = ENTRADAS (premiação ÷ buy-in líquido),
+        // o MESMO cálculo do painel/tela (PainelCalc) — antes saía o fieldNet aqui,
+        // que era outro conceito (arrecadação em R$) e não batia com o card.
         aoa.push([r.nome,r.hora,r.late,catLabel(r.cat),
-          r.garantido??'',r.buyin??'',r.premiacao??'',ov,r.field??'',r.fieldNet??'',perf,
+          r.garantido??'',r.buyin??'',r.premiacao??'',ov,r.field??'',r.acoes!=null?Math.round(r.acoes):'',perf,
           r.fixBy||r.idBy||'',r.id,statusLabel(r.status)]);
         cnt++;if(r.garantido)sg+=r.garantido;if(r.premiacao)sp+=r.premiacao;if(r.overlay)so+=r.overlay;
         if(r.status==='nf')for(let c=0;c<14;c++)styleMap[XLSX.utils.encode_cell({r:drRow,c})]={font:{color:{rgb:'888888'},italic:true},fill:{fgColor:{rgb:'F5F5F5'}}};
@@ -2528,21 +2537,94 @@ async function previewCleanup(){
     </div>`;
 }
 
+/* Abre o modal de confirmação (digitar REMOVER) com uma mensagem custom e a ação
+   a executar no OK. Centraliza o wiring que runCleanup e runCleanupUntil dividem. */
+function openDestructiveConfirm(descHtml, onConfirm){
+  document.getElementById('dcDesc').innerHTML = descHtml;
+  const input = document.getElementById('dcInput');
+  const btn   = document.getElementById('dcBtn');
+  input.value = ''; btn.disabled = true;
+  input.oninput = e =>{ btn.disabled = e.target.value.trim().toUpperCase()!=='REMOVER'; };
+  btn.onclick = onConfirm;
+  document.getElementById('moDestructiveConfirm').classList.add('open');
+  setTimeout(()=>input.focus(),80);
+}
+
 function runCleanup(){
   const cutoff = dago(90);
   const old    = Object.keys(_allData).filter(d=>d<cutoff).sort();
   if(!old.length){ toast('Nada para limpar','ok'); return; }
+  openDestructiveConfirm(
+    `Isso vai remover <b>${old.length} dia(s)</b> do Firebase (dados com mais de 90 dias, anteriores a <b>${fmtDate(cutoff)}</b>). `
+    + `Snapshots e relatórios XLSX serão <b>mantidos</b>, mas os dados ao vivo do painel <b>não podem ser recuperados</b>.`,
+    ()=>executeCleanup(old)
+  );
+}
 
-  document.getElementById('dcCount').textContent = old.length;
-  document.getElementById('dcCutoff').textContent = fmtDate(cutoff);
-  document.getElementById('dcInput').value = '';
-  document.getElementById('dcBtn').disabled = true;
-  document.getElementById('dcInput').oninput = e =>{
-    document.getElementById('dcBtn').disabled = e.target.value.trim().toUpperCase()!=='REMOVER';
-  };
-  document.getElementById('dcBtn').onclick = ()=>executeCleanup(old);
-  document.getElementById('moDestructiveConfirm').classList.add('open');
-  setTimeout(()=>document.getElementById('dcInput')?.focus(),80);
+/* ── RESET ATÉ DATA (marco zero) ──
+   Diferente da limpeza >90d: ZERA tudo (painel + snapshots + auditoria) de TODOS
+   os dias <= a data escolhida. Uso: descartar os dados de teste do lançamento e
+   deixar o dia seguinte como marco zero. Também exige digitar REMOVER. */
+function _nextDayISO(iso){ const d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); }
+function _resetDatesUntil(cutoff){
+  const isDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d);
+  const set = new Set();
+  Object.keys(_allData||{}).forEach(d=>{ if(isDate(d) && d<=cutoff) set.add(d); });
+  Object.keys(_auditData||{}).forEach(d=>{ if(isDate(d) && d<=cutoff) set.add(d); });
+  return [...set].sort();
+}
+
+async function previewCleanupUntil(){
+  const cutoff = document.getElementById('bkResetDate')?.value || '';
+  const el = document.getElementById('resetPreview');
+  if(!cutoff){ el.innerHTML='<span style="color:var(--amber)">Escolha a data limite primeiro.</span>'; return; }
+  el.innerHTML = '<span style="color:var(--ink3)">Carregando histórico…</span>';
+  await loadAuditData();                 // garante auditoria carregada pra contar/limpar
+  const dates = _resetDatesUntil(cutoff);
+  if(!dates.length){ el.innerHTML=`<span style="color:var(--green)">✅ Nenhum dado em ${fmtDate(cutoff)} ou antes.</span>`; return; }
+  const rows = dates.reduce((s,d)=>s+Object.keys(_allData[d]?.rows||{}).length,0);
+  el.innerHTML = `
+    <div style="margin-bottom:10px;color:var(--red)">
+      ⚠ <b>${dates.length} dia(s)</b> (${rows.toLocaleString('pt-BR')} torneios) serão <b>ZERADOS</b> — painel + snapshots + auditoria:
+    </div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--ink3);line-height:1.8;max-height:160px;overflow:auto">
+      ${dates.map(d=>`<span style="margin-right:12px">${fmtDate(d)}</span>`).join('')}
+    </div>
+    <div style="margin-top:10px;font-size:11.5px;color:var(--red)"><b>Isto não pode ser desfeito.</b> A operação começa limpa em <b>${fmtDate(_nextDayISO(cutoff))}</b>.</div>`;
+}
+
+async function runCleanupUntil(){
+  const cutoff = document.getElementById('bkResetDate')?.value || '';
+  if(!cutoff){ toast('Escolha a data limite','err'); return; }
+  await loadAuditData();
+  const dates = _resetDatesUntil(cutoff);
+  if(!dates.length){ toast('Nada para remover até essa data','ok'); return; }
+  openDestructiveConfirm(
+    `Isso vai <b>ZERAR ${dates.length} dia(s)</b> do Firebase — <b>painel + snapshots + auditoria</b> de tudo até <b>${fmtDate(cutoff)}</b> (inclusive). `
+    + `<b style="color:var(--red)">Não pode ser desfeito.</b> A operação começa limpa em <b>${fmtDate(_nextDayISO(cutoff))}</b>.`,
+    ()=>executeCleanupUntil(dates)
+  );
+}
+
+async function executeCleanupUntil(dates){
+  closeMo('moDestructiveConfirm');
+  const el = document.getElementById('resetPreview');
+  let removed = 0;
+  for(const date of dates){
+    try{
+      await db.ref(`painel/${date}`).remove();
+      await db.ref(`snapshots/${date}`).remove();
+      await db.ref(`auditoria/${date}`).remove();
+      delete _allData[date];
+      if(_auditData) delete _auditData[date];
+      removed++;
+      el.innerHTML = `<span style="color:var(--ink3)">Zerando… ${removed}/${dates.length}</span>`;
+    }catch(e){ console.error('Erro ao zerar', date, e); }
+  }
+  el.innerHTML = `<span style="color:var(--green)">✅ ${removed} dia(s) zerados (painel + snapshots + auditoria). Marco zero: ${fmtDate(_nextDayISO(dates[dates.length-1]))}.</span>`;
+  toast(`✓ ${removed} dias zerados`,'ok');
+  writeAdminLog('reset_until', {removed, until: dates[dates.length-1]});
+  initBackup();
 }
 
 async function executeCleanup(old){

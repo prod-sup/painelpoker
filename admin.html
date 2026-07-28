@@ -422,6 +422,26 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       </div>
 
+      <!-- Marco zero — reset até uma data (apaga TUDO daquele dia pra trás) -->
+      <div class="card" style="margin-bottom:18px;border-color:var(--red)">
+        <div class="card-head">
+          <div><div class="card-title"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Marco zero — reset até uma data</div>
+               <div class="card-sub">Zera <b>tudo</b> (painel + snapshots + auditoria) do dia escolhido pra trás. Use pra descartar os dados de teste do lançamento. <b style="color:var(--red)">Não pode ser desfeito.</b></div></div>
+        </div>
+        <div style="padding:16px 18px">
+          <div class="filters" style="margin-bottom:14px;align-items:flex-end">
+            <div class="fld"><label>Apagar tudo ATÉ esta data (inclusive)</label>
+              <input type="date" id="bkResetDate" style="padding:7px 10px">
+            </div>
+            <button class="btn btn-ghost" data-act="previewCleanupUntil">Pré-visualizar</button>
+            <button class="btn btn-red" data-act="runCleanupUntil">Zerar até a data</button>
+          </div>
+          <div id="resetPreview" style="font-size:12px;color:var(--ink3)">
+            Escolha a data e clique em "Pré-visualizar" para ver o que será zerado.
+          </div>
+        </div>
+      </div>
+
       <!-- Google Sheets -->
       <div class="card">
         <div class="card-head">
@@ -766,11 +786,9 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- MODAL: Confirmação de ação destrutiva (digitar para confirmar) -->
 <div class="modal-bg" id="moDestructiveConfirm" role="dialog" aria-modal="true" aria-hidden="true">
   <div class="modal" style="max-width:420px">
-    <h2>⚠️ Remover dados antigos</h2>
-    <div class="msub">
-      Isso vai remover <b><span id="dcCount"></span> dia(s)</b> do Firebase (dados anteriores a <b><span id="dcCutoff"></span></b>).
-      Snapshots e relatórios XLSX serão mantidos, mas os dados ao vivo do painel <b>não podem ser recuperados</b>.
-    </div>
+    <h2>⚠️ Confirmar remoção</h2>
+    <!-- texto preenchido por runCleanup (mantém snapshots) ou runCleanupUntil (zera tudo) -->
+    <div class="msub" id="dcDesc"></div>
     <div class="mf">
       <label>Digite <b>REMOVER</b> para confirmar</label>
       <input type="text" id="dcInput" autocomplete="off" placeholder="REMOVER">
@@ -946,6 +964,9 @@ document.addEventListener('DOMContentLoaded', () => {
 <script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script defer src="suprema-xlsx.js"></script>
 <script src="suprema-db.js"></script>
+<!-- painel-calc: cálculo de Ações (premiação ÷ buy-in líquido) compartilhado com o
+     painel, pra a auditoria e o relatório baterem com o card. Antes do admin.js. -->
+<script src="painel-calc.js"></script>
 <script src="admin.js"></script>
 <!-- admin-actions: delegação dos [data-act] que substituíram os 92 handlers
      inline. Depois do admin.js, que define as funções que ele aciona. -->

@@ -77,7 +77,7 @@
     'toggleSoAnomalia', 'toggleCnErros',
     'exportAuditXlsx', 'exportAuditSummaryXlsx', 'exportGradeXlsx', 'exportCnXlsx',
     'exportMonthXlsx', 'exportAllTimeXlsx', 'exportToSheets', 'copyAppsScript',
-    'previewCleanup', 'runCleanup', 'closeMo', 'maskBRL',
+    'previewCleanup', 'runCleanup', 'previewCleanupUntil', 'runCleanupUntil', 'closeMo', 'maskBRL',
     'openAuditEditByEl', 'openNotifByEl',
     /* acionadas por markup que o próprio admin.js gera (tabelas, listas) — a
        delegação cobre elemento criado depois, então não precisam religar nada */
@@ -110,7 +110,7 @@
     'openAuditSummary', 'openInsightSettings', 'openFieldTrend',
     'buildAuditSummary', 'buildFieldTrend', 'buildMonthProjection',
     'toggleSoAnomalia', 'toggleCnErros', 'toggleCheckAll', 'updateBatchActions',
-    'previewCleanup', 'closeMo', 'maskBRL',
+    'previewCleanup', 'previewCleanupUntil', 'closeMo', 'maskBRL',
     // EXPORTAR XLSX (leitura → arquivo). exportToSheets fica FORA: escreve no Sheets.
     'exportAuditXlsx', 'exportAuditSummaryXlsx', 'exportGradeXlsx', 'exportCnXlsx',
     'exportMonthXlsx', 'exportAllTimeXlsx', 'copyAppsScript',
