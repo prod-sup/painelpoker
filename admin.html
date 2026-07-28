@@ -363,8 +363,8 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="tbl-wrap">
           <table>
             <thead><tr>
-              <th>Nome</th><th>Email</th><th class="r">Fixações</th>
-              <th>Admin</th><th>Acesso aos painéis</th><th>Criado em</th><th></th>
+              <th>Operador</th><th>Nível</th><th>Papel</th>
+              <th>Acesso aos painéis</th><th class="r">Fixações</th><th>Criado em</th><th></th>
             </tr></thead>
             <tbody id="opBody"></tbody>
           </table>
@@ -652,6 +652,44 @@ document.addEventListener('DOMContentLoaded', () => {
 </div>
 
 <!-- MODAL: Adicionar operador -->
+<!-- MODAL: Gerenciar acesso do operador -->
+<div class="modal-bg" id="moAccess" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal" style="max-width:500px">
+    <h2>Acesso de <span id="acName">—</span></h2>
+    <div class="msub">👁 <b>Vê</b> o painel · ✎ <b>Edita</b> (escreve). Muda na hora — o operador é deslogado pra re-sincronizar a sessão.</div>
+    <div id="acBody" class="ac-modal-grid"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-act="closeMo" data-arg="moAccess" style="flex:1;justify-content:center">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Definir nível do operador -->
+<div class="modal-bg" id="moLevel" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal" style="max-width:440px">
+    <h2>Nível de <span id="lvName">—</span></h2>
+    <div class="msub" id="lvCur">—</div>
+    <div class="merr" id="lvErr" style="display:none"></div>
+    <div class="mf" style="margin:0">
+      <label>Novo nível (1 a 50)</label>
+      <input type="number" id="lvInput" min="1" max="50" step="1" inputmode="numeric" autocomplete="off">
+    </div>
+    <div class="lv-quick">
+      <button class="lvq" data-act="setLvQuick" data-arg="5">Nv 5</button>
+      <button class="lvq" data-act="setLvQuick" data-arg="10">Nv 10</button>
+      <button class="lvq" data-act="setLvQuick" data-arg="20">Nv 20</button>
+      <button class="lvq" data-act="setLvQuick" data-arg="30">Nv 30</button>
+      <button class="lvq" data-act="setLvQuick" data-arg="40">Nv 40</button>
+      <button class="lvq" data-act="setLvQuick" data-arg="50">Máx (50)</button>
+    </div>
+    <p class="lv-preview" id="lvPreview"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-act="closeMo" data-arg="moLevel">Cancelar</button>
+      <button class="btn btn-gold" data-act="saveOpLevel">Definir nível</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="moAddOp" role="dialog" aria-modal="true" aria-hidden="true">
   <div class="modal">
     <h2>Novo operador</h2>

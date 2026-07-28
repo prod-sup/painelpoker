@@ -86,6 +86,7 @@
     'markCnError', 'clearCnError', 'notifyCnError',
     'toggleCheckAll', 'updateBatchActions',
     'blockOp', 'forceUnblockOp',
+    'openOpLevelByEl', 'setLvQuick', 'saveOpLevel', 'openOpAccessByEl',
   ];
 
   /* '90' → 90, mas 'week'/'moAddOp' continuam string */

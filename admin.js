@@ -1358,6 +1358,68 @@ function renderGrade(){
 }
 
 /* ── OPERADORES ──────────────────────────────────────────────── */
+/* ── NÍVEL / XP (mesma fórmula do hub) ──────────────────────────────────────
+   nível = min(50, 1+⌊√(xp/5)⌋); xp do nível L = 5·(L-1)². XP base vem das stats
+   (opens·10 + dias·25 + ações·5 + missões·15); bonusXp é o grant do admin. Definir
+   um nível = ajustar o bonusXp pra o TOTAL bater no xp daquele nível. */
+const XP_OPEN=10, XP_DAY=25, XP_ACTION=5, XP_MISSION=15;
+function xpForLevel(lv){ return 5*(lv-1)*(lv-1); }
+function levelFromXp(xp){ return Math.min(50, 1+Math.floor(Math.sqrt(Math.max(0,xp)/5))); }
+function opBaseXp(stats){
+  stats=stats||{};
+  const opens=+stats.opens||0;
+  const days=stats.days?Object.keys(stats.days).length:0;
+  const actions=stats.actions?Object.values(stats.actions).reduce((a,n)=>a+(+n||0),0):0;
+  let missions=0; if(stats.missions) for(const d in stats.missions) missions+=Object.keys(stats.missions[d]).length;
+  return opens*XP_OPEN+days*XP_DAY+actions*XP_ACTION+missions*XP_MISSION;
+}
+function opTotalXp(stats){ return opBaseXp(stats)+(+(stats&&stats.bonusXp)||0); }
+const OP_AV_COLORS=['#4f8ef7','#8c5cc6','#18a36b','#e8933d','#b3475d','#4dd0c4','#e8c860','#f078b8'];
+function opAvatarColor(s){ let h=0; for(const c of String(s||'?')) h=(h*31+c.charCodeAt(0))>>>0; return OP_AV_COLORS[h%OP_AV_COLORS.length]; }
+
+let _opsCache={};   // key -> user (pro modal de nível ler as stats)
+let _lvCtx=null;
+function openOpLevel(key){
+  const u=_opsCache[key]; if(!u) return;
+  const name=u.apelido||u.nome||key.replace(/_dot_/g,'.').replace(/_at_/g,'@');
+  const base=opBaseXp(u.stats), bonus=+(u.stats&&u.stats.bonusXp)||0, total=base+bonus, cur=levelFromXp(total);
+  _lvCtx={key, name, base};
+  document.getElementById('lvName').textContent=name;
+  document.getElementById('lvCur').innerHTML=`Nível atual <b>${cur}</b> · ${total.toLocaleString('pt-BR')} XP <span style="opacity:.7">(ganho ${base.toLocaleString('pt-BR')} + bônus ${bonus.toLocaleString('pt-BR')})</span>`;
+  const inp=document.getElementById('lvInput'); inp.value=cur; inp.oninput=lvPreview;
+  document.getElementById('lvErr').style.display='none';
+  lvPreview();
+  document.getElementById('moLevel').classList.add('open');
+  setTimeout(()=>{ inp.focus(); inp.select(); },60);
+}
+function openOpLevelByEl(el){ openOpLevel(el.dataset.key); }
+function setLvQuick(v){ const inp=document.getElementById('lvInput'); inp.value=v; lvPreview(); }
+function lvPreview(){
+  const lv=Math.max(1,Math.min(50, parseInt(document.getElementById('lvInput').value,10)||1));
+  const need=xpForLevel(lv), base=_lvCtx?_lvCtx.base:0;
+  const el=document.getElementById('lvPreview');
+  if(base>need) el.innerHTML=`⚠ Já tem <b>${base.toLocaleString('pt-BR')} XP ganhos</b> (nível ${levelFromXp(base)}). Não dá pra abaixar sem apagar XP real — o bônus vai a 0 e ele fica no nível ${levelFromXp(base)}.`;
+  else el.innerHTML=`Vai gravar bônus de <b>${(need-base).toLocaleString('pt-BR')} XP</b> → total ${need.toLocaleString('pt-BR')} XP = <b>nível ${lv}</b>.`;
+}
+async function saveOpLevel(){
+  if(!_lvCtx){ return; }
+  if(!fbOk){ toast('Firebase não conectado','err'); return; }
+  const err=document.getElementById('lvErr');
+  const lv=parseInt(document.getElementById('lvInput').value,10);
+  if(!(lv>=1&&lv<=50)){ err.textContent='O nível tem que ser entre 1 e 50.'; err.style.display='block'; return; }
+  const bonus=Math.max(0, xpForLevel(lv)-_lvCtx.base);
+  const btn=document.querySelector('#moLevel [data-act="saveOpLevel"]');
+  if(btn) btn.disabled=true;
+  try{
+    await db.ref(`users/${_lvCtx.key}/stats/bonusXp`).set(bonus);
+    db.ref('adminLog').push({by:`Admin ${_name||''}`.trim(), at:Date.now(), action:'definiu nível', detail:`${_lvCtx.name} → Nv ${lv} (bônus ${bonus} XP)`}).catch(()=>{});
+    closeMo('moLevel');
+    toast(`${_lvCtx.name} → Nível ${lv} ✓`,'ok');
+    loadOps();
+  }catch(e){ err.textContent='Falha ao salvar: '+(e.message||e); err.style.display='block'; }
+  finally{ if(btn) btn.disabled=false; }
+}
+
 async function loadOps(){
   if(!fbOk)return;
   document.getElementById('opBody').innerHTML=`<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--ink3)">Carregando...</td></tr>`;
@@ -1368,28 +1430,39 @@ async function loadOps(){
     Object.values(_allData).forEach(day=>Object.values(day.fixed).forEach(f=>{
       if(typeof f==='object'&&f?.by)fixCount[f.by]=(fixCount[f.by]||0)+1;
     }));
+    _opsCache=users;
     const rows=Object.entries(users).map(([k,u])=>({key:k,...u}));
+    // admin no topo, depois por nome
+    rows.sort((a,b)=>(b.admin?1:0)-(a.admin?1:0) || String(a.apelido||a.nome||'').localeCompare(String(b.apelido||b.nome||'')));
     document.getElementById('opCount').textContent=`${rows.length} cadastrado${rows.length!==1?'s':''}`;
     document.getElementById('opBody').innerHTML=rows.map(u=>{
       const email=u.email||(u.key.replace(/_dot_/g,'.').replace(/_at_/g,'@'));
       const created=u.createdAt?new Date(u.createdAt).toLocaleDateString('pt-BR'):'—';
       const name=u.apelido||u.nome||email;
       const suspenso = !!u.pendingNotif;
-      return `<tr>
-        <td><div style="font-weight:700">${esc(name)}</div><div style="font-size:11px;color:var(--ink3)">${esc(u.nome||'')}</div></td>
-        <td class="c-ink2">${esc(email)}</td>
-        <td class="r mono">${fixCount[name]||0}</td>
-        <td style="display:flex;gap:5px;flex-wrap:wrap">
+      const lv = levelFromXp(opTotalXp(u.stats));
+      const av = opAvatarColor(name), ini = (name.trim()[0]||'?').toUpperCase();
+      return `<tr class="${suspenso?'op-susp':''}">
+        <td><div class="op-id">
+          <span class="op-av" style="background:${av}">${esc(ini)}</span>
+          <div class="op-idtxt"><div class="op-name">${esc(name)}</div><div class="op-mail">${esc(email)}</div></div>
+        </div></td>
+        <td><button class="lvl-chip" data-key="${esc(u.key)}" data-act="openOpLevelByEl" data-act-self title="Definir o nível de ${esc(name)}"><span class="lc-d">◆</span>Nv ${lv}</button></td>
+        <td><div class="op-badges">
           ${u.admin?'<span class="badge badge-closed">Admin</span>':'<span class="badge badge-open">Operador</span>'}
           ${suspenso?'<span class="badge badge-nf">Suspenso</span>':''}
-        </td>
+        </div></td>
         <td>${accessCell(u)}</td>
-        <td class="c-ink3">${created}</td>
+        <td class="r mono">${fixCount[name]||0}</td>
+        <td class="c-ink3 op-when">${created}</td>
         <td>${suspenso
           ? `<button class="btn btn-gold btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" data-act="forceUnblockOpFromEl">Reativar</button>`
           : `<button class="btn btn-ghost btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" data-act="blockOpFromEl">Suspender</button>`}</td>
       </tr>`;
     }).join('');
+    // se o modal de acesso está aberto, reflete o toggle recém-salvo (loadOps
+    // roda após cada toggleAccess/toggleEdit e releu _opsCache com o valor novo)
+    if(_accessKey && document.getElementById('moAccess')?.classList.contains('open')) renderAccessModal();
   }catch(e){document.getElementById('opBody').innerHTML=`<tr><td colspan="7" style="color:var(--red);padding:16px">${e.message}</td></tr>`;}
 }
 
@@ -1420,11 +1493,32 @@ function accessRow(u, p, editable){
     : `<span class="perm-pill na" title="Este painel é somente leitura — não há o que editar">—</span>`;
   return `<div class="perm-row"><span class="perm-name">${esc(p.label)}</span>${see}${edit}</div>`;
 }
+const ACCESS_ACCENT = {painel:'#18a36b', gu:'#8c5cc6', cash:'#4f8ef7', eventos:'#b3475d', analytics:'#4f8ef7', tv:'#c9a84c', learn:'#e8933d', pipe:'#b3475d', org:'#c9a84c'};
+function opSees(u,p){ const a=u.access||{}; return a[p.id]===true || (p.def && a[p.id]!==false); }
+/* RESUMO compacto: chips só dos painéis que a pessoa vê (✎ = também edita) + botão
+   "Gerenciar" que abre o modal com a grade completa de ver/editar. Antes eram 9
+   linhas empilhadas por operador — a tabela virava um paredão. */
 function accessCell(u){
   if(u.admin) return `<span class="perm-admin">👑 Acesso total <small>(todos os painéis, ver e editar)</small></span>`;
-  const rows = ACCESS_PANELS.map(p => accessRow(u, p, EDIT_PANELS.includes(p.id))).join('');
-  return `<div class="perm-grid">${rows}</div>`;
+  const ed=u.edit||{}, legado=u.edit==null;
+  const chips = ACCESS_PANELS.filter(p=>opSees(u,p)).map(p=>{
+    const editable = EDIT_PANELS.includes(p.id);
+    const edits = editable && (legado ? true : ed[p.id]===true);
+    return `<span class="acc-chip" style="--ac:${ACCESS_ACCENT[p.id]||'#8a8a8a'}" title="${esc(p.label)}${edits?' — vê e edita':' — só vê'}"><span class="ac-dot"></span>${esc(p.label)}${edits?'<span class="ac-e" title="edita">✎</span>':''}</span>`;
+  }).join('');
+  return `<div class="acc-summary">
+    <div class="acc-chips">${chips||'<span class="acc-none">Sem acesso</span>'}</div>
+    <button class="acc-manage" data-key="${esc(u.key)}" data-act="openOpAccessByEl" data-act-self>Gerenciar acesso</button>
+  </div>`;
 }
+let _accessKey=null;
+function renderAccessModal(){
+  const u=_opsCache[_accessKey]; if(!u) return;
+  document.getElementById('acName').textContent = u.apelido||u.nome||_accessKey.replace(/_dot_/g,'.').replace(/_at_/g,'@');
+  document.getElementById('acBody').innerHTML = ACCESS_PANELS.map(p => accessRow(u, p, EDIT_PANELS.includes(p.id))).join('');
+}
+function openOpAccess(key){ _accessKey=key; renderAccessModal(); document.getElementById('moAccess').classList.add('open'); }
+function openOpAccessByEl(el){ openOpAccess(el.dataset.key); }
 async function toggleAccess(btn){
   if(!fbOk){ alert('Firebase não conectado.'); return; }
   const key=btn.dataset.key, panel=btn.dataset.panel, next = btn.dataset.on!=='1';
