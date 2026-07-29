@@ -130,6 +130,56 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{animatio
 .up-btn:active{transform:scale(.97)}
 .up-btn svg{width:12px;height:12px}
 
+/* ── FILTRO DE DIAS (popover no cabeçalho) ── */
+.dayf{position:relative;flex-shrink:0}
+.dayf-btn{display:flex;align-items:center;gap:7px;height:32px;padding:0 11px;border-radius:8px;
+  background:var(--surf);color:var(--ink);border:1px solid var(--bdr);font-size:11px;font-weight:700;
+  cursor:pointer;max-width:210px;transition:border-color .15s,background .15s}
+.dayf-btn:hover{border-color:var(--dia);background:var(--surf2)}
+.dayf.open .dayf-btn{border-color:var(--dia)}
+.dayf-btn>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+.dayf-btn i{font-size:13px;color:var(--dia);flex-shrink:0}
+.dayf-caret{font-size:10px!important;color:var(--ink3)!important;transition:transform .18s var(--ease)}
+.dayf.open .dayf-caret{transform:rotate(180deg)}
+.dayf-panel{position:absolute;top:calc(100% + 8px);right:0;z-index:60;width:320px;max-width:88vw;
+  background:var(--surf);border:1px solid var(--bdr);border-radius:12px;box-shadow:var(--sh2);
+  padding:12px;animation:dayfIn .16s var(--ease)}
+@keyframes dayfIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.dayf-h{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);margin-bottom:9px}
+.dayf-presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.dayf-chip{padding:5px 10px;border-radius:7px;font-size:10px;font-weight:700;color:var(--ink2);
+  background:var(--surf2);border:1px solid var(--bdr);cursor:pointer;transition:.13s;white-space:nowrap}
+.dayf-chip:hover:not(:disabled){border-color:var(--dia);color:var(--dia)}
+.dayf-chip:disabled{opacity:.4;cursor:not-allowed}
+.dayf-wkrow{display:flex;align-items:center;gap:8px;margin-bottom:11px}
+.dayf-wklbl{font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);flex-shrink:0}
+.dayf-wk{display:flex;gap:4px;flex-wrap:wrap}
+.dayf-wkc{width:30px;height:26px;border-radius:6px;font-size:10px;font-weight:800;color:var(--ink3);
+  background:var(--surf2);border:1px solid var(--bdr);cursor:pointer;transition:.13s}
+.dayf-wkc:hover:not(:disabled){border-color:var(--dia);color:var(--dia)}
+.dayf-wkc.on{background:var(--dia);color:#fff;border-color:var(--dia)}
+.dayf-wkc:disabled{opacity:.3;cursor:not-allowed}
+.dayf-list{max-height:230px;overflow-y:auto;border-top:1px solid var(--bdr);padding-top:8px;margin-bottom:10px}
+.dayf-day{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;transition:background .12s}
+.dayf-day:hover{background:var(--surf2)}
+.dayf-day.on{background:color-mix(in srgb,var(--dia) 12%,transparent)}
+.dayf-day input{accent-color:var(--dia);width:14px;height:14px;flex-shrink:0;cursor:pointer}
+.dayf-wd{font-size:9px;font-weight:800;color:var(--ink3);width:24px;flex-shrink:0}
+.dayf-dt{font-size:11px;font-weight:700;color:var(--ink);flex:1}
+.dayf-n{font-size:9px;color:var(--ink3);white-space:nowrap}
+.dayf-fee{font-size:10px;font-weight:800;color:var(--dia);white-space:nowrap;min-width:56px;text-align:right}
+.dayf-empty{text-align:center;padding:26px 10px;font-size:11px;color:var(--ink3);line-height:1.6}
+.dayf-foot{display:flex;align-items:center;gap:10px;border-top:1px solid var(--bdr);padding-top:10px}
+.dayf-mini{font-size:10px;font-weight:700;color:var(--ink3);background:none;border:none;cursor:pointer;padding:4px 2px}
+.dayf-mini:hover{color:var(--ink)}
+.dayf-count{font-size:10px;color:var(--ink3);margin-left:auto}
+.dayf-apply{padding:7px 15px;border-radius:8px;background:var(--dia);color:#fff;font-size:11px;font-weight:800;
+  border:none;cursor:pointer;transition:opacity .15s,transform .12s var(--ease)}
+.dayf-apply:hover:not(:disabled){opacity:.88}
+.dayf-apply:active:not(:disabled){transform:scale(.97)}
+.dayf-apply:disabled{opacity:.4;cursor:not-allowed}
+@media(max-width:520px){.dayf-btn>span{max-width:96px}.dayf-panel{width:290px}}
+
 /* ── WRAP ── */
 .wrap{max-width:1480px;margin:0 auto;padding:24px 24px 60px}
 

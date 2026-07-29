@@ -39,8 +39,6 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="suprema-auth.js"></script>
 <script>/* portão: login mora no hub; exige acesso liberado a ESTE painel */ SupremaAuth.guard({ panel:'cash' }); SupremaAuth.revalidateAccess('cash');</script>
-<!-- markup do switch de tema (sol|nuvens|lua) — mesmo componente de todo o Suprema OS -->
-<script src="suprema-shell.js"></script>
 <script src="suprema-motion.js"></script>
 <script>
 /* motion do Suprema OS (ref. MotionSites): glow azul (a tinta do Cash) + reveal */
@@ -73,7 +71,6 @@ document.addEventListener('DOMContentLoaded', () => {
   </div>
   <div class="brand-sep"></div>
   <nav class="nav">
-    <span class="nav-indicator" id="cashNavIndicator" aria-hidden="true"></span>
     <button class="nt on" onclick="pg('resumo',this)">Resumo</button>
     <button class="nt" onclick="pg('dash',this)">Overview</button>
     <button class="nt" onclick="pg('turnos',this)">Turnos</button>
@@ -91,19 +88,30 @@ document.addEventListener('DOMContentLoaded', () => {
       <span class="pulse dia" id="shiftPulse"></span>
       <span id="shiftLabel">Turno Dia</span>
     </div>
-    <a href="hub.html" class="hub-link" title="Voltar ao hub Suprema OS">♠ OS</a>
-    <div class="brand-sep"></div>
-    <button class="sup-switch" id="themeToggle" onclick="toggleTheme()" aria-pressed="false" title="Alternar tema" aria-label="Alternar tema claro/escuro"></button>
+    <a href="hub.html" class="theme-toggle" title="Voltar ao hub Suprema OS" style="text-decoration:none;font-size:13px">♠</a>
+    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Alternar tema" aria-label="Alternar tema claro/escuro"><i class="ph ph-moon"></i></button>
     <button class="theme-toggle" id="tvBtn" onclick="tvEnter()" title="Modo TV — telão em tela cheia com rotação automática" aria-label="Modo TV"><i class="ph ph-monitor-play"></i></button>
-    <select id="daySel" title="Dia exibido no dashboard" onchange="onDaySel(this.value)"
-      style="height:32px;border-radius:8px;padding:0 10px;font-size:11px;font-weight:700;background:var(--surf);color:var(--ink);border:1px solid var(--bdr);cursor:pointer;max-width:190px">
-      <option value="__demo__">Demonstração (22/06)</option>
-    </select>
-    <label class="up-btn" id="cashImportBtn">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
-      <span>Importar</span>
-      <input type="file" accept=".xlsx" style="display:none" onchange="handleUpload(this)">
-    </label>
+    <!-- FILTRO DE DIAS: consolida qualquer subconjunto dos dias importados.
+         Importação é feita só pela aba "Validar Dados" (semana inteira). -->
+    <div class="dayf" id="dayFilter">
+      <button type="button" class="dayf-btn" id="dayFilterBtn" onclick="toggleDayFilter(event)"
+        title="Filtrar quais dias o dashboard consolida" aria-haspopup="true" aria-expanded="false">
+        <i class="ph ph-calendar-dots"></i>
+        <span id="dayFilterLabel">Demonstração</span>
+        <i class="ph ph-caret-down dayf-caret"></i>
+      </button>
+      <div class="dayf-panel" id="dayFilterPanel" hidden role="dialog" aria-label="Filtro de dias">
+        <div class="dayf-h">Filtrar dias exibidos</div>
+        <div class="dayf-presets" id="dayfPresets"></div>
+        <div class="dayf-wkrow"><span class="dayf-wklbl">Dia da semana</span><div class="dayf-wk" id="dayfWeekdays"></div></div>
+        <div class="dayf-list" id="dayfList"></div>
+        <div class="dayf-foot">
+          <button type="button" class="dayf-mini" onclick="dayfSetDemo()">Demonstração</button>
+          <span class="dayf-count" id="dayfCount"></span>
+          <button type="button" class="dayf-apply" id="dayfApply" onclick="dayfApply()">Aplicar</button>
+        </div>
+      </div>
+    </div>
     <div class="app-hdr-user"><i class="ph ph-user-circle"></i> <span id="appUserName"></span></div>
     <button class="logout-btn" onclick="doLogout()" title="Sair" aria-label="Sair"><i class="ph ph-sign-out"></i></button>
   </div>
@@ -696,17 +704,17 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- ═══════════════ VALIDAR DADOS ═══ -->
 <div id="pg-validar" class="pg">
   <div class="pgh">
-    <div class="pgh-label"><i class="ph ph-check-circle"></i> Validar Dados</div>
-    <div class="pgh-title">Importação Semanal com Validação</div>
-    <div class="pgh-sub">Envie uma planilha com uma semana inteira de sessões · revise o resumo por dia antes de confirmar a substituição no histórico</div>
+    <div class="pgh-label"><i class="ph ph-check-circle"></i> Validar Dados · única porta de importação</div>
+    <div class="pgh-title">Importação Semanal (7 dias) com Validação</div>
+    <div class="pgh-sub">Toda entrada de dados passa por aqui: envie uma planilha com a semana inteira (7 dias) de sessões, revise o resumo dia a dia e só então confirme a gravação no histórico. Depois de importar, use o <b>filtro de dias</b> no cabeçalho para consolidar qualquer recorte — a semana toda, os últimos 7 dias, só os fins de semana, um dia específico…</div>
   </div>
   <div class="card" style="margin-bottom:12px">
-    <div class="ct">Selecionar planilha semanal</div>
+    <div class="ct">Selecionar planilha semanal (7 dias)</div>
     <div class="cs">Aceita .xlsx com múltiplas datas nas colunas de Start Time · nenhum dado é salvo até você confirmar</div>
     <label class="up-zone" style="display:block">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:28px;height:28px;color:var(--ink3);margin:0 auto"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
       <h3>Arraste ou clique para selecionar</h3>
-      <p>Planilha .xlsx com sessões de vários dias (mesmas colunas do relatório diário)</p>
+      <p>Planilha .xlsx com a semana inteira — 7 dias de sessões (mesmas colunas do relatório diário)</p>
       <span class="btn-p">Escolher arquivo</span>
       <input type="file" accept=".xlsx" style="display:none" onchange="handleValidateUpload(this)">
     </label>
@@ -737,13 +745,11 @@ document.addEventListener('DOMContentLoaded', () => {
 <script>
   if (window.SupremaAuth && SupremaAuth.getSession && SupremaAuth.getSession()){
     SupremaOnboarding.start('cash', [
-      { el:'#cashImportBtn', title:'Importe a planilha cash', text:'Suba o export das mesas cash (.xlsx). O dashboard monta receita por turno, comportamento e previsão.', side:'bottom' },
-      { el:'.kpi.hero', title:'Seus números do dia', text:'Fee bruto e líquido, divisão por turno e as mesas que mais geram rake — tudo consolidado aqui em cima.', side:'bottom' },
+      { el:'#dayFilterBtn', title:'Filtre os dias', text:'Escolha quais dias o dashboard consolida — a semana toda, os últimos 7 dias, fins de semana, dias úteis ou um dia específico. A importação em si é feita na aba "Validar Dados".', side:'bottom' },
+      { el:'.kpi.hero', title:'Seus números do período', text:'Fee bruto e líquido, divisão por turno e as mesas que mais geram rake — tudo consolidado aqui em cima, conforme os dias filtrados.', side:'bottom' },
       { el:'#themeToggle', title:'Tema claro ou escuro', text:'Alterna a aparência do dashboard conforme sua preferência.', side:'left' }
     ], { accent:'#4f8ef7', label:'Cash Intelligence' });
   }
 </script>
-<script>SupremaShell.mobileMenu({ current:'cash' });</script>   <!-- menu ☰ mobile -->
-<script defer src="suprema-footer.js"></script>
 </body>
 </html>

@@ -8,7 +8,7 @@
 /* escape de HTML — nomes de modalidade/tipo vêm do XLSX que o operador sobe;
    sem isso, um rótulo com "<...>" quebraria o render (mesma defesa dos outros painéis). */
 const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-const ADMIN_EMAILS=['brian@suprema.group','admin@suprema.group','brian.rodrigues@suprema.group','bruno.larotonda@suprema.group'];
+const ADMIN_EMAILS=['brian@suprema.group','admin@suprema.group','brian.rodrigues@suprema.group'];
 const PBKDF2_ITER=150000;
 const eKey=e=>e.toLowerCase().replace(/\./g,'_dot_').replace(/@/g,'_at_');
 function bufToHex(buf){return[...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');}
@@ -214,10 +214,7 @@ function renderIntelCards(elId,cards){
 function applyTheme(t){
   document.documentElement.setAttribute('data-theme',t);
   const btn=document.getElementById('themeToggle');
-  // pinta o switch (trilho|nuvens|lua) real — o cash usa data-theme (não a
-  // classe .dark), mas o switch é o MESMO componente de todo o Suprema OS
-  if(window.SupremaShell && SupremaShell.paintSwitch) SupremaShell.paintSwitch(btn, t!=='light');
-  else if(btn) btn.innerHTML=t==='light'?'<i class="ph ph-sun"></i>':'<i class="ph ph-moon"></i>';
+  if(btn)btn.innerHTML=t==='light'?'<i class="ph ph-sun"></i>':'<i class="ph ph-moon"></i>';
 }
 function toggleTheme(){
   const cur=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';
@@ -250,21 +247,12 @@ function detectShift(){
 detectShift();
 
 // ══════════════════════════════ PAGE NAV
-function moveNavIndicator(btn){
-  const ind=document.getElementById('cashNavIndicator');
-  if(!ind||!btn)return;
-  ind.style.width=btn.offsetWidth+'px';
-  ind.style.transform=`translateX(${btn.offsetLeft}px)`;
-}
-function initNavIndicator(){ moveNavIndicator(document.querySelector('.nt.on')); }
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', initNavIndicator); else initNavIndicator();
-window.addEventListener('resize', () => moveNavIndicator(document.querySelector('.nt.on')));
 function pg(id,btn){
   document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nt').forEach(b=>b.classList.remove('on'));
   const page=document.getElementById('pg-'+id);
   page.classList.add('on');
-  if(btn){btn.classList.add('on'); moveNavIndicator(btn);}
+  if(btn)btn.classList.add('on');
   // Os gráficos são todos criados de uma vez com as páginas ocultas (display:none),
   // então o Chart.js os mede com largura 0. Ao revelar a página, forçamos um resize
   // pra cada canvas remedir o container agora visível — sem isso a troca de aba fazia
@@ -1093,25 +1081,6 @@ function summarizeDay(rows){
     shift:'Dia + Noite'
   };
 }
-function diffSummary(oldS,newS){
-  const feeDelta=((newS.fee-oldS.fee)/(oldS.fee||1)*100);
-  return`sessões ${oldS.sessions} → ${newS.sessions} · fee R$ ${f(oldS.fee,0)} → R$ ${f(newS.fee,0)} (${feeDelta>=0?'+':''}${f(feeDelta,1)}%)`;
-}
-async function upsertWithDuplicateCheck(dateStr,summary){
-  const existing=(await Store.list()).find(d=>d.date===dateStr);
-  if(existing){
-    const ok=confirm(`Já existe um registro para ${dateStr}.\n\n${diffSummary(existing,summary)}\n\nSubstituir pelos novos dados?`);
-    if(!ok)return false;
-  }
-  await Store.upsert(dateStr,summary);
-  return true;
-}
-function setBtnLoading(labelEl,loading,loadingText){
-  if(!labelEl)return;
-  if(loading){labelEl.dataset.origText=labelEl.textContent;labelEl.textContent=loadingText;labelEl.closest('label,button')?.setAttribute('aria-busy','true');}
-  else{if(labelEl.dataset.origText)labelEl.textContent=labelEl.dataset.origText;labelEl.closest('label,button')?.removeAttribute('aria-busy');}
-}
-
 // ══════════════════════════════ PIPELINE DE DADOS REAIS
 // Reconstrói TODO o dataset do dashboard (mesma forma de KPI_DEMO + D) a partir
 // das linhas cruas da planilha. O painel é CASH-ONLY: torneios (SNG-*, TLT-*,
@@ -1390,73 +1359,151 @@ function applyDataset(ds){
   renderAll();
   detectShift();
 }
-async function onDaySel(val){
-  if(val==='__demo__'){ applyDataset(DEMO_DS); return; }
-  const raws=await Store.listRaw();
-  if(val==='__all__'){
-    const list=Object.values(raws); if(!list.length){applyDataset(DEMO_DS);return;}
-    applyDataset(finalizeDataset(mergeRaws(list),`Todos os dias (${list.length})`)); return;
+// ══════════════════════════════ FILTRO DE DIAS (detalhado)
+// O dashboard consolida QUALQUER subconjunto dos dias importados via mergeRaws
+// → uma única visão. Estados: 'demo' (dataset de exemplo) ou 'subset' (conjunto
+// de dias yyyy-mm-dd). A importação em si é feita só na aba "Validar Dados".
+const WD_SHORT=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+let _dayF={mode:'demo', applied:[], sel:new Set()}; // applied = dias efetivamente no dashboard; sel = seleção de trabalho no painel
+let _dayRaws={};                                    // cache yyyy-mm-dd → raw
+const wdOf=key=>new Date(key+'T12:00:00').getDay();
+const dayKeysSorted=()=>Object.keys(_dayRaws).sort();          // asc yyyy-mm-dd
+const dayLabelOf=key=>{const R=_dayRaws[key];return (R&&R.dates&&R.dates[0])||key;};
+
+async function refreshDayFilter(){
+  try{ _dayRaws=await Store.listRaw()||{}; }catch(e){ console.error('refreshDayFilter',e); _dayRaws={}; }
+  renderDayFilter();
+}
+function dayFilterLabel(){
+  if(_dayF.mode==='demo'||!_dayF.applied.length)return 'Demonstração';
+  const ks=_dayF.applied, all=dayKeysSorted();
+  if(ks.length===1)return dayLabelOf(ks[0]);
+  if(all.length && ks.length===all.length)return `Todos os dias (${ks.length})`;
+  return `${ks.length} dias selecionados`;
+}
+function renderDayFilter(){
+  const lbl=document.getElementById('dayFilterLabel'); if(lbl)lbl.textContent=dayFilterLabel();
+  const keys=dayKeysSorted(), has=keys.length>0;
+  const presets=document.getElementById('dayfPresets');
+  if(presets)presets.innerHTML=[
+    ['all','Todos ('+keys.length+')'],['last7','Últimos 7'],['last30','Últimos 30'],
+    ['weekend','Fim de semana'],['weekday','Dias úteis']
+  ].map(([p,t])=>`<button type="button" class="dayf-chip" data-preset="${p}"${has?'':' disabled'}>${t}</button>`).join('');
+  const wk=document.getElementById('dayfWeekdays');
+  if(wk){
+    const present=new Set(keys.map(wdOf));
+    wk.innerHTML=[1,2,3,4,5,6,0].map(d=>{
+      const on=present.has(d);
+      const allSel=on && keys.filter(k=>wdOf(k)===d).every(k=>_dayF.sel.has(k));
+      return `<button type="button" class="dayf-wkc${allSel?' on':''}" data-wd="${d}"${on?'':' disabled'}>${WD_SHORT[d]}</button>`;
+    }).join('');
   }
-  const R=raws[val]; if(!R){applyDataset(DEMO_DS);return;}
-  applyDataset(finalizeDataset(R, R.dates&&R.dates[0]||val));
+  const list=document.getElementById('dayfList');
+  if(list){
+    if(!has){
+      list.innerHTML='<div class="dayf-empty">Nenhum dia importado ainda.<br>Importe uma semana pela aba <b>Validar Dados</b>.</div>';
+    }else{
+      list.innerHTML=keys.slice().reverse().map(k=>{
+        const R=_dayRaws[k], fee=R?Math.round(R.feeGross||0):0, n=R?(R.n||0):0, on=_dayF.sel.has(k);
+        return `<label class="dayf-day${on?' on':''}"><input type="checkbox" data-key="${k}"${on?' checked':''}>
+          <span class="dayf-wd">${WD_SHORT[wdOf(k)]}</span>
+          <span class="dayf-dt">${dayLabelOf(k)}</span>
+          <span class="dayf-n">${f(n)} sess.</span>
+          <span class="dayf-fee">R$ ${fK(fee)}</span></label>`;
+      }).join('');
+    }
+  }
+  updateDayfCount();
 }
-async function refreshDaySelector(preferKey){
-  const sel=document.getElementById('daySel'); if(!sel)return;
-  const raws=await Store.listRaw();
-  const keys=Object.keys(raws).sort().reverse(); // yyyy-mm-dd desc
-  let html='<option value="__demo__">Demonstração (22/06)</option>';
-  if(keys.length>1)html+=`<option value="__all__">Todos os dias (${keys.length})</option>`;
-  html+=keys.map(k=>`<option value="${k}">${(raws[k].dates&&raws[k].dates[0])||k}</option>`).join('');
-  sel.innerHTML=html;
-  if(preferKey && (preferKey==='__demo__'||preferKey==='__all__'||raws[preferKey]))sel.value=preferKey;
+function updateDayfCount(){
+  const c=document.getElementById('dayfCount');
+  if(c)c.textContent=_dayF.sel.size?`${_dayF.sel.size} dia(s)`:'nenhum dia';
+  const ap=document.getElementById('dayfApply'); if(ap)ap.disabled=_dayF.sel.size===0;
 }
-// No load: se já há dias importados, abre na visão COMBINADA (todos os dias
-// juntos, com as análises inteligentes sobre o agregado); senão, a demo.
+// Aplica ao dashboard o que está em _dayF (demo ou subconjunto consolidado)
+function applyDayFilter(){
+  if(_dayF.mode==='demo'||!_dayF.applied.length){ _dayF.mode='demo'; _dayF.applied=[]; applyDataset(DEMO_DS); }
+  else{
+    const list=_dayF.applied.map(k=>_dayRaws[k]).filter(Boolean);
+    if(!list.length){ _dayF.mode='demo'; applyDataset(DEMO_DS); }
+    else if(list.length===1) applyDataset(finalizeDataset(list[0], dayLabelOf(_dayF.applied[0])));
+    else applyDataset(finalizeDataset(mergeRaws(list), dayFilterLabel()));
+  }
+  const lbl=document.getElementById('dayFilterLabel'); if(lbl)lbl.textContent=dayFilterLabel();
+}
+// ── ações do painel ──────────────────────────────────────────────
+function dayfSetDemo(){ _dayF.mode='demo'; _dayF.applied=[]; _dayF.sel=new Set(); applyDayFilter(); closeDayFilter(); }
+function dayfPreset(name){
+  const keys=dayKeysSorted(); let pick=[];
+  if(name==='all')pick=keys.slice();
+  else if(name==='last7')pick=keys.slice(-7);
+  else if(name==='last30')pick=keys.slice(-30);
+  else if(name==='weekend')pick=keys.filter(k=>[0,6].includes(wdOf(k)));
+  else if(name==='weekday')pick=keys.filter(k=>wdOf(k)>=1&&wdOf(k)<=5);
+  _dayF.sel=new Set(pick);
+  if(pick.length){ dayfApply(); }        // preset = intenção completa: aplica na hora
+  else renderDayFilter();
+}
+function dayfToggleWeekday(d){
+  const keys=dayKeysSorted().filter(k=>wdOf(k)===d);
+  const allOn=keys.length && keys.every(k=>_dayF.sel.has(k));
+  keys.forEach(k=>allOn?_dayF.sel.delete(k):_dayF.sel.add(k));
+  renderDayFilter();                     // mantém o painel aberto p/ refinar e clicar Aplicar
+}
+function dayfToggleDay(k,on){
+  on?_dayF.sel.add(k):_dayF.sel.delete(k);
+  const el=document.querySelector(`.dayf-day input[data-key="${k}"]`)?.closest('.dayf-day');
+  if(el)el.classList.toggle('on',on);
+  updateDayfCount();
+}
+function dayfApply(){
+  if(!_dayF.sel.size)return;
+  _dayF.mode='subset';
+  _dayF.applied=dayKeysSorted().filter(k=>_dayF.sel.has(k));
+  applyDayFilter(); closeDayFilter();
+}
+// ── abre/fecha o popover ─────────────────────────────────────────
+function toggleDayFilter(e){ if(e)e.stopPropagation();
+  const p=document.getElementById('dayFilterPanel'); if(!p)return;
+  p.hidden?openDayFilter():closeDayFilter();
+}
+function openDayFilter(){
+  const p=document.getElementById('dayFilterPanel'); if(!p)return;
+  _dayF.sel=new Set(_dayF.mode==='demo'?[]:_dayF.applied); // sincroniza a seleção com o aplicado
+  renderDayFilter(); p.hidden=false;
+  document.getElementById('dayFilterBtn')?.setAttribute('aria-expanded','true');
+  document.getElementById('dayFilter')?.classList.add('open');
+}
+function closeDayFilter(){
+  const p=document.getElementById('dayFilterPanel'); if(!p)return; p.hidden=true;
+  document.getElementById('dayFilterBtn')?.setAttribute('aria-expanded','false');
+  document.getElementById('dayFilter')?.classList.remove('open');
+}
+function wireDayFilter(){
+  const panel=document.getElementById('dayFilterPanel'); if(!panel)return;
+  panel.addEventListener('click',e=>{
+    const pr=e.target.closest('[data-preset]'); if(pr){dayfPreset(pr.dataset.preset);return;}
+    const wd=e.target.closest('[data-wd]'); if(wd&&!wd.disabled){dayfToggleWeekday(+wd.dataset.wd);return;}
+  });
+  panel.addEventListener('change',e=>{
+    const cb=e.target.closest('input[data-key]'); if(cb)dayfToggleDay(cb.dataset.key, cb.checked);
+  });
+  document.addEventListener('click',e=>{
+    const wrap=document.getElementById('dayFilter');
+    if(wrap && !wrap.contains(e.target)) closeDayFilter();
+  });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape')closeDayFilter(); });
+}
+// No load: se já há dias importados, abre consolidando a última semana (últimos
+// 7 dias); senão, segue na demonstração já renderizada.
 async function initDayView(){
   try{
-    const raws=await Store.listRaw(); const keys=Object.keys(raws).sort();
-    if(!keys.length)return; // segue na demo já renderizada
-    const start=keys.length>1?'__all__':keys[keys.length-1];
-    await refreshDaySelector(start);
-    await onDaySel(start);
+    await refreshDayFilter();
+    const keys=dayKeysSorted();
+    if(!keys.length)return;
+    _dayF.applied=keys.slice(-7); _dayF.mode='subset'; _dayF.sel=new Set(_dayF.applied);
+    applyDayFilter();
   }catch(e){console.error('initDayView',e);}
-}
-
-// ══════════════════════════════ DAILY UPLOAD
-async function handleUpload(input){
-  const fl=input.files[0];if(!fl)return;
-  const lbl=input.closest('label')?.querySelector('span');
-  setBtnLoading(lbl,true,'Lendo…');
-  try{
-    const rows=await readRowsFromFile(fl);
-    if(!rows.length){alert('Não encontrei sessões com Start Time válido nesse arquivo.');return;}
-    const byDate={};
-    rows.forEach(r=>{const k=dateKey(r.startTime);(byDate[k]=byDate[k]||[]).push(r);});
-    const dates=Object.keys(byDate).sort();
-    const mainKey=dates.reduce((a,b)=>byDate[b].length>byDate[a].length?b:a);
-    const label=dateLabel(byDate[mainKey][0].startTime);
-    // dataset cash-only completo do dia principal → alimenta o dashboard inteiro
-    const raw=computeRaw(byDate[mainKey],label);
-    if(!raw.n){alert('Nenhuma sessão CASH encontrada nesse arquivo (só torneios/SNG?).');return;}
-    const ds=finalizeDataset(raw,label);
-    const summary=summaryFromKpi(ds.kpi);
-    const saved=await upsertWithDuplicateCheck(label,summary);
-    if(!saved)return;
-    const where=await Store.saveRaw(label,raw);
-    setBtnLoading(lbl,true,'Montando dashboard…');
-    await refreshDaySelector(labelToRtdbKey(label));
-    applyDataset(ds);
-    await buildHist();
-    const aviso=where==='local'
-      ?'\n\n⚠ ATENÇÃO: não consegui gravar no Firebase (offline/erro). O dia ficou salvo só neste navegador e será re-sincronizado automaticamente na próxima leitura com conexão.'
-      :'';
-    alert(`${fl.name} importado.\n\n${label}: ${ds.kpi.sessions} sessões cash · R$ ${f(ds.kpi.feeGross,0)} fee bruto.\n\nO dashboard agora mostra este dia.${aviso}`);
-  }catch(err){
-    alert('Erro ao ler o arquivo: '+err.message);
-  }finally{
-    setBtnLoading(lbl,false);
-    input.value='';
-  }
 }
 
 // resumo do histórico (gráfico de tendência) derivado do dataset cash-only
@@ -1503,7 +1550,7 @@ async function confirmarSemana(){
   if(btn){btn.disabled=true;btn.style.opacity='.6';}
   status.innerHTML=`${ic('spinner',1)} Gravando…`;
   const keys=Object.keys(_weekRowsByDate).sort();
-  let localOnly=0;
+  const savedKeys=[]; let localOnly=0;
   for(const k of keys){
     const rs=_weekRowsByDate[k];
     const label=dateLabel(rs[0].startTime);
@@ -1511,11 +1558,15 @@ async function confirmarSemana(){
     if(!raw.n)continue; // dia só com torneios/SNG: sem dados cash
     await Store.upsert(label,summaryFromKpi(finalizeDataset(raw,label).kpi));
     if(await Store.saveRaw(label,raw)==='local')localOnly++;
+    savedKeys.push(labelToRtdbKey(label));
   }
   await buildHist();
-  await refreshDaySelector('__all__');
-  await onDaySel('__all__');
-  status.innerHTML=`${ic('check-circle',1)} ${keys.length} dia(s) gravados · dashboard mostrando "Todos os dias".`
+  await refreshDayFilter();
+  // dashboard passa a mostrar exatamente a semana recém-importada, consolidada
+  _dayF.applied=savedKeys.slice().sort(); _dayF.mode=savedKeys.length?'subset':'demo';
+  _dayF.sel=new Set(_dayF.applied);
+  applyDayFilter();
+  status.innerHTML=`${ic('check-circle',1)} ${savedKeys.length} dia(s) gravados · dashboard consolidando a semana importada.`
     +(localOnly?` <span class="tag to">${ic('warning')} ${localOnly} dia(s) só neste navegador — Firebase indisponível, re-sync automático depois.</span>`:'');
   if(btn){btn.disabled=false;btn.style.opacity='';}
   _weekRowsByDate=null;
@@ -1536,11 +1587,14 @@ async function removeHistoryDay(dateStr){
   if(!confirm(`Remover o registro de ${dateStr} do histórico?`))return;
   await Store.remove(dateStr);
   await Store.removeRaw(dateStr);
-  const sel=document.getElementById('daySel');
-  const wasViewing=sel && sel.value===labelToRtdbKey(dateStr);
+  const removedKey=labelToRtdbKey(dateStr);
   await buildHist();
-  await refreshDaySelector(wasViewing?'__demo__':(sel&&sel.value));
-  if(wasViewing)await onDaySel(document.getElementById('daySel').value);
+  await refreshDayFilter();
+  // tira o dia removido do recorte aplicado e reconsolida (cai na demo se esvaziar)
+  _dayF.applied=_dayF.applied.filter(k=>k!==removedKey);
+  _dayF.sel=new Set(_dayF.applied);
+  if(!_dayF.applied.length)_dayF.mode='demo';
+  applyDayFilter();
 }
 
 
@@ -1882,7 +1936,8 @@ function startApp(){
   buildRooms();buildRR();buildBlindBars();buildBubble();
   buildRet();buildDurFee();buildHM();buildHist();
   buildResumo();buildEventos();
-  initDayView(); // se há dias importados, troca a demo pelo dia mais recente
+  wireDayFilter();
+  initDayView(); // se há dias importados, consolida a última semana; senão, demo
 }
 /* mesmo motivo do initFb: startApp() usa `db`, que só existe depois do Firebase (deferido)
    carregar. Roda no DOMContentLoaded, após o initFb registrado acima (ordem preservada). */
@@ -1917,13 +1972,13 @@ const TV_RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
 let TV_FELTRO=null;
 /* matiz por cena, na ordem de tvSceneList(): Resumo, Turnos, Ritmo, Stakes,
    Top mesas, Eventos. Cores da paleta da casa (as mesmas do painel). */
-const TV_SCENE_ACCENT=['#22d47e','#4f8ef7','#e6c34f','#a78bfa','#e0a33c','#f36b70'];
+const TV_SCENE_ACCENT=['#22d47e','#4f8ef7','#c9a84c','#a78bfa','#e0a33c','#f36b70'];
 
 function tvMountFeltro(){
   if(TV_FELTRO)return;
   if(typeof SupremaFeltro==='undefined')return;      // defer ainda não chegou / lite
   TV_FELTRO=SupremaFeltro.mount('#tvMode .tv-bg',{
-    bg:'#0b0c10', gold:'#e6c34f', felt:'#22d47e',
+    bg:'#0b0c10', gold:'#c9a84c', felt:'#22d47e',
     onFallback(){ tvFeltroOff(); },                  // shader não compilou: volta pros blobs
   });
   const el=document.getElementById('tvMode');
@@ -2046,7 +2101,7 @@ function tvSceneList(){
   }
   if(D.tiers&&D.tiers.length){
     const mx=Math.max(...D.tiers.map(t=>t.fee),1);
-    const tc={Micro:'#5a5f5a',Low:'#a78bfa',Mid:'#4f8ef7',High:'#fbbf24',VHigh:'#e6c34f'};
+    const tc={Micro:'#5a5f5a',Low:'#a78bfa',Mid:'#4f8ef7',High:'#fbbf24',VHigh:'#d8b56d'};
     list.push({name:'Stakes',html(){return`
       <div class="tv-kicker">Stakes · rake por faixa de blind</div>
       <div class="tv-h">Onde o dinheiro está hoje</div>
@@ -2065,7 +2120,7 @@ function tvSceneList(){
       <div class="tv-bars">${top.map((t,i)=>`
         <div class="tv-bar" style="transition-delay:${i*90}ms">
           <div class="n">${t.name}<small>${t.type} · ${t.players} players · ${f(t.dur,1)}h</small></div>
-          <div class="track"><div class="fill" style="width:${t.fee/mx*100}%;background:linear-gradient(90deg,#e6c34f,#fbbf24);transition-delay:${.25+i*.09}s"></div></div>
+          <div class="track"><div class="fill" style="width:${t.fee/mx*100}%;background:linear-gradient(90deg,#d8b56d,#fbbf24);transition-delay:${.25+i*.09}s"></div></div>
           <div class="val">R$ ${f(t.fee,0)}</div>
         </div>`).join('')}</div>`;},run(){}});
   }
@@ -2135,45 +2190,18 @@ function tvEnter(){
   tick(); TV.clock=setInterval(tick,1000);
   tvTickerFill(); tvShow(0);
   try{document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().catch(()=>{});}catch(_){ }
-  // re-render local do telão a cada 5 min (relógio/ticker/cena) — NÃO toca o Firebase.
-  // O dataset era re-baixado INTEIRO aqui a cada 5 min (listRaw = mesasCashData de
-  // todos os dias): 288 downloads/dia do nó pesado num telão 24/7, e crescendo —
-  // era o campeão do egress. A re-sincronização agora é por LISTENER (tvAttachData):
-  // o RTDB só manda o nó quando um import muda de verdade, então parado = zero banda.
-  TV.refresh=setInterval(()=>{
+  // re-sincroniza o dataset a cada 5 min (novos imports aparecem sozinhos no telão)
+  TV.refresh=setInterval(async()=>{
     try{
+      if(_dayF.mode!=='demo'){await refreshDayFilter();applyDayFilter();}
       if(TV.on){const d2=document.getElementById('tvDate');if(d2)d2.textContent=KPI_DEMO.date||'';tvTickerFill();tvShow(TV.scene);}
     }catch(e){console.error('tv refresh',e);}
   },5*60*1000);
-  tvAttachData();
   if(location.hash!=='#tv')try{history.replaceState(null,'','#tv');}catch(_){ }
-}
-// ── re-sync do telão por LISTENER (substitui o poll que re-baixava tudo) ──
-// mesasCashData é escrito só quando alguém importa um dia. O .on('value') manda
-// o nó APENAS nessas mudanças: telão parado não gera download nenhum, e um novo
-// import ainda "aparece sozinho" no telão — sem os 288 downloads/dia do poll.
-let _tvDataOff=null;
-function tvAttachData(){
-  if(!fbOk||!db||_tvDataOff)return;
-  const ref=db.ref(RTDB_DATA);
-  let first=true;               // 1ª emissão = estado atual (já renderizado no start): ignora
-  const h=ref.on('value',()=>{
-    if(first){first=false;return;}
-    tvResyncData();
-  });
-  _tvDataOff=()=>{try{ref.off('value',h);}catch(_){}_tvDataOff=null;};
-}
-async function tvResyncData(){
-  try{
-    const sel=document.getElementById('daySel');
-    if(sel&&sel.value!=='__demo__'){await onDaySel(sel.value);}
-    if(TV.on){const d2=document.getElementById('tvDate');if(d2)d2.textContent=KPI_DEMO.date||'';tvTickerFill();tvShow(TV.scene);}
-  }catch(e){console.error('tv resync',e);}
 }
 function tvExit(){
   if(!TV.on)return;
   TV.on=false;
-  if(_tvDataOff)_tvDataOff();
   clearTimeout(TV.rot);clearInterval(TV.clock);clearInterval(TV.refresh);
   if(TV.chart){try{TV.chart.destroy()}catch(_){}TV.chart=null;}
   tvUnmountFeltro();                     // libera o contexto WebGL ao fechar
