@@ -3861,7 +3861,7 @@ function renderPrincipais(){
       ${t.late ? `<div class="tcard-late">Late até <b>${escHtml(t.late)}</b></div>` : ''}
       <div class="tcard-op-fields">
         <div class="tcard-op-field">
-          <label class="tcard-prem-label">Premiação (R$)</label>
+          <label class="tcard-prem-label">Arrecadado (R$)</label>
           <input type="text" inputmode="decimal" placeholder="—" class="tcard-prem-input" data-key="${key}"
             value="${t.premiacao != null ? fmtBRL(t.premiacao, t.premiacao % 1 === 0 ? 0 : 2) : ''}"
             oninput="onCardPremiacaoInput(this)" onfocus="this.select()" onblur="formatPremInput(this)">
@@ -4478,13 +4478,13 @@ function renderUpcoming(){
           + '<th scope="col" style="width:65px;text-align:center">Hora</th>'
           + '<th scope="col" style="width:70px;text-align:center">Late</th>'
           + '<th scope="col" style="width:100px;text-align:right">GTD</th>'
-          + '<th scope="col" style="width:120px">Premiação</th>'
+          + '<th scope="col" style="width:120px">Arrecadado</th>'
           + '<th scope="col" style="width:100px;text-align:right">Overlay</th>'
           + '<th scope="col" style="width:80px">Field</th>'
           + '<th scope="col" style="width:64px;text-align:right">Ações</th>'
           + '<th scope="col" style="width:160px">ID</th>'
           + '<th scope="col" style="width:120px">Fixou</th>'
-          + '<th scope="col" style="width:120px">Prem. por</th>'
+          + '<th scope="col" style="width:120px">Arrecadou</th>'
           + '<th scope="col" style="width:36px;text-align:center">Fix</th>'
           + '</tr></thead><tbody id="compactTbody"></tbody>';
         wrap.appendChild(tbl);
@@ -4530,9 +4530,9 @@ function renderUpcoming(){
       const lateTd  = '<td class="ctr-late" data-label="Late">'+(t.late?escHtml(t.late):'\u2014')+'</td>';
       const garTd   = '<td class="ctr-gar" data-label="GTD">'+(garVal!=null?'R$'+fmtBRL(garVal,0):'\u2014')+'</td>';
       // card do pr\u00f3ximo cronograma: s\u00f3 fixa\u00e7\u00e3o \u2014 premia\u00e7\u00e3o/field pertencem ao quadro do dia seguinte
-      const soFixar = '<td class="ctr-sofixar" data-label="Premia\u00e7\u00e3o" style="padding:3px 5px;color:var(--ink-soft);font-size:11px;font-style:italic" title="Evento do pr\u00f3ximo cronograma \u2014 premia\u00e7\u00e3o e field entram no quadro do pr\u00f3ximo dia">s\u00f3 fixar</td>';
+      const soFixar = '<td class="ctr-sofixar" data-label="Arrecadado" style="padding:3px 5px;color:var(--ink-soft);font-size:11px;font-style:italic" title="Evento do pr\u00f3ximo cronograma \u2014 premia\u00e7\u00e3o e field entram no quadro do pr\u00f3ximo dia">s\u00f3 fixar</td>';
       const premTd  = t.proxCronograma ? soFixar
-                    : '<td data-label="Premia\u00e7\u00e3o" style="padding:3px 5px"><input class="ctr-inp tcard-prem-input'+(premVal!=null?' has-value':'')+'"'
+                    : '<td data-label="Arrecadado" style="padding:3px 5px"><input class="ctr-inp tcard-prem-input'+(premVal!=null?' has-value':'')+'"'
                     + ' data-key="'+key+'" type="text" inputmode="decimal"'
                     + ' placeholder="R$ \u2014" value="'+premFmt+'"'
                     + ' oninput="onCardPremiacaoInput(this)"'
@@ -4562,7 +4562,7 @@ function renderUpcoming(){
         ? '<td class="ctr-op" data-label="'+label+'" title="'+escHtml(name)+(at?' · '+at:'')+'"><span class="ctr-op-name">'+escHtml(name)+'</span>'+(at?'<span class="ctr-op-at">'+at+'</span>':'')+'</td>'
         : '<td class="ctr-op" data-label="'+label+'"><span class="ctr-op-none">—</span></td>';
       const fixByTd  = opCellTd(fixedBy(key), fixedAt(key), 'Fixou');
-      const premByTd = opCellTd(premBy(key), premByAt(key), 'Prem. por');
+      const premByTd = opCellTd(premBy(key), premByAt(key), 'Arrecadou');
       // Side Event que não precisa ser fixado (needsFix=false): mostra o checkbox já "marcado"
       // visualmente, mas esmaecido e desabilitado — não é uma marcação real de responsabilidade,
       // só indica que não há nada pra fazer aqui.
@@ -4659,7 +4659,7 @@ function renderUpcoming(){
       <!-- Campos operacionais: Premiação + Field -->
       <div class="tcard-op-fields">
         <div class="tcard-op-field">
-          <label class="tcard-prem-label">Premiação (R$)</label>
+          <label class="tcard-prem-label">Arrecadado (R$)</label>
           <input type="text" inputmode="decimal" placeholder="—" class="tcard-prem-input" data-key="${key}"
             value="${t.premiacao != null ? fmtBRL(t.premiacao, t.premiacao % 1 === 0 ? 0 : 2) : ''}"
             oninput="onCardPremiacaoInput(this)"
@@ -4826,7 +4826,7 @@ function renderResults(){
     <div>Torneio</div>
     <div class="c-buyin">Buy-in</div>
     <div class="c-garantido">Garantido</div>
-    <div>Premiação</div>
+    <div>Arrecadado</div>
     <div class="c-late">Overlay</div>
     <div>Performance</div>
   `;
@@ -8838,6 +8838,12 @@ function parsePremInput(inp){
   // Se tem vírgula como decimal (formato pt-BR: 1.500,00)
   if(s.includes(',')) {
     s = s.replace(/\./g,'').replace(',','.');  // remove pontos de milhar, troca vírgula
+  } else if(/^\d{1,3}(\.\d{3})+$/.test(s)) {
+    // SEM vírgula, mas com ponto(s) de MILHAR (ex.: "3.560", "10.000", "1.234.567"):
+    // o operador digita à brasileira e o ponto é separador de milhar, não decimal. Sem isto,
+    // parseFloat("3.560") virava 3,56 — o valor sumia (arredondava pra centavos). Só quando TODOS
+    // os grupos após ponto têm 3 dígitos; "3.5" ou "1500.50" continuam sendo decimal.
+    s = s.replace(/\./g,'');
   }
   const num = parseFloat(s);
   // aceita 0 e NEGATIVO (o Brian pediu). Vazio/inválido → null (cai no ramo de apagar).

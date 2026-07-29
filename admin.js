@@ -5,9 +5,9 @@
 /* ── CONFIG ─────────────────────────────────────────────────── */
 /* config do Firebase: fonte ÚNICA no suprema-db.js (SupremaDB.CONFIG) */
 const ADMIN_EMAILS = [
-  'brian@suprema.group','admin@suprema.group','brian.rodrigues@suprema.group','bruno.larotonda@suprema.group'
+  'brian@suprema.group','admin@suprema.group','brian.rodrigues@suprema.group'
 ];
-const COL_HEADERS = ['Torneio','Hora','Late Reg.','Tipo','Garantido','Buy-in','Premiação','Overlay','Field','Ações','Perf. %','Fixado por','ID','Status'];
+const COL_HEADERS = ['Torneio','Hora','Late Reg.','Tipo','Garantido','Buy-in','Arrecadado','Overlay','Field','Ações','Perf. %','Fixou','ID','Status'];
 const COL_WIDTHS  = [32,7,12,13,13,11,13,12,8,8,9,18,12,11];
 const CAT_COLORS  = {
   main:{ header:'1A472A', sub:'2D6A4F', soft:'C8E6C9', label:'♠ MAIN EVENTS' },
@@ -27,14 +27,10 @@ let _toastTm;
 /* ── UTILS ──────────────────────────────────────────────────── */
 const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
-/* ── modo escuro — compartilha a preferência com painel e criação ──
-   pinta o switch (sol|pílula|lua) real — SupremaShell.paintSwitch monta o
-   markup SVG na primeira pintura e só troca aria-pressed nas seguintes */
+/* ── modo escuro — compartilha a preferência com painel e criação ── */
 function paintDarkBtn(){
   const b = document.getElementById('darkToggle');
-  const dark = document.documentElement.classList.contains('dark');
-  if(window.SupremaShell && SupremaShell.paintSwitch) SupremaShell.paintSwitch(b, dark);
-  else if(b) b.textContent = dark ? '☀️' : '🌙';
+  if(b) b.textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
 }
 function toggleDark(){
   const on = document.documentElement.classList.toggle('dark');
@@ -81,6 +77,19 @@ function classify(r){
   if(n.includes('seat')||n.includes('satelit')||n.includes('satélite'))return'sat';
   if((r.garantido||0)>=20000)return'main';
   return'side';
+}
+
+// Badge do TIMING da fixação (cedo / no prazo / atrasado) pra pontuar o operador.
+// fixLeadMin = min antes do início; regra vem do flatRows (prazo = início − lead).
+function fixTimingBadge(r){
+  if(!r.fixTiming || r.fixLeadMin==null) return '';
+  const m = r.fixLeadMin;
+  const ante = m < 0 ? `${Math.abs(m)}min após início`
+             : m >= 120 ? `${(m/60).toFixed(1).replace('.',',')}h antes`
+             : `${m}min antes`;
+  const map = { ok:['var(--green)','no prazo'], atrasado:['var(--red)','atrasado'], cedo:['#3b82f6','cedo demais'] };
+  const [c,lbl] = map[r.fixTiming] || ['var(--ink3)',''];
+  return `<span class="fix-timing ${r.fixTiming}" style="display:block;font-size:9px;font-weight:700;color:${c}" title="Fixou ${ante} do início — ${lbl}">${ante} · ${lbl}</span>`;
 }
 
 function catBadge(cat){
@@ -379,7 +388,7 @@ async function loadAll(fullHistory){
 function mergeDayInto(date, snap, day){
   // 1. snapshot (rows prontas) — só cria o dia se houver rows válidas (como no original)
   if(snap && snap.rows && typeof snap.rows==='object'){
-    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{}};
+    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},premBy:{}};
     Object.entries(snap.rows).forEach(([k,r])=>{
       if(!r||typeof r!=='object')return;
       _allData[date].rows[k]={...r,_key:k};
@@ -392,7 +401,7 @@ function mergeDayInto(date, snap, day){
 
   // 2. painel ao vivo — complementa/sobrepõe o snapshot
   if(day && typeof day==='object'){
-    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{}};
+    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},premBy:{}};
     // sheet.rows é ARRAY — converter para objeto com rk_ keys
     // Merge por nome+hora (não recalcula hash) para evitar duplicar o mesmo torneio
     // quando o garantido muda entre o snapshot e o painel ao vivo (hash diferente)
@@ -411,10 +420,6 @@ function mergeDayInto(date, snap, day){
         if(!_allData[date].rows[existingK].buyin) _allData[date].rows[existingK].buyin = r.buyin;
         if(!_allData[date].rows[existingK].garantido) _allData[date].rows[existingK].garantido = r.garantido;
         if(!_allData[date].rows[existingK].late && r.late) _allData[date].rows[existingK].late = r.late;
-        // Próximo cronograma: o snapshot (buildSnapshotRows) NÃO grava essa flag, mas o
-        // sheet.rows ao vivo grava. Sem copiar aqui, o evento da madrugada de amanhã ficava
-        // sem a marca e escapava do filtro da auditoria (flatRows). A flag do sheet manda.
-        if(r.proxCronograma) _allData[date].rows[existingK].proxCronograma = true;
         // A chave rk_ do painel ao vivo pode divergir da do snapshot (o hash inclui o garantido,
         // que muda entre os dois) — o ID/premiação/field digitados no card ficam gravados sob a
         // chave ao vivo. Guardar como alias pra busca achar os dados do evento em qualquer chave.
@@ -439,6 +444,10 @@ function mergeDayInto(date, snap, day){
     });
     Object.entries(day.fixed||{}).forEach(([k,v])=>{
       if(v) _allData[date].fixed[k]=typeof v==='object'?v:{by:'',at:0};
+    });
+    // quem preencheu o ARRECADADO (premiação coletada) — nó painel/<data>/premBy = {by,at}
+    Object.entries(day.premBy||{}).forEach(([k,v])=>{
+      if(v) _allData[date].premBy[k]=typeof v==='object'?v:{by:'',at:0};
     });
     Object.entries(day.ids||{}).forEach(([k,v])=>{
       if(v!=null) _allData[date].ids[k]=typeof v==='object'?v:{val:v,by:''};
@@ -546,12 +555,6 @@ function flatRows(fromDate, toDate){
     const seenInDay = new Set();
     Object.entries(day.rows).forEach(([key,r])=>{
       if(!r||typeof r!=='object')return;
-      // Próximo cronograma: a madrugada do dia SEGUINTE que o painel mostra cedo
-      // só pra fixação antecipada (late register). Esses eventos pertencem ao
-      // quadro de amanhã — aparecem no painel só visualmente, com badge, e NÃO
-      // entram na auditoria/analytics de hoje (senão contam no dia errado). A
-      // flag vem do sheet.rows publicado pelo painel (globalSectionToRows).
-      if(r.proxCronograma)return;
       const dedupeKey = `${(r.nome||'').trim()}|${(r.hora||'').trim()}`;
       if(seenInDay.has(dedupeKey)) return; // já processado este torneio neste dia
       seenInDay.add(dedupeKey);
@@ -573,6 +576,27 @@ function flatRows(fromDate, toDate){
                      fixRaw===true ? 'Sim' : '';
       const fixAt  = typeof fixRaw==='object'&&fixRaw?.at ?
                      new Date(fixRaw.at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}) : '';
+      // Arrecadado — quem preencheu a premiação coletada e quando
+      const pbRaw  = pick(day.premBy);
+      const premBy = typeof pbRaw==='object'&&pbRaw ? (pbRaw.by||'') : '';
+      const premByAt = typeof pbRaw==='object'&&pbRaw?.at ?
+                     new Date(pbRaw.at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}) : '';
+      const cat = classify(r);
+      // TIMING DA FIXAÇÃO — quanto ANTES do início o torneio foi fixado, e se foi cedo/no prazo/atrasado.
+      // Prazo ideal = início − lead (Main/Side 60min, Satélite 30min). fixLeadMin>0 = fixou antes do início.
+      let fixLeadMin = null, fixTiming = '';
+      const fixAtMs = typeof fixRaw==='object'&&fixRaw?.at ? fixRaw.at : null;
+      if(fixAtMs && /^\d{1,2}:\d{2}$/.test(r.hora||'')){
+        const [Y,Mo,Da] = date.split('-').map(Number);
+        const [hh,mm] = r.hora.split(':').map(Number);
+        const dayOff = (hh*60+mm) < 330 ? 1 : 0;                 // madrugada (<05:30) começa no dia civil seguinte
+        const startMs = Date.UTC(Y, Mo-1, Da+dayOff, hh+3, mm);  // São Paulo = UTC−3 (sem horário de verão no Brasil)
+        fixLeadMin = Math.round((startMs - fixAtMs)/60000);
+        const lead = cat==='sat' ? 30 : 60;
+        if(fixLeadMin < lead)            fixTiming = 'atrasado';  // fixou depois do prazo (início − lead)
+        else if(fixLeadMin > lead + 180) fixTiming = 'cedo';     // fixou mais de 3h antes do prazo
+        else                             fixTiming = 'ok';
+      }
       // Field
       const field  = pick(day.field)??r.field??null;
       // Cálculos
@@ -589,20 +613,13 @@ function flatRows(fromDate, toDate){
       const buyin = r.buyin ?? null;
       const rakeEst = buyin ? (buyin <= 10 ? 0 : buyin <= 50 ? 0.1 : buyin <= 200 ? 0.12 : 0.15) : 0;
       const fieldNet = field != null && buyin ? Math.round(field * buyin * (1 - rakeEst)) : null;
-      const cat = classify(r);
-      // Ações = premiação ÷ buy-in líquido — MESMO cálculo do painel (PainelCalc,
-      // coberto por teste), pra a auditoria bater com o card. Antes da premiação
-      // sair, usa o field como estimativa; sem dado, null → "—".
-      const acoes = (typeof PainelCalc!=='undefined')
-        ? PainelCalc.acoes({ premiacao: prem, buyin, field, cat, isCamp: PainelCalc.hasCampanha(r) })
-        : null;
       out.push({
         date, key,
         nome:r.nome||'', hora:r.hora||'', late:r.late||'',
         tipo:r.tipo||'', cat,
         garantido:gar, buyin, rakeEst,
-        premiacao:prem, overlay:ov, perf, field, fieldNet, acoes,
-        id:idVal, idBy, fixBy, fixAt, status,
+        premiacao:prem, overlay:ov, perf, field, fieldNet,
+        id:idVal, idBy, fixBy, fixAt, premBy, premByAt, fixLeadMin, fixTiming, status,
       });
     });
   });
@@ -972,9 +989,9 @@ async function loadAudit(){
           <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.premiacaoOriginal!==r.premiacao?'c-gold':''}">${r.premiacao!=null?'R$ '+brl(r.premiacao,2):'—'}</td>
           <td class="r mono ov-val">${r.overlay!=null?'R$ '+brl(r.overlay,2):'—'}</td>
           <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.fieldOriginal!==r.field?'c-gold':''}">${r.field!=null?r.field:'—'}</td>
-          <td class="r mono">${r.acoes!=null?brl(Math.round(r.acoes),0):'—'}</td>
           <td class="r mono">${r.perf!=null?`<span class="perf ${r.perf>=0?'pos':'neg'}">${pct(r.perf,2)}</span>`:'—'}</td>
-          <td class="c-ink2">${esc(r.fixBy||r.idBy||'—')}</td>
+          <td class="c-ink2">${r.fixBy?`${esc(r.fixBy)}${r.fixAt?`<span style="display:block;font-size:9px;color:var(--ink3);font-family:var(--mono)">${esc(r.fixAt)}</span>`:''}${fixTimingBadge(r)}`:'—'}</td>
+          <td class="c-ink2">${r.premBy?`${esc(r.premBy)}${r.premByAt?`<span style="display:block;font-size:9px;color:var(--ink3);font-family:var(--mono)">${esc(r.premByAt)}</span>`:''}`:'—'}</td>
           <td class="mono c-ink2">${esc(r.id)}</td>
           <td>${statusBadge(r.status)}</td>
           <td style="display:flex;gap:5px;align-items:center">
@@ -995,22 +1012,20 @@ async function loadAudit(){
           ${cc.label}
           <span class="audit-group-count">${count} torneio${count>1?'s':''}</span>
         </div>
-        <div class="tbl-wrap">
         <table class="audit-table">
           <thead><tr>
             <th style="width:32px"><input type="checkbox" id="checkAll" data-act="toggleCheckAll" data-act-self data-act-on="change" style="accent-color:var(--gold);width:14px;height:14px"></th>
             <th>Torneio</th><th>Hora</th><th>Late</th>
-            <th class="r">GTD</th><th class="r">Buy-in</th><th class="r">Premiação</th>
-            <th class="r">Overlay</th><th class="r">Field</th><th class="r">Ações</th><th class="r">Perf.</th>
-            <th>Operador</th><th>ID</th><th>Status</th><th>Auditoria</th>
+            <th class="r">GTD</th><th class="r">Buy-in</th><th class="r">Arrecadado</th>
+            <th class="r">Overlay</th><th class="r">Field</th><th class="r">Perf.</th>
+            <th>Fixou</th><th>Arrecadou</th><th>ID</th><th>Status</th><th>Auditoria</th>
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table>
-        </div>
         <div class="audit-total">
           <span>Total (${count})</span>
           <span>GTD <strong>R$ ${brl(sumGar)}</strong></span>
-          ${sumPrem?`<span>Premiação <strong>R$ ${brl(sumPrem)}</strong></span>`:''}
+          ${sumPrem?`<span>Arrecadado <strong>R$ ${brl(sumPrem)}</strong></span>`:''}
           ${sumOv?`<span>Overlay <strong class="c-red">R$ ${brl(sumOv)}</strong></span>`:''}
         </div>
       </div>`;
@@ -1024,7 +1039,7 @@ async function loadAudit(){
         </div>
         <div style="display:flex;gap:20px;font-size:11px;font-family:var(--mono);color:var(--ink2)">
           ${allGar?`<span>GTD <strong class="c-gold">R$ ${brl(allGar)}</strong></span>`:''}
-          ${allPrem?`<span>Prem <strong class="c-green">R$ ${brl(allPrem)}</strong></span>`:''}
+          ${allPrem?`<span>Arrec <strong class="c-green">R$ ${brl(allPrem)}</strong></span>`:''}
           ${allOv<0?`<span>Overlay <strong class="c-red">R$ ${brl(allOv)}</strong></span>`:''}
         </div>
       </div>
@@ -1378,68 +1393,6 @@ function renderGrade(){
 }
 
 /* ── OPERADORES ──────────────────────────────────────────────── */
-/* ── NÍVEL / XP (mesma fórmula do hub) ──────────────────────────────────────
-   nível = min(50, 1+⌊√(xp/5)⌋); xp do nível L = 5·(L-1)². XP base vem das stats
-   (opens·10 + dias·25 + ações·5 + missões·15); bonusXp é o grant do admin. Definir
-   um nível = ajustar o bonusXp pra o TOTAL bater no xp daquele nível. */
-const XP_OPEN=10, XP_DAY=25, XP_ACTION=5, XP_MISSION=15;
-function xpForLevel(lv){ return 5*(lv-1)*(lv-1); }
-function levelFromXp(xp){ return Math.min(50, 1+Math.floor(Math.sqrt(Math.max(0,xp)/5))); }
-function opBaseXp(stats){
-  stats=stats||{};
-  const opens=+stats.opens||0;
-  const days=stats.days?Object.keys(stats.days).length:0;
-  const actions=stats.actions?Object.values(stats.actions).reduce((a,n)=>a+(+n||0),0):0;
-  let missions=0; if(stats.missions) for(const d in stats.missions) missions+=Object.keys(stats.missions[d]).length;
-  return opens*XP_OPEN+days*XP_DAY+actions*XP_ACTION+missions*XP_MISSION;
-}
-function opTotalXp(stats){ return opBaseXp(stats)+(+(stats&&stats.bonusXp)||0); }
-const OP_AV_COLORS=['#4f8ef7','#8c5cc6','#18a36b','#e8933d','#b3475d','#4dd0c4','#e8c860','#f078b8'];
-function opAvatarColor(s){ let h=0; for(const c of String(s||'?')) h=(h*31+c.charCodeAt(0))>>>0; return OP_AV_COLORS[h%OP_AV_COLORS.length]; }
-
-let _opsCache={};   // key -> user (pro modal de nível ler as stats)
-let _lvCtx=null;
-function openOpLevel(key){
-  const u=_opsCache[key]; if(!u) return;
-  const name=u.apelido||u.nome||key.replace(/_dot_/g,'.').replace(/_at_/g,'@');
-  const base=opBaseXp(u.stats), bonus=+(u.stats&&u.stats.bonusXp)||0, total=base+bonus, cur=levelFromXp(total);
-  _lvCtx={key, name, base};
-  document.getElementById('lvName').textContent=name;
-  document.getElementById('lvCur').innerHTML=`Nível atual <b>${cur}</b> · ${total.toLocaleString('pt-BR')} XP <span style="opacity:.7">(ganho ${base.toLocaleString('pt-BR')} + bônus ${bonus.toLocaleString('pt-BR')})</span>`;
-  const inp=document.getElementById('lvInput'); inp.value=cur; inp.oninput=lvPreview;
-  document.getElementById('lvErr').style.display='none';
-  lvPreview();
-  document.getElementById('moLevel').classList.add('open');
-  setTimeout(()=>{ inp.focus(); inp.select(); },60);
-}
-function openOpLevelByEl(el){ openOpLevel(el.dataset.key); }
-function setLvQuick(v){ const inp=document.getElementById('lvInput'); inp.value=v; lvPreview(); }
-function lvPreview(){
-  const lv=Math.max(1,Math.min(50, parseInt(document.getElementById('lvInput').value,10)||1));
-  const need=xpForLevel(lv), base=_lvCtx?_lvCtx.base:0;
-  const el=document.getElementById('lvPreview');
-  if(base>need) el.innerHTML=`⚠ Já tem <b>${base.toLocaleString('pt-BR')} XP ganhos</b> (nível ${levelFromXp(base)}). Não dá pra abaixar sem apagar XP real — o bônus vai a 0 e ele fica no nível ${levelFromXp(base)}.`;
-  else el.innerHTML=`Vai gravar bônus de <b>${(need-base).toLocaleString('pt-BR')} XP</b> → total ${need.toLocaleString('pt-BR')} XP = <b>nível ${lv}</b>.`;
-}
-async function saveOpLevel(){
-  if(!_lvCtx){ return; }
-  if(!fbOk){ toast('Firebase não conectado','err'); return; }
-  const err=document.getElementById('lvErr');
-  const lv=parseInt(document.getElementById('lvInput').value,10);
-  if(!(lv>=1&&lv<=50)){ err.textContent='O nível tem que ser entre 1 e 50.'; err.style.display='block'; return; }
-  const bonus=Math.max(0, xpForLevel(lv)-_lvCtx.base);
-  const btn=document.querySelector('#moLevel [data-act="saveOpLevel"]');
-  if(btn) btn.disabled=true;
-  try{
-    await db.ref(`users/${_lvCtx.key}/stats/bonusXp`).set(bonus);
-    db.ref('adminLog').push({by:`Admin ${_name||''}`.trim(), at:Date.now(), action:'definiu nível', detail:`${_lvCtx.name} → Nv ${lv} (bônus ${bonus} XP)`}).catch(()=>{});
-    closeMo('moLevel');
-    toast(`${_lvCtx.name} → Nível ${lv} ✓`,'ok');
-    loadOps();
-  }catch(e){ err.textContent='Falha ao salvar: '+(e.message||e); err.style.display='block'; }
-  finally{ if(btn) btn.disabled=false; }
-}
-
 async function loadOps(){
   if(!fbOk)return;
   document.getElementById('opBody').innerHTML=`<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--ink3)">Carregando...</td></tr>`;
@@ -1450,39 +1403,28 @@ async function loadOps(){
     Object.values(_allData).forEach(day=>Object.values(day.fixed).forEach(f=>{
       if(typeof f==='object'&&f?.by)fixCount[f.by]=(fixCount[f.by]||0)+1;
     }));
-    _opsCache=users;
     const rows=Object.entries(users).map(([k,u])=>({key:k,...u}));
-    // admin no topo, depois por nome
-    rows.sort((a,b)=>(b.admin?1:0)-(a.admin?1:0) || String(a.apelido||a.nome||'').localeCompare(String(b.apelido||b.nome||'')));
     document.getElementById('opCount').textContent=`${rows.length} cadastrado${rows.length!==1?'s':''}`;
     document.getElementById('opBody').innerHTML=rows.map(u=>{
       const email=u.email||(u.key.replace(/_dot_/g,'.').replace(/_at_/g,'@'));
       const created=u.createdAt?new Date(u.createdAt).toLocaleDateString('pt-BR'):'—';
       const name=u.apelido||u.nome||email;
       const suspenso = !!u.pendingNotif;
-      const lv = levelFromXp(opTotalXp(u.stats));
-      const av = opAvatarColor(name), ini = (name.trim()[0]||'?').toUpperCase();
-      return `<tr class="${suspenso?'op-susp':''}">
-        <td><div class="op-id">
-          <span class="op-av" style="background:${av}">${esc(ini)}</span>
-          <div class="op-idtxt"><div class="op-name">${esc(name)}</div><div class="op-mail">${esc(email)}</div></div>
-        </div></td>
-        <td><button class="lvl-chip" data-key="${esc(u.key)}" data-act="openOpLevelByEl" data-act-self title="Definir o nível de ${esc(name)}"><span class="lc-d">◆</span>Nv ${lv}</button></td>
-        <td><div class="op-badges">
+      return `<tr>
+        <td><div style="font-weight:700">${esc(name)}</div><div style="font-size:11px;color:var(--ink3)">${esc(u.nome||'')}</div></td>
+        <td class="c-ink2">${esc(email)}</td>
+        <td class="r mono">${fixCount[name]||0}</td>
+        <td style="display:flex;gap:5px;flex-wrap:wrap">
           ${u.admin?'<span class="badge badge-closed">Admin</span>':'<span class="badge badge-open">Operador</span>'}
           ${suspenso?'<span class="badge badge-nf">Suspenso</span>':''}
-        </div></td>
+        </td>
         <td>${accessCell(u)}</td>
-        <td class="r mono">${fixCount[name]||0}</td>
-        <td class="c-ink3 op-when">${created}</td>
+        <td class="c-ink3">${created}</td>
         <td>${suspenso
           ? `<button class="btn btn-gold btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" data-act="forceUnblockOpFromEl">Reativar</button>`
           : `<button class="btn btn-ghost btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" data-act="blockOpFromEl">Suspender</button>`}</td>
       </tr>`;
     }).join('');
-    // se o modal de acesso está aberto, reflete o toggle recém-salvo (loadOps
-    // roda após cada toggleAccess/toggleEdit e releu _opsCache com o valor novo)
-    if(_accessKey && document.getElementById('moAccess')?.classList.contains('open')) renderAccessModal();
   }catch(e){document.getElementById('opBody').innerHTML=`<tr><td colspan="7" style="color:var(--red);padding:16px">${e.message}</td></tr>`;}
 }
 
@@ -1500,10 +1442,7 @@ function accessRow(u, p, editable){
   const acc = u.access || {};
   const ed  = u.edit || {};
   const legado = u.edit == null;                 // sem nó `edit` → herda do acesso
-  // ciente do DEFAULT: painel/gu (def) valem enquanto não forem explicitamente
-  // `false`; o resto é opt-in (só com === true). Espelha o canAccess do cliente,
-  // senão a linha mostrava "Sem acesso" pra quem entra por padrão.
-  const sees  = acc[p.id] === true || (p.def && acc[p.id] !== false);
+  const sees  = acc[p.id] === true;
   const edits = editable && (legado ? sees : ed[p.id] === true);
   const see = `<button class="perm-pill see${sees?' on':''}" data-key="${esc(u.key)}" data-panel="${p.id}" data-on="${sees?'1':'0'}" data-act="toggleAccess" data-act-self `+
     `title="${sees?'Vê — clique para tirar o acesso':'Não vê — clique para liberar'}">${sees?'👁 Vê':'○ Sem acesso'}</button>`;
@@ -1513,46 +1452,18 @@ function accessRow(u, p, editable){
     : `<span class="perm-pill na" title="Este painel é somente leitura — não há o que editar">—</span>`;
   return `<div class="perm-row"><span class="perm-name">${esc(p.label)}</span>${see}${edit}</div>`;
 }
-const ACCESS_ACCENT = {painel:'#18a36b', gu:'#8c5cc6', cash:'#4f8ef7', eventos:'#b3475d', analytics:'#4f8ef7', tv:'#c9a84c', learn:'#e8933d', pipe:'#b3475d', org:'#c9a84c'};
-function opSees(u,p){ const a=u.access||{}; return a[p.id]===true || (p.def && a[p.id]!==false); }
-/* RESUMO compacto: chips só dos painéis que a pessoa vê (✎ = também edita) + botão
-   "Gerenciar" que abre o modal com a grade completa de ver/editar. Antes eram 9
-   linhas empilhadas por operador — a tabela virava um paredão. */
 function accessCell(u){
   if(u.admin) return `<span class="perm-admin">👑 Acesso total <small>(todos os painéis, ver e editar)</small></span>`;
-  const ed=u.edit||{}, legado=u.edit==null;
-  const chips = ACCESS_PANELS.filter(p=>opSees(u,p)).map(p=>{
-    const editable = EDIT_PANELS.includes(p.id);
-    const edits = editable && (legado ? true : ed[p.id]===true);
-    return `<span class="acc-chip" style="--ac:${ACCESS_ACCENT[p.id]||'#8a8a8a'}" title="${esc(p.label)}${edits?' — vê e edita':' — só vê'}"><span class="ac-dot"></span>${esc(p.label)}${edits?'<span class="ac-e" title="edita">✎</span>':''}</span>`;
-  }).join('');
-  return `<div class="acc-summary">
-    <div class="acc-chips">${chips||'<span class="acc-none">Sem acesso</span>'}</div>
-    <button class="acc-manage" data-key="${esc(u.key)}" data-act="openOpAccessByEl" data-act-self>Gerenciar acesso</button>
-  </div>`;
+  const rows = ACCESS_PANELS.map(p => accessRow(u, p, EDIT_PANELS.includes(p.id))).join('');
+  return `<div class="perm-grid">${rows}</div>`;
 }
-let _accessKey=null;
-function renderAccessModal(){
-  const raw=_opsCache[_accessKey]; if(!raw) return;
-  // _opsCache é indexado por key, mas o VALOR não tem `.key` — e accessRow usa
-  // u.key pra gravar data-key nos botões Vê/Edita. Sem isso os toggles saíam com
-  // data-key="" e o toggleAccess gravava em users//access/… (caminho errado) —
-  // era o "não acontece nada" ao dar acesso. Reanexa a key aqui.
-  const u = {...raw, key:_accessKey};
-  document.getElementById('acName').textContent = u.apelido||u.nome||_accessKey.replace(/_dot_/g,'.').replace(/_at_/g,'@');
-  document.getElementById('acBody').innerHTML = ACCESS_PANELS.map(p => accessRow(u, p, EDIT_PANELS.includes(p.id))).join('');
-}
-function openOpAccess(key){ _accessKey=key; renderAccessModal(); document.getElementById('moAccess').classList.add('open'); }
-function openOpAccessByEl(el){ openOpAccess(el.dataset.key); }
 async function toggleAccess(btn){
   if(!fbOk){ alert('Firebase não conectado.'); return; }
   const key=btn.dataset.key, panel=btn.dataset.panel, next = btn.dataset.on!=='1';
   btn.disabled=true;
   try{
-    // liga = true; desliga = FALSE explícito (não null). Pra painéis default
-    // (painel/gu) o null voltaria pro padrão liberado — a revogação não pegava.
-    // false revoga de verdade em qualquer painel e casa com as regras (`!== false`).
-    await db.ref(`users/${key}/access/${panel}`).set(next?true:false);
+    // grava true, ou remove a chave quando desliga (mantém o nó limpo)
+    await db.ref(`users/${key}/access/${panel}`).set(next?true:null);
     await loadOps();          // re-pinta a linha (tirar o Vê já apaga o Edita ao lado)
   }catch(e){ alert('Falha ao salvar acesso: '+(e.message||e)); btn.disabled=false; }
 }
@@ -1570,10 +1481,11 @@ async function toggleEdit(btn){
       const acc = (await db.ref(`users/${key}/access`).once('value')).val() || {};
       const seed = {};
       EDIT_PANELS.forEach(id => { if(acc[id]===true) seed[id]=true; });
-      seed[panel] = next;   // false explícito revoga defEdit (painel/gu); true libera
+      seed[panel] = next;
+      if(!next) delete seed[panel];
       await ref.set(Object.keys(seed).length ? seed : { _off:true });   // nó precisa EXISTIR pra regra não herdar
     }else{
-      await ref.child(panel).set(next?true:false);   // false = revoga de verdade (não null)
+      await ref.child(panel).set(next?true:null);
       // se esvaziou, mantém o marcador — sem nó, as regras voltariam a herdar do access
       const left = (await ref.once('value')).val();
       if(left == null) await ref.set({ _off:true });
@@ -2184,40 +2096,6 @@ function enrichWithAudit(rows){
 }
 
 /* ── EXPORTS ─────────────────────────────────────────────────── */
-/* ── CONFERIR TODOS ──
-   Marca de uma vez TODOS os torneios visíveis (o conjunto já filtrado em
-   _auditRows) que ainda não foram auditados como "aprovado — sem correção":
-   mantém os valores como estão, só registra que o admin conferiu. Um write só
-   (update em lote) — barato. Os já auditados (corrigido/aprovado) não são tocados. */
-async function approveAllAudit(){
-  if(!fbOk){ toast('Firebase não conectado','err'); return; }
-  const pending = _auditRows.filter(r => r.nome && !r._audited);
-  if(!pending.length){ toast('Todos os torneios da lista já foram conferidos.'); return; }
-  if(!confirm(`Marcar ${pending.length} torneio(s) como CONFERIDOS (aprovado, sem correção)?\n\nOs valores ficam exatamente como estão — é só o registro de que você conferiu.`)) return;
-  const now = Date.now(), updates = {}, entries = [];
-  pending.forEach(r => {
-    const entry = {
-      premiacaoOriginal: r.premiacao ?? null, fieldOriginal: r.field ?? null, garantidoOriginal: r.garantido ?? null,
-      premiacaoAuditada: r.premiacao ?? null, fieldAuditado: r.field ?? null, garantidoAuditado: r.garantido ?? null,
-      status: 'aprovado', obs: null, auditadoEm: now, auditadoPor: _email || 'admin',
-      nome: r.nome, hora: r.hora
-    };
-    updates[`auditoria/${r.date}/${r.key}`] = entry;
-    entries.push({r, entry});
-  });
-  try{
-    await db.ref().update(updates);                        // 1 write em lote (barato)
-    // espelha no estado local (igual ao batchApprove) pra refletir sem re-ler tudo
-    entries.forEach(({r, entry}) => {
-      if(!_auditData[r.date]) _auditData[r.date] = {};
-      _auditData[r.date][r.key] = entry;
-      r._audited = true; r._auditEntry = entry;
-    });
-    toast(`✓ ${pending.length} torneio(s) conferidos (aprovados sem correção)`, 'ok');
-    loadAudit();
-  }catch(e){ toast('Falha ao conferir: ' + (e.message || e), 'err'); }
-}
-
 async function exportAuditXlsx(){
   await ensureXLSX();                 // SheetJS sob demanda
   if(!_auditRows.length){toast('Carregue os dados primeiro','err');return;}
@@ -2250,12 +2128,8 @@ async function exportAuditXlsx(){
       g.rows.forEach(r=>{
         const drRow=aoa.length;
         const ov=r.overlay??'',perf=r.perf??'';
-        // COL_HEADERS: …Overlay(7) · Field(8) · Ações(9) · Perf(10)…
-        // Field = nº de jogadores; Ações = ENTRADAS (premiação ÷ buy-in líquido),
-        // o MESMO cálculo do painel/tela (PainelCalc) — antes saía o fieldNet aqui,
-        // que era outro conceito (arrecadação em R$) e não batia com o card.
         aoa.push([r.nome,r.hora,r.late,catLabel(r.cat),
-          r.garantido??'',r.buyin??'',r.premiacao??'',ov,r.field??'',r.acoes!=null?Math.round(r.acoes):'',perf,
+          r.garantido??'',r.buyin??'',r.premiacao??'',ov,'',r.field??'',perf,
           r.fixBy||r.idBy||'',r.id,statusLabel(r.status)]);
         cnt++;if(r.garantido)sg+=r.garantido;if(r.premiacao)sp+=r.premiacao;if(r.overlay)so+=r.overlay;
         if(r.status==='nf')for(let c=0;c<14;c++)styleMap[XLSX.utils.encode_cell({r:drRow,c})]={font:{color:{rgb:'888888'},italic:true},fill:{fgColor:{rgb:'F5F5F5'}}};
@@ -2542,94 +2416,21 @@ async function previewCleanup(){
     </div>`;
 }
 
-/* Abre o modal de confirmação (digitar REMOVER) com uma mensagem custom e a ação
-   a executar no OK. Centraliza o wiring que runCleanup e runCleanupUntil dividem. */
-function openDestructiveConfirm(descHtml, onConfirm){
-  document.getElementById('dcDesc').innerHTML = descHtml;
-  const input = document.getElementById('dcInput');
-  const btn   = document.getElementById('dcBtn');
-  input.value = ''; btn.disabled = true;
-  input.oninput = e =>{ btn.disabled = e.target.value.trim().toUpperCase()!=='REMOVER'; };
-  btn.onclick = onConfirm;
-  document.getElementById('moDestructiveConfirm').classList.add('open');
-  setTimeout(()=>input.focus(),80);
-}
-
 function runCleanup(){
   const cutoff = dago(90);
   const old    = Object.keys(_allData).filter(d=>d<cutoff).sort();
   if(!old.length){ toast('Nada para limpar','ok'); return; }
-  openDestructiveConfirm(
-    `Isso vai remover <b>${old.length} dia(s)</b> do Firebase (dados com mais de 90 dias, anteriores a <b>${fmtDate(cutoff)}</b>). `
-    + `Snapshots e relatórios XLSX serão <b>mantidos</b>, mas os dados ao vivo do painel <b>não podem ser recuperados</b>.`,
-    ()=>executeCleanup(old)
-  );
-}
 
-/* ── RESET ATÉ DATA (marco zero) ──
-   Diferente da limpeza >90d: ZERA tudo (painel + snapshots + auditoria) de TODOS
-   os dias <= a data escolhida. Uso: descartar os dados de teste do lançamento e
-   deixar o dia seguinte como marco zero. Também exige digitar REMOVER. */
-function _nextDayISO(iso){ const d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); }
-function _resetDatesUntil(cutoff){
-  const isDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d);
-  const set = new Set();
-  Object.keys(_allData||{}).forEach(d=>{ if(isDate(d) && d<=cutoff) set.add(d); });
-  Object.keys(_auditData||{}).forEach(d=>{ if(isDate(d) && d<=cutoff) set.add(d); });
-  return [...set].sort();
-}
-
-async function previewCleanupUntil(){
-  const cutoff = document.getElementById('bkResetDate')?.value || '';
-  const el = document.getElementById('resetPreview');
-  if(!cutoff){ el.innerHTML='<span style="color:var(--amber)">Escolha a data limite primeiro.</span>'; return; }
-  el.innerHTML = '<span style="color:var(--ink3)">Carregando histórico…</span>';
-  await loadAuditData();                 // garante auditoria carregada pra contar/limpar
-  const dates = _resetDatesUntil(cutoff);
-  if(!dates.length){ el.innerHTML=`<span style="color:var(--green)">✅ Nenhum dado em ${fmtDate(cutoff)} ou antes.</span>`; return; }
-  const rows = dates.reduce((s,d)=>s+Object.keys(_allData[d]?.rows||{}).length,0);
-  el.innerHTML = `
-    <div style="margin-bottom:10px;color:var(--red)">
-      ⚠ <b>${dates.length} dia(s)</b> (${rows.toLocaleString('pt-BR')} torneios) serão <b>ZERADOS</b> — painel + snapshots + auditoria:
-    </div>
-    <div style="font-family:var(--mono);font-size:11px;color:var(--ink3);line-height:1.8;max-height:160px;overflow:auto">
-      ${dates.map(d=>`<span style="margin-right:12px">${fmtDate(d)}</span>`).join('')}
-    </div>
-    <div style="margin-top:10px;font-size:11.5px;color:var(--red)"><b>Isto não pode ser desfeito.</b> A operação começa limpa em <b>${fmtDate(_nextDayISO(cutoff))}</b>.</div>`;
-}
-
-async function runCleanupUntil(){
-  const cutoff = document.getElementById('bkResetDate')?.value || '';
-  if(!cutoff){ toast('Escolha a data limite','err'); return; }
-  await loadAuditData();
-  const dates = _resetDatesUntil(cutoff);
-  if(!dates.length){ toast('Nada para remover até essa data','ok'); return; }
-  openDestructiveConfirm(
-    `Isso vai <b>ZERAR ${dates.length} dia(s)</b> do Firebase — <b>painel + snapshots + auditoria</b> de tudo até <b>${fmtDate(cutoff)}</b> (inclusive). `
-    + `<b style="color:var(--red)">Não pode ser desfeito.</b> A operação começa limpa em <b>${fmtDate(_nextDayISO(cutoff))}</b>.`,
-    ()=>executeCleanupUntil(dates)
-  );
-}
-
-async function executeCleanupUntil(dates){
-  closeMo('moDestructiveConfirm');
-  const el = document.getElementById('resetPreview');
-  let removed = 0;
-  for(const date of dates){
-    try{
-      await db.ref(`painel/${date}`).remove();
-      await db.ref(`snapshots/${date}`).remove();
-      await db.ref(`auditoria/${date}`).remove();
-      delete _allData[date];
-      if(_auditData) delete _auditData[date];
-      removed++;
-      el.innerHTML = `<span style="color:var(--ink3)">Zerando… ${removed}/${dates.length}</span>`;
-    }catch(e){ console.error('Erro ao zerar', date, e); }
-  }
-  el.innerHTML = `<span style="color:var(--green)">✅ ${removed} dia(s) zerados (painel + snapshots + auditoria). Marco zero: ${fmtDate(_nextDayISO(dates[dates.length-1]))}.</span>`;
-  toast(`✓ ${removed} dias zerados`,'ok');
-  writeAdminLog('reset_until', {removed, until: dates[dates.length-1]});
-  initBackup();
+  document.getElementById('dcCount').textContent = old.length;
+  document.getElementById('dcCutoff').textContent = fmtDate(cutoff);
+  document.getElementById('dcInput').value = '';
+  document.getElementById('dcBtn').disabled = true;
+  document.getElementById('dcInput').oninput = e =>{
+    document.getElementById('dcBtn').disabled = e.target.value.trim().toUpperCase()!=='REMOVER';
+  };
+  document.getElementById('dcBtn').onclick = ()=>executeCleanup(old);
+  document.getElementById('moDestructiveConfirm').classList.add('open');
+  setTimeout(()=>document.getElementById('dcInput')?.focus(),80);
 }
 
 async function executeCleanup(old){

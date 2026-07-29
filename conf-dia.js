@@ -58,15 +58,14 @@
     { m: n => n === 'chips' || n.includes('chip stack') || n.includes('starting stack') || n.includes('stack inicial'), key: true }, // CHIPS
     { m: n => n.includes('early bird'), key: true },                                 // EARLY BIRD (0-20% = 20% das CHIPS)
     { m: n => n.includes('rebuy') && n.includes('condition') },                      // REBUY CONDITION
-    // tone: agrupa por FAMÍLIA pra psicologia das cores — o campo e o seu "stack" na mesma cor,
-    // pra o olho verificar valor+stack juntos. Recompra=azul, Add-on=roxo, Modalidade=teal, Estrutura=âmbar.
-    { m: n => (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) && !n.includes('stack') && !n.includes('condition'), tone:'rebuy' }, // REENTRY/REBUY
-    { m: n => n.includes('stack') && (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')), tone:'rebuy' }, // STACK REENTRY/REBUY
-    { m: n => (n.includes('add-on') || n.includes('addon')) && !n.includes('stack'), tone:'addon' }, // ADD-ON
-    { m: n => n.includes('stack') && (n.includes('add-on') || n.includes('addon')), tone:'addon' }, // STACK ADD-ON
+    // key:true = destaque na MESMA cor do buy-in (dourado da chave) — pedido do Brian, uma cor só.
+    { m: n => (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) && !n.includes('stack') && !n.includes('condition'), key: true }, // REENTRY/REBUY
+    { m: n => n.includes('stack') && (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')), key: true }, // STACK REENTRY/REBUY
+    { m: n => (n.includes('add-on') || n.includes('addon')) && !n.includes('stack'), key: true }, // ADD-ON
+    { m: n => n.includes('stack') && (n.includes('add-on') || n.includes('addon')), key: true }, // STACK ADD-ON
     { m: n => (/game\s*type/.test(n) || /variante/.test(n) || /modalidade/.test(n) || n === 'game')
-              && !/early\s*game/.test(n), tone:'game' },                             // Game Type
-    { m: n => n.includes('structure') || n.includes('estrutura'), tone:'structure' },// STRUCTURE
+              && !/early\s*game/.test(n), key: true },                              // Game Type
+    { m: n => n.includes('structure') || n.includes('estrutura'), key: true },       // STRUCTURE
     { m: n => n.includes('hour late') || n.includes('hora late') },                  // Hour late register
   ];
   // além dos campos que a Criação esconde, some o "Action" da planilha —
@@ -97,7 +96,7 @@
       for (let i = 0; i < remaining.length; ){
         if (slot.m(normText(remaining[i]))){
           if (!claimed){
-            out.push({label: remaining[i], hi: true, key: !!slot.key, tone: slot.tone || ''}); remaining.splice(i, 1); claimed = true;
+            out.push({label: remaining[i], hi: true, key: !!slot.key}); remaining.splice(i, 1); claimed = true;
             if (!slot.once) break;               // sem dedup: para no primeiro
           } else remaining.splice(i, 1);          // duplicata de Garantido/Buy-in: fora
         } else i++;
@@ -349,9 +348,8 @@
           if (isAdmin){ const af = gcAdminFeeVal(c.it); if (af) return escHtml(af); }
           return gcFmtExtra(label, c.it.extra ? c.it.extra[label] : undefined);
         };
-        const toneCls = f.tone ? ` gc-tone gc-tone-${f.tone}` : '';
         const labCls = `${f.key ? 'gc-key' : ''} ${f.hi ? 'gc-hi' : 'gc-dim'}`.trim();
-        t += `<tr class="${f.key ? 'gc-keyrow' : ''}${toneCls}"><th class="gc-rowlab ${labCls}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(val, /chips|prize pool|buy-?in|ticket|admin\s*fee/.test(n) ? 'gc-num' : '')}</tr>`;
+        t += `<tr class="${f.key ? 'gc-keyrow' : ''}"><th class="gc-rowlab ${labCls}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(val, /chips|prize pool|buy-?in|ticket|admin\s*fee/.test(n) ? 'gc-num' : '')}</tr>`;
       });
       t += `<tr><th class="gc-rowlab">ID Pokerbyte</th>${cell(c => gcIds[c.key] ? escHtml(gcIds[c.key].val) : '<span class="gc-noid" title="Sem ID cadastrado — confira se o torneio foi criado no app">sem ID</span>', 'gc-num')}</tr>`;
       t += `<tr><th class="gc-rowlab key">Action</th>${cell(c =>
