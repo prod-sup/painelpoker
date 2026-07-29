@@ -82,7 +82,7 @@ function classify(r){
 // Badge do TIMING da fixação (cedo / no prazo / atrasado) pra pontuar o operador.
 // fixLeadMin = min antes do início; regra vem do flatRows (prazo = início − lead).
 function fixTimingBadge(r){
-  if(!r.fixTiming || r.fixLeadMin==null) return '';
+  if(!r.fixTiming || !Number.isFinite(r.fixLeadMin)) return '';
   const m = r.fixLeadMin;
   const ante = m < 0 ? `${Math.abs(m)}min após início`
              : m >= 120 ? `${(m/60).toFixed(1).replace('.',',')}h antes`
@@ -574,28 +574,34 @@ function flatRows(fromDate, toDate){
       const fixRaw = pick(day.fixed);
       const fixBy  = typeof fixRaw==='object'&&fixRaw ? (fixRaw.by||'') :
                      fixRaw===true ? 'Sim' : '';
-      const fixAt  = typeof fixRaw==='object'&&fixRaw?.at ?
-                     new Date(fixRaw.at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}) : '';
+      // `at` só vale se for timestamp numérico de verdade — senão dava "Invalid Date"/"NaNmin"
+      // (ex.: registros antigos sem hora, ou ServerValue não resolvido no snapshot).
+      const _ms = x => { if(!x || typeof x!=='object') return null; const n = Number(x.at); return (isFinite(n) && n>0) ? n : null; };
+      const hm  = ms => new Date(ms).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'});
+      const fixAtMs = _ms(fixRaw);
+      const fixAt  = fixAtMs ? hm(fixAtMs) : '';
       // Arrecadado — quem preencheu a premiação coletada e quando
       const pbRaw  = pick(day.premBy);
       const premBy = typeof pbRaw==='object'&&pbRaw ? (pbRaw.by||'') : '';
-      const premByAt = typeof pbRaw==='object'&&pbRaw?.at ?
-                     new Date(pbRaw.at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}) : '';
+      const pbMs   = _ms(pbRaw);
+      const premByAt = pbMs ? hm(pbMs) : '';
       const cat = classify(r);
       // TIMING DA FIXAÇÃO — quanto ANTES do início o torneio foi fixado, e se foi cedo/no prazo/atrasado.
       // Prazo ideal = início − lead (Main/Side 60min, Satélite 30min). fixLeadMin>0 = fixou antes do início.
       let fixLeadMin = null, fixTiming = '';
-      const fixAtMs = typeof fixRaw==='object'&&fixRaw?.at ? fixRaw.at : null;
       if(fixAtMs && /^\d{1,2}:\d{2}$/.test(r.hora||'')){
         const [Y,Mo,Da] = date.split('-').map(Number);
         const [hh,mm] = r.hora.split(':').map(Number);
         const dayOff = (hh*60+mm) < 330 ? 1 : 0;                 // madrugada (<05:30) começa no dia civil seguinte
         const startMs = Date.UTC(Y, Mo-1, Da+dayOff, hh+3, mm);  // São Paulo = UTC−3 (sem horário de verão no Brasil)
-        fixLeadMin = Math.round((startMs - fixAtMs)/60000);
-        const lead = cat==='sat' ? 30 : 60;
-        if(fixLeadMin < lead)            fixTiming = 'atrasado';  // fixou depois do prazo (início − lead)
-        else if(fixLeadMin > lead + 180) fixTiming = 'cedo';     // fixou mais de 3h antes do prazo
-        else                             fixTiming = 'ok';
+        const lm = Math.round((startMs - fixAtMs)/60000);
+        if(Number.isFinite(lm)){
+          fixLeadMin = lm;
+          const lead = cat==='sat' ? 30 : 60;
+          if(fixLeadMin < lead)            fixTiming = 'atrasado';  // fixou depois do prazo (início − lead)
+          else if(fixLeadMin > lead + 180) fixTiming = 'cedo';     // fixou mais de 3h antes do prazo
+          else                             fixTiming = 'ok';
+        }
       }
       // Field
       const field  = pick(day.field)??r.field??null;
