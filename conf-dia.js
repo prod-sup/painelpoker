@@ -175,6 +175,65 @@
     else fbDb.ref(`${BASE}/conf/${key}`).set({by: OPERATOR_NAME || 'Alguém', at: Date.now()});
   }
 
+  /* ── ATUALIZAÇÃO CIRÚRGICA DO ✓ (sem reconstruir a tabela) ──────────────────
+     Marcar/desmarcar um torneio mudava gcConf → o listener chamava gcRender() e
+     reconstruía TODO o innerHTML, o que zerava o scroll de quem marcou E do parceiro
+     (a mesma reconstrução chega pros dois pelo Firebase). Restaurar o scroll depois
+     não colava de forma confiável. Solução: quando SÓ o estado de conferido muda e a
+     estrutura é a mesma, alteramos apenas as classes da coluna afetada — o DOM não é
+     recriado, então NENHUM scroll se mexe. Só cai no gcRender completo quando a
+     estrutura muda de fato (Ocultar conferidos ligado, busca ativa escondendo a coluna,
+     ou tabela ainda não montada). */
+  function gcMarkColumn(btn, ok, entry){
+    const td = btn.closest('td'); if (!td) return;
+    const idx = td.cellIndex;                 // posição da coluna (o th do rótulo é o índice 0)
+    const table = btn.closest('table'); if (!table) return;
+    [...table.rows].forEach(row => {
+      const cell = row.cells[idx];
+      if (cell && cell.tagName === 'TD') cell.classList.toggle('gc-ok', ok);
+    });
+    btn.classList.toggle('on', ok);
+    const by = ok && entry && entry.by ? String(entry.by).split(' ')[0] : '';
+    let bySpan = td.querySelector('.gc-by');
+    if (ok && by){
+      if (!bySpan){ bySpan = document.createElement('span'); bySpan.className = 'gc-by'; btn.after(bySpan); }
+      bySpan.textContent = by;
+    } else if (bySpan){ bySpan.remove(); }
+    btn.title = ok ? ('Conferido por ' + by) : 'Marcar como conferido';
+  }
+  function gcUpdateProgress(){
+    const items = gcItems();
+    const total = items.length, done = items.filter(it => gcConf[gcKey(it)]).length;
+    const prog = document.getElementById('guConfProgress'); if (prog) prog.textContent = total ? `${done}/${total} conferidos` : '—';
+    const bar = document.getElementById('guConfBarFill'); if (bar) bar.style.transform = `scaleX(${total ? done/total : 0})`;
+    const badge = document.getElementById('guConfBadge'); if (badge){ badge.hidden = !total; badge.textContent = `${done}/${total}`; }
+    const noIdCount = items.filter(it => !gcIds[gcKey(it)]).length;
+    const noIdPill = document.getElementById('guConfNoId'); if (noIdPill){ noIdPill.hidden = noIdCount === 0; noIdPill.textContent = `${noIdCount} sem ID Pokerbyte`; }
+    gcSections().forEach(sec => {
+      const cnt = document.querySelector(`.gc-secwrap[data-sec="${sec.cls}"] .gc-sec .cnt`);
+      if (cnt){ const sd = sec.items.filter(it => gcConf[gcKey(it)]).length; cnt.textContent = `${sd}/${sec.items.length} conferidos`; }
+    });
+  }
+  // tenta refletir a mudança de conferido SEM rebuild. Retorna false (→ cai no gcRender) se não der.
+  function gcApplyConfDelta(oldConf, newConf){
+    const area = document.getElementById('guConfArea');
+    if (!area || !area.querySelector('.gc-secwrap')) return false; // tabela ainda não montada
+    if (gcHideDone) return false;         // marcar esconde a coluna → precisa reconstruir
+    const esc = k => (window.CSS && CSS.escape) ? CSS.escape(k) : k;
+    const keys = new Set([...Object.keys(oldConf || {}), ...Object.keys(newConf || {})]);
+    const pend = [];
+    for (const key of keys){
+      const was = !!(oldConf && oldConf[key]), is = !!(newConf && newConf[key]);
+      if (was === is) continue;
+      const btn = area.querySelector(`.gc-chk[data-gckey="${esc(key)}"]`);
+      if (!btn) return false;             // coluna fora da tela (busca/filtro) → deixa o gcRender cuidar
+      pend.push([btn, is, newConf[key]]);
+    }
+    pend.forEach(([btn, is, entry]) => gcMarkColumn(btn, is, entry));
+    gcUpdateProgress();
+    return true;
+  }
+
   /* ── FONTE DA SHEET EM USO — quem subiu, quando, que arquivo.
      Alerta quando a planilha tem mais de 12h: a GU corrige a Global durante o
      dia e uma versão velha pode estar desatualizada. */
@@ -385,7 +444,13 @@
         gcRender();
       }).catch(()=>{ window._gcSheetLastTs = null; });
     });
-    fbDb.ref(`${BASE}/conf`).on('value', s => { gcConf = s.val() || {}; gcRender(); });
+    fbDb.ref(`${BASE}/conf`).on('value', s => {
+      const prevConf = gcConf;
+      gcConf = s.val() || {};
+      // atualiza só a coluna que mudou (sem rebuild → não mexe no scroll de ninguém);
+      // se a estrutura mudou, cai no gcRender completo
+      if (!gcApplyConfDelta(prevConf, gcConf)) gcRender();
+    });
     fbDb.ref(`${BASE}/ids`).on('value', s => { gcIds = s.val() || {}; gcRender(); });
   }
   // o fbDb só existe depois do init do Firebase — tenta já e re-tenta até conectar
