@@ -992,6 +992,9 @@
 
   /* ---------- HERO ---------- */
   .hero{ position:relative; padding:150px 0 80px; overflow:hidden; }
+  /* mobile: o hero desktop reservava 150px no topo (arte de fundo) — no celular
+     isso vira dead space e empurra a agenda pra muito longe. Encolhe. */
+  @media (max-width:640px){ .hero{ padding:88px 0 32px; } }
   .hero::before{
     content:""; position:absolute; inset:-10% -10% auto -10%; height:680px;
     background:

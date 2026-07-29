@@ -156,7 +156,24 @@
         return setTimeout(waitDb, 200);
       }
       var fb = global.firebase;
-      var base = fb.database().ref('users/' + emailToKey(s.email));
+      var myKey = emailToKey(s.email);
+      // ── AUTO-SINCRONIZAÇÃO do uidIndex (self-heal em TODA página) ──
+      // As regras estritas resolvem o acesso por auth.uid → users/<key>. Esse índice
+      // é gravado no login (hub), mas quem tem sessão de 365 dias e não reloga podia
+      // ficar sem — e aí as regras bloqueavam. Aqui cada operador grava o PRÓPRIO
+      // índice sempre que abre um painel, então ninguém depende do botão do admin.
+      // As regras do uidIndex só deixam apontar pra conta cujo authUid === este uid,
+      // então é seguro. Idempotente: só escreve se estiver faltando/errado.
+      try {
+        var _uid = fb.auth().currentUser && fb.auth().currentUser.uid;
+        if (_uid) {
+          var _idx = fb.database().ref('uidIndex/' + _uid);
+          _idx.once('value').then(function (snap) {
+            if (snap.val() !== myKey) _idx.set(myKey).catch(function () {});
+          }).catch(function () {});
+        }
+      } catch (e) {}
+      var base = fb.database().ref('users/' + myKey);
       var loggedOut = false;
       var logout = function (motivo) {
         if (loggedOut) return;
@@ -189,6 +206,12 @@
           if (!firstA && prevA[p.id] !== now) revogou = true;
           prevA[p.id] = now;
         });
+        // ENFORCEMENT NO BASELINE (1ª leitura): o guard() rodou no <head> com a
+        // sessão VELHA do localStorage e liberou. Se o operador foi revogado deste
+        // painel ENQUANTO estava offline, o banco ao vivo (já espelhado na sessão
+        // acima) diz que ele não tem acesso — expulsa AGORA, não só em transições
+        // futuras. Sem isto, revogação-offline vazava a visualização do painel.
+        if (firstA && panelId && !canAccess(panelId)) revogou = true;
         firstA = false;
         if (revogou) logout(panelId || 'acesso');
       }, function () {});
