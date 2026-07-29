@@ -1202,7 +1202,6 @@ function rowsFromMatrix(matrix, sheet){
 
     const premiacaoRaw = idx.premiacao > -1 ? r[idx.premiacao] : null;
     const isExplicitNF = typeof premiacaoRaw === 'string' && premiacaoRaw.trim().toUpperCase() === 'NF';
-    const premNum = isExplicitNF ? null : (idx.premiacao > -1 ? toNumber(premiacaoRaw) : null);
     const tipoVal = idx.tipo > -1 ? (r[idx.tipo] ? String(r[idx.tipo]).trim() : null) : null;
     const blue = isBlueFill(sheet, i, idx.nome);
     const horaVal = idx.hora > -1 ? excelTimeToString(r[idx.hora]) : null;
@@ -1223,11 +1222,13 @@ function rowsFromMatrix(matrix, sheet){
       late: idx.late > -1 ? excelTimeToString(r[idx.late]) : null,
       garantido: garantidoVal,
       buyin: idx.buyin > -1 ? toNumber(r[idx.buyin]) : null,
-      premiacao: premNum,
-      // premiação que veio da COLUNA da planilha (nunca é escrita no nó premiacao do FB).
-      // A reconciliação do listener não pode anulá-la só porque a chave não está no nó —
-      // era isso que fazia o total "aparecer e ir baixando até zerar" no F5.
-      premFromSheet: premNum != null,
+      // ARRECADADO nunca é pré-preenchido pela planilha — o operador COLETA e digita à mão.
+      // Antes, a coluna "Premiação" da Global caía direto no campo (ex.: "4 Seats OmaX PKO" já
+      // aparecia com 846,45 sem ninguém digitar), o que confundia e inflava o total/overlay.
+      // Só o que o operador digita (nó premiacao do FB) preenche o Arrecadado. "NF" na coluna
+      // continua valendo como marcador de "não formou" (isExplicitNF) — isso não é um valor coletado.
+      premiacao: null,
+      premFromSheet: false,
       explicitNF: isExplicitNF,
       overlay: idx.overlay > -1 ? toNumber(r[idx.overlay]) : null,
       field: idx.field > -1 ? toNumber(r[idx.field]) : null,
@@ -3598,8 +3599,9 @@ function migrateOrphanedWork(newRows){
     if (!target) return;                    // sem correspondente único no quadro novo
     const newKey = rowKey(target);
     if (newKey === oldKey) return;
+    const oldPremOp = oldRow.premiacao != null && !oldRow.premFromSheet; // só premiação DIGITADA pelo operador migra
     const hadWork = FIXED_MAP[oldKey] != null || ID_MAP[oldKey] != null || FIELD_MAP[oldKey] != null ||
-                    GARANTIDO_MAP[oldKey] != null || oldRow.premiacao != null;
+                    GARANTIDO_MAP[oldKey] != null || oldPremOp;
     if (!hadWork) return;
     [[FIXED_MAP,'fixed'], [ID_MAP,'ids'], [FIELD_MAP,'field'], [GARANTIDO_MAP,'garantido']].forEach(([map, node]) => {
       if (map[oldKey] == null || map[newKey] != null) return;
@@ -3611,8 +3613,8 @@ function migrateOrphanedWork(newRows){
         }catch(e){}
       }
     });
-    // premiação vive na própria row + nó próprio no Firebase + backup local
-    if (oldRow.premiacao != null){
+    // premiação vive na própria row + nó próprio no Firebase + backup local (só a do operador migra)
+    if (oldPremOp){
       if (target.premiacao == null) target.premiacao = oldRow.premiacao;
       if (premLocal[oldKey] != null && premLocal[newKey] == null){ premLocal[newKey] = premLocal[oldKey]; delete premLocal[oldKey]; }
       if (fbReady && fbDb){
@@ -3933,7 +3935,10 @@ function ingest(rows, filename, fromRemote=false){
   // re-upload do mesmo dia com valores ajustados: transfere o trabalho já feito pras chaves novas
   const _migrated = migrateOrphanedWork(rows);
   if (_migrated) logActivity(`♻️ Re-upload: ${_migrated} torneio${_migrated>1?'s':''} já trabalhado${_migrated>1?'s':''} tiveram o vínculo preservado (fix/ID/valores migrados pra planilha nova)`);
-  RAW_ROWS = rows.map(r => ({...r, _key: rowKey(r)}));
+  // ARRECADADO nunca vem da planilha: zera qualquer premiação que tenha vindo da COLUNA do sheet
+  // (premFromSheet) — inclusive de sheets antigos já salvos no Firebase/localStorage. O que o
+  // operador digitou vive no nó premiacao do FB e volta pelo resyncPremiacaoFromFirebase() abaixo.
+  RAW_ROWS = rows.map(r => ({...r, _key: rowKey(r), ...(r.premFromSheet ? {premiacao:null, premFromSheet:false} : {})}));
   reindexRows();
   // planilha carregada → re-puxa a premiação salva no Firebase (corrige a corrida de ordem)
   resyncPremiacaoFromFirebase();
@@ -4455,6 +4460,7 @@ function renderUpcoming(){
   const fragment = document.createDocumentFragment();
   let proxDividerAdded = false; // separador visual antes do primeiro card do PRÓX. CRONOGRAMA
   filtered.forEach((t, idx) => {
+   try {
     const cat = classify(t);
     const needsFix = mustFix(t, cat);
     const key = t._key;
@@ -4692,6 +4698,7 @@ function renderUpcoming(){
       </div>
     `;
     fragment.appendChild(el);
+   } catch(_e){ console.error('[renderUpcoming] falhou ao montar torneio:', t && t.nome, _e); }
   });
   grid.appendChild(fragment);
 
