@@ -1380,7 +1380,7 @@ function creationWhen(it){
 }
 
 /* linhas da receita que a operação NÃO usa na criação — fora da tabela e do foco */
-const HIDDEN_RECIPE = /num\.?\s*(de\s*)?players|jogadores|\bchat\b/;
+const HIDDEN_RECIPE = /num\.?\s*(de\s*)?players|jogadores|\bchat\b|\baction\b|size\s*buy/;
 function visibleRecipeFields(){ return creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l)) && !HIDDEN_FIELDS.has(l))); }
 function recipeText(it, cat, fields){
   // Garantido e Buy-in não entram aqui em cima: já saem UMA vez, na posição
@@ -1522,7 +1522,9 @@ function opTagHtml(op){
 /* célula "pegar tarefa": livre → botão pegar; meu → chip "você" (clique solta/passa);
    de outro → chip do dono (clique assume/passa). Tudo abre pelo mesmo reassignItem. */
 function claimCellHtml(c){
-  if (!c.op) return `<button class="claimbtn" data-claim="${c.key}" title="Pegar este torneio pra você">✋ pegar</button>`;
+  // Sem dono: "✋ pegar" (1 clique = pra mim) + "▾" que abre o menu de ATRIBUIR a
+  // OUTRO operador (reassignItem já monta: Assumir pra mim · Passar pra fulano · Soltar).
+  if (!c.op) return `<span class="claim-wrap"><button class="claimbtn" data-claim="${c.key}" title="Pegar este torneio pra você">✋ pegar</button><button class="claimbtn claim-more" data-reassign="${c.key}" title="Atribuir a outro operador" aria-label="Atribuir a outro operador">▾</button></span>`;
   const mine = normText(c.op) === normText(ME);
   return `<button class="op-tag claim-op${mine ? ' mine' : ''}" data-reassign="${c.key}" style="background:${opColor(c.op)}"
     title="${mine ? 'Seu — clique pra soltar ou passar' : 'Clique pra assumir ou passar'}"><span class="dot">${escHtml(c.op.trim()[0].toUpperCase())}</span>${escHtml(c.op.split(' ')[0])}${mine ? ' · você' : ''}</button>`;
@@ -1602,12 +1604,17 @@ function renderList(){
     if (!items.length) return;
     const doneCount = items.filter(it => DONE[itemKey(it)]).length;
     const freeCount = items.filter(it => !asg[itemKey(it)]).length;
+    // Garantido somado do bloco, na moeda em exibição (responsivo: renderList roda
+    // de novo ao trocar a moeda). toDisplayCur cuida de GU=dólar / Liga=real.
+    const gtdSum = items.reduce((s, it) => s + (it.garantido != null ? toDisplayCur(it.garantido, it.brl) : 0), 0);
+    const gtdLabel = (CURRENCY === 'usd' ? '$ ' : 'R$ ') + Math.round(gtdSum).toLocaleString('pt-BR');
     html += `
       <div class="section-head ${cat.cls}">
         ${selBlockBoxHtml(cat.key)}
         <span class="tag"><span class="suit">${cat.suit}</span>${cat.label}</span>
         <span class="cnt">${doneCount}/${items.length} criados</span>
         <span class="line"></span>
+        <span class="gtd-total" title="Garantido somado de todos os eventos deste bloco (${items.length}), na moeda atual">Σ Garantido ${gtdLabel}</span>
         ${freeCount ? `<button class="blockclaim" data-claimfree="${cat.key}" title="Pegar pra mim todos os ${freeCount} torneios livres deste bloco">✋ Pegar livres (${freeCount})</button>` : ''}
         <button class="vmini blockfs" data-blockfs="${cat.key}" title="Tela cheia deste bloco">⛶</button>
       </div>
@@ -1763,6 +1770,45 @@ function renderVertical(items, cat, asg){
   const rows = (cat.fields || visibleRecipeFields()).filter(l => !feeCols.has(l) && !HIDDEN_FIELDS.has(l));
   // cat.plain (Liga): sem os mini-botões mover/foco/tela-cheia — eles dependem da grade DATA
   const plain = !!cat.plain;
+  // ── ORDEM DA RECEITA (formato que o Brian pediu) ──
+  // Campos dinâmicos LIDERAM. Admin Fee (calculado) entra logo após o RAKE e Early
+  // Bird logo após o LATE REG. Horário/Criar em vão pro FIM (antes de Operador).
+  // Admin Fee e Early Bird são linhas CALCULADAS (não colunas cruas): se o
+  // RAKE/LATE REG não vier como coluna, caem no fim do bloco dinâmico (fallback —
+  // nunca somem). "Hour late register" é coluna crua, então fica junto no dinâmico.
+  const adminRow = `<tr><th class="rowlab">Admin Fee</th>${cell(c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>`;
+  const earlyRow = `<tr><th class="rowlab">Early Bird</th>${cell(c => { const p = earlyParts(c.it); return p ? `<span class="calc-chip early">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>`;
+  const dynField = label => `<tr><th class="rowlab hideable ${keyLabels.has(label) ? 'key' : ''}" title="${escHtml(label)}"><span class="rl-txt">${escHtml(label)}</span><button class="rl-hide" data-hidefield="${escHtml(label)}" title="Ocultar a linha ${escHtml(label)}" aria-label="Ocultar linha ${escHtml(label)}">${EYE_OPEN}</button></th>${cell(c => recipeValueCellHtml(c.it, label, ctx))}</tr>`;
+  const horarioRow = `<tr><th class="rowlab">Horário</th>${cell(c => `<span class="thora">${escHtml(c.it.hora)}</span>`)}</tr>`;
+  const criarEmRow = `<tr><th class="rowlab key">Criar em</th>${cell(c => `<span class="mono" style="font-weight:700">${escHtml(creationWhen(c.it))}</span>`)}</tr>`;
+  const campanhaRow = cols.some(c => hasCampaign(c.it)) ? `<tr><th class="rowlab">Campanha</th>${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : '';
+  const grupoRow = cat.key === 'sat' ? `<tr><th class="rowlab">Grupo</th>${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : '';
+  const lateFallback = `<tr><th class="rowlab">Late reg</th>${cell(c => `<span class="mono" style="color:var(--ink-soft)">${c.it.late ? escHtml(c.it.late) : '—'}</span>`)}</tr>`;
+  let middle;
+  if (plain){
+    // PRINCIPAL (Liga): ordem ANTIGA — o Brian pediu "pode manter". Horário/Criar em
+    // e Admin Fee/Early Bird no topo, campos dinâmicos depois. Sem a nova ancoragem.
+    middle = horarioRow + criarEmRow + adminRow + earlyRow + campanhaRow + grupoRow
+      + (rows.length ? rows.map(dynField).join('') : lateFallback);
+  } else {
+    // GU: NOVA ordem (formato do Brian) — dinâmicos lideram, Admin Fee na posição do
+    // RAKE (antes do STRUCTURE), Early Bird após o LATE REG, Horário/Criar em no fim.
+    let adminPlaced = false, earlyPlaced = false, dynHtml;
+    if (rows.length){
+      dynHtml = rows.map(label => {
+        const nl = normText(label);
+        let out = '';
+        if (!adminPlaced && (nl.includes('structure') || nl.includes('estrutura'))){ out += adminRow; adminPlaced = true; }
+        out += dynField(label);
+        if (!adminPlaced && (nl === 'rake' || (nl.includes('taxa') && nl.includes('servico')))){ out += adminRow; adminPlaced = true; }
+        if (!earlyPlaced && (nl.includes('registro tardio') || nl.includes('lat reg') || nl.includes('late reg'))){ out += earlyRow; earlyPlaced = true; }
+        return out;
+      }).join('');
+    } else dynHtml = lateFallback;
+    if (!adminPlaced) dynHtml += adminRow;
+    if (!earlyPlaced) dynHtml += earlyRow;
+    middle = campanhaRow + grupoRow + dynHtml + horarioRow + criarEmRow;
+  }
   return `
     <div class="vwrap"><table class="vtable">
       <tr class="trow-head"><th class="rowlab">Torneio</th>${cell(c => {
@@ -1775,15 +1821,7 @@ function renderVertical(items, cat, asg){
           + (urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(c.it)}</span>` : '')
           + (m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : '');
       }, 'vname', mineCls)}</tr>
-      <tr><th class="rowlab">Horário</th>${cell(c => `<span class="thora">${escHtml(c.it.hora)}</span>`)}</tr>
-      <tr><th class="rowlab key">Criar em</th>${cell(c => `<span class="mono" style="font-weight:700">${escHtml(creationWhen(c.it))}</span>`)}</tr>
-      <tr><th class="rowlab">Admin Fee</th>${cell(c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
-      <tr><th class="rowlab">Early Bird</th>${cell(c => { const p = earlyParts(c.it); return p ? `<span class="calc-chip early">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
-      ${cols.some(c => hasCampaign(c.it)) ? `<tr><th class="rowlab">Campanha</th>${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : ''}
-      ${cat.key === 'sat' ? `<tr><th class="rowlab">Grupo</th>${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : ''}
-      ${rows.length
-        ? rows.map(label => `<tr><th class="rowlab hideable ${keyLabels.has(label) ? 'key' : ''}" title="${escHtml(label)}"><span class="rl-txt">${escHtml(label)}</span><button class="rl-hide" data-hidefield="${escHtml(label)}" title="Ocultar a linha ${escHtml(label)}" aria-label="Ocultar linha ${escHtml(label)}">${EYE_OPEN}</button></th>${cell(c => recipeValueCellHtml(c.it, label, ctx))}</tr>`).join('')
-        : `<tr><th class="rowlab">Late reg</th>${cell(c => `<span class="mono" style="color:var(--ink-soft)">${c.it.late ? escHtml(c.it.late) : '—'}</span>`)}</tr>`}
+      ${middle}
       <tr><th class="rowlab">Operador</th>${cell(c => claimCellHtml(c), '', mineCls)}</tr>
       <tr><th class="rowlab">ID Pokerbyte</th>${cell(c => idInputHtml(c.key, 'width:110px'))}</tr>
       <tr><th class="rowlab">Criado</th>${cell(c => `
@@ -2043,7 +2081,7 @@ function reassignItem(anchor, key){
   OPS.filter(o => o !== cur && normText(o) !== normText(me || '')).forEach(o =>
     opts.push({label:`Passar pra ${o.split(' ')[0]}`, color:opColor(o), initial:o.trim()[0].toUpperCase(),
       onPick: () => { OVERRIDES[key] = o; saveOverrides(); logEvent('passou torneio', `${key} → ${o}`); renderAll(); renderFocus(); }}));
-  opts.push({label:'Soltar (deixar livre)', color:'var(--ink-soft)', initial:'✕', onPick: () => releaseItem(key)});
+  if (cur) opts.push({label:'Soltar (deixar livre)', color:'var(--ink-soft)', initial:'✕', onPick: () => releaseItem(key)});  // só faz sentido se já tem dono
   const it = findItemByKey(key);
   openPickMenu(anchor, cur ? `"${(it && it.nome) || 'torneio'}" — de ${cur.split(' ')[0]}` : 'Atribuir torneio', opts);
 }
@@ -2102,8 +2140,8 @@ const EYE_OPEN = `<svg viewBox="0 0 24 24" class="eye"><path d="M2 12s3.6-7 10-7
 const EYE_OFF  = `<svg viewBox="0 0 24 24" class="eye"><path d="M9.9 5.1A9.5 9.5 0 0 1 12 5c6.4 0 10 7 10 7a17.7 17.7 0 0 1-2.2 3.1M6.2 6.2A17.7 17.7 0 0 0 2 12s3.6 7 10 7a9.3 9.3 0 0 0 4-.9"/><path d="m3 3 18 18"/></svg>`;
 function fsEscHandler(e){
   if (e.key === 'Escape'){ closeFullscreenView(); return; }
-  // no modo Evento as setas do teclado trocam de torneio
-  if (FS && FS.mode === 'event'){
+  // no modo Evento (ou single Planilha/Colunas) as setas do teclado trocam de torneio
+  if (FS && (FS.mode === 'event' || FS.single)){
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown'){ e.preventDefault(); fsStep(1); }
     else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp'){ e.preventDefault(); fsStep(-1); }
   }
@@ -2222,7 +2260,8 @@ function openTourFullscreen(it){
   let idx = items.findIndex(x => itemKey(x) === itemKey(it));
   if (idx < 0) idx = 0;
   mountFullscreenView();
-  FS = { catKey, mode: 'event', idx };
+  // single: abriu UM torneio. Nos modos Planilha/Colunas mostra só ELE (não o bloco).
+  FS = { catKey, mode: 'event', idx, single: true };
   renderFS();
 }
 function renderFS(){
@@ -2232,21 +2271,33 @@ function renderFS(){
   const items = fsItems(FS.catKey);
   if (!items.length){ showToast('Bloco vazio.'); closeFullscreenView(); return; }
   FS.idx = Math.max(0, Math.min(FS.idx, items.length - 1));
+  // single = abriu UM torneio: Planilha/Colunas mostram só ELE (não o bloco inteiro).
+  const single = !!FS.single, multi = items.length > 1;
+  const bodyItems = single ? [items[FS.idx]] : items;
   const seg = [['sheet','▥ Planilha'], ['cols','▤ Colunas'], ['event','⛶ Evento']]
     .map(([m, lab]) => `<button class="fs-seg-btn ${FS.mode === m ? 'on' : ''}" data-fsmode="${m}">${lab}</button>`).join('');
   // preserva rolagem da planilha/colunas entre re-renders (sync ao vivo não teleporta)
   const prevScrollEl = FS_EL.querySelector('.fs-sheet, .fs-block-body');
   const scroll = prevScrollEl ? {t: prevScrollEl.scrollTop, l: prevScrollEl.scrollLeft} : null;
   let body;
-  if (FS.mode === 'sheet') body = fsSheetHtml(items, cat, asg);
-  else if (FS.mode === 'cols') body = `<div class="fs-block-body">${renderVertical(items, cat, asg)}</div>`;
-  else body = fsEventHtml(items, cat, asg);
+  if (FS.mode === 'sheet') body = fsSheetHtml(bodyItems, cat, asg);
+  else if (FS.mode === 'cols') body = `<div class="fs-block-body">${renderVertical(bodyItems, cat, asg)}</div>`;
+  else body = fsEventHtml(items, cat, asg);   // Evento: usa o bloco todo p/ as setas internas
+  // no single, as setas de navegar aparecem TAMBÉM em Planilha/Colunas
+  const singleNav = single && multi && FS.mode !== 'event';
+  const navArrows = singleNav
+    ? `<button class="fs-arrow prev" data-fsprev aria-label="Torneio anterior">‹</button><button class="fs-arrow next" data-fsnext aria-label="Próximo torneio">›</button>`
+    : '';
+  const titleTxt = single
+    ? `${escHtml(items[FS.idx].nome)} <span class="fs-count">${FS.idx + 1} / ${items.length}</span>`
+    : `${cat.label} <span class="fs-count">${items.length} torneios</span>`;
   const el = setFullscreenBody(`
-    <div class="fs-view ${cat.cls} mode-${FS.mode}">
+    <div class="fs-view ${cat.cls} mode-${FS.mode}${single ? ' fs-single' : ''}">
       <div class="fs-head">
-        <div class="fs-title"><span class="suit">${cat.suit}</span>${cat.label} <span class="fs-count">${items.length} torneios</span></div>
+        <div class="fs-title"><span class="suit">${cat.suit}</span>${titleTxt}</div>
         <div class="fs-seg">${seg}</div>
       </div>
+      ${navArrows}
       ${body}
     </div>`);
   el.querySelectorAll('[data-fsmode]').forEach(b => b.addEventListener('click', e => {
@@ -2260,11 +2311,10 @@ function renderFS(){
   wireVerticalArea(el, { closeFsFirst: true });
   wireFsCopy(el);
   if (scroll){ const s = el.querySelector('.fs-sheet, .fs-block-body'); if (s){ s.scrollTop = scroll.t; s.scrollLeft = scroll.l; } }
-  if (FS.mode === 'event'){
-    const p = el.querySelector('[data-fsprev]'), n = el.querySelector('[data-fsnext]');
-    if (p) p.addEventListener('click', e => { e.stopPropagation(); fsStep(-1); });
-    if (n) n.addEventListener('click', e => { e.stopPropagation(); fsStep(1); });
-  }
+  // setas: modo Evento (dentro do fsEventHtml) OU single Planilha/Colunas (navArrows)
+  const p = el.querySelector('[data-fsprev]'), n = el.querySelector('[data-fsnext]');
+  if (p) p.addEventListener('click', e => { e.stopPropagation(); fsStep(-1); });
+  if (n) n.addEventListener('click', e => { e.stopPropagation(); fsStep(1); });
 }
 function fsStep(d){
   if (!FS) return;

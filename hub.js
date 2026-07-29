@@ -60,8 +60,15 @@
      o portão (SupremaAuth.guard) — aqui é o reflexo no hub + trava do clique. */
   function canAccessHub(id){
     if(!session) return false;
+    // Fonte ÚNICA de verdade: o mesmo canAccess que o guard dos painéis e a tela de
+    // Operadores usam. Antes o hub reimplementava com `=== true` e IGNORAVA os
+    // painéis `def` (painel/gu, liberados por padrão) — então quem tinha Criação
+    // Noturna por padrão via "Vê" no admin mas NÃO via o tile no hub. Delegar
+    // mata a divergência (respeita def, revogação explícita, adminOnly).
+    if(window.SupremaAuth && SupremaAuth.canAccess) return SupremaAuth.canAccess(id);
+    // fallback só se o auth não tiver carregado (não deveria acontecer)
     if(isAdmin(session.email) || session.admin === true) return true;
-    if(id === 'admin') return false;                 // admin só pra admin
+    if(id === 'admin') return false;
     return !!(session.access && session.access[id] === true);
   }
   const panelTilesWired = new Set();

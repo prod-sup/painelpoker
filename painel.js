@@ -2964,6 +2964,17 @@ function getIdBy(key){
 function cardResponsibleName(key){
   return fixedBy(key) || premBy(key) || getIdBy(key) || '';
 }
+/* TODOS que tiveram envolvimento no torneio (conjunto de nomes em minúsculo):
+   quem fixou, quem preencheu premiação/field, quem preencheu o ID. É a base do
+   filtro "Meus": basta EU ter mexido em qualquer coisa — não importa se outro
+   também mexeu. (fixedBy/premBy/idBy guardam o ÚLTIMO de cada campo; casos de
+   3+ mãos no MESMO campo com sobrescrita são a única exceção, rara.) */
+function cardInvolvedNames(key){
+  const set = new Set();
+  const add = n => { const v = (n || '').trim().toLowerCase(); if (v) set.add(v); };
+  add(fixedBy(key)); add(premBy(key)); add(getIdBy(key));
+  return set;
+}
 function setId(key, val){
   if (roGuard()) return;
   if(val){
@@ -3022,8 +3033,9 @@ function getGarantidoEffective(key){
 }
 function setGarantidoOverride(key, val){
   if (roGuard()) return;
-  const n = val === '' || val == null ? null : parseFloat(String(val).replace(/[^\d.,]/g,'').replace(',','.'));
-  if(n != null && !isNaN(n) && n > 0){
+  // mantém o "-" (permite garantido NEGATIVO/zero, como o Brian pediu — ajuste manual)
+  const n = val === '' || val == null ? null : parseFloat(String(val).replace(/[^\d.,-]/g,'').replace(',','.'));
+  if(n != null && !isNaN(n)){
     GARANTIDO_MAP[key] = n;
     // também atualiza o row em memória para que computeStats e exports usem o valor correto
     const row = rowByKey(key);
@@ -3809,7 +3821,7 @@ function renderPrincipais(){
         </div>
         <div class="tcard-op-field">
           <label class="tcard-prem-label">Field (jogadores)</label>
-          <input type="number" step="1" min="0" placeholder="—" class="tcard-field-input" data-key="${key}"
+          <input type="number" step="1" placeholder="—" class="tcard-field-input" data-key="${key}"
             value="${getField(key) || ''}" oninput="onCardFieldInput(this)">
         </div>
       </div>
@@ -4273,9 +4285,15 @@ function renderUpcoming(){
   if (_opFilter !== 'all'){
     const me = (OPERATOR_NAME || '').trim().toLowerCase();
     filtered = filtered.filter(t => {
-      const owner = cardResponsibleName(t._key).trim().toLowerCase();
-      if (!owner) return false;
-      return _opFilter === 'me' ? owner === me : owner !== me;
+      // ENVOLVIMENTO (não "dono único"): "Meus" = eu mexi em algo (fixei OU preenchi
+      // premiação/field OU ID), mesmo que outro operador também tenha mexido.
+      // "Parceiro" = alguém que não sou eu teve envolvimento. Um card tocado por
+      // nós dois aparece nos dois filtros — é o comportamento esperado.
+      const inv = cardInvolvedNames(t._key);
+      if (!inv.size) return false;
+      if (_opFilter === 'me') return inv.has(me);
+      for (const n of inv) if (n !== me) return true;
+      return false;
     });
   }
   if (upcomingPremFilter !== 'all'){
@@ -4436,7 +4454,7 @@ function renderUpcoming(){
                     : '<td class="ctr-ov'+ovCls+'" data-label="Overlay" id="tci-ov-'+key+'">'+ovTxt+'</td>';
       const fieldTd = t.proxCronograma ? '<td class="ctr-sofixar" data-label="Field" style="padding:3px 5px;color:var(--ink-soft)">\u2014</td>'
                     : '<td data-label="Field" style="padding:3px 5px"><input class="ctr-inp tcard-field-input"'
-                    + ' data-key="'+key+'" type="number" min="0"'
+                    + ' data-key="'+key+'" type="number"'
                     + ' placeholder="\u2014" value="'+(fieldVal!=null?fieldVal:'')+'"></td>';
       const idTd    = '<td data-label="ID" style="padding:3px 5px"><div style="display:flex;gap:4px;align-items:center">'
                     + '<input class="ctr-inp-id id-input'+(currentId?' has-value':'')+'" style="flex:1;min-width:104px"'
@@ -4563,7 +4581,7 @@ function renderUpcoming(){
         </div>
         <div class="tcard-op-field">
           <label class="tcard-prem-label">Field (jogadores)</label>
-          <input type="number" step="1" min="0" placeholder="—" class="tcard-field-input" data-key="${key}"
+          <input type="number" step="1" placeholder="—" class="tcard-field-input" data-key="${key}"
             value="${getField(key) || ''}"
             oninput="onCardFieldInput(this)">
         </div>
@@ -6158,7 +6176,9 @@ function onCardPremiacaoInput(input){
       return;
     }
     const premiacaoVal = parsePremInput(input);
-    if(premiacaoVal != null && premiacaoVal > 0){
+    // Aceita 0 e NEGATIVO (o Brian pediu): '0' = torneio sem prêmio / ajuste;
+    // negativo = correção manual. Vazio (null) continua caindo no ramo de apagar.
+    if(premiacaoVal != null){
       warnIfPremSuspeita(input, row, premiacaoVal);
       applyPremiacaoValue(key, premiacaoVal, `<b>${OPERATOR_NAME||'Você'}</b> preencheu premiação de <b>${row?.nome||key}</b>: R$ ${fmtBRL(premiacaoVal,0)}`);
     } else if(input.value.trim() === '' && row.premiacao){
@@ -8701,7 +8721,7 @@ function parsePremInput(inp){
         // eslint-disable-next-line no-eval
         const result = eval(safe);
         const num = parseFloat(result);
-        if(!isNaN(num) && num > 0) return Math.round(num * 100) / 100;
+        if(!isNaN(num)) return Math.round(num * 100) / 100;   // aceita 0 e negativo (ajuste)
       }
     } catch(e){}
     return null; // operação inválida
@@ -8714,7 +8734,8 @@ function parsePremInput(inp){
     s = s.replace(/\./g,'').replace(',','.');  // remove pontos de milhar, troca vírgula
   }
   const num = parseFloat(s);
-  return isNaN(num) || num <= 0 ? null : Math.round(num * 100) / 100;
+  // aceita 0 e NEGATIVO (o Brian pediu). Vazio/inválido → null (cai no ramo de apagar).
+  return isNaN(num) ? null : Math.round(num * 100) / 100;
 }
 
 function patchCardFields(key){
