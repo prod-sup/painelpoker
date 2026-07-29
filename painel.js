@@ -2509,50 +2509,7 @@ function initFirebaseSync(){
     // só anexa com auth viva: senão, numa recarga, o RTDB nega a leitura e cancela
     // o listener — e a premiação some ("0 fechados") até religar por acaso.
     whenAuthed(() => {
-    fbDb.ref(`${FB_BASE_PATH}/premiacao`).on('value', snap => {
-      const data = snap.val() || {};
-      let changed = false;
-      // Aplicar novas premiações
-      Object.entries(data).forEach(([key, val]) => {
-        const row = rowByKey(key);
-        if(row && row.premiacao !== val){
-          row.premiacao = val; changed = true;
-          try {
-            const pm = JSON.parse(localStorage.getItem('suprema_prem_v1') || '{}');
-            pm[key] = val;
-            localStorage.setItem('suprema_prem_v1', JSON.stringify(pm));
-          } catch(e){}
-          if(changed){
-            const r2 = rowByKey(key);
-            if(r2) logActivity(`<b>${'Parceiro'}</b> preencheu premiação de <b>${r2.nome}</b>: R$ ${fmtBRL(val,0)}`, '🔄');
-          }
-          const inp = document.querySelector(`.tcard-prem-input[data-key="${key}"]`);
-          if(inp && document.activeElement !== inp){
-            // Formatar como BRL ao receber do Firebase
-            inp.value = val != null ? fmtBRL(val, val % 1 === 0 ? 0 : 2) : '';
-          }
-          renderCardOverlayPreview(key, row, val, getField(key));
-        }
-      });
-      // Remover premiações apagadas pelo parceiro — mas SÓ quando o nó tem dados.
-      // Nó vazio (dia novo/virada, ou ainda não populado) NÃO significa "tudo apagado":
-      // antes, isso zerava as premiações que vieram da própria planilha (elas apareciam
-      // e sumiam). "Ausente" só conta como exclusão quando há um mapa real no Firebase.
-      const premHasData = Object.keys(data).length > 0;
-      if(premHasData) RAW_ROWS.forEach(r => {
-        // só anula se a chave JÁ esteve no nó e agora sumiu (exclusão real do operador).
-        // planilha (premFromSheet) ou reatada por nome+hora nunca estiveram no nó → não tocar.
-        if(r.premiacao != null && !r.premFromSheet && PREM_FB_KEYS_SEEN.has(r._key) && data[r._key] == null){ r.premiacao = null; changed = true; }
-      });
-      Object.keys(data).forEach(k => PREM_FB_KEYS_SEEN.add(k));
-      if(changed || RAW_ROWS.length){
-        RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
-        UPCOMING = [...RAW_ROWS];
-        // os renders vão pro agendador: se fixed/field/garantido chegarem na mesma
-        // rajada (típico do load), o rebuild pesado roda UMA vez, não uma por nó
-        scheduleUI('unfixed', 'stats', 'results', 'upcoming');
-      }
-    });
+    fbDb.ref(`${FB_BASE_PATH}/premiacao`).on('value', snap => applyFbPremiacao(snap.val() || {}));
     });  // fim do whenAuthed (premiação)
 
     // ── Fixados ───────────────────────────────────────────────────────────
@@ -2573,6 +2530,7 @@ function initFirebaseSync(){
     fbDb.ref(`${FB_BASE_PATH}/premBy`).on('value', snap => {
       PREM_BY_MAP = snap.val() || {};
       savePremByMapLocal(PREM_BY_MAP);
+      applyFbPremiacao(); // premBy mudou → re-aplica a regra (libera valores que estavam sem carimbo, ou zera os que perderam)
       if(RAW_ROWS.length) scheduleUI('results');
     });
 
@@ -2997,6 +2955,52 @@ function stampPremBy(key){
   savePremByMapLocal(PREM_BY_MAP);
   if (fbReady){
     fbDb.ref(`${FB_BASE_PATH}/premBy/${key}`).set(PREM_BY_MAP[key]).catch(() => {}); // falha silenciosa — não é crítico, "responsável" já ficou salvo localmente
+  }
+}
+/* ÚNICA porta de entrada do ARRECADADO vindo do Firebase. REGRA ABSOLUTA: um valor só chega
+   ao campo se ALGUÉM preencheu (existe premBy pra ele). Valor sem premBy = vazou (planilha/bug/
+   parceiro em código velho) → NUNCA é exibido e ainda é apagado do nó do dia. Os dois listeners
+   (premiacao E premBy) chamam isto, então mudar qualquer um dos dois re-aplica a regra. */
+let _fbPremSnap = {};
+function applyFbPremiacao(data){
+  if(data) _fbPremSnap = data; else data = _fbPremSnap || {};
+  let changed = false;
+  Object.entries(data).forEach(([key, val]) => {
+    const row = rowByKey(key);
+    if(!row) return;
+    const hasBy = !!(PREM_BY_MAP && PREM_BY_MAP[key]);   // quem preencheu — o carimbo do operador
+    if(!hasBy){
+      // arrecadado no Firebase que NINGUÉM preencheu → NUNCA exibe (trata como vazio). Não apago do
+      // FB aqui de propósito: o premBy do parceiro pode estar CHEGANDO (ele acabou de digitar) e um
+      // remove no meio da corrida apagaria valor legítimo. A faxina do FB fica só no load (resync,
+      // que lê premiacao+premBy no MESMO instante). Aqui a garantia é de EXIBIÇÃO, e é à prova de tudo.
+      if(row.premiacao != null){ row.premiacao = null; changed = true;
+        try{ const pm = JSON.parse(localStorage.getItem('suprema_prem_v1')||'{}'); if(pm[key]!=null){ delete pm[key]; localStorage.setItem('suprema_prem_v1', JSON.stringify(pm)); } }catch(e){}
+        const inp0 = document.querySelector(`.tcard-prem-input[data-key="${key}"]`);
+        if(inp0 && document.activeElement !== inp0) inp0.value = '';
+        renderCardOverlayPreview(key, row, null, getField(key));
+      }
+      return;
+    }
+    if(row.premiacao !== val){
+      row.premiacao = val; changed = true;
+      try{ const pm = JSON.parse(localStorage.getItem('suprema_prem_v1')||'{}'); pm[key] = val; localStorage.setItem('suprema_prem_v1', JSON.stringify(pm)); }catch(e){}
+      if(val != null) logActivity(`<b>Parceiro</b> preencheu premiação de <b>${row.nome}</b>: R$ ${fmtBRL(val,0)}`, '🔄');
+      const inp = document.querySelector(`.tcard-prem-input[data-key="${key}"]`);
+      if(inp && document.activeElement !== inp) inp.value = val != null ? fmtBRL(val, val % 1 === 0 ? 0 : 2) : '';
+      renderCardOverlayPreview(key, row, val, getField(key));
+    }
+  });
+  // exclusão real do parceiro: chave que ESTAVA no nó e sumiu (só conta com nó populado)
+  const premHasData = Object.keys(data).length > 0;
+  if(premHasData) RAW_ROWS.forEach(r => {
+    if(r.premiacao != null && !r.premFromSheet && PREM_FB_KEYS_SEEN.has(r._key) && data[r._key] == null){ r.premiacao = null; changed = true; }
+  });
+  Object.keys(data).forEach(k => PREM_FB_KEYS_SEEN.add(k));
+  if(changed || RAW_ROWS.length){
+    RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
+    UPCOMING = [...RAW_ROWS];
+    scheduleUI('unfixed', 'stats', 'results', 'upcoming');
   }
 }
 function getId(key){
@@ -3603,7 +3607,7 @@ function migrateOrphanedWork(newRows){
     const hadWork = FIXED_MAP[oldKey] != null || ID_MAP[oldKey] != null || FIELD_MAP[oldKey] != null ||
                     GARANTIDO_MAP[oldKey] != null || oldPremOp;
     if (!hadWork) return;
-    [[FIXED_MAP,'fixed'], [ID_MAP,'ids'], [FIELD_MAP,'field'], [GARANTIDO_MAP,'garantido']].forEach(([map, node]) => {
+    [[FIXED_MAP,'fixed'], [ID_MAP,'ids'], [FIELD_MAP,'field'], [GARANTIDO_MAP,'garantido'], [PREM_BY_MAP,'premBy']].forEach(([map, node]) => {
       if (map[oldKey] == null || map[newKey] != null) return;
       map[newKey] = map[oldKey]; delete map[oldKey];
       if (fbReady && fbDb){
@@ -3700,7 +3704,7 @@ function recoverPremiacaoFromSnapshot(applyRerender){
       if(sr.premiacao == null) return;
       if(!sr.premPor) return; // só reata premiação que um OPERADOR preencheu (tem premPor) — nunca a que caiu da planilha
       const id = norm(sr.nome, sr.hora);
-      byIdent.set(id, byIdent.has(id) ? null : sr.premiacao);
+      byIdent.set(id, byIdent.has(id) ? null : { prem: sr.premiacao, premPor: sr.premPor });
     });
     if(!byIdent.size) return;
     // linhas atuais com identidade duplicada também são ambíguas → não arrisca
@@ -3711,12 +3715,16 @@ function recoverPremiacaoFromSnapshot(applyRerender){
       const id = norm(r.nome, r.hora);
       if(curCount.get(id) !== 1) return;      // duplicado no quadro atual → ambíguo
       const val = byIdent.get(id);
-      if(val == null) return;                 // sem match único no snapshot
-      r.premiacao = val; recovered++;
-      try{ const pm = JSON.parse(localStorage.getItem('suprema_prem_v1')||'{}'); pm[r._key] = val; localStorage.setItem('suprema_prem_v1', JSON.stringify(pm)); }catch(e){}
-      // re-grava na CHAVE NOVA pra persistir (a antiga fica órfã, inofensiva; a reconciliação
-      // por SEEN não a anula porque a chave nova nunca "sumiu" do nó)
-      try{ fbDb.ref(`${FB_BASE_PATH}/premiacao/${r._key}`).set(val); }catch(e){}
+      if(val == null) return;                 // sem match único no snapshot (ou ambíguo)
+      r.premiacao = val.prem; recovered++;
+      // carimba QUEM preencheu na chave nova — a regra do arrecadado exige premBy pra o valor
+      // poder ser exibido (senão o gate trataria como vazamento e esconderia o valor legítimo).
+      PREM_BY_MAP[r._key] = { by: val.premPor, at: Date.now() };
+      savePremByMapLocal(PREM_BY_MAP);
+      try{ const pm = JSON.parse(localStorage.getItem('suprema_prem_v1')||'{}'); pm[r._key] = val.prem; localStorage.setItem('suprema_prem_v1', JSON.stringify(pm)); }catch(e){}
+      // re-grava premiação + premBy na CHAVE NOVA pra persistir (a antiga fica órfã, inofensiva)
+      try{ fbDb.ref(`${FB_BASE_PATH}/premiacao/${r._key}`).set(val.prem); }catch(e){}
+      try{ fbDb.ref(`${FB_BASE_PATH}/premBy/${r._key}`).set(PREM_BY_MAP[r._key]); }catch(e){}
     });
     if(recovered){
       logActivity(`♻️ ${recovered} premiaç${recovered>1?'ões':'ão'} reatada${recovered>1?'s':''} do snapshot após a grade nova (vínculo restaurado por nome+hora)`, '💾');
@@ -8795,6 +8803,7 @@ function doUndo(){
   if(!row) return;
   // Restaurar valor anterior
   row.premiacao = last.oldVal;
+  if(last.oldVal != null) stampPremBy(last.key); // carimba quem preencheu — a regra do arrecadado exige premBy pra exibir
   if(fbReady){
     if(last.oldVal != null) fbDb.ref(`${FB_BASE_PATH}/premiacao/${last.key}`).set(last.oldVal);
     else fbDb.ref(`${FB_BASE_PATH}/premiacao/${last.key}`).remove();
@@ -8988,33 +8997,7 @@ function reinitDayListeners(){
 
   // Premiação — só anexa com auth viva (mesmo motivo do listener do load)
   whenAuthed(() => {
-  fbDb.ref(`${FB_BASE_PATH}/premiacao`).on('value', snap => {
-    const data = snap.val() || {};
-    let changed = false;
-    Object.entries(data).forEach(([key, val]) => {
-      const row = rowByKey(key);
-      if(row && row.premiacao !== val){ row.premiacao = val; changed = true;
-        try{ const pm=JSON.parse(localStorage.getItem('suprema_prem_v1')||'{}'); pm[key]=val; localStorage.setItem('suprema_prem_v1',JSON.stringify(pm)); }catch(e){}
-        const inp = document.querySelector(`.tcard-prem-input[data-key="${key}"]`);
-        if(inp && document.activeElement !== inp){
-          inp.value = val != null ? fmtBRL(val, val % 1 === 0 ? 0 : 2) : '';
-        }
-        renderCardOverlayPreview(key, row, val, getField(key));
-      }
-    });
-    // só reconcilia exclusões quando o nó tem dados (ver comentário no listener gêmeo):
-    // nó vazio não é "tudo apagado", senão zera as premiações vindas da planilha
-    const premHasData = Object.keys(data).length > 0;
-    if(premHasData) RAW_ROWS.forEach(r => { if(r.premiacao!=null && !r.premFromSheet && PREM_FB_KEYS_SEEN.has(r._key) && data[r._key]==null){ r.premiacao=null; changed=true; } });
-    Object.keys(data).forEach(k => PREM_FB_KEYS_SEEN.add(k));
-    if(changed||RAW_ROWS.length){
-      RESULTS  = RAW_ROWS.filter(r=>r.premiacao!==null&&r.premiacao!==undefined);
-      UPCOMING = [...RAW_ROWS];
-      // SEMPRE re-renderiza: o próprio scheduleRenderAll decide o que barrar (só o rebuild
-      // dos cards respeita foco/eco). Gatear aqui fora congelava os KPIs em R$ 0.
-      scheduleRenderAll();
-    }
-  });
+  fbDb.ref(`${FB_BASE_PATH}/premiacao`).on('value', snap => applyFbPremiacao(snap.val() || {}));
   });  // fim do whenAuthed (premiação)
 
   // Fixados
@@ -9035,6 +9018,7 @@ function reinitDayListeners(){
   // os cards "sumirem" até o IntersectionObserver revelar de novo)
   fbDb.ref(`${FB_BASE_PATH}/premBy`).on('value', snap => {
     PREM_BY_MAP = snap.val() || {}; savePremByMapLocal(PREM_BY_MAP);
+    applyFbPremiacao(); // premBy mudou → re-aplica a regra (libera/zera arrecadado conforme o carimbo)
     if(RAW_ROWS.length) scheduleUI('results');
   });
 
