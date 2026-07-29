@@ -235,7 +235,11 @@
     // VERTICAL (campos = linhas, com max-height própria). O bug era guardar só o scrollLeft —
     // quem estava lá embaixo (Structure/Add-on) e marcava o ✓ (linha Action, no fim) voltava
     // pro topo. Guardamos scrollLeft E scrollTop de cada seção + o vertical do drawer.
-    const _prevSc = [].map.call(area.querySelectorAll('.gc-scroll'), el => ({ x: el.scrollLeft, y: el.scrollTop }));
+    const _prevSc = {};
+    area.querySelectorAll('.gc-secwrap').forEach(w => {
+      const sc = w.querySelector('.gc-scroll');
+      if (sc) _prevSc[w.dataset.sec] = { x: sc.scrollLeft, y: sc.scrollTop };
+    });
     const _scroller = area.closest('.drawer-body') || area;
     const _prevY = _scroller ? _scroller.scrollTop : 0;
     const dayLbl = document.getElementById('guConfDayLbl');
@@ -307,10 +311,20 @@
         </div>`;
     });
     area.innerHTML = html || `<div class="gc-empty"><span class="ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3C7 8 3 12 3 15.5A4 4 0 0 0 11 17.3C10.6 19.4 9.5 20.6 7 21.5H17C14.5 20.6 13.4 19.4 13 17.3A4 4 0 0 0 21 15.5C21 12 17 8 12 3Z"/></svg></span>Nada nesse filtro.</div>`;
-    // restaura o scroll guardado no topo da função (horizontal + vertical por seção, e o do drawer)
-    const _nowSc = area.querySelectorAll('.gc-scroll');
-    _prevSc.forEach((s, i) => { if (_nowSc[i]){ _nowSc[i].scrollLeft = s.x; _nowSc[i].scrollTop = s.y; } });
-    if (_scroller && _prevY) _scroller.scrollTop = _prevY;
+    // restaura o scroll guardado no topo da função — POR SEÇÃO (data-sec, robusto a filtro/ordem).
+    // Faz na hora E de novo no próximo frame: logo após o innerHTML o layout ainda não terminou e
+    // atribuir scrollTop grudava em 0 (era ISSO que jogava tudo pro topo); o rAF roda já com a
+    // altura calculada, então cola de verdade.
+    const _restoreScroll = () => {
+      area.querySelectorAll('.gc-secwrap').forEach(w => {
+        const p = _prevSc[w.dataset.sec]; if (!p) return;
+        const sc = w.querySelector('.gc-scroll');
+        if (sc){ sc.scrollLeft = p.x; sc.scrollTop = p.y; }
+      });
+      if (_scroller && _prevY) _scroller.scrollTop = _prevY;
+    };
+    _restoreScroll();
+    requestAnimationFrame(_restoreScroll);
     area.querySelectorAll('[data-gckey]').forEach(b => b.addEventListener('click', () => gcToggle(b.dataset.gckey)));
     // tela cheia por quadro — liga os botões e reaplica o estado após o re-render
     area.querySelectorAll('[data-fs]').forEach(b => b.addEventListener('click', () => gcToggleFs(b.dataset.fs)));
