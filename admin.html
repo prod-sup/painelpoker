@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Admin · Suprema OS</title>
 <script src="suprema-auth.js"></script>
-<!-- markup do switch de tema (sol|pílula|lua) — mesmo componente de todo o Suprema OS -->
-<script src="suprema-shell.js"></script>
 <script>
 /* ── PORTÃO DE ACESSO: o login do Suprema OS mora no hub (hub.html).
    Reconhece quem já está logado OU é admin confiável neste navegador — nesse
@@ -100,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <a href="criacao-noturna.html" class="tb-back" title="Criação de torneios do turno noturno (GU)">🌙 Criação GU</a>
       <a href="index.html" class="tb-back">← Painel</a>
       <a href="hub.html" class="tb-back" title="Voltar ao hub Suprema OS">♠ OS</a>
-      <button class="sup-switch" id="darkToggle" data-act="toggleDark" aria-pressed="false" title="Alternar modo claro/escuro"></button>
+      <button class="tb-btn" id="darkToggle" data-act="toggleDark" title="Alternar modo claro/escuro">🌙</button>
       <button class="tb-btn" data-act="doLogout">Sair</button>
     </div>
   </header>
@@ -133,7 +131,6 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="ph-actions">
           <button class="btn btn-ghost" id="btnSoAnomalia" data-act="toggleSoAnomalia">⚠ Só anomalias</button>
           <button class="btn btn-ghost" data-act="batchNotifyAnomalias">📨 Notificar anomalias</button>
-          <button class="btn btn-ghost" data-act="approveAllAudit" title="Marca todos os torneios da lista como conferidos (aprovado, sem correção) — não toca nos já auditados">✓ Conferir todos</button>
           <button class="btn btn-ghost" data-act="exportAuditXlsx">⬇ Exportar XLSX</button>
           <button class="btn btn-gold" data-act="loadAudit">Buscar</button>
         </div>
@@ -363,8 +360,8 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="tbl-wrap">
           <table>
             <thead><tr>
-              <th>Operador</th><th>Nível</th><th>Papel</th>
-              <th>Acesso aos painéis</th><th class="r">Fixações</th><th>Criado em</th><th></th>
+              <th>Nome</th><th>Email</th><th class="r">Fixações</th>
+              <th>Admin</th><th>Acesso aos painéis</th><th>Criado em</th><th></th>
             </tr></thead>
             <tbody id="opBody"></tbody>
           </table>
@@ -418,26 +415,6 @@ document.addEventListener('DOMContentLoaded', () => {
         <div style="padding:16px 18px">
           <div id="cleanupPreview" style="font-size:12px;color:var(--ink3)">
             Clique em "Pré-visualizar" para ver quais datas serão removidas.
-          </div>
-        </div>
-      </div>
-
-      <!-- Marco zero — reset até uma data (apaga TUDO daquele dia pra trás) -->
-      <div class="card" style="margin-bottom:18px;border-color:var(--red)">
-        <div class="card-head">
-          <div><div class="card-title"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Marco zero — reset até uma data</div>
-               <div class="card-sub">Zera <b>tudo</b> (painel + snapshots + auditoria) do dia escolhido pra trás. Use pra descartar os dados de teste do lançamento. <b style="color:var(--red)">Não pode ser desfeito.</b></div></div>
-        </div>
-        <div style="padding:16px 18px">
-          <div class="filters" style="margin-bottom:14px;align-items:flex-end">
-            <div class="fld"><label>Apagar tudo ATÉ esta data (inclusive)</label>
-              <input type="date" id="bkResetDate" style="padding:7px 10px">
-            </div>
-            <button class="btn btn-ghost" data-act="previewCleanupUntil">Pré-visualizar</button>
-            <button class="btn btn-red" data-act="runCleanupUntil">Zerar até a data</button>
-          </div>
-          <div id="resetPreview" style="font-size:12px;color:var(--ink3)">
-            Escolha a data e clique em "Pré-visualizar" para ver o que será zerado.
           </div>
         </div>
       </div>
@@ -672,44 +649,6 @@ document.addEventListener('DOMContentLoaded', () => {
 </div>
 
 <!-- MODAL: Adicionar operador -->
-<!-- MODAL: Gerenciar acesso do operador -->
-<div class="modal-bg" id="moAccess" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="modal" style="max-width:500px">
-    <h2>Acesso de <span id="acName">—</span></h2>
-    <div class="msub">👁 <b>Vê</b> o painel · ✎ <b>Edita</b> (escreve). Muda na hora — o operador é deslogado pra re-sincronizar a sessão.</div>
-    <div id="acBody" class="ac-modal-grid"></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" data-act="closeMo" data-arg="moAccess" style="flex:1;justify-content:center">Fechar</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL: Definir nível do operador -->
-<div class="modal-bg" id="moLevel" role="dialog" aria-modal="true" aria-hidden="true">
-  <div class="modal" style="max-width:440px">
-    <h2>Nível de <span id="lvName">—</span></h2>
-    <div class="msub" id="lvCur">—</div>
-    <div class="merr" id="lvErr" style="display:none"></div>
-    <div class="mf" style="margin:0">
-      <label>Novo nível (1 a 50)</label>
-      <input type="number" id="lvInput" min="1" max="50" step="1" inputmode="numeric" autocomplete="off">
-    </div>
-    <div class="lv-quick">
-      <button class="lvq" data-act="setLvQuick" data-arg="5">Nv 5</button>
-      <button class="lvq" data-act="setLvQuick" data-arg="10">Nv 10</button>
-      <button class="lvq" data-act="setLvQuick" data-arg="20">Nv 20</button>
-      <button class="lvq" data-act="setLvQuick" data-arg="30">Nv 30</button>
-      <button class="lvq" data-act="setLvQuick" data-arg="40">Nv 40</button>
-      <button class="lvq" data-act="setLvQuick" data-arg="50">Máx (50)</button>
-    </div>
-    <p class="lv-preview" id="lvPreview"></p>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" data-act="closeMo" data-arg="moLevel">Cancelar</button>
-      <button class="btn btn-gold" data-act="saveOpLevel">Definir nível</button>
-    </div>
-  </div>
-</div>
-
 <div class="modal-bg" id="moAddOp" role="dialog" aria-modal="true" aria-hidden="true">
   <div class="modal">
     <h2>Novo operador</h2>
@@ -786,9 +725,11 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- MODAL: Confirmação de ação destrutiva (digitar para confirmar) -->
 <div class="modal-bg" id="moDestructiveConfirm" role="dialog" aria-modal="true" aria-hidden="true">
   <div class="modal" style="max-width:420px">
-    <h2>⚠️ Confirmar remoção</h2>
-    <!-- texto preenchido por runCleanup (mantém snapshots) ou runCleanupUntil (zera tudo) -->
-    <div class="msub" id="dcDesc"></div>
+    <h2>⚠️ Remover dados antigos</h2>
+    <div class="msub">
+      Isso vai remover <b><span id="dcCount"></span> dia(s)</b> do Firebase (dados anteriores a <b><span id="dcCutoff"></span></b>).
+      Snapshots e relatórios XLSX serão mantidos, mas os dados ao vivo do painel <b>não podem ser recuperados</b>.
+    </div>
     <div class="mf">
       <label>Digite <b>REMOVER</b> para confirmar</label>
       <input type="text" id="dcInput" autocomplete="off" placeholder="REMOVER">
@@ -964,26 +905,10 @@ document.addEventListener('DOMContentLoaded', () => {
 <script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script defer src="suprema-xlsx.js"></script>
 <script src="suprema-db.js"></script>
-<!-- painel-calc: cálculo de Ações (premiação ÷ buy-in líquido) compartilhado com o
-     painel, pra a auditoria e o relatório baterem com o card. Antes do admin.js. -->
-<script src="painel-calc.js"></script>
 <script src="admin.js"></script>
 <!-- admin-actions: delegação dos [data-act] que substituíram os 92 handlers
      inline. Depois do admin.js, que define as funções que ele aciona. -->
 <script src="admin-actions.js"></script>
-<script>
-  /* menu ☰ mobile: navegação entre painéis + as ferramentas do admin (que não
-     cabem na topbar no celular). Os data-act são pegos pela delegação global. */
-  SupremaShell.mobileMenu({ current:'admin', extra:{ label:'Ferramentas do admin', items:[
-    { label:'Resumo auditoria', act:'openAuditSummary', glyph:'📋' },
-    { label:'Notificações',     act:'openNotifHistory', glyph:'✉️' },
-    { label:'Log admin',        act:'openAdminLog',     glyph:'≣' },
-    { label:'Field trend',      act:'openFieldTrend',   glyph:'📈' },
-    { label:'Ranking',          act:'openOpRanking',    glyph:'🏆' },
-    { label:'Heatmap',          act:'openOverlayHeatmap', glyph:'🔥' },
-    { label:'Justificativas',   act:'openJustifs',      glyph:'✍️' }
-  ]}});
-</script>
 <!-- ⌘K command palette (navegação + ações; o admin pluga a busca de seções) -->
 <script defer src="suprema-palette.js"></script>
 <script src="suprema-presence.js"></script>
@@ -994,9 +919,8 @@ document.addEventListener('DOMContentLoaded', () => {
     SupremaOnboarding.start('admin', [
       { el:'.sidebar', title:'Navegação do admin', text:'Auditoria, analytics e sistema. Cada seção abre no painel à direita.', side:'right' },
       { el:'#navAvisos', title:'Avisos do hub', text:'Publique aqui erros de atualização e informativos — eles aparecem no topo do hub para todos os operadores.', side:'right' }
-    ], { accent:'#f7941d', label:'Admin', delay:900 });
+    ], { accent:'#c9a84c', label:'Admin', delay:900 });
   }
 </script>
-<script defer src="suprema-footer.js"></script>
 </body>
 </html>

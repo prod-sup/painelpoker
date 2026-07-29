@@ -1,64 +1,32 @@
-# Suprema Poker — Painel Operacional
+# Copiloto de IA — backend
 
-Painel de gerenciamento de torneios em tempo real para operadores do Grupo Suprema.
+Cloud Function que dá voz ao **"Pergunte ao Suprema OS"**. Independente do Pipefy:
+é a única função aqui, no mesmo projeto Firebase (`design-1-53c00`), com o nome
+`supremaCopiloto` — a URL que o cliente já usa.
 
-## URL de produção
+O repositório do painel é **público**, então a chave da Anthropic **não** pode ir
+no cliente. Ela mora aqui como um *secret* do Firebase; o navegador só manda a
+pergunta + um snapshot do estado, com um ID token do Firebase Auth (gate anti-abuso).
 
-**https://[seu-usuario].github.io/suprema-poker**
+## Deploy (uma vez)
 
-## Estrutura
-
-```
-suprema-poker/
-├── index.html            # Painel operacional principal
-├── admin.html            # Área administrativa
-├── criacao-noturna.html  # Criação de torneios do turno noturno (GU, dia seguinte)
-├── bg.mp4          # Vídeo de fundo (não versionado — manter local)
-├── .nojekyll       # GitHub Pages serve HTML puro
-└── README.md
-```
-
-## Deploy (GitHub Pages)
-
-1. Suba os arquivos neste repositório
-2. Vá em **Settings → Pages**
-3. Source: **Deploy from a branch**
-4. Branch: **main** / pasta: **/ (root)**
-5. Clique **Save**
-
-A URL fica disponível em ~1 minuto.
-
-A cada novo commit o site atualiza automaticamente.
-
-## Firebase
-
-- **Projeto:** `design-1-53c00`
-- **Database:** `design-1-53c00-default-rtdb.firebaseio.com`
-
-### Estrutura do banco
-
-```
-/painel/{YYYY-MM-DD}/
-  sheet/          → planilha Global MTT do dia
-  fixed/          → torneios fixados {val, by, at}
-  premiacao/      → premiações preenchidas
-  ids/            → IDs dos eventos {val, by, at}
-  field/          → field (jogadores)
-  garantido/      → garantidos sobrescritos
-  checklist/      → checklist do turno
-  confhoje/       → conferência de hoje
-  criacaoNoturna/ → criação noturna GU {sheet, ops, done, ids, presence}
-
-/relatorios/{YYYY-MM-DD}/
-  acompanhamento/ → XLSX do dia em base64 (salvo automático)
-
-/presence/        → operadores online
-/relatorioTurno/  → relatório de turno
-/mesasCash/       → planilha de mesas cash
-/users/           → contas de operadores
+```sh
+cd copiloto/functions
+npm i
+firebase functions:secrets:set ANTHROPIC_API_KEY      # cola a chave sk-ant-...
+firebase deploy --only functions:supremaCopiloto      # NÃO toca em outras funções (ex. pipefyApi)
 ```
 
-## Observações
+A URL fica: `https://us-central1-design-1-53c00.cloudfunctions.net/supremaCopiloto`
+(é o default do cliente). Se sair diferente, ajuste `window.SUPREMA_COPILOTO_URL`
+no painel.
 
-- `bg.mp4` não é versionado (arquivo grande). Incluir manualmente se necessário.
-- O painel funciona normalmente sem o vídeo de fundo.
+## O que ele faz
+
+- Recebe `{ question, snapshot, panel }` via POST.
+- Exige `Authorization: Bearer <ID token do Firebase Auth>` — senão 401.
+- Chama o Claude (`claude-opus-4-8`, adaptive thinking, effort medium) com um
+  system prompt que responde **só** a partir do snapshot (não inventa números).
+- Devolve `{ answer }`.
+
+Custo é por uso (tokens da Anthropic); o gate por login evita queima anônima.

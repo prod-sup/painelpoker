@@ -1121,7 +1121,7 @@ body > *{position:relative;z-index:1}
 
   /* ── #5 menu popover (handoff) ── */
   .pop-menu{
-    position:fixed;z-index:110;background:var(--card);border:1px solid var(--hairline-strong);
+    position:fixed;z-index:130;background:var(--card);border:1px solid var(--hairline-strong);
     border-radius:var(--radius-md);box-shadow:var(--shadow-lg);padding:8px;min-width:210px;max-width:min(340px,92vw);
     max-height:min(60vh,440px);overflow-y:auto;animation:popIn .2s var(--ease-expo);
   }
@@ -1151,19 +1151,54 @@ body > *{position:relative;z-index:1}
 
   /* ── tela cheia de leitura (por torneio ou bloco inteiro) — telão/girar de lado ── */
   .fs-overlay{
-    position:fixed;inset:0;z-index:92;background:var(--bg);
+    position:fixed;inset:0;z-index:120;background:var(--bg);
     overflow:hidden;padding:clamp(14px,2.6vh,28px) clamp(16px,3vw,40px);
-    display:flex;flex-direction:column;
-    animation:fsIn .32s var(--ease-expo);
+    display:none;flex-direction:column;
   }
+  .fs-overlay.open{display:flex;animation:fsIn .32s var(--ease-expo)}
   @keyframes fsIn{from{opacity:0;transform:scale(.985)}to{opacity:1;transform:none}}
   @media (prefers-reduced-motion:reduce){ .fs-overlay{animation:none} }
   .fs-close{
-    position:fixed;top:18px;right:20px;z-index:93;
+    position:fixed;top:18px;right:20px;z-index:122;
     border:1px solid var(--hairline-strong);background:var(--card);color:var(--ink-soft);
     border-radius:99px;width:40px;height:40px;font-size:17px;cursor:pointer;
   }
   .fs-close:hover{color:var(--red);border-color:var(--red)}
+
+  /* setas de seção/evento + posição (‹ 1/4 ›) e ações do modo Evento */
+  .fs-nav,.fs-eventnav{display:inline-flex;align-items:center;gap:8px}
+  .fs-btn{
+    border:1px solid var(--hairline-strong);background:var(--card);color:var(--ink);
+    border-radius:10px;width:40px;height:40px;font-size:22px;line-height:1;cursor:pointer;
+    display:grid;place-items:center;transition:all .16s var(--ease);flex:none;
+  }
+  .fs-btn:hover{color:var(--felt-bright);border-color:var(--felt-bright)}
+  .fs-pos{font-family:var(--mono);font-size:13px;font-weight:800;color:var(--ink-soft);min-width:34px;text-align:center}
+  .fs-body{flex:1;min-height:0;display:flex;flex-direction:column;width:100%}
+  .fs-ev-do{
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:20px;
+    padding-top:18px;border-top:1px solid var(--hairline);
+  }
+  .fs-ev-id{display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:var(--ink-soft)}
+  .fs-ev-id .id-inp{width:min(260px,60vw);font-size:18px;padding:11px 14px}
+  .fs-ev-state{font-family:var(--display);font-size:16px;font-weight:750}
+
+  /* ID digitado mas ainda não confirmado (só saiu do rascunho local ao sair do
+     campo) — cue discreto pra dar segurança de que NÃO se perde */
+  .id-inp.draft{border-color:var(--gold);border-style:dashed;color:var(--gold)}
+
+  /* atribuição livre (pull): chip de dono clicável + ✋ pegar + botão da seção */
+  .claim-wrap{gap:6px}
+  .claim-tap{display:inline-flex;align-items:center;cursor:pointer;border-radius:99px;transition:transform .15s var(--ease)}
+  .claim-tap:hover{transform:translateY(-1px)}
+  .claim-tap:focus-visible{outline:2px solid var(--felt-bright);outline-offset:2px}
+  .claim-wrap .claim-more{
+    border:1px dashed var(--felt-bright);border-radius:99px;border-left:1px dashed var(--felt-bright);
+    padding:3px 9px;font-size:12px;line-height:1;background:var(--felt-soft);color:var(--felt-bright);cursor:pointer;
+  }
+  .claim-wrap .claim-more:hover{background:var(--felt-bright);color:#08130c}
+  .op-tag.claim-op{cursor:pointer}
+  .section-head .claim-sec{flex:none;font-size:11.5px;padding:5px 12px}
 
   /* ── TELA CHEIA UNIFICADA: cabeçalho fixo + toggle Planilha/Colunas/Evento,
      miolo preenche a tela toda (nada de metade preta à direita) ──────────── */

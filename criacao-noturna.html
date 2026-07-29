@@ -113,16 +113,12 @@ SupremaShell.mountNav('#supNav', {
           <button data-cur="usd" class="on">$ Dólar</button>
           <button data-cur="brl">R$ Real</button>
         </div>
-        <span class="ctrl-hint">A grade principal é sempre em R$ — o toggle muda só o modo foco e o export.</span>
       </div>
       <div class="ctrl-group" style="flex:1;min-width:280px">
-        <span class="ctrl-label">Equipe do turno — atribua a função de cada um</span>
+        <span class="ctrl-label">Equipe do turno — cada um <b>pega</b> os torneios que vai criar</span>
         <div class="ops-row" id="opsRow"></div>
         <p class="section-note" style="margin:4px 0 0">
-          <span class="lk"><span class="d" style="background:var(--main-bright)"></span>Main + Satélites</span>
-          <span class="lk"><span class="d" style="background:var(--side-bright)"></span>Side c/ Admin Fee</span>
-          <span class="lk"><span class="d" style="background:var(--sidefree-bright)"></span>Side s/ Admin Fee</span>
-          <span style="opacity:.8">Sem função marcada, todos dividem aquele bloco.</span>
+          <span style="opacity:.9">Clique <b>✋</b> em qualquer torneio (ou <b>✋ Pegar seção</b>) pra assumir — dá pra passar e soltar a qualquer momento. A <b>função</b> abaixo é só uma <b>sugestão</b> de divisão automática pros torneios que ninguém pegou.</span>
         </p>
       </div>
     </div>
@@ -183,6 +179,9 @@ SupremaShell.mountNav('#supNav', {
 <div id="focusOverlay" role="dialog" aria-modal="true" aria-label="Detalhe do item" aria-hidden="true"><div class="focus-card" id="focusCard"></div></div>
 
 <div id="tvOverlay" role="dialog" aria-modal="true" aria-label="Modo TV da criação noturna" aria-hidden="true"><div class="tv-bg" aria-hidden="true"></div><button class="tv-close" id="tvClose" title="Fechar (Esc)">✕</button><div class="tv-inner" id="tvInner"></div></div>
+
+<!-- tela cheia por seção (planilha grande / evento) — conteúdo montado em criacao-noturna.js -->
+<div id="fsOverlay" class="fs-overlay" role="dialog" aria-modal="true" aria-label="Seção em tela cheia" aria-hidden="true"></div>
 
 <div id="toast" role="status" aria-live="polite"></div>
 

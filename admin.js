@@ -7,7 +7,7 @@
 const ADMIN_EMAILS = [
   'brian@suprema.group','admin@suprema.group','brian.rodrigues@suprema.group'
 ];
-const COL_HEADERS = ['Torneio','Hora','Late Reg.','Tipo','Garantido','Buy-in','Arrecadado','Overlay','Field','Ações','Perf. %','Fixou','ID','Status'];
+const COL_HEADERS = ['Torneio','Hora','Late Reg.','Tipo','Garantido','Buy-in','Premiação','Overlay','Field','Ações','Perf. %','Fixado por','ID','Status'];
 const COL_WIDTHS  = [32,7,12,13,13,11,13,12,8,8,9,18,12,11];
 const CAT_COLORS  = {
   main:{ header:'1A472A', sub:'2D6A4F', soft:'C8E6C9', label:'♠ MAIN EVENTS' },
@@ -77,19 +77,6 @@ function classify(r){
   if(n.includes('seat')||n.includes('satelit')||n.includes('satélite'))return'sat';
   if((r.garantido||0)>=20000)return'main';
   return'side';
-}
-
-// Badge do TIMING da fixação (cedo / no prazo / atrasado) pra pontuar o operador.
-// fixLeadMin = min antes do início; regra vem do flatRows (prazo = início − lead).
-function fixTimingBadge(r){
-  if(!r.fixTiming || !Number.isFinite(r.fixLeadMin)) return '';
-  const m = r.fixLeadMin;
-  const ante = m < 0 ? `${Math.abs(m)}min após início`
-             : m >= 120 ? `${(m/60).toFixed(1).replace('.',',')}h antes`
-             : `${m}min antes`;
-  const map = { ok:['var(--green)','no prazo'], atrasado:['var(--red)','atrasado'], cedo:['#3b82f6','cedo demais'] };
-  const [c,lbl] = map[r.fixTiming] || ['var(--ink3)',''];
-  return `<span class="fix-timing ${r.fixTiming}" style="display:block;font-size:9px;font-weight:700;color:${c}" title="Fixou ${ante} do início — ${lbl}">${ante} · ${lbl}</span>`;
 }
 
 function catBadge(cat){
@@ -388,7 +375,7 @@ async function loadAll(fullHistory){
 function mergeDayInto(date, snap, day){
   // 1. snapshot (rows prontas) — só cria o dia se houver rows válidas (como no original)
   if(snap && snap.rows && typeof snap.rows==='object'){
-    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},premBy:{}};
+    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{}};
     Object.entries(snap.rows).forEach(([k,r])=>{
       if(!r||typeof r!=='object')return;
       _allData[date].rows[k]={...r,_key:k};
@@ -401,7 +388,7 @@ function mergeDayInto(date, snap, day){
 
   // 2. painel ao vivo — complementa/sobrepõe o snapshot
   if(day && typeof day==='object'){
-    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},premBy:{}};
+    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{}};
     // sheet.rows é ARRAY — converter para objeto com rk_ keys
     // Merge por nome+hora (não recalcula hash) para evitar duplicar o mesmo torneio
     // quando o garantido muda entre o snapshot e o painel ao vivo (hash diferente)
@@ -444,10 +431,6 @@ function mergeDayInto(date, snap, day){
     });
     Object.entries(day.fixed||{}).forEach(([k,v])=>{
       if(v) _allData[date].fixed[k]=typeof v==='object'?v:{by:'',at:0};
-    });
-    // quem preencheu o ARRECADADO (premiação coletada) — nó painel/<data>/premBy = {by,at}
-    Object.entries(day.premBy||{}).forEach(([k,v])=>{
-      if(v) _allData[date].premBy[k]=typeof v==='object'?v:{by:'',at:0};
     });
     Object.entries(day.ids||{}).forEach(([k,v])=>{
       if(v!=null) _allData[date].ids[k]=typeof v==='object'?v:{val:v,by:''};
@@ -505,7 +488,7 @@ function watchLiveGrade(){
         .then(ss => { day.sheet = ss.val(); refreshDayLive(date); })
         .catch(() => { lastSheetAt = null; });
     });
-    ['premiacao','fixed','premBy','ids','field','garantido'].forEach(node => {
+    ['premiacao','fixed','ids','field','garantido'].forEach(node => {
       db.ref(`painel/${date}/${node}`).on('value', s => { day[node] = s.val(); refreshDayLive(date); });
     });
   });
@@ -574,42 +557,8 @@ function flatRows(fromDate, toDate){
       const fixRaw = pick(day.fixed);
       const fixBy  = typeof fixRaw==='object'&&fixRaw ? (fixRaw.by||'') :
                      fixRaw===true ? 'Sim' : '';
-      // `at` só vale se for timestamp numérico de verdade — senão dava "Invalid Date"/"NaNmin"
-      // (ex.: registros antigos sem hora, ou ServerValue não resolvido no snapshot).
-      const _ms = x => {
-        if(!x || typeof x!=='object' || x.at == null) return null;
-        const n = Number(x.at);
-        if(isFinite(n) && n > 0) return n;          // ms epoch (número ou string numérica)
-        const d = Date.parse(x.at);                 // aceita também data/hora em texto (ISO)
-        return isFinite(d) ? d : null;
-      };
-      const hm  = ms => new Date(ms).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'});
-      const fixAtMs = _ms(fixRaw);
-      // hora que fixou: do timestamp do nó `fixed`; se não der, usa a hora salva no snapshot (fixadoEm)
-      const fixAt  = fixAtMs ? hm(fixAtMs) : (r.fixadoEm || '');
-      // Arrecadado — quem preencheu a premiação coletada e quando
-      const pbRaw  = pick(day.premBy);
-      const premBy = typeof pbRaw==='object'&&pbRaw ? (pbRaw.by||'') : '';
-      const pbMs   = _ms(pbRaw);
-      const premByAt = pbMs ? hm(pbMs) : '';
-      const cat = classify(r);
-      // TIMING DA FIXAÇÃO — quanto ANTES do início o torneio foi fixado, e se foi cedo/no prazo/atrasado.
-      // Prazo ideal = início − lead (Main/Side 60min, Satélite 30min). fixLeadMin>0 = fixou antes do início.
-      let fixLeadMin = null, fixTiming = '';
-      if(fixAtMs && /^\d{1,2}:\d{2}$/.test(r.hora||'')){
-        const [Y,Mo,Da] = date.split('-').map(Number);
-        const [hh,mm] = r.hora.split(':').map(Number);
-        const dayOff = (hh*60+mm) < 330 ? 1 : 0;                 // madrugada (<05:30) começa no dia civil seguinte
-        const startMs = Date.UTC(Y, Mo-1, Da+dayOff, hh+3, mm);  // São Paulo = UTC−3 (sem horário de verão no Brasil)
-        const lm = Math.round((startMs - fixAtMs)/60000);
-        if(Number.isFinite(lm)){
-          fixLeadMin = lm;
-          const lead = cat==='sat' ? 30 : 60;
-          if(fixLeadMin < lead)            fixTiming = 'atrasado';  // fixou depois do prazo (início − lead)
-          else if(fixLeadMin > lead + 180) fixTiming = 'cedo';     // fixou mais de 3h antes do prazo
-          else                             fixTiming = 'ok';
-        }
-      }
+      const fixAt  = typeof fixRaw==='object'&&fixRaw?.at ?
+                     new Date(fixRaw.at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}) : '';
       // Field
       const field  = pick(day.field)??r.field??null;
       // Cálculos
@@ -629,10 +578,10 @@ function flatRows(fromDate, toDate){
       out.push({
         date, key,
         nome:r.nome||'', hora:r.hora||'', late:r.late||'',
-        tipo:r.tipo||'', cat,
+        tipo:r.tipo||'', cat:classify(r),
         garantido:gar, buyin, rakeEst,
         premiacao:prem, overlay:ov, perf, field, fieldNet,
-        id:idVal, idBy, fixBy, fixAt, premBy, premByAt, fixLeadMin, fixTiming, status,
+        id:idVal, idBy, fixBy, fixAt, status,
       });
     });
   });
@@ -1003,8 +952,7 @@ async function loadAudit(){
           <td class="r mono ov-val">${r.overlay!=null?'R$ '+brl(r.overlay,2):'—'}</td>
           <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.fieldOriginal!==r.field?'c-gold':''}">${r.field!=null?r.field:'—'}</td>
           <td class="r mono">${r.perf!=null?`<span class="perf ${r.perf>=0?'pos':'neg'}">${pct(r.perf,2)}</span>`:'—'}</td>
-          <td class="c-ink2">${r.fixBy?`${esc(r.fixBy)}${r.fixAt?`<span style="display:block;font-size:9px;color:var(--ink3);font-family:var(--mono)">${esc(r.fixAt)}</span>`:''}${fixTimingBadge(r)}`:'—'}</td>
-          <td class="c-ink2">${r.premBy?`${esc(r.premBy)}${r.premByAt?`<span style="display:block;font-size:9px;color:var(--ink3);font-family:var(--mono)">${esc(r.premByAt)}</span>`:''}`:'—'}</td>
+          <td class="c-ink2">${esc(r.fixBy||r.idBy||'—')}</td>
           <td class="mono c-ink2">${esc(r.id)}</td>
           <td>${statusBadge(r.status)}</td>
           <td style="display:flex;gap:5px;align-items:center">
@@ -1029,16 +977,16 @@ async function loadAudit(){
           <thead><tr>
             <th style="width:32px"><input type="checkbox" id="checkAll" data-act="toggleCheckAll" data-act-self data-act-on="change" style="accent-color:var(--gold);width:14px;height:14px"></th>
             <th>Torneio</th><th>Hora</th><th>Late</th>
-            <th class="r">GTD</th><th class="r">Buy-in</th><th class="r">Arrecadado</th>
+            <th class="r">GTD</th><th class="r">Buy-in</th><th class="r">Premiação</th>
             <th class="r">Overlay</th><th class="r">Field</th><th class="r">Perf.</th>
-            <th>Fixou</th><th>Arrecadou</th><th>ID</th><th>Status</th><th>Auditoria</th>
+            <th>Operador</th><th>ID</th><th>Status</th><th>Auditoria</th>
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table>
         <div class="audit-total">
           <span>Total (${count})</span>
           <span>GTD <strong>R$ ${brl(sumGar)}</strong></span>
-          ${sumPrem?`<span>Arrecadado <strong>R$ ${brl(sumPrem)}</strong></span>`:''}
+          ${sumPrem?`<span>Premiação <strong>R$ ${brl(sumPrem)}</strong></span>`:''}
           ${sumOv?`<span>Overlay <strong class="c-red">R$ ${brl(sumOv)}</strong></span>`:''}
         </div>
       </div>`;
@@ -1052,7 +1000,7 @@ async function loadAudit(){
         </div>
         <div style="display:flex;gap:20px;font-size:11px;font-family:var(--mono);color:var(--ink2)">
           ${allGar?`<span>GTD <strong class="c-gold">R$ ${brl(allGar)}</strong></span>`:''}
-          ${allPrem?`<span>Arrec <strong class="c-green">R$ ${brl(allPrem)}</strong></span>`:''}
+          ${allPrem?`<span>Prem <strong class="c-green">R$ ${brl(allPrem)}</strong></span>`:''}
           ${allOv<0?`<span>Overlay <strong class="c-red">R$ ${brl(allOv)}</strong></span>`:''}
         </div>
       </div>

@@ -40,7 +40,7 @@
     </span>
     <span class="presence-wrap" id="presenceWrap" title="Operadores online agora" hidden></span>
     <span class="nav-time" id="navTime"></span>
-    <button type="button" class="sup-switch" id="themeBtn" aria-pressed="false" title="Alternar tema claro/escuro" aria-label="Alternar tema"></button>
+    <button type="button" class="theme-btn" id="themeBtn" title="Alternar tema claro/escuro" aria-label="Alternar tema">&#9790;</button>
   </div>
 </nav>
 
@@ -48,17 +48,6 @@
   <div class="hero-hello" id="heroHello" hidden>
     <span class="hh-avatar" id="hhAvatar">&spades;</span>
     <span class="hh-txt">Seja bem-vindo de volta<b id="hhEmail"></b></span>
-  </div>
-  <!-- clima de Sorocaba (Open-Meteo, sem chave) — decorativo, some sozinho se a API falhar -->
-  <div class="weather-card" id="weatherCard" hidden aria-hidden="true">
-    <p class="wc-city">Sorocaba</p>
-    <p class="wc-desc" id="wcDesc">—</p>
-    <div class="wc-icon" id="wcIcon">🌤️</div>
-    <p class="wc-temp" id="wcTemp">—°</p>
-    <div class="wc-minmax">
-      <div class="wc-mm"><span class="wc-label">Mín</span><span class="wc-val" id="wcMin">—°</span></div>
-      <div class="wc-mm"><span class="wc-label">Máx</span><span class="wc-val" id="wcMax">—°</span></div>
-    </div>
   </div>
   <h1 id="heroTitle">Suprema <span class="os">OS</span></h1>
   <p>Todas as ferramentas da operação em um lugar. Escolha um produto para entrar.</p>
@@ -156,7 +145,7 @@
     <span class="meta">Broadcast &middot; tela cheia <span class="arrow">&rarr;</span></span>
   </a>
 
-  <a class="tile t-analytics" href="analytics.html" style="--i:8" data-panel="analytics">
+  <a class="tile t-analytics" href="analytics.html" style="--i:8" data-panel="painel">
     <span class="mark" aria-hidden="true">&#9650;</span>
     <h2>Suprema Analytics</h2>
     <p class="desc">O hist&oacute;rico que cruza o tempo: prize pool, overlay real, campo e performance por dia e por operador.</p>
@@ -364,13 +353,7 @@
       <div class="gate-field"><label for="gLoginEmail">Email corporativo</label>
         <input type="email" id="gLoginEmail" placeholder="nome@suprema.group" autocomplete="email"></div>
       <div class="gate-field"><label for="gLoginPw">Senha</label>
-        <div class="password-field-wrapper">
-          <input type="password" id="gLoginPw" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="current-password">
-          <button type="button" class="password-toggle" data-target="gLoginPw" title="Mostrar/ocultar senha" aria-label="Toggle password visibility">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-          </button>
-        </div>
-      </div>
+        <input type="password" id="gLoginPw" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="current-password"></div>
       <div class="gate-error" id="gLoginErr" hidden></div>
       <button type="submit" class="gate-submit" id="gLoginBtn">Entrar</button>
       <button type="button" class="gate-link" data-tab="recovery">Esqueci minha senha</button>
@@ -389,21 +372,9 @@
       <div class="gate-field"><label for="gCadEmail">Email corporativo</label>
         <input type="email" id="gCadEmail" placeholder="nome@suprema.group" autocomplete="email"></div>
       <div class="gate-field"><label for="gCadPw">Senha</label>
-        <div class="password-field-wrapper">
-          <input type="password" id="gCadPw" placeholder="M&iacute;n. 6 &middot; 1 min&uacute;scula &middot; 1 especial" autocomplete="new-password">
-          <button type="button" class="password-toggle" data-target="gCadPw" title="Mostrar/ocultar senha" aria-label="Toggle password visibility">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-          </button>
-        </div>
-      </div>
+        <input type="password" id="gCadPw" placeholder="M&iacute;n. 6 &middot; 1 min&uacute;scula &middot; 1 especial" autocomplete="new-password"></div>
       <div class="gate-field"><label for="gCadPw2">Confirmar senha</label>
-        <div class="password-field-wrapper">
-          <input type="password" id="gCadPw2" autocomplete="new-password">
-          <button type="button" class="password-toggle" data-target="gCadPw2" title="Mostrar/ocultar senha" aria-label="Toggle password visibility">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-          </button>
-        </div>
-      </div>
+        <input type="password" id="gCadPw2" autocomplete="new-password"></div>
       <div class="gate-error" id="gCadErr" hidden></div>
       <button type="submit" class="gate-submit" id="gCadBtn">Criar conta</button>
     </form>
@@ -416,13 +387,7 @@
         <div class="gate-field"><label for="gRecCode">C&oacute;digo de 6 d&iacute;gitos</label>
           <input type="text" id="gRecCode" maxlength="6" inputmode="numeric" style="font-family:var(--mono);letter-spacing:.2em;text-align:center"></div>
         <div class="gate-field"><label for="gRecPw">Nova senha</label>
-          <div class="password-field-wrapper">
-            <input type="password" id="gRecPw" placeholder="M&iacute;n. 6 &middot; 1 min&uacute;scula &middot; 1 especial" autocomplete="new-password">
-            <button type="button" class="password-toggle" data-target="gRecPw" title="Mostrar/ocultar senha" aria-label="Toggle password visibility">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
-          </div>
-        </div>
+          <input type="password" id="gRecPw" placeholder="M&iacute;n. 6 &middot; 1 min&uacute;scula &middot; 1 especial" autocomplete="new-password"></div>
       </div>
       <div class="gate-error" id="gRecErr" hidden></div>
       <div class="gate-ok" id="gRecOk" hidden></div>
@@ -441,14 +406,6 @@
   // mesma regra do painel: sem preferência salva, segue o sistema
   const dark = saved !== null ? saved === '1' : window.matchMedia('(prefers-color-scheme: dark)').matches;
   if (!dark) document.documentElement.classList.add('light');
-  // o hub usa .light como override (escuro é o padrão, sem classe) — só ele no OS
-  // faz isso. suprema-tokens.css e o resto do sistema esperam .dark no escuro
-  // (mirrorThemeSignals em suprema-auth.js espelha .dark <-> [data-theme] em todo
-  // painel), então sem isso o hub nunca ativa o bloco escuro dos tokens
-  // compartilhados (--sup-focus/--sup-shadow-*/--sup-cat-*/--sup-p-eventos ficavam
-  // presos no valor claro mesmo com o hub visualmente escuro). Aditivo: hub.css
-  // nunca leu .dark, então isso não muda a aparência própria do hub.
-  else document.documentElement.classList.add('dark');
 })();
 
 // Relógio (mesmo formato do painel)
@@ -474,8 +431,6 @@ if (location.protocol === 'file:') {
      mesmo módulo dos painéis em vez de reimplementar tudo inline (evita divergir
      a cada correção). Precisa vir ANTES do IIFE do gate, que só delega pra ele. -->
 <script defer src="suprema-auth.js"></script>
-<!-- markup do switch de tema (sol|nuvens|lua) — mesmo componente de todo o Suprema OS -->
-<script defer src="suprema-shell.js"></script>
 <script defer src="suprema-motion.js"></script>
 <script defer src="suprema-feltro.js"></script>
 <script>
@@ -494,24 +449,10 @@ document.addEventListener('DOMContentLoaded', function(){
   var hero = document.querySelector('.hero');
   if (!hero) return;
 
-  // Password visibility toggle — ANTES de qualquer return
-  document.querySelectorAll('.password-toggle').forEach(function(btn){
-    btn.addEventListener('click', function(e){
-      e.preventDefault();
-      var targetId = this.getAttribute('data-target');
-      var input = document.getElementById(targetId);
-      if (!input) return;
-      var isPassword = input.type === 'password';
-      input.type = isPassword ? 'text' : 'password';
-      this.setAttribute('aria-pressed', !isPassword);
-      this.classList.toggle('active', !isPassword);
-    });
-  });
-
   function redeDeNos(){
     if (!window.SupremaMotion) return;
     SupremaMotion.network('.hero', {
-      c1:'#b35d02', c2:'#d9741a', c1Dark:'#f7941d', c2Dark:'#ffb15a',
+      c1:'#8f6b2d', c2:'#18a36b', c1Dark:'#c9a84c', c2Dark:'#18a36b',
       isDark: function(){ return !document.documentElement.classList.contains('light'); }
     });
   }
@@ -528,7 +469,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
   var MESA = SupremaFeltro.mount('.hero', {
     variant: 'mesa',
-    bg: '#0f1110', gold: '#f7941d', felt: '#d9741a',
+    bg: '#0f1110', gold: '#c9a84c', felt: '#18a36b',
     onFallback: redeDeNos,
   });
   if (!MESA) return;                       // lite/sem WebGL: o mount já cuidou
@@ -556,6 +497,5 @@ document.addEventListener('DOMContentLoaded', function(){
 <script defer src="suprema-onboarding.js"></script>
 <script defer src="hub-onboarding.js"></script>
 <script defer src="suprema-presence.js"></script>
-<script defer src="suprema-footer.js"></script>
 </body>
 </html>
