@@ -1228,7 +1228,9 @@
   .hstat-compare.up{ background:var(--ok-soft); color:var(--ok); }
   .hstat-compare.down{ background:var(--late-bg); color:var(--late-border); }
   .hstat-compare.flat{ background:color-mix(in srgb, var(--card) 90%, var(--ink) 10%); color:var(--ink-soft); }
-  .hstat.pos .num{color:var(--ok);}
+  /* "Pago em premiações": era verde (--ok/feltro) e destoava do dourado da marca.
+     Agora usa o chrome champanhe/âmbar (--felt-bright), casando com a barra e o tema. */
+  .hstat.pos .num{color:var(--felt-bright);}
   .hstat.neg .num{color:var(--red);}
   @media (max-width:760px){
     .hero-stats{ grid-template-columns:repeat(2,1fr); margin-top:36px; }
@@ -3828,3 +3830,23 @@ html.dark .routine-tool-desc b{ color:var(--felt-bright); }
 @media (max-width:600px){
   .snx-stack{ right:12px; left:12px; bottom:12px; width:auto; }
 }
+
+/* ── PROXIMIDADE DO LATE REGISTER (psicologia das cores) ──
+   Late = fim do registro tardio. Conforme se aproxima, a linha (compacto) e o
+   card (normal) esquentam: âmbar = atenção (≤30min), vermelho = urgente (≤10min).
+   As regras vêm DEPOIS de .is-fixed pra vencer o verde de fixado quando urge. */
+.ctr-late{ font-family:var(--mono);font-size:11px;text-align:center;white-space:nowrap;color:var(--ink-soft); }
+.compact-table tbody tr.late-soon{ background:color-mix(in srgb,#f59e0b 14%,var(--card)); }
+.compact-table tbody tr.late-urgent{ background:color-mix(in srgb,#ef4444 16%,var(--card)); }
+.compact-table tbody tr.late-soon:hover{ background:color-mix(in srgb,#f59e0b 20%,var(--card)); }
+.compact-table tbody tr.late-urgent:hover{ background:color-mix(in srgb,#ef4444 22%,var(--card)); }
+.compact-table tbody tr.late-soon .ctr-late{ color:#b45309;font-weight:700; }
+.compact-table tbody tr.late-urgent .ctr-late{ color:#dc2626;font-weight:800; }
+html.dark .compact-table tbody tr.late-soon .ctr-late{ color:#fbbf24; }
+html.dark .compact-table tbody tr.late-urgent .ctr-late{ color:#f87171; }
+
+/* card normal */
+.tcard.late-soon{ border-color:#f59e0b; background:color-mix(in srgb,#f59e0b 8%,var(--card)); }
+.tcard.late-urgent{ border-color:#ef4444; background:color-mix(in srgb,#ef4444 9%,var(--card)); box-shadow:0 0 0 1px #ef4444, 0 8px 24px -10px rgba(239,68,68,.5); animation:tcard-late-pulse 1.8s ease-in-out infinite; }
+@keyframes tcard-late-pulse{ 0%,100%{ box-shadow:0 0 0 1px #ef4444, 0 8px 24px -10px rgba(239,68,68,.35); } 50%{ box-shadow:0 0 0 2px #ef4444, 0 10px 30px -8px rgba(239,68,68,.6); } }
+@media (prefers-reduced-motion:reduce){ .tcard.late-urgent{ animation:none; } }

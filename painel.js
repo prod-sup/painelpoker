@@ -757,6 +757,22 @@ function cardTimeFlag(t){
   return (fixed || !needsFix) ? null : timeStatus(t.hora, cat);
 }
 
+/* ── PROXIMIDADE DO LATE REGISTER (psicologia das cores) ──
+   Quando o fim do late reg (t.late) está chegando, a linha/card ganha cor de
+   urgência crescente — o operador precisa fechar o field antes de fechar o late.
+     30→10min  → 'late-soon'   (âmbar: atenção, tá chegando)
+     ≤10min    → 'late-urgent' (vermelho: aja agora, fechando)
+   Fora dessa janela (ou +5min após fechar) → sem cor. */
+function lateState(t){
+  if(!t || !t.late) return '';
+  const lateMin = timeToMinutes(t.late);
+  if(lateMin == null) return '';
+  let diff = lateMin - nowMinutesSP();
+  if(diff < -720) diff += 1440;            // late caiu na madrugada seguinte
+  if(diff > 30 || diff < -5) return '';    // longe, ou já fechou há mais de 5min
+  return diff <= 10 ? 'late-urgent' : 'late-soon';
+}
+
 /* monta a mensagem do badge de tempo mostrando o PRAZO-LIMITE real (horaEvento - antecedência) em vez de só
    "Xmin de antecedência" — assim fica claro o horário exato em que precisava/precisa estar fixado, não só a regra.
    ex: torneio às 01:00, Side (60min antecedência) -> prazo é 00:00. Atrasado -> "Devia ter sido fixado às 00:00".
@@ -4357,12 +4373,13 @@ function renderUpcoming(){
           + '<th scope="col" style="width:4px;padding:0"></th>'
           + '<th scope="col" class="ctr-nome" style="min-width:200px">Torneio</th>'
           + '<th scope="col" style="width:65px;text-align:center">Hora</th>'
+          + '<th scope="col" style="width:70px;text-align:center">Late</th>'
           + '<th scope="col" style="width:100px;text-align:right">GTD</th>'
           + '<th scope="col" style="width:120px">Premiação</th>'
           + '<th scope="col" style="width:100px;text-align:right">Overlay</th>'
           + '<th scope="col" style="width:80px">Field</th>'
           + '<th scope="col" style="width:64px;text-align:right">Ações</th>'
-          + '<th scope="col" style="width:132px">ID</th>'
+          + '<th scope="col" style="width:160px">ID</th>'
           + '<th scope="col" style="width:120px">Fixou</th>'
           + '<th scope="col" style="width:120px">Prem. por</th>'
           + '<th scope="col" style="width:36px;text-align:center">Fix</th>'
@@ -4377,7 +4394,7 @@ function renderUpcoming(){
       if (t.proxCronograma && !proxDividerAdded){
         proxDividerAdded = true;
         const divTr = document.createElement('tr');
-        divTr.innerHTML = '<td colspan="12" style="padding:10px 8px 6px;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#60a5fa;border-top:2px solid rgba(96,165,250,.35)">Próx. cronograma — madrugada de amanhã · somente fixação</td>';
+        divTr.innerHTML = '<td colspan="13" style="padding:10px 8px 6px;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#60a5fa;border-top:2px solid rgba(96,165,250,.35)">Próx. cronograma — madrugada de amanhã · somente fixação</td>';
         tbody.appendChild(divTr);
       }
 
@@ -4395,15 +4412,17 @@ function renderUpcoming(){
       if(fixed) tr.classList.add('is-fixed');
       if(isNF)  tr.classList.add('is-nf');
       tr.style.setProperty('--catc', catColor);   // cor da categoria — usada como borda do card no mobile
+      const _late = lateState(t);                  // pinta a linha quando o late reg está fechando
+      if(_late) tr.classList.add(_late);
 
       const catTd   = '<td class="ctr-catcell" style="width:4px;padding:0"><span class="ctr-cat-bar" style="background:'+catColor+'"></span></td>';
       const lateInfo = t.late ? ` \u00b7 Late at\u00e9 ${escHtml(t.late)}` : '';
       const nomeTd  = '<td class="ctr-nome" title="'+escHtml(t.nome||'')+lateInfo+'">'+escHtml(t.nome||'\u2014')
                     + (t._manual ? ' <span class="tcard-manual-badge" title="Adicionado \u00e0 m\u00e3o \u2014 n\u00e3o veio da Global">MANUAL</span>' : '')
                     + (t.proxCronograma ? ' <span style="font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px;background:rgba(96,165,250,.14);color:#60a5fa;letter-spacing:.04em">PR\u00d3X. CRONOGRAMA</span>' : '')
-                    + (t.late ? ' <span style="font-size:9px;font-weight:600;padding:1px 5px;border-radius:4px;background:rgba(251,146,60,.14);color:#fb923c;letter-spacing:.03em">Late at\u00e9 '+escHtml(t.late)+'</span>' : '')
                     + '</td>';
       const horaTd  = '<td class="ctr-hora" data-label="Hora">'+(t.hora||'\u2014')+'</td>';
+      const lateTd  = '<td class="ctr-late" data-label="Late">'+(t.late?escHtml(t.late):'\u2014')+'</td>';
       const garTd   = '<td class="ctr-gar" data-label="GTD">'+(garVal!=null?'R$'+fmtBRL(garVal,0):'\u2014')+'</td>';
       // card do pr\u00f3ximo cronograma: s\u00f3 fixa\u00e7\u00e3o \u2014 premia\u00e7\u00e3o/field pertencem ao quadro do dia seguinte
       const soFixar = '<td class="ctr-sofixar" data-label="Premia\u00e7\u00e3o" style="padding:3px 5px;color:var(--ink-soft);font-size:11px;font-style:italic" title="Evento do pr\u00f3ximo cronograma \u2014 premia\u00e7\u00e3o e field entram no quadro do pr\u00f3ximo dia">s\u00f3 fixar</td>';
@@ -4420,7 +4439,7 @@ function renderUpcoming(){
                     + ' data-key="'+key+'" type="number" min="0"'
                     + ' placeholder="\u2014" value="'+(fieldVal!=null?fieldVal:'')+'"></td>';
       const idTd    = '<td data-label="ID" style="padding:3px 5px"><div style="display:flex;gap:4px;align-items:center">'
-                    + '<input class="ctr-inp-id id-input'+(currentId?' has-value':'')+'" style="flex:1;min-width:0"'
+                    + '<input class="ctr-inp-id id-input'+(currentId?' has-value':'')+'" style="flex:1;min-width:104px"'
                     + ' data-key="'+key+'" type="text"'
                     + ' placeholder="ID" value="'+escHtml(currentId)+'">'
                     + '<button class="copy-btn ctr-copy-btn" data-key="'+key+'" type="button" title="Copiar dados do torneio">'
@@ -4447,7 +4466,7 @@ function renderUpcoming(){
           + ' data-key="'+key+'" style="width:15px;height:15px;accent-color:var(--felt);cursor:pointer"></td>'
         : '<td class="ctr-fixcell" data-label="Fixado" style="text-align:center;padding:3px"><input type="checkbox" checked disabled'
           + ' title="Não precisa ser fixado" style="width:15px;height:15px;accent-color:var(--ink-soft);opacity:.4;cursor:default"></td>';
-      tr.innerHTML = catTd+nomeTd+horaTd+garTd+premTd+ovTd+fieldTd+acoesTd+idTd+fixByTd+premByTd+fixTd;
+      tr.innerHTML = catTd+nomeTd+horaTd+lateTd+garTd+premTd+ovTd+fieldTd+acoesTd+idTd+fixByTd+premByTd+fixTd;
       tbody.appendChild(tr);
       return;
     }
@@ -4459,8 +4478,9 @@ function renderUpcoming(){
       divider.textContent = 'Próx. cronograma — madrugada de amanhã · somente fixação';
       fragment.appendChild(divider);
     }
+    const lateCls = lateState(t);   // pinta o card quando o late reg está fechando (mesma lógica do compacto)
     const el = document.createElement('div');
-    el.className = `tcard reveal${fixed ? ' is-fixed' : ''}${isNF ? ' is-nf' : ''}${flag==='soon' ? ' is-soon' : ''}${flag==='late' ? ' is-late' : ''}${isRunning ? ' is-running' : ''}`;
+    el.className = `tcard reveal${fixed ? ' is-fixed' : ''}${isNF ? ' is-nf' : ''}${flag==='soon' ? ' is-soon' : ''}${flag==='late' ? ' is-late' : ''}${isRunning ? ' is-running' : ''}${lateCls ? ' '+lateCls : ''}`;
     el.dataset.key = key;
     el.style.setProperty('--cat-bright', `var(--${cat}-bright)`);
     // entrada escalonada (cascata), tipo Apple — limitada aos primeiros 18 cards pra não atrasar a lista inteira
@@ -8082,7 +8102,7 @@ setVisibilityAwareInterval(() => {
   const nowMin = nowMinutesSP();
   const newUnfixed = computeUnfixed();
   const flagsSig = UPCOMING.map(t =>
-    (cardTimeFlag(t) || '-') + (isRunningNow(t, nowMin) ? 'r' : '')).join('');
+    (cardTimeFlag(t) || '-') + (isRunningNow(t, nowMin) ? 'r' : '') + lateState(t)).join('');
   const sig = `${flagsSig}|${newUnfixed.map(t => t._key || t.nome).join(',')}|${RESULTS.length}|${Object.keys(FIXED_MAP).length}`;
   if(sig === _lastTickSignature) return;
   _lastTickSignature = sig;

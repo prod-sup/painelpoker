@@ -1322,28 +1322,37 @@ function recipeFields(){ return (DATA && DATA.fields) || []; }
    Colunas fora da lista entram DEPOIS, na ordem original da planilha.
    Garantido e Buy-in aparecem UMA vez só: se outra coluna casar de novo
    (ex.: "Size buy-in"), ela sai da receita em vez de duplicar. */
+/* ORDEM DAS COLUNAS — segue a Global (EN) e o mapa PT que o Brian passou. Cada
+   slot casa EN e PT (normText já tira acento/caixa). O que não casar cai no fim
+   na ordem da planilha. Aplica-se à GU E à Principal (ambas passam por aqui). */
 const CREATION_ORDER = [
-  { m: n => n === 'mtt' },                                                          // Torneio
+  { m: n => n === 'mtt' },                                                          // MTT / Torneio
+  { m: n => n === 'type' || n === 'tipo' },                                         // TYPE
+  { m: n => n.includes('game type') || n.includes('tipo de jogo') },               // GAME TYPE
   { m: n => /(^|[^a-z])k\.?\s*o\b/.test(n) || n.includes('knock') },                // K.O (REG/PROG/OFF)
-  { m: n => n.includes('max') && n.includes('table') },                             // MAX. TABLE
-  { m: n => n.includes('prize pool') || n.includes('guarant') || n.includes('garantido'), once: true }, // Garantido (1x)
+  { m: n => n.includes('max') && (n.includes('table') || n.includes('mesa') || n.includes('pessoas')) }, // MAX. TABLE / MAX PESSOAS MESAS
+  { m: n => n.includes('prize pool') || n.includes('guarant') || n.includes('garantido'), once: true }, // GARANTIDO / PRIZE POOL (1x)
   { m: n => n.includes('ticket') && n.includes('award') },                          // TICKET AWARD
-  { m: n => n.includes('payout') && (n.includes('calculated') || n.includes('calculado')) }, // CALCULATED PAYOUT
-  { m: n => n.includes('payout') || n.includes('premiac') },                        // PAYOUT
-  { m: n => n.includes('buy-in') || n.includes('buy in') || n === 'buyin', once: true }, // Buy-in (1x)
-  { m: n => (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) && !n.includes('stack') && !n.includes('condition') },
-  { m: n => n.includes('stack') && (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) },
-  { m: n => n.includes('rebuy') && n.includes('condition') },
+  { m: n => n.includes('personalized') || (n.includes('estrutura') && n.includes('pagamento')) }, // PERSONALIZED AWARD / ESTRUTURA PAGAMENTO
+  { m: n => (n.includes('payout') || n.includes('premiac')) && !n.includes('calculated') && !n.includes('calculado') }, // PAYOUT
+  { m: n => (n.includes('payout') && (n.includes('calculated') || n.includes('calculado'))) || (n.includes('pagamento') && n.includes('calculado')) }, // CALCULATED PAYOUT / PAGAMENTO CALCULADO
+  { m: n => n.includes('buy-in') || n.includes('buy in') || n === 'buyin' || n.includes('entrada'), once: true }, // BUY-IN / ENTRADA (1x)
+  { m: n => (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy') || n.includes('reentrada')) && !n.includes('stack') && !n.includes('condition') && !n.includes('condicao') },
+  { m: n => n.includes('stack') && (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy') || n.includes('reentrada')) }, // STACK REENTRY/REBUY
+  { m: n => (n.includes('rebuy') && n.includes('condition')) || (n.includes('condicao') && n.includes('rebuy')) }, // REBUY CONDITION / CONDIÇÃO REBUY
   { m: n => (n.includes('add-on') || n.includes('addon')) && !n.includes('stack') },
-  { m: n => n.includes('stack') && (n.includes('add-on') || n.includes('addon')) },
+  { m: n => n.includes('stack') && (n.includes('add-on') || n.includes('addon')) },  // STACK ADD-ON
   { m: n => n.includes('break') && n.includes('late') },                            // BREAK LATE REG.
-  { m: n => n.includes('admin') && n.includes('fee') },                             // Admin Fee
-  { m: n => n.includes('structure') || n.includes('estrutura') },                   // STRUCTURE
-  { m: n => n === 'chips' || n.includes('chip stack') || n.includes('starting stack') || n.includes('stack inicial') },
-  { m: n => n.includes('early game') },                                             // Early game (blinds)
-  { m: n => n.includes('pos late') },                                               // Pós Late Reg. (normText tira o acento)
-  { m: n => n.includes('final table') },                                            // Final Table
-  { m: n => n.includes('early bird') },                                             // Early Bird
+  { m: n => n === 'rake' || (n.includes('taxa') && n.includes('servico')) },        // RAKE / TAXA SERVIÇO
+  { m: n => n.includes('admin') && n.includes('fee') },                             // Admin Fee / CONF. TAXA DE SERVIÇO
+  { m: n => n.includes('structure') || n.includes('estrutura') }, // STRUCTURE / ESTRUTURA (pagamento já foi reivindicado antes)
+  { m: n => n === 'chips' || n.includes('chip stack') || n.includes('starting stack') || n.includes('stack inicial') || n.includes('fichas') }, // CHIPS / FICHAS INICIAIS
+  { m: n => n.includes('early game') },                                             // EARLY GAME (blinds)
+  { m: n => n.includes('tempo') && n.includes('blind') },                           // TEMPO DE BLIND
+  { m: n => n.includes('pos late') },                                               // PÓS LATE REG.
+  { m: n => n.includes('final table') },                                            // FINAL TABLE
+  { m: n => n.includes('lat reg') || n.includes('late reg') || n.includes('registro tardio') }, // LAT REG / REGISTRO TARDIO
+  { m: n => n.includes('early bird') },                                             // EARLY BIRD
   { m: n => n.includes('time bank') || n === 'tb' },                                // TIME BANK
 ];
 function creationOrderFields(fields){
