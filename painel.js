@@ -135,6 +135,7 @@ let PRINCIPAIS_ROWS = [];
 function reindexRows(){ ROW_BY_KEY = new Map([...RAW_ROWS, ...PRINCIPAIS_ROWS].map(r => [r._key, r])); }
 let UPCOMING = [];
 let _compactMode = localStorage.getItem('suprema_compact_mode_v1') === '1';        // open tournaments (no premiação yet)
+let _reorderRender = false; // true durante um re-render que é SÓ reordenação (flag) — pula o fade de entrada dos cards; o FLIP anima o deslize
 let RESULTS = [];         // closed tournaments (premiação filled)
 let UNFIXED = [];         // not-fixed tournaments (any status, no Ações/owner)
 let activeUpcomingCat = new Set(['all']); // Set: permite múltiplos filtros ativos ao mesmo tempo (ex.: Main Event + Satélite)
@@ -157,6 +158,7 @@ const FIELD_STORE_KEY            = 'suprema_field_v1';
 const GARANTIDO_STORE_KEY        = 'suprema_garantido_v1';
 const CHECKLIST_STORE_KEY        = 'suprema_checklist_v1';
 const CONFHOJE_STORE_KEY         = 'suprema_confhoje_v1';
+const FLAG_STORE_KEY             = 'suprema_flags_v1'; // torneios "flagados" (destaque manual) — compartilhado, mesmo padrão do fixado
 const FB_RETENTION_DAYS          = 45; // fechamento semanal + auditoria da diretoria acontecem em cima
                                         // dos nós painel/<data> — 14 dias dava margem apertada se um
                                         // fechamento atrasasse; 45 cobre folgado um ciclo mensal inteiro
@@ -167,6 +169,7 @@ let PREM_BY_MAP                  = {}; // quem preencheu premiação/field de ca
 let ID_MAP                       = {};
 let FIELD_MAP                    = {};
 let GARANTIDO_MAP                = {};
+let FLAG_MAP                     = {}; // torneios destacados (flag) que sobem ao topo — { key: {by,at} } — compartilhado em painel/<data>/flags, igual ao FIXED_MAP
 // Chaves de premiação que JÁ apareceram no nó `premiacao` do Firebase nesta sessão.
 // A reconciliação só pode anular uma premiação cuja chave FOI vista e depois SUMIU
 // (exclusão real do operador). Uma chave que nunca esteve no nó — premiação da planilha,
@@ -484,6 +487,7 @@ function calcRake(row){
 const MINI_CHIP_SVG = `<svg class="mini-chip" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="currentColor" opacity="0.18"/><circle cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="5.6" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.7"/></svg>`;
 
 /* coroa usada para destacar Main Events em qualquer badge/card */
+const FLAG_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 22V4a1 1 0 0 1 1-1c3 0 4 1.5 7 1.5S16 3 19 3a1 1 0 0 1 1 1v8.5a1 1 0 0 1-1 1c-3 0-4-1.5-7-1.5S8 14 5 14"/></svg>`;
 const CROWN_SVG = `<svg class="crown-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.5 1.5 7l5.4 4L12 4l5.1 7 5.4-4-1.5 10.5a1 1 0 0 1-1 .85H4a1 1 0 0 1-1-.85Z"/><rect x="3.3" y="19" width="17.4" height="2.2" rx="1"/></svg>`;
 
 /* antecedência mínima (em minutos) com que cada categoria deve ser fixada antes do horário do evento */
@@ -762,14 +766,17 @@ function cardTimeFlag(t){
    urgência crescente — o operador precisa fechar o field antes de fechar o late.
      30→10min  → 'late-soon'   (âmbar: atenção, tá chegando)
      ≤10min    → 'late-urgent' (vermelho: aja agora, fechando)
-   Fora dessa janela (ou +5min após fechar) → sem cor. */
-function lateState(t){
-  if(!t || !t.late) return '';
+   Depois de fechar, o vermelho FICA enquanto a premiação não foi preenchida (resolved=false) —
+   a linha não pode "esfriar" só porque o relógio passou; o operador ainda precisa lançar o field.
+   Some só quando o resultado entra (premiação preenchida ou NF). Fora da janela e sem pendência → sem cor. */
+function lateState(t, resolved){
+  if(!t || !t.late || t.proxCronograma) return '';   // próx. cronograma é só fixação — sem urgência de late
   const lateMin = timeToMinutes(t.late);
   if(lateMin == null) return '';
   let diff = lateMin - nowMinutesSP();
   if(diff < -720) diff += 1440;            // late caiu na madrugada seguinte
-  if(diff > 30 || diff < -5) return '';    // longe, ou já fechou há mais de 5min
+  if(diff > 30) return '';                 // ainda longe
+  if(diff < -5) return resolved ? '' : 'late-urgent';  // fechou: segura o vermelho até a premiação entrar
   return diff <= 10 ? 'late-urgent' : 'late-soon';
 }
 
@@ -2325,6 +2332,13 @@ function loadConfHojeMap(){
 function saveConfHojeMapLocal(map){
   try{ localStorage.setItem(CONFHOJE_STORE_KEY, JSON.stringify(map)); }catch(e){}
 }
+function loadFlagMap(){
+  try{ return JSON.parse(localStorage.getItem(FLAG_STORE_KEY) || '{}'); }
+  catch(e){ return {}; }
+}
+function saveFlagMapLocal(map){
+  try{ localStorage.setItem(FLAG_STORE_KEY, JSON.stringify(map)); }catch(e){}
+}
 
 /* ── Inicializa maps com dados do localStorage (funções já disponíveis aqui) ── */
 Object.assign(FIXED_MAP,     loadFixedMap());
@@ -2334,6 +2348,7 @@ Object.assign(FIELD_MAP,     loadFieldMap());
 Object.assign(GARANTIDO_MAP, loadGarantidoMap());
 Object.assign(CHECKLIST_MAP, loadChecklistMap());
 Object.assign(CONFHOJE_MAP,  loadConfHojeMap());
+Object.assign(FLAG_MAP,      loadFlagMap());
 
 // Firebase entra em modo "best effort": se o SDK não carregar (sem internet, CDN bloqueado etc),
 // o painel continua funcionando 100% local, só sem sincronizar com o parceiro.
@@ -2541,6 +2556,13 @@ function initFirebaseSync(){
       FIXED_MAP = snap.val() || {};
       saveFixedMapLocal(FIXED_MAP);
       if(RAW_ROWS.length) scheduleUI('unfixed', 'stats', 'results', 'upcoming');
+    });
+
+    // ── Flags (destaque manual que sobe ao topo) — compartilhado entre operadores ──
+    fbDb.ref(`${FB_BASE_PATH}/flags`).on('value', snap => {
+      FLAG_MAP = snap.val() || {};
+      saveFlagMapLocal(FLAG_MAP);
+      if(RAW_ROWS.length && !window._suppressRenderUpcoming) scheduleUI('upcoming');
     });
 
     // ── Responsável por premiação/field (exibido nos Resultados) ─────────
@@ -2925,6 +2947,28 @@ function setFixed(key, val){
       .catch(err => {
         console.error('Firebase: falha ao salvar fixado', err);
         showToast('Marcado só neste navegador — falha ao sincronizar com seu parceiro.', true);
+      });
+  }
+}
+// FLAG = destaque manual que puxa o torneio pro TOPO da lista. Compartilhado entre operadores
+// (painel/<data>/flags), igual ao fixado. Tirar o flag devolve a linha à ordem natural por horário.
+// Não confundir: "fixado" (checkbox Fix) é regra de negócio (fixado na planilha); flag é só triagem visual.
+function isFlagged(key){ return !!FLAG_MAP[key]; }
+function flaggedBy(key){
+  const v = FLAG_MAP[key];
+  return (v && typeof v === 'object') ? (v.by || '') : '';
+}
+function setFlagged(key, val){
+  if (roGuard()) return;
+  if (val) FLAG_MAP[key] = { by: OPERATOR_NAME || 'Alguém', at: Date.now() };
+  else delete FLAG_MAP[key];
+  saveFlagMapLocal(FLAG_MAP); // grava local na hora (instantâneo, sem esperar rede)
+  if (fbReady){
+    suppressUpcomingEcho();
+    fbDb.ref(`${FB_BASE_PATH}/flags/${key}`).set(val ? FLAG_MAP[key] : null)
+      .catch(err => {
+        console.error('Firebase: falha ao salvar flag', err);
+        showToast('Flag só neste navegador — falha ao sincronizar com seu parceiro.', true);
       });
   }
 }
@@ -4262,6 +4306,40 @@ function renderUnfixed(){
 ========================================================================= */
 
 
+/* Reordena a lista rodando `mutate` (re-render) entre a captura das posições ANTES e DEPOIS,
+   e desliza cada card da posição antiga pra nova (FLIP) — em vez de deixar tudo "pular". Só anima
+   os CARDS (divs); em modo compacto as linhas são <tr> (transform em table-row é instável entre
+   browsers) e a reordenação é instantânea, que é o esperado numa tabela densa. Respeita reduce-motion. */
+function flipReorderUpcoming(mutate){
+  const grid = document.getElementById('upcomingGrid');
+  if(!grid){ mutate(); return; }
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const first = {};
+  if(!reduce) grid.querySelectorAll('.tcard[data-key]').forEach(n => { first[n.dataset.key] = n.getBoundingClientRect(); });
+  _reorderRender = true;
+  try { mutate(); } finally { _reorderRender = false; }
+  if(reduce) return;
+  const nodes = grid.querySelectorAll('.tcard[data-key]');
+  nodes.forEach(n => {
+    const f = first[n.dataset.key]; if(!f) return;
+    const l = n.getBoundingClientRect();
+    const dx = f.left - l.left, dy = f.top - l.top;
+    if(!dx && !dy) return;
+    n.style.transform = `translate(${dx}px, ${dy}px)`;
+    n.style.transition = 'none';
+    n.dataset.flip = '1';
+  });
+  requestAnimationFrame(() => {
+    nodes.forEach(n => {
+      if(n.dataset.flip !== '1') return;
+      n.style.transition = 'transform .42s cubic-bezier(.22,1,.36,1)';
+      n.style.transform = '';
+      const clear = () => { n.style.transition=''; delete n.dataset.flip; n.removeEventListener('transitionend', clear); };
+      n.addEventListener('transitionend', clear);
+    });
+  });
+}
+
 function renderUpcoming(){
   const grid = document.getElementById('upcomingGrid');
   grid.querySelectorAll('.tcard').forEach(el => animVisibilityIO.unobserve(el)); // limpa observação antes de destruir os cards antigos
@@ -4359,6 +4437,10 @@ function renderUpcoming(){
   // ordem do dia de trabalho: 00:00 → 23:59 (madrugada de hoje no topo), com os cards do
   // PRÓX. CRONOGRAMA sempre no FIM — eles são a madrugada do dia seguinte, vêm depois das 23h
   filtered = [...filtered].sort((a, b) => {
+    // flagados sobem pro topo; tirar o flag devolve a linha à posição natural por horário
+    const fa = isFlagged(a._key) ? 0 : 1;
+    const fb = isFlagged(b._key) ? 0 : 1;
+    if (fa !== fb) return fa - fb;
     const ma = (timeToMinutes(a.hora) ?? 9999) + (a.proxCronograma ? 1440 : 0);
     const mb = (timeToMinutes(b.hora) ?? 9999) + (b.proxCronograma ? 1440 : 0);
     return ma - mb;
@@ -4429,16 +4511,18 @@ function renderUpcoming(){
       tr.dataset.key = key;
       if(fixed) tr.classList.add('is-fixed');
       if(isNF)  tr.classList.add('is-nf');
+      if(isFlagged(key)) tr.classList.add('is-flagged');
       tr.style.setProperty('--catc', catColor);   // cor da categoria — usada como borda do card no mobile
-      const _late = lateState(t);                  // pinta a linha quando o late reg está fechando
+      const _late = lateState(t, premVal != null || isNF); // pinta a linha até a premiação/NF entrar
       if(_late) tr.classList.add(_late);
 
       const catTd   = '<td class="ctr-catcell" style="width:4px;padding:0"><span class="ctr-cat-bar" style="background:'+catColor+'"></span></td>';
       const lateInfo = t.late ? ` \u00b7 Late at\u00e9 ${escHtml(t.late)}` : '';
-      const nomeTd  = '<td class="ctr-nome" title="'+escHtml(t.nome||'')+lateInfo+'">'+escHtml(t.nome||'\u2014')
+      const flagBtn = '<button class="ctr-flag-btn flag-toggle'+(isFlagged(key)?' on':'')+'" data-key="'+key+'" type="button" aria-pressed="'+isFlagged(key)+'" title="'+(isFlagged(key)?'Tirar destaque \u2014 volta \u00e0 ordem por hor\u00e1rio':'Destacar \u2014 sobe pro topo da lista')+'">'+FLAG_SVG+'</button>';
+      const nomeTd  = '<td class="ctr-nome" title="'+escHtml(t.nome||'')+lateInfo+'"><span class="ctr-nome-inner">'+flagBtn+'<span class="ctr-nome-txt">'+escHtml(t.nome||'\u2014')
                     + (t._manual ? ' <span class="tcard-manual-badge" title="Adicionado \u00e0 m\u00e3o \u2014 n\u00e3o veio da Global">MANUAL</span>' : '')
                     + (t.proxCronograma ? ' <span style="font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px;background:rgba(96,165,250,.14);color:#60a5fa;letter-spacing:.04em">PR\u00d3X. CRONOGRAMA</span>' : '')
-                    + '</td>';
+                    + '</span></span></td>';
       const horaTd  = '<td class="ctr-hora" data-label="Hora">'+(t.hora||'\u2014')+'</td>';
       const lateTd  = '<td class="ctr-late" data-label="Late">'+(t.late?escHtml(t.late):'\u2014')+'</td>';
       const garTd   = '<td class="ctr-gar" data-label="GTD">'+(garVal!=null?'R$'+fmtBRL(garVal,0):'\u2014')+'</td>';
@@ -4496,9 +4580,9 @@ function renderUpcoming(){
       divider.textContent = 'Próx. cronograma — madrugada de amanhã · somente fixação';
       fragment.appendChild(divider);
     }
-    const lateCls = lateState(t);   // pinta o card quando o late reg está fechando (mesma lógica do compacto)
+    const lateCls = lateState(t, t.premiacao != null || isNF); // pinta o card até a premiação/NF entrar (mesma lógica do compacto)
     const el = document.createElement('div');
-    el.className = `tcard reveal${fixed ? ' is-fixed' : ''}${isNF ? ' is-nf' : ''}${flag==='soon' ? ' is-soon' : ''}${flag==='late' ? ' is-late' : ''}${isRunning ? ' is-running' : ''}${lateCls ? ' '+lateCls : ''}`;
+    el.className = `tcard${_reorderRender ? '' : ' reveal'}${isFlagged(key) ? ' is-flagged' : ''}${fixed ? ' is-fixed' : ''}${isNF ? ' is-nf' : ''}${flag==='soon' ? ' is-soon' : ''}${flag==='late' ? ' is-late' : ''}${isRunning ? ' is-running' : ''}${lateCls ? ' '+lateCls : ''}`;
     el.dataset.key = key;
     el.style.setProperty('--cat-bright', `var(--${cat}-bright)`);
     // entrada escalonada (cascata), tipo Apple — limitada aos primeiros 18 cards pra não atrasar a lista inteira
@@ -4541,6 +4625,7 @@ function renderUpcoming(){
           ${runningHtml}${flagHtml}${notNeededHtml}
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+          <button class="tcard-flag-btn flag-toggle${isFlagged(key) ? ' on' : ''}" data-key="${key}" type="button" aria-pressed="${isFlagged(key)}" title="${isFlagged(key) ? 'Tirar destaque — volta à ordem por horário' : 'Destacar — sobe pro topo da lista'}">${FLAG_SVG}</button>
           <div class="tcard-time">${t.hora || '—'}</div>
           ${countdownHtml}
         </div>
@@ -4696,6 +4781,17 @@ function wireCardInteractions(container){
           tr.classList.toggle('is-fixed', chk.checked);
         });
       }
+    });
+  });
+  container.querySelectorAll('.flag-toggle').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation(); // não dispara clique/foco do card ou da linha
+      const key = btn.dataset.key;
+      if(roGuard()) return;
+      setFlagged(key, !isFlagged(key));
+      // reordena a agenda inteira (flagados no topo) deslizando os cards do lugar antigo pro novo
+      flipReorderUpcoming(renderUpcoming);
     });
   });
   applyIdDuplicateChecks(); // marca duplicatas já existentes assim que os cards entram na tela
@@ -8122,7 +8218,7 @@ setVisibilityAwareInterval(() => {
   const nowMin = nowMinutesSP();
   const newUnfixed = computeUnfixed();
   const flagsSig = UPCOMING.map(t =>
-    (cardTimeFlag(t) || '-') + (isRunningNow(t, nowMin) ? 'r' : '') + lateState(t)).join('');
+    (cardTimeFlag(t) || '-') + (isRunningNow(t, nowMin) ? 'r' : '') + lateState(t, t.premiacao != null)).join('');
   const sig = `${flagsSig}|${newUnfixed.map(t => t._key || t.nome).join(',')}|${RESULTS.length}|${Object.keys(FIXED_MAP).length}`;
   if(sig === _lastTickSignature) return;
   _lastTickSignature = sig;
@@ -8543,6 +8639,7 @@ function resetDay(forcedDate){
   FIELD_MAP     = {};  saveFieldMapLocal({});
   GARANTIDO_MAP = {};  saveGarantidoMapLocal({});
   CHECKLIST_MAP = {};  saveChecklistMapLocal({});
+  FLAG_MAP      = {};  saveFlagMapLocal({});
 
   // 2. Limpar premiações do localStorage (dia novo = dados novos)
   try { localStorage.removeItem('suprema_prem_v1'); } catch(e){}
@@ -8623,6 +8720,9 @@ function syncCompactToggleBtn(){
     const label = document.getElementById('compactToggleLabel');
     if(label) label.textContent = _compactMode ? 'Cards' : 'Compacto';
   }
+  // Modo compacto = VISÃO FOCADA: esconde as outras seções (não fixados, principais,
+  // resultados) e enxuga o cabeçalho da agenda pra grade de abertos caber na tela sem scroll.
+  document.body.classList.toggle('compact-focus', _compactMode);
 }
 syncCompactToggleBtn(); // aplica o estado restaurado do localStorage assim que a página carrega
 
@@ -8821,7 +8921,7 @@ function reinitDayListeners(){
 
   // Remover listeners antigos do dia anterior antes de re-registrar
   // (evita duplicação de listeners ao virar o dia)
-  ['premiacao','fixed','premBy','ids','field','garantido','checklist','confhoje','rolledTo','manualRows'].forEach(node => {
+  ['premiacao','fixed','flags','premBy','ids','field','garantido','checklist','confhoje','rolledTo','manualRows'].forEach(node => {
     fbDb.ref(`${FB_BASE_PATH}/${node}`).off();
   });
 
@@ -8885,6 +8985,12 @@ function reinitDayListeners(){
   fbDb.ref(`${FB_BASE_PATH}/fixed`).on('value', snap => {
     FIXED_MAP = snap.val() || {}; saveFixedMapLocal(FIXED_MAP);
     if(RAW_ROWS.length && !window._suppressRenderUpcoming) scheduleRenderAll();
+  });
+
+  // Flags (destaque manual que sobe ao topo) — compartilhado entre operadores
+  fbDb.ref(`${FB_BASE_PATH}/flags`).on('value', snap => {
+    FLAG_MAP = snap.val() || {}; saveFlagMapLocal(FLAG_MAP);
+    if(RAW_ROWS.length && !window._suppressRenderUpcoming) scheduleUI('upcoming');
   });
 
   // Responsável por premiação/field (exibido só nos Resultados — não afeta os cards da

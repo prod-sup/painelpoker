@@ -3848,6 +3848,49 @@ html.dark .routine-tool-desc b{ color:var(--felt-bright); }
 html.dark .compact-table tbody tr.late-soon .ctr-late{ color:#fbbf24; }
 html.dark .compact-table tbody tr.late-urgent .ctr-late{ color:#f87171; }
 
+/* ── MODO COMPACTO = VISÃO FOCADA ────────────────────────────────────────
+   Foca só na grade de torneios em aberto: esconde as seções auxiliares e
+   enxuga o cabeçalho/tools da agenda pra caber na tela sem scroll de página. */
+body.compact-focus #nao-fixados,
+body.compact-focus #principais,
+body.compact-focus #resultados{ display:none !important; }
+body.compact-focus #agenda{ padding-top:14px; }
+body.compact-focus #agenda .section-title,
+body.compact-focus #agenda .section-desc{ display:none; }
+body.compact-focus #agenda .section-head{ margin-bottom:10px; }
+/* a tabela ocupa a altura útil restante; se um dia tiver torneios demais, rola SÓ ela
+   (o cabeçalho fica grudado no topo) em vez de empurrar a página inteira */
+body.compact-focus .compact-table-wrap{ max-height:calc(100vh - 210px);overflow:auto; }
+
+/* ── FLAG (destaque manual que sobe ao topo) ─────────────────────────────
+   Botão discreto de bandeira; quando ligado, a linha/card ganha um acento
+   dourado da marca à esquerda e sobe pro topo da lista. É triagem visual,
+   não é o "fixado" (checkbox Fix). */
+:root{ --flagc:#b35d02; }              /* acento do flag — laranja da marca (superfície clara) */
+html.dark{ --flagc:#f7941d; }          /* laranja vivo em superfície escura */
+.ctr-nome-inner{ display:inline-flex;align-items:center;gap:7px;min-width:0;max-width:100%; }
+.ctr-nome-txt{ overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0; }
+.ctr-flag-btn, .tcard-flag-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:0;border:none;background:none;cursor:pointer;flex:none;
+  color:var(--ink-soft);opacity:.42;
+  transition:opacity .18s var(--ease), color .18s var(--ease), transform .18s var(--ease), background .18s var(--ease);
+}
+.ctr-flag-btn{ width:20px;height:20px; }
+.ctr-flag-btn svg, .tcard-flag-btn svg{ width:15px;height:15px; }
+.tcard-flag-btn{ width:26px;height:26px;border-radius:8px; }
+.ctr-flag-btn:hover, .tcard-flag-btn:hover{ opacity:1;color:var(--flagc);transform:scale(1.12); }
+.tcard-flag-btn:hover{ background:color-mix(in srgb,var(--flagc) 14%,transparent); }
+.ctr-flag-btn.on, .tcard-flag-btn.on{ opacity:1;color:var(--flagc); }
+.ctr-flag-btn.on svg, .tcard-flag-btn.on svg{ fill:color-mix(in srgb,var(--flagc) 28%,transparent); }
+
+/* só a barra dourada à esquerda + nome forte — SEM mexer no background, pra não apagar
+   o vermelho/âmbar do late numa linha que esteja flagada E atrasada ao mesmo tempo */
+.compact-table tbody tr.is-flagged{ box-shadow:inset 3px 0 0 0 var(--flagc); }
+.compact-table tbody tr.is-flagged .ctr-nome-txt{ font-weight:800; }
+.tcard.is-flagged{ box-shadow:0 0 0 1px color-mix(in srgb,var(--flagc) 45%,transparent), 0 10px 30px -12px color-mix(in srgb,var(--flagc) 40%,transparent); }
+.tcard.is-flagged::before{ content:'';position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:3px;background:var(--flagc);z-index:1; }
+
 /* card normal */
 .tcard.late-soon{ border-color:#f59e0b; background:color-mix(in srgb,#f59e0b 8%,var(--card)); }
 .tcard.late-urgent{ border-color:#ef4444; background:color-mix(in srgb,#ef4444 9%,var(--card)); box-shadow:0 0 0 1px #ef4444, 0 8px 24px -10px rgba(239,68,68,.5); animation:tcard-late-pulse 1.8s ease-in-out infinite; }
