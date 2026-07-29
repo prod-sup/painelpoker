@@ -3642,11 +3642,27 @@ function migrateOrphanedWork(newRows){
 function resyncPremiacaoFromFirebase(){
   whenAuthed(() => {
     if(!fbReady || !fbDb || !RAW_ROWS.length) return;
-    fbDb.ref(`${FB_BASE_PATH}/premiacao`).once('value').then(s => {
-      const data = s.val() || {};
+    Promise.all([
+      fbDb.ref(`${FB_BASE_PATH}/premiacao`).once('value'),
+      fbDb.ref(`${FB_BASE_PATH}/premBy`).once('value'),
+    ]).then(([ps, bs]) => {
+      const data = ps.val() || {};
+      const by   = bs.val() || {};
       let ch = false;
       RAW_ROWS.forEach(r => {
-        if(data[r._key] != null && r.premiacao !== data[r._key]){ r.premiacao = data[r._key]; ch = true; }
+        const v = data[r._key];
+        if(v == null) return;
+        const temPremBy = by[r._key] || (PREM_BY_MAP && PREM_BY_MAP[r._key]); // FB ou backup local (escrita do premBy pode ter falhado)
+        if(temPremBy){
+          // premiação DIGITADA por um operador (tem premBy = quem preencheu) → aplica
+          if(r.premiacao !== v){ r.premiacao = v; ch = true; }
+        } else {
+          // ARRECADADO no Firebase SEM ninguém ter preenchido (sem premBy) = vazou da planilha.
+          // Limpa de vez: zera na tela E remove do nó do dia + backup local. (Só toca o dia ATIVO.)
+          if(r.premiacao != null){ r.premiacao = null; ch = true; }
+          try{ fbDb.ref(`${FB_BASE_PATH}/premiacao/${r._key}`).remove(); }catch(e){}
+          try{ const pm=JSON.parse(localStorage.getItem('suprema_prem_v1')||'{}'); if(pm[r._key]!=null){ delete pm[r._key]; localStorage.setItem('suprema_prem_v1', JSON.stringify(pm)); } }catch(e){}
+        }
       });
       const applyRerender = () => {
         RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
@@ -3682,6 +3698,7 @@ function recoverPremiacaoFromSnapshot(applyRerender){
     const byIdent = new Map();
     snapRows.forEach(sr => {
       if(sr.premiacao == null) return;
+      if(!sr.premPor) return; // só reata premiação que um OPERADOR preencheu (tem premPor) — nunca a que caiu da planilha
       const id = norm(sr.nome, sr.hora);
       byIdent.set(id, byIdent.has(id) ? null : sr.premiacao);
     });
@@ -9139,6 +9156,9 @@ function buildSnapshotRows(){
       id:        getId(key)  || null,
       fixadoPor: fixedBy(key) || null,
       fixadoEm:  fixedAt(key) || null,
+      // QUEM preencheu o arrecadado — só existe quando um OPERADOR digitou. É o que separa
+      // premiação de verdade (reatável) da que um dia caiu da planilha (nunca reatar/persistir).
+      premPor:   premBy(key) || null,
       status:    (getId(key)||'').toUpperCase() === 'NF' || r.explicitNF
                    ? 'NF' : (prem != null ? 'Fechado' : 'Aberto'),
       // madrugada do dia SEGUINTE mostrada cedo só pra fixação — a auditoria do admin
