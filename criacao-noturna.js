@@ -86,16 +86,53 @@ function turnoAmanha(){
 function refToISO(ref){ return `${ref.getUTCFullYear()}-${String(ref.getUTCMonth()+1).padStart(2,'0')}-${String(ref.getUTCDate()).padStart(2,'0')}`; }
 function refToLabel(ref){ return `${String(ref.getUTCDate()).padStart(2,'0')}/${String(ref.getUTCMonth()+1).padStart(2,'0')}`; }
 
-const TURNO = turnoAmanha();
-const TOMORROW_ISO = refToISO(TURNO.refTomorrow);
+const _clock = turnoAmanha();
+const NATURAL_ISO = refToISO(_clock.refTomorrow);   // madrugada que o RELÓGIO indica agora
+/* ── MADRUGADA ATIVA (sticky) ─────────────────────────────────────────────
+   A página LEMBRA a madrugada que você está criando (localStorage) e NUNCA troca
+   sozinha num reload. Antes, o caminho no Firebase vinha direto do relógio: passava
+   das 05:30, alguém dava F5 (ou clicava em "nova versão") e a página pulava pro dia
+   seguinte — VAZIO — parecendo que "resetou" a Criação Noturna e os IDs (que na
+   verdade continuavam salvos no dia certo). Agora só vira pra próxima madrugada
+   quando o operador CLICA em "Começar a nova" (banner abaixo, quando o relógio já
+   passou pra uma madrugada mais nova). Tudo da página — caminho, dias, rótulos —
+   passa a derivar da madrugada ATIVA, não do relógio, pra não haver descompasso. */
+let _storedDay = null; try{ _storedDay = localStorage.getItem('cn_active_day'); }catch(e){}
+const ACTIVE_ISO = _storedDay || NATURAL_ISO;
+try{ localStorage.setItem('cn_active_day', ACTIVE_ISO); }catch(e){}
+const _refTom = new Date(`${ACTIVE_ISO}T12:00:00Z`);
+const _refAfter = new Date(_refTom.getTime() + 86400000);
+const TURNO = { n: _clock.n, refTomorrow: _refTom, refDayAfter: _refAfter };
+const TOMORROW_ISO = ACTIVE_ISO;
 const WEEKDAY_TOMORROW = WEEKDAYS_PT[TURNO.refTomorrow.getUTCDay()];      // exibição
 const WEEKDAY_DAYAFTER = WEEKDAYS_PT[TURNO.refDayAfter.getUTCDay()];
 const WEEKDAY_TOMORROW_EN = WEEKDAYS_EN[TURNO.refTomorrow.getUTCDay()];   // a G MTTS usa dias em inglês
 const WEEKDAY_DAYAFTER_EN = WEEKDAYS_EN[TURNO.refDayAfter.getUTCDay()];
 const DAY_LABEL = `${WEEKDAY_TOMORROW.split('-')[0].toLowerCase()} · ${refToLabel(TURNO.refTomorrow)}`;
+const NIGHT_ADVANCED = NATURAL_ISO > ACTIVE_ISO;   // já chegou uma madrugada mais nova que a carregada
 
 $('heroDay').textContent = `de ${WEEKDAY_TOMORROW.toLowerCase()} · ${refToLabel(TURNO.refTomorrow)}`;
 $('uploadDayLabel').textContent = `${WEEKDAY_TOMORROW.toLowerCase()} (${refToLabel(TURNO.refTomorrow)})`;
+
+/* Nova madrugada disponível: NÃO troca sozinho (sticky). Oferece a troca explícita —
+   a de agora fica salva no Firebase (nada se perde); começar a nova só re-aponta o caminho. */
+if (NIGHT_ADVANCED){
+  const naturalLabel = `${WEEKDAYS_PT[_clock.refTomorrow.getUTCDay()].split('-')[0].toLowerCase()} · ${refToLabel(_clock.refTomorrow)}`;
+  const bar = document.createElement('div');
+  bar.id = 'newNightBar';
+  bar.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:160;background:var(--gold);color:#1a1206;padding:9px 10px 9px 16px;border-radius:99px;font-size:12.5px;font-weight:650;box-shadow:var(--shadow-lg);display:flex;gap:12px;align-items:center;max-width:calc(100vw - 24px)';
+  bar.innerHTML = `<span>🌙 Criando a madrugada de <b>${escHtml(DAY_LABEL)}</b> — já chegou a de <b>${escHtml(naturalLabel)}</b>.</span>`;
+  const go = document.createElement('button');
+  go.textContent = 'Começar a nova';
+  go.style.cssText = 'background:#1a1206;color:var(--gold);border:none;border-radius:99px;padding:6px 13px;font-weight:800;font-size:12px;cursor:pointer;flex:none';
+  go.onclick = () => { try{ localStorage.setItem('cn_active_day', NATURAL_ISO); }catch(e){} location.reload(); };
+  const dismiss = document.createElement('button');
+  dismiss.textContent = '✕'; dismiss.title = 'Continuar nesta madrugada';
+  dismiss.style.cssText = 'background:none;border:none;color:#1a1206;cursor:pointer;font-weight:800;font-size:14px;flex:none';
+  dismiss.onclick = () => bar.remove();
+  bar.append(go, dismiss);
+  document.body.appendChild(bar);
+}
 
 /* =========================================================================
    PARSER DA GU — aba "G MTTS" da Global: é a planilha que a GU usa pra criar
@@ -228,7 +265,7 @@ function rawToPct(it, info){
 function adminFeeParts(it){
   const pctTx = p => (Math.round(p * 10000) / 100).toLocaleString('pt-BR') + '%';
   const decTx = p => it.buyin != null
-    ? ' = ' + (toDisplayCur(it.buyin, it.brl) * p).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})
+    ? ' = ' + ((CURRENCY === 'usd' ? it.buyin : it.buyin * BRL_RATE) * p).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})
     : '';
   const f = rawToPct(it, feeActive(it)), a = rawToPct(it, adminActive(it));
   if (!f && !a) return null;
@@ -321,45 +358,14 @@ const CAT_SAT    = {key:'sat',         cls:'sat',      suit:'♣', label:'Satél
 const CAT_SIDE_A = {key:'sideAdmin',   cls:'side',     suit:'♥', label:'Side Events · com Admin Fee', role:'sideAdmin'};
 const CAT_SIDE_B = {key:'sideNoAdmin', cls:'sidefree', suit:'♦', label:'Side Events · sem Admin Fee', role:'sideNoAdmin'};
 const SECTIONS = [CAT_MAIN, CAT_SAT, CAT_SIDE_A, CAT_SIDE_B];
-const CAT_BY_KEY = {main: CAT_MAIN, sat: CAT_SAT, sideAdmin: CAT_SIDE_A, sideNoAdmin: CAT_SIDE_B};
-
-/* =========================================================================
-   EVENTOS PRINCIPAIS (LIGA PRINCIPAL) — grade FIXA, pré-carregada de
-   liga-principal-data.js (LIGA_PRINCIPAL_SECTIONS). VALORES EM REAIS. É uma
-   seção PRÓPRIA, destacada (★ --liga), independente da Global MTT: aparece
-   mesmo antes de subir planilha. Reconstruída em jul/2026 — o esqueleto
-   (HTML #stLiga/legenda, CSS .section-head.liga/.hstat.c-liga, sw.js) tinha
-   sobrado órfão depois que o JS que consumia LIGA_PRINCIPAL foi removido num
-   refactor; por isso "os Eventos Principais sumiram".
-   Nota de moeda: como o resto do app raciocina em dólar (×5 no toggle R$), a
-   Liga é BRL nativa; fmtLigaMoney faz a ponte (mostra R$ como está, US$ = ÷5),
-   e a receita copiada leva o valor CRU da planilha (é o que se digita ao criar).
-========================================================================= */
-function buildLiga(){
-  if (typeof LIGA_PRINCIPAL_SECTIONS === 'undefined') return [];
-  const norm = s => ({main:(s&&s.main)||[], side:(s&&s.side)||[], sat:(s&&s.sat)||[], unknown:[], semTipo:[], semHora:[]});
-  const t = norm(LIGA_PRINCIPAL_SECTIONS[WEEKDAY_TOMORROW_EN]);
-  const a = norm(LIGA_PRINCIPAL_SECTIONS[WEEKDAY_DAYAFTER_EN]);
-  const secs = buildSections(t, a);                 // aplica a janela 06:10→05:30 e ordena
-  // brl:true faz os cálculos de dinheiro (fmtMoney/adminFee) lerem o valor como REAL
-  const tag = (arr, c) => (arr||[]).map(it => ({...it, ligaCat:c, liga:true, brl:true}));
-  const all = [...tag(secs.main,'main'), ...tag(secs.side,'side'), ...tag(secs.sat,'sat')];
-  const wrap = m => (m == null ? 99999 : (m >= CONF_WINDOW_START_MIN ? m : m + 1440)); // madrugada vai pro fim
-  return all.sort((x,y) => wrap(timeToMinutes(x.hora)) - wrap(timeToMinutes(y.hora)));
+function catItems(cat){
+  if (!DATA) return [];
+  if (cat.key === 'main') return DATA.main;
+  if (cat.key === 'sat')  return DATA.sat;
+  const s = sideSplit();
+  return cat.key === 'sideAdmin' ? s.admin : s.noadmin;
 }
-// colunas da receita da Liga (esquema próprio), na MESMA ordem de digitação da GU, sem "Action".
-// Função (não const) porque depende de HIDDEN_RECIPE/creationOrderFields, definidos mais abaixo.
-function ligaFields(){
-  if (typeof LIGA_PRINCIPAL_FIELDS === 'undefined') return [];
-  return creationOrderFields(LIGA_PRINCIPAL_FIELDS.filter(l => !HIDDEN_RECIPE.test(normText(l)) && normText(l) !== 'action'));
-}
-// categoria da seção Eventos Principais — mesma estrutura das outras (renderVertical),
-// mas plain:true (sem mover/foco/tela-cheia, que dependem da grade DATA); fields entram no render
-const CAT_LIGA = {key:'liga', cls:'liga', suit:'★', label:'Eventos Principais', role:'ligaPrincipal', plain:true};
-
-/* categoria automática (por TYPE/admin fee) de cada item, ANTES de qualquer
-   reatribuição manual — é o ponto de partida que allWithCatAuto() monta */
-function allWithCatAuto(){
+function allWithCat(){
   const s = sideSplit();
   return [
     ...DATA.main.map(it => ({it, cat: CAT_MAIN})),
@@ -368,36 +374,12 @@ function allWithCatAuto(){
     ...DATA.sat.map(it => ({it, cat: CAT_SAT}))
   ];
 }
-/* categoria efetiva: CATEGORY_OVERRIDES (reatribuição manual, "mover de bloco")
-   vence a divisão automática — mesmo padrão de OVERRIDES pro operador */
-function effectiveCat(it, autoCat){
-  const k = CATEGORY_OVERRIDES[itemKey(it)];
-  return (k && CAT_BY_KEY[k]) ? CAT_BY_KEY[k] : autoCat;
-}
-function catItems(cat){
-  if (!DATA) return [];
-  return allWithCatAuto()
-    .filter(({it, cat: autoCat}) => effectiveCat(it, autoCat).key === cat.key)
-    .map(({it}) => it);
-}
-function allWithCat(){
-  if (!DATA) return [];
-  return allWithCatAuto().map(({it, cat: autoCat}) => ({it, cat: effectiveCat(it, autoCat)}));
-}
-function saveCategoryOverride(it, catKey){
-  const k = itemKey(it);
-  if (catKey) CATEGORY_OVERRIDES[k] = catKey; else delete CATEGORY_OVERRIDES[k];
-  if (fbDb) fbDb.ref(`${FB_PATH}/categoryOverrides`).set(CATEGORY_OVERRIDES);
-  else renderAll();
-  logEvent('moveu de bloco', `${it.nome} (${it.hora}) → ${catKey ? CAT_BY_KEY[catKey].label : 'divisão automática'}`);
-}
 
 /* papéis (função) por operador — chave saneada pro Firebase */
 const ROLE_OPTS = [
-  {key:'mainSat',      label:'Main + Satélites'},
-  {key:'sideAdmin',    label:'Side c/ Admin Fee'},
-  {key:'sideNoAdmin',  label:'Side s/ Admin Fee'},
-  {key:'ligaPrincipal',label:'★ Eventos Principais'}
+  {key:'mainSat',     label:'Main + Satélites'},
+  {key:'sideAdmin',   label:'Side c/ Admin Fee'},
+  {key:'sideNoAdmin', label:'Side s/ Admin Fee'}
 ];
 function roleKey(op){ return normText(op).replace(/[.#$\[\]\/]/g,'_'); }
 function roleOf(op){ return ROLES[roleKey(op)] || ''; }
@@ -425,25 +407,16 @@ const FB_PATH = `painel/${TOMORROW_ISO}/criacaoNoturna`;
 
 let fbDb = null;
 let DATA = null;          // {main, side, sat[], unknown, warnings, by, at}
-let LIGA = buildLiga();   // Eventos Principais do dia (grade fixa, BRL) — independe da Global
 let OPS = [];             // nomes da equipe
 let DONE = {};            // key -> {by, at}
 let IDS = {};             // key -> {val, by, at} — ID do evento no Pokerbyte
 let ROLES = {};           // roleKey(op) -> 'mainSat' | 'sideAdmin' | 'sideNoAdmin'
-let OVERRIDES = {};       // itemKey -> opName — DONOS (modelo "pegar tarefa"): quem puxou cada torneio pra si. Vazio = livre.
-let CATEGORY_OVERRIDES = {}; // itemKey -> 'main'|'sat'|'sideAdmin'|'sideNoAdmin' — mover de bloco vence a divisão automática
+let OVERRIDES = {};       // itemKey -> opName — reatribuições manuais (handoff) vencem a divisão
 let MAP = {};             // fieldKey -> rótulo da coluna (mapeamento manual vence a auto-detecção)
 let AUDIT = {};           // itemKey -> {status:'erro', motivo, by, at} — marcado pelo Admin
 let SEARCH = '';
 let CURRENCY = localStorage.getItem('cn_currency') || 'usd';
 let FILTER = 'all';
-/* linhas (campos da receita) que ESTE navegador escondeu — preferência de leitura
-   pessoal, por isso localStorage (não sincroniza pra equipe). */
-let HIDDEN_FIELDS = new Set((() => { try{ return JSON.parse(localStorage.getItem('cn_hidden_fields') || '[]'); }catch(e){ return []; } })());
-function persistHidden(){ try{ localStorage.setItem('cn_hidden_fields', JSON.stringify([...HIDDEN_FIELDS])); }catch(e){} }
-function hideField(label){ HIDDEN_FIELDS.add(label); persistHidden(); renderAll(); renderFocus(); }
-function showField(label){ HIDDEN_FIELDS.delete(label); persistHidden(); renderAll(); renderFocus(); }
-function showAllFields(){ HIDDEN_FIELDS.clear(); persistHidden(); renderAll(); renderFocus(); }
 
 function setSync(state, label){
   const el = $('syncStatus');
@@ -512,16 +485,12 @@ try{
       });
     } else renderAll();
   });
-  // (o nó /roles saiu com o modelo "pegar tarefa" — sem funções fixas. Listener
-  //  removido: era egress à toa, ROLES não é mais usado na divisão.)
+  fbDb.ref(`${FB_PATH}/roles`).on('value', s => {
+    ROLES = s.val() || {};
+    renderAll();
+  });
   fbDb.ref(`${FB_PATH}/overrides`).on('value', s => {
     OVERRIDES = s.val() || {};
-    renderAll();
-    renderFocus();
-  });
-  // categoria manual (Main/Satélite/Side c-fee/Side s-fee) vence a divisão automática
-  fbDb.ref(`${FB_PATH}/categoryOverrides`).on('value', s => {
-    CATEGORY_OVERRIDES = s.val() || {};
     renderAll();
     renderFocus();
   });
@@ -664,7 +633,7 @@ if ('serviceWorker' in navigator){
     if (e.data && e.data.type === 'sw-updated' && !$('swBar')){
       const bar = document.createElement('div');
       bar.id = 'swBar';
-      bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));max-width:440px;margin-inline:auto;z-index:150;background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:16px;font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);cursor:pointer;text-align:center;line-height:1.4';
+      bar.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:150;background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:99px;font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);cursor:pointer';
       bar.innerHTML = `Nova versão (v${escHtml(String(e.data.version))}) — <u>clique para atualizar</u>`;
       bar.addEventListener('click', () => location.reload());
       document.body.appendChild(bar);
@@ -684,15 +653,8 @@ $('opBadge').addEventListener('click', () => {
   }
 });
 
-/* ── modo escuro ──
-   pinta o switch (sol|pílula|lua) real — .textContent aqui destruía o markup
-   SVG que a shell montou (SupremaShell.paintSwitch pinta sem derrubar o desenho) */
-function paintDarkBtn(){
-  const b = $('darkToggle');
-  const dark = document.documentElement.classList.contains('dark');
-  if (window.SupremaShell && SupremaShell.paintSwitch) SupremaShell.paintSwitch(b, dark);
-  else if (b) b.textContent = dark ? '☀️' : '🌙';
-}
+/* ── modo escuro ── */
+function paintDarkBtn(){ $('darkToggle').textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙'; }
 paintDarkBtn();
 $('darkToggle').addEventListener('click', () => {
   const isDark = document.documentElement.classList.toggle('dark');
@@ -753,7 +715,6 @@ async function handleFile(file){
     const aposGap = [...secTom.aposGap, ...(secAfter ? secAfter.aposGap : [])];
     if (aposGap.length) warnings.push(`${aposGap.length} linha(s) depois do vão de linhas vazias ficaram de fora: ${aposGap.map(x=>`${x.hora} ${x.nome}`).join(', ')}`);
     if (sections.unknown.length) warnings.push(`${sections.unknown.length} torneio(s) com tipo não reconhecido na coluna TYPE (listados em seção própria).`);
-    if (sections.tipoColMissing) warnings.push('⚠ Coluna TYPE não encontrada no cabeçalho da G MTTS — classifiquei TUDO pelo nome/garantido (fallback). Confira a divisão Main/Side ou renomeie a coluna pra "TYPE" na Global.');
 
     const fields = headerCols.filter(c => !isCoreLabel(c.label)).map(c => c.label);
     // diff contra a versão que já estava carregada (a GU corrige a Global durante a noite):
@@ -765,7 +726,7 @@ async function handleFile(file){
 
     if (fbDb){
       fbDb.ref(`${FB_PATH}/sheet`).set({
-        json: JSON.stringify({main:sections.main, side:sections.side, sat:sections.sat, unknown:sections.unknown, semTipo:sections.semTipo, fields, warnings, changes, fileName:file.name}),
+        json: JSON.stringify({main:sections.main, side:sections.side, sat:sections.sat, unknown:sections.unknown, fields, warnings, changes, fileName:file.name}),
         // count pequeno pra o hub contar sem baixar a grade inteira (economia de banda)
         count: sections.main.length + sections.side.length + sections.sat.length,
         by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP
@@ -790,12 +751,48 @@ async function handleFile(file){
 function itemKey(it){
   return `${normText(it.nome)}|${it.hora}`.replace(/[.#$\[\]\/]/g,'_');
 }
-/* DIVISÃO "PEGAR TAREFA" (pull): não há round-robin nem funções. Cada torneio
-   começa SEM dono; quem vai criar clica em "pegar" e vira o dono (OVERRIDES).
-   asg[key] = dono, ou undefined = livre. Vale pra Global e pra Liga do mesmo
-   jeito — um mapa só. Guarda: se o dono saiu da equipe, o item volta a livre. */
 function computeAssignments(){
-  const asg = {}; // key -> opName (dono)
+  const asg = {}; // key -> opName
+  if (!DATA || !OPS.length) return asg;
+
+  // round-robin simples de uma lista dentro de um pool de operadores
+  const roundRobin = (list, pool) => {
+    if (!pool.length) return;
+    let cursor = 0;
+    list.forEach(it => { asg[itemKey(it)] = pool[cursor++ % pool.length]; });
+  };
+
+  /* ── FUNÇÃO 1 · Main + Satélites — mesmo pool: quem cria o Main cria os
+     Satélites. Os Main Events vão em round-robin cronológico; cada GRUPO de
+     satélites (receita encadeada) vai inteiro pro operador do pool com menos
+     carga até ali, equilibrando dentro da própria função. ── */
+  const poolMS = opsForRole('mainSat');
+  const loadMS = Object.fromEntries(poolMS.map(o => [o,0]));
+  let msCursor = 0;
+  DATA.main.forEach(it => {
+    const op = poolMS[msCursor++ % poolMS.length];
+    asg[itemKey(it)] = op; loadMS[op]++;
+  });
+  const order = [], groups = {};
+  DATA.sat.forEach(it => {
+    const k = it.groupHeader || it.nome;
+    if (!groups[k]){ groups[k] = []; order.push(k); }
+    groups[k].push(it);
+  });
+  order.forEach(k => {
+    const op = poolMS.reduce((best,o) => loadMS[o] < loadMS[best] ? o : best, poolMS[0]);
+    groups[k].forEach(it => asg[itemKey(it)] = op);
+    loadMS[op] += groups[k].length;
+  });
+
+  /* ── FUNÇÕES 2 e 3 · Side com / sem Admin Fee — pools próprios, cada bloco
+     dividido igualmente entre quem está naquela função. ── */
+  const {admin, noadmin} = sideSplit();
+  roundRobin(admin,   opsForRole('sideAdmin'));
+  roundRobin(noadmin, opsForRole('sideNoAdmin'));
+
+  /* reatribuições manuais (handoff de turno) vencem a divisão automática,
+     desde que o destino ainda esteja na equipe */
   Object.keys(OVERRIDES).forEach(k => { if (OPS.includes(OVERRIDES[k])) asg[k] = OVERRIDES[k]; });
   return asg;
 }
@@ -808,21 +805,15 @@ function opColor(name){
   const i = OPS.indexOf(name);
   return OP_COLORS[(i >= 0 ? i : 0) % OP_COLORS.length];
 }
-/* converte o valor guardado pra moeda em exibição. Itens da GU guardam DÓLAR
-   (×5 no R$); itens da Liga (it.brl) guardam REAL (÷5 no US$). Um lugar só decide. */
-function toDisplayCur(v, brl){
-  return brl ? (CURRENCY === 'usd' ? v / BRL_RATE : v)
-             : (CURRENCY === 'usd' ? v : v * BRL_RATE);
-}
-function fmtMoney(vStored, it){
-  if (vStored === null || vStored === undefined) return '—';
-  const v = toDisplayCur(vStored, it && it.brl);
+function fmtMoney(vUsd){
+  if (vUsd === null || vUsd === undefined) return '—';
+  const v = CURRENCY === 'usd' ? vUsd : vUsd * BRL_RATE;
   const s = v.toLocaleString('pt-BR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2});
   return `<span class="cur">${CURRENCY === 'usd' ? '$' : 'R$'}</span>${s}`;
 }
-function fmtMoneyPlain(vStored, it){
-  if (vStored === null || vStored === undefined) return '—';
-  const v = toDisplayCur(vStored, it && it.brl);
+function fmtMoneyPlain(vUsd){
+  if (vUsd === null || vUsd === undefined) return '—';
+  const v = CURRENCY === 'usd' ? vUsd : vUsd * BRL_RATE;
   return (CURRENCY === 'usd' ? '$ ' : 'R$ ') + v.toLocaleString('pt-BR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2});
 }
 
@@ -840,9 +831,6 @@ function onDataReady(fromRemote){
 }
 
 function renderAllNow(){
-  // preserva a rolagem: reconstruir a lista não pode teleportar a página pro topo
-  // (marcar criado, pegar, sync do parceiro… tudo re-renderiza)
-  const sy = window.scrollY, sx = window.scrollX;
   renderOps();
   renderFilters();
   renderAlerts();
@@ -850,12 +838,6 @@ function renderAllNow(){
   renderFieldDiag();
   renderList();
   renderTV();
-  if (window.scrollY !== sy || window.scrollX !== sx) window.scrollTo(sx, sy);
-  // tela cheia acompanha o sync ao vivo — se um parceiro pega/cria um torneio, a
-  // planilha/coluna aberta reflete na hora (rolagem preservada)
-  if (FS && FS_EL) renderFS();
-  updateSelBar();
-  updateMyHud();
 }
 /* PERF: os listeners do Firebase disparam em rajada (done + ids + roles no mesmo
    segundo) — agrupa tudo num render só, em vez de reconstruir a tabela 3–4x */
@@ -981,7 +963,7 @@ function tvMountFeltro(){
      legítimo — não é degradação visível. */
   if (typeof SupremaFeltro === 'undefined') return;
   TV_FELTRO = SupremaFeltro.mount('#tvOverlay .tv-bg', {
-    bg:'#090c0a', gold:'#e6c34f', felt:'#22d47e',
+    bg:'#090c0a', gold:'#c9a84c', felt:'#22d47e',
     onFallback(){ TV_FELTRO = null; },   // shader não compilou: fundo chapado
   });
 }
@@ -1003,7 +985,7 @@ function tvDriveFeltro(pct, all){
   const base = pendentes.length || 1;
   TV_FELTRO.heat(Math.min(1, (atrasados * 2 + emRisco) / base));
 
-  TV_FELTRO.accent(pct >= 100 ? '#e6c34f' : atrasados ? '#e0a33c' : '#22d47e');
+  TV_FELTRO.accent(pct >= 100 ? '#c9a84c' : atrasados ? '#e0a33c' : '#22d47e');
 
   /* pulse a cada torneio novo criado; boom só na virada pro 100% (não a cada
      re-render, senão o telão explode em loop enquanto ninguém mexe) */
@@ -1034,7 +1016,6 @@ $('allDoneExport').addEventListener('click', () => $('exportBtn').click());
    em vez de achar que "não tem". */
 function renderFieldDiag(){
   const el = $('fieldDiag');
-  el.hidden = true; return;   // oculto a pedido — a lógica fica pronta pra religar se precisar
   if (!DATA){ el.hidden = true; return; }
   const labels = recipeFields();
   const probe = {extra: Object.fromEntries(labels.map(l => [l, 1]))};
@@ -1067,18 +1048,18 @@ function renderFieldDiag(){
 function renderOps(){
   const row = $('opsRow');
   if (!row) return;
-  // no modelo "pegar tarefa" não há função por operador — o chip mostra só quantos
-  // torneios a pessoa já pegou (leitura rápida do equilíbrio da noite)
-  const asg = computeAssignments();
-  const load = {};
-  Object.values(asg).forEach(o => { load[o] = (load[o] || 0) + 1; });
-  let html = OPS.map(o => `
-    <span class="op-chip">
+  let html = OPS.map(o => {
+    const r = roleOf(o);
+    const opts = `<option value="">Função…</option>` + ROLE_OPTS.map(ro =>
+      `<option value="${ro.key}" ${r === ro.key ? 'selected' : ''}>${ro.label}</option>`).join('');
+    return `
+    <span class="op-chip" ${r ? `data-role="${r}"` : ''}>
       <span class="avatar" style="background:${opColor(o)}">${escHtml(o.trim()[0].toUpperCase())}</span>
-      ${escHtml(o)}${normText(o) === normText(ME) ? ' <em class="you">(você)</em>' : ''}
-      <span class="op-load" title="Torneios que ${escHtml(o.split(' ')[0])} pegou">${load[o] || 0}</span>
+      ${escHtml(o)}
+      <select class="role-sel" data-op="${escHtml(o)}" title="Função de ${escHtml(o)} no turno">${opts}</select>
       <button class="rm" data-op="${escHtml(o)}" title="Remover do turno">×</button>
-    </span>`).join('');
+    </span>`;
+  }).join('');
   html += `
     <span class="op-add">
       <input type="text" id="opAddInput" placeholder="Nome do operador" maxlength="30">
@@ -1089,6 +1070,7 @@ function renderOps(){
   }
   row.innerHTML = html;
   row.querySelectorAll('.rm').forEach(b => b.addEventListener('click', () => saveOps(OPS.filter(o => o !== b.dataset.op))));
+  row.querySelectorAll('.role-sel').forEach(sel => sel.addEventListener('change', () => setRole(sel.dataset.op, sel.value)));
   const addOp = () => {
     const v = $('opAddInput').value.trim();
     if (!v) return;
@@ -1111,13 +1093,9 @@ function renderFilters(){
   const asg = computeAssignments();
   const counts = {};
   OPS.forEach(o => counts[o] = 0);
-  // conta todos os torneios do dia (Global + Liga) pra saber quantos estão livres
-  const allItems = DATA ? [...DATA.main, ...DATA.side, ...DATA.sat, ...LIGA] : [...LIGA];
-  let free = 0;
-  allItems.forEach(it => { const o = asg[itemKey(it)]; if (o in counts) counts[o]++; else free++; });
-  const total = allItems.length;
+  Object.values(asg).forEach(o => { if (o in counts) counts[o]++; });
+  const total = DATA ? DATA.main.length + DATA.side.length + DATA.sat.length : 0;
   let html = `<button class="fchip ${FILTER==='all'?'on':''}" data-f="all">Todos <span class="cnt">${total}</span></button>`;
-  html += `<button class="fchip free ${FILTER==='free'?'on':''}" data-f="free" title="Só os torneios que ninguém pegou ainda">✋ Livres <span class="cnt">${free}</span></button>`;
   html += OPS.map(o => `
     <button class="fchip ${FILTER===o?'on':''}" data-f="${escHtml(o)}">
       ${escHtml(o)}${normText(o)===normText(ME) ? ' (você)' : ''} <span class="cnt">${counts[o] || 0}</span>
@@ -1142,22 +1120,7 @@ function renderAlerts(){
     const lines = chg.slice(0, 14).map(c => `<b>${escHtml(c.nome)}</b> — ${escHtml(c.campo)}: ${escHtml(fmtChangeVal(c.de))} → ${escHtml(fmtChangeVal(c.para))}`);
     html += `<div class="alert gold">🔄 <b>Global atualizada</b> — ${chg.length} alteração(ões) em relação à versão anterior. Torneios já criados com receita antiga estão marcados com <b>⚠ revisar</b>.<br>${lines.join('<br>')}${chg.length > 14 ? `<br>… e mais ${chg.length - 14}.` : ''}</div>`;
   }
-  // TYPE ausente na coluna D: o torneio ENTROU na divisão (classificado pelo nome/
-  // garantido), mas fica sinalizado — "corrigir" abre o mesmo popover de mover bloco
-  // já resolvidos (o operador clicou "corrigir" e escolheu um bloco → tem override) somem daqui
-  const semTipo = ((DATA && DATA.semTipo) || []).filter(x => !CATEGORY_OVERRIDES[itemKey(x)]);
-  if (semTipo.length){
-    const lines = semTipo.slice(0, 10).map(x => {
-      const key = itemKey(x);
-      return `<b>${escHtml(x.hora)} ${escHtml(x.nome)}</b> → ${escHtml(CAT_BY_KEY[x.cat] ? CAT_BY_KEY[x.cat].label : x.cat)} <button class="alert-fix" data-fixcat="${key}">corrigir</button>`;
-    });
-    html += `<div class="alert gold">🔎 <b>${semTipo.length} torneio(s) sem TYPE na coluna D</b> — já entraram na divisão, classificados pelo nome. Confira ou corrija aqui se estiver errado:<br>${lines.join('<br>')}${semTipo.length > 10 ? `<br>… e mais ${semTipo.length - 10}.` : ''}</div>`;
-  }
   el.innerHTML = html;
-  el.querySelectorAll('[data-fixcat]').forEach(b => b.addEventListener('click', () => {
-    const it = findItemByKey(b.dataset.fixcat);
-    if (it) openCategoryPicker(b, it); else showToast('Torneio não encontrado na divisão atual.', true);
-  }));
 }
 
 let ALLDONE_TOASTED = false;
@@ -1322,37 +1285,28 @@ function recipeFields(){ return (DATA && DATA.fields) || []; }
    Colunas fora da lista entram DEPOIS, na ordem original da planilha.
    Garantido e Buy-in aparecem UMA vez só: se outra coluna casar de novo
    (ex.: "Size buy-in"), ela sai da receita em vez de duplicar. */
-/* ORDEM DAS COLUNAS — segue a Global (EN) e o mapa PT que o Brian passou. Cada
-   slot casa EN e PT (normText já tira acento/caixa). O que não casar cai no fim
-   na ordem da planilha. Aplica-se à GU E à Principal (ambas passam por aqui). */
 const CREATION_ORDER = [
-  { m: n => n === 'mtt' },                                                          // MTT / Torneio
-  { m: n => n === 'type' || n === 'tipo' },                                         // TYPE
-  { m: n => n.includes('game type') || n.includes('tipo de jogo') },               // GAME TYPE
+  { m: n => n === 'mtt' },                                                          // Torneio
   { m: n => /(^|[^a-z])k\.?\s*o\b/.test(n) || n.includes('knock') },                // K.O (REG/PROG/OFF)
-  { m: n => n.includes('max') && (n.includes('table') || n.includes('mesa') || n.includes('pessoas')) }, // MAX. TABLE / MAX PESSOAS MESAS
-  { m: n => n.includes('prize pool') || n.includes('guarant') || n.includes('garantido'), once: true }, // GARANTIDO / PRIZE POOL (1x)
+  { m: n => n.includes('max') && n.includes('table') },                             // MAX. TABLE
+  { m: n => n.includes('prize pool') || n.includes('guarant') || n.includes('garantido'), once: true }, // Garantido (1x)
   { m: n => n.includes('ticket') && n.includes('award') },                          // TICKET AWARD
-  { m: n => n.includes('personalized') || (n.includes('estrutura') && n.includes('pagamento')) }, // PERSONALIZED AWARD / ESTRUTURA PAGAMENTO
-  { m: n => (n.includes('payout') || n.includes('premiac')) && !n.includes('calculated') && !n.includes('calculado') }, // PAYOUT
-  { m: n => (n.includes('payout') && (n.includes('calculated') || n.includes('calculado'))) || (n.includes('pagamento') && n.includes('calculado')) }, // CALCULATED PAYOUT / PAGAMENTO CALCULADO
-  { m: n => n.includes('buy-in') || n.includes('buy in') || n === 'buyin' || n.includes('entrada'), once: true }, // BUY-IN / ENTRADA (1x)
-  { m: n => (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy') || n.includes('reentrada')) && !n.includes('stack') && !n.includes('condition') && !n.includes('condicao') },
-  { m: n => n.includes('stack') && (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy') || n.includes('reentrada')) }, // STACK REENTRY/REBUY
-  { m: n => (n.includes('rebuy') && n.includes('condition')) || (n.includes('condicao') && n.includes('rebuy')) }, // REBUY CONDITION / CONDIÇÃO REBUY
+  { m: n => n.includes('payout') && (n.includes('calculated') || n.includes('calculado')) }, // CALCULATED PAYOUT
+  { m: n => n.includes('payout') || n.includes('premiac') },                        // PAYOUT
+  { m: n => n.includes('buy-in') || n.includes('buy in') || n === 'buyin', once: true }, // Buy-in (1x)
+  { m: n => (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) && !n.includes('stack') && !n.includes('condition') },
+  { m: n => n.includes('stack') && (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) },
+  { m: n => n.includes('rebuy') && n.includes('condition') },
   { m: n => (n.includes('add-on') || n.includes('addon')) && !n.includes('stack') },
-  { m: n => n.includes('stack') && (n.includes('add-on') || n.includes('addon')) },  // STACK ADD-ON
+  { m: n => n.includes('stack') && (n.includes('add-on') || n.includes('addon')) },
   { m: n => n.includes('break') && n.includes('late') },                            // BREAK LATE REG.
-  { m: n => n === 'rake' || (n.includes('taxa') && n.includes('servico')) },        // RAKE / TAXA SERVIÇO
-  { m: n => n.includes('admin') && n.includes('fee') },                             // Admin Fee / CONF. TAXA DE SERVIÇO
-  { m: n => n.includes('structure') || n.includes('estrutura') }, // STRUCTURE / ESTRUTURA (pagamento já foi reivindicado antes)
-  { m: n => n === 'chips' || n.includes('chip stack') || n.includes('starting stack') || n.includes('stack inicial') || n.includes('fichas') }, // CHIPS / FICHAS INICIAIS
-  { m: n => n.includes('early game') },                                             // EARLY GAME (blinds)
-  { m: n => n.includes('tempo') && n.includes('blind') },                           // TEMPO DE BLIND
-  { m: n => n.includes('pos late') },                                               // PÓS LATE REG.
-  { m: n => n.includes('final table') },                                            // FINAL TABLE
-  { m: n => n.includes('lat reg') || n.includes('late reg') || n.includes('registro tardio') }, // LAT REG / REGISTRO TARDIO
-  { m: n => n.includes('early bird') },                                             // EARLY BIRD
+  { m: n => n.includes('admin') && n.includes('fee') },                             // Admin Fee
+  { m: n => n.includes('structure') || n.includes('estrutura') },                   // STRUCTURE
+  { m: n => n === 'chips' || n.includes('chip stack') || n.includes('starting stack') || n.includes('stack inicial') },
+  { m: n => n.includes('early game') },                                             // Early game (blinds)
+  { m: n => n.includes('pos late') },                                               // Pós Late Reg. (normText tira o acento)
+  { m: n => n.includes('final table') },                                            // Final Table
+  { m: n => n.includes('early bird') },                                             // Early Bird
   { m: n => n.includes('time bank') || n === 'tb' },                                // TIME BANK
 ];
 function creationOrderFields(fields){
@@ -1380,9 +1334,9 @@ function creationWhen(it){
 }
 
 /* linhas da receita que a operação NÃO usa na criação — fora da tabela e do foco */
-const HIDDEN_RECIPE = /num\.?\s*(de\s*)?players|jogadores|\bchat\b|\baction\b|size\s*buy/;
-function visibleRecipeFields(){ return creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l)) && !HIDDEN_FIELDS.has(l))); }
-function recipeText(it, cat, fields){
+const HIDDEN_RECIPE = /num\.?\s*(de\s*)?players|jogadores|\bchat\b/;
+function visibleRecipeFields(){ return creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l)))); }
+function recipeText(it, cat){
   // Garantido e Buy-in não entram aqui em cima: já saem UMA vez, na posição
   // deles, dentro da receita ordenada abaixo (ordem de digitação do app)
   const parts = [
@@ -1396,13 +1350,12 @@ function recipeText(it, cat, fields){
   if (af) parts.push(`Admin Fee (Rake/Fee + Admin): ${af.main}${af.sub ? ' ' + af.sub : ''}`);
   if (e) parts.push(`Early Bird: ${e.main}${e.sub ? ' ' + e.sub : ''}`);
   if (hasCampaign(it)){ const c = campInfo(it); parts.push(`✦ CAMPANHA${c ? ': ' + c.disp : ''}`); }
-  // receita completa — fields próprios da seção (Liga) ou os da GU, na ordem de criação
-  const list = fields || creationOrderFields(recipeFields());
-  list.forEach(label => {
+  // receita completa da GU — todos os campos que vão no app, na ordem de criação
+  creationOrderFields(recipeFields()).forEach(label => {
     const v = it.extra ? it.extra[label] : undefined;
     if (v !== undefined && v !== null && v !== '') parts.push(`${label}: ${fmtExtraVal(label, v)}`);
   });
-  if (!list.length && it.late) parts.push(`Fim do late reg: ${it.late}`);
+  if (!recipeFields().length && it.late) parts.push(`Fim do late reg: ${it.late}`);
   return parts.join('\n');
 }
 /* grid com TODOS os campos da receita (mostra também os vazios — quem cria a
@@ -1505,9 +1458,7 @@ function applyExpanded(){
 }
 
 function visibleItems(list, asg){
-  let out = FILTER === 'all' ? list
-    : FILTER === 'free' ? list.filter(it => !asg[itemKey(it)])
-    : list.filter(it => asg[itemKey(it)] === FILTER);
+  let out = FILTER === 'all' ? list : list.filter(it => asg[itemKey(it)] === FILTER);
   if (SEARCH){
     const q = normText(SEARCH);
     out = out.filter(it => normText(it.nome).includes(q) || it.hora.startsWith(SEARCH.trim()) || (it.groupHeader && normText(it.groupHeader).includes(q)));
@@ -1519,104 +1470,56 @@ function opTagHtml(op){
   if (!op) return `<span class="op-tag none">sem equipe</span>`;
   return `<span class="op-tag" style="background:${opColor(op)}"><span class="dot">${escHtml(op.trim()[0].toUpperCase())}</span>${escHtml(op.split(' ')[0])}</span>`;
 }
-/* célula "pegar tarefa": livre → botão pegar; meu → chip "você" (clique solta/passa);
-   de outro → chip do dono (clique assume/passa). Tudo abre pelo mesmo reassignItem. */
-function claimCellHtml(c){
-  // Sem dono: "✋ pegar" (1 clique = pra mim) + "▾" que abre o menu de ATRIBUIR a
-  // OUTRO operador (reassignItem já monta: Assumir pra mim · Passar pra fulano · Soltar).
-  if (!c.op) return `<span class="claim-wrap"><button class="claimbtn" data-claim="${c.key}" title="Pegar este torneio pra você">✋ pegar</button><button class="claimbtn claim-more" data-reassign="${c.key}" title="Atribuir a outro operador" aria-label="Atribuir a outro operador">▾</button></span>`;
-  const mine = normText(c.op) === normText(ME);
-  return `<button class="op-tag claim-op${mine ? ' mine' : ''}" data-reassign="${c.key}" style="background:${opColor(c.op)}"
-    title="${mine ? 'Seu — clique pra soltar ou passar' : 'Clique pra assumir ou passar'}"><span class="dot">${escHtml(c.op.trim()[0].toUpperCase())}</span>${escHtml(c.op.split(' ')[0])}${mine ? ' · você' : ''}</button>`;
-}
 
-/* nota abaixo do cabeçalho da seção: no modelo "pegar tarefa" mostra a divisão
-   AO VIVO deste bloco — quantos cada um pegou e quantos ainda estão livres. */
+/* nota abaixo do cabeçalho da seção: explica a função e quem está nela */
 function sectionNoteHtml(cat){
-  const asg = computeAssignments();
-  const items = cat.key === 'liga' ? LIGA : catItems(cat);
-  const byOp = {};
-  let free = 0;
-  items.forEach(it => { const o = asg[itemKey(it)]; if (o) byOp[o] = (byOp[o] || 0) + 1; else free++; });
-  const chips = Object.keys(byOp).map(o =>
-    `<span class="lk"><span class="d" style="background:${opColor(o)}"></span>${escHtml(o.split(' ')[0])} ${byOp[o]}</span>`).join('');
-  const freeTxt = free
-    ? `<span class="lk free"><span class="d"></span>${free} livre${free > 1 ? 's' : ''}</span>`
-    : (items.length ? '<span class="lk done-note">✓ tudo pego</span>' : '');
-  let hint = '';
-  if (cat.key === 'liga') hint = 'Grade FIXA da <b>Liga Principal</b> (R$, independe da Global). ';
-  return `<p class="section-note">✋ <b>Clique em "pegar"</b> num torneio pra assumir. ${hint}${chips} ${freeTxt}</p>`;
-}
-
-/* ── EVENTOS PRINCIPAIS (Liga) — seção própria, MESMA estrutura das outras
-   (renderVertical); grade fixa em R$, "criado" no mesmo /done, divisão pela
-   função ligaPrincipal (ou todos, se ninguém marcou). ── */
-/* Liga usa o MESMO mapa de donos (pegar tarefa) — os Eventos Principais entram
-   na divisão como qualquer outro bloco. */
-function ligaAssignments(){ return computeAssignments(); }
-function renderLiga(){
-  const done = LIGA.filter(it => DONE[itemKey(it)]).length;
-  const st = $('stLiga');
-  if (st) st.textContent = LIGA.length ? `${done}/${LIGA.length}` : '—';
-  if (!LIGA.length) return '';
-  const vis = visibleItems(LIGA, ligaAssignments());
-  if (!vis.length) return '';
-  const cat = {...CAT_LIGA, fields: ligaFields()};
-  const asg = ligaAssignments();
-  const freeCount = vis.filter(it => !asg[itemKey(it)]).length;
-  return `
-    <div class="section-head liga">
-      ${selBlockBoxHtml('liga')}
-      <span class="tag"><span class="suit">★</span>Eventos Principais</span>
-      <span class="cnt">${done}/${LIGA.length} criados · grade fixa</span>
-      <span class="line"></span>
-      ${freeCount ? `<button class="blockclaim" data-claimfree="liga" title="Pegar pra mim todos os ${freeCount} torneios livres deste bloco">✋ Pegar livres (${freeCount})</button>` : ''}
-      <button class="vmini blockfs" data-blockfs="liga" title="Tela cheia deste bloco">⛶</button>
-    </div>
-    ${sectionNoteHtml(cat)}
-    <div class="secwrap liga-sec" data-suit="★">${renderVertical(vis, cat, ligaAssignments())}</div>`;
-}
-
-/* barra de reexibir: só aparece quando há linha(s) oculta(s). Fica no topo da
-   lista pra o operador nunca "perder" um campo que escondeu sem querer. */
-function hiddenFieldsBarHtml(){
-  if (!HIDDEN_FIELDS.size) return '';
-  const chips = [...HIDDEN_FIELDS].map(l =>
-    `<button class="hf-chip" data-showfield="${escHtml(l)}" title="Reexibir a linha ${escHtml(l)}">${EYE_OFF} ${escHtml(l)}</button>`).join('');
-  return `<div class="hidden-fields-bar"><b>${HIDDEN_FIELDS.size} linha(s) oculta(s):</b> ${chips}
-    <button class="hf-all" data-showallfields>reexibir tudo</button></div>`;
+  const explicit = OPS.filter(o => roleOf(o) === cat.role);
+  const chips = explicit.map(o =>
+    `<span class="lk"><span class="d" style="background:${opColor(o)}"></span>${escHtml(o.split(' ')[0])}</span>`).join('');
+  let msg;
+  if (cat.key === 'sat')            msg = '<b>Quem cria o Main cria os Satélites</b> — mesma função.';
+  else if (cat.key === 'main')      msg = 'Base da grade — vai junto com os Satélites.';
+  else if (cat.key === 'sideAdmin') msg = 'Side Events que <b>cobram Admin Fee</b>.';
+  else                              msg = 'Side Events <b>sem Admin Fee</b>.';
+  const who = explicit.length ? chips : '<span style="opacity:.7">sem função marcada — todos dividem</span>';
+  return `<p class="section-note">${msg} ${who}</p>`;
 }
 
 function renderList(){
   const area = $('listArea');
-  const ligaHtml = renderLiga();
-  const hiddenBar = hiddenFieldsBarHtml();
   if (!DATA){
-    area.innerHTML = hiddenBar + ligaHtml + `<div class="empty-state"><span class="moon">🌙</span>Nenhuma planilha carregada ainda pra este dia da grade.<br>Suba a Global MTT acima — ou aguarde: se um parceiro subir, aparece aqui sozinho.</div>`;
-    wireVerticalArea(area);
+    area.innerHTML = `<div class="empty-state"><span class="moon">🌙</span>Nenhuma planilha carregada ainda pra este dia da grade.<br>Suba a Global MTT acima — ou aguarde: se um parceiro subir, aparece aqui sozinho.</div>`;
     return;
   }
+  // COMPORTAMENTO GOOGLE SHEETS: uma atualização de dados (listener do Firebase → renderAll)
+  // reconstrói o innerHTML e zeraria a rolagem de cada grade. Guarda a rolagem de cada grade
+  // (por naipe) + a da janela ANTES de reconstruir e restaura DEPOIS — o operador não perde o
+  // lugar onde estava quando um parceiro marca um ID/torneio do outro lado.
+  const _scroll = {};
+  area.querySelectorAll('.secwrap').forEach(sw => {
+    const vw = sw.querySelector('.vwrap');
+    if (vw) _scroll[sw.dataset.suit] = { t: vw.scrollTop, l: vw.scrollLeft };
+  });
+  const _winY = window.scrollY;
   const asg = computeAssignments();
-  let html = hiddenBar + ligaHtml;
+  let html = '';
+
+  // A GRADE PRINCIPAL é SEMPRE em R$ — não responde ao toggle de moeda (esse vale só pro modo
+  // foco/detalhe e pro export). Como só os formatadores (fmtMoney*/calcValueParts) leem CURRENCY
+  // e este build é 100% síncrono, forço 'brl' aqui e restauro logo abaixo — sem tocar no toggle
+  // global nem nas outras telas. Antes, com o toggle em USD a grade mostrava dólar e confundia.
+  const _cur0 = CURRENCY;
+  CURRENCY = 'brl';
 
   SECTIONS.forEach(cat => {
     const items = visibleItems(catItems(cat), asg);
     if (!items.length) return;
     const doneCount = items.filter(it => DONE[itemKey(it)]).length;
-    const freeCount = items.filter(it => !asg[itemKey(it)]).length;
-    // Garantido somado do bloco, na moeda em exibição (responsivo: renderList roda
-    // de novo ao trocar a moeda). toDisplayCur cuida de GU=dólar / Liga=real.
-    const gtdSum = items.reduce((s, it) => s + (it.garantido != null ? toDisplayCur(it.garantido, it.brl) : 0), 0);
-    const gtdLabel = (CURRENCY === 'usd' ? '$ ' : 'R$ ') + Math.round(gtdSum).toLocaleString('pt-BR');
     html += `
       <div class="section-head ${cat.cls}">
-        ${selBlockBoxHtml(cat.key)}
         <span class="tag"><span class="suit">${cat.suit}</span>${cat.label}</span>
         <span class="cnt">${doneCount}/${items.length} criados</span>
         <span class="line"></span>
-        <span class="gtd-total" title="Garantido somado de todos os eventos deste bloco (${items.length}), na moeda atual">Σ Garantido ${gtdLabel}</span>
-        ${freeCount ? `<button class="blockclaim" data-claimfree="${cat.key}" title="Pegar pra mim todos os ${freeCount} torneios livres deste bloco">✋ Pegar livres (${freeCount})</button>` : ''}
-        <button class="vmini blockfs" data-blockfs="${cat.key}" title="Tela cheia deste bloco">⛶</button>
       </div>
       ${sectionNoteHtml(cat)}`;
     html += `<div class="secwrap" data-suit="${cat.suit}">${renderVertical(items, cat, asg)}</div>`;
@@ -1634,62 +1537,27 @@ function renderList(){
       </tbody></table></div>`;
   }
 
+  CURRENCY = _cur0;   // restaura o toggle real pras demais telas (foco/detalhe/export)
+
   if (!html) html = `<div class="empty-state"><span class="moon">🃏</span>Nada nesse filtro.</div>`;
   area.innerHTML = html;
-  wireVerticalArea(area);
-}
 
-/* liga os controles de uma tabela `renderVertical` (data-done/data-focus/data-move/
-   data-fs/.id-inp/data-expand/data-copy) — usada tanto na lista normal (renderList)
-   quanto dentro do bloco em tela cheia (openBlockFullscreen), que reaproveita o
-   MESMO html de renderVertical e por isso precisa dos MESMOS listeners, senão os
-   botões ficam mudos lá dentro. `opts.closeFsFirst` fecha a tela cheia antes de
-   abrir o Modo Foco (senão os dois overlays ficam abertos ao mesmo tempo). */
-function wireVerticalArea(area, opts){
-  opts = opts || {};
-  area.querySelectorAll('[data-done]').forEach(el => {
-    el.addEventListener('mousedown', e => e.preventDefault());  // não rolar a página ao focar
-    el.addEventListener('click', () => toggleDone(el.dataset.done));
+  // restaura a rolagem capturada acima (atribuição direta = instantânea, sem animar o scroll-behavior:smooth)
+  area.querySelectorAll('.secwrap').forEach(sw => {
+    const p = _scroll[sw.dataset.suit]; if (!p) return;
+    const vw = sw.querySelector('.vwrap');
+    if (vw){ vw.scrollTop = p.t; vw.scrollLeft = p.l; }
   });
+  document.documentElement.scrollTop = _winY;
+
+  area.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
   area.querySelectorAll('[data-focus]').forEach(el => {
-    const go = () => { if (opts.closeFsFirst) closeFullscreenView(); openFocusAt(el.dataset.focus); };
-    el.addEventListener('click', go);
+    el.addEventListener('click', () => openFocusAt(el.dataset.focus));
     /* teclado: o nome é role="button" — Enter/Espaço abrem o modo foco */
     el.addEventListener('keydown', ev => {
-      if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); go(); }
+      if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openFocusAt(el.dataset.focus); }
     });
   });
-  area.querySelectorAll('[data-move]').forEach(b => b.addEventListener('click', e => {
-    e.stopPropagation();
-    const it = findItemByKey(b.dataset.move);
-    if (it) openCategoryPicker(b, it);
-  }));
-  area.querySelectorAll('[data-fs]').forEach(b => b.addEventListener('click', e => {
-    e.stopPropagation();
-    const it = findItemByKey(b.dataset.fs);
-    if (it) openTourFullscreen(it);
-  }));
-  area.querySelectorAll('[data-blockfs]').forEach(b => b.addEventListener('click', e => {
-    e.stopPropagation();
-    const k = b.dataset.blockfs;
-    const cat = k === 'liga' ? CAT_LIGA : CAT_BY_KEY[k];
-    if (cat) openBlockFullscreen(cat);
-  }));
-  // pegar tarefa (pull): pegar / assumir / passar / soltar
-  area.querySelectorAll('[data-claim]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); claimItem(b.dataset.claim); }));
-  area.querySelectorAll('[data-reassign]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); reassignItem(b, b.dataset.reassign); }));
-  // seleção em massa — span não recebe foco, então nem rola; shift-clique = faixa
-  area.querySelectorAll('[data-sel]').forEach(b => {
-    b.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); toggleSel(b.dataset.sel, e.shiftKey, b); });
-  });
-  area.querySelectorAll('[data-selblock]').forEach(b => {
-    b.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); selectBlock(b.dataset.selblock); });
-  });
-  area.querySelectorAll('[data-claimfree]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); claimFreeInBlock(b.dataset.claimfree); }));
-  // ocultar / reexibir linhas (campos da receita) — preferência de leitura por navegador
-  area.querySelectorAll('[data-hidefield]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); hideField(b.dataset.hidefield); }));
-  area.querySelectorAll('[data-showfield]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); showField(b.dataset.showfield); }));
-  area.querySelectorAll('[data-showallfields]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); showAllFields(); }));
   // ID Pokerbyte: grava ao sair do campo ou no Enter (não a cada tecla, pra não ecoar no parceiro)
   area.querySelectorAll('.id-inp').forEach(inp => {
     inp.addEventListener('change', () => setId(inp.dataset.idkey, inp.value));
@@ -1710,46 +1578,6 @@ function wireVerticalArea(area, opts){
   }));
 }
 
-/* contexto de destaque da receita: quais rótulos são "chave" (viram negrito) e
-   qual coluna é ticket/chips/game type/K.O/add-on. Usado pela tabela transposta
-   E pela planilha em tela cheia — pra os dois destacarem o MESMO jeito. */
-function recipeCtx(items){
-  const keyLabels = new Set();
-  items.forEach(it => [feeInfo, adminInfo, earlyInfo, ticketInfo, payoutInfo, calcPayoutInfo, rebuyInfo, addonInfo, chipsInfo, structureInfo, gameTypeInfo, koInfo]
-    .forEach(g => { const i = g(it); if (i && i.label) keyLabels.add(i.label); }));
-  const labelOf = getter => { const it0 = items.find(it => getter(it)); return it0 ? getter(it0).label : null; };
-  return { keyLabels, addonL: labelOf(addonInfo), ticketL: labelOf(ticketInfo),
-    chipsL: labelOf(chipsInfo), gameL: labelOf(gameTypeInfo), koL: labelOf(koInfo) };
-}
-// FEE / ADMIN FEE / EARLY BIRD crus: consolidados em linhas próprias, saem da receita
-function recipeFeeCols(items){
-  const s = new Set();
-  items.forEach(it => [feeInfo, adminInfo, earlyInfo].forEach(g => { const i = g(it); if (i && i.label) s.add(i.label); }));
-  return s;
-}
-const RECIPE_SUITS = ['♠','♥','♦','♣'];
-// valor de UM campo da receita com o destaque certo (ticket picotado, ficha de
-// chips, carta do game type, bounty do K.O, add-on em $, campo-chave em negrito)
-function recipeValueCellHtml(it, label, ctx){
-  const v = it.extra ? it.extra[label] : undefined;
-  const has = v !== undefined && v !== null && v !== '';
-  if (!has) return `<span class="mono" style="color:var(--ink-soft);opacity:.5">—</span>`;
-  const disp = fmtExtraVal(label, v);
-  if (label === ctx.addonL){
-    const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.'));
-    if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n, it))}</span>`;
-  }
-  if (label === ctx.ticketL) return `<span class="tkt"><span class="stub">Ticket</span><span class="val" title="${escHtml(disp)}">${escHtml(disp)}</span></span>`;
-  if (label === ctx.chipsL) return `<span class="pchip">${escHtml(disp)}</span>`;
-  if (label === ctx.gameL){
-    const idx = [...normText(disp)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 4;
-    return `<span class="gcard"><span class="suit ${idx === 1 || idx === 2 ? 'red' : ''}">${RECIPE_SUITS[idx]}</span>${escHtml(disp)}</span>`;
-  }
-  if (label === ctx.koL && !/^(off|nao|não|no|-|—)$/i.test(String(disp).trim()))
-    return `<span class="kochip"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg>${escHtml(disp)}</span>`;
-  return `<span class="mono" style="${ctx.keyLabels.has(label) ? 'font-weight:700' : ''}">${escHtml(disp)}</span>`;
-}
-
 /* vertical (única visão): planilha transposta — campos nas linhas, torneios nas
    colunas, na ordem em que se digita no app. Campos-chave com rótulo destacado. */
 function renderVertical(items, cat, asg){
@@ -1757,78 +1585,65 @@ function renderVertical(items, cat, asg){
     const key = itemKey(it);
     return {it, key, done: !!DONE[key], op: asg[key]};
   });
-  // colCls: classe por-coluna (ex.: destacar "os meus")
-  const cell = (fn, cls, colCls) => cols.map(c => `<td class="${c.done ? 'done-col' : ''} ${cls || ''} ${colCls ? colCls(c) : ''}">${fn(c)}</td>`).join('');
-  const mineCls = c => c.op && normText(c.op) === normText(ME) ? 'mine-col' : '';
-  // contexto de destaque (rótulos-chave + campos temáticos) — compartilhado com a planilha
-  const ctx = recipeCtx(items);
-  const keyLabels = ctx.keyLabels;
+  const cell = (fn, cls) => cols.map(c => `<td class="${c.done ? 'done-col' : ''} ${cls || ''}">${fn(c)}</td>`).join('');
+  // rótulos das colunas-chave pra destacar a linha correspondente da receita
+  const keyLabels = new Set();
+  cols.forEach(c => [feeInfo, adminInfo, earlyInfo, ticketInfo, payoutInfo, calcPayoutInfo, rebuyInfo, addonInfo, chipsInfo, structureInfo, gameTypeInfo, koInfo]
+    .forEach(g => { const i = g(c.it); if (i && i.label) keyLabels.add(i.label); }));
+  // rótulo da coluna de cada campo temático (ticket, chips, game type, k.o)
+  const labelOf = getter => { const c0 = cols.find(c => getter(c.it)); return c0 ? getter(c0.it).label : null; };
+  const addonL = labelOf(addonInfo), ticketL = labelOf(ticketInfo), chipsL = labelOf(chipsInfo),
+        gameL = labelOf(gameTypeInfo), koL = labelOf(koInfo);
+  const SUITS = ['♠','♥','♦','♣'];
   // FEE, ADMIN FEE e EARLY BIRD crus saem da receita: já estão consolidados nas linhas de cima
-  const feeCols = recipeFeeCols(items);
-  // cat.fields = esquema próprio da seção (Liga tem colunas diferentes da GU); default = GU
-  // HIDDEN_FIELDS: linhas que o operador ocultou pra limpar a leitura (por navegador)
-  const rows = (cat.fields || visibleRecipeFields()).filter(l => !feeCols.has(l) && !HIDDEN_FIELDS.has(l));
-  // cat.plain (Liga): sem os mini-botões mover/foco/tela-cheia — eles dependem da grade DATA
-  const plain = !!cat.plain;
-  // ── ORDEM DA RECEITA (formato que o Brian pediu) ──
-  // Campos dinâmicos LIDERAM. Admin Fee (calculado) entra logo após o RAKE e Early
-  // Bird logo após o LATE REG. Horário/Criar em vão pro FIM (antes de Operador).
-  // Admin Fee e Early Bird são linhas CALCULADAS (não colunas cruas): se o
-  // RAKE/LATE REG não vier como coluna, caem no fim do bloco dinâmico (fallback —
-  // nunca somem). "Hour late register" é coluna crua, então fica junto no dinâmico.
-  const adminRow = `<tr><th class="rowlab">Admin Fee</th>${cell(c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>`;
-  const earlyRow = `<tr><th class="rowlab">Early Bird</th>${cell(c => { const p = earlyParts(c.it); return p ? `<span class="calc-chip early">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>`;
-  const dynField = label => `<tr><th class="rowlab hideable ${keyLabels.has(label) ? 'key' : ''}" title="${escHtml(label)}"><span class="rl-txt">${escHtml(label)}</span><button class="rl-hide" data-hidefield="${escHtml(label)}" title="Ocultar a linha ${escHtml(label)}" aria-label="Ocultar linha ${escHtml(label)}">${EYE_OPEN}</button></th>${cell(c => recipeValueCellHtml(c.it, label, ctx))}</tr>`;
-  const horarioRow = `<tr><th class="rowlab">Horário</th>${cell(c => `<span class="thora">${escHtml(c.it.hora)}</span>`)}</tr>`;
-  const criarEmRow = `<tr><th class="rowlab key">Criar em</th>${cell(c => `<span class="mono" style="font-weight:700">${escHtml(creationWhen(c.it))}</span>`)}</tr>`;
-  const campanhaRow = cols.some(c => hasCampaign(c.it)) ? `<tr><th class="rowlab">Campanha</th>${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : '';
-  const grupoRow = cat.key === 'sat' ? `<tr><th class="rowlab">Grupo</th>${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : '';
-  const lateFallback = `<tr><th class="rowlab">Late reg</th>${cell(c => `<span class="mono" style="color:var(--ink-soft)">${c.it.late ? escHtml(c.it.late) : '—'}</span>`)}</tr>`;
-  let middle;
-  if (plain){
-    // PRINCIPAL (Liga): ordem ANTIGA — o Brian pediu "pode manter". Horário/Criar em
-    // e Admin Fee/Early Bird no topo, campos dinâmicos depois. Sem a nova ancoragem.
-    middle = horarioRow + criarEmRow + adminRow + earlyRow + campanhaRow + grupoRow
-      + (rows.length ? rows.map(dynField).join('') : lateFallback);
-  } else {
-    // GU: NOVA ordem (formato do Brian) — dinâmicos lideram, Admin Fee na posição do
-    // RAKE (antes do STRUCTURE), Early Bird após o LATE REG, Horário/Criar em no fim.
-    let adminPlaced = false, earlyPlaced = false, dynHtml;
-    if (rows.length){
-      dynHtml = rows.map(label => {
-        const nl = normText(label);
-        let out = '';
-        if (!adminPlaced && (nl.includes('structure') || nl.includes('estrutura'))){ out += adminRow; adminPlaced = true; }
-        out += dynField(label);
-        if (!adminPlaced && (nl === 'rake' || (nl.includes('taxa') && nl.includes('servico')))){ out += adminRow; adminPlaced = true; }
-        if (!earlyPlaced && (nl.includes('registro tardio') || nl.includes('lat reg') || nl.includes('late reg'))){ out += earlyRow; earlyPlaced = true; }
-        return out;
-      }).join('');
-    } else dynHtml = lateFallback;
-    if (!adminPlaced) dynHtml += adminRow;
-    if (!earlyPlaced) dynHtml += earlyRow;
-    middle = campanhaRow + grupoRow + dynHtml + horarioRow + criarEmRow;
-  }
+  const feeCols = new Set();
+  cols.forEach(c => [feeInfo, adminInfo, earlyInfo].forEach(g => { const i = g(c.it); if (i && i.label) feeCols.add(i.label); }));
+  const rows = visibleRecipeFields().filter(l => !feeCols.has(l));
   return `
     <div class="vwrap"><table class="vtable">
       <tr class="trow-head"><th class="rowlab">Torneio</th>${cell(c => {
         const m = mttKicker(c.it), urg = urgency(c.it);
-        return `<span class="vname-row">${selBoxHtml(c.key)}<span class="${plain ? '' : 'vgo'}"${plain ? '' : ` data-focus="${c.key}" role="button" tabindex="0" title="Abrir este torneio no modo foco" aria-label="Abrir ${escHtml(c.it.nome)} no modo foco"`}>${escHtml(c.it.nome)}</span>`
-          + (plain ? '' : `<button class="vmini" data-move="${c.key}" title="Mover pra outro bloco">⇄</button>`)
-          + (plain ? '' : `<button class="vmini" data-fs="${c.key}" title="Tela cheia deste torneio">⛶</button>`) + `</span>`
-          + campBadgeHtml(c.it) + valBadge(c.it, cat) + changeBadge(c.it) + auditBadge(c.it)
+        return `<span class="vgo" data-focus="${c.key}" role="button" tabindex="0" title="Abrir este torneio no modo foco" aria-label="Abrir ${escHtml(c.it.nome)} no modo foco">${escHtml(c.it.nome)}</span>` + campBadgeHtml(c.it) + valBadge(c.it, cat) + changeBadge(c.it) + auditBadge(c.it)
           + (auditErr(c.it) && auditErr(c.it).motivo ? `<br><span style="font-size:10.5px;color:var(--red);font-weight:600">↳ ${escHtml(auditErr(c.it).motivo)}</span>` : '')
           + (urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(c.it)}</span>` : '')
           + (m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : '');
-      }, 'vname', mineCls)}</tr>
-      ${middle}
-      <tr><th class="rowlab">Operador</th>${cell(c => claimCellHtml(c), '', mineCls)}</tr>
+      }, 'vname')}</tr>
+      <tr><th class="rowlab">Horário</th>${cell(c => `<span class="thora">${escHtml(c.it.hora)}</span>`)}</tr>
+      <tr><th class="rowlab key">Criar em</th>${cell(c => `<span class="mono" style="font-weight:700">${escHtml(creationWhen(c.it))}</span>`)}</tr>
+      <tr><th class="rowlab">Admin Fee</th>${cell(c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
+      <tr><th class="rowlab">Early Bird</th>${cell(c => { const p = earlyParts(c.it); return p ? `<span class="calc-chip early">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
+      ${cols.some(c => hasCampaign(c.it)) ? `<tr><th class="rowlab">Campanha</th>${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : ''}
+      ${cat.key === 'sat' ? `<tr><th class="rowlab">Grupo</th>${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : ''}
+      ${rows.length
+        ? rows.map(label => `<tr><th class="rowlab ${keyLabels.has(label) ? 'key' : ''}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(c => {
+            const v = c.it.extra ? c.it.extra[label] : undefined;
+            const has = v !== undefined && v !== null && v !== '';
+            if (!has) return `<span class="mono" style="color:var(--ink-soft);opacity:.5">—</span>`;
+            const disp = fmtExtraVal(label, v);
+            // Add-on em $; demais campos como se digita no app
+            if (label === addonL){
+              const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.'));
+              if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n))}</span>`;
+            }
+            // elementos de poker: ticket picotado, ficha de chips, carta do game type, bounty do K.O
+            if (label === ticketL) return `<span class="tkt"><span class="stub">Ticket</span><span class="val" title="${escHtml(disp)}">${escHtml(disp)}</span></span>`;
+            if (label === chipsL) return `<span class="pchip">${escHtml(disp)}</span>`;
+            if (label === gameL){
+              const idx = [...normText(disp)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 4;
+              return `<span class="gcard"><span class="suit ${idx === 1 || idx === 2 ? 'red' : ''}">${SUITS[idx]}</span>${escHtml(disp)}</span>`;
+            }
+            if (label === koL && !/^(off|nao|não|no|-|—)$/i.test(String(disp).trim()))
+              return `<span class="kochip"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg>${escHtml(disp)}</span>`;
+            return `<span class="mono" style="${keyLabels.has(label) ? 'font-weight:700' : ''}">${escHtml(disp)}</span>`;
+          })}</tr>`).join('')
+        : `<tr><th class="rowlab">Late reg</th>${cell(c => `<span class="mono" style="color:var(--ink-soft)">${c.it.late ? escHtml(c.it.late) : '—'}</span>`)}</tr>`}
+      <tr><th class="rowlab">Operador</th>${cell(c => opTagHtml(c.op))}</tr>
       <tr><th class="rowlab">ID Pokerbyte</th>${cell(c => idInputHtml(c.key, 'width:110px'))}</tr>
       <tr><th class="rowlab">Criado</th>${cell(c => `
         <button class="chk ${c.done ? 'on' : ''}" data-done="${c.key}" role="checkbox" aria-checked="${c.done ? 'true' : 'false'}"
           aria-label="${c.done ? `Criado por ${escHtml((DONE[c.key]||{}).by || '—')} — desmarcar` : `Marcar ${escHtml(c.it.nome)} como criado`}"
           title="${c.done ? `Criado por ${escHtml((DONE[c.key]||{}).by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
-        <button class="copy-btn" data-copy="${escHtml(recipeText(c.it, cat.label, cat.fields))}" title="Copiar receita" style="margin-left:6px;display:inline-grid;vertical-align:middle"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>`)}</tr>
+        <button class="copy-btn" data-copy="${escHtml(recipeText(c.it, cat.label))}" title="Copiar receita" style="margin-left:6px;display:inline-grid;vertical-align:middle"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>`)}</tr>
     </table></div>`;
 }
 
@@ -1894,198 +1709,14 @@ function openPickMenu(anchor, title, options){
   m.className = 'pop-menu'; m.id = 'popMenu';
   m.innerHTML = `<div class="ph">${escHtml(title)}</div>` + options.map((o,i) =>
     `<button class="pm" data-i="${i}"><span class="avatar" style="background:${o.color || 'var(--felt)'}">${escHtml(o.initial || '')}</span>${escHtml(o.label)}</button>`).join('');
-  // em tela cheia NATIVA só descendentes do elemento fullscreen aparecem — anexa
-  // o popover à tela cheia ativa (mover bloco dentro do fullscreen), senão ao body
-  (document.fullscreenElement || document.body).appendChild(m);
+  document.body.appendChild(m);
   const r = anchor.getBoundingClientRect();
   m.style.left = Math.max(12, Math.min(r.left, window.innerWidth - m.offsetWidth - 12)) + 'px';
   m.style.top = Math.min(r.bottom + 6, window.innerHeight - m.offsetHeight - 12) + 'px';
   m.querySelectorAll('.pm').forEach(b => b.addEventListener('click', () => { const o = options[+b.dataset.i]; closePickMenu(); o.onPick(); }));
   setTimeout(() => document.addEventListener('mousedown', pickMenuOutside, true), 0);
 }
-function myOp(){ return OPS.find(o => normText(o) === normText(ME)) || (FILTER !== 'all' && FILTER !== 'free' ? FILTER : null); }
-
-/* ── SELEÇÃO EM MASSA (dividir sem ser um-por-um) ─────────────────────────
-   marca vários torneios e pega/passa/solta TODOS de uma vez. A caixinha de
-   seleção fica no nome; a barra flutuante aparece quando há ≥1 marcado. */
-const SELECTED = new Set();
-let LAST_SEL = null;   // pra shift-clique (faixa)
-// SPAN (não button) de propósito: span sem tabindex NÃO recebe foco no clique, então
-// o navegador nunca rola pra "trazer o foco à vista" — 0px de deslize, definitivo.
-function selBoxHtml(key){
-  const on = SELECTED.has(key);
-  return `<span class="selbox ${on ? 'on' : ''}" data-sel="${key}" role="checkbox" aria-checked="${on}" title="Selecionar · shift-clique = faixa" aria-label="Selecionar torneio"></span>`;
-}
-function selBlockBoxHtml(catKey){
-  const keys = selblockKeys(catKey);
-  const all = keys.length && keys.every(k => SELECTED.has(k));
-  return `<span class="selbox selall ${all ? 'on' : ''}" data-selblock="${catKey}" role="checkbox" aria-checked="${all}" title="Selecionar / limpar o bloco inteiro" aria-label="Selecionar bloco"></span>`;
-}
-function selblockKeys(catKey){
-  const cat = catKey === 'liga' ? null : CAT_BY_KEY[catKey];
-  if (catKey !== 'liga' && !cat) return [];
-  const items = visibleItems(catKey === 'liga' ? LIGA : catItems(cat), computeAssignments());
-  return items.map(itemKey);
-}
-// ordem dos torneios como estão na tela (pro range do shift-clique), no MESMO
-// contexto do clique (lista normal ou tela cheia)
-function orderedSelKeys(el){
-  const scope = (el && el.closest('.fs-overlay')) || document.getElementById('listArea') || document;
-  return [...scope.querySelectorAll('[data-sel]:not(.selall)')].map(b => b.dataset.sel);
-}
-function toggleSel(key, shift, el){
-  const sx = window.scrollX, sy = window.scrollY;   // trava anti-deslize
-  if (shift && LAST_SEL && LAST_SEL !== key){
-    // FAIXA: seleciona tudo entre o último clicado e este
-    const keys = orderedSelKeys(el);
-    let i = keys.indexOf(LAST_SEL), j = keys.indexOf(key);
-    if (i >= 0 && j >= 0){ if (i > j){ const t = i; i = j; j = t; } for (let x = i; x <= j; x++) SELECTED.add(keys[x]); }
-    else { if (SELECTED.has(key)) SELECTED.delete(key); else SELECTED.add(key); }
-  } else {
-    if (SELECTED.has(key)) SELECTED.delete(key); else SELECTED.add(key);
-  }
-  LAST_SEL = key;
-  syncSelUI(); updateSelBar();
-  if (window.scrollX !== sx || window.scrollY !== sy) window.scrollTo(sx, sy);
-}
-function selectBlock(catKey){
-  const keys = selblockKeys(catKey);
-  const all = keys.length && keys.every(k => SELECTED.has(k));
-  if (all) keys.forEach(k => SELECTED.delete(k)); else keys.forEach(k => SELECTED.add(k));
-  if (keys.length) LAST_SEL = keys[keys.length - 1];
-  syncSelUI(); updateSelBar();
-}
-// espelha o estado de SELECTED no DOM sem re-render (checkboxes, linha da planilha,
-// caixas de "bloco todo")
-function syncSelUI(){
-  document.querySelectorAll('[data-sel]').forEach(b => {
-    const on = SELECTED.has(b.dataset.sel);
-    b.classList.toggle('on', on); b.setAttribute('aria-checked', on);
-  });
-  document.querySelectorAll('.fs-sheet tbody tr').forEach(tr => {
-    const sb = tr.querySelector('[data-sel]'); if (sb) tr.classList.toggle('sel', SELECTED.has(sb.dataset.sel));
-  });
-  document.querySelectorAll('[data-selblock]').forEach(b => {
-    const keys = selblockKeys(b.dataset.selblock);
-    const all = keys.length && keys.every(k => SELECTED.has(k));
-    b.classList.toggle('on', all); b.setAttribute('aria-checked', all);
-  });
-}
-function clearSel(){
-  SELECTED.clear(); LAST_SEL = null;
-  syncSelUI(); updateSelBar();
-}
-// pega/passa/solta TODOS os selecionados de uma vez
-function bulkClaim(op){
-  if (!op){ showToast('Defina seu nome (operador) pra pegar torneios.', true); return; }
-  if (!OPS.some(o => normText(o) === normText(op))) saveOps([...OPS, op]);
-  SELECTED.forEach(k => OVERRIDES[k] = op);
-  const n = SELECTED.size;
-  saveOverrides(); logEvent('pegou em massa', `${n} torneio(s) → ${op}`);
-  SELECTED.clear(); updateSelBar(); showToast(`${n} torneio(s) para ${op.split(' ')[0]}.`); renderAll(); renderFocus();
-}
-function bulkRelease(){
-  const n = SELECTED.size;
-  SELECTED.forEach(k => delete OVERRIDES[k]);
-  saveOverrides(); logEvent('soltou em massa', `${n}`);
-  SELECTED.clear(); updateSelBar(); showToast(`${n} torneio(s) soltos.`); renderAll(); renderFocus();
-}
-function openBulkAssign(anchor){
-  const me = myOp() || (ME && !OPS.some(o => normText(o) === normText(ME)) ? ME : null);
-  const opts = [];
-  if (me) opts.push({label:`✋ Pegar pra mim (${me.split(' ')[0]})`, color:opColor(me), initial:me.trim()[0].toUpperCase(), onPick:() => bulkClaim(me)});
-  OPS.filter(o => normText(o) !== normText(me || '')).forEach(o =>
-    opts.push({label:`Passar pra ${o.split(' ')[0]}`, color:opColor(o), initial:o.trim()[0].toUpperCase(), onPick:() => bulkClaim(o)}));
-  opts.push({label:`Soltar (deixar livre)`, color:'var(--ink-soft)', initial:'✕', onPick: bulkRelease});
-  openPickMenu(anchor, `${SELECTED.size} selecionado(s) →`, opts);
-}
-// barra flutuante — criada uma vez, some/aparece conforme a seleção
-function updateSelBar(){
-  let bar = $('selBar');
-  if (!SELECTED.size){ if (bar) bar.remove(); return; }
-  if (!bar){
-    bar = document.createElement('div');
-    bar.id = 'selBar'; bar.className = 'sel-bar';
-    document.body.appendChild(bar);
-  }
-  const me = myOp();
-  bar.innerHTML = `<span class="n">${SELECTED.size}</span> selecionado(s)
-    <button class="sb-btn primary" data-sb="me">✋ Pegar pra mim</button>
-    <button class="sb-btn" data-sb="assign">Passar / soltar ▾</button>
-    <button class="sb-btn ghost" data-sb="clear">Limpar</button>`;
-  bar.querySelector('[data-sb="me"]').onclick = () => bulkClaim(me || ME);
-  bar.querySelector('[data-sb="assign"]').onclick = e => openBulkAssign(e.currentTarget);
-  bar.querySelector('[data-sb="clear"]').onclick = clearSel;
-}
-// HUD flutuante: "quantos EU tenho pra criar" — bate o olho sem filtrar. Clicar
-// alterna o filtro pra só os meus. Some quando não tenho nada atribuído.
-function updateMyHud(){
-  const me = OPS.find(o => normText(o) === normText(ME));
-  let hud = $('myHud');
-  if (!me || !DATA){ if (hud) hud.remove(); return; }
-  const asg = computeAssignments();
-  const mine = [...DATA.main, ...DATA.side, ...DATA.sat, ...LIGA].filter(it => asg[itemKey(it)] === me);
-  if (!mine.length){ if (hud) hud.remove(); return; }
-  const done = mine.filter(it => DONE[itemKey(it)]).length, pend = mine.length - done;
-  if (!hud){
-    hud = document.createElement('button'); hud.id = 'myHud'; hud.className = 'my-hud';
-    document.body.appendChild(hud);
-    hud.addEventListener('click', () => { FILTER = (FILTER === me ? 'all' : me); renderAll(); });
-  }
-  hud.classList.toggle('on', FILTER === me);
-  hud.title = FILTER === me ? 'Mostrando só os seus — clique pra ver todos' : 'Clique pra ver só os seus';
-  hud.innerHTML = `<span class="hud-av" style="background:${opColor(me)}">${escHtml(me.trim()[0].toUpperCase())}</span>`
-    + `<span class="hud-txt"><b>${pend}</b> a criar${done ? ` <span class="hud-done">· ${done} ✓</span>` : ''}</span>`;
-}
-// atalho por bloco: pegar TODOS os livres do bloco pra mim (o caso comum:
-// "eu faço os Side c/ Admin") — nada de clicar um a um
-function claimFreeInBlock(catKey){
-  const me = myOp() || ME;
-  if (!me){ showToast('Defina seu nome (operador) pra pegar torneios.', true); return; }
-  if (!OPS.some(o => normText(o) === normText(me))) saveOps([...OPS, me]);
-  const items = (catKey === 'liga' ? LIGA : catItems(CAT_BY_KEY[catKey]));
-  let n = 0;
-  items.forEach(it => { const k = itemKey(it); if (!OVERRIDES[k]){ OVERRIDES[k] = me; n++; } });
-  if (!n){ showToast('Nenhum torneio livre neste bloco.'); return; }
-  saveOverrides(); logEvent('pegou bloco', `${n} livre(s) → ${me}`);
-  showToast(`${n} torneio(s) livres para você.`); renderAll(); renderFocus();
-}
-
-/* ── PEGAR TAREFA (pull) ──────────────────────────────────────────────────
-   pegar = virar dono; soltar = livre de novo; passar = trocar o dono. Grava em
-   OVERRIDES (mesma via de sync do handoff), então aparece ao vivo pra equipe. */
-function claimItem(key){
-  let op = myOp();
-  // atalho: se você ainda não está na equipe, o "pegar" te inclui e já assume
-  if (!op && ME){
-    if (!OPS.some(o => normText(o) === normText(ME))) saveOps([...OPS, ME]);
-    op = ME;
-  }
-  if (!op){ showToast('Defina seu nome no topo (operador) pra pegar torneios.', true); return; }
-  OVERRIDES[key] = op; saveOverrides();
-  logEvent('pegou torneio', `${key} → ${op}`);
-  renderAll(); renderFocus();
-}
-function releaseItem(key){
-  delete OVERRIDES[key]; saveOverrides();
-  logEvent('soltou torneio', key);
-  renderAll(); renderFocus();
-}
-function reassignItem(anchor, key){
-  const cur = OVERRIDES[key];
-  const me = myOp() || (ME && !OPS.some(o => normText(o) === normText(ME)) ? ME : null);
-  const opts = [];
-  if (me && normText(cur || '') !== normText(me))
-    opts.push({label:`Assumir pra mim (${me.split(' ')[0]})`, color:opColor(me), initial:me.trim()[0].toUpperCase(),
-      onPick: () => { if (!OPS.some(o => normText(o) === normText(me))) saveOps([...OPS, me]); OVERRIDES[key] = me; saveOverrides(); logEvent('assumiu torneio', `${key} → ${me}`); renderAll(); renderFocus(); }});
-  OPS.filter(o => o !== cur && normText(o) !== normText(me || '')).forEach(o =>
-    opts.push({label:`Passar pra ${o.split(' ')[0]}`, color:opColor(o), initial:o.trim()[0].toUpperCase(),
-      onPick: () => { OVERRIDES[key] = o; saveOverrides(); logEvent('passou torneio', `${key} → ${o}`); renderAll(); renderFocus(); }}));
-  if (cur) opts.push({label:'Soltar (deixar livre)', color:'var(--ink-soft)', initial:'✕', onPick: () => releaseItem(key)});  // só faz sentido se já tem dono
-  const it = findItemByKey(key);
-  openPickMenu(anchor, cur ? `"${(it && it.nome) || 'torneio'}" — de ${cur.split(' ')[0]}` : 'Atribuir torneio', opts);
-}
-
+function myOp(){ return OPS.find(o => normText(o) === normText(ME)) || (FILTER !== 'all' ? FILTER : null); }
 function myPending(){
   const asg = computeAssignments();
   const op = myOp();
@@ -2100,240 +1731,20 @@ function handoffTo(items, toOp){
   logEvent('passou pendentes', `${items.length} torneio(s) → ${toOp}`);
   showToast(`${items.length} torneio(s) passados para ${toOp.split(' ')[0]}.`);
 }
-function resetOverrides(){ OVERRIDES = {}; saveOverrides(); logEvent('soltou todos', ''); showToast('Todos os torneios foram soltos (livres).'); }
+function resetOverrides(){ OVERRIDES = {}; saveOverrides(); logEvent('restaurou divisão automática', ''); showToast('Divisão automática restaurada.'); }
 function openHandoff(anchor){
   const {op, items} = myPending();
-  if (!op){ showToast('Entre na equipe (ou filtre por você) pra passar seus torneios.', true); return; }
+  if (!op){ showToast('Entre na equipe (ou filtre por você) pra passar torneios.', true); return; }
   const others = OPS.filter(o => o !== op);
   const opts = others.map(o => ({
     label: `${o.split(' ')[0]} — assumir ${items.length}`, color: opColor(o), initial: o.trim()[0].toUpperCase(),
     onPick: () => handoffTo(items, o)
   }));
-  // soltar tudo que EU peguei (volta pra livre) — útil no fim do turno
-  if (items.length) opts.push({label:`✋ Soltar meus ${items.length} pendente(s)`, color:'var(--ink-soft)', initial:'✕',
-    onPick: () => { items.forEach(it => delete OVERRIDES[itemKey(it)]); saveOverrides(); logEvent('soltou pendentes', `${items.length}`); showToast(`${items.length} torneio(s) soltos.`); }});
-  if (!items.length){ showToast('Você não pegou nenhum torneio pendente pra passar.'); return; }
+  if (!items.length && !Object.keys(OVERRIDES).length){ showToast('Você não tem pendentes pra passar.'); return; }
+  if (Object.keys(OVERRIDES).length) opts.push({label:'↺ Restaurar divisão automática', color:'var(--ink-soft)', initial:'↺', onPick: resetOverrides});
   if (!opts.length){ showToast('Sem parceiros na equipe pra receber.', true); return; }
-  openPickMenu(anchor, `Passar ${items.length} pendente(s) de ${op.split(' ')[0]} para:`, opts);
-}
-
-/* liberdade de turno: mover um torneio pra outro bloco (Main/Satélite/Side
-   c-fee/Side s-fee) — o mesmo popover serve pro botão de cada coluna e pro
-   botão "corrigir" no aviso de TYPE ausente (semTipo) */
-function findItemByKey(key){
-  const hit = allWithCat().find(x => itemKey(x.it) === key);
-  return hit ? hit.it : null;
-}
-/* =========================================================================
-   TELA CHEIA — leitura ampliada de um torneio ou de um bloco inteiro (ex.:
-   girar o telão de lado pro Main Event). Mais leve que o Modo Foco: sem fila,
-   sem "próximo", só a receita grande. Um overlay serve pros dois modos.
-========================================================================= */
-let FS_EL = null;
-// tela cheia unificada: FS = { catKey, mode, idx }. mode: 'sheet' (planilha Global
-// MTT) | 'cols' (tabela transposta) | 'event' (um torneio grande, com setas).
-let FS = null;
-let FS_MODE = localStorage.getItem('cn_fs_mode');            // preferência sheet/cols
-if (FS_MODE !== 'cols' && FS_MODE !== 'sheet') FS_MODE = 'sheet';
-// olhinho: aberto = linha visível (clique oculta); fechado = oculta (clique reexibe)
-const EYE_OPEN = `<svg viewBox="0 0 24 24" class="eye"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>`;
-const EYE_OFF  = `<svg viewBox="0 0 24 24" class="eye"><path d="M9.9 5.1A9.5 9.5 0 0 1 12 5c6.4 0 10 7 10 7a17.7 17.7 0 0 1-2.2 3.1M6.2 6.2A17.7 17.7 0 0 0 2 12s3.6 7 10 7a9.3 9.3 0 0 0 4-.9"/><path d="m3 3 18 18"/></svg>`;
-function fsEscHandler(e){
-  if (e.key === 'Escape'){ closeFullscreenView(); return; }
-  // no modo Evento (ou single Planilha/Colunas) as setas do teclado trocam de torneio
-  if (FS && (FS.mode === 'event' || FS.single)){
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown'){ e.preventDefault(); fsStep(1); }
-    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp'){ e.preventDefault(); fsStep(-1); }
-  }
-}
-function fsChangeHandler(){ if (!document.fullscreenElement && FS_EL) closeFullscreenView(); }
-function closeFullscreenView(){
-  if (document.fullscreenElement) document.exitFullscreen().catch(()=>{});
-  if (FS_EL){ FS_EL.remove(); FS_EL = null; }
-  FS = null;
-  document.removeEventListener('keydown', fsEscHandler, true);
-  document.removeEventListener('fullscreenchange', fsChangeHandler);
-}
-/* monta o overlay UMA vez e entra em fullscreen nativo UMA vez. Trocar de modo/
-   evento depois só atualiza o miolo (setFullscreenBody) — nunca re-pede fullscreen.
-   Se JÁ está em tela cheia (abrir um torneio de dentro do bloco), REAPROVEITA o
-   overlay: sair+reentrar do fullscreen disparava uma corrida que fechava a tela
-   recém-aberta ("voltava"). */
-function mountFullscreenView(){
-  closePickMenu(); closeFocus();
-  FS = null;
-  if (FS_EL){ FS_EL.innerHTML = ''; return FS_EL; }
-  const el = document.createElement('div');
-  el.className = 'fs-overlay';
-  document.body.appendChild(el);
-  FS_EL = el;
-  el.addEventListener('click', e => { if (e.target === el) closeFullscreenView(); });
-  document.addEventListener('keydown', fsEscHandler, true);
-  document.addEventListener('fullscreenchange', fsChangeHandler);
-  try{ (el.requestFullscreen ? el : document.documentElement).requestFullscreen().catch(()=>{}); }catch(_){}
-  return el;
-}
-function setFullscreenBody(bodyHtml){
-  if (!FS_EL) return null;
-  FS_EL.innerHTML = `<button class="fs-close" title="Fechar (Esc)">✕</button>${bodyHtml}`;
-  FS_EL.querySelector('.fs-close').addEventListener('click', closeFullscreenView);
-  return FS_EL;
-}
-// só o copiar-valor funciona na leitura ampliada (sem fila/"digitei" do Modo Foco)
-function wireFsCopy(el){
-  el.querySelectorAll('.fcopy').forEach(btn => btn.addEventListener('click', async e => {
-    e.stopPropagation();
-    try{ await navigator.clipboard.writeText(btn.dataset.fcopy || ''); showToast('Valor copiado 📋'); }
-    catch(err){ showToast('Não consegui copiar.', true); }
-  }));
-}
-function fsCatByKey(k){ return k === 'liga' ? {...CAT_LIGA, fields: ligaFields()} : CAT_BY_KEY[k]; }
-function fsItems(catKey){ return visibleItems(catKey === 'liga' ? LIGA : catItems(CAT_BY_KEY[catKey]), computeAssignments()); }
-// a qual bloco um torneio pertence (pra abrir a tela cheia dele no bloco certo)
-function fsResolveCatKey(it){
-  if (LIGA.some(x => itemKey(x) === itemKey(it))) return 'liga';
-  const hit = allWithCat().find(x => itemKey(x.it) === itemKey(it));
-  return hit ? hit.cat.key : 'main';
-}
-
-/* PLANILHA (estilo Global MTT): torneios nas LINHAS, campos nas COLUNAS — rola
-   pra baixo pela grade inteira. Horário + torneio ficam fixos na rolagem lateral.
-   MESMOS destaques do modo normal (contexto de receita + colunas de fee/early). */
-function fsSheetHtml(items, cat, asg){
-  const ctx = recipeCtx(items);
-  const feeCols = recipeFeeCols(items);
-  const fields = (cat.fields || visibleRecipeFields()).filter(l => !feeCols.has(l) && !HIDDEN_FIELDS.has(l));
-  const hasCamp = items.some(hasCampaign);
-  const isSat = cat.key === 'sat';
-  const th = `<th class="c-h">${selBlockBoxHtml(cat.key)}Horário</th><th class="c-n">Torneio</th><th>Operador</th><th>Criar em</th>`
-    + `<th>Admin Fee</th><th>Early Bird</th>`
-    + (hasCamp ? `<th>Campanha</th>` : '')
-    + (isSat ? `<th>Grupo</th>` : '')
-    + fields.map(f => `<th class="c-field${ctx.keyLabels.has(f) ? ' key' : ''}">${escHtml(f)}<button class="rl-hide" data-hidefield="${escHtml(f)}" title="Ocultar a coluna ${escHtml(f)}" aria-label="Ocultar coluna ${escHtml(f)}">${EYE_OPEN}</button></th>`).join('')
-    + `<th>ID</th><th class="c-done">Criado</th>`;
-  const body = items.map(it => {
-    const key = itemKey(it), done = !!DONE[key], op = asg[key];
-    const adm = adminFeeParts(it), ear = earlyParts(it);
-    const fcells = fields.map(label => `<td>${recipeValueCellHtml(it, label, ctx)}</td>`).join('');
-    return `<tr class="${done ? 'done' : ''} ${SELECTED.has(key) ? 'sel' : ''} ${op && normText(op) === normText(ME) ? 'mine' : ''}">
-      <td class="c-h thora">${selBoxHtml(key)}${escHtml(it.hora)}</td>
-      <td class="c-n tname">${escHtml(it.nome)} ${campBadgeHtml(it)} ${valBadge(it, cat)} <button class="vmini" data-fs="${key}" title="Abrir este torneio em tela cheia">⛶</button></td>
-      <td>${claimCellHtml({it, key, op})}</td>
-      <td class="mono">${escHtml(creationWhen(it))}</td>
-      <td>${adm ? `<span class="calc-chip admin">${escHtml(adm.main)}${adm.sub ? `<span class="amt">${escHtml(adm.sub)}</span>` : ''}</span>` : '<span class="dash">—</span>'}</td>
-      <td>${ear ? `<span class="calc-chip early">${escHtml(ear.main)}${ear.sub ? `<span class="amt">${escHtml(ear.sub)}</span>` : ''}</span>` : '<span class="dash">—</span>'}</td>
-      ${hasCamp ? `<td>${hasCampaign(it) ? campBadgeHtml(it) : '<span class="dash">—</span>'}</td>` : ''}
-      ${isSat ? `<td><span style="font-size:11px;color:var(--sat-bright);font-weight:700">${escHtml(it.groupHeader || '—')}</span></td>` : ''}
-      ${fcells}
-      <td>${idInputHtml(key, 'width:96px')}</td>
-      <td class="c-done"><button class="chk ${done ? 'on' : ''}" data-done="${key}" role="checkbox" aria-checked="${done ? 'true' : 'false'}" aria-label="${done ? 'Criado — desmarcar' : 'Marcar como criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button></td>
-    </tr>`;
-  }).join('');
-  return `<div class="fs-sheet"><table><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table></div>`;
-}
-// EVENTO: um torneio grande, receita fluindo em colunas pra preencher a tela
-function fsEventHtml(items, cat, asg){
-  const it = items[FS.idx], multi = items.length > 1, key = itemKey(it), op = asg[key], done = !!DONE[key];
-  return `
-    ${multi ? `<button class="fs-arrow prev" data-fsprev aria-label="Torneio anterior">‹</button>` : ''}
-    <div class="fs-tour">
-      <div class="fs-tour-top">
-        <div><span class="fs-tour-hora">${escHtml(it.hora)}</span><h2 class="fs-tour-name">${escHtml(it.nome)} ${campBadgeHtml(it)} ${valBadge(it, cat)}</h2></div>
-        <div class="fs-eventnav">
-          ${multi ? `<span class="fs-count">${FS.idx + 1} / ${items.length}</span>` : ''}
-          ${claimCellHtml({it, key, op})}
-          <button class="chk ${done ? 'on' : ''}" data-done="${key}" role="checkbox" aria-checked="${done ? 'true' : 'false'}" title="${done ? 'Criado' : 'Marcar criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
-        </div>
-      </div>
-      <div class="fs-recipe fs-recipe-flow">${focusFlowHtml(it)}</div>
-    </div>
-    ${multi ? `<button class="fs-arrow next" data-fsnext aria-label="Próximo torneio">›</button>` : ''}`;
-}
-function openBlockFullscreen(cat){
-  mountFullscreenView();
-  FS = { catKey: cat.key, mode: FS_MODE, idx: 0 };
-  renderFS();
-}
-function openTourFullscreen(it){
-  const catKey = fsResolveCatKey(it);
-  const items = fsItems(catKey);
-  let idx = items.findIndex(x => itemKey(x) === itemKey(it));
-  if (idx < 0) idx = 0;
-  mountFullscreenView();
-  // single: abriu UM torneio. Nos modos Planilha/Colunas mostra só ELE (não o bloco).
-  FS = { catKey, mode: 'event', idx, single: true };
-  renderFS();
-}
-function renderFS(){
-  if (!FS || !FS_EL) return;
-  const cat = fsCatByKey(FS.catKey);
-  const asg = computeAssignments();
-  const items = fsItems(FS.catKey);
-  if (!items.length){ showToast('Bloco vazio.'); closeFullscreenView(); return; }
-  FS.idx = Math.max(0, Math.min(FS.idx, items.length - 1));
-  // single = abriu UM torneio: Planilha/Colunas mostram só ELE (não o bloco inteiro).
-  const single = !!FS.single, multi = items.length > 1;
-  const bodyItems = single ? [items[FS.idx]] : items;
-  const seg = [['sheet','▥ Planilha'], ['cols','▤ Colunas'], ['event','⛶ Evento']]
-    .map(([m, lab]) => `<button class="fs-seg-btn ${FS.mode === m ? 'on' : ''}" data-fsmode="${m}">${lab}</button>`).join('');
-  // preserva rolagem da planilha/colunas entre re-renders (sync ao vivo não teleporta)
-  const prevScrollEl = FS_EL.querySelector('.fs-sheet, .fs-block-body');
-  const scroll = prevScrollEl ? {t: prevScrollEl.scrollTop, l: prevScrollEl.scrollLeft} : null;
-  let body;
-  if (FS.mode === 'sheet') body = fsSheetHtml(bodyItems, cat, asg);
-  else if (FS.mode === 'cols') body = `<div class="fs-block-body">${renderVertical(bodyItems, cat, asg)}</div>`;
-  else body = fsEventHtml(items, cat, asg);   // Evento: usa o bloco todo p/ as setas internas
-  // no single, as setas de navegar aparecem TAMBÉM em Planilha/Colunas
-  const singleNav = single && multi && FS.mode !== 'event';
-  const navArrows = singleNav
-    ? `<button class="fs-arrow prev" data-fsprev aria-label="Torneio anterior">‹</button><button class="fs-arrow next" data-fsnext aria-label="Próximo torneio">›</button>`
-    : '';
-  const titleTxt = single
-    ? `${escHtml(items[FS.idx].nome)} <span class="fs-count">${FS.idx + 1} / ${items.length}</span>`
-    : `${cat.label} <span class="fs-count">${items.length} torneios</span>`;
-  const el = setFullscreenBody(`
-    <div class="fs-view ${cat.cls} mode-${FS.mode}${single ? ' fs-single' : ''}">
-      <div class="fs-head">
-        <div class="fs-title"><span class="suit">${cat.suit}</span>${titleTxt}</div>
-        <div class="fs-seg">${seg}</div>
-      </div>
-      ${navArrows}
-      ${body}
-    </div>`);
-  el.querySelectorAll('[data-fsmode]').forEach(b => b.addEventListener('click', e => {
-    e.stopPropagation();
-    FS.mode = b.dataset.fsmode;
-    if (FS.mode !== 'event'){ FS_MODE = FS.mode; localStorage.setItem('cn_fs_mode', FS_MODE); }
-    renderFS();
-  }));
-  // listeners compartilhados com a lista normal (marcar criado, ID, ⛶, pegar/passar,
-  // ocultar coluna, selecionar) — a tabela é a MESMA de renderList
-  wireVerticalArea(el, { closeFsFirst: true });
-  wireFsCopy(el);
-  if (scroll){ const s = el.querySelector('.fs-sheet, .fs-block-body'); if (s){ s.scrollTop = scroll.t; s.scrollLeft = scroll.l; } }
-  // setas: modo Evento (dentro do fsEventHtml) OU single Planilha/Colunas (navArrows)
-  const p = el.querySelector('[data-fsprev]'), n = el.querySelector('[data-fsnext]');
-  if (p) p.addEventListener('click', e => { e.stopPropagation(); fsStep(-1); });
-  if (n) n.addEventListener('click', e => { e.stopPropagation(); fsStep(1); });
-}
-function fsStep(d){
-  if (!FS) return;
-  const items = fsItems(FS.catKey), n = items.length;
-  if (!n) return;
-  FS.idx = (FS.idx + d + n) % n;
-  renderFS();
-}
-
-function openCategoryPicker(anchor, it){
-  const current = CATEGORY_OVERRIDES[itemKey(it)] || null;
-  const catColor = cat => ({main:'var(--main)', sat:'var(--sat)', sideAdmin:'var(--side)', sideNoAdmin:'var(--sidefree)'})[cat.key];
-  const opts = SECTIONS.map(cat => ({
-    label: `${cat.suit} ${cat.label}${current === cat.key ? ' (atual)' : ''}`,
-    color: catColor(cat), initial: cat.suit,
-    onPick: () => saveCategoryOverride(it, cat.key)
-  }));
-  if (current) opts.push({label:'↺ Restaurar divisão automática', color:'var(--ink-soft)', initial:'↺', onPick: () => saveCategoryOverride(it, null)});
-  openPickMenu(anchor, `Mover "${it.nome}" para:`, opts);
+  const title = items.length ? `Passar ${items.length} pendente(s) de ${op.split(' ')[0]} para:` : 'Divisão manual ativa:';
+  openPickMenu(anchor, title, opts);
 }
 
 let FOCUS_TARGET = null; // clicou num torneio da tabela → foco abre direto nele
@@ -2855,20 +2266,17 @@ $('exportBtn').addEventListener('click', async () => {
   if (!DATA){ showToast('Carregue a Global primeiro.', true); return; }
   try{ await ensureXLSX(); }catch(_){ showToast('A biblioteca de planilhas não carregou — recarregue a página.', true); return; }
   const cur = CURRENCY === 'usd' ? '$' : 'R$';
-  // ciente da moeda por item: Liga guarda REAL (it.brl), Global guarda DÓLAR —
-  // toDisplayCur decide, igual à tela, pra a Principal não sair convertida errada
-  const conv = (v, it) => v === null || v === undefined ? null : Math.round(toDisplayCur(v, it && it.brl) * 100) / 100;
-  const asg = computeAssignments(); // itemKey -> dono (pegar tarefa)
+  const conv = v => v === null || v === undefined ? null : (CURRENCY === 'usd' ? v : Math.round(v * BRL_RATE * 100) / 100);
+  const asg = computeAssignments(); // itemKey -> operador da divisão
 
   // main e side já vêm em ordem cronológica do gu-parser (buildSections); sat vem
   // na ordem de leitura da Global, agrupado por groupHeader — igual à Conferência de amanhã
   const main = DATA.main || [];
   const side = DATA.side || [];
   const sat  = DATA.sat  || [];
-  const liga = LIGA || [];
   const unknown = DATA.unknown || [];
   const total = main.length + side.length + sat.length;
-  if (!total && !unknown.length && !liga.length){ showToast('Nada para exportar.', true); return; }
+  if (!total && !unknown.length){ showToast('Nada para exportar.', true); return; }
 
   // agrupa satélites por groupHeader, preservando a ordem de primeira aparição
   const satOrder = [], satMap = {};
@@ -2876,37 +2284,29 @@ $('exportBtn').addEventListener('click', async () => {
   const satGroups = satOrder.map(k => satMap[k]);
 
   const rows = [['Torneio', 'Horário', `Garantido (${cur})`, `Buy in (${cur})`, 'ID', 'Operador']];
-  const pushRow = it => { const key = itemKey(it); rows.push([it.nome, it.hora, conv(it.garantido, it), conv(it.buyin, it), idVal(key), asg[key] || '']); };
+  const pushRow = it => { const key = itemKey(it); rows.push([it.nome, it.hora, conv(it.garantido), conv(it.buyin), idVal(key), asg[key] || '']); };
   const blankRow = () => rows.push([]);
 
   main.forEach(pushRow); if (main.length) blankRow();
   side.forEach(pushRow); if (side.length) blankRow();
   satGroups.forEach(g => { g.forEach(pushRow); blankRow(); });
 
-  // ★ Eventos Principais (Liga) — a divisão da noite conta a Principal também
-  if (liga.length){
-    blankRow();
-    rows.push(['★ EVENTOS PRINCIPAIS (grade fixa da Liga)']);
-    liga.forEach(pushRow);
-    blankRow();
-  }
-
   if (unknown.length){
     blankRow();
     rows.push(['TIPO NÃO RECONHECIDO — verificar coluna TYPE na Global antes de fechar']);
-    unknown.forEach(it => { const key = itemKey(it); rows.push([it.nome, it.hora, conv(it.garantido, it), conv(it.buyin, it), idVal(key), asg[key] || '', it.tipo ?? '']); });
+    unknown.forEach(it => { const key = itemKey(it); rows.push([it.nome, it.hora, conv(it.garantido), conv(it.buyin), idVal(key), asg[key] || '', it.tipo ?? '']); });
   }
 
   // rodapé de checagem: quem receber a planilha confere se nada foi cortado
   blankRow();
-  rows.push([`Total: ${total + liga.length} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length} · Principais ${liga.length}) — ${WEEKDAY_TOMORROW} ${refToLabel(TURNO.refTomorrow)}`]);
+  rows.push([`Total: ${total} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length}) — ${WEEKDAY_TOMORROW} ${refToLabel(TURNO.refTomorrow)}`]);
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = [{wch:30},{wch:10},{wch:14},{wch:12},{wch:16},{wch:18}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, (WEEKDAY_TOMORROW || 'Criação Noturna').slice(0,31));
   XLSX.writeFile(wb, `CriacaoNoturna_${TOMORROW_ISO}.xlsx`);
-  showToast(`Exportado — ${total + liga.length} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length} · Principais ${liga.length}).`);
+  showToast(`Exportado — ${total} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length}).`);
 });
 
 /* ── resumo pra colar no grupo ── */
@@ -2926,16 +2326,12 @@ $('summaryBtn').addEventListener('click', async () => {
           lines.push(`  ${cat.label}: ${mine.length}${camp ? ` (✦${camp} campanha)` : ''} — ${mine.map(it => it.hora).join(', ')}`);
         }
       });
-      // Eventos Principais (Liga) entram na divisão como os demais blocos
-      const mineLiga = LIGA.filter(it => asg[itemKey(it)] === o);
-      if (mineLiga.length) lines.push(`  ★ Eventos Principais: ${mineLiga.length} — ${mineLiga.map(it => it.hora).join(', ')}`);
     });
   } else {
     SECTIONS.forEach(cat => lines.push(`${cat.label}: ${catItems(cat).length}`));
-    if (LIGA.length) lines.push(`★ Eventos Principais: ${LIGA.length}`);
   }
-  const total = DATA.main.length + DATA.side.length + DATA.sat.length + LIGA.length;
-  const doneCount = [...DATA.main, ...DATA.side, ...DATA.sat, ...LIGA].filter(it => DONE[itemKey(it)]).length;
+  const total = DATA.main.length + DATA.side.length + DATA.sat.length;
+  const doneCount = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => DONE[itemKey(it)]).length;
   const avg = avgDurMin();
   lines.push(`\nTotal: ${total} torneios · ${doneCount} criados${avg ? ` · ⏱ ${avg < 1 ? Math.round(avg*60) + 's' : avg.toFixed(1) + 'm'}/torneio` : ''}`);
   try{

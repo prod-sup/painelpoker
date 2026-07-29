@@ -773,8 +773,11 @@ function lateState(t, resolved){
   if(!t || !t.late || t.proxCronograma) return '';   // próx. cronograma é só fixação — sem urgência de late
   const lateMin = timeToMinutes(t.late);
   if(lateMin == null) return '';
-  let diff = lateMin - nowMinutesSP();
-  if(diff < -720) diff += 1440;            // late caiu na madrugada seguinte
+  // TEMPO OPERACIONAL (mesma régua do timeStatus): o late "00:36" de um evento da NOITE pertence à
+  // MADRUGADA (fim do dia operacional), não a 36min depois da meia-noite de hoje. Sem isso, de manhã
+  // (ex.: 08:52) os eventos da noite ainda-por-vir liam "atrasado há horas" e pintavam de vermelho à
+  // toa. Usar opMinutes/opNowMinutes coloca o late da madrugada corretamente no FUTURO.
+  const diff = opMinutes(lateMin) - opNowMinutes();
   if(diff > 30) return '';                 // ainda longe
   if(diff < -5) return resolved ? '' : 'late-urgent';  // fechou: segura o vermelho até a premiação entrar
   return diff <= 10 ? 'late-urgent' : 'late-soon';

@@ -3851,7 +3851,8 @@ html.dark .compact-table tbody tr.late-urgent .ctr-late{ color:#f87171; }
 /* ── MODO COMPACTO = VISÃO FOCADA ────────────────────────────────────────
    Foca só na grade de torneios em aberto: esconde as seções auxiliares e
    enxuga o cabeçalho/tools da agenda pra caber na tela sem scroll de página. */
-body.compact-focus #nao-fixados,
+/* mantém os "Eventos não fixados" visíveis mesmo no modo focado — são o que precisa de ação;
+   esconde só as seções de consulta (Principais / Resultados) pra a grade ganhar a tela. */
 body.compact-focus #principais,
 body.compact-focus #resultados{ display:none !important; }
 body.compact-focus #agenda{ padding-top:10px; }
