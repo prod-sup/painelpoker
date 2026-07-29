@@ -1199,6 +1199,10 @@ body > *{position:relative;z-index:1}
   .claim-wrap .claim-more:hover{background:var(--felt-bright);color:#08130c}
   .op-tag.claim-op{cursor:pointer}
   .section-head .claim-sec{flex:none;font-size:11.5px;padding:5px 12px}
+  .section-head .selbox.selall{margin-right:2px}
+  /* toggle miúdo (orientação do evento) dentro da barra de navegação da tela cheia */
+  .fs-seg-mini{padding:3px}
+  .fs-seg-mini .fs-seg-btn{padding:5px 10px;font-size:13px}
 
   /* ── TELA CHEIA UNIFICADA: cabeçalho fixo + toggle Planilha/Colunas/Evento,
      miolo preenche a tela toda (nada de metade preta à direita) ──────────── */

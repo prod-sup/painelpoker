@@ -807,6 +807,7 @@ function renderAllNow(){
   renderList();
   renderTV();
   if (FS_OPEN) renderFS();   // sync do parceiro atualiza a tela cheia sem perder scroll/foco
+  refreshSelallBoxes(); updateSelBar();   // seleção em massa sobrevive aos re-renders
 }
 /* PERF: os listeners do Firebase disparam em rajada (done + ids + roles no mesmo
    segundo) — agrupa tudo num render só, em vez de reconstruir a tabela 3–4x */
@@ -1026,6 +1027,8 @@ function fsNavEvent(dir){
   renderFS({reset:true});
 }
 function fsSetMode(mode){ if (mode === FS_MODE) return; FS_MODE = mode; renderFS({reset:true}); }
+let FS_EV_ORIENT = 'v';   // no modo Evento: 'v' (empilhado) ou 'h' (linha, estilo planilha)
+function fsSetEvOrient(o){ if (o === FS_EV_ORIENT) return; FS_EV_ORIENT = o; renderFS({reset:true}); }
 function renderFS(opts){
   opts = opts || {};
   if (!FS_OPEN || !DATA) return;
@@ -1039,10 +1042,20 @@ function renderFS(opts){
   const ov = $('fsOverlay');
   const st = captureGrid(ov);
 
+  const MODES = [
+    {key:'sheet',      cls:'mode-cols',  label:'▦ Vertical'},
+    {key:'horizontal', cls:'mode-rows',  label:'▤ Horizontal'},
+    {key:'event',      cls:'mode-event', label:'◱ Evento'}
+  ];
+  const cur = MODES.find(m => m.key === FS_MODE) || MODES[0];
+
   let body;
   if (FS_MODE === 'event'){
     if (FS_EVENT >= items.length) FS_EVENT = 0;
     const it = items[FS_EVENT], key = itemKey(it), done = !!DONE[key];
+    const recipe = FS_EV_ORIENT === 'h'
+      ? renderHorizontal([it], cat, asg)                 // um torneio, deitado (estilo planilha)
+      : recipeGridHtml(it);                              // um torneio, empilhado (vertical)
     body = `<div class="fs-body mode-event">
       <div class="fs-tour">
         <div class="fs-tour-top">
@@ -1052,12 +1065,16 @@ function renderFS(opts){
             <div style="margin-top:6px">${opTagHtml(asg[key])} ${valBadge(it, cat)} ${campBadgeHtml(it)}</div>
           </div>
           <div class="fs-eventnav">
+            <div class="fs-seg fs-seg-mini" role="tablist" aria-label="Orientação do evento">
+              <button class="fs-seg-btn ${FS_EV_ORIENT === 'v' ? 'on' : ''}" data-fsevo="v" title="Empilhado (vertical)">▦</button>
+              <button class="fs-seg-btn ${FS_EV_ORIENT === 'h' ? 'on' : ''}" data-fsevo="h" title="Deitado (horizontal)">▤</button>
+            </div>
             <button class="fs-btn" id="fsEvPrev" title="Evento anterior (←)" aria-label="Evento anterior">‹</button>
             <span class="fs-count">${FS_EVENT + 1}/${items.length}</span>
             <button class="fs-btn" id="fsEvNext" title="Próximo evento (→)" aria-label="Próximo evento">›</button>
           </div>
         </div>
-        ${recipeGridHtml(it)}
+        ${recipe}
         <div class="fs-ev-do">
           <label class="fs-ev-id"><span>ID Pokerbyte</span>${idInputHtml(key, '')}</label>
           <button class="chk ${done ? 'on' : ''}" data-done="${key}" role="checkbox" aria-checked="${done ? 'true' : 'false'}"
@@ -1066,23 +1083,24 @@ function renderFS(opts){
         </div>
       </div>
     </div>`;
+  } else if (FS_MODE === 'horizontal'){
+    body = `<div class="fs-body">${renderHorizontal(items, cat, asg)}</div>`;
   } else {
     body = `<div class="fs-body"><div class="fs-block-body">${renderVertical(items, cat, asg)}</div></div>`;
   }
 
   ov.innerHTML = `
     <button class="fs-close" id="fsClose" title="Fechar (Esc)" aria-label="Fechar tela cheia">✕</button>
-    <div class="fs-view mode-${FS_MODE === 'event' ? 'event' : 'cols'}">
+    <div class="fs-view ${cur.cls}">
       <div class="fs-head ${cat.cls}">
         <span class="fs-title"><span class="suit">${cat.suit}</span>${cat.label}<span class="fs-count">${doneCount}/${items.length} criados</span><span class="gtd-total" title="Soma do garantido desta seção">GTD ${fmtMoney(gtdSum(items))}</span></span>
         <div class="fs-seg" role="tablist" aria-label="Visualização">
-          <button class="fs-seg-btn ${FS_MODE === 'sheet' ? 'on' : ''}" data-fsmode="sheet" role="tab" aria-selected="${FS_MODE === 'sheet'}">▦ Planilha</button>
-          <button class="fs-seg-btn ${FS_MODE === 'event' ? 'on' : ''}" data-fsmode="event" role="tab" aria-selected="${FS_MODE === 'event'}">◱ Evento</button>
+          ${MODES.map(m => `<button class="fs-seg-btn ${FS_MODE === m.key ? 'on' : ''}" data-fsmode="${m.key}" role="tab" aria-selected="${FS_MODE === m.key}">${m.label}</button>`).join('')}
         </div>
         <span class="fs-nav">
-          <button class="fs-btn" id="fsPrev" title="Seção anterior (←)" aria-label="Seção anterior">‹</button>
+          <button class="fs-btn" id="fsPrev" title="Seção anterior" aria-label="Seção anterior">‹</button>
           <span class="fs-pos">${secPos}/${secs.length}</span>
-          <button class="fs-btn" id="fsNext" title="Próxima seção (→)" aria-label="Próxima seção">›</button>
+          <button class="fs-btn" id="fsNext" title="Próxima seção" aria-label="Próxima seção">›</button>
         </span>
       </div>
       ${body}
@@ -1092,6 +1110,7 @@ function renderFS(opts){
   $('fsPrev').addEventListener('click', () => fsNavSection(-1));
   $('fsNext').addEventListener('click', () => fsNavSection(1));
   ov.querySelectorAll('[data-fsmode]').forEach(b => b.addEventListener('click', () => fsSetMode(b.dataset.fsmode)));
+  ov.querySelectorAll('[data-fsevo]').forEach(b => b.addEventListener('click', () => fsSetEvOrient(b.dataset.fsevo)));
   const evp = $('fsEvPrev'), evn = $('fsEvNext');
   if (evp) evp.addEventListener('click', () => fsNavEvent(-1));
   if (evn) evn.addEventListener('click', () => fsNavEvent(1));
@@ -1472,7 +1491,8 @@ function creationWhen(it){
 
 /* linhas da receita que a operação NÃO usa na criação — fora da tabela e do foco */
 const HIDDEN_RECIPE = /num\.?\s*(de\s*)?players|jogadores|\bchat\b/;
-function visibleRecipeFields(){ return creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l)))); }
+/* campos ocultados MANUALMENTE (olhinho) — recibo por navegador, some da grade */
+function visibleRecipeFields(){ return creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l)) && !HIDDEN_FIELDS.has(l))); }
 function recipeText(it, cat){
   // Garantido e Buy-in não entram aqui em cima: já saem UMA vez, na posição
   // deles, dentro da receita ordenada abaixo (ordem de digitação do app)
@@ -1657,6 +1677,89 @@ function openClaimMenu(anchor, key){
   openPickMenu(anchor, 'Quem cria este torneio?', opts);
 }
 
+/* =========================================================================
+   SELEÇÃO EM MASSA — marca vários torneios e pega/passa/solta todos de uma vez.
+   `SELECTED` é estado local (não sincroniza); toggles individuais atualizam a
+   caixinha no ATO (sem re-render, pra não perder rolagem) e a barra flutuante.
+========================================================================= */
+let SELECTED = new Set();
+function selKeys(){ return [...SELECTED]; }
+function selboxHtml(key){ return `<span class="selbox ${SELECTED.has(key) ? 'on' : ''}" data-sel="${key}" role="checkbox" aria-checked="${SELECTED.has(key)}" tabindex="0" title="Selecionar pra pegar em massa"></span>`; }
+function syncSelbox(key){
+  const on = SELECTED.has(key);
+  document.querySelectorAll(`.selbox[data-sel="${cssEsc(key)}"]`).forEach(b => {
+    b.classList.toggle('on', on); b.setAttribute('aria-checked', on);
+    const tr = b.closest('tr'); if (tr && tr.classList.contains('fs-srow')) tr.classList.toggle('sel', on);
+    const td = b.closest('td'); if (td) td.classList.toggle('sel-cell', on);
+  });
+}
+function toggleSel(key){ if (SELECTED.has(key)) SELECTED.delete(key); else SELECTED.add(key); syncSelbox(key); updateSelBar(); refreshSelallBoxes(); }
+function clearSel(){ const ks = selKeys(); SELECTED.clear(); ks.forEach(syncSelbox); updateSelBar(); refreshSelallBoxes(); }
+function sectionKeys(catKey){
+  const asg = computeAssignments();
+  const cat = SECTIONS.find(c => c.key === catKey); if (!cat) return [];
+  return visibleItems(catItems(cat), asg).map(itemKey);
+}
+function toggleSelAll(catKey){
+  const keys = sectionKeys(catKey);
+  const allOn = keys.length && keys.every(k => SELECTED.has(k));
+  keys.forEach(k => { if (allOn) SELECTED.delete(k); else SELECTED.add(k); syncSelbox(k); });
+  updateSelBar(); refreshSelallBoxes();
+}
+function refreshSelallBoxes(){
+  document.querySelectorAll('.selbox.selall[data-selall]').forEach(b => {
+    const keys = sectionKeys(b.dataset.selall);
+    b.classList.toggle('on', keys.length > 0 && keys.every(k => SELECTED.has(k)));
+  });
+}
+function updateSelBar(){
+  let bar = $('cnSelBar');
+  if (!SELECTED.size){ if (bar) bar.remove(); return; }
+  if (!bar){ bar = document.createElement('div'); bar.id = 'cnSelBar'; bar.className = 'sel-bar'; document.body.appendChild(bar); }
+  bar.innerHTML = `<span class="n">${SELECTED.size}</span> selecionado(s)
+    <button class="sb-btn primary" data-selact="mine">✋ Pegar pra mim</button>
+    <button class="sb-btn" data-selact="pass">Passar…</button>
+    <button class="sb-btn" data-selact="release">Soltar</button>
+    <button class="sb-btn ghost" data-selact="clear">Limpar</button>`;
+  bar.querySelectorAll('[data-selact]').forEach(b => b.addEventListener('click', () => selAction(b.dataset.selact, b)));
+}
+function selAction(act, anchor){
+  const keys = selKeys();
+  if (!keys.length) return;
+  if (act === 'clear'){ clearSel(); return; }
+  if (act === 'mine'){
+    if (!ensureMeOnTeam()){ showToast('Entre com seu nome no hub pra pegar torneios.', true); return; }
+    keys.forEach(k => OVERRIDES[k] = ME); clearSel(); saveOverrides();
+    logEvent('pegou em massa', `${keys.length} torneio(s)`); showToast(`Você pegou ${keys.length} torneio(s).`); return;
+  }
+  if (act === 'release'){ keys.forEach(k => { delete OVERRIDES[k]; }); clearSel(); saveOverrides(); showToast(`${keys.length} torneio(s) solto(s).`); return; }
+  if (act === 'pass'){
+    const opts = OPS.filter(o => !isMine(o)).map(o => ({label:`Passar ${keys.length} pra ${o.split(' ')[0]}`, color: opColor(o), initial: o.trim()[0].toUpperCase(),
+      onPick: () => { if (!OPS.some(x => normText(x) === normText(o))){ OPS = [...OPS, o]; if (fbDb) fbDb.ref(`${FB_PATH}/ops`).set(OPS); } keys.forEach(k => OVERRIDES[k] = o); clearSel(); saveOverrides(); showToast(`${keys.length} passado(s) pra ${o.split(' ')[0]}.`); }}));
+    if (!opts.length){ showToast('Sem parceiros na equipe pra receber.', true); return; }
+    openPickMenu(anchor, `Passar ${keys.length} torneio(s) para:`, opts);
+  }
+}
+
+/* =========================================================================
+   OCULTAR CAMPO (linha na vertical / coluna na horizontal) — olhinho liga/desliga.
+   Por navegador (localStorage); barra no topo lista os ocultos pra reexibir.
+========================================================================= */
+const HIDDEN_KEY = `cn_hidden_fields`;
+let HIDDEN_FIELDS = new Set();
+try{ HIDDEN_FIELDS = new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')); }catch(e){ HIDDEN_FIELDS = new Set(); }
+function saveHidden(){ try{ localStorage.setItem(HIDDEN_KEY, JSON.stringify([...HIDDEN_FIELDS])); }catch(e){} }
+function hideField(label){ HIDDEN_FIELDS.add(label); saveHidden(); renderAll(); if (FS_OPEN) renderFS(); }
+function showField(label){ HIDDEN_FIELDS.delete(label); saveHidden(); renderAll(); if (FS_OPEN) renderFS(); }
+const EYE_SVG = `<svg class="eye" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const EYE_OFF_SVG = `<svg class="eye" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/></svg>`;
+function eyeHideBtn(label){ return `<button class="rl-hide" data-hide="${escHtml(label)}" title="Ocultar “${escHtml(label)}”" aria-label="Ocultar ${escHtml(label)}">${EYE_SVG}</button>`; }
+function hiddenBarHtml(){
+  if (!HIDDEN_FIELDS.size) return '';
+  const chips = [...HIDDEN_FIELDS].map(l => `<button class="hf-chip" data-unhide="${escHtml(l)}" title="Reexibir">${EYE_OFF_SVG}${escHtml(l)}</button>`).join('');
+  return `<div class="hidden-fields-bar"><span>👁 ${HIDDEN_FIELDS.size} campo(s) oculto(s):</span>${chips}<button class="hf-chip" data-unhide="*ALL*" title="Reexibir todos">↺ mostrar todos</button></div>`;
+}
+
 /* nota abaixo do cabeçalho da seção: explica a função e quem está nela */
 function sectionNoteHtml(cat){
   const explicit = OPS.filter(o => roleOf(o) === cat.role);
@@ -1686,6 +1789,7 @@ function renderList(){
     const doneCount = items.filter(it => DONE[itemKey(it)]).length;
     html += `
       <div class="section-head ${cat.cls}">
+        <span class="selbox selall" data-selall="${cat.key}" role="checkbox" tabindex="0" title="Selecionar todos desta seção"></span>
         <span class="tag"><span class="suit">${cat.suit}</span>${cat.label}</span>
         <span class="cnt">${doneCount}/${items.length} criados</span>
         <span class="gtd-total" title="Soma do garantido (prize pool) desta seção">GTD ${fmtMoney(gtdSum(items))}</span>
@@ -1729,6 +1833,15 @@ function wireGrid(area){
     el.addEventListener('click', () => openClaimMenu(el, el.dataset.claim));
     el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openClaimMenu(el, el.dataset.claim); } });
   });
+  // seleção em massa: caixinha por torneio + "selecionar seção"
+  area.querySelectorAll('[data-sel]').forEach(el => {
+    el.addEventListener('click', e => { e.stopPropagation(); toggleSel(el.dataset.sel); });
+    el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); toggleSel(el.dataset.sel); } });
+  });
+  area.querySelectorAll('[data-selall]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); toggleSelAll(el.dataset.selall); }));
+  // ocultar/reexibir campo (olhinho)
+  area.querySelectorAll('[data-hide]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); hideField(el.dataset.hide); }));
+  area.querySelectorAll('[data-unhide]').forEach(el => el.addEventListener('click', () => { el.dataset.unhide === '*ALL*' ? (HIDDEN_FIELDS.clear(), saveHidden(), renderAll(), FS_OPEN && renderFS()) : showField(el.dataset.unhide); }));
   area.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
   area.querySelectorAll('[data-focus]').forEach(el => {
     el.addEventListener('click', () => openFocusAt(el.dataset.focus));
@@ -1766,6 +1879,7 @@ function captureGrid(root){
   const st = {scroll:{}, foc:null, winY: window.scrollY};
   root.querySelectorAll('.secwrap[data-sec]').forEach(sw => { const w = sw.querySelector('.vwrap'); if (w) st.scroll[sw.dataset.sec] = {l: w.scrollLeft, t: w.scrollTop}; });
   root.querySelectorAll('.fs-block-body').forEach((b, i) => st.scroll['fsb'+i] = {l: b.scrollLeft, t: b.scrollTop});
+  root.querySelectorAll('.fs-sheet').forEach((b, i) => st.scroll['fss'+i] = {l: b.scrollLeft, t: b.scrollTop});
   const ae = document.activeElement;
   if (ae && ae.classList && ae.classList.contains('id-inp') && root.contains(ae)){
     st.foc = {key: ae.dataset.idkey, s: ae.selectionStart, e: ae.selectionEnd};
@@ -1776,6 +1890,7 @@ function restoreGrid(root, st){
   if (!st) return;
   root.querySelectorAll('.secwrap[data-sec]').forEach(sw => { const s = st.scroll[sw.dataset.sec], w = sw.querySelector('.vwrap'); if (s && w){ w.scrollLeft = s.l; w.scrollTop = s.t; } });
   root.querySelectorAll('.fs-block-body').forEach((b, i) => { const s = st.scroll['fsb'+i]; if (s){ b.scrollLeft = s.l; b.scrollTop = s.t; } });
+  root.querySelectorAll('.fs-sheet').forEach((b, i) => { const s = st.scroll['fss'+i]; if (s){ b.scrollLeft = s.l; b.scrollTop = s.t; } });
   if (st.foc){
     const inp = root.querySelector(`.id-inp[data-idkey="${cssEsc(st.foc.key)}"]`);
     if (inp){ inp.focus(); try{ inp.setSelectionRange(st.foc.s, st.foc.e); }catch(e){} }
@@ -1808,7 +1923,7 @@ function renderVertical(items, cat, asg){
     <div class="vwrap"><table class="vtable">
       <tr class="trow-head"><th class="rowlab">Torneio</th>${cell(c => {
         const m = mttKicker(c.it), urg = urgency(c.it);
-        return `<span class="vgo" data-focus="${c.key}" role="button" tabindex="0" title="Abrir este torneio no modo foco" aria-label="Abrir ${escHtml(c.it.nome)} no modo foco">${escHtml(c.it.nome)}</span>` + campBadgeHtml(c.it) + valBadge(c.it, cat) + changeBadge(c.it) + auditBadge(c.it)
+        return `<span class="vname-row">${selboxHtml(c.key)}<span class="vgo" data-focus="${c.key}" role="button" tabindex="0" title="Abrir este torneio no modo foco" aria-label="Abrir ${escHtml(c.it.nome)} no modo foco">${escHtml(c.it.nome)}</span></span>` + campBadgeHtml(c.it) + valBadge(c.it, cat) + changeBadge(c.it) + auditBadge(c.it)
           + (auditErr(c.it) && auditErr(c.it).motivo ? `<br><span style="font-size:10.5px;color:var(--red);font-weight:600">↳ ${escHtml(auditErr(c.it).motivo)}</span>` : '')
           + (urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(c.it)}</span>` : '')
           + (m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : '');
@@ -1820,7 +1935,7 @@ function renderVertical(items, cat, asg){
       ${cols.some(c => hasCampaign(c.it)) ? `<tr><th class="rowlab">Campanha</th>${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : ''}
       ${cat.key === 'sat' ? `<tr><th class="rowlab">Grupo</th>${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : ''}
       ${rows.length
-        ? rows.map(label => `<tr><th class="rowlab ${keyLabels.has(label) ? 'key' : ''}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(c => {
+        ? rows.map(label => `<tr><th class="rowlab hideable ${keyLabels.has(label) ? 'key' : ''}" title="${escHtml(label)}">${escHtml(label)}${eyeHideBtn(label)}</th>${cell(c => {
             const v = c.it.extra ? c.it.extra[label] : undefined;
             const has = v !== undefined && v !== null && v !== '';
             if (!has) return `<span class="mono" style="color:var(--ink-soft);opacity:.5">—</span>`;
@@ -1850,6 +1965,53 @@ function renderVertical(items, cat, asg){
           title="${c.done ? `Criado por ${escHtml((DONE[c.key]||{}).by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
         <button class="copy-btn" data-copy="${escHtml(recipeText(c.it, cat.label))}" title="Copiar receita" style="margin-left:6px;display:inline-grid;vertical-align:middle"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>`)}</tr>
     </table></div>`;
+}
+
+/* HORIZONTAL (estilo Global MTT): torneios nas LINHAS, campos nas COLUNAS.
+   Usada no modo tela cheia (e no evento único). Hora + nome ficam fixos na
+   rolagem lateral (sticky). Compartilha as caixinhas de seleção e o olhinho. */
+function renderHorizontal(items, cat, asg){
+  const fields = visibleRecipeFields();
+  const labelOf = getter => { const c0 = items.find(it => getter(it)); return c0 ? getter(c0).label : null; };
+  const addonL = labelOf(addonInfo), ticketL = labelOf(ticketInfo), chipsL = labelOf(chipsInfo), gameL = labelOf(gameTypeInfo), koL = labelOf(koInfo);
+  const keyLabels = new Set();
+  items.forEach(it => [feeInfo, adminInfo, earlyInfo, ticketInfo, payoutInfo, calcPayoutInfo, rebuyInfo, addonInfo, chipsInfo, structureInfo, gameTypeInfo, koInfo]
+    .forEach(g => { const i = g(it); if (i && i.label) keyLabels.add(i.label); }));
+  const SUITS = ['♠','♥','♦','♣'];
+  const valCell = (it, label) => {
+    const v = it.extra ? it.extra[label] : undefined;
+    const has = v !== undefined && v !== null && v !== '';
+    if (!has) return `<span class="dash">—</span>`;
+    const disp = fmtExtraVal(label, v);
+    if (label === addonL){ const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.')); if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n))}</span>`; }
+    if (label === ticketL) return `<span class="tkt"><span class="stub">Ticket</span><span class="val" title="${escHtml(disp)}">${escHtml(disp)}</span></span>`;
+    if (label === chipsL) return `<span class="pchip">${escHtml(disp)}</span>`;
+    if (label === gameL){ const idx = [...normText(disp)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 4; return `<span class="gcard"><span class="suit ${idx === 1 || idx === 2 ? 'red' : ''}">${SUITS[idx]}</span>${escHtml(disp)}</span>`; }
+    if (label === koL && !/^(off|nao|não|no|-|—)$/i.test(String(disp).trim())) return `<span class="kochip"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>${escHtml(disp)}</span>`;
+    return `<span class="mono" style="${keyLabels.has(label) ? 'font-weight:700' : ''}">${escHtml(disp)}</span>`;
+  };
+  const head = `<thead><tr>
+    <th class="c-h">Hora</th>
+    <th class="c-n">Torneio</th>
+    <th>Criar em</th>
+    <th>Operador</th>
+    ${fields.map(l => `<th class="c-field ${keyLabels.has(l) ? 'key' : ''}" title="${escHtml(l)}">${escHtml(l)}${eyeHideBtn(l)}</th>`).join('')}
+    <th>ID Pokerbyte</th>
+    <th>Criado</th>
+  </tr></thead>`;
+  const body = items.map(it => {
+    const key = itemKey(it), done = !!DONE[key], mine = isMine(asg[key]), sel = SELECTED.has(key);
+    return `<tr class="fs-srow ${done ? 'done' : ''} ${mine ? 'mine' : ''} ${sel ? 'sel' : ''}">
+      <td class="c-h">${escHtml(it.hora)}</td>
+      <td class="c-n">${selboxHtml(key)}<span class="vgo" data-focus="${key}" role="button" tabindex="0" title="Abrir no modo foco">${escHtml(it.nome)}</span>${campBadgeHtml(it)} ${valBadge(it, cat)}</td>
+      <td><span class="mono" style="font-weight:700">${escHtml(creationWhen(it))}</span></td>
+      <td>${claimCellHtml(key, asg[key])}</td>
+      ${fields.map(l => `<td>${valCell(it, l)}</td>`).join('')}
+      <td>${idInputHtml(key, 'width:120px')}</td>
+      <td><button class="chk ${done ? 'on' : ''}" data-done="${key}" role="checkbox" aria-checked="${done ? 'true' : 'false'}" title="${done ? 'Criado' : 'Marcar como criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button></td>
+    </tr>`;
+  }).join('');
+  return `${hiddenBarHtml()}<div class="fs-sheet"><table>${head}<tbody>${body}</tbody></table></div>`;
 }
 
 /* =========================================================================
@@ -2519,6 +2681,46 @@ $('exportBtn').addEventListener('click', async () => {
   XLSX.utils.book_append_sheet(wb, ws, (WEEKDAY_TOMORROW || 'Criação Noturna').slice(0,31));
   XLSX.writeFile(wb, `CriacaoNoturna_${TOMORROW_ISO}.xlsx`);
   showToast(`Exportado — ${total} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length}).`);
+});
+
+/* ── export por SEÇÃO: uma aba por bloco (Main / Side c-Admin / Side s-Admin /
+   Satélites) com a receita completa, operador, ID e status de criado. Valores
+   já em R$ (Liga) NÃO são convertidos pelo botão de moeda. ── */
+$('exportSecBtn').addEventListener('click', async () => {
+  if (!DATA){ showToast('Carregue a Global primeiro.', true); return; }
+  try{ await ensureXLSX(); }catch(_){ showToast('A biblioteca de planilhas não carregou — recarregue a página.', true); return; }
+  const cur = CURRENCY === 'usd' ? '$' : 'R$';
+  const convV = (it, v) => (v === null || v === undefined) ? '' : ((it && it.brl) ? v : (CURRENCY === 'usd' ? v : Math.round(v * BRL_RATE * 100) / 100));
+  const asg = computeAssignments();
+  const fields = recipeFields();                    // receita COMPLETA no export (independe do que está oculto na tela)
+  const wb = XLSX.utils.book_new();
+  let sheets = 0, grandTotal = 0;
+  SECTIONS.forEach(cat => {
+    const items = catItems(cat);
+    if (!items.length) return;
+    const header = ['Horário', 'Torneio', 'Criar em', 'Operador', 'ID Pokerbyte', 'Criado', `Garantido (${cur})`, `Buy-in (${cur})`, ...fields];
+    const rows = [header];
+    items.forEach(it => {
+      const key = itemKey(it);
+      rows.push([
+        it.hora, it.nome, creationWhen(it), asg[key] || '', idVal(key), DONE[key] ? 'SIM' : '',
+        convV(it, it.garantido), convV(it, it.buyin),
+        ...fields.map(l => { const v = it.extra ? it.extra[l] : undefined; return (v === undefined || v === null) ? '' : v; })
+      ]);
+    });
+    const gtd = gtdSum(items);
+    grandTotal += gtd;
+    rows.push([]);
+    rows.push([`${items.length} torneios · GTD total ${cur} ${(CURRENCY === 'usd' ? gtd : gtd * BRL_RATE).toLocaleString('pt-BR')}`]);
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{wch:9},{wch:28},{wch:16},{wch:14},{wch:16},{wch:8},{wch:14},{wch:12}, ...fields.map(() => ({wch:16}))];
+    XLSX.utils.book_append_sheet(wb, ws, cat.label.replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31));
+    sheets++;
+  });
+  if (!sheets){ showToast('Nada para exportar.', true); return; }
+  XLSX.writeFile(wb, `CriacaoNoturna_Secoes_${TOMORROW_ISO}.xlsx`);
+  logEvent('exportou seções', `${sheets} aba(s)`);
+  showToast(`Exportado — ${sheets} seção(ões) em abas separadas.`);
 });
 
 /* ── resumo pra colar no grupo ── */
