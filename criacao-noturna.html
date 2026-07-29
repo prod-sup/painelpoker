@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
   SupremaMotion.magnetic('.btn.primary');
   SupremaMotion.aurora('.hero', { tint1:'rgba(140,92,198,.28)', tint2:'rgba(216,181,109,.16)' });
   /* rede de nós atrás do hero (Network Hero, estreada no Radar de Eventos) */
-  SupremaMotion.network('.hero', { c1:'#8c5cc6', c2:'#8f6c14', c1Dark:'#b888f0', c2Dark:'#e6c34f' });
+  SupremaMotion.network('.hero', { c1:'#8c5cc6', c2:'#8f6b2d', c1Dark:'#b888f0', c2Dark:'#c9a84c' });
 });
 </script>
 <link rel="stylesheet" href="criacao-noturna.css">
@@ -51,21 +51,19 @@ SupremaShell.mountNav('#supNav', {
   ],
   opTitle:'Trocar nome'
 });
-SupremaShell.mobileMenu({ current:'gu' });   // menu ☰ mobile (navegação entre painéis)
 </script>
 
 <header class="hero">
   <div class="hero-inner">
     <span class="hero-eyebrow"><span>🌙</span> Turno noturno · 19:00 → 07:00 · eventos do dia seguinte</span>
     <h1>Criação de torneios <em id="heroDay">—</em></h1>
-    <p class="sub">A <b>receita da GU</b> pro próximo dia da grade (janela 06:10 → 05:30), em blocos de <b>Main + Satélites</b>, <b>Side Events</b> e <b>Eventos Principais</b>. A divisão é no <b>pegar tarefa</b>: cada torneio começa livre e quem vai criar clica em <b>✋ pegar</b> — todo mundo vê ao vivo quem está com o quê. Rake, admin fee, early bird e campanhas em destaque. Marque cada torneio conforme criar.</p>
+    <p class="sub">A <b>receita da GU</b> pro próximo dia da grade (janela 06:10 → 05:30), dividida pelas <b>funções do turno</b>: quem faz o <b>Main Event</b> faz os <b>Satélites</b>; os <b>Side Events</b> se dividem entre <b>com</b> e <b>sem Admin Fee</b>. Rake, admin fee, early bird e campanhas em destaque. Marque cada torneio conforme criar — sincroniza ao vivo.</p>
     <div class="hero-stats">
       <div class="hstat c-prog"><div class="n" id="stProg">0%</div><div class="l">Criados</div></div>
       <div class="hstat"><div class="n" id="stTotal">—</div><div class="l">Torneios</div></div>
       <div class="hstat c-main"><div class="n" id="stMain">—</div><div class="l">Main + Satélites</div></div>
       <div class="hstat c-side"><div class="n" id="stSideA">—</div><div class="l">Side · c/ Admin</div></div>
       <div class="hstat c-sidefree"><div class="n" id="stSideB">—</div><div class="l">Side · s/ Admin</div></div>
-      <div class="hstat c-liga"><div class="n" id="stLiga">—</div><div class="l">★ Eventos Principais</div></div>
       <div class="hstat c-camp" id="stCampWrap" hidden><div class="n" id="stCamp">—</div><div class="l">✦ Com campanha</div></div>
       <div class="hstat" id="stUrgWrap" hidden><div class="n" id="stUrg" style="color:#e8c860">—</div><div class="l">Estourando prazo</div></div>
     </div>
@@ -101,15 +99,6 @@ SupremaShell.mobileMenu({ current:'gu' });   // menu ☰ mobile (navegação ent
       </button>
       <span class="up-hint">Aba <b>G MTTS</b> (GU, dólar) · torneios de <b id="uploadDayLabel">amanhã</b> · janela 06:10 → 05:30 — só uma pessoa do turno precisa subir.</span>
     </div>
-    <!-- Reusar a Global já carregada no Painel do Dia (painel/globalMtt) — sem reenviar o arquivo -->
-    <div class="up-row" style="margin-top:10px">
-      <button class="btn" id="useSharedBtn" type="button" hidden
-        title="Puxar a Global MTT já carregada no Painel do Dia (aba G MTTS) — sem reenviar o arquivo.">
-        <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
-        Usar a Global do Painel
-      </button>
-      <span class="up-hint" id="sharedHint" hidden></span>
-    </div>
     <input type="file" id="fileInput" accept=".xlsx,.xls" hidden>
     <div class="upload-meta" id="uploadMeta" hidden></div>
     <div class="alerts" id="alerts"></div>
@@ -124,12 +113,16 @@ SupremaShell.mobileMenu({ current:'gu' });   // menu ☰ mobile (navegação ent
           <button data-cur="usd" class="on">$ Dólar</button>
           <button data-cur="brl">R$ Real</button>
         </div>
+        <span class="ctrl-hint">A grade principal é sempre em R$ — o toggle muda só o modo foco e o export.</span>
       </div>
       <div class="ctrl-group" style="flex:1;min-width:280px">
-        <span class="ctrl-label">Equipe do turno — quem está criando hoje</span>
+        <span class="ctrl-label">Equipe do turno — atribua a função de cada um</span>
         <div class="ops-row" id="opsRow"></div>
         <p class="section-note" style="margin:4px 0 0">
-          <span style="opacity:.85">Adicione quem está no turno. A divisão é no <b>✋ pegar tarefa</b>: cada um clica no torneio pra assumir — o número no chip mostra quantos cada pessoa pegou. Sem funções fixas; dá pra soltar ou passar a qualquer momento.</span>
+          <span class="lk"><span class="d" style="background:var(--main-bright)"></span>Main + Satélites</span>
+          <span class="lk"><span class="d" style="background:var(--side-bright)"></span>Side c/ Admin Fee</span>
+          <span class="lk"><span class="d" style="background:var(--sidefree-bright)"></span>Side s/ Admin Fee</span>
+          <span style="opacity:.8">Sem função marcada, todos dividem aquele bloco.</span>
         </p>
       </div>
     </div>
@@ -201,10 +194,6 @@ SupremaShell.mobileMenu({ current:'gu' });   // menu ☰ mobile (navegação ent
      defer porque só é usado quando o operador abre o telão — não atrasa o
      carregamento da planilha, que é o caminho crítico da página. -->
 <script defer src="suprema-feltro.js"></script>
-<!-- grade FIXA dos Eventos Principais (Liga Principal), pré-carregada: precisa vir
-     ANTES do criacao-noturna.js, que monta a seção já no boot. Gerado por
-     scripts/gerar-liga-principal.ps1 — ao trocar, bumpar SW_VERSION. -->
-<script src="liga-principal-data.js"></script>
 <script src="criacao-calc.js"></script>
 <script src="criacao-noturna.js"></script>
 <!-- ⌘K command palette (navegação + ações de fábrica) -->
@@ -214,12 +203,11 @@ SupremaShell.mobileMenu({ current:'gu' });   // menu ☰ mobile (navegação ent
 <script>
   if (window.SupremaAuth && SupremaAuth.getSession && SupremaAuth.getSession()){
     SupremaOnboarding.start('criacao', [
-      { el:'#dropZone', title:'Suba a GU aqui', text:'Carregue a Global MTT (aba G MTTS). O sistema separa Main, Side e Satélite. A divisão é no ✋ pegar tarefa: cada um clica no torneio que vai criar.', side:'bottom' },
+      { el:'#dropZone', title:'Suba a GU aqui', text:'Carregue a Global MTT (aba G MTTS). O sistema separa Main, Side e Satélite e divide entre a equipe automaticamente.', side:'bottom' },
       { el:'#focusBtn', title:'Modo Foco', text:'Cria os torneios um a um, de cima pra baixo, com a receita completa de cada evento na sua frente.', side:'top' },
       { el:'#exportBtn', title:'Arquive a noite', text:'No fim do turno, exporta o relatório completo do que foi criado em .xlsx.', side:'top' }
     ], { accent:'#8c5cc6', label:'Criação Noturna' });
   }
 </script>
-<script defer src="suprema-footer.js"></script>
 </body>
 </html>

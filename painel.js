@@ -8315,15 +8315,18 @@ function sendTournamentNotification(torneio, minutesLeft){
 function checkTournamentNotifications(){
   if(!RAW_ROWS.length || !UPCOMING || !UPCOMING.length) return; // nada carregado ainda
   if(Notification.permission !== 'granted') return;
-  const now = nowInSP();
-  const nowMin = now.hour * 60 + now.minute;
+  const nowOp = opNowMinutes(); // relógio operacional (madrugada = fim do dia) — mesma régua do alerta visual
   UPCOMING.forEach(r => {
     if(isFixed(r._key)) return;
+    if(r.proxCronograma) return;              // próx. cronograma = madrugada de amanhã — não alerta de fixar hoje
+    const cat = classify(r);
+    // SÓ notifica quem PRECISA ser fixado: Main/Satélite sempre; Side Event só se marcado (azul)
+    // ou gtd ≥ 3000. Antes, qualquer Side ainda-não-fixado disparava alerta/beep à toa.
+    if(!mustFix(r, cat)) return;
     const horaMin = timeToMinutes(r.hora);
     if(horaMin === null) return;
-    const isSat = (r.tipo||'').toLowerCase().includes('sat');
-    const windowMin = isSat ? 30 : 60;
-    const minutesUntilDeadline = (horaMin - windowMin) - nowMin;
+    const windowMin = LEAD_MIN[cat] ?? 30;
+    const minutesUntilDeadline = (opMinutes(horaMin) - windowMin) - nowOp;
     // notifica quando entrar na janela (0-2 min atrás para não perder) ou quando urgente (5 min)
     if(minutesUntilDeadline >= -2 && minutesUntilDeadline <= 2){
       sendTournamentNotification(r, Math.max(0, minutesUntilDeadline));

@@ -58,13 +58,15 @@
     { m: n => n === 'chips' || n.includes('chip stack') || n.includes('starting stack') || n.includes('stack inicial'), key: true }, // CHIPS
     { m: n => n.includes('early bird'), key: true },                                 // EARLY BIRD (0-20% = 20% das CHIPS)
     { m: n => n.includes('rebuy') && n.includes('condition') },                      // REBUY CONDITION
-    { m: n => (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) && !n.includes('stack') && !n.includes('condition') }, // REENTRY/REBUY
-    { m: n => n.includes('stack') && (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) }, // STACK REENTRY/REBUY
-    { m: n => (n.includes('add-on') || n.includes('addon')) && !n.includes('stack') }, // ADD-ON
-    { m: n => n.includes('stack') && (n.includes('add-on') || n.includes('addon')) }, // STACK ADD-ON
+    // tone: agrupa por FAMÍLIA pra psicologia das cores — o campo e o seu "stack" na mesma cor,
+    // pra o olho verificar valor+stack juntos. Recompra=azul, Add-on=roxo, Modalidade=teal, Estrutura=âmbar.
+    { m: n => (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) && !n.includes('stack') && !n.includes('condition'), tone:'rebuy' }, // REENTRY/REBUY
+    { m: n => n.includes('stack') && (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')), tone:'rebuy' }, // STACK REENTRY/REBUY
+    { m: n => (n.includes('add-on') || n.includes('addon')) && !n.includes('stack'), tone:'addon' }, // ADD-ON
+    { m: n => n.includes('stack') && (n.includes('add-on') || n.includes('addon')), tone:'addon' }, // STACK ADD-ON
     { m: n => (/game\s*type/.test(n) || /variante/.test(n) || /modalidade/.test(n) || n === 'game')
-              && !/early\s*game/.test(n) },                                          // Game Type
-    { m: n => n.includes('structure') || n.includes('estrutura') },                  // STRUCTURE
+              && !/early\s*game/.test(n), tone:'game' },                             // Game Type
+    { m: n => n.includes('structure') || n.includes('estrutura'), tone:'structure' },// STRUCTURE
     { m: n => n.includes('hour late') || n.includes('hora late') },                  // Hour late register
   ];
   // além dos campos que a Criação esconde, some o "Action" da planilha —
@@ -95,7 +97,7 @@
       for (let i = 0; i < remaining.length; ){
         if (slot.m(normText(remaining[i]))){
           if (!claimed){
-            out.push({label: remaining[i], hi: true, key: !!slot.key}); remaining.splice(i, 1); claimed = true;
+            out.push({label: remaining[i], hi: true, key: !!slot.key, tone: slot.tone || ''}); remaining.splice(i, 1); claimed = true;
             if (!slot.once) break;               // sem dedup: para no primeiro
           } else remaining.splice(i, 1);          // duplicata de Garantido/Buy-in: fora
         } else i++;
@@ -229,7 +231,11 @@
     // Marcar um ✓ dispara o listener do Firebase → re-render → o scroll caía pro
     // começo, e quem estava num horário avançado tinha que arrastar tudo de novo.
     // Guardamos o scroll (horizontal por seção + vertical do drawer) e restauramos.
-    const _prevX = [].map.call(area.querySelectorAll('.gc-scroll'), el => el.scrollLeft);
+    // cada seção (.gc-scroll) rola nas DUAS direções: horizontal (torneios = colunas) e
+    // VERTICAL (campos = linhas, com max-height própria). O bug era guardar só o scrollLeft —
+    // quem estava lá embaixo (Structure/Add-on) e marcava o ✓ (linha Action, no fim) voltava
+    // pro topo. Guardamos scrollLeft E scrollTop de cada seção + o vertical do drawer.
+    const _prevSc = [].map.call(area.querySelectorAll('.gc-scroll'), el => ({ x: el.scrollLeft, y: el.scrollTop }));
     const _scroller = area.closest('.drawer-body') || area;
     const _prevY = _scroller ? _scroller.scrollTop : 0;
     const dayLbl = document.getElementById('guConfDayLbl');
@@ -280,8 +286,9 @@
           if (isAdmin){ const af = gcAdminFeeVal(c.it); if (af) return escHtml(af); }
           return gcFmtExtra(label, c.it.extra ? c.it.extra[label] : undefined);
         };
+        const toneCls = f.tone ? ` gc-tone gc-tone-${f.tone}` : '';
         const labCls = `${f.key ? 'gc-key' : ''} ${f.hi ? 'gc-hi' : 'gc-dim'}`.trim();
-        t += `<tr class="${f.key ? 'gc-keyrow' : ''}"><th class="gc-rowlab ${labCls}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(val, /chips|prize pool|buy-?in|ticket|admin\s*fee/.test(n) ? 'gc-num' : '')}</tr>`;
+        t += `<tr class="${f.key ? 'gc-keyrow' : ''}${toneCls}"><th class="gc-rowlab ${labCls}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(val, /chips|prize pool|buy-?in|ticket|admin\s*fee/.test(n) ? 'gc-num' : '')}</tr>`;
       });
       t += `<tr><th class="gc-rowlab">ID Pokerbyte</th>${cell(c => gcIds[c.key] ? escHtml(gcIds[c.key].val) : '<span class="gc-noid" title="Sem ID cadastrado — confira se o torneio foi criado no app">sem ID</span>', 'gc-num')}</tr>`;
       t += `<tr><th class="gc-rowlab key">Action</th>${cell(c =>
@@ -300,9 +307,9 @@
         </div>`;
     });
     area.innerHTML = html || `<div class="gc-empty"><span class="ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3C7 8 3 12 3 15.5A4 4 0 0 0 11 17.3C10.6 19.4 9.5 20.6 7 21.5H17C14.5 20.6 13.4 19.4 13 17.3A4 4 0 0 0 21 15.5C21 12 17 8 12 3Z"/></svg></span>Nada nesse filtro.</div>`;
-    // restaura o scroll guardado no topo da função (horizontal por seção + vertical)
-    const _nowX = area.querySelectorAll('.gc-scroll');
-    _prevX.forEach((x, i) => { if (_nowX[i]) _nowX[i].scrollLeft = x; });
+    // restaura o scroll guardado no topo da função (horizontal + vertical por seção, e o do drawer)
+    const _nowSc = area.querySelectorAll('.gc-scroll');
+    _prevSc.forEach((s, i) => { if (_nowSc[i]){ _nowSc[i].scrollLeft = s.x; _nowSc[i].scrollTop = s.y; } });
     if (_scroller && _prevY) _scroller.scrollTop = _prevY;
     area.querySelectorAll('[data-gckey]').forEach(b => b.addEventListener('click', () => gcToggle(b.dataset.gckey)));
     // tela cheia por quadro — liga os botões e reaplica o estado após o re-render

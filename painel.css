@@ -2279,6 +2279,30 @@
   html.dark .gc-table tr.gc-keyrow td{ background:color-mix(in srgb, var(--gold) 12%, var(--card)); }
   .gc-table tr.gc-keyrow td.gc-ok{ opacity:.5; }
 
+  /* ── DESTAQUE POR FAMÍLIA (psicologia das cores) ──────────────────────────────
+     Os campos mais erro-próximos na conferência, agrupados por cor pra o olho achar
+     e conferir rápido. O campo e o seu "stack" dividem a MESMA cor (verificar valor +
+     stack juntos): recompra=azul (repetição/estabilidade), add-on=violeta (extra),
+     modalidade=teal (identidade do jogo), estrutura=laranja (a espinha/atenção).
+     Cores escolhidas fora do verde (conferido), dourado (chave) e vermelho (alerta). */
+  .gc-table tr.gc-tone td{ background:color-mix(in srgb, var(--gc-tone) 7%, var(--card)); }
+  html.dark .gc-table tr.gc-tone td{ background:color-mix(in srgb, var(--gc-tone) 15%, var(--card)); }
+  .gc-table tr.gc-tone td.gc-ok{ opacity:.5; }
+  .gc-table tr.gc-tone th.gc-rowlab{
+    color:var(--gc-tone);
+    background:color-mix(in srgb, var(--gc-tone) 15%, var(--card-strong,#f5f5f7));
+    box-shadow:inset 3px 0 0 0 var(--gc-tone);
+  }
+  html.dark .gc-table tr.gc-tone th.gc-rowlab{ background:color-mix(in srgb, var(--gc-tone) 24%, #1f2420); }
+  .gc-tone-rebuy{ --gc-tone:#2f7ceb; }      /* REENTRY/REBUY + STACK — azul */
+  .gc-tone-addon{ --gc-tone:#8b5cf6; }      /* ADD-ON + STACK — violeta */
+  .gc-tone-game{ --gc-tone:#0e9f9f; }       /* Game Type — teal */
+  .gc-tone-structure{ --gc-tone:#e07d1c; }  /* STRUCTURE — laranja */
+  html.dark .gc-tone-rebuy{ --gc-tone:#5b9bf5; }
+  html.dark .gc-tone-addon{ --gc-tone:#a78bfa; }
+  html.dark .gc-tone-game{ --gc-tone:#2dd4bf; }
+  html.dark .gc-tone-structure{ --gc-tone:#f7a44d; }
+
   /* botão de tela cheia no cabeçalho de cada quadro */
   .gc-secwrap{ position:relative; }
   .gc-fs-btn{
