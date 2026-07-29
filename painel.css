@@ -3854,13 +3854,24 @@ html.dark .compact-table tbody tr.late-urgent .ctr-late{ color:#f87171; }
 body.compact-focus #nao-fixados,
 body.compact-focus #principais,
 body.compact-focus #resultados{ display:none !important; }
-body.compact-focus #agenda{ padding-top:14px; }
+body.compact-focus #agenda{ padding-top:10px; }
 body.compact-focus #agenda .section-title,
 body.compact-focus #agenda .section-desc{ display:none; }
-body.compact-focus #agenda .section-head{ margin-bottom:10px; }
-/* a tabela ocupa a altura útil restante; se um dia tiver torneios demais, rola SÓ ela
-   (o cabeçalho fica grudado no topo) em vez de empurrar a página inteira */
-body.compact-focus .compact-table-wrap{ max-height:calc(100vh - 210px);overflow:auto; }
+body.compact-focus #agenda .section-head{ margin-bottom:8px; }
+/* usa a LARGURA TODA da tela (fora do modo focado a .wrap trava em 1180px e cortava colunas) */
+body.compact-focus #agenda .wrap{ max-width:none;padding:0 14px; }
+/* mostra a planilha INTEIRA: sem caixa de rolagem própria. Só o cabeçalho gruda no topo
+   ao rolar a página, se um dia sobrar torneio demais pra altura da tela. */
+body.compact-focus .compact-table-wrap{ max-height:none;overflow:visible;border-radius:8px; }
+body.compact-focus .compact-table{ min-width:0;width:100%; }
+/* linhas e colunas mais enxutas pra as 13 colunas caberem na largura sem scroll horizontal */
+body.compact-focus .compact-table td{ padding:4px 7px; }
+body.compact-focus .compact-table thead th{ padding:6px 7px; }
+body.compact-focus .compact-table .ctr-inp{ min-width:64px;padding:4px 6px; }
+body.compact-focus .compact-table .ctr-inp-id{ min-width:60px;padding:4px 6px; }
+body.compact-focus .compact-table .ctr-nome{ min-width:140px; }
+body.compact-focus .compact-table .ctr-op,
+body.compact-focus .compact-table .ctr-op-name{ max-width:92px; }
 
 /* ── FLAG (destaque manual que sobe ao topo) ─────────────────────────────
    Botão discreto de bandeira; quando ligado, a linha/card ganha um acento
