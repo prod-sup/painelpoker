@@ -576,10 +576,17 @@ function flatRows(fromDate, toDate){
                      fixRaw===true ? 'Sim' : '';
       // `at` só vale se for timestamp numérico de verdade — senão dava "Invalid Date"/"NaNmin"
       // (ex.: registros antigos sem hora, ou ServerValue não resolvido no snapshot).
-      const _ms = x => { if(!x || typeof x!=='object') return null; const n = Number(x.at); return (isFinite(n) && n>0) ? n : null; };
+      const _ms = x => {
+        if(!x || typeof x!=='object' || x.at == null) return null;
+        const n = Number(x.at);
+        if(isFinite(n) && n > 0) return n;          // ms epoch (número ou string numérica)
+        const d = Date.parse(x.at);                 // aceita também data/hora em texto (ISO)
+        return isFinite(d) ? d : null;
+      };
       const hm  = ms => new Date(ms).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'});
       const fixAtMs = _ms(fixRaw);
-      const fixAt  = fixAtMs ? hm(fixAtMs) : '';
+      // hora que fixou: do timestamp do nó `fixed`; se não der, usa a hora salva no snapshot (fixadoEm)
+      const fixAt  = fixAtMs ? hm(fixAtMs) : (r.fixadoEm || '');
       // Arrecadado — quem preencheu a premiação coletada e quando
       const pbRaw  = pick(day.premBy);
       const premBy = typeof pbRaw==='object'&&pbRaw ? (pbRaw.by||'') : '';
