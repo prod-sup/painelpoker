@@ -1182,6 +1182,14 @@ body > *{position:relative;z-index:1}
   .mode-cols .fs-block-body{flex:1;min-height:0;overflow:auto}
   .mode-cols .vtable{width:100%;font-size:clamp(13px,1.15vw,17px)}
   @media (orientation:portrait){ .mode-cols .fs-block-body{max-width:100vw} }
+  /* Na tela cheia o SCROLL é do .fs-block-body. O .vwrap NÃO pode ser um 2º
+     container de scroll nem ter containment (content-visibility) — senão o sticky
+     do rowlab gruda no .vwrap interno e a coluna "acompanha" o scroll em vez de
+     ficar fixa. Aqui ele vira passthrough e o rowlab gruda no .fs-block-body. */
+  .mode-cols .vwrap{
+    overflow:visible; max-height:none; border:none; border-radius:0;
+    box-shadow:none; background:transparent; content-visibility:visible; contain:none;
+  }
 
   /* EVENTO (um torneio grande) — campos fluem em colunas pra caber sem rolar */
   .mode-event{overflow-y:auto}
