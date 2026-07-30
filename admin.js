@@ -1058,6 +1058,41 @@ async function buildDashCn(){
       <div class="kpi"><div class="kpi-label">Top criador</div><div class="kpi-val" style="font-size:20px">${topOp?esc(topOp[0]):'—'}</div><div class="kpi-sub">${topOp?topOp[1].criados+' criados':'sem dados'}</div></div>`;
   }catch(e){ el.innerHTML = '<div class="kpi"><div class="kpi-label">Erro ao carregar</div><div class="kpi-sub">'+esc(e.message)+'</div></div>'; }
 }
+/* ── DASHBOARD: sparkline + delta pros cards de KPI ────────────────────────── */
+const KPI_ICONS = {
+  torneios:'<path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/>',
+  fechados:'<path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="M22 4 12 14.01l-3-3"/>',
+  premiacao:'<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3"/>',
+  overlay:'<path d="M23 18l-9.5-9.5-5 5L1 6"/><path d="M17 18h6v-6"/>',
+  perf:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  nf:'<circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/>',
+};
+function kpiIcon(k){ return `<span class="kpi-ic"><svg viewBox="0 0 24 24" aria-hidden="true">${KPI_ICONS[k]||''}</svg></span>`; }
+/* mini gráfico de linha da série diária — SVG inline, esticado na largura do card */
+function kpiSpark(series, accVar){
+  const s = (series||[]).filter(v => typeof v === 'number' && isFinite(v));
+  if(s.length < 2) return '';
+  const W=100, H=34, min=Math.min(...s), max=Math.max(...s), span=(max-min)||1;
+  const pts = s.map((v,i)=>[ (i/(s.length-1))*W, H - ((v-min)/span)*(H-6) - 3 ]);
+  const line = pts.map((p,i)=>`${i?'L':'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  const area = `M0,${H} L${pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' L')} L${W},${H} Z`;
+  const c = accVar || 'var(--gold)', id = 'sp'+(kpiSpark._n=(kpiSpark._n||0)+1);
+  return `<div class="kpi-spark"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">`
+    + `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity=".26"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient></defs>`
+    + `<path d="${area}" fill="url(#${id})"/><path d="${line}" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg></div>`;
+}
+/* chip de variação vs período anterior. invert=true → cair é BOM (overlay, NF) */
+function kpiDelta(cur, prev, invert){
+  if(prev==null || !isFinite(prev) || prev===0 || cur==null) return '';
+  const d = ((cur-prev)/Math.abs(prev))*100;
+  if(Math.abs(d) < 0.5) return `<span class="kpi-delta flat" title="estável vs período anterior">•</span>`;
+  const up = d>0, good = invert ? !up : up;
+  return `<span class="kpi-delta ${good?'up':'down'}" title="vs ${_dp} dias anteriores">${up?'▲':'▼'} ${Math.abs(d).toFixed(0)}%</span>`;
+}
+function dailySeries(rows, valueFn){
+  const byDate={}; rows.forEach(r=>{ byDate[r.date]=(byDate[r.date]||0)+(valueFn(r)||0); });
+  return Object.keys(byDate).sort().map(d=>byDate[d]);
+}
 function buildDash(){
   buildDashCn();
   const rows=flatRows(dago(_dp),nowSP());
@@ -1074,14 +1109,41 @@ function buildDash(){
   const totalGarSum = rows.reduce((s,r)=>s+(r.garantido||0),0);
   const cobertura = totalGarSum>0?(totalPrem/totalGarSum*100):0;
 
-  document.getElementById('dashKpi').innerHTML=`
-    <div class="kpi"><div class="kpi-label">Torneios</div><div class="kpi-val">${rows.length}</div><div class="kpi-sub">${dias} dia${dias>1?'s':''} · ${_dp}d janela</div></div>
-    <div class="kpi"><div class="kpi-label">Fechados</div><div class="kpi-val">${closed.length}</div><div class="kpi-sub">${rows.length?Math.round(closed.length/rows.length*100):0}% do total</div></div>
-    <div class="kpi g"><div class="kpi-label">Premiação total</div><div class="kpi-val">${brlk(totalPrem)}</div><div class="kpi-sub">Cobertura ${cobertura.toFixed(0)}% do GTD</div></div>
-    <div class="kpi r"><div class="kpi-label">Overlay total</div><div class="kpi-val">${brlk(Math.abs(totalOv))}</div><div class="kpi-sub">${closed.length?Math.round(withOv.length/closed.length*100):0}% dos fechados com OV</div></div>
-    <div class="kpi b"><div class="kpi-label">Perf. média</div><div class="kpi-val">${avgPerf!=null?pct(avgPerf):'—'}</div><div class="kpi-sub">vs garantido prometido</div></div>
-    <div class="kpi p"><div class="kpi-label">NF no período</div><div class="kpi-val">${nfRows.length}</div><div class="kpi-sub">${rows.length?Math.round(nfRows.length/rows.length*100):0}% não formaram</div></div>
-  `;
+  // período ANTERIOR (mesma duração) → variação nos cards
+  let pRows=[]; try{ pRows = flatRows(dago(_dp*2), dago(_dp)); }catch(e){}
+  const pClosed = pRows.filter(r=>r.premiacao!=null);
+  const pPerfArr = pClosed.filter(r=>r.perf!=null);
+  const pAvgPerf = pPerfArr.length ? pPerfArr.reduce((s,r)=>s+r.perf,0)/pPerfArr.length : null;
+  const prev = {
+    torneios:pRows.length, fechados:pClosed.length,
+    prem:pClosed.reduce((s,r)=>s+(r.premiacao||0),0),
+    ov:Math.abs(pClosed.reduce((s,r)=>s+(r.overlay||0),0)),
+    perf:pAvgPerf, nf:pRows.filter(r=>r.status==='nf').length,
+  };
+  const closeRate = rows.length?Math.round(closed.length/rows.length*100):0;
+  const ovRate    = closed.length?Math.round(withOv.length/closed.length*100):0;
+  const nfRate    = rows.length?Math.round(nfRows.length/rows.length*100):0;
+
+  const card = (cls,icon,label,val,sub,delta,spark)=>`
+    <div class="kpi ${cls||''}">
+      <div class="kpi-top">${kpiIcon(icon)}<div class="kpi-label">${label}</div></div>
+      <div class="kpi-valrow"><div class="kpi-val">${val}</div>${delta||''}</div>
+      <div class="kpi-sub">${sub}</div>${spark||''}
+    </div>`;
+  const accV = c => c==='g'?'var(--green)':c==='r'?'var(--red)':c==='b'?'var(--blue)':c==='p'?'var(--purple)':'var(--gold)';
+  document.getElementById('dashKpi').innerHTML =
+      card('', 'torneios','Torneios', rows.length, `${dias} dia${dias>1?'s':''} · janela ${_dp}d`,
+           kpiDelta(rows.length, prev.torneios), kpiSpark(dailySeries(rows,()=>1), accV('')))
+    + card('', 'fechados','Fechados', closed.length, `${closeRate}% do total`,
+           kpiDelta(closed.length, prev.fechados), kpiSpark(dailySeries(closed,()=>1), accV('')))
+    + card('g','premiacao','Premiação total', brlk(totalPrem), `Cobertura ${cobertura.toFixed(0)}% do GTD`,
+           kpiDelta(totalPrem, prev.prem), kpiSpark(dailySeries(closed,r=>r.premiacao), accV('g')))
+    + card('r','overlay','Overlay total', brlk(Math.abs(totalOv)), `${ovRate}% dos fechados com OV`,
+           kpiDelta(Math.abs(totalOv), prev.ov, true), kpiSpark(dailySeries(closed,r=>r.overlay<0?Math.abs(r.overlay):0), accV('r')))
+    + card('b','perf','Perf. média', avgPerf!=null?pct(avgPerf):'—', 'vs garantido prometido',
+           kpiDelta(avgPerf, prev.perf), '')
+    + card('p','nf','NF no período', nfRows.length, `${nfRate}% não formaram`,
+           kpiDelta(nfRows.length, prev.nf, true), kpiSpark(dailySeries(rows,r=>r.status==='nf'?1:0), accV('p')));
 
   // Top overlay
   const byName={};
