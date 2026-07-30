@@ -198,6 +198,9 @@ SupremaShell.mountNav('#supNav', {
      carregamento da planilha, que é o caminho crítico da página. -->
 <script defer src="suprema-feltro.js"></script>
 <script src="criacao-calc.js"></script>
+<!-- Eventos Principais (Liga Principal, R$): grade fixa local, sem upload.
+     Tem que vir ANTES do criacao-noturna.js, que lê LIGA_PRINCIPAL_SECTIONS. -->
+<script src="liga-principal-data.js"></script>
 <script src="criacao-noturna.js"></script>
 <!-- ⌘K command palette (navegação + ações de fábrica) -->
 <script defer src="suprema-palette.js"></script>

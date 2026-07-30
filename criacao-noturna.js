@@ -209,11 +209,11 @@ function calcValueParts(it, info, pctOnly){
   if (raw === null) return {main: info.disp, sub: '', money: null};
   if (raw > 0 && raw < 1){
     const money = (it.buyin != null) ? CriacaoCalc.moneyOf(it.buyin, raw) : null;
-    return {main: CriacaoCalc.pctText(raw), sub: money != null ? fmtMoneyPlain(money) : '', money};
+    return {main: CriacaoCalc.pctText(raw), sub: money != null ? fmtMoneyPlain(money, it.brl) : '', money};
   }
   if (pctOnly) return {main: info.disp, sub: '', money: null};
   const pct = (it.buyin && it.buyin > 0) ? CriacaoCalc.pctText(raw / it.buyin) : '';
-  return {main: fmtMoneyPlain(raw), sub: pct, money: raw, isMoney: true};
+  return {main: fmtMoneyPlain(raw, it.brl), sub: pct, money: raw, isMoney: true};
 }
 
 /* converte o valor cru de um campo pra fração percentual (0–1).
@@ -228,7 +228,7 @@ function rawToPct(it, info){
 function adminFeeParts(it){
   const pctTx = p => (Math.round(p * 10000) / 100).toLocaleString('pt-BR') + '%';
   const decTx = p => it.buyin != null
-    ? ' = ' + ((CURRENCY === 'usd' ? it.buyin : it.buyin * BRL_RATE) * p).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})
+    ? ' = ' + (((it.brl || CURRENCY === 'usd') ? it.buyin : it.buyin * BRL_RATE) * p).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})
     : '';
   const f = rawToPct(it, feeActive(it)), a = rawToPct(it, adminActive(it));
   if (!f && !a) return null;
@@ -275,13 +275,13 @@ function specTile(icon, accent, label, mainHtml, sub, hot){
 /* a FICHA: valores (com quanto o fee representa) + especificações destacadas */
 function specSheetHtml(it){
   const money = info => { // valor de célula → $ formatado (Add-on e afins)
-    if (typeof info.raw === 'number') return fmtMoney(info.raw);
+    if (typeof info.raw === 'number') return fmtMoney(info.raw, it.brl);
     const n = parseFloat(String(info.raw).replace(/[^\d.,-]/g, '').replace(',', '.'));
-    return isFinite(n) ? fmtMoney(n) : escHtml(info.disp);
+    return isFinite(n) ? fmtMoney(n, it.brl) : escHtml(info.disp);
   };
   const tiles = [];
-  tiles.push(specTile('buyin','c-felt','Buy-in', fmtMoney(it.buyin), '', true));
-  tiles.push(specTile('prize','c-felt','Prize Pool', fmtMoney(it.garantido), '', true));
+  tiles.push(specTile('buyin','c-felt','Buy-in', fmtMoney(it.buyin, it.brl), '', true));
+  tiles.push(specTile('prize','c-felt','Prize Pool', fmtMoney(it.garantido, it.brl), '', true));
   const af = adminFeeParts(it); if (af) tiles.push(specTile('admin','c-side','Admin Fee', escHtml(af.main), '10% do buy-in / +2% se tiver admin fee', true));
   const e = earlyParts(it);     if (e)  tiles.push(specTile('early','c-sat','Early Bird', escHtml(e.main), e.sub + ' (% das fichas)', true));
   const tk = ticketInfo(it);   if (tk) tiles.push(specTile('ticket','c-gold','Ticket Award', escHtml(tk.disp), '', true));
@@ -320,8 +320,29 @@ const CAT_MAIN   = {key:'main',        cls:'main',     suit:'♠', label:'Main E
 const CAT_SAT    = {key:'sat',         cls:'sat',      suit:'♣', label:'Satélites',                role:'mainSat'};
 const CAT_SIDE_A = {key:'sideAdmin',   cls:'side',     suit:'♥', label:'Side Events · com Admin Fee', role:'sideAdmin'};
 const CAT_SIDE_B = {key:'sideNoAdmin', cls:'sidefree', suit:'♦', label:'Side Events · sem Admin Fee', role:'sideNoAdmin'};
-const SECTIONS = [CAT_MAIN, CAT_SAT, CAT_SIDE_A, CAT_SIDE_B];
+/* EVENTOS PRINCIPAIS (Liga Principal) — grade fixa em REAIS, seção própria e
+   sempre em R$ (imune ao botão de moeda). Mesma ideia do Painel do Dia. */
+const CAT_LIGA   = {key:'liga',        cls:'liga',     suit:'♛', label:'Eventos Principais · Liga (R$)', role:'mainSat', brl:true};
+const SECTIONS = [CAT_MAIN, CAT_SAT, CAT_SIDE_A, CAT_SIDE_B, CAT_LIGA];
+
+/* itens da Liga do dia seguinte (amanhã), reconstruídos do dado local a cada
+   render — sem upload, sem gravar rows no Firebase (só o preenchimento persiste,
+   pelas mesmas chaves de done/ids/overrides). */
+let LIGA_ITEMS = [];
+function buildLigaItems(){
+  LIGA_ITEMS = [];
+  if (typeof LIGA_PRINCIPAL_SECTIONS === 'undefined') return;
+  const wd = (WEEKDAY_TOMORROW_EN || '').toUpperCase();
+  const sec = LIGA_PRINCIPAL_SECTIONS[wd];
+  if (!sec) return;
+  const push = arr => (arr || []).forEach(it => LIGA_ITEMS.push({...it, brl: true, _principal: true}));
+  push(sec.main); push(sec.side); push(sec.sat);
+  LIGA_ITEMS.sort((a, b) => (timeToMinutes(a.hora) ?? 9999) - (timeToMinutes(b.hora) ?? 9999));
+}
+buildLigaItems();   // grade fixa disponível já no load (só usa externals — seguro aqui)
+
 function catItems(cat){
+  if (cat.key === 'liga') return LIGA_ITEMS;   // independe da GU (grade fixa local)
   if (!DATA) return [];
   if (cat.key === 'main') return DATA.main;
   if (cat.key === 'sat')  return DATA.sat;
@@ -329,12 +350,13 @@ function catItems(cat){
   return cat.key === 'sideAdmin' ? s.admin : s.noadmin;
 }
 function allWithCat(){
-  const s = sideSplit();
+  const s = DATA ? sideSplit() : {admin:[], noadmin:[]};
   return [
-    ...DATA.main.map(it => ({it, cat: CAT_MAIN})),
+    ...(DATA ? DATA.main : []).map(it => ({it, cat: CAT_MAIN})),
     ...s.admin.map(it => ({it, cat: CAT_SIDE_A})),
     ...s.noadmin.map(it => ({it, cat: CAT_SIDE_B})),
-    ...DATA.sat.map(it => ({it, cat: CAT_SAT}))
+    ...(DATA ? DATA.sat : []).map(it => ({it, cat: CAT_SAT})),
+    ...LIGA_ITEMS.map(it => ({it, cat: CAT_LIGA}))
   ];
 }
 
@@ -719,7 +741,6 @@ function itemKey(it){
 }
 function computeAssignments(){
   const asg = {}; // key -> opName
-  if (!DATA || !OPS.length) return asg;
 
   // round-robin simples de uma lista dentro de um pool de operadores
   const roundRobin = (list, pool) => {
@@ -728,36 +749,42 @@ function computeAssignments(){
     list.forEach(it => { asg[itemKey(it)] = pool[cursor++ % pool.length]; });
   };
 
-  /* ── FUNÇÃO 1 · Main + Satélites — mesmo pool: quem cria o Main cria os
-     Satélites. Os Main Events vão em round-robin cronológico; cada GRUPO de
-     satélites (receita encadeada) vai inteiro pro operador do pool com menos
-     carga até ali, equilibrando dentro da própria função. ── */
-  const poolMS = opsForRole('mainSat');
-  const loadMS = Object.fromEntries(poolMS.map(o => [o,0]));
-  let msCursor = 0;
-  DATA.main.forEach(it => {
-    const op = poolMS[msCursor++ % poolMS.length];
-    asg[itemKey(it)] = op; loadMS[op]++;
-  });
-  const order = [], groups = {};
-  DATA.sat.forEach(it => {
-    const k = it.groupHeader || it.nome;
-    if (!groups[k]){ groups[k] = []; order.push(k); }
-    groups[k].push(it);
-  });
-  order.forEach(k => {
-    const op = poolMS.reduce((best,o) => loadMS[o] < loadMS[best] ? o : best, poolMS[0]);
-    groups[k].forEach(it => asg[itemKey(it)] = op);
-    loadMS[op] += groups[k].length;
-  });
+  if (OPS.length){
+    if (DATA){
+      /* ── FUNÇÃO 1 · Main + Satélites — mesmo pool: quem cria o Main cria os
+         Satélites. Os Main Events vão em round-robin cronológico; cada GRUPO de
+         satélites (receita encadeada) vai inteiro pro operador do pool com menos
+         carga até ali, equilibrando dentro da própria função. ── */
+      const poolMS = opsForRole('mainSat');
+      const loadMS = Object.fromEntries(poolMS.map(o => [o,0]));
+      let msCursor = 0;
+      DATA.main.forEach(it => {
+        const op = poolMS[msCursor++ % poolMS.length];
+        asg[itemKey(it)] = op; loadMS[op]++;
+      });
+      const order = [], groups = {};
+      DATA.sat.forEach(it => {
+        const k = it.groupHeader || it.nome;
+        if (!groups[k]){ groups[k] = []; order.push(k); }
+        groups[k].push(it);
+      });
+      order.forEach(k => {
+        const op = poolMS.reduce((best,o) => loadMS[o] < loadMS[best] ? o : best, poolMS[0]);
+        groups[k].forEach(it => asg[itemKey(it)] = op);
+        loadMS[op] += groups[k].length;
+      });
 
-  /* ── FUNÇÕES 2 e 3 · Side com / sem Admin Fee — pools próprios, cada bloco
-     dividido igualmente entre quem está naquela função. ── */
-  const {admin, noadmin} = sideSplit();
-  roundRobin(admin,   opsForRole('sideAdmin'));
-  roundRobin(noadmin, opsForRole('sideNoAdmin'));
+      /* ── FUNÇÕES 2 e 3 · Side com / sem Admin Fee — pools próprios, cada bloco
+         dividido igualmente entre quem está naquela função. ── */
+      const {admin, noadmin} = sideSplit();
+      roundRobin(admin,   opsForRole('sideAdmin'));
+      roundRobin(noadmin, opsForRole('sideNoAdmin'));
+    }
+    /* Eventos Principais (Liga) — sugestão por round-robin no mesmo pool do Main */
+    roundRobin(LIGA_ITEMS, opsForRole('mainSat'));
+  }
 
-  /* reatribuições manuais (handoff de turno) vencem a divisão automática,
+  /* reatribuições manuais / "pegar tarefa" (pull) vencem a divisão automática,
      desde que o destino ainda esteja na equipe */
   Object.keys(OVERRIDES).forEach(k => { if (OPS.includes(OVERRIDES[k])) asg[k] = OVERRIDES[k]; });
   return asg;
@@ -771,16 +798,20 @@ function opColor(name){
   const i = OPS.indexOf(name);
   return OP_COLORS[(i >= 0 ? i : 0) % OP_COLORS.length];
 }
-function fmtMoney(vUsd){
+/* isBrl: item já está em REAIS (Liga Principal) — NÃO responde ao botão de moeda,
+   sempre R$ com o valor cru. Mesma lógica dos Eventos Principais do Painel do Dia. */
+function fmtMoney(vUsd, isBrl){
   if (vUsd === null || vUsd === undefined) return '—';
+  if (isBrl){ const s0 = vUsd.toLocaleString('pt-BR', {minimumFractionDigits: vUsd % 1 ? 2 : 0, maximumFractionDigits: 2}); return `<span class="cur">R$</span>${s0}`; }
   const v = CURRENCY === 'usd' ? vUsd : vUsd * BRL_RATE;
   const s = v.toLocaleString('pt-BR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2});
   return `<span class="cur">${CURRENCY === 'usd' ? '$' : 'R$'}</span>${s}`;
 }
 /* soma do garantido (prize pool) de uma leva de torneios — total por seção */
 function gtdSum(items){ return (items || []).reduce((s, it) => s + (Number(it.garantido) || 0), 0); }
-function fmtMoneyPlain(vUsd){
+function fmtMoneyPlain(vUsd, isBrl){
   if (vUsd === null || vUsd === undefined) return '—';
+  if (isBrl) return 'R$ ' + vUsd.toLocaleString('pt-BR', {minimumFractionDigits: vUsd % 1 ? 2 : 0, maximumFractionDigits: 2});
   const v = CURRENCY === 'usd' ? vUsd : vUsd * BRL_RATE;
   return (CURRENCY === 'usd' ? '$ ' : 'R$ ') + v.toLocaleString('pt-BR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2});
 }
@@ -1093,7 +1124,7 @@ function renderFS(opts){
     <button class="fs-close" id="fsClose" title="Fechar (Esc)" aria-label="Fechar tela cheia">✕</button>
     <div class="fs-view ${cur.cls}">
       <div class="fs-head ${cat.cls}">
-        <span class="fs-title"><span class="suit">${cat.suit}</span>${cat.label}<span class="fs-count">${doneCount}/${items.length} criados</span><span class="gtd-total" title="Soma do garantido desta seção">GTD ${fmtMoney(gtdSum(items))}</span></span>
+        <span class="fs-title"><span class="suit">${cat.suit}</span>${cat.label}<span class="fs-count">${doneCount}/${items.length} criados</span><span class="gtd-total" title="Soma do garantido desta seção">GTD ${fmtMoney(gtdSum(items), cat.brl)}</span></span>
         <div class="fs-seg" role="tablist" aria-label="Visualização">
           ${MODES.map(m => `<button class="fs-seg-btn ${FS_MODE === m.key ? 'on' : ''}" data-fsmode="${m.key}" role="tab" aria-selected="${FS_MODE === m.key}">${m.label}</button>`).join('')}
         </div>
@@ -1493,6 +1524,13 @@ function creationWhen(it){
 const HIDDEN_RECIPE = /num\.?\s*(de\s*)?players|jogadores|\bchat\b/;
 /* campos ocultados MANUALMENTE (olhinho) — recibo por navegador, some da grade */
 function visibleRecipeFields(){ return creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l)) && !HIDDEN_FIELDS.has(l))); }
+/* a Liga Principal tem o SEU conjunto de campos (LIGA_PRINCIPAL_FIELDS), diferente da GU */
+function recipeFieldsFor(cat){
+  if (cat && cat.brl && typeof LIGA_PRINCIPAL_FIELDS !== 'undefined' && LIGA_PRINCIPAL_FIELDS.length) return LIGA_PRINCIPAL_FIELDS;
+  return recipeFields();
+}
+function visibleRecipeFieldsFor(cat){ return creationOrderFields(recipeFieldsFor(cat).filter(l => !HIDDEN_RECIPE.test(normText(l)) && !HIDDEN_FIELDS.has(l))); }
+function visibleRecipeFieldsForItem(it){ return visibleRecipeFieldsFor(it && it.brl ? {brl:true} : null); }
 function recipeText(it, cat){
   // Garantido e Buy-in não entram aqui em cima: já saem UMA vez, na posição
   // deles, dentro da receita ordenada abaixo (ordem de digitação do app)
@@ -1518,7 +1556,7 @@ function recipeText(it, cat){
 /* grid com TODOS os campos da receita (mostra também os vazios — quem cria a
    mesa precisa saber que aquele campo fica em branco no app) */
 function recipeGridHtml(it){
-  const fields = recipeFields();
+  const fields = (it && it.brl && typeof LIGA_PRINCIPAL_FIELDS !== 'undefined' && LIGA_PRINCIPAL_FIELDS.length) ? LIGA_PRINCIPAL_FIELDS : recipeFields();
   if (!fields.length) return `<div class="recipe-note">Receita completa indisponível nesta planilha (cabeçalho da Global não foi lido). Recarregue a Global MTT original.</div>`;
   return `<div class="recipe-grid">${creationOrderFields(fields).map(label => {
     const v = it.extra ? it.extra[label] : undefined;
@@ -1776,7 +1814,7 @@ function sectionNoteHtml(cat){
 
 function renderList(){
   const area = $('listArea');
-  if (!DATA){
+  if (!DATA && !LIGA_ITEMS.length){
     area.innerHTML = `<div class="empty-state"><span class="moon">🌙</span>Nenhuma planilha carregada ainda pra este dia da grade.<br>Suba a Global MTT acima — ou aguarde: se um parceiro subir, aparece aqui sozinho.</div>`;
     return;
   }
@@ -1792,13 +1830,13 @@ function renderList(){
         <span class="selbox selall" data-selall="${cat.key}" role="checkbox" tabindex="0" title="Selecionar todos desta seção"></span>
         <span class="tag"><span class="suit">${cat.suit}</span>${cat.label}</span>
         <span class="cnt">${doneCount}/${items.length} criados</span>
-        <span class="gtd-total" title="Soma do garantido (prize pool) desta seção">GTD ${fmtMoney(gtdSum(items))}</span>
+        <span class="gtd-total" title="Soma do garantido (prize pool) desta seção">GTD ${fmtMoney(gtdSum(items), cat.brl)}</span>
         <span class="line"></span>
         <button class="claimbtn claim-sec" data-claimsec="${cat.key}" title="Pegar todos os torneios desta seção pra você">✋ Pegar seção</button>
         <button class="vmini blockfs" data-fsopen="${cat.key}" title="Abrir esta seção em tela cheia — planilha grande pra preencher os IDs" aria-label="Abrir ${escHtml(cat.label)} em tela cheia">⛶</button>
       </div>
       ${sectionNoteHtml(cat)}`;
-    html += `<div class="secwrap" data-suit="${cat.suit}" data-sec="${cat.key}">${renderVertical(items, cat, asg)}</div>`;
+    html += `<div class="secwrap${cat.cls === 'liga' ? ' liga-sec' : ''}" data-suit="${cat.suit}" data-sec="${cat.key}">${renderVertical(items, cat, asg)}</div>`;
   });
 
   if (DATA.unknown && DATA.unknown.length && FILTER === 'all'){
@@ -1918,7 +1956,7 @@ function renderVertical(items, cat, asg){
   // FEE, ADMIN FEE e EARLY BIRD crus saem da receita: já estão consolidados nas linhas de cima
   const feeCols = new Set();
   cols.forEach(c => [feeInfo, adminInfo, earlyInfo].forEach(g => { const i = g(c.it); if (i && i.label) feeCols.add(i.label); }));
-  const rows = visibleRecipeFields().filter(l => !feeCols.has(l));
+  const rows = visibleRecipeFieldsFor(cat).filter(l => !feeCols.has(l));
   return `
     <div class="vwrap"><table class="vtable">
       <tr class="trow-head"><th class="rowlab">Torneio</th>${cell(c => {
@@ -1943,7 +1981,7 @@ function renderVertical(items, cat, asg){
             // Add-on em $; demais campos como se digita no app
             if (label === addonL){
               const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.'));
-              if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n))}</span>`;
+              if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n, c.it.brl))}</span>`;
             }
             // elementos de poker: ticket picotado, ficha de chips, carta do game type, bounty do K.O
             if (label === ticketL) return `<span class="tkt"><span class="stub">Ticket</span><span class="val" title="${escHtml(disp)}">${escHtml(disp)}</span></span>`;
@@ -1971,7 +2009,7 @@ function renderVertical(items, cat, asg){
    Usada no modo tela cheia (e no evento único). Hora + nome ficam fixos na
    rolagem lateral (sticky). Compartilha as caixinhas de seleção e o olhinho. */
 function renderHorizontal(items, cat, asg){
-  const fields = visibleRecipeFields();
+  const fields = visibleRecipeFieldsFor(cat);
   const labelOf = getter => { const c0 = items.find(it => getter(it)); return c0 ? getter(c0).label : null; };
   const addonL = labelOf(addonInfo), ticketL = labelOf(ticketInfo), chipsL = labelOf(chipsInfo), gameL = labelOf(gameTypeInfo), koL = labelOf(koInfo);
   const keyLabels = new Set();
@@ -1983,7 +2021,7 @@ function renderHorizontal(items, cat, asg){
     const has = v !== undefined && v !== null && v !== '';
     if (!has) return `<span class="dash">—</span>`;
     const disp = fmtExtraVal(label, v);
-    if (label === addonL){ const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.')); if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n))}</span>`; }
+    if (label === addonL){ const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.')); if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n, it.brl))}</span>`; }
     if (label === ticketL) return `<span class="tkt"><span class="stub">Ticket</span><span class="val" title="${escHtml(disp)}">${escHtml(disp)}</span></span>`;
     if (label === chipsL) return `<span class="pchip">${escHtml(disp)}</span>`;
     if (label === gameL){ const idx = [...normText(disp)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 4; return `<span class="gcard"><span class="suit ${idx === 1 || idx === 2 ? 'red' : ''}">${SUITS[idx]}</span>${escHtml(disp)}</span>`; }
@@ -2166,7 +2204,7 @@ function focusAdvance(){ FOCUS_TARGET = null; FOCUS_ANIMATE = true; renderFocus(
    na descida. Os campos-chave (buy-in, garantido, rake, admin, early, campanha)
    ganham cor na própria linha. */
 function focusFlowHtml(it){
-  const fields = visibleRecipeFields();
+  const fields = visibleRecipeFieldsForItem(it);
   if (!fields.length)
     return `<div class="recipe-note">Receita completa indisponível nesta planilha (cabeçalho da Global não foi lido). Recarregue a Global MTT original.</div>`;
   const feeL = (feeInfo(it) || {}).label, admL = (adminInfo(it) || {}).label,
@@ -2212,7 +2250,7 @@ function focusFlowHtml(it){
     // Add-on: formata em $
     if (has && accent === 'addon'){
       const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.'));
-      if (isFinite(n) && n > 0) vHtml = escHtml(fmtMoneyPlain(n));
+      if (isFinite(n) && n > 0) vHtml = escHtml(fmtMoneyPlain(n, it.brl));
     }
     const done = FOCUS_ENTERED.has(label);
     return `<div class="frow ${accent} ${has ? '' : 'blank'} ${done ? 'entered' : ''} ${accent ? 'key-line' : ''}" data-field="${escHtml(label)}">
@@ -2274,8 +2312,8 @@ function openCreateConfirm(it, cat, key, onConfirm){
     <div class="sub"><b>${escHtml(it.nome)}</b> · ${escHtml(cat.label)} — bata os números com o que você cadastrou no Pokerbyte.</div>
     <div class="cc-grid">
       ${cci('Horário', escHtml(it.hora))}
-      ${cci('Buy-in', fmtMoney(it.buyin), it.buyin == null)}
-      ${cci('Garantido', fmtMoney(it.garantido), it.garantido == null)}
+      ${cci('Buy-in', fmtMoney(it.buyin, it.brl), it.buyin == null)}
+      ${cci('Garantido', fmtMoney(it.garantido, it.brl), it.garantido == null)}
       ${af ? cci('Admin Fee', escHtml(af.main) + (af.sub ? ` <span style="opacity:.6;font-size:11px">${escHtml(af.sub)}</span>` : '')) : cci('Admin Fee', '—', cat.key !== 'sat')}
       ${e ? cci('Early Bird', escHtml(e.main) + (e.sub ? ` <span style="opacity:.6;font-size:11px">${escHtml(e.sub)}</span>` : '')) : ''}
       ${hasCampaign(it) ? cci('✦ Campanha', escHtml((campInfo(it) || {}).disp || 'ativa'), false) : ''}
@@ -2310,7 +2348,7 @@ function renderFocus(){
   // progresso "digitei" é por torneio — zera ao trocar de torneio
   if (FOCUS_ENTERED_KEY !== key){ FOCUS_ENTERED = new Set(); FOCUS_ENTERED_KEY = key; FOCUS_CURSOR = null; }
   if (!FOCUS_SEEN_AT[key]) FOCUS_SEEN_AT[key] = Date.now();   // #4 início da criação
-  FOCUS_FIELDS = visibleRecipeFields();                      // #2 ordem dos campos (sem Num. Players/Chat)
+  FOCUS_FIELDS = visibleRecipeFieldsFor(cat);                // #2 ordem dos campos (Liga usa os campos dela)
   if (!FOCUS_CURSOR || !FOCUS_FIELDS.includes(FOCUS_CURSOR) || FOCUS_ENTERED.has(FOCUS_CURSOR))
     FOCUS_CURSOR = focusNextField(null);
   const urg = urgency(it);
@@ -2624,7 +2662,7 @@ $('currencySeg').querySelectorAll('button').forEach(b => b.addEventListener('cli
   CURRENCY = b.dataset.cur;
   localStorage.setItem('cn_currency', CURRENCY);
   $('currencySeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
-  renderList();
+  renderAll();   // atualiza lista + GTD + tela cheia (a Liga permanece em R$)
 }));
 (function restoreSegs(){
   $('currencySeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.cur === CURRENCY));
@@ -2692,13 +2730,14 @@ $('exportSecBtn').addEventListener('click', async () => {
   const cur = CURRENCY === 'usd' ? '$' : 'R$';
   const convV = (it, v) => (v === null || v === undefined) ? '' : ((it && it.brl) ? v : (CURRENCY === 'usd' ? v : Math.round(v * BRL_RATE * 100) / 100));
   const asg = computeAssignments();
-  const fields = recipeFields();                    // receita COMPLETA no export (independe do que está oculto na tela)
   const wb = XLSX.utils.book_new();
   let sheets = 0, grandTotal = 0;
   SECTIONS.forEach(cat => {
     const items = catItems(cat);
     if (!items.length) return;
-    const header = ['Horário', 'Torneio', 'Criar em', 'Operador', 'ID Pokerbyte', 'Criado', `Garantido (${cur})`, `Buy-in (${cur})`, ...fields];
+    const fields = recipeFieldsFor(cat);            // receita COMPLETA (Liga tem campos próprios); independe do que está oculto na tela
+    const cCur = cat.brl ? 'R$' : cur;
+    const header = ['Horário', 'Torneio', 'Criar em', 'Operador', 'ID Pokerbyte', 'Criado', `Garantido (${cCur})`, `Buy-in (${cCur})`, ...fields];
     const rows = [header];
     items.forEach(it => {
       const key = itemKey(it);
@@ -2711,7 +2750,9 @@ $('exportSecBtn').addEventListener('click', async () => {
     const gtd = gtdSum(items);
     grandTotal += gtd;
     rows.push([]);
-    rows.push([`${items.length} torneios · GTD total ${cur} ${(CURRENCY === 'usd' ? gtd : gtd * BRL_RATE).toLocaleString('pt-BR')}`]);
+    const gtdCur = cat.brl ? 'R$' : cur;
+    const gtdVal = cat.brl ? gtd : (CURRENCY === 'usd' ? gtd : gtd * BRL_RATE);
+    rows.push([`${items.length} torneios · GTD total ${gtdCur} ${gtdVal.toLocaleString('pt-BR')}`]);
     const ws = XLSX.utils.aoa_to_sheet(rows);
     ws['!cols'] = [{wch:9},{wch:28},{wch:16},{wch:14},{wch:16},{wch:8},{wch:14},{wch:12}, ...fields.map(() => ({wch:16}))];
     XLSX.utils.book_append_sheet(wb, ws, cat.label.replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31));
@@ -2790,3 +2831,12 @@ document.addEventListener('keydown', function(e){
   else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
   else if(!dlg.contains(document.activeElement)){ e.preventDefault(); first.focus(); }
 });
+
+/* ── EVENTOS PRINCIPAIS (Liga) no load: como é grade fixa local, aparecem mesmo
+   sem GU subida — revela os controles e renderiza. Roda no fim do arquivo, com
+   todo o estado (OPS/DONE/…) já declarado. ── */
+(function showLigaOnLoad(){
+  if (!LIGA_ITEMS.length) return;
+  try{ $('controlsCard').hidden = false; $('actionsBar').hidden = false; }catch(e){}
+  renderAll();
+})();
