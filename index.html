@@ -1441,6 +1441,9 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- grade fixa dos Eventos Principais (Liga Principal, R$) — usada pela seção "Principais" -->
 <script src="liga-principal-data.js"></script>
 <script src="painel-calc.js"></script>
+<!-- backup pro Google Sheets (formato Acompanhamento). ANTES do painel.js, que o usa
+     no auto-backup disparado quando o último resultado do dia é preenchido. -->
+<script src="suprema-sheets.js"></script>
 <script src="painel.js"></script>
 <!-- painel-actions: delegação dos [data-act] que substituíram os 44 handlers
      inline. Depois do painel.js, que define as funções que ele aciona. -->

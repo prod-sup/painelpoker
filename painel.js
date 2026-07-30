@@ -2509,8 +2509,18 @@ function initFirebaseSync(){
     // só anexa com auth viva: senão, numa recarga, o RTDB nega a leitura e cancela
     // o listener — e a premiação some ("0 fechados") até religar por acaso.
     whenAuthed(() => {
-    fbDb.ref(`${FB_BASE_PATH}/premiacao`).on('value', snap => applyFbPremiacao(snap.val() || {}));
+    fbDb.ref(`${FB_BASE_PATH}/premiacao`).on('value', snap => { applyFbPremiacao(snap.val() || {}); maybeAutoBackupSheets(); });
     });  // fim do whenAuthed (premiação)
+
+    // ── Config do backup (Google Sheets), compartilhada ─────────────────────
+    // O admin grava em config/sheetsBackup ao usar "Enviar hoje". O painel lê aqui
+    // pra disparar o auto-backup quando o último resultado do dia for preenchido.
+    // Se a regra ainda não foi publicada (sem permissão), fica dormente — sem erro.
+    whenAuthed(() => {
+      fbDb.ref('config/sheetsBackup').on('value',
+        snap => { SHEETS_CFG = snap.val() || null; maybeAutoBackupSheets(); },
+        () => { /* regra não publicada / sem permissão → auto-backup dormente */ });
+    });
 
     // ── Fixados ───────────────────────────────────────────────────────────
     fbDb.ref(`${FB_BASE_PATH}/fixed`).on('value', snap => {
@@ -2569,6 +2579,7 @@ function initFirebaseSync(){
         // Só patch do card sem recriar
         Object.keys(ID_MAP).forEach(key => patchCardFields(key));
       }
+      maybeAutoBackupSheets();   // marcar NF pode completar o dia → auto-backup
     });
 
     // ── Field (jogadores) ─────────────────────────────────────────────────
@@ -2582,6 +2593,7 @@ function initFirebaseSync(){
         if(row) row.field = v != null ? v : null;
       });
       if(RAW_ROWS.length) scheduleUI('results', 'upcoming');
+      maybeAutoBackupSheets();   // field mudou → se o dia já está completo, reescreve o backup
     });
 
     // ── Garantido editado ─────────────────────────────────────────────────
@@ -2601,6 +2613,7 @@ function initFirebaseSync(){
       saveGarantidoMapLocal(GARANTIDO_MAP);
       if(RAW_ROWS.length) scheduleUI('stats', 'results');
       else computeStats();
+      maybeAutoBackupSheets();   // garantido mudou → reescreve o backup se o dia já fechou
     });
 
     // ── Checklist e Conf. hoje ────────────────────────────────────────────
@@ -3073,6 +3086,54 @@ function setField(key, val){
       fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).remove().catch(()=>{});
     }
   }, 200);
+}
+
+/* ── Auto-backup pro Google Sheets ───────────────────────────────────────────
+   Quando o ÚLTIMO resultado do dia é preenchido (nenhum torneio "aberto"), manda a
+   grade do dia pro Google Sheets no MESMO formato do Acompanhamento (agrupado
+   Main/Side/Satélite, cronológico). A config vem de config/sheetsBackup (o admin
+   grava ao usar "Enviar hoje"). Reescreve SEMPRE a aba do dia — puxar de novo ou
+   corrigir um valor sobrescreve, nunca duplica "dia 30". Só reenvia quando algo
+   muda de verdade (assinatura) e degrada em silêncio se não estiver configurado. */
+let SHEETS_CFG = null;
+let _sheetsLastSig = '';
+let _sheetsTimer = null;
+
+function sheetsRowsNow(){
+  return RAW_ROWS.filter(r => r && r.nome).map(r => {
+    const id = (getId(r._key) || '');
+    return {
+      nome: r.nome, hora: r.hora, late: r.late || '',
+      cat: classify(r),
+      garantido: getGarantidoEffective(r._key), buyin: r.buyin,
+      premiacao: r.premiacao, field: r.field, id,
+      status: id.toUpperCase() === 'NF' ? 'nf' : (r.premiacao != null ? 'fechado' : 'aberto'),
+    };
+  });
+}
+function sheetsDayComplete(){
+  // completo = todo torneio tem premiação OU está marcado NF (nada "aberto").
+  // Eventos de próximo cronograma (premiação cai no quadro do dia seguinte) NÃO contam
+  // como pendência — senão o dia nunca "fecharia" e o auto-backup jamais dispararia.
+  return RAW_ROWS.length > 0 &&
+    !RAW_ROWS.some(r => !r.proxCronograma && r.premiacao == null && (getId(r._key) || '').toUpperCase() !== 'NF');
+}
+function maybeAutoBackupSheets(){
+  try{
+    if(!SHEETS_CFG || !SHEETS_CFG.url) return;          // backup não configurado
+    if(typeof SupremaSheets === 'undefined') return;
+    if(!sheetsDayComplete()) return;                    // só depois do ÚLTIMO preenchido
+    const rows = sheetsRowsNow();
+    const sig  = SupremaSheets.signature(rows);
+    if(sig === _sheetsLastSig) return;                  // nada mudou desde o último envio
+    clearTimeout(_sheetsTimer);
+    _sheetsTimer = setTimeout(() => {
+      _sheetsLastSig = sig;
+      const dateIso = (FB_BASE_PATH || '').split('/').pop();   // YYYY-MM-DD do dia da grade
+      SupremaSheets.send({url:SHEETS_CFG.url, secret:SHEETS_CFG.secret||''}, dateIso, SupremaSheets.buildGrid(rows))
+        .then(out => { if(out && out.ok){ try{ localStorage.setItem('suprema_last_sheets', Date.now()); }catch(_){} } });
+    }, 3500);   // deixa a rajada de listeners do Firebase assentar antes de mandar
+  }catch(_){}
 }
 
 /* Garantido: usa o valor da planilha como base, mas permite override manual no card.

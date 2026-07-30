@@ -2305,6 +2305,9 @@ async function saveAudit(){
     });
     // Re-renderizar a auditoria para mostrar badge
     loadAudit();
+    // Backup: se corrigiu um valor (arrecadado/field/garantido/ID), reescreve a aba
+    // daquele dia no Google Sheets com o valor AUDITADO — automático.
+    if(!approved) autoResendSheets(_auditContext.date, 'valor auditado');
   } catch(e){
     errEl.textContent = 'Erro: '+e.message; errEl.style.display='block';
   } finally {
@@ -2822,42 +2825,49 @@ async function executeCleanup(old){
 // ── 3. GOOGLE SHEETS ──
 const APPS_SCRIPT = `// Cole este script no Apps Script da sua planilha Google
 // Extensões → Apps Script → cole → Implantar → App da Web (Qualquer pessoa)
+// Escreve a grade JÁ PRONTA (agrupada por Main/Side/Satélite) que o painel manda.
+// UMA aba por dia: limpa e reescreve a aba com a data — puxar de novo SOBRESCREVE.
 
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
-    // Segredo compartilhado: Extensões → Apps Script → Configurações do projeto →
-    // Propriedades do script → adicione SHARED_SECRET com o mesmo valor colado no admin.
+    // Segredo compartilhado (opcional): Configurações do projeto → Propriedades do
+    // script → adicione SHARED_SECRET com o mesmo valor colado no admin.
     const expected = PropertiesService.getScriptProperties().getProperty('SHARED_SECRET');
     if (expected && data.secret !== expected) {
       return ContentService.createTextOutput(JSON.stringify({error:'unauthorized'})).setMimeType(ContentService.MimeType.JSON);
     }
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheetName = data.date || new Date().toLocaleDateString('pt-BR');
+    // Mesmo dia = mesma aba. Sem duplicar "dia 30".
+    const sheetName = String(data.date || new Date().toLocaleDateString('pt-BR')).slice(0, 90);
     let sheet = ss.getSheetByName(sheetName);
     if (!sheet) sheet = ss.insertSheet(sheetName);
-    sheet.clearContents();
+    sheet.clear();
 
-    // Cabeçalho
-    sheet.getRange(1, 1, 1, 9).setValues([['Torneio','Hora','Categoria','Garantido','Buy-in','Premiação','Overlay','Field','Status']]);
+    const grid = data.grid || [];
+    if (grid.length) {
+      const ncol = grid.reduce((m, r) => Math.max(m, r.length), 1);
+      const norm = grid.map(r => { const c = r.slice(); while (c.length < ncol) c.push(''); return c; });
+      sheet.getRange(1, 1, norm.length, ncol).setValues(norm);
 
-    // Dados
-    if (data.rows && data.rows.length) {
-      const values = data.rows.map(r => [
-        r.nome||'', r.hora||'', r.cat||'',
-        r.garantido||'', r.buyin||'', r.premiacao||'',
-        r.overlay||'', r.field||'', r.status||''
-      ]);
-      sheet.getRange(2, 1, values.length, 9).setValues(values);
+      const style = data.style || {};
+      // Cabeçalho — verde feltro, congelado no topo
+      if (style.headerRow != null) {
+        sheet.getRange(style.headerRow + 1, 1, 1, ncol)
+          .setFontWeight('bold').setBackground('#1a472a').setFontColor('#ffffff');
+        sheet.setFrozenRows(style.headerRow + 1);
+      }
+      // Faixas de seção (MAIN EVENT / SIDE EVENT / SATÉLITE) — dourado, mesclado
+      (style.sectionRows || []).forEach(idx => {
+        const rng = sheet.getRange(idx + 1, 1, 1, ncol);
+        rng.setFontWeight('bold').setBackground('#f1e2bd').setFontColor('#5c4a1a');
+        try { rng.mergeAcross(); } catch (mErr) {}
+      });
+      sheet.autoResizeColumns(1, ncol);
     }
-
-    // Formatar
-    sheet.getRange(1, 1, 1, 9).setFontWeight('bold').setBackground('#1a472a').setFontColor('#ffffff');
-    sheet.autoResizeColumns(1, 9);
-
-    return ContentService.createTextOutput(JSON.stringify({ok:true})).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({ok:true, rows:grid.length})).setMimeType(ContentService.MimeType.JSON);
   } catch(err) {
-    return ContentService.createTextOutput(JSON.stringify({error:err.message})).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({error:String((err && err.message) || err)})).setMimeType(ContentService.MimeType.JSON);
   }
 }`;
 
@@ -2872,64 +2882,62 @@ async function exportToSheets(){
   if(!url){ toast('Cole a URL do Apps Script primeiro','err'); return; }
   localStorage.setItem('suprema_sheets_url', url);
   const secret = document.getElementById('sheetsSecret').value.trim();
-  if(secret) localStorage.setItem('suprema_sheets_secret', secret);
+  if(secret) localStorage.setItem('suprema_sheets_secret', secret); else localStorage.removeItem('suprema_sheets_secret');
+
+  // Config COMPARTILHADA: o Painel lê daqui pra fazer o auto-backup quando o
+  // último resultado do dia é preenchido (sem depender de o admin estar aberto).
+  try{ if(fbOk) db.ref('config/sheetsBackup').set({url, secret:secret||'', by:_name||'', at:Date.now()}); }catch(_){}
 
   const today = nowSP();
-  const day   = _allData[today];
-  if(!day){ toast('Sem dados de hoje para enviar','err'); return; }
-
-  const rows = Object.entries(day.rows||{}).map(([key,r])=>{
-    if(!r||!r.nome) return null;
-    const prem  = day.prem?.[key]??r.premiacao??null;
-    const gar   = day.guar?.[key]??r.garantido??null;
-    const field = day.field?.[key]??r.field??null;
-    const ov    = prem!=null&&gar!=null?prem-gar:null;
-    const idRaw = day.ids?.[key];
-    const id    = typeof idRaw==='object'&&idRaw?idRaw.val||'':idRaw||'';
-    return {nome:r.nome,hora:r.hora,cat:classify(r),garantido:gar,buyin:r.buyin,
-      premiacao:prem,overlay:ov,field,status:id.toUpperCase()==='NF'?'Não formou':prem!=null?'Fechado':'Aberto'};
-  }).filter(Boolean);
+  const rows  = flatRows(today, today);   // já traz cat/late/status; buildGrid deriva Overlay/Ações
+  if(!rows.length){ toast('Sem dados de hoje para enviar','err'); return; }
 
   const status = document.getElementById('sheetsStatus');
-  status.textContent = 'Enviando...';
+  if(status) status.textContent = 'Enviando...';
 
-  // O Apps Script responde via redirect pro googleusercontent, que NÃO manda
-  // header de CORS — então `res.json()` estoura mesmo quando o POST foi entregue
-  // e salvou. Era ISSO que fazia o backup "não rodar". Estratégia resiliente:
-  // 1) tenta ler a resposta (confirma de verdade); 2) se a leitura for bloqueada
-  // por CORS, o dado provavelmente foi salvo → reporta "enviado, confira"; 3) se
-  // nem enviar deu, tenta no-cors e, falhando, orienta a configuração do deploy.
-  const payload = JSON.stringify({date:fmtDate(today), rows, secret});
-  const now = () => new Date().toLocaleTimeString('pt-BR');
-  let confirmed = false, sent = false, srvError = null;
-  try{
-    const res = await fetch(url, { method:'POST', redirect:'follow', body: payload });
-    sent = true;
-    try{
-      const json = await res.json();
-      if(json && json.ok) confirmed = true;
-      else if(json && json.error) srvError = json.error;
-    }catch(_readErr){ /* resposta opaca/CORS — normal no Apps Script */ }
-  }catch(_netErr){
-    try{ await fetch(url, { method:'POST', mode:'no-cors', body: payload }); sent = true; }
-    catch(_e2){ sent = false; }
-  }
+  const built = SupremaSheets.buildGrid(rows);
+  const out   = await SupremaSheets.send({url, secret}, today, built);
+  const now   = new Date().toLocaleTimeString('pt-BR');
+  const aba    = SupremaSheets.sheetLabel(today);
 
-  if(srvError){
-    toast('O Apps Script recusou: '+srvError, 'err');
-    status.textContent = '❌ '+srvError+' — confira o segredo (secret) e o código do script.';
-  } else if(confirmed){
+  if(out.error){
+    toast('O Apps Script recusou: '+out.error, 'err');
+    if(status) status.textContent = '❌ '+out.error+' — confira o segredo (secret) e o código do script.';
+  } else if(out.confirmed){
     localStorage.setItem('suprema_last_sheets', Date.now());
     toast('✓ Dados enviados para Google Sheets','ok');
-    status.textContent = `✓ ${rows.length} torneios enviados às ${now()} (confirmado)`;
-  } else if(sent){
+    if(status) status.textContent = `✓ ${out.rows} torneios na aba ${aba} às ${now} (confirmado)`;
+  } else if(out.sent){
     localStorage.setItem('suprema_last_sheets', Date.now());
     toast('Enviado ao Sheets — confira a planilha','ok');
-    status.textContent = `↑ ${rows.length} torneios enviados às ${now()}. A resposta veio bloqueada por CORS (normal no Apps Script) — confira se apareceram na planilha.`;
+    if(status) status.textContent = `↑ ${out.rows} torneios enviados p/ a aba ${aba} às ${now}. A resposta veio bloqueada por CORS (normal no Apps Script) — confira na planilha.`;
   } else {
     toast('Não consegui enviar pro Sheets','err');
-    status.textContent = '❌ Não consegui enviar. Confira a URL do Apps Script e republique o deploy como "Executar como: eu" e "Quem tem acesso: qualquer pessoa".';
+    if(status) status.textContent = '❌ Não consegui enviar. Confira a URL do Apps Script e republique o deploy como "Executar como: eu" e "Quem tem acesso: qualquer pessoa".';
   }
+}
+
+/* Re-enviar o backup de um DIA específico, silenciosamente, quando um valor é
+   corrigido na auditoria. Usa os _auditRows já atualizados em memória (que refletem
+   a correção) e sobrescreve a MESMA aba — o "Arrecadado" auditado entra no lugar. */
+async function autoResendSheets(dateKey, reason){
+  try{
+    const url = (localStorage.getItem('suprema_sheets_url')||'').trim();
+    if(!url) return;                                  // backup não configurado → ignora
+    if(typeof SupremaSheets==='undefined') return;
+    const secret = (localStorage.getItem('suprema_sheets_secret')||'').trim();
+    const rows = (Array.isArray(_auditRows) && _auditRows.length)
+      ? _auditRows.filter(r => r.date === dateKey)    // já com o valor auditado (saveAudit atualizou)
+      : flatRows(dateKey, dateKey);
+    if(!rows.length) return;
+    const built = SupremaSheets.buildGrid(rows);
+    const out   = await SupremaSheets.send({url, secret}, dateKey, built);
+    const st = document.getElementById('sheetsStatus');
+    if(out.ok){
+      localStorage.setItem('suprema_last_sheets', Date.now());
+      if(st) st.textContent = `↻ Backup atualizado (${reason||'correção'}) na aba ${SupremaSheets.sheetLabel(dateKey)} — ${out.rows} torneios reescritos.`;
+    }
+  }catch(_){}
 }
 
 function timeMin(h){

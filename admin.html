@@ -461,10 +461,19 @@ document.addEventListener('DOMContentLoaded', () => {
             <input type="password" id="sheetsSecret" placeholder="Opcional, mas recomendado"
               style="padding:8px 11px;font-size:12px">
           </div>
-          <div style="font-size:11px;color:var(--ink3);line-height:1.6">
-            <b>Como configurar:</b> No Google Sheets, vá em Extensões → Apps Script → cole o script abaixo → Implantar → App da Web → copie a URL e cole acima.
-            <button class="btn btn-ghost btn-sm" style="margin-left:8px" data-act="copyAppsScript">📋 Copiar script</button>
-          </div>
+          <details class="sheets-help" open>
+            <summary>📖 Como conectar ao Google Sheets — passo a passo</summary>
+            <ol class="sheets-steps">
+              <li>Crie (ou abra) uma <b>planilha no Google Sheets</b> onde os backups vão ficar.</li>
+              <li>Nela, vá em <b>Extensões → Apps Script</b>. Apaga o código que vier e clique em <b>📋 Copiar script</b> aqui embaixo e <b>cole</b> lá. Salve (💾).</li>
+              <li><b>(Recomendado) Segredo:</b> no Apps Script, <b>⚙ Configurações do projeto → Propriedades do script → Adicionar</b>: nome <code>SHARED_SECRET</code>, valor uma senha sua. Cole a MESMA senha no campo <b>Segredo</b> acima.</li>
+              <li>Clique em <b>Implantar → Nova implantação</b>. Tipo: <b>App da Web</b>. Em <b>Executar como</b> escolha <b>Eu</b>; em <b>Quem pode acessar</b> escolha <b>Qualquer pessoa</b>. Clique <b>Implantar</b> e <b>Autorize</b> (aceite as permissões da sua conta).</li>
+              <li><b>Copie a URL do app da Web</b> (termina em <code>/exec</code>) e cole no campo <b>URL</b> acima.</li>
+              <li>Clique em <b>“Enviar hoje para Sheets”</b> aqui em cima pra testar — deve aparecer uma aba com a data de hoje na planilha.</li>
+            </ol>
+            <p class="sheets-note">⚠ Se você <b>editar o script</b> depois, precisa <b>Implantar → Gerenciar implantações → ✎ Editar → Nova versão → Implantar</b> — senão a URL continua rodando o código antigo. E se der “não consegui enviar”, confira se “Quem pode acessar” está em <b>Qualquer pessoa</b>.</p>
+            <button class="btn btn-ghost btn-sm" data-act="copyAppsScript">📋 Copiar script</button>
+          </details>
           <div id="sheetsStatus" style="font-size:12px;color:var(--ink3)"></div>
         </div>
       </div>
@@ -932,6 +941,8 @@ document.addEventListener('DOMContentLoaded', () => {
 <script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script defer src="suprema-xlsx.js"></script>
 <script src="suprema-db.js"></script>
+<!-- backup pro Google Sheets (mesmo formato/helper do painel). ANTES do admin.js. -->
+<script src="suprema-sheets.js"></script>
 <script src="admin.js"></script>
 <!-- admin-actions: delegação dos [data-act] que substituíram os 92 handlers
      inline. Depois do admin.js, que define as funções que ele aciona. -->
