@@ -415,6 +415,13 @@ html.light .aviso[data-tipo="erro"]{ --av-fg:#c0392b }
 .t-eventos{grid-column:span 3;--tint:var(--p-eventos)}
 .t-tv{grid-column:span 3;--tint:var(--p-admin)}
 .t-tv{background:linear-gradient(160deg,color-mix(in srgb,var(--gold) 7%,var(--bg-raise)),var(--bg-raise) 62%)}
+/* Novidades & Manual: faixa dourada de capacitação (visível pra todos) */
+.t-novidades{grid-column:span 6;min-height:120px;--tint:var(--gold);flex-direction:row;align-items:center;gap:22px}
+.t-novidades{background:linear-gradient(160deg,color-mix(in srgb,var(--gold) 9%,var(--bg-raise)),var(--bg-raise) 60%)}
+.t-novidades h2{font-size:20px}
+.t-novidades .desc{margin:4px 0 0;max-width:60ch}
+.t-novidades .meta{margin:0 0 0 auto}
+.t-novidades .mark{font-size:96px;top:-14px}
 /* Criação de Eventos (Kanban externo): dourado da marca, sem céu próprio */
 .t-pipe{grid-column:span 3;--tint:var(--gold)}
 /* Suprema Analytics (BI): banner full-width no rodapé, mesmo tratamento do Cash.

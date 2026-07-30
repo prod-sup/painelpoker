@@ -1,7 +1,7 @@
 // Suprema Poker — Service Worker
 // IMPORTANTE: incremente SW_VERSION a cada deploy — é isso que faz as abas abertas
 // receberem o aviso de "nova versão disponível" e ninguém operar com código velho
-const SW_VERSION = '3.91.0';
+const SW_VERSION = '3.93.0';
 const CACHE_NAME = `suprema-painel-v${SW_VERSION}`;
 // BASE derivada da própria URL do SW: '/' na Vercel (painelpoker.vercel.app/) e
 // '/painelpoker/' no GitHub Pages. Os assets abaixo são RELATIVOS e recebem a base
@@ -22,6 +22,7 @@ const STATIC_ASSETS = [
   /* cada .html precacheado precisa dos SEUS js/css também — senão a página abre
      offline mas sem cérebro/estilo na primeira visita sem rede */
   'hub.html',
+  'novidades.html',      // manual do operador + patch notes (linkado no hub)
   'hub.js',
   'hub-onboarding.js',   // o hub.html carrega — estava fora do precache
   'hub-motion.js',       // camada de motion (Anime.js) do redesign

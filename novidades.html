@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Novidades &amp; Manual · Suprema OS</title>
+<meta name="description" content="Manual do operador e novidades da Suprema OS — Painel do Dia e Criação Noturna.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠</text></svg>">
+<style>
+  :root{
+    --bg:#faf7f1; --surface:#ffffff; --surface-2:#f3eee3;
+    --ink:#1c1a15; --ink-soft:#5c574c; --ink-faint:#8a8477;
+    --hair:#e6ded0; --hair-strong:#d6cbb6;
+    --gold:#8f6b2d; --gold-soft:#f2e9d5; --gold-line:#d8c48f;
+    --felt:#0e6b40; --felt-soft:#e2f0e8;
+    --red:#b23b3b; --red-soft:#f7e3e1;
+    --amber:#9a6a12; --amber-soft:#f6ebd2;
+    --green:#1c7a4a; --green-soft:#e2f0e8;
+    --shadow:0 1px 2px rgba(28,26,21,.05), 0 6px 22px rgba(28,26,21,.06);
+    --radius:14px;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
+    --maxw:1180px;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#14120e; --surface:#1c1a15; --surface-2:#221f18;
+      --ink:#f0ebe0; --ink-soft:#b8b0a0; --ink-faint:#867e70;
+      --hair:#2c2921; --hair-strong:#3a362b;
+      --gold:#c9a84c; --gold-soft:#2a2416; --gold-line:#514526;
+      --felt:#5fbf8c; --felt-soft:#16281f;
+      --red:#e07a72; --red-soft:#2c1a18;
+      --amber:#d6a94a; --amber-soft:#2a2213;
+      --green:#5fbf8c; --green-soft:#16281f;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14120e; --surface:#1c1a15; --surface-2:#221f18;
+    --ink:#f0ebe0; --ink-soft:#b8b0a0; --ink-faint:#867e70;
+    --hair:#2c2921; --hair-strong:#3a362b;
+    --gold:#c9a84c; --gold-soft:#2a2416; --gold-line:#514526;
+    --felt:#5fbf8c; --felt-soft:#16281f;
+    --red:#e07a72; --red-soft:#2c1a18;
+    --amber:#d6a94a; --amber-soft:#2a2213;
+    --green:#5fbf8c; --green-soft:#16281f;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 30px rgba(0,0,0,.35);
+  }
+  :root[data-theme="light"]{
+    --bg:#faf7f1; --surface:#ffffff; --surface-2:#f3eee3;
+    --ink:#1c1a15; --ink-soft:#5c574c; --ink-faint:#8a8477;
+    --hair:#e6ded0; --hair-strong:#d6cbb6;
+    --gold:#8f6b2d; --gold-soft:#f2e9d5; --gold-line:#d8c48f;
+    --felt:#0e6b40; --felt-soft:#e2f0e8;
+    --red:#b23b3b; --red-soft:#f7e3e1;
+    --amber:#9a6a12; --amber-soft:#f6ebd2;
+    --green:#1c7a4a; --green-soft:#e2f0e8;
+    --shadow:0 1px 2px rgba(28,26,21,.05), 0 6px 22px rgba(28,26,21,.06);
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  ::selection{background:var(--gold-soft);color:var(--ink)}
+  a{color:var(--gold);text-decoration:none}
+  a:hover{text-decoration:underline;text-underline-offset:3px}
+  :focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:4px}
+
+  /* ---------- shell ---------- */
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  .layout{display:grid;grid-template-columns:236px 1fr;gap:52px;align-items:start;
+    max-width:var(--maxw);margin:0 auto;padding:0 24px 96px}
+  @media (max-width:900px){ .layout{grid-template-columns:1fr;gap:0;padding-bottom:64px} }
+
+  /* ---------- topbar ---------- */
+  .topbar{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--bg) 88%,transparent);
+    backdrop-filter:blur(10px);border-bottom:1px solid var(--hair)}
+  .topbar-in{max-width:var(--maxw);margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:14px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:750;letter-spacing:-.01em}
+  .brand .mk{width:30px;height:30px;border-radius:9px;background:var(--gold);color:#fff;
+    display:grid;place-items:center;font-size:17px;box-shadow:var(--shadow)}
+  html[data-theme="dark"] .brand .mk, :root:not([data-theme]) .brand .mk{color:#1a1408}
+  .brand small{display:block;font-weight:500;font-size:11.5px;color:var(--ink-faint);letter-spacing:.02em}
+  .topbar .spacer{flex:1}
+  .themebtn{border:1px solid var(--hair-strong);background:var(--surface);color:var(--ink-soft);
+    border-radius:99px;padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--sans)}
+  .themebtn:hover{border-color:var(--gold-line);color:var(--gold)}
+
+  /* ---------- hero ---------- */
+  .hero{border-bottom:1px solid var(--hair);
+    background:linear-gradient(180deg,var(--gold-soft),transparent 78%)}
+  .hero-in{max-width:var(--maxw);margin:0 auto;padding:56px 24px 44px}
+  .eyebrow{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--gold)}
+  .hero h1{font-size:clamp(30px,5vw,52px);line-height:1.04;letter-spacing:-.025em;margin:14px 0 0;
+    text-wrap:balance;max-width:16ch}
+  .hero p.lead{font-size:clamp(16px,2vw,19px);color:var(--ink-soft);max-width:62ch;margin:18px 0 0}
+  .hero-cards{display:flex;gap:14px;flex-wrap:wrap;margin-top:30px}
+  .pill-card{flex:1 1 260px;background:var(--surface);border:1px solid var(--hair);border-radius:var(--radius);
+    padding:18px 20px;box-shadow:var(--shadow)}
+  .pill-card .suit{font-size:22px}
+  .pill-card h3{margin:8px 0 4px;font-size:17px;letter-spacing:-.01em}
+  .pill-card p{margin:0;font-size:13.5px;color:var(--ink-soft)}
+  .pc-spade .suit{color:var(--felt)} .pc-moon .suit{color:var(--gold)}
+
+  /* ---------- toc ---------- */
+  nav.toc{position:sticky;top:76px;font-size:13.5px;padding-top:44px}
+  @media (max-width:900px){ nav.toc{display:none} }
+  nav.toc .toc-h{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-faint);margin:0 0 12px}
+  nav.toc ol{list-style:none;margin:0 0 22px;padding:0;border-left:2px solid var(--hair)}
+  nav.toc a{display:block;color:var(--ink-soft);padding:5px 0 5px 14px;margin-left:-2px;
+    border-left:2px solid transparent;line-height:1.35}
+  nav.toc a:hover{color:var(--gold);text-decoration:none;border-left-color:var(--gold-line)}
+
+  /* ---------- content ---------- */
+  main{padding-top:44px;min-width:0}
+  section{scroll-margin-top:76px;margin-bottom:56px}
+  .sec-head{display:flex;align-items:baseline;gap:12px;border-bottom:1px solid var(--hair);
+    padding-bottom:12px;margin-bottom:22px}
+  .sec-head .num{font-family:var(--mono);font-size:13px;color:var(--gold);font-weight:600;
+    padding-top:6px}
+  h2{font-size:clamp(23px,3.2vw,30px);letter-spacing:-.02em;margin:0;line-height:1.15;text-wrap:balance}
+  h3{font-size:19px;letter-spacing:-.01em;margin:34px 0 10px}
+  h4{font-size:15px;margin:22px 0 8px;letter-spacing:.01em}
+  p{margin:0 0 14px;max-width:70ch}
+  .sub{color:var(--ink-soft);max-width:70ch;margin-top:-8px;margin-bottom:20px}
+  strong{font-weight:680}
+  ul,ol{margin:0 0 16px;padding-left:0;max-width:72ch}
+  li{margin:0 0 9px}
+  ul.clean{list-style:none;padding-left:0}
+  ul.clean>li{position:relative;padding-left:26px}
+  ul.clean>li::before{content:"";position:absolute;left:6px;top:11px;width:6px;height:6px;
+    border-radius:50%;background:var(--gold-line)}
+  ol.steps{list-style:none;counter-reset:s;padding-left:0;max-width:72ch}
+  ol.steps>li{position:relative;padding-left:44px;margin-bottom:16px}
+  ol.steps>li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:-1px;
+    width:28px;height:28px;border-radius:8px;background:var(--gold-soft);color:var(--gold);
+    border:1px solid var(--gold-line);display:grid;place-items:center;font-family:var(--mono);
+    font-size:13px;font-weight:700}
+
+  /* keyboard keys */
+  kbd{font-family:var(--mono);font-size:12.5px;font-weight:600;background:var(--surface);
+    border:1px solid var(--hair-strong);border-bottom-width:2px;border-radius:6px;padding:2px 7px;
+    color:var(--ink);white-space:nowrap;line-height:1;display:inline-block}
+
+  /* callouts */
+  .box{border:1px solid var(--hair);border-radius:var(--radius);padding:16px 18px 16px 20px;
+    margin:20px 0;background:var(--surface);position:relative;overflow:hidden}
+  .box::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px}
+  .box p:last-child{margin-bottom:0}
+  .box .tag{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;display:block;margin-bottom:6px}
+  .box.warn{background:var(--red-soft);border-color:color-mix(in srgb,var(--red) 30%,transparent)}
+  .box.warn::before{background:var(--red)} .box.warn .tag{color:var(--red)}
+  .box.tip{background:var(--green-soft);border-color:color-mix(in srgb,var(--green) 28%,transparent)}
+  .box.tip::before{background:var(--green)} .box.tip .tag{color:var(--green)}
+  .box.note{background:var(--gold-soft);border-color:var(--gold-line)}
+  .box.note::before{background:var(--gold)} .box.note .tag{color:var(--gold)}
+
+  /* tool grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:14px;margin:18px 0}
+  .tool{background:var(--surface);border:1px solid var(--hair);border-radius:var(--radius);padding:16px 17px;
+    box-shadow:var(--shadow)}
+  .tool .ic{width:34px;height:34px;border-radius:9px;background:var(--felt-soft);color:var(--felt);
+    display:grid;place-items:center;font-size:17px;margin-bottom:11px}
+  .tool h4{margin:0 0 5px;font-size:15px}
+  .tool p{margin:0;font-size:13px;color:var(--ink-soft)}
+  .tool .k{margin-top:9px}
+
+  /* tables */
+  .tablewrap{overflow-x:auto;border:1px solid var(--hair);border-radius:var(--radius);margin:18px 0;
+    box-shadow:var(--shadow)}
+  table{border-collapse:collapse;width:100%;font-size:14px;background:var(--surface)}
+  th,td{text-align:left;padding:11px 16px;border-bottom:1px solid var(--hair);vertical-align:top}
+  thead th{background:var(--surface-2);font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--ink-soft);font-weight:700}
+  tbody tr:last-child td{border-bottom:none}
+  td.key{white-space:nowrap;width:1%}
+  td.tnum{font-variant-numeric:tabular-nums}
+
+  /* chips / legend */
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;
+    border:1px solid var(--hair-strong);border-radius:99px;padding:3px 11px;background:var(--surface);white-space:nowrap}
+  .chip .d{width:8px;height:8px;border-radius:50%}
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+
+  .flow{display:grid;gap:10px;margin:18px 0}
+  .flow-step{display:flex;gap:14px;align-items:flex-start;background:var(--surface);border:1px solid var(--hair);
+    border-radius:12px;padding:13px 16px}
+  .flow-step .n{font-family:var(--mono);font-weight:700;color:var(--gold);flex:none;font-size:13px;
+    background:var(--gold-soft);border:1px solid var(--gold-line);width:26px;height:26px;border-radius:7px;
+    display:grid;place-items:center}
+  .flow-step b{display:block}
+  .flow-step span{font-size:13.5px;color:var(--ink-soft)}
+
+  hr.soft{border:none;border-top:1px solid var(--hair);margin:40px 0}
+  footer{border-top:1px solid var(--hair);color:var(--ink-faint);font-size:13px;
+    max-width:var(--maxw);margin:0 auto;padding:28px 24px 56px}
+
+  @media (prefers-reduced-motion:no-preference){
+    html{scroll-behavior:smooth}
+  }
+
+  /* ---------- novidades (patch notes) ---------- */
+  .newsband{border-bottom:1px solid var(--hair);background:var(--surface-2)}
+  .newsband-in{max-width:var(--maxw);margin:0 auto;padding:40px 24px 44px}
+  .newsband h2{font-size:clamp(21px,3vw,27px);letter-spacing:-.02em;margin:0}
+  .newsband .kick{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin:0 0 8px}
+  .newsband .subtle{color:var(--ink-soft);margin:8px 0 24px;max-width:70ch}
+  .news-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+  .news-card{background:var(--surface);border:1px solid var(--hair);border-radius:var(--radius);
+    padding:18px 20px;box-shadow:var(--shadow)}
+  .news-card .badge{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.08em;
+    text-transform:uppercase;padding:3px 9px;border-radius:99px;margin-bottom:11px}
+  .news-card.n-cri .badge{background:var(--gold-soft);color:var(--gold);border:1px solid var(--gold-line)}
+  .news-card.n-pai .badge{background:var(--felt-soft);color:var(--felt);border:1px solid color-mix(in srgb,var(--felt) 30%,transparent)}
+  .news-card.n-aud .badge{background:var(--red-soft);color:var(--red);border:1px solid color-mix(in srgb,var(--red) 30%,transparent)}
+  .news-card h3{margin:0 0 10px;font-size:16px;letter-spacing:-.01em}
+  .news-card ul{margin:0;padding:0;list-style:none;max-width:none}
+  .news-card li{position:relative;padding-left:18px;margin:0 0 7px;font-size:13.5px;color:var(--ink-soft);line-height:1.5}
+  .news-card li:last-child{margin-bottom:0}
+  .news-card li::before{content:"+";position:absolute;left:2px;top:0;color:var(--gold);font-weight:800}
+</style>
+
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="brand" href="hub.html" style="text-decoration:none;color:inherit"><span class="mk">♠</span><span>Suprema OS<small>Novidades &amp; Manual</small></span></a>
+    <span class="spacer"></span>
+    <a class="themebtn" href="hub.html" style="text-decoration:none">&larr; Hub</a>
+    <button class="themebtn" id="themebtn" type="button">◐ Tema</button>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="hero-in">
+    <span class="eyebrow">Capacitação · Novos operadores</span>
+    <h1>Tudo o que você faz no Painel do Dia e na Criação Noturna</h1>
+    <p class="lead">Este é o seu guia de trabalho. Dois painéis, dois turnos, um objetivo: a grade de torneios rodar certa, do jeito que o jogador vê. Leia uma vez do começo ao fim — depois volte aqui sempre que travar.</p>
+    <div class="hero-cards">
+      <div class="pill-card pc-spade">
+        <span class="suit">♠</span>
+        <h3>Painel do Dia</h3>
+        <p>Turno diurno. Acompanha os torneios de <b>hoje</b>: fixa, preenche premiação, field e ID, e fecha o resultado.</p>
+      </div>
+      <div class="pill-card pc-moon">
+        <span class="suit">☾</span>
+        <h3>Criação Noturna</h3>
+        <p>Turno noturno. <b>Cria</b> no Pokerbyte os torneios do <b>dia seguinte</b> a partir da receita da GU.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="newsband">
+  <div class="newsband-in">
+    <p class="kick">◆ Novidades · o que melhorou</p>
+    <h2>Patch notes da Suprema OS</h2>
+    <p class="subtle">As últimas melhorias nos painéis. Abaixo, o <strong>manual completo</strong> pra você aprender a usar tudo. Volte aqui de vez em quando — a operação evolui.</p>
+    <div class="news-grid">
+      <div class="news-card n-cri">
+        <span class="badge">☾ Criação Noturna</span>
+        <h3>Mais rápida e à prova de erro</h3>
+        <ul>
+          <li>Preenchimento de <b>ID à prova de reset</b>: cada tecla salva no ato, nada se perde.</li>
+          <li>Divisão livre: <b>pegar / passar / soltar</b> num toque + <b>seleção em massa</b> e “pegar seção”.</li>
+          <li><b>Tela cheia</b> por seção: visões Vertical, Horizontal e Evento (com setas do teclado).</li>
+          <li><b>Ocultar campos</b> da receita, <b>GTD total</b> por seção e <b>export em colunas</b> (uma aba por seção).</li>
+          <li><b>Eventos Principais (Liga)</b> em R$ — imunes ao botão de dólar.</li>
+        </ul>
+      </div>
+      <div class="news-card n-pai">
+        <span class="badge">♠ Painel do Dia</span>
+        <h3>Atalhos e conferência</h3>
+        <ul>
+          <li>Ferramentas nas teclas <b>F1–F4</b> (Relatório, Servidores, Cash, Overlay) — sem disparo sem querer.</li>
+          <li>Corrigido o <b>scroll que voltava pro começo</b> ao marcar criado ou preencher ID.</li>
+          <li><b>Conferência do Dia</b> agora marca <b>⚠ erro</b> e registra <b>↻ novo ID</b> de evento recriado.</li>
+        </ul>
+      </div>
+      <div class="news-card n-aud">
+        <span class="badge">◆ Admin &amp; Auditoria</span>
+        <h3>Fechamento mais ágil</h3>
+        <ul>
+          <li><b>Aprovar todos sem erro</b> de uma vez (os com anomalia ficam pra revisão).</li>
+          <li>Campo de <b>ID corrigido</b> na auditoria e evento com erro <b>sinalizado</b> na lista.</li>
+          <li>Trilha completa do <b>erro → recriar → novo ID</b>, com o ID antigo guardado.</li>
+          <li>Export do acompanhamento com a coluna <b>Field</b> no lugar certo.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+  <nav class="toc" aria-label="Índice">
+    <p class="toc-h">Neste manual</p>
+    <ol>
+      <li><a href="#basico">1 · O básico</a></li>
+      <li><a href="#turnos">2 · Turnos e a grade</a></li>
+      <li><a href="#painel">3 · Painel do Dia</a></li>
+      <li><a href="#painel-ferramentas">— Ferramentas</a></li>
+      <li><a href="#painel-atalhos">— Atalhos</a></li>
+      <li><a href="#painel-passo">— Passo a passo</a></li>
+      <li><a href="#criacao">4 · Criação Noturna</a></li>
+      <li><a href="#criacao-pegar">— Pegar / passar / soltar</a></li>
+      <li><a href="#criacao-telacheia">— Tela cheia</a></li>
+      <li><a href="#criacao-passo">— Passo a passo</a></li>
+      <li><a href="#erros">5 · Erro → recriar → novo ID</a></li>
+      <li><a href="#ouro">6 · Regras de ouro</a></li>
+      <li><a href="#faq">7 · Deu problema?</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <!-- 1 -->
+    <section id="basico">
+      <div class="sec-head"><span class="num">01</span><h2>O básico antes de começar</h2></div>
+      <p class="sub">Como você entra, o que pode ver, e por que tudo fica salvo pra equipe inteira.</p>
+      <ul class="clean">
+        <li><strong>Login só no Hub.</strong> Você entra uma vez pelo Hub (a tela com todos os produtos) e de lá abre o painel. Não existe login dentro de cada painel.</li>
+        <li><strong>Acesso por painel.</strong> Cada pessoa só vê os painéis que o Admin liberou pra ela. Se um painel não abre, é permissão — fale com o Admin.</li>
+        <li><strong>Tudo é ao vivo e compartilhado.</strong> O que você faz aparece na hora pro seu parceiro (e vice-versa). Vocês trabalham na mesma grade ao mesmo tempo, sem pisar um no outro.</li>
+        <li><strong>Uma pessoa sobe a planilha.</strong> A Global MTT / GU é compartilhada: basta uma pessoa do turno subir e ela aparece pra todo mundo.</li>
+      </ul>
+      <div class="box note">
+        <span class="tag">Guarde isto</span>
+        <p><strong>Nada que você preenche se perde por trocar de aba, cair a internet ou dar F5.</strong> Fica salvo pela chave <em>nome do torneio + horário</em>. Os dois painéis conversam pela mesma chave — por isso o mesmo torneio aparece nos dois.</p>
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section id="turnos">
+      <div class="sec-head"><span class="num">02</span><h2>Turnos e o “dia da grade”</h2></div>
+      <p>Existem dois relógios. Não confunda:</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Conceito</th><th>Horário</th><th>O que significa</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Turno diurno</strong></td><td class="tnum key">07:00 → 19:00</td><td>Quem opera o <strong>Painel do Dia</strong>. <em>Não cria</em> torneios.</td></tr>
+            <tr><td><strong>Turno noturno</strong></td><td class="tnum key">19:00 → 07:00</td><td>Quem opera a <strong>Criação Noturna</strong> e cria os torneios do dia seguinte.</td></tr>
+            <tr><td><strong>Dia da grade</strong></td><td class="tnum key">06:10 → 05:30</td><td>A “janela” de um dia de torneios. A virada às <strong>05:30</strong> cai no meio da madrugada — o que começa até 05:30 ainda é o dia anterior da grade.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="box tip">
+        <span class="tag">Na prática</span>
+        <p>Se você entra de madrugada e algo parece “do dia errado”, provavelmente é a virada das 05:30. O sistema já trata isso sozinho — só saiba que existe.</p>
+      </div>
+    </section>
+
+    <!-- 3 -->
+    <section id="painel">
+      <div class="sec-head"><span class="num">03</span><h2><span style="color:var(--felt)">♠</span> Painel do Dia</h2></div>
+      <p class="sub">A operação de hoje. Cada torneio da grade vira um <strong>card</strong> que você acompanha do início ao resultado.</p>
+
+      <h3>O card de torneio</h3>
+      <p>Cada card mostra o torneio, o horário, o buy-in e o garantido. Você trabalha três coisas nele:</p>
+      <ul class="clean">
+        <li><strong>Fixar</strong> — marca que você “assumiu” aquele torneio. Passe o mouse por cima e aperte <kbd>F</kbd> (ou clique). Fixar é o jeito de dizer “esse é comigo / já olhei”.</li>
+        <li><strong>Arrecadado (R$)</strong> — quanto o torneio arrecadou de premiação. É o campo que fecha o resultado.</li>
+        <li><strong>Field</strong> — o número de jogadores (entradas).</li>
+        <li><strong>ID</strong> — o ID do torneio no Pokerbyte.</li>
+      </ul>
+
+      <h3>Como a agenda se organiza</h3>
+      <div class="legend">
+        <span class="chip"><span class="d" style="background:var(--gold)"></span>♠ Main Event</span>
+        <span class="chip"><span class="d" style="background:#b23b6b"></span>♥ Side Event</span>
+        <span class="chip"><span class="d" style="background:var(--felt)"></span>♣ Satélite</span>
+        <span class="chip"><span class="d" style="background:var(--amber)"></span>Atrasado</span>
+        <span class="chip"><span class="d" style="background:var(--gold)"></span>Em breve</span>
+        <span class="chip"><span class="d" style="background:var(--green)"></span>Rolando agora</span>
+      </div>
+      <p>Você filtra a agenda por categoria (Main / Side / Satélite), por status de tempo (atrasado, em breve, rolando) e por premiação (com / sem). Os <strong>Resultados</strong> ficam na sua própria seção quando o torneio fecha. Um alerta vermelho de “não fixados” avisa o que ainda falta assumir antes do prazo.</p>
+
+      <div class="box warn">
+        <span class="tag">Atenção</span>
+        <p>O relógio de atraso é seu amigo: se um torneio aparece como <strong>atrasado</strong> e ainda não foi fixado, ele é candidato a “esqueceram de olhar”. Priorize.</p>
+      </div>
+    </section>
+
+    <section id="painel-ferramentas">
+      <div class="sec-head"><span class="num">—</span><h2>As ferramentas (gavetas)</h2></div>
+      <p class="sub">Os botões no topo abrem “gavetas” laterais. Cada uma é uma ferramenta.</p>
+      <div class="grid">
+        <div class="tool"><div class="ic">✔</div><h4>Conferência do Dia (GU)</h4><p>Confere torneio a torneio a receita de hoje: marca <b>✓ conferido</b>, aponta <b>⚠ erro</b> e registra <b>↻ novo ID</b> de evento recriado.</p><div class="k"><kbd>H</kbd></div></div>
+        <div class="tool"><div class="ic">📋</div><h4>Conferência</h4><p>Confere os torneios do <b>próximo dia</b> vindos da Global MTT — Main, Side e Satélites — já em dólar.</p></div>
+        <div class="tool"><div class="ic">📈</div><h4>Calculadora de Overlay</h4><p>Calcula o overlay (garantido − arrecadado) de um torneio, com o garantido já preenchido.</p><div class="k"><kbd>F4</kbd></div></div>
+        <div class="tool"><div class="ic">📊</div><h4>Projeção de Overlay</h4><p>Projeção ao vivo do overlay do dia conforme os resultados entram.</p></div>
+        <div class="tool"><div class="ic">🃏</div><h4>Mesas Cash</h4><p>Buscador das mesas de cash em operação.</p><div class="k"><kbd>F3</kbd></div></div>
+        <div class="tool"><div class="ic">🖥</div><h4>Servidores</h4><p>Lista de servidores do dia.</p><div class="k"><kbd>F2</kbd></div></div>
+        <div class="tool"><div class="ic">📝</div><h4>Relatório de Turno</h4><p>Escreve e exporta (PDF) o relatório do seu turno.</p><div class="k"><kbd>F1</kbd></div></div>
+        <div class="tool"><div class="ic">＋</div><h4>Adicionar torneio manual</h4><p>Para um evento criado às pressas que <b>não está na Global</b>. Entra na grade como se tivesse vindo da planilha e sobrevive a um re-upload.</p></div>
+      </div>
+    </section>
+
+    <section id="painel-atalhos">
+      <div class="sec-head"><span class="num">—</span><h2>Atalhos de teclado</h2></div>
+      <p class="sub">Só funcionam quando você <strong>não</strong> está digitando dentro de um campo.</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Tecla</th><th>Faz</th></tr></thead>
+          <tbody>
+            <tr><td class="key"><kbd>F1</kbd></td><td>Abre o <strong>Relatório de Turno</strong></td></tr>
+            <tr><td class="key"><kbd>F2</kbd></td><td>Abre <strong>Servidores</strong></td></tr>
+            <tr><td class="key"><kbd>F3</kbd></td><td>Abre <strong>Mesas Cash</strong></td></tr>
+            <tr><td class="key"><kbd>F4</kbd></td><td>Abre a <strong>Calculadora de Overlay</strong></td></tr>
+            <tr><td class="key"><kbd>F</kbd></td><td><strong>Fixa / desfixa</strong> o card que está sob o mouse</td></tr>
+            <tr><td class="key"><kbd>H</kbd></td><td>Abre a <strong>Conferência do Dia</strong></td></tr>
+            <tr><td class="key"><kbd>A</kbd></td><td>Foca a <strong>busca</strong> da agenda</td></tr>
+            <tr><td class="key"><kbd>N</kbd></td><td>Vai pra aba <strong>Não Fixados</strong></td></tr>
+            <tr><td class="key"><kbd>Shift</kbd> + <kbd>R</kbd></td><td>Vai pra aba <strong>Resultados</strong></td></tr>
+            <tr><td class="key"><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>F</kbd></td><td>Foca a busca por <strong>nome</strong></td></tr>
+            <tr><td class="key"><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd></td><td>Abre a <strong>paleta de comandos</strong> (buscar torneio / navegar entre painéis)</td></tr>
+            <tr><td class="key"><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Z</kbd></td><td><strong>Desfaz</strong> a última ação</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="painel-passo">
+      <div class="sec-head"><span class="num">—</span><h2>Passo a passo do turno diurno</h2></div>
+      <ol class="steps">
+        <li><strong>Confira a Global.</strong> No começo do turno, veja se a Global MTT do dia já está no ar. Se não, suba pelo botão <em>Global MTT</em> (só uma pessoa precisa).</li>
+        <li><strong>Assuma os torneios.</strong> Vá fixando (<kbd>F</kbd>) os que são seus, priorizando o que está <em>atrasado</em> ou <em>em breve</em>.</li>
+        <li><strong>Preencha conforme fecha.</strong> Quando o torneio termina, coloque o <strong>Arrecadado</strong>, o <strong>Field</strong> e o <strong>ID</strong>. O resultado e o overlay se calculam sozinhos.</li>
+        <li><strong>Confira a criação de hoje.</strong> Abra a <strong>Conferência do Dia</strong> (<kbd>H</kbd>) e passe torneio a torneio: marque <strong>✓</strong> o que está certo, <strong>⚠</strong> o que tem erro de criação (veja a seção 5).</li>
+        <li><strong>Feche o turno.</strong> No fim, escreva o <strong>Relatório de Turno</strong> (<kbd>F1</kbd>) e, se precisar, exporte em PDF.</li>
+      </ol>
+    </section>
+
+    <hr class="soft">
+
+    <!-- 4 -->
+    <section id="criacao">
+      <div class="sec-head"><span class="num">04</span><h2><span style="color:var(--gold)">☾</span> Criação Noturna</h2></div>
+      <p class="sub">Quem cria os torneios é o turno noturno. Aqui você monta, no Pokerbyte, a grade do <strong>dia seguinte</strong> a partir da receita da GU.</p>
+
+      <h3>De onde vêm os torneios</h3>
+      <ul class="clean">
+        <li><strong>GU (Global MTT).</strong> Você sobe a planilha (aba <em>G MTTS</em>, valores em <strong>dólar</strong>). Ela traz a receita completa de cada torneio de amanhã.</li>
+        <li><strong>Eventos Principais (Liga).</strong> Uma grade fixa em <strong>Reais</strong> que já aparece sozinha, sem upload.</li>
+      </ul>
+      <p>Os torneios se organizam em seções, cada uma com um naipe e o total de garantido (GTD) no topo:</p>
+      <div class="legend">
+        <span class="chip"><span class="d" style="background:var(--gold)"></span>♠ Main Events</span>
+        <span class="chip"><span class="d" style="background:var(--felt)"></span>♣ Satélites</span>
+        <span class="chip"><span class="d" style="background:#b23b6b"></span>♥ Side · com Admin Fee</span>
+        <span class="chip"><span class="d" style="background:var(--amber)"></span>♦ Side · sem Admin Fee</span>
+        <span class="chip"><span class="d" style="background:#b8306f"></span>♛ Eventos Principais (R$)</span>
+      </div>
+
+      <div class="box note">
+        <span class="tag">Moeda $ / R$</span>
+        <p>Tem um botão que troca a exibição entre <strong>Dólar</strong> e <strong>Real</strong>. Os <strong>Eventos Principais (Liga) ficam sempre em R$</strong> — eles não respondem ao botão de dólar, porque já nascem em Reais.</p>
+      </div>
+
+      <h3>Preencher o ID Pokerbyte</h3>
+      <p>Conforme você cria cada torneio no Pokerbyte, cola o <strong>ID</strong> no campo dele. Colar o ID já marca o torneio como <strong>criado</strong> automaticamente.</p>
+      <div class="box tip">
+        <span class="tag">Pode digitar tranquilo</span>
+        <p>Cada tecla é salva <strong>no ato</strong> — não depende de você sair do campo. Um parceiro marcando algo, uma reconexão ou um F5 <strong>não apagam</strong> o que você já digitou. Aquele problema de “resetou tudo” não acontece mais.</p>
+      </div>
+    </section>
+
+    <section id="criacao-pegar">
+      <div class="sec-head"><span class="num">—</span><h2>Dividir o trabalho: pegar, passar, soltar</h2></div>
+      <p class="sub">Ninguém tem função fixa. Cada um <strong>pega</strong> os torneios que vai criar — livre e ao vivo.</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Botão</th><th>O que faz</th></tr></thead>
+          <tbody>
+            <tr><td class="key"><span class="chip">✋ pegar</span></td><td>Assume o torneio pra você (num toque).</td></tr>
+            <tr><td class="key"><span class="chip">↗ passar</span></td><td>Abre a lista de operadores — um toque escolhe pra quem vai.</td></tr>
+            <tr><td class="key"><span class="chip">✕ soltar</span></td><td>Larga o torneio (volta a ficar livre / sugestão automática).</td></tr>
+            <tr><td class="key"><span class="chip">✋ Pegar seção</span></td><td>Pega de uma vez todos os pendentes de uma seção inteira.</td></tr>
+            <tr><td class="key"><span class="chip">☑ seleção</span></td><td>Marque vários pela caixinha e use a barra flutuante pra <b>pegar / passar / soltar todos juntos</b>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>O nome que aparece na linha “Operador” é o dono atual. Quando ninguém pegou, o sistema mostra uma <strong>sugestão automática</strong> (marcada como <em>·auto</em>) só pra não ficar vazio — mas quem manda é quem pega.</p>
+    </section>
+
+    <section id="criacao-telacheia">
+      <div class="sec-head"><span class="num">—</span><h2>Tela cheia, foco e outras visões</h2></div>
+      <div class="grid">
+        <div class="tool"><div class="ic">⛶</div><h4>Tela cheia por seção</h4><p>Abre uma seção ocupando a tela toda, ideal pra preencher IDs sem ruído. Setas <kbd>‹</kbd> <kbd>›</kbd> trocam de seção.</p></div>
+        <div class="tool"><div class="ic">▦</div><h4>Vertical / Horizontal / Evento</h4><p>Três visões na tela cheia: campos em linhas (vertical), torneios em linhas (horizontal) ou <b>um evento por vez</b> com <kbd>←</kbd> <kbd>→</kbd> do teclado.</p></div>
+        <div class="tool"><div class="ic">👁</div><h4>Ocultar campo</h4><p>O olhinho no rótulo esconde uma coluna/linha da receita que você não usa. Uma barra no topo reexibe.</p></div>
+        <div class="tool"><div class="ic">◎</div><h4>Modo Foco</h4><p>Cria “o próximo”: um torneio por vez, receita gigante na sua frente, avança sozinho ao marcar criado.</p></div>
+        <div class="tool"><div class="ic">📺</div><h4>Modo TV</h4><p>Visão de parede (telão), só leitura: progresso e prazos ao vivo.</p></div>
+        <div class="tool"><div class="ic">⬇</div><h4>Exportar</h4><p><b>Divisão</b> (.xlsx) e <b>Seções</b> (.xlsx, em colunas — um evento por coluna, uma aba por seção).</p></div>
+        <div class="tool"><div class="ic">🕓</div><h4>Histórico</h4><p>Quem marcou, desmarcou, trocou ID ou passou torneio — a trilha da noite.</p></div>
+      </div>
+    </section>
+
+    <section id="criacao-passo">
+      <div class="sec-head"><span class="num">—</span><h2>Passo a passo do turno noturno</h2></div>
+      <ol class="steps">
+        <li><strong>Suba a GU.</strong> Carregue a Global MTT (aba G MTTS). Os torneios de amanhã aparecem separados por seção, com a receita completa. Só uma pessoa precisa subir.</li>
+        <li><strong>Pegue seus torneios.</strong> Use <span class="chip">✋ pegar</span> nos que são seus (ou <b>Pegar seção</b>). Combine com o parceiro pra não sobrar nem repetir.</li>
+        <li><strong>Crie no Pokerbyte.</strong> Siga a receita de cada torneio (rake, admin fee, early bird, chips…). O <strong>Modo Foco</strong> ajuda a criar um por vez sem se perder.</li>
+        <li><strong>Cole o ID.</strong> A cada torneio criado, cole o ID no campo — isso já marca como <strong>criado</strong>.</li>
+        <li><strong>Feche a noite.</strong> Quando tudo estiver criado, a página avisa. Se quiser, <strong>arquive o relatório</strong> da noite (.xlsx).</li>
+      </ol>
+      <div class="box warn">
+        <span class="tag">Não pule</span>
+        <p>Todo torneio precisa terminar com o <strong>ID preenchido</strong>. Torneio sem ID = candidato a “esqueceram de criar”. A Conferência do Dia e o Admin olham exatamente isso.</p>
+      </div>
+    </section>
+
+    <hr class="soft">
+
+    <!-- 5 -->
+    <section id="erros">
+      <div class="sec-head"><span class="num">05</span><h2>Quando dá erro: marcar → recriar → novo ID</h2></div>
+      <p class="sub">Um evento criado errado precisa ser <strong>recriado</strong> no Pokerbyte — e o recriado nasce com um <strong>ID novo</strong>. Este é o fluxo, do começo ao fim.</p>
+      <div class="flow">
+        <div class="flow-step"><span class="n">1</span><div><b>Achou o erro</b><span>Na <strong>Conferência do Dia</strong> (<kbd>H</kbd>) ou o Admin na auditoria, aperte <strong>⚠</strong> no torneio e descreva o erro. O alerta aparece na Criação e na auditoria do Admin.</span></div></div>
+        <div class="flow-step"><span class="n">2</span><div><b>Recrie no Pokerbyte</b><span>Refaça o evento certo. Ele vai receber um <strong>ID novo</strong> (o antigo, do evento errado, fica inválido).</span></div></div>
+        <div class="flow-step"><span class="n">3</span><div><b>Registre o novo ID</b><span>Na Conferência, no torneio com ⚠, aperte <strong>↻</strong> e cole o <strong>novo ID</strong>. O ID antigo é <strong>guardado como histórico</strong> e o novo vira o oficial.</span></div></div>
+        <div class="flow-step"><span class="n">4</span><div><b>O Admin dá baixa</b><span>O <strong>⚠ continua marcado</strong> de propósito — quem encerra é o Admin, depois de conferir. Ele vê “↻ recriado · novo ID X (antes Y)” e resolve.</span></div></div>
+      </div>
+      <div class="box note">
+        <span class="tag">Por quê assim</span>
+        <p>Guardar o ID antigo e manter o ⚠ até o Admin dar baixa deixa a trilha completa: dá pra auditar o que deu errado, o que foi recriado e por quem — sem perder rastro.</p>
+      </div>
+    </section>
+
+    <!-- 6 -->
+    <section id="ouro">
+      <div class="sec-head"><span class="num">06</span><h2>Regras de ouro</h2></div>
+      <ul class="clean">
+        <li><strong>Torneio sem ID é bandeira vermelha.</strong> No dia e na criação, o ID é o que prova que o evento existe no Pokerbyte.</li>
+        <li><strong>Priorize o atrasado.</strong> O relógio de atraso mostra o que está estourando prazo — comece por ele.</li>
+        <li><strong>Combine a divisão com o parceiro.</strong> Pegar/passar é ao vivo; um “pego” some da lista do outro na hora.</li>
+        <li><strong>Confira antes de fechar.</strong> A Conferência do Dia existe pra pegar erro de criação enquanto dá tempo de corrigir.</li>
+        <li><strong>Erro não some sozinho.</strong> Marcou ⚠, recriou, colou o novo ID — o Admin é quem encerra.</li>
+        <li><strong>Não tem problema errar o clique.</strong> No Painel do Dia, <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd> desfaz. Na criação, dá pra desmarcar/soltar/desfazer.</li>
+      </ul>
+    </section>
+
+    <!-- 7 -->
+    <section id="faq">
+      <div class="sec-head"><span class="num">07</span><h2>Deu problema?</h2></div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Sintoma</th><th>O que fazer</th></tr></thead>
+          <tbody>
+            <tr><td>“Fiz uma mudança e a tela continua igual / parece quebrada.”</td><td>É <strong>cache</strong>. Faça um <strong>hard reload</strong>: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> (às vezes 2×). Se persistir, F12 → Application → Service Workers → <em>Unregister</em> e recarregue.</td></tr>
+            <tr><td>“O painel não abre / redireciona pro Hub.”</td><td>É <strong>permissão</strong> ou sessão. Faça login pelo Hub; se ainda faltar acesso, peça pro Admin liberar na aba Operadores.</td></tr>
+            <tr><td>“Subi a planilha e não aparece nada.”</td><td>Confira se é a planilha certa (Global MTT / aba G MTTS) e o dia/seção esperados. A página avisa quando não encontra o cabeçalho.</td></tr>
+            <tr><td>“O ID que preenchi sumiu.”</td><td>Não deveria — cada tecla é salva. Se um torneio foi <strong>renomeado</strong> ou teve o <strong>horário mudado</strong> numa GU nova, o ID pode “descolar” daquela linha (ele não é apagado). Avise quem cuida da grade.</td></tr>
+            <tr><td>“Sou o turno da manhã, preciso criar um torneio?”</td><td>Criar é do turno noturno. Se for um evento de última hora que não está na Global, use <strong>Adicionar torneio manual</strong> no Painel do Dia.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="box tip">
+        <span class="tag">Na dúvida</span>
+        <p>Chame um operador mais experiente ou o Admin. É melhor perguntar do que fechar o turno com um torneio errado ou sem ID.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <div class="wrap" style="padding:0">
+    Manual do Operador · <strong>Suprema OS</strong> — Painel do Dia &amp; Criação Noturna. Material de capacitação interno; os atalhos e telas podem evoluir, então volte aqui quando algo mudar.
+  </div>
+</footer>
+
+<script>
+  (function(){
+    var root=document.documentElement, btn=document.getElementById('themebtn');
+    function cur(){ return root.getAttribute('data-theme') || (matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'); }
+    btn.addEventListener('click',function(){
+      var next = cur()==='dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+    });
+    // realce do item ativo no índice
+    var links=[].slice.call(document.querySelectorAll('nav.toc a'));
+    var map={}; links.forEach(function(a){ var id=a.getAttribute('href').slice(1); map[id]=a; });
+    if('IntersectionObserver' in window){
+      var io=new IntersectionObserver(function(es){
+        es.forEach(function(e){ if(e.isIntersecting){ var a=map[e.target.id];
+          if(a){ links.forEach(function(x){x.style.color='';x.style.borderLeftColor='';});
+            a.style.color='var(--gold)'; a.style.borderLeftColor='var(--gold)'; } } });
+      },{rootMargin:'-20% 0px -70% 0px'});
+      document.querySelectorAll('section[id]').forEach(function(s){ io.observe(s); });
+    }
+  })();
+</script>
+
+</body>
+</html>

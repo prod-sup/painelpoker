@@ -173,26 +173,73 @@
     if (gcConf[key]) fbDb.ref(`${BASE}/conf/${key}`).remove();
     else fbDb.ref(`${BASE}/conf/${key}`).set({by: OPERATOR_NAME || 'Alguém', at: Date.now()});
   }
-  /* ⚠ marcar/desfazer ERRO de criação — grava no MESMO nó que o Admin usa
-     (…/criacaoNoturna/audit/{key}); aparece na Criação Noturna e na auditoria. */
-  function gcMarkError(key){
+  /* ⚠ ERRO de criação — abre um FORMULÁRIO (não um prompt cru). A Conferência é
+     onde o operador DOCUMENTA o erro pro admin validar: o criador já foi embora e
+     o painel da Criação já resetou. Grava no MESMO nó que o Admin usa
+     (…/criacaoNoturna/audit/{key}) — aparece na Criação Noturna e na auditoria. */
+  const GC_ERR_TIPOS = ['Não foi criado','Garantido','Buy-in','Premiação','Estrutura / velocidade',
+    'Late registration','Rebuy / Add-on','K.O / Bounty','Chips (stack)','Early Bird','Ticket / Satélite','Horário','Outro'];
+  function gcClearError(key, nome){
+    if (!fbDb) return;
+    fbDb.ref(`${BASE}/audit/${key}`).remove();
+    fbDb.ref(`${BASE}/log`).push({by: OPERATOR_NAME || 'Alguém', at: Date.now(), action:'desfez erro de criação (conferência)', detail: nome || key});
+    showToast('Erro desfeito.');
+  }
+  function gcMarkError(key){        // ponto de entrada do botão ⚠ → abre o formulário
     if (!fbDb){ showToast('Sem conexão com o Firebase.', true); return; }
-    const cur = gcAudit[key];
-    if (cur && cur.status === 'erro'){
-      if (!confirm('Desfazer a marcação de erro deste torneio?')) return;
-      fbDb.ref(`${BASE}/audit/${key}`).remove();
-      fbDb.ref(`${BASE}/log`).push({by: OPERATOR_NAME || 'Alguém', at: Date.now(), action:'desfez erro de criação (conferência)', detail: key});
-      showToast('Erro desfeito.');
-      return;
-    }
     const it = gcItems().find(x => gcKey(x) === key);
-    const nome = it ? it.nome : key;
-    const motivo = prompt(`Marcar ERRO de criação em "${nome}".\n\nDescreva o erro — o operador vê esse motivo na página da Criação:`);
-    if (motivo === null) return;
-    const m = String(motivo).trim().slice(0,200);
-    fbDb.ref(`${BASE}/audit/${key}`).set({status:'erro', motivo: m, by: OPERATOR_NAME || 'Alguém', at: Date.now()});
-    fbDb.ref(`${BASE}/log`).push({by: OPERATOR_NAME || 'Alguém', at: Date.now(), action:'marcou ERRO de criação (conferência)', detail:`${nome} — ${m || 'sem motivo'}`});
-    showToast('⚠ Erro marcado — aparece na Criação e na auditoria do Admin.');
+    const nome = it ? it.nome : key, hora = it ? it.hora : '';
+    const au = gcAudit[key] || {};
+    const editing = au.status === 'erro';
+    const gradeLbl = DAY_ISO.slice(5).split('-').reverse().join('/');
+    const prev = document.getElementById('gcErrModal'); if (prev) prev.remove();
+    const ov = document.createElement('div');
+    ov.className = 'gc-modal-ov'; ov.id = 'gcErrModal';
+    const opts = GC_ERR_TIPOS.map(t => `<option value="${escHtml(t)}" ${au.tipo === t ? 'selected' : ''}>${escHtml(t)}</option>`).join('');
+    ov.innerHTML =
+      '<div class="gc-modal" role="dialog" aria-modal="true" aria-label="Marcar erro de criação">'
+      + '<div class="gc-modal-head"><div>'
+      +   '<div class="gc-modal-title">⚠ ' + (editing ? 'Editar erro de criação' : 'Marcar erro de criação') + '</div>'
+      +   '<div class="gc-modal-sub">' + escHtml(nome) + (hora ? ' · ' + escHtml(hora) : '') + ' · grade ' + gradeLbl + '</div>'
+      + '</div><button class="gc-modal-x" type="button" aria-label="Fechar">✕</button></div>'
+      + '<div class="gc-modal-body">'
+      +   '<label class="gc-fld"><span>Tipo do erro</span>'
+      +     '<select id="gcErrTipo"><option value="">Selecione…</option>' + opts + '</select></label>'
+      +   '<label class="gc-fld"><span>O que está errado <b class="req">*</b></span>'
+      +     '<textarea id="gcErrDesc" rows="3" placeholder="Ex.: Garantido saiu R$ 1.000, o correto era R$ 1.500. / Torneio não foi criado no Pokerbyte.">' + escHtml(au.motivo || '') + '</textarea></label>'
+      +   '<label class="gc-fld"><span>Valor correto / observação <span class="gc-opt">(opcional)</span></span>'
+      +     '<input type="text" id="gcErrCorreto" maxlength="140" placeholder="Ex.: GTD R$ 1.500" value="' + escHtml(au.correto || '') + '"></label>'
+      +   '<div class="gc-modal-msg" id="gcErrMsg"></div>'
+      + '</div>'
+      + '<div class="gc-modal-foot">'
+      +   (editing ? '<button class="gc-btn danger" id="gcErrUndo" type="button">Desfazer erro</button>' : '')
+      +   '<span class="gc-modal-spacer"></span>'
+      +   '<button class="gc-btn" id="gcErrCancel" type="button">Cancelar</button>'
+      +   '<button class="gc-btn primary" id="gcErrSave" type="button">' + (editing ? 'Salvar' : 'Marcar erro') + '</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+    const close = () => ov.remove();
+    ov.addEventListener('mousedown', e => { if (e.target === ov) close(); });
+    ov.querySelector('.gc-modal-x').addEventListener('click', close);
+    document.getElementById('gcErrCancel').addEventListener('click', close);
+    const undo = document.getElementById('gcErrUndo');
+    if (undo) undo.addEventListener('click', () => { gcClearError(key, nome); close(); });
+    document.getElementById('gcErrSave').addEventListener('click', () => {
+      const tipo = document.getElementById('gcErrTipo').value;
+      const desc = document.getElementById('gcErrDesc').value.trim();
+      const correto = document.getElementById('gcErrCorreto').value.trim();
+      if (!desc){ document.getElementById('gcErrMsg').textContent = 'Descreva o que está errado.'; document.getElementById('gcErrDesc').focus(); return; }
+      const payload = { status:'erro', tipo: tipo || null, motivo: desc.slice(0,300),
+        correto: correto ? correto.slice(0,140) : null, by: OPERATOR_NAME || 'Alguém', at: Date.now() };
+      ['idAnterior','idNovo','recriadoPor','recriadoEm'].forEach(k => { if (au[k] != null) payload[k] = au[k]; });  // preserva recriação
+      fbDb.ref(`${BASE}/audit/${key}`).set(payload);
+      fbDb.ref(`${BASE}/log`).push({by: OPERATOR_NAME || 'Alguém', at: Date.now(),
+        action: editing ? 'editou erro de criação (conferência)' : 'marcou ERRO de criação (conferência)',
+        detail: nome + (tipo ? ' — ' + tipo : '') + ' — ' + desc.slice(0,120)});
+      showToast(editing ? 'Erro atualizado.' : '⚠ Erro marcado — aparece na Criação e na auditoria do Admin.');
+      close();
+    });
+    setTimeout(() => { const d = document.getElementById('gcErrDesc'); if (d) d.focus(); }, 40);
   }
   /* ↻ evento RECRIADO no Pokerbyte → tem um ID NOVO. Guarda o ID antigo (o do
      evento errado) como histórico na auditoria e põe o novo como oficial no
@@ -380,13 +427,13 @@
         const key = gcKey(it);
         const au = gcAudit[key];
         return {it, key, ok: !!gcConf[key], by: gcConf[key] && gcConf[key].by ? String(gcConf[key].by).split(' ')[0] : '',
-                err: !!(au && au.status === 'erro'), errMotivo: (au && au.motivo) || '',
+                err: !!(au && au.status === 'erro'), errMotivo: (au && au.motivo) || '', errTipo: (au && au.tipo) || '',
                 recriado: !!(au && au.recriadoEm), idNovo: (au && au.idNovo) || '', idAnterior: (au && au.idAnterior) || ''};
       });
       const secDone = sec.items.filter(it => gcConf[gcKey(it)]).length;
       const cell = (fn, cls) => cols.map(c => `<td class="${c.ok ? 'gc-ok' : ''} ${c.err ? 'gc-errcol' : ''} ${cls || ''}">${fn(c)}</td>`).join('');
       let t = `<tr class="gc-head"><th class="gc-rowlab">Torneio</th>${cell(c => escHtml(c.it.nome)
-        + (c.err ? `<br><span class="gc-errpill" title="${escHtml(c.errMotivo)}">⚠ erro</span>` : '')
+        + (c.err ? `<br><span class="gc-errpill" title="${escHtml((c.errTipo ? c.errTipo + ' — ' : '') + c.errMotivo)}">⚠ erro${c.errTipo ? ' · ' + escHtml(c.errTipo) : ''}</span>` : '')
         + (c.recriado ? `<br><span class="gc-recri" title="Recriado — ID anterior (erro): ${escHtml(c.idAnterior || '—')}">↻ recriado · novo ID ${escHtml(c.idNovo)}</span>` : ''), 'gc-name')}</tr>`;
       t += `<tr><th class="gc-rowlab key">Horário</th>${cell(c => escHtml(c.it.hora || '—'), 'gc-time')}</tr>`;
       // colunas na ordem/destaque da GU (gcVisibleFields → {label, hi, key})
@@ -404,7 +451,7 @@
       t += `<tr><th class="gc-rowlab">ID Pokerbyte</th>${cell(c => gcIds[c.key] ? escHtml(gcIds[c.key].val) : '<span class="gc-noid" title="Sem ID cadastrado — confira se o torneio foi criado no app">sem ID</span>', 'gc-num')}</tr>`;
       t += `<tr><th class="gc-rowlab key">Action</th>${cell(c =>
         `<button class="gc-chk ${c.ok ? 'on' : ''}" data-gckey="${escHtml(c.key)}" title="${c.ok ? 'Conferido por ' + escHtml(c.by) : 'Marcar como conferido'}"><svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>`
-        + `<button class="gc-err ${c.err ? 'on' : ''}" data-gcerr="${escHtml(c.key)}" title="${c.err ? 'Erro: ' + escHtml(c.errMotivo || 'sem motivo') + ' — clique pra desfazer' : 'Marcar erro de criação'}" aria-label="Marcar erro de criação">⚠</button>`
+        + `<button class="gc-err ${c.err ? 'on' : ''}" data-gcerr="${escHtml(c.key)}" title="${c.err ? 'Erro marcado — clique pra editar / desfazer' : 'Marcar erro de criação'}" aria-label="Marcar erro de criação">⚠</button>`
         + (c.err ? `<button class="gc-newid ${c.recriado ? 'on' : ''}" data-gcnewid="${escHtml(c.key)}" title="${c.recriado ? 'Recriado — novo ID ' + escHtml(c.idNovo) + ' (trocar)' : 'Evento recriado? registrar o novo ID'}" aria-label="Registrar novo ID do evento recriado">↻</button>` : '')
         + (c.by ? `<span class="gc-by">${escHtml(c.by)}</span>` : ''), 'gc-act')}</tr>`;
       html += `
@@ -464,9 +511,12 @@
     if (on) w.classList.add('gc-fs');
     gcSetFs(on ? cls : null);
   }
-  // Esc sai da tela cheia (sem fechar o drawer)
+  // Esc: fecha primeiro o formulário de erro, depois a tela cheia (sem fechar o drawer)
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && gcFs){ e.stopPropagation(); gcToggleFs(gcFs); }
+    if (e.key !== 'Escape') return;
+    const m = document.getElementById('gcErrModal');
+    if (m){ e.stopPropagation(); m.remove(); return; }
+    if (gcFs){ e.stopPropagation(); gcToggleFs(gcFs); }
   }, true);
   function gcAttach(){
     if (gcAttached || !fbDb) return;
