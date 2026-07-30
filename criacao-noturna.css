@@ -1264,22 +1264,16 @@ body > *{position:relative;z-index:1}
   .fs-recipe-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 32px}
   @media (min-width:900px){ .fs-recipe-grid{grid-template-columns:repeat(3,1fr)} }
 
-  /* EVENTO · VERTICAL — lista rótulo ↔ valor, empilhada e legível (não espalha
-     na largura toda). 1 coluna no celular, 2 no desktop. */
-  .ev-recipe{
-    display:grid;grid-template-columns:1fr;gap:0 clamp(28px,4vw,64px);
-    align-content:start;width:100%;max-width:1180px;margin:0 auto;
+  /* EVENTO · VERTICAL — um torneio na tabela transposta (campos nas linhas),
+     igual ao modo Vertical mas focado num evento só. Preenche até 900px e o
+     rótulo gruda na rolagem (mesmo tratamento do .mode-cols). */
+  .mode-event.ev-v .fs-block-body{flex:1;min-height:0;overflow:auto}
+  .mode-event.ev-v .vwrap{
+    overflow:visible;max-height:none;border:none;border-radius:0;
+    box-shadow:none;background:transparent;content-visibility:visible;contain:none;
   }
-  @media (min-width:720px){ .ev-recipe{grid-template-columns:1fr 1fr} }
-  .ev-row{
-    display:flex;align-items:baseline;justify-content:space-between;gap:16px;
-    padding:11px 2px;border-bottom:1px solid var(--hairline);min-height:44px;
-  }
-  .ev-row .ev-k{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);white-space:nowrap;flex:none}
-  .ev-row .ev-v{font-family:var(--mono);font-weight:650;text-align:right;font-size:clamp(15px,1.15vw,19px);word-break:break-word}
-  .ev-row.key{border-bottom-color:color-mix(in srgb,var(--felt) 30%,var(--hairline))}
-  .ev-row.key .ev-v{color:var(--felt-bright);font-weight:800}
-  .ev-empty{color:var(--ink-soft);opacity:.4;font-style:italic;font-family:var(--text);font-weight:500}
+  .mode-event.ev-v .vtable{width:100%;max-width:960px;font-size:clamp(14px,1.15vw,18px)}
+  .mode-event.ev-v .vtable .rowlab{font-size:12px}
 
   /* ── PEGAR TAREFA (pull): célula de dono na linha "Operador" ────────────── */
   .claimbtn{

@@ -1081,11 +1081,13 @@ function renderFS(opts){
   let body;
   if (FS_MODE === 'event'){
     if (FS_EVENT >= items.length) FS_EVENT = 0;
-    const it = items[FS_EVENT], key = itemKey(it), done = !!DONE[key];
+    const it = items[FS_EVENT], key = itemKey(it);
+    // um evento por vez, na MESMA tabela do modo Vertical/Horizontal (com ID +
+    // Criado embutidos). Setas ‹ › ou ← → do teclado trocam de evento.
     const recipe = FS_EV_ORIENT === 'h'
-      ? renderHorizontal([it], cat, asg)                 // um torneio, deitado (estilo planilha)
-      : eventRecipeVerticalHtml(it, cat);                // um torneio, EMPILHADO (rótulo ↔ valor)
-    body = `<div class="fs-body mode-event">
+      ? renderHorizontal([it], cat, asg)                 // deitado (estilo planilha)
+      : `<div class="fs-block-body ev-single">${renderVertical([it], cat, asg)}</div>`;   // empilhado (tabela transposta)
+    body = `<div class="fs-body mode-event ${FS_EV_ORIENT === 'h' ? 'ev-h' : 'ev-v'}">
       <div class="fs-tour">
         <div class="fs-tour-top">
           <div>
@@ -1104,12 +1106,6 @@ function renderFS(opts){
           </div>
         </div>
         ${recipe}
-        <div class="fs-ev-do">
-          <label class="fs-ev-id"><span>ID Pokerbyte</span>${idInputHtml(key, '')}</label>
-          <button class="chk ${done ? 'on' : ''}" data-done="${key}" role="checkbox" aria-checked="${done ? 'true' : 'false'}"
-            aria-label="${done ? 'Criado — desmarcar' : 'Marcar como criado'}" title="${done ? 'Criado' : 'Marcar como criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
-          <span class="fs-ev-state">${done ? 'Criado' : 'Marcar como criado'}</span>
-        </div>
       </div>
     </div>`;
   } else if (FS_MODE === 'horizontal'){
@@ -2069,38 +2065,6 @@ function renderHorizontal(items, cat, asg){
   return `${hiddenBarHtml()}<div class="fs-sheet"><table>${head}<tbody>${body}</tbody></table></div>`;
 }
 
-/* EVENTO · VERTICAL — um torneio empilhado como lista rótulo ↔ valor, limpa e
-   fácil de bater de cima pra baixo (2 colunas no desktop, 1 no celular). Os
-   campos-chave e os cálculos (criar em / admin fee / early bird) ganham destaque. */
-function eventRecipeVerticalHtml(it, cat){
-  const fields = visibleRecipeFieldsForItem(it);
-  const labelOf = getter => { const i = getter(it); return i ? i.label : null; };
-  const addonL = labelOf(addonInfo), ticketL = labelOf(ticketInfo), chipsL = labelOf(chipsInfo), gameL = labelOf(gameTypeInfo), koL = labelOf(koInfo);
-  const keyLabels = new Set();
-  [feeInfo, adminInfo, earlyInfo, ticketInfo, payoutInfo, calcPayoutInfo, rebuyInfo, addonInfo, chipsInfo, structureInfo, gameTypeInfo, koInfo]
-    .forEach(g => { const i = g(it); if (i && i.label) keyLabels.add(i.label); });
-  const SUITS = ['♠','♥','♦','♣'];
-  const valHtml = label => {
-    const v = it.extra ? it.extra[label] : undefined;
-    const has = v !== undefined && v !== null && v !== '';
-    if (!has) return `<span class="ev-empty">em branco</span>`;
-    const disp = fmtExtraVal(label, v);
-    if (label === addonL){ const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.')); if (isFinite(n) && n > 0) return `<span style="color:var(--gold);font-weight:800">${escHtml(fmtMoneyPlain(n, it.brl))}</span>`; }
-    if (label === ticketL) return `<span class="tkt"><span class="stub">Ticket</span><span class="val">${escHtml(disp)}</span></span>`;
-    if (label === chipsL) return `<span class="pchip">${escHtml(disp)}</span>`;
-    if (label === gameL){ const idx = [...normText(disp)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 4; return `<span class="gcard"><span class="suit ${idx === 1 || idx === 2 ? 'red' : ''}">${SUITS[idx]}</span>${escHtml(disp)}</span>`; }
-    if (label === koL && !/^(off|nao|não|no|-|—)$/i.test(String(disp).trim())) return `<span class="kochip"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>${escHtml(disp)}</span>`;
-    return escHtml(disp);
-  };
-  const rows = [];
-  rows.push(['Criar em', `<span class="mono" style="font-weight:700">${escHtml(creationWhen(it))}</span>`, true]);
-  const af = adminFeeParts(it); if (af) rows.push(['Admin Fee', `<span class="calc-chip admin">${escHtml(af.main)}</span>`, true]);
-  const e = earlyParts(it); if (e) rows.push(['Early Bird', `<span class="calc-chip early">${escHtml(e.main)}${e.sub ? `<span class="amt">${escHtml(e.sub)}</span>` : ''}</span>`, true]);
-  if (hasCampaign(it)){ const c = campInfo(it); rows.push(['Campanha', `<span style="color:var(--sat-bright);font-weight:700">✦ ${escHtml((c || {}).disp || 'ativa')}</span>`, true]); }
-  fields.forEach(l => rows.push([l, valHtml(l), keyLabels.has(l)]));
-  return `<div class="ev-recipe">${rows.map(([k, v, key]) =>
-    `<div class="ev-row ${key ? 'key' : ''}"><span class="ev-k" title="${escHtml(k)}">${escHtml(k)}</span><span class="ev-v">${v}</span></div>`).join('')}</div>`;
-}
 
 /* =========================================================================
    MODO FOCO — criar o próximo: um torneio por vez, receita gigante, campo de
