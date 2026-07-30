@@ -749,7 +749,7 @@ function renderCn(){
       const when = r.doneAt ? new Date(r.doneAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}) : '';
       const anoms = cnAnoms(r, cnAvgDur(_cnRows));
       const aud = (r.audit && r.audit.status === 'erro'
-        ? `<span style="color:var(--red);font-weight:700" title="por ${esc(r.audit.by||'—')}">⚠ erro</span>${r.audit.motivo?`<div style="font-size:11px;color:var(--ink3);max-width:200px;white-space:normal">${esc(r.audit.motivo)}</div>`:''}`
+        ? `<span style="color:var(--red);font-weight:700" title="por ${esc(r.audit.by||'—')}">⚠ erro</span>${r.audit.motivo?`<div style="font-size:11px;color:var(--ink3);max-width:200px;white-space:normal">${esc(r.audit.motivo)}</div>`:''}${r.audit.idCorrigido?`<div style="font-size:11px;color:var(--gold);font-weight:700">ID corrigido: ${esc(r.audit.idCorrigido)}</div>`:''}`
         : (r.doneBy ? '<span style="color:var(--green)">✓ ok</span>' : '<span style="color:var(--ink3)">—</span>'))
         + (anoms.length ? `<div style="font-size:11px;color:var(--amber);font-weight:600;max-width:200px;white-space:normal">⚡ ${anoms.map(esc).join(' · ')}</div>` : '');
       const btn = r.audit && r.audit.status === 'erro'
@@ -774,11 +774,14 @@ function markCnError(i){
   const r = window._cnView[i];
   const motivo = prompt(`Erro de criação em "${r.nome}" (${r.hora}, criado por ${r.doneBy}).\n\nDescreva o erro — o operador vê esse motivo na página da criação:`);
   if(motivo === null) return;
+  // opção de já informar o ID CORRIGIDO — o operador vê qual ID usar/corrigir no Pokerbyte
+  const idCorrigido = prompt(`(Opcional) ID Pokerbyte CORRIGIDO para "${r.nome}".\n\nID que o operador cadastrou: ${r.id||'—'}\n\nPreencha o ID correto (deixe em branco se não se aplica):`, r.id||'');
   const payload = {status:'erro', motivo: motivo.trim().slice(0,200), by:_name||'Admin', at:Date.now()};
+  if(idCorrigido !== null && idCorrigido.trim()) payload.idCorrigido = idCorrigido.trim().slice(0,40);
   db.ref(`painel/${r.date}/criacaoNoturna/audit/${r.key}`).set(payload);
-  db.ref(`painel/${r.date}/criacaoNoturna/log`).push({by:`Admin ${_name||''}`.trim(), at:Date.now(), action:'marcou ERRO de criação', detail:`${r.nome} — ${payload.motivo||'sem motivo'}`});
+  db.ref(`painel/${r.date}/criacaoNoturna/log`).push({by:`Admin ${_name||''}`.trim(), at:Date.now(), action:'marcou ERRO de criação', detail:`${r.nome} — ${payload.motivo||'sem motivo'}${payload.idCorrigido?` · ID corrigido: ${payload.idCorrigido}`:''}`});
   r.audit = payload; renderCn();
-  toast(`⚠ Erro marcado — ${r.doneBy} vê o alerta na página da criação`,'ok');
+  toast(`⚠ Erro marcado${payload.idCorrigido?` · ID corrigido: ${payload.idCorrigido}`:''} — ${r.doneBy} vê o alerta na página da criação`,'ok');
   // já abre a notificação oficial (a MESMA que aparece no painel do operador,
   // com bloqueio até justificar) pré-preenchida com o motivo
   notifyCnError(window._cnView.indexOf(r));

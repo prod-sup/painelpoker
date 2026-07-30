@@ -22,9 +22,12 @@ html.dark body::before{
     radial-gradient(90% 60% at 85% 110%, rgba(216,181,109,.06), transparent 55%);
 }
 body > *{position:relative;z-index:1}
-/* fluidez: cada bloco de tabela da receita fora da tela é pulado pelo
-   browser (a GU cheia pode passar de 100 torneios) */
-.vwrap{content-visibility:auto;contain-intrinsic-size:auto 520px}
+/* NÃO usar content-visibility:auto aqui: ao reconstruir a lista (marcar criado,
+   preencher ID, sync do parceiro) o bloco fora da tela não tem layout no ato, e
+   restaurar scrollLeft/scrollTop dele resulta em 0 — é o "scroll volta pro
+   começo". Comprovado no Playwright: com content-visibility o restore reseta,
+   sem ele segura. Correção definitiva do pulo de rolagem. */
+.vwrap{}
   /* ══════════════════════════════════════════════════════════════════
      DESIGN TOKENS — mesmos do painel (index.html), pra página conversar
      visualmente com o resto da operação. Página do turno NOTURNO:
@@ -1267,13 +1270,17 @@ body > *{position:relative;z-index:1}
   /* EVENTO · VERTICAL — um torneio na tabela transposta (campos nas linhas),
      igual ao modo Vertical mas focado num evento só. Preenche até 900px e o
      rótulo gruda na rolagem (mesmo tratamento do .mode-cols). */
-  .mode-event.ev-v .fs-block-body{flex:1;min-height:0;overflow:auto}
+  .mode-event.ev-v .fs-block-body{flex:1;min-height:0;overflow:auto;display:flex;justify-content:center}
   .mode-event.ev-v .vwrap{
     overflow:visible;max-height:none;border:none;border-radius:0;
     box-shadow:none;background:transparent;content-visibility:visible;contain:none;
+    width:auto;align-self:flex-start;
   }
-  .mode-event.ev-v .vtable{width:100%;max-width:960px;font-size:clamp(14px,1.15vw,18px)}
+  /* largura NATURAL (não estica): rótulo + 1 coluna de valor, centralizado —
+     igual à visão Vertical, mas focado num evento (não vira uma faixa vazia). */
+  .mode-event.ev-v .vtable{width:auto;min-width:min(560px,92vw);font-size:clamp(14px,1.1vw,18px)}
   .mode-event.ev-v .vtable .rowlab{font-size:12px}
+  .mode-event.ev-v .vtable td{white-space:normal}
 
   /* ── PEGAR TAREFA (pull): célula de dono na linha "Operador" ────────────── */
   .claimbtn{
@@ -1309,7 +1316,11 @@ body > *{position:relative;z-index:1}
 
   /* ── OCULTAR LINHA/COLUNA (campo da receita) — olhinho abre/fecha ───────── */
   .rl-hide .eye,.hf-chip .eye{width:15px;height:15px;display:block;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-  .vtable .rowlab.hideable{position:relative;padding-right:24px}
+  /* rowlab COM olhinho: mantém o STICKY explícito (position:relative matava o
+     grude e a 1ª coluna de torneio vazava por baixo). sticky já ancora o
+     olhinho absoluto — não precisa de relative. */
+  .vtable .rowlab.hideable{position:sticky;left:0;z-index:3;background:var(--card-elevated);padding-right:24px}
+  html.dark .vtable .rowlab.hideable{background:#161e18}
   .rowlab .rl-hide{
     position:absolute;top:50%;right:4px;transform:translateY(-50%);
     border:none;background:none;cursor:pointer;color:var(--ink-soft);

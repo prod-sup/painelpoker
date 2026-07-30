@@ -8381,9 +8381,11 @@ setVisibilityAwareInterval(checkTournamentNotifications, 60000);
 
 /* =========================================================================
    3. ATALHOS DE TECLADO EXPANDIDOS
-   Novos: R = Relatório de Turno, C = Mesas Cash, O = Calculadora Overlay,
-   H = Conferência de Hoje, A = foca busca na Agenda,
-   N = vai pra aba Não Fixados, Shift+R = Resultados
+   Ferramentas (drawers) nas teclas de função — antes eram R/S/C/O soltas e
+   disparavam sem querer:
+     F1 = Relatório de Turno · F2 = Servidores · F3 = Mesas Cash · F4 = Calc Overlay
+   Navegação (inalterada): H = Conferência de Hoje, A = foca busca na Agenda,
+   N = aba Não Fixados, Shift+R = Resultados
 ========================================================================= */
 document.addEventListener('keydown', e => {
   // ignora se estiver digitando em algum input/textarea
@@ -8394,26 +8396,31 @@ document.addEventListener('keydown', e => {
     document.getElementById(id)?.classList.contains('open')
   );
   switch(e.key){
+    // ── ferramentas nas teclas de função (antes eram letras R/S/C/O, que
+    //    disparavam sem querer). preventDefault segura o comportamento do browser
+    //    (F1=ajuda, F3=busca). ──
+    case 'F1':
+      e.preventDefault();
+      if(!anyDrawerOpen) openDrawer('shiftReportDrawerOverlay');   // Relatório de Turno
+      break;
+    case 'F2':
+      e.preventDefault();
+      if(!anyDrawerOpen) openDrawer('serversDrawerOverlay');       // Servidores
+      break;
+    case 'F3':
+      e.preventDefault();
+      if(!anyDrawerOpen) openDrawer('cashTablesDrawerOverlay');    // Cash Tables
+      break;
+    case 'F4':
+      e.preventDefault();
+      if(!anyDrawerOpen) openDrawer('overlayCalcDrawerOverlay');   // Calc de Overlay
+      break;
+
     case 'r': case 'R':
-      if(e.shiftKey){
-        // Shift+R → aba Resultados
-        document.querySelector('[data-tab="results"]')?.click();
-      } else {
-        // R → Relatório de Turno
-        openDrawer('shiftReportDrawerOverlay');
-      }
+      // mantém só o Shift+R → aba Resultados (o R sozinho virou F1)
+      if(e.shiftKey) document.querySelector('[data-tab="results"]')?.click();
       break;
-    
-    case 's': case 'S':
-      if(!anyDrawerOpen) openDrawer('serversDrawerOverlay');
-      break;
-    case 'c': case 'C':
-      if(!anyDrawerOpen) openDrawer('cashTablesDrawerOverlay');
-      break;
-    case 'o': case 'O':
-      if(!anyDrawerOpen) openDrawer('overlayCalcDrawerOverlay');
-      break;
-    
+
     case 'Escape':
       ALL_DRAWER_OVERLAY_IDS.forEach(id => closeDrawer(id));
       break;
