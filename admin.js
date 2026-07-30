@@ -749,7 +749,7 @@ function renderCn(){
       const when = r.doneAt ? new Date(r.doneAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}) : '';
       const anoms = cnAnoms(r, cnAvgDur(_cnRows));
       const aud = (r.audit && r.audit.status === 'erro'
-        ? `<span style="color:var(--red);font-weight:700" title="por ${esc(r.audit.by||'—')}">⚠ erro</span>${r.audit.motivo?`<div style="font-size:11px;color:var(--ink3);max-width:200px;white-space:normal">${esc(r.audit.motivo)}</div>`:''}${r.audit.idCorrigido?`<div style="font-size:11px;color:var(--gold);font-weight:700">ID corrigido: ${esc(r.audit.idCorrigido)}</div>`:''}`
+        ? `<span style="color:var(--red);font-weight:700" title="por ${esc(r.audit.by||'—')}">⚠ erro</span>${r.audit.motivo?`<div style="font-size:11px;color:var(--ink3);max-width:200px;white-space:normal">${esc(r.audit.motivo)}</div>`:''}${r.audit.recriadoEm?`<div style="font-size:11px;color:var(--gold);font-weight:700" title="recriado por ${esc(r.audit.recriadoPor||'—')}">↻ recriado · novo ID: ${esc(r.audit.idNovo||'—')}${r.audit.idAnterior?` <span style="color:var(--ink3);font-weight:400">(antes: ${esc(r.audit.idAnterior)})</span>`:''}</div>`:''}`
         : (r.doneBy ? '<span style="color:var(--green)">✓ ok</span>' : '<span style="color:var(--ink3)">—</span>'))
         + (anoms.length ? `<div style="font-size:11px;color:var(--amber);font-weight:600;max-width:200px;white-space:normal">⚡ ${anoms.map(esc).join(' · ')}</div>` : '');
       const btn = r.audit && r.audit.status === 'erro'
@@ -774,14 +774,11 @@ function markCnError(i){
   const r = window._cnView[i];
   const motivo = prompt(`Erro de criação em "${r.nome}" (${r.hora}, criado por ${r.doneBy}).\n\nDescreva o erro — o operador vê esse motivo na página da criação:`);
   if(motivo === null) return;
-  // opção de já informar o ID CORRIGIDO — o operador vê qual ID usar/corrigir no Pokerbyte
-  const idCorrigido = prompt(`(Opcional) ID Pokerbyte CORRIGIDO para "${r.nome}".\n\nID que o operador cadastrou: ${r.id||'—'}\n\nPreencha o ID correto (deixe em branco se não se aplica):`, r.id||'');
   const payload = {status:'erro', motivo: motivo.trim().slice(0,200), by:_name||'Admin', at:Date.now()};
-  if(idCorrigido !== null && idCorrigido.trim()) payload.idCorrigido = idCorrigido.trim().slice(0,40);
   db.ref(`painel/${r.date}/criacaoNoturna/audit/${r.key}`).set(payload);
-  db.ref(`painel/${r.date}/criacaoNoturna/log`).push({by:`Admin ${_name||''}`.trim(), at:Date.now(), action:'marcou ERRO de criação', detail:`${r.nome} — ${payload.motivo||'sem motivo'}${payload.idCorrigido?` · ID corrigido: ${payload.idCorrigido}`:''}`});
+  db.ref(`painel/${r.date}/criacaoNoturna/log`).push({by:`Admin ${_name||''}`.trim(), at:Date.now(), action:'marcou ERRO de criação', detail:`${r.nome} — ${payload.motivo||'sem motivo'}`});
   r.audit = payload; renderCn();
-  toast(`⚠ Erro marcado${payload.idCorrigido?` · ID corrigido: ${payload.idCorrigido}`:''} — ${r.doneBy} vê o alerta na página da criação`,'ok');
+  toast(`⚠ Erro marcado — ${r.doneBy} vê o alerta na página da criação`,'ok');
   // já abre a notificação oficial (a MESMA que aparece no painel do operador,
   // com bloqueio até justificar) pré-preenchida com o motivo
   notifyCnError(window._cnView.indexOf(r));
@@ -865,6 +862,24 @@ function initDates(){
   }
 }
 
+/* ── erros de criação (…/criacaoNoturna/audit) do período, pra cruzar com a
+   Acompanhamento: o evento que a Conferência/Criação marcou com ⚠ aparece
+   sinalizado aqui também. Chave = cnKey (nome|hora), a mesma da criação. ── */
+let _cnErrByDate = {};
+async function loadCnErrorsForAudit(from, to){
+  _cnErrByDate = {};
+  const dates = [], d = new Date(from + 'T12:00:00Z'), end = new Date(to + 'T12:00:00Z');
+  while(d <= end && dates.length < 62){ dates.push(d.toISOString().slice(0,10)); d.setUTCDate(d.getUTCDate()+1); }
+  const snaps = await Promise.all(dates.map(dt =>
+    db.ref(`painel/${dt}/criacaoNoturna/audit`).once('value').then(s => ({dt, v: s.val()})).catch(() => ({dt, v:null}))));
+  snaps.forEach(({dt, v}) => { if(v) _cnErrByDate[dt] = v; });
+}
+function cnErrFor(r){
+  const day = _cnErrByDate[r.date]; if(!day) return null;
+  const a = day[cnKey({nome:r.nome, hora:r.hora})];
+  return (a && a.status === 'erro') ? a : null;
+}
+
 /* ══════════════════════════════════════════════════════════════
    AUDITORIA — ACOMPANHAMENTO (visual idêntico ao painel)
 ══════════════════════════════════════════════════════════════ */
@@ -876,12 +891,13 @@ async function loadAudit(){
   const opF =document.getElementById('auOp')?.value||'';
   const qF  =(document.getElementById('auSearch')?.value||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
 
-  await Promise.all([loadAuditData()]);
+  await Promise.all([loadAuditData(), loadCnErrorsForAudit(from, to)]);
   let rows=enrichWithAudit(flatRows(from,to));
   if(catF)rows=rows.filter(r=>r.cat===catF);
   if(stF) rows=rows.filter(r=>r.status===stF);
   if(opF) rows=rows.filter(r=>r.fixBy===opF||r.idBy===opF);
   if(qF)  rows=rows.filter(r=>r.nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').includes(qF));
+  rows.forEach(r => { r._cnErr = cnErrFor(r); });   // marca os que a criação/conferência apontou como erro
 
   _auditRows=rows;
 
@@ -940,13 +956,15 @@ async function loadAudit(){
         if(r.field != null && r.buyin && r.field > 0 && r.garantido && (r.field * r.buyin) < r.garantido * 0.1) anomalias.push('Field baixo pro GTD');
         if(r.overlay != null && r.garantido && Math.abs(r.overlay) > r.garantido * 0.5) anomalias.push('Overlay >50% GTD');
         const hasAnomalia = anomalias.length > 0 && !r._audited;
-        const trCls = [cls, r._audited?'audit-edited':'', hasAnomalia?'anomalia':''].filter(Boolean).join(' ');
+        const cnErr = r._cnErr;   // erro de criação apontado na Conferência/Criação GU
+        const trCls = [cls, r._audited?'audit-edited':'', hasAnomalia?'anomalia':'', cnErr?'cn-erro':''].filter(Boolean).join(' ');
         const anomaliaHtml = hasAnomalia ? `<span title="${anomalias.join(', ')}" style="font-size:9px;background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.2);border-radius:4px;padding:1px 5px;margin-left:4px">⚠ ${anomalias[0]}</span>` : '';
+        const cnErrHtml = cnErr ? `<span title="Erro de criação apontado por ${esc(cnErr.by||'—')}${cnErr.motivo?': '+esc(cnErr.motivo):''}${cnErr.recriadoEm?` · ↻ recriado, novo ID ${esc(cnErr.idNovo||'—')}${cnErr.idAnterior?' (antes '+esc(cnErr.idAnterior)+')':''}`:''}" style="font-size:9px;background:rgba(239,68,68,.16);color:var(--red);border:1px solid rgba(239,68,68,.35);border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:800">⚠ erro criação${cnErr.recriadoEm?' ↻':''}</span>` : '';
         return `<tr class="${trCls}" data-key="${r.key}" data-date="${r.date}">
           <td><input type="checkbox" class="row-check" data-key="${r.key}" data-date="${r.date}"
             style="accent-color:var(--gold);width:14px;height:14px"
             data-act="updateBatchActions" data-act-on="change"></td>
-          <td class="nm" style="max-width:200px">${esc(r.nome)}${anomaliaHtml}</td>
+          <td class="nm" style="max-width:200px">${esc(r.nome)}${cnErrHtml}${anomaliaHtml}</td>
           <td class="mono">${esc(r.hora)}</td>
           <td class="mono">${esc(r.late)}</td>
           <td class="r mono">${r.garantido!=null?'R$ '+brl(r.garantido):'—'}</td>
@@ -1885,7 +1903,7 @@ function openAuditEditByEl(btn){
   // Encontrar o row completo em _auditRows
   const r = _auditRows.find(r=>r.key===key&&r.date===date);
   if(!r){ toast('Dado não encontrado','err'); return; }
-  openAuditEdit({key:r.key,date:r.date,nome:r.nome,premiacao:r.premiacao,field:r.field,garantido:r.garantido,hora:r.hora});
+  openAuditEdit({key:r.key,date:r.date,nome:r.nome,premiacao:r.premiacao,field:r.field,garantido:r.garantido,hora:r.hora,id:r.id});
 }
 
 function openNotifByEl(btn){
@@ -1917,6 +1935,7 @@ function openAuditEdit(ctx){
     _auditContext.field != null ? _auditContext.field+' jog.' : '—';
   document.getElementById('auditOrigGar').textContent =
     _auditContext.garantido != null ? 'R$ '+brl(_auditContext.garantido) : '—';
+  document.getElementById('auditOrigId').textContent = _auditContext.id || '—';
 
   // Preencher com valor já auditado (se existir) ou original
   const premVal = audit?.premiacaoAuditada ?? _auditContext.premiacao;
@@ -1927,6 +1946,8 @@ function openAuditEdit(ctx){
     audit?.fieldAuditado ?? _auditContext.field ?? '';
   document.getElementById('auditGarInput').value =
     garVal != null ? brl(garVal,2) : '';
+  document.getElementById('auditIdInput').value =
+    audit?.idAuditado ?? _auditContext.id ?? '';
   document.getElementById('auditObs').value = audit?.obs || '';
   document.getElementById('auditApproved').checked = audit?.status === 'aprovado';
 
@@ -1944,11 +1965,13 @@ async function saveAudit(){
   const premRaw  = document.getElementById('auditPremInput').value.trim();
   const fieldRaw = document.getElementById('auditFieldInput').value.trim();
   const garRaw   = document.getElementById('auditGarInput').value.trim();
+  const idRaw    = document.getElementById('auditIdInput').value.trim();
   const obs      = document.getElementById('auditObs').value.trim();
   const approved = document.getElementById('auditApproved').checked;
+  const idChanged = idRaw && idRaw !== (_auditContext.id || '');
 
   errEl.style.display = 'none';
-  if(!premRaw && !fieldRaw && !garRaw && !approved){
+  if(!premRaw && !fieldRaw && !garRaw && !idChanged && !approved){
     errEl.textContent = 'Preencha ao menos um valor ou marque como aprovado.';
     errEl.style.display = 'block'; return;
   }
@@ -1973,6 +1996,8 @@ async function saveAudit(){
     premiacaoAuditada: approved ? (_auditContext.premiacao ?? null) : (prem ?? null),
     fieldAuditado:     approved ? (_auditContext.field ?? null) : (field ?? null),
     garantidoAuditado: approved ? (_auditContext.garantido ?? null) : (gar ?? null),
+    idOriginal:  _auditContext.id ?? null,
+    idAuditado:  approved ? (_auditContext.id ?? null) : (idRaw || (_auditContext.id ?? null)),
     status:    approved ? 'aprovado' : 'corrigido',
     obs:       obs || null,
     auditadoEm:   Date.now(),
@@ -1990,6 +2015,8 @@ async function saveAudit(){
       if(prem != null)  await db.ref(`${basePath}/premiacao/${_auditContext.key}`).set(prem);
       if(field != null) await db.ref(`${basePath}/field/${_auditContext.key}`).set(field);
       if(gar != null)   await db.ref(`${basePath}/garantido/${_auditContext.key}`).set(gar);
+      // ID corrigido: sobrescreve o ID ao vivo no painel (mesmo nó que o operador usa)
+      if(idChanged)     await db.ref(`${basePath}/ids/${_auditContext.key}`).set({val: idRaw, by: `Admin ${_name||''}`.trim(), at: Date.now()});
     }
 
     // Atualizar cache local
@@ -2004,6 +2031,7 @@ async function saveAudit(){
           if(prem != null)  r.premiacao = prem;
           if(field != null) r.field = field;
           if(gar != null)   r.garantido = gar;
+          if(idChanged)     r.id = idRaw;
           // Recalcular overlay/perf
           if(r.premiacao != null && r.garantido != null){
             r.overlay = r.premiacao - r.garantido < 0 ? r.premiacao - r.garantido : null;
@@ -2092,8 +2120,10 @@ async function exportAuditXlsx(){
       g.rows.forEach(r=>{
         const drRow=aoa.length;
         const ov=r.overlay??'',perf=r.perf??'';
+        // Field ia na coluna errada (9 = "Ações"), deixando a coluna "Field" (8) vazia
+        // no export. Agora Field vai na 8 e a 9 ("Ações") fica em branco.
         aoa.push([r.nome,r.hora,r.late,catLabel(r.cat),
-          r.garantido??'',r.buyin??'',r.premiacao??'',ov,'',r.field??'',perf,
+          r.garantido??'',r.buyin??'',r.premiacao??'',ov,r.field??'','',perf,
           r.fixBy||r.idBy||'',r.id,statusLabel(r.status)]);
         cnt++;if(r.garantido)sg+=r.garantido;if(r.premiacao)sp+=r.premiacao;if(r.overlay)so+=r.overlay;
         if(r.status==='nf')for(let c=0;c<14;c++)styleMap[XLSX.utils.encode_cell({r:drRow,c})]={font:{color:{rgb:'888888'},italic:true},fill:{fgColor:{rgb:'F5F5F5'}}};
@@ -2580,7 +2610,7 @@ function toggleSoAnomalia(){
   // Esconder/mostrar linhas
   document.querySelectorAll('#auditResult tr[data-key]').forEach(tr=>{
     if(_soAnomalia){
-      tr.style.display = tr.classList.contains('anomalia') ? '' : 'none';
+      tr.style.display = (tr.classList.contains('anomalia') || tr.classList.contains('cn-erro')) ? '' : 'none';
     } else {
       tr.style.display = '';
     }
@@ -2965,6 +2995,44 @@ function batchDeselect(){
   updateBatchActions();
 }
 
+/* anomalias auto-detectadas de uma linha (mesma regra do render) — "com erro" */
+function rowAnomalias(r){
+  const a = [];
+  if(r.premiacao === 0) a.push('Premiação R$0');
+  if(r.premiacao != null && r.garantido && r.premiacao > r.garantido * 3) a.push('Premiação muito alta');
+  if(r.field != null && r.buyin && r.field > 0 && r.garantido && (r.field * r.buyin) < r.garantido * 0.1) a.push('Field baixo pro GTD');
+  if(r.overlay != null && r.garantido && Math.abs(r.overlay) > r.garantido * 0.5) a.push('Overlay >50% GTD');
+  return a;
+}
+/* aprovar em massa TODOS os torneios sem anomalia e ainda não auditados
+   (aprovado = sem correção). Os que têm ⚠ ficam de fora pra revisão manual.
+   Nome casa com a entrada já existente no allowlist do admin-actions. */
+async function approveAllAudit(){
+  if(!fbOk){ toast('Firebase não conectado','err'); return; }
+  if(!_auditRows.length){ toast('Carregue os dados primeiro (Buscar)','err'); return; }
+  const targets = _auditRows.filter(r => !r._audited && rowAnomalias(r).length === 0);
+  if(!targets.length){ toast('Nada pra aprovar — todos já auditados ou têm anomalia.','ok'); return; }
+  if(!await confirmModal({title:'Aprovar todos sem erro',
+    message:`Aprovar <b>${targets.length}</b> torneio${targets.length>1?'s':''} SEM anomalia como <b>corretos (sem correção)</b>?<br><span style="font-size:11px;color:var(--ink3)">Os que têm ⚠ anomalia ficam de fora — revise um a um.</span>`,
+    confirmLabel:'Aprovar todos'})) return;
+  let done = 0;
+  for(const r of targets){
+    const entry = {
+      premiacaoOriginal: r.premiacao??null, fieldOriginal: r.field??null, garantidoOriginal: r.garantido??null,
+      premiacaoAuditada: r.premiacao??null, fieldAuditado: r.field??null, garantidoAuditado: r.garantido??null,
+      idOriginal: r.id??null, idAuditado: r.id??null,
+      status:'aprovado', obs:null, auditadoEm: Date.now(), auditadoPor: _email||'admin', nome: r.nome, hora: r.hora,
+    };
+    try{
+      await db.ref(`auditoria/${r.date}/${r.key}`).set(entry);
+      if(!_auditData[r.date]) _auditData[r.date] = {};
+      _auditData[r.date][r.key] = entry;
+      r._audited = true; r._auditEntry = entry; done++;
+    }catch(e){ console.error('approveAllClean error:', e); }
+  }
+  toast(`✓ ${done} torneio${done>1?'s':''} aprovado${done>1?'s':''} sem correção`, 'ok');
+  loadAudit();
+}
 async function batchApprove(){
   const checks = [...document.querySelectorAll('.row-check:checked')];
   if(!checks.length) return;

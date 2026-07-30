@@ -740,6 +740,9 @@ a.tb-back{text-decoration:none}
 /* ── 11. Anomalias na auditoria ── */
 tr.anomalia td:first-child{ border-left:3px solid var(--red); }
 tr.anomalia{ background:rgba(239,68,68,.03) !important; }
+/* evento com erro de criação apontado na Conferência/Criação GU */
+tr.cn-erro td:first-child{ border-left:3px solid var(--red); }
+tr.cn-erro{ background:rgba(239,68,68,.06) !important; }
 
 /* ── 2. Ações em lote ── */
 #batchActions{

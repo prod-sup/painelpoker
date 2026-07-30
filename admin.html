@@ -130,6 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <div class="ph-actions">
           <button class="btn btn-ghost" id="btnSoAnomalia" data-act="toggleSoAnomalia">⚠ Só anomalias</button>
+          <button class="btn btn-ghost" data-act="approveAllAudit" title="Marca como aprovado (sem correção) todos os torneios que NÃO têm anomalia e ainda não foram auditados">✓ Aprovar todos sem erro</button>
           <button class="btn btn-ghost" data-act="batchNotifyAnomalias">📨 Notificar anomalias</button>
           <button class="btn btn-ghost" data-act="exportAuditXlsx">⬇ Exportar XLSX</button>
           <button class="btn btn-gold" data-act="loadAudit">Buscar</button>
@@ -834,6 +835,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="audit-val-orig"><span>Premiação original</span><strong id="auditOrigPrem">—</strong></div>
       <div class="audit-val-orig"><span>Field original</span><strong id="auditOrigField">—</strong></div>
       <div class="audit-val-orig"><span>Garantido original</span><strong id="auditOrigGar">—</strong></div>
+      <div class="audit-val-orig"><span>ID original</span><strong id="auditOrigId">—</strong></div>
     </div>
 
     <div class="mf">
@@ -847,6 +849,10 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="mf">
       <label>Garantido corrigido (R$)</label>
       <input type="text" inputmode="decimal" id="auditGarInput" placeholder="—" data-act="maskBRL" data-act-self data-act-on="input" onblur="fmtBRLInput(this)">
+    </div>
+    <div class="mf">
+      <label>ID Pokerbyte corrigido</label>
+      <input type="text" id="auditIdInput" placeholder="—" maxlength="40" autocomplete="off">
     </div>
     <div class="mf">
       <label>Observação</label>

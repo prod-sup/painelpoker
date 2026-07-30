@@ -2230,6 +2230,29 @@
   .gc-chk.on{ background:var(--felt); border-color:var(--felt); color:var(--bg); }
   .gc-chk svg{ width:13px; height:13px; stroke:currentColor; stroke-width:3.2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
   .gc-by{ display:block; font-size:9px; color:var(--ink-soft); font-family:var(--mono); margin-top:2px; }
+  /* ⚠ marcar erro de criação na Conferência */
+  .gc-err{
+    width:26px; height:26px; border-radius:8px; border:2px solid var(--hairline-strong); cursor:pointer;
+    display:inline-grid; place-items:center; background:transparent; color:var(--ink-soft); padding:0;
+    font-size:13px; line-height:1; margin-left:5px; vertical-align:middle;
+    transition:background-color .18s,border-color .18s,color .18s,transform .1s;
+  }
+  .gc-err:hover{ border-color:var(--red); color:var(--red); }
+  .gc-err:active{ transform:scale(.88); }
+  .gc-err.on{ background:var(--red); border-color:var(--red); color:#fff; }
+  .gc-table td.gc-errcol{ box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--red) 45%,transparent); }
+  .gc-errpill{ display:inline-block; margin-top:3px; font-size:9.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--red); background:var(--red-soft); border-radius:99px; padding:1px 7px; }
+  /* ↻ registrar novo ID do evento recriado */
+  .gc-newid{
+    width:26px; height:26px; border-radius:8px; border:2px solid var(--hairline-strong); cursor:pointer;
+    display:inline-grid; place-items:center; background:transparent; color:var(--felt); padding:0;
+    font-size:14px; line-height:1; margin-left:5px; vertical-align:middle;
+    transition:background-color .18s,border-color .18s,color .18s,transform .1s;
+  }
+  .gc-newid:hover{ border-color:var(--felt); background:var(--felt-soft); }
+  .gc-newid:active{ transform:scale(.88); }
+  .gc-newid.on{ background:var(--felt); border-color:var(--felt); color:var(--bg); }
+  .gc-recri{ display:inline-block; margin-top:3px; font-size:9.5px; font-weight:800; letter-spacing:.03em; color:var(--felt); background:var(--felt-soft); border-radius:99px; padding:1px 7px; }
   .gc-empty{ text-align:center; padding:48px 16px; color:var(--ink-soft); font-size:13px; line-height:1.6; }
   /* marca de empty/loading: espada num disco de feltro (SVG, theme-aware) no lugar de emoji */
   .gc-empty .ic{

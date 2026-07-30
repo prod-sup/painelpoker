@@ -21,7 +21,7 @@
   }
   const DAY_ISO = opTodayISO();
   const BASE = `painel/${DAY_ISO}/criacaoNoturna`;
-  let gcSheet = null, gcConf = {}, gcIds = {}, gcAttached = false, gcSearch = '';
+  let gcSheet = null, gcConf = {}, gcIds = {}, gcAudit = {}, gcAttached = false, gcSearch = '';
   let gcHideDone = false, gcSrc = null; // gcSrc = {fileName, by, at} da sheet em uso
   let gcFs = null;                      // cls da seção em tela cheia ('main'|'side'|'sat') ou null
 
@@ -172,6 +172,51 @@
     if (!fbDb) { showToast('Sem conexão com o Firebase.', true); return; }
     if (gcConf[key]) fbDb.ref(`${BASE}/conf/${key}`).remove();
     else fbDb.ref(`${BASE}/conf/${key}`).set({by: OPERATOR_NAME || 'Alguém', at: Date.now()});
+  }
+  /* ⚠ marcar/desfazer ERRO de criação — grava no MESMO nó que o Admin usa
+     (…/criacaoNoturna/audit/{key}); aparece na Criação Noturna e na auditoria. */
+  function gcMarkError(key){
+    if (!fbDb){ showToast('Sem conexão com o Firebase.', true); return; }
+    const cur = gcAudit[key];
+    if (cur && cur.status === 'erro'){
+      if (!confirm('Desfazer a marcação de erro deste torneio?')) return;
+      fbDb.ref(`${BASE}/audit/${key}`).remove();
+      fbDb.ref(`${BASE}/log`).push({by: OPERATOR_NAME || 'Alguém', at: Date.now(), action:'desfez erro de criação (conferência)', detail: key});
+      showToast('Erro desfeito.');
+      return;
+    }
+    const it = gcItems().find(x => gcKey(x) === key);
+    const nome = it ? it.nome : key;
+    const motivo = prompt(`Marcar ERRO de criação em "${nome}".\n\nDescreva o erro — o operador vê esse motivo na página da Criação:`);
+    if (motivo === null) return;
+    const m = String(motivo).trim().slice(0,200);
+    fbDb.ref(`${BASE}/audit/${key}`).set({status:'erro', motivo: m, by: OPERATOR_NAME || 'Alguém', at: Date.now()});
+    fbDb.ref(`${BASE}/log`).push({by: OPERATOR_NAME || 'Alguém', at: Date.now(), action:'marcou ERRO de criação (conferência)', detail:`${nome} — ${m || 'sem motivo'}`});
+    showToast('⚠ Erro marcado — aparece na Criação e na auditoria do Admin.');
+  }
+  /* ↻ evento RECRIADO no Pokerbyte → tem um ID NOVO. Guarda o ID antigo (o do
+     evento errado) como histórico na auditoria e põe o novo como oficial no
+     mesmo nó de IDs. O ⚠ CONTINUA — quem dá baixa é o admin. */
+  function gcSetNewId(key){
+    if (!fbDb){ showToast('Sem conexão com o Firebase.', true); return; }
+    const au = gcAudit[key];
+    if (!au || au.status !== 'erro'){ showToast('Registrar novo ID é só pra evento marcado com erro.', true); return; }
+    const it = gcItems().find(x => gcKey(x) === key);
+    const nome = it ? it.nome : key;
+    const oldId = gcIds[key] ? gcIds[key].val : '';
+    const novo = prompt(`Evento "${nome}" recriado no Pokerbyte.\n\nID ANTIGO (com erro): ${oldId || '—'}\n\nDigite o NOVO ID:`, '');
+    if (novo === null) return;
+    const nv = String(novo).trim().slice(0,40);
+    if (!nv){ showToast('ID vazio — nada gravado.'); return; }
+    // guarda o antigo como histórico e registra a recriação, SEM tirar o erro (admin dá baixa)
+    fbDb.ref(`${BASE}/audit/${key}`).update({
+      idAnterior: (au.idAnterior != null ? au.idAnterior : (oldId || null)),
+      idNovo: nv, recriadoPor: OPERATOR_NAME || 'Alguém', recriadoEm: Date.now()
+    });
+    // novo ID vira o oficial (mesmo nó que o operador/criação usam)
+    fbDb.ref(`${BASE}/ids/${key}`).set({val: nv, by: OPERATOR_NAME || 'Alguém', at: Date.now()});
+    fbDb.ref(`${BASE}/log`).push({by: OPERATOR_NAME || 'Alguém', at: Date.now(), action:'recriou evento (novo ID)', detail:`${nome} — ${oldId || '—'} → ${nv}`});
+    showToast('✓ Novo ID salvo (antigo guardado). O ⚠ segue até o admin dar baixa.');
   }
 
   /* ── ATUALIZAÇÃO CIRÚRGICA DO ✓ (sem reconstruir a tabela) ──────────────────
@@ -333,11 +378,16 @@
       if (!vis.length) return;
       const cols = vis.map(it => {
         const key = gcKey(it);
-        return {it, key, ok: !!gcConf[key], by: gcConf[key] && gcConf[key].by ? String(gcConf[key].by).split(' ')[0] : ''};
+        const au = gcAudit[key];
+        return {it, key, ok: !!gcConf[key], by: gcConf[key] && gcConf[key].by ? String(gcConf[key].by).split(' ')[0] : '',
+                err: !!(au && au.status === 'erro'), errMotivo: (au && au.motivo) || '',
+                recriado: !!(au && au.recriadoEm), idNovo: (au && au.idNovo) || '', idAnterior: (au && au.idAnterior) || ''};
       });
       const secDone = sec.items.filter(it => gcConf[gcKey(it)]).length;
-      const cell = (fn, cls) => cols.map(c => `<td class="${c.ok ? 'gc-ok' : ''} ${cls || ''}">${fn(c)}</td>`).join('');
-      let t = `<tr class="gc-head"><th class="gc-rowlab">Torneio</th>${cell(c => escHtml(c.it.nome), 'gc-name')}</tr>`;
+      const cell = (fn, cls) => cols.map(c => `<td class="${c.ok ? 'gc-ok' : ''} ${c.err ? 'gc-errcol' : ''} ${cls || ''}">${fn(c)}</td>`).join('');
+      let t = `<tr class="gc-head"><th class="gc-rowlab">Torneio</th>${cell(c => escHtml(c.it.nome)
+        + (c.err ? `<br><span class="gc-errpill" title="${escHtml(c.errMotivo)}">⚠ erro</span>` : '')
+        + (c.recriado ? `<br><span class="gc-recri" title="Recriado — ID anterior (erro): ${escHtml(c.idAnterior || '—')}">↻ recriado · novo ID ${escHtml(c.idNovo)}</span>` : ''), 'gc-name')}</tr>`;
       t += `<tr><th class="gc-rowlab key">Horário</th>${cell(c => escHtml(c.it.hora || '—'), 'gc-time')}</tr>`;
       // colunas na ordem/destaque da GU (gcVisibleFields → {label, hi, key})
       gcVisibleFields().forEach(f => {
@@ -353,7 +403,10 @@
       });
       t += `<tr><th class="gc-rowlab">ID Pokerbyte</th>${cell(c => gcIds[c.key] ? escHtml(gcIds[c.key].val) : '<span class="gc-noid" title="Sem ID cadastrado — confira se o torneio foi criado no app">sem ID</span>', 'gc-num')}</tr>`;
       t += `<tr><th class="gc-rowlab key">Action</th>${cell(c =>
-        `<button class="gc-chk ${c.ok ? 'on' : ''}" data-gckey="${escHtml(c.key)}" title="${c.ok ? 'Conferido por ' + escHtml(c.by) : 'Marcar como conferido'}"><svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>${c.by ? `<span class="gc-by">${escHtml(c.by)}</span>` : ''}`, 'gc-act')}</tr>`;
+        `<button class="gc-chk ${c.ok ? 'on' : ''}" data-gckey="${escHtml(c.key)}" title="${c.ok ? 'Conferido por ' + escHtml(c.by) : 'Marcar como conferido'}"><svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>`
+        + `<button class="gc-err ${c.err ? 'on' : ''}" data-gcerr="${escHtml(c.key)}" title="${c.err ? 'Erro: ' + escHtml(c.errMotivo || 'sem motivo') + ' — clique pra desfazer' : 'Marcar erro de criação'}" aria-label="Marcar erro de criação">⚠</button>`
+        + (c.err ? `<button class="gc-newid ${c.recriado ? 'on' : ''}" data-gcnewid="${escHtml(c.key)}" title="${c.recriado ? 'Recriado — novo ID ' + escHtml(c.idNovo) + ' (trocar)' : 'Evento recriado? registrar o novo ID'}" aria-label="Registrar novo ID do evento recriado">↻</button>` : '')
+        + (c.by ? `<span class="gc-by">${escHtml(c.by)}</span>` : ''), 'gc-act')}</tr>`;
       html += `
         <div class="gc-secwrap" data-sec="${sec.cls}">
           <div class="gc-sec ${sec.cls}">
@@ -383,6 +436,8 @@
     _restoreScroll();
     requestAnimationFrame(_restoreScroll);
     area.querySelectorAll('[data-gckey]').forEach(b => b.addEventListener('click', () => gcToggle(b.dataset.gckey)));
+    area.querySelectorAll('[data-gcerr]').forEach(b => b.addEventListener('click', () => gcMarkError(b.dataset.gcerr)));
+    area.querySelectorAll('[data-gcnewid]').forEach(b => b.addEventListener('click', () => gcSetNewId(b.dataset.gcnewid)));
     // tela cheia por quadro — liga os botões e reaplica o estado após o re-render
     area.querySelectorAll('[data-fs]').forEach(b => b.addEventListener('click', () => gcToggleFs(b.dataset.fs)));
     if (gcFs){
@@ -450,6 +505,8 @@
       if (!gcApplyConfDelta(prevConf, gcConf)) gcRender();
     });
     fbDb.ref(`${BASE}/ids`).on('value', s => { gcIds = s.val() || {}; gcRender(); });
+    // erros de criação (mesmo nó do Admin e da Criação) — conferir aqui é o ponto natural
+    fbDb.ref(`${BASE}/audit`).on('value', s => { gcAudit = s.val() || {}; gcRender(); });
   }
   // o fbDb só existe depois do init do Firebase — tenta já e re-tenta até conectar
   gcAttach();
