@@ -357,16 +357,14 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="card">
         <div class="card-head">
           <div><div class="card-title">Operadores</div><div class="card-sub" id="opCount">—</div></div>
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="search" id="opSearch" placeholder="Buscar nome ou email…" data-act="filterOps" data-act-self data-act-on="input"
+              style="font:inherit;font-size:13px;padding:8px 12px;border:1px solid var(--hairline-strong);border-radius:9px;background:var(--bg);color:var(--ink);min-width:200px">
+            <button class="btn btn-ghost btn-sm" data-act="openOpRanking" title="Ranking de performance dos operadores">📊 Ranking</button>
+          </div>
         </div>
-        <div class="tbl-wrap">
-          <table>
-            <thead><tr>
-              <th>Nome</th><th>Email</th><th class="r">Fixações</th>
-              <th>Admin</th><th>Acesso aos painéis</th><th>Criado em</th><th></th>
-            </tr></thead>
-            <tbody id="opBody"></tbody>
-          </table>
-        </div>
+        <p style="font-size:12px;color:var(--ink3);margin:0 0 14px">KPIs dos últimos <b>30 dias</b>. Clique nos interruptores <b>👁 Vê</b> / <b>✎ Edita</b> pra liberar cada painel — ou use <b>Liberar tudo</b> / <b>Tirar tudo</b>.</p>
+        <div id="opCards" class="op-cards"></div>
       </div>
     </div>
 

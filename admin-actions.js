@@ -109,7 +109,7 @@
     'openAdminLog', 'openJustifs', 'openNotifHistory', 'openOpRanking', 'openOverlayHeatmap',
     'openAuditSummary', 'openInsightSettings', 'openFieldTrend',
     'buildAuditSummary', 'buildFieldTrend', 'buildMonthProjection',
-    'toggleSoAnomalia', 'toggleCnErros', 'toggleCheckAll', 'updateBatchActions',
+    'toggleSoAnomalia', 'toggleCnErros', 'toggleCheckAll', 'updateBatchActions', 'filterOps',
     'previewCleanup', 'previewCleanupUntil', 'closeMo', 'maskBRL',
     // EXPORTAR XLSX (leitura → arquivo). exportToSheets fica FORA: escreve no Sheets.
     'exportAuditXlsx', 'exportAuditSummaryXlsx', 'exportGradeXlsx', 'exportCnXlsx',

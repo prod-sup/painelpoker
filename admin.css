@@ -853,6 +853,50 @@ tr.cn-erro{ background:rgba(239,68,68,.06) !important; }
 .perm-admin{font-size:12.5px;font-weight:650;color:var(--gold)}
 .perm-admin small{display:block;font-weight:500;color:var(--ink3);font-size:11px;margin-top:2px}
 
+/* ── OPERADORES: cards responsivos com KPIs + notificações + acesso ── */
+.op-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(342px,1fr));gap:14px}
+.op-loading{grid-column:1/-1;padding:34px;text-align:center;color:var(--ink3)}
+.op-card{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:15px 16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.op-card.attn{border-color:color-mix(in srgb,var(--red) 42%,var(--border));box-shadow:inset 3px 0 0 var(--red)}
+.op-card-head{display:flex;align-items:flex-start;gap:11px}
+.op-av{flex:none;width:38px;height:38px;border-radius:10px;background:var(--s2);color:var(--ink2);display:grid;place-items:center;font-weight:800;font-size:16px}
+.op-id{min-width:0;flex:1}
+.op-name{font-weight:750;font-size:14.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.25}
+.op-email{font-size:11.5px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+.op-tag{font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:99px;background:var(--s2);color:var(--ink3)}
+.op-tag.adm{background:var(--goldf);color:var(--gold)}
+.op-tag.sus{background:var(--redf);color:var(--red)}
+.op-card-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex:none}
+.op-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.op-kpi{background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:8px 9px;display:flex;flex-direction:column;gap:3px}
+.op-kpi .v{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:18px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.op-kpi .l{font-size:10px;color:var(--ink3);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-kpi.bad{background:var(--redf);border-color:color-mix(in srgb,var(--red) 28%,transparent)}
+.op-kpi.bad .v{color:var(--red)}
+.op-kpi.warn .v{color:var(--amber)}
+.op-notif{background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+.op-notif.pend{background:var(--redf);border-color:color-mix(in srgb,var(--red) 28%,transparent)}
+.op-notif-head{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink2);margin-bottom:8px;flex-wrap:wrap}
+.op-flex{flex:1}
+.op-notif .pendtag{color:var(--red);font-weight:800}
+.op-notif-just{color:var(--green);font-weight:700}
+.op-notif-last{color:var(--ink3);font-size:11px;font-weight:500}
+.op-motivos{display:flex;flex-wrap:wrap;gap:5px}
+.op-motivo{font-size:11px;background:var(--s1);border:1px solid var(--border);border-radius:99px;padding:2px 9px;color:var(--ink2)}
+.op-motivo b{color:var(--ink);font-variant-numeric:tabular-nums;margin-left:2px}
+.op-access{background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:11px 12px}
+.op-access-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px;font-size:10.5px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em;flex-wrap:wrap}
+.op-access-quick{display:flex;gap:5px;text-transform:none;letter-spacing:0}
+.qbtn{font:650 11px/1 var(--sans,inherit);border:1px solid var(--border);background:var(--s1);color:var(--ink2);border-radius:99px;padding:5px 10px;cursor:pointer;transition:border-color .15s,color .15s}
+.qbtn:hover{border-color:var(--green);color:var(--green)}
+.qbtn.danger:hover{border-color:var(--red);color:var(--red)}
+.op-access .perm-grid{min-width:0;width:100%}
+.op-admin-badge{background:var(--goldf);border:1px solid color-mix(in srgb,var(--gold) 28%,transparent);border-radius:10px;padding:11px 13px;font-size:12.5px;font-weight:650;color:var(--gold)}
+@media (max-width:560px){
+  .op-kpis{grid-template-columns:repeat(2,1fr)}
+  .op-card-head{flex-wrap:wrap} .op-card-actions{width:100%;justify-content:flex-start}
+}
+
 /* ── utilitários extraídos de style="" inline repetido (mesmo render, agora num
    lugar só). Só padrões que estavam em elementos SEM class — o resto do inline é
    override por-instância e fica onde está. ── */

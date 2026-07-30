@@ -1375,39 +1375,154 @@ function renderGrade(){
 }
 
 /* ── OPERADORES ──────────────────────────────────────────────── */
+/* ── KPIs por operador (últimos 30 dias) ── junta 3 fontes: Painel do Dia
+   (flatRows), Criação Noturna (cnStatsByOp) e Notificações (userNotifs, com os
+   MOTIVOS). Chaveado pelo NOME de exibição (apelido/nome), que é como fixBy/doneBy
+   gravam; as notificações vêm por e-mail e são casadas pelo cadastro. */
+let _opKpi = {};
+function notifTypeLabel(t){
+  if(typeof NOTIF_TYPES!=='undefined' && NOTIF_TYPES[t]) return NOTIF_TYPES[t];
+  return ({bloqueio:'Acesso suspenso', anomalia:'Anomalia automática', criacao:'Erro de criação (GU)'})[t] || (t||'Outro');
+}
+async function buildOpKpis(users){
+  const kpi = {};
+  const ensure = name => kpi[name] || (kpi[name] = {fixados:0,total:0,comId:0,semPrem:0,overlay:0,
+    cnCriados:0,cnErros:0,cnComId:0,notifs:0,notifPend:0,notifJust:0,notifByType:{},notifLast:0});
+  // Painel do Dia
+  try{
+    flatRows(dago(30), nowSP()).forEach(r=>{
+      const op = r.fixBy || r.idBy; if(!op) return;
+      const o = ensure(op); o.total++;
+      if(r.fixBy) o.fixados++;
+      if(r.id && String(r.id).toUpperCase()!=='NF' && String(r.id).trim()) o.comId++;
+      if(r.status==='aberto') o.semPrem++;
+      if(r.overlay!=null && r.overlay<0) o.overlay++;
+    });
+  }catch(e){}
+  // Criação Noturna (GU)
+  try{
+    const cn = await cnStatsByOp(dago(30), nowSP());
+    Object.entries(cn.byOp).forEach(([name,s])=>{ const o=ensure(name); o.cnCriados=s.criados||0; o.cnErros=s.erros||0; o.cnComId=s.comId||0; });
+  }catch(e){}
+  // Notificações (com motivos) — por e-mail → nome via cadastro
+  try{
+    const all = await getAllNotifsCached();
+    Object.entries(all).forEach(([emailKey, notifs])=>{
+      const u = (users && users[emailKey]) || {};
+      const name = u.apelido || u.nome; if(!name) return;
+      const o = ensure(name);
+      Object.values(notifs||{}).forEach(n=>{
+        if(!n || typeof n!=='object') return;
+        o.notifs++;
+        const t = n.type || 'outro'; o.notifByType[t] = (o.notifByType[t]||0) + 1;
+        if(n.blocked && !n.justified && !n.resolved) o.notifPend++;
+        if(n.justified) o.notifJust++;
+        const at = n.sentAt || n.at || n.since || 0; if(at > o.notifLast) o.notifLast = at;
+      });
+    });
+  }catch(e){}
+  return kpi;
+}
+
 async function loadOps(){
   if(!fbOk)return;
-  document.getElementById('opBody').innerHTML=`<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--ink3)">Carregando...</td></tr>`;
+  const host = document.getElementById('opCards');
+  if(host) host.innerHTML = `<div class="op-loading">Carregando…</div>`;
   try{
-    const snap=await db.ref('users').once('value');
-    const users=snap.val()||{};
-    const fixCount={};
-    Object.values(_allData).forEach(day=>Object.values(day.fixed).forEach(f=>{
-      if(typeof f==='object'&&f?.by)fixCount[f.by]=(fixCount[f.by]||0)+1;
-    }));
-    const rows=Object.entries(users).map(([k,u])=>({key:k,...u}));
-    document.getElementById('opCount').textContent=`${rows.length} cadastrado${rows.length!==1?'s':''}`;
-    document.getElementById('opBody').innerHTML=rows.map(u=>{
-      const email=u.email||(u.key.replace(/_dot_/g,'.').replace(/_at_/g,'@'));
-      const created=u.createdAt?new Date(u.createdAt).toLocaleDateString('pt-BR'):'—';
-      const name=u.apelido||u.nome||email;
-      const suspenso = !!u.pendingNotif;
-      return `<tr>
-        <td><div style="font-weight:700">${esc(name)}</div><div style="font-size:11px;color:var(--ink3)">${esc(u.nome||'')}</div></td>
-        <td class="c-ink2">${esc(email)}</td>
-        <td class="r mono">${fixCount[name]||0}</td>
-        <td style="display:flex;gap:5px;flex-wrap:wrap">
-          ${u.admin?'<span class="badge badge-closed">Admin</span>':'<span class="badge badge-open">Operador</span>'}
-          ${suspenso?'<span class="badge badge-nf">Suspenso</span>':''}
-        </td>
-        <td>${accessCell(u)}</td>
-        <td class="c-ink3">${created}</td>
-        <td>${suspenso
+    const snap = await db.ref('users').once('value');
+    const users = snap.val()||{};
+    _opKpi = await buildOpKpis(users);
+    const list = Object.entries(users).map(([k,u])=>({key:k,...u}));
+    // ordena: quem precisa de atenção (suspenso / erro GU) primeiro, depois por atividade
+    const score = u => { const k = _opKpi[u.apelido||u.nome||u.email]||{}; return (u.pendingNotif?100:0)+(k.cnErros?50:0)+(k.notifPend?30:0); };
+    const act   = u => { const k = _opKpi[u.apelido||u.nome||u.email]||{}; return (k.fixados||0)+(k.cnCriados||0); };
+    list.sort((a,b)=> (score(b)-score(a)) || (act(b)-act(a)));
+    document.getElementById('opCount').textContent = `${list.length} cadastrado${list.length!==1?'s':''}`;
+    if(host) host.innerHTML = list.map(opCardHtml).join('') || `<div class="op-loading">Nenhum operador cadastrado.</div>`;
+    filterOps();
+  }catch(e){ if(host) host.innerHTML = `<div class="op-loading" style="color:var(--red)">${e.message}</div>`; }
+}
+
+function opCardHtml(u){
+  const email = u.email || (u.key.replace(/_dot_/g,'.').replace(/_at_/g,'@'));
+  const name  = u.apelido || u.nome || email;
+  const k = _opKpi[name] || {};
+  const suspenso = !!u.pendingNotif, isAdmin = !!u.admin;
+  const created  = u.createdAt ? new Date(u.createdAt).toLocaleDateString('pt-BR') : '—';
+  const initial  = (String(name).trim()[0] || '?').toUpperCase();
+  const attn = suspenso || (k.notifPend>0) || (k.cnErros>0);
+  const searchStr = (name+' '+email).toLowerCase();
+  const chip = (ic,lab,val,cls)=>`<div class="op-kpi ${cls||''}"><span class="v">${val}</span><span class="l">${ic} ${lab}</span></div>`;
+  const kpis = isAdmin ? '' : `<div class="op-kpis">
+    ${chip('🎯','Fixados', k.fixados||0)}
+    ${chip('🌙','Criados GU', k.cnCriados||0)}
+    ${chip('🔖','Com ID', k.comId||0)}
+    ${chip('⚠','Erros GU', k.cnErros||0, k.cnErros>0?'bad':'')}
+    ${chip('📭','Sem prem.', k.semPrem||0, k.semPrem>5?'warn':'')}
+    ${chip('📨','Notificado', k.notifs||0, k.notifs>0?'warn':'')}
+  </div>`;
+  let notifBlk = '';
+  if(!isAdmin && k.notifs>0){
+    const motivos = Object.entries(k.notifByType).sort((a,b)=>b[1]-a[1])
+      .map(([t,c])=>`<span class="op-motivo">${esc(notifTypeLabel(t))} <b>${c}</b></span>`).join('');
+    const last = k.notifLast ? new Date(k.notifLast).toLocaleDateString('pt-BR') : '—';
+    notifBlk = `<div class="op-notif ${k.notifPend>0?'pend':''}">
+      <div class="op-notif-head">📨 <b>${k.notifs}</b> notifica&ccedil;${k.notifs>1?'&otilde;es':'&atilde;o'}${k.notifPend>0?` &middot; <span class="pendtag">${k.notifPend} pendente${k.notifPend>1?'s':''}</span>`:''}${k.notifJust>0?` &middot; <span class="op-notif-just">${k.notifJust} justificada${k.notifJust>1?'s':''}</span>`:''}<span class="op-flex"></span><span class="op-notif-last">&uacute;ltima: ${last}</span></div>
+      <div class="op-motivos">${motivos}</div>
+    </div>`;
+  }
+  const access = isAdmin
+    ? `<div class="op-admin-badge">👑 Acesso total — todos os painéis, ver e editar</div>`
+    : `<div class="op-access">
+        <div class="op-access-head"><span>Acesso aos painéis</span>
+          <span class="op-access-quick">
+            <button class="qbtn" data-key="${esc(u.key)}" data-act="opGrantAllFromEl" data-act-self>Liberar tudo</button>
+            <button class="qbtn danger" data-key="${esc(u.key)}" data-act="opRevokeAllFromEl" data-act-self>Tirar tudo</button>
+          </span>
+        </div>
+        ${accessCell(u)}
+      </div>`;
+  return `<div class="op-card${attn?' attn':''}${suspenso?' susp':''}" data-op-search="${esc(searchStr)}">
+    <div class="op-card-head">
+      <span class="op-av"${isAdmin?' style="background:var(--gold);color:#1a1408"':''}>${esc(initial)}</span>
+      <div class="op-id">
+        <div class="op-name">${esc(name)} ${isAdmin?'<span class="op-tag adm">Admin</span>':'<span class="op-tag">Operador</span>'}${suspenso?' <span class="op-tag sus">Suspenso</span>':''}</div>
+        <div class="op-email">${esc(email)} &middot; desde ${created}</div>
+      </div>
+      <div class="op-card-actions">
+        ${k.notifs>0?`<button class="btn btn-ghost btn-sm" data-act="openNotifHistory" title="Histórico de notificações">Hist&oacute;rico</button>`:''}
+        ${suspenso
           ? `<button class="btn btn-gold btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" data-act="forceUnblockOpFromEl">Reativar</button>`
-          : `<button class="btn btn-ghost btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" data-act="blockOpFromEl">Suspender</button>`}</td>
-      </tr>`;
-    }).join('');
-  }catch(e){document.getElementById('opBody').innerHTML=`<tr><td colspan="7" style="color:var(--red);padding:16px">${e.message}</td></tr>`;}
+          : `<button class="btn btn-ghost btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" data-act="blockOpFromEl">Suspender</button>`}
+      </div>
+    </div>
+    ${kpis}
+    ${notifBlk}
+    ${access}
+  </div>`;
+}
+
+function filterOps(){
+  const q = (document.getElementById('opSearch')?.value||'').trim().toLowerCase();
+  document.querySelectorAll('#opCards .op-card').forEach(c=>{
+    c.style.display = (!q || (c.dataset.opSearch||'').includes(q)) ? '' : 'none';
+  });
+}
+/* liberar / tirar acesso a TODOS os painéis de uma conta de uma vez */
+async function opSetAllAccess(key, on){
+  if(!fbOk){ toast('Firebase não conectado','err'); return; }
+  const updates = {};
+  ACCESS_PANELS.forEach(p => { updates[p.id] = on ? true : null; });
+  try{
+    await db.ref(`users/${key}/access`).update(updates);
+    toast(on ? '✓ Acesso liberado em todos os painéis' : 'Acessos removidos', 'ok');
+    await loadOps();
+  }catch(e){ toast('Falha ao salvar: '+(e.message||e), 'err'); }
+}
+async function opGrantAllFromEl(btn){ await opSetAllAccess(btn.dataset.key, true); }
+async function opRevokeAllFromEl(btn){
+  if(!await confirmModal({title:'Tirar todos os acessos', message:'Remover o acesso a <b>todos os painéis</b> desta conta?', confirmLabel:'Tirar tudo'})) return;
+  await opSetAllAccess(btn.dataset.key, false);
 }
 
 /* ── CONTROLE DE ACESSO POR PAINEL ──
