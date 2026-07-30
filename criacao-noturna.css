@@ -1264,6 +1264,23 @@ body > *{position:relative;z-index:1}
   .fs-recipe-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 32px}
   @media (min-width:900px){ .fs-recipe-grid{grid-template-columns:repeat(3,1fr)} }
 
+  /* EVENTO · VERTICAL — lista rótulo ↔ valor, empilhada e legível (não espalha
+     na largura toda). 1 coluna no celular, 2 no desktop. */
+  .ev-recipe{
+    display:grid;grid-template-columns:1fr;gap:0 clamp(28px,4vw,64px);
+    align-content:start;width:100%;max-width:1180px;margin:0 auto;
+  }
+  @media (min-width:720px){ .ev-recipe{grid-template-columns:1fr 1fr} }
+  .ev-row{
+    display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+    padding:11px 2px;border-bottom:1px solid var(--hairline);min-height:44px;
+  }
+  .ev-row .ev-k{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);white-space:nowrap;flex:none}
+  .ev-row .ev-v{font-family:var(--mono);font-weight:650;text-align:right;font-size:clamp(15px,1.15vw,19px);word-break:break-word}
+  .ev-row.key{border-bottom-color:color-mix(in srgb,var(--felt) 30%,var(--hairline))}
+  .ev-row.key .ev-v{color:var(--felt-bright);font-weight:800}
+  .ev-empty{color:var(--ink-soft);opacity:.4;font-style:italic;font-family:var(--text);font-weight:500}
+
   /* ── PEGAR TAREFA (pull): célula de dono na linha "Operador" ────────────── */
   .claimbtn{
     display:inline-flex;align-items:center;gap:5px;border-radius:99px;cursor:pointer;

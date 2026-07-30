@@ -1084,7 +1084,7 @@ function renderFS(opts){
     const it = items[FS_EVENT], key = itemKey(it), done = !!DONE[key];
     const recipe = FS_EV_ORIENT === 'h'
       ? renderHorizontal([it], cat, asg)                 // um torneio, deitado (estilo planilha)
-      : recipeGridHtml(it);                              // um torneio, empilhado (vertical)
+      : eventRecipeVerticalHtml(it, cat);                // um torneio, EMPILHADO (rótulo ↔ valor)
     body = `<div class="fs-body mode-event">
       <div class="fs-tour">
         <div class="fs-tour-top">
@@ -2069,6 +2069,39 @@ function renderHorizontal(items, cat, asg){
   return `${hiddenBarHtml()}<div class="fs-sheet"><table>${head}<tbody>${body}</tbody></table></div>`;
 }
 
+/* EVENTO · VERTICAL — um torneio empilhado como lista rótulo ↔ valor, limpa e
+   fácil de bater de cima pra baixo (2 colunas no desktop, 1 no celular). Os
+   campos-chave e os cálculos (criar em / admin fee / early bird) ganham destaque. */
+function eventRecipeVerticalHtml(it, cat){
+  const fields = visibleRecipeFieldsForItem(it);
+  const labelOf = getter => { const i = getter(it); return i ? i.label : null; };
+  const addonL = labelOf(addonInfo), ticketL = labelOf(ticketInfo), chipsL = labelOf(chipsInfo), gameL = labelOf(gameTypeInfo), koL = labelOf(koInfo);
+  const keyLabels = new Set();
+  [feeInfo, adminInfo, earlyInfo, ticketInfo, payoutInfo, calcPayoutInfo, rebuyInfo, addonInfo, chipsInfo, structureInfo, gameTypeInfo, koInfo]
+    .forEach(g => { const i = g(it); if (i && i.label) keyLabels.add(i.label); });
+  const SUITS = ['♠','♥','♦','♣'];
+  const valHtml = label => {
+    const v = it.extra ? it.extra[label] : undefined;
+    const has = v !== undefined && v !== null && v !== '';
+    if (!has) return `<span class="ev-empty">em branco</span>`;
+    const disp = fmtExtraVal(label, v);
+    if (label === addonL){ const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.')); if (isFinite(n) && n > 0) return `<span style="color:var(--gold);font-weight:800">${escHtml(fmtMoneyPlain(n, it.brl))}</span>`; }
+    if (label === ticketL) return `<span class="tkt"><span class="stub">Ticket</span><span class="val">${escHtml(disp)}</span></span>`;
+    if (label === chipsL) return `<span class="pchip">${escHtml(disp)}</span>`;
+    if (label === gameL){ const idx = [...normText(disp)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 4; return `<span class="gcard"><span class="suit ${idx === 1 || idx === 2 ? 'red' : ''}">${SUITS[idx]}</span>${escHtml(disp)}</span>`; }
+    if (label === koL && !/^(off|nao|não|no|-|—)$/i.test(String(disp).trim())) return `<span class="kochip"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>${escHtml(disp)}</span>`;
+    return escHtml(disp);
+  };
+  const rows = [];
+  rows.push(['Criar em', `<span class="mono" style="font-weight:700">${escHtml(creationWhen(it))}</span>`, true]);
+  const af = adminFeeParts(it); if (af) rows.push(['Admin Fee', `<span class="calc-chip admin">${escHtml(af.main)}</span>`, true]);
+  const e = earlyParts(it); if (e) rows.push(['Early Bird', `<span class="calc-chip early">${escHtml(e.main)}${e.sub ? `<span class="amt">${escHtml(e.sub)}</span>` : ''}</span>`, true]);
+  if (hasCampaign(it)){ const c = campInfo(it); rows.push(['Campanha', `<span style="color:var(--sat-bright);font-weight:700">✦ ${escHtml((c || {}).disp || 'ativa')}</span>`, true]); }
+  fields.forEach(l => rows.push([l, valHtml(l), keyLabels.has(l)]));
+  return `<div class="ev-recipe">${rows.map(([k, v, key]) =>
+    `<div class="ev-row ${key ? 'key' : ''}"><span class="ev-k" title="${escHtml(k)}">${escHtml(k)}</span><span class="ev-v">${v}</span></div>`).join('')}</div>`;
+}
+
 /* =========================================================================
    MODO FOCO — criar o próximo: um torneio por vez, receita gigante, campo de
    ID e avanço automático ao marcar como criado. A fila prioriza quem está
@@ -2754,24 +2787,31 @@ $('exportSecBtn').addEventListener('click', async () => {
     if (!items.length) return;
     const fields = recipeFieldsFor(cat);            // receita COMPLETA (Liga tem campos próprios); independe do que está oculto na tela
     const cCur = cat.brl ? 'R$' : cur;
-    const header = ['Horário', 'Torneio', 'Criar em', 'Operador', 'ID Pokerbyte', 'Criado', `Garantido (${cCur})`, `Buy-in (${cCur})`, ...fields];
-    const rows = [header];
-    items.forEach(it => {
+    // EM COLUNAS (igual à visão Vertical do app): 1ª coluna = rótulos das linhas,
+    // depois UMA COLUNA POR TORNEIO. Facilita bater campo a campo lado a lado.
+    const labels = ['Torneio', 'Horário', 'Criar em', 'Operador', 'ID Pokerbyte', 'Criado', `Garantido (${cCur})`, `Buy-in (${cCur})`, ...fields];
+    const valOf = (it, i) => {
       const key = itemKey(it);
-      rows.push([
-        it.hora, it.nome, creationWhen(it), asg[key] || '', idVal(key), DONE[key] ? 'SIM' : '',
-        convV(it, it.garantido), convV(it, it.buyin),
-        ...fields.map(l => { const v = it.extra ? it.extra[l] : undefined; return (v === undefined || v === null) ? '' : v; })
-      ]);
-    });
+      switch (i){
+        case 0: return it.nome;
+        case 1: return it.hora;
+        case 2: return creationWhen(it);
+        case 3: return asg[key] || '';
+        case 4: return idVal(key);
+        case 5: return DONE[key] ? 'SIM' : '';
+        case 6: return convV(it, it.garantido);
+        case 7: return convV(it, it.buyin);
+        default: { const v = it.extra ? it.extra[fields[i - 8]] : undefined; return (v === undefined || v === null) ? '' : v; }
+      }
+    };
+    const rows = labels.map((label, i) => [label, ...items.map(it => valOf(it, i))]);
     const gtd = gtdSum(items);
     grandTotal += gtd;
-    rows.push([]);
-    const gtdCur = cat.brl ? 'R$' : cur;
     const gtdVal = cat.brl ? gtd : (CURRENCY === 'usd' ? gtd : gtd * BRL_RATE);
-    rows.push([`${items.length} torneios · GTD total ${gtdCur} ${gtdVal.toLocaleString('pt-BR')}`]);
+    rows.push([]);
+    rows.push([`${items.length} torneios · GTD total ${cCur} ${gtdVal.toLocaleString('pt-BR')}`]);
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [{wch:9},{wch:28},{wch:16},{wch:14},{wch:16},{wch:8},{wch:14},{wch:12}, ...fields.map(() => ({wch:16}))];
+    ws['!cols'] = [{wch:20}, ...items.map(() => ({wch:22}))];   // rótulos + uma coluna por torneio
     XLSX.utils.book_append_sheet(wb, ws, cat.label.replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31));
     sheets++;
   });
