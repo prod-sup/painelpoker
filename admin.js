@@ -1093,6 +1093,68 @@ function dailySeries(rows, valueFn){
   const byDate={}; rows.forEach(r=>{ byDate[r.date]=(byDate[r.date]||0)+(valueFn(r)||0); });
   return Object.keys(byDate).sort().map(d=>byDate[d]);
 }
+
+/* ── ANÁLISE POR SÉRIE ── detecta o festival pelo NOME (SPS / SPT) e resume
+   desempenho por série + a evolução semanal (série temporal). */
+function seriesOf(nome){
+  const n = String(nome||'').toUpperCase();
+  if(/\bSPS\b|SUPREMA\s+POKER\s+SERIES/.test(n)) return 'SPS';
+  if(/\bSPT\b|SUPREMA\s+POKER\s+TOUR/.test(n))   return 'SPT';
+  return null;
+}
+const SERIES_META = [
+  {id:'SPS', label:'SPS · Suprema Poker Series', color:'var(--gold)'},
+  {id:'SPT', label:'SPT · Suprema Poker Tour',   color:'var(--blue)'},
+  {id:'REG', label:'Torneios regulares',          color:'var(--ink3)'},
+];
+function buildSeriesAnalysis(rows, closed){
+  const host = document.getElementById('seriesCards'); if(!host) return;
+  const mk = ()=>({ev:0,gtd:0,prem:0,ov:0,fieldSum:0,fieldN:0,closed:0});
+  const agg = {SPS:mk(), SPT:mk(), REG:mk()};
+  rows.forEach(r=>{ const a=agg[seriesOf(r.nome)||'REG']; a.ev++; a.gtd+=r.garantido||0; if(r.field!=null){a.fieldSum+=r.field;a.fieldN++;} });
+  closed.forEach(r=>{ const a=agg[seriesOf(r.nome)||'REG']; a.closed++; a.prem+=r.premiacao||0; if(r.overlay<0) a.ov+=Math.abs(r.overlay); });
+  host.innerHTML = SERIES_META.map(m=>{
+    const a=agg[m.id]; if(!a.ev) return '';
+    const closeR   = a.ev?Math.round(a.closed/a.ev*100):0;
+    const fieldAvg = a.fieldN?Math.round(a.fieldSum/a.fieldN):null;
+    const cover    = a.gtd>0?Math.round(a.prem/a.gtd*100):0;
+    return `<div class="series-card" style="--sc:${m.color}">
+      <div class="sc-head"><span class="sc-dot"></span>${esc(m.label)}<span class="sc-count">${a.ev} ev</span></div>
+      <div class="sc-kpis">
+        <div class="sc-k"><b>${brlk(a.gtd)}</b><span>GTD total</span></div>
+        <div class="sc-k"><b>${brlk(a.prem)}</b><span>Premiação</span></div>
+        <div class="sc-k"><b class="${a.ov>0?'sc-red':''}">${brlk(a.ov)}</b><span>Overlay</span></div>
+        <div class="sc-k"><b>${fieldAvg??'—'}</b><span>Field médio</span></div>
+        <div class="sc-k"><b>${cover}%</b><span>Cobertura</span></div>
+        <div class="sc-k"><b>${closeR}%</b><span>Fechados</span></div>
+      </div></div>`;
+  }).join('') || `<div class="series-empty">Sem eventos no período.</div>`;
+  buildSeriesChart(closed);
+}
+function buildSeriesChart(closed){
+  const host = document.getElementById('seriesChart'); if(!host) return;
+  const evs = closed.filter(r=>seriesOf(r.nome));
+  if(!evs.length){ host.innerHTML = `<div class="series-empty">Nenhum evento SPS/SPT com premiação no período — a linha do tempo aparece quando rolar um festival.</div>`; return; }
+  const dates = [...new Set(evs.map(r=>r.date))].sort();
+  const start = new Date(dates[0]+'T12:00:00Z');
+  const bucket = {};
+  evs.forEach(r=>{
+    const b = Math.floor((new Date(r.date+'T12:00:00Z')-start)/(7*86400000));
+    const o = bucket[b] || (bucket[b]={SPS:0,SPT:0});
+    o[seriesOf(r.nome)] += r.premiacao||0;
+  });
+  const keys = Object.keys(bucket).map(Number).sort((a,b)=>a-b);
+  const max  = Math.max(1, ...keys.map(b=>Math.max(bucket[b].SPS, bucket[b].SPT)));
+  const lbl  = b => { const d=new Date(start.getTime()+b*7*86400000); return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}`; };
+  host.innerHTML =
+    `<div class="sc-legend"><span><i style="background:var(--gold)"></i>SPS</span><span><i style="background:var(--blue)"></i>SPT</span><span class="sc-legend-note">premiação por semana</span></div>`
+    + `<div class="sc-bars">` + keys.map(b=>{
+        const v=bucket[b];
+        return `<div class="sc-col" title="Semana de ${lbl(b)} — SPS ${brlk(v.SPS)} · SPT ${brlk(v.SPT)}">
+          <div class="sc-barwrap"><div class="sc-bar sps" style="height:${Math.round(v.SPS/max*100)}%"></div><div class="sc-bar spt" style="height:${Math.round(v.SPT/max*100)}%"></div></div>
+          <div class="sc-x">${lbl(b)}</div></div>`;
+      }).join('') + `</div>`;
+}
 function buildDash(){
   buildDashCn();
   const rows=flatRows(dago(_dp),nowSP());
@@ -1171,6 +1233,8 @@ function buildDash(){
     </tr>`;
   }).join(''):`<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--ink3)">Sem overlay no período</td></tr>`;
 
+  // ── Análise por série (SPS / SPT / regulares) ──
+  buildSeriesAnalysis(rows, closed);
   // ── Insights inteligentes ──
   buildInsights(rows, closed, _dp);
   // ── Projeção do mês ──
@@ -1351,6 +1415,17 @@ function buildInsights(rows, closed, days){
         text:`<b>Calibração recomendada:</b> <b>${esc(v.nome)}</b> teve overlay em ${v.ovN}/${v.n} rodadas. GTD médio atual: R$ ${brl(avgGar)}. Considere reduzir o garantido.`
       });
     });
+
+  // 13. Séries (festivais SPS / SPT) — alerta de overlay ou elogio de cobertura
+  const serAgg = {};
+  closed.forEach(r=>{ const s=seriesOf(r.nome); if(!s) return; const a=serAgg[s]||(serAgg[s]={ev:0,ov:0,prem:0,gtd:0}); a.ev++; a.prem+=r.premiacao||0; a.gtd+=r.garantido||0; if(r.overlay<0) a.ov+=Math.abs(r.overlay); });
+  Object.entries(serAgg).forEach(([s,a])=>{
+    if(a.ev<3) return;
+    if(a.ov > cfg.overlayDia)
+      insights.push({type:'alert', icon:'🎟️', text:`Festival <b>${s}</b>: R$ ${brl(a.ov)} de overlay acumulado em ${a.ev} eventos. Revisar o GTD dos torneios da série.`});
+    else if(a.gtd>0 && a.prem/a.gtd >= 1.1)
+      insights.push({type:'ok', icon:'🎟️', text:`Festival <b>${s}</b> forte: cobriu <b>${Math.round(a.prem/a.gtd*100)}%</b> do GTD em ${a.ev} eventos, sem overlay relevante.`});
+  });
 
   if(!insights.length){
     el.innerHTML=`<div style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--ink3);padding:12px 0">${typeIcon('ok')}Nenhuma anomalia detectada no período.</div>`;
@@ -2457,6 +2532,96 @@ async function exportMonthXlsx(){
   status.textContent = `✓ ${dates.length} dias exportados (${label})`;
 }
 
+// ── EXPORT SQLITE (banco pronto, via sql.js sob demanda) ──
+let _sqlJs = null;
+async function ensureSqlJs(){
+  if(_sqlJs) return _sqlJs;
+  const CDN = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3';
+  if(typeof initSqlJs === 'undefined'){
+    await new Promise((res,rej)=>{
+      const s = document.createElement('script');
+      s.src = `${CDN}/sql-wasm.js`;
+      s.onload = res; s.onerror = () => rej(new Error('não consegui baixar o sql.js (sem internet?)'));
+      document.head.appendChild(s);
+    });
+  }
+  _sqlJs = await initSqlJs({ locateFile: f => `${CDN}/${f}` });
+  return _sqlJs;
+}
+async function exportSqlite(){
+  if(!fbOk){ toast('Firebase não conectado','err'); return; }
+  const status = document.getElementById('bkSqliteStatus');
+  const set = t => { if(status) status.textContent = t; };
+  try{
+    set('Carregando o histórico completo…');
+    if(!_loadAllFull) await loadAll(true);
+    const dates = Object.keys(_allData).sort();
+    if(!dates.length){ toast('Sem dados pra exportar','err'); set(''); return; }
+    set('Carregando o motor SQLite (sql.js)…');
+    const SQL = await ensureSqlJs();
+    set('Montando o banco…');
+    const db = new SQL.Database();
+    db.run(`CREATE TABLE torneios(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      data TEXT, nome TEXT, hora TEXT, categoria TEXT,
+      garantido REAL, buyin REAL, premiacao REAL, field INTEGER, overlay REAL,
+      perf REAL, id_pokerbyte TEXT, status TEXT, fixado_por TEXT, operador TEXT
+    );`);
+    const rows = flatRows(dates[0], dates[dates.length-1]);
+    const ins = db.prepare('INSERT INTO torneios (data,nome,hora,categoria,garantido,buyin,premiacao,field,overlay,perf,id_pokerbyte,status,fixado_por,operador) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    rows.forEach(r => ins.run([r.date, r.nome||null, r.hora||null, r.cat||null,
+      r.garantido??null, r.buyin??null, r.premiacao??null, r.field??null, r.overlay??null, r.perf??null,
+      r.id||null, r.status||null, r.fixBy||null, r.fixBy||r.idBy||null]));
+    ins.free();
+    db.run(`CREATE TABLE auditoria(
+      data TEXT, chave TEXT, nome TEXT, hora TEXT, status TEXT,
+      premiacao_original REAL, premiacao_auditada REAL,
+      field_original INTEGER, field_auditado INTEGER,
+      garantido_original REAL, garantido_auditado REAL,
+      id_original TEXT, id_auditado TEXT,
+      obs TEXT, auditado_por TEXT, auditado_em INTEGER
+    );`);
+    let nAud = 0;
+    const insA = db.prepare('INSERT INTO auditoria (data,chave,nome,hora,status,premiacao_original,premiacao_auditada,field_original,field_auditado,garantido_original,garantido_auditado,id_original,id_auditado,obs,auditado_por,auditado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    Object.entries(_auditData||{}).forEach(([date,byKey])=>{
+      Object.entries(byKey||{}).forEach(([key,e])=>{
+        if(!e || typeof e!=='object') return;
+        insA.run([date, key, e.nome||null, e.hora||null, e.status||null,
+          e.premiacaoOriginal??null, e.premiacaoAuditada??null,
+          e.fieldOriginal??null, e.fieldAuditado??null,
+          e.garantidoOriginal??null, e.garantidoAuditado??null,
+          e.idOriginal||null, e.idAuditado||null,
+          e.obs||null, e.auditadoPor||null, e.auditadoEm??null]);
+        nAud++;
+      });
+    });
+    insA.free();
+    db.run(`CREATE TABLE meta(chave TEXT, valor TEXT);`);
+    const insM = db.prepare('INSERT INTO meta (chave,valor) VALUES (?,?)');
+    [['gerado_em', new Date().toISOString()], ['gerado_por', _email||'admin'],
+     ['total_torneios', String(rows.length)], ['total_auditorias', String(nAud)],
+     ['dias', String(dates.length)], ['periodo', `${dates[0]} a ${dates[dates.length-1]}`],
+     ['fonte', 'Suprema OS · Painel Admin']].forEach(m => insM.run(m));
+    insM.free();
+
+    const bytes = db.export();
+    db.close();
+    const blob = new Blob([bytes], {type:'application/vnd.sqlite3'});
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `suprema_backup_${nowSP()}.sqlite`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+    localStorage.setItem('suprema_last_sqlite', Date.now());
+    toast(`✓ SQLite gerado — ${rows.length} torneios`, 'ok');
+    set(`✓ ${rows.length} torneios · ${nAud} auditorias · ${dates.length} dias · ${(bytes.length/1024).toFixed(0)} KB baixado`);
+  }catch(e){
+    console.error('exportSqlite', e);
+    toast('Falha ao gerar SQLite: '+(e.message||e), 'err');
+    set('Erro: '+(e.message||e));
+  }
+}
+
 // ── EXPORT TUDO ──
 async function exportAllTimeXlsx(){
   await ensureXLSX();                 // SheetJS sob demanda
@@ -2728,21 +2893,42 @@ async function exportToSheets(){
   const status = document.getElementById('sheetsStatus');
   status.textContent = 'Enviando...';
 
+  // O Apps Script responde via redirect pro googleusercontent, que NÃO manda
+  // header de CORS — então `res.json()` estoura mesmo quando o POST foi entregue
+  // e salvou. Era ISSO que fazia o backup "não rodar". Estratégia resiliente:
+  // 1) tenta ler a resposta (confirma de verdade); 2) se a leitura for bloqueada
+  // por CORS, o dado provavelmente foi salvo → reporta "enviado, confira"; 3) se
+  // nem enviar deu, tenta no-cors e, falhando, orienta a configuração do deploy.
+  const payload = JSON.stringify({date:fmtDate(today), rows, secret});
+  const now = () => new Date().toLocaleTimeString('pt-BR');
+  let confirmed = false, sent = false, srvError = null;
   try{
-    const res = await fetch(url, {
-      method:'POST',
-      body: JSON.stringify({date:fmtDate(today), rows, secret}),
-    });
-    const json = await res.json();
-    if(json.ok){
-      toast('✓ Dados enviados para Google Sheets','ok');
-      status.textContent = `✓ ${rows.length} torneios enviados em ${new Date().toLocaleTimeString('pt-BR')}`;
-    } else {
-      throw new Error(json.error||'Resposta inválida');
-    }
-  }catch(e){
-    toast('Erro ao enviar: '+e.message,'err');
-    status.textContent = '❌ '+e.message;
+    const res = await fetch(url, { method:'POST', redirect:'follow', body: payload });
+    sent = true;
+    try{
+      const json = await res.json();
+      if(json && json.ok) confirmed = true;
+      else if(json && json.error) srvError = json.error;
+    }catch(_readErr){ /* resposta opaca/CORS — normal no Apps Script */ }
+  }catch(_netErr){
+    try{ await fetch(url, { method:'POST', mode:'no-cors', body: payload }); sent = true; }
+    catch(_e2){ sent = false; }
+  }
+
+  if(srvError){
+    toast('O Apps Script recusou: '+srvError, 'err');
+    status.textContent = '❌ '+srvError+' — confira o segredo (secret) e o código do script.';
+  } else if(confirmed){
+    localStorage.setItem('suprema_last_sheets', Date.now());
+    toast('✓ Dados enviados para Google Sheets','ok');
+    status.textContent = `✓ ${rows.length} torneios enviados às ${now()} (confirmado)`;
+  } else if(sent){
+    localStorage.setItem('suprema_last_sheets', Date.now());
+    toast('Enviado ao Sheets — confira a planilha','ok');
+    status.textContent = `↑ ${rows.length} torneios enviados às ${now()}. A resposta veio bloqueada por CORS (normal no Apps Script) — confira se apareceram na planilha.`;
+  } else {
+    toast('Não consegui enviar pro Sheets','err');
+    status.textContent = '❌ Não consegui enviar. Confira a URL do Apps Script e republique o deploy como "Executar como: eu" e "Quem tem acesso: qualquer pessoa".';
   }
 }
 
@@ -3412,6 +3598,7 @@ function buildMonthProjection(){
   const lastDay  = new Date(parseInt(y), parseInt(m), 0).getDate();
   const daysPast = parseInt(today.slice(8));
   const daysLeft = lastDay - daysPast;
+  const monthName = new Date(parseInt(y), parseInt(m)-1, 1).toLocaleDateString('pt-BR',{month:'long'});
 
   const rows    = flatRows(firstDay, today);
   const closed  = rows.filter(r=>r.premiacao!=null);
@@ -3420,7 +3607,7 @@ function buildMonthProjection(){
   const totalOv   = closed.reduce((s,r)=>s+(r.overlay||0),0);
 
   if(!closed.length || !daysPast){
-    el.innerHTML = '<div style="font-size:12px;color:var(--ink3)">Sem dados suficientes para projeção.</div>';
+    el.innerHTML = '<div style="font-size:12px;color:var(--ink3);padding:6px 0">Sem dados suficientes neste mês para projetar.</div>';
     return;
   }
 
@@ -3430,29 +3617,29 @@ function buildMonthProjection(){
   const projPrem    = totalPrem + premPerDay * daysLeft;
   const projOv      = totalOv   + ovPerDay   * daysLeft;
   const coveragePct = totalGar > 0 ? (totalPrem/totalGar*100) : 0;
+  const progPct     = Math.round(daysPast/lastDay*100);
 
+  // mês anterior (fechado) para comparar a projeção
+  const prevD = new Date(parseInt(y), parseInt(m)-2, 1);
+  const pY = prevD.getFullYear(), pM = String(prevD.getMonth()+1).padStart(2,'0');
+  const pLast = new Date(pY, prevD.getMonth()+1, 0).getDate();
+  const prevRows = flatRows(`${pY}-${pM}-01`, `${pY}-${pM}-${String(pLast).padStart(2,'0')}`);
+  const prevPrem = prevRows.filter(r=>r.premiacao!=null).reduce((s,r)=>s+(r.premiacao||0),0);
+  const cmp = prevPrem>0 ? ((projPrem-prevPrem)/prevPrem*100) : null;
+  const prevMonthName = prevD.toLocaleDateString('pt-BR',{month:'long'});
+
+  const cardC = (label,val,color,sub)=>`<div class="proj-card"><div class="proj-l">${label}</div><div class="proj-v"${color?` style="color:${color}"`:''}>${val}</div><div class="proj-s">${sub}</div></div>`;
   el.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">
-      <div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:9px">
-        <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px">Premiação até hoje</div>
-        <div style="font-size:18px;font-weight:800;font-family:var(--mono)">${brlk(totalPrem)}</div>
-        <div style="font-size:10px;color:var(--ink3)">${daysPast}/${lastDay} dias</div>
-      </div>
-      <div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:9px">
-        <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px">Projeção do mês</div>
-        <div style="font-size:18px;font-weight:800;font-family:var(--mono);color:var(--gold)">${brlk(projPrem)}</div>
-        <div style="font-size:10px;color:var(--ink3)">+${daysLeft} dias restantes</div>
-      </div>
-      <div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:9px">
-        <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px">Overlay projetado</div>
-        <div style="font-size:18px;font-weight:800;font-family:var(--mono);color:${projOv<0?'var(--red)':'var(--green)'}">${projOv<0?'-':'+'}${brlk(Math.abs(projOv))}</div>
-        <div style="font-size:10px;color:var(--ink3)">baseado na média diária</div>
-      </div>
-      <div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:9px">
-        <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px">Cobertura GTD</div>
-        <div style="font-size:18px;font-weight:800;font-family:var(--mono);color:${coveragePct>=100?'var(--green)':'var(--amber)'}">${coveragePct.toFixed(0)}%</div>
-        <div style="font-size:10px;color:var(--ink3)">premiação vs garantido</div>
-      </div>
+    <div class="proj-head">
+      <div class="proj-title">📆 ${monthName.charAt(0).toUpperCase()+monthName.slice(1)} — <b>${daysPast}</b> de ${lastDay} dias</div>
+      <div class="proj-bar"><div class="proj-bar-fill" style="width:${progPct}%"></div></div>
+      <div class="proj-cap">${progPct}% do mês rodado${cmp!=null?` &middot; projeção <b style="color:${cmp>=0?'var(--green)':'var(--red)'}">${cmp>=0?'▲':'▼'} ${Math.abs(cmp).toFixed(0)}%</b> vs ${prevMonthName} (R$ ${brlk(prevPrem)})`:''}</div>
+    </div>
+    <div class="proj-grid">
+      ${cardC('Premiação até hoje', 'R$ '+brlk(totalPrem), '', `R$ ${brlk(premPerDay)}/dia`)}
+      ${cardC('Projeção do mês', 'R$ '+brlk(projPrem), 'var(--gold)', `+${daysLeft} dia${daysLeft!==1?'s':''} no ritmo atual`)}
+      ${cardC('Overlay projetado', (projOv<0?'-':'+')+'R$ '+brlk(Math.abs(projOv)), projOv<0?'var(--red)':'var(--green)', 'na média diária')}
+      ${cardC('Cobertura GTD', coveragePct.toFixed(0)+'%', coveragePct>=100?'var(--green)':'var(--amber)', 'premiação vs garantido')}
     </div>`;
 }
 

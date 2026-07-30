@@ -246,6 +246,14 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
       <div class="card" style="margin-bottom:18px">
         <div class="card-head">
+          <div><div class="card-title"><svg viewBox="0 0 24 24"><path d="M4 4v16h16"/><path d="M8 16l3-5 3 3 4-7"/></svg> Análise por série</div>
+               <div class="card-sub">Festivais <b>SPS</b> e <b>SPT</b> vs. torneios regulares — desempenho e evolução no tempo</div></div>
+        </div>
+        <div id="seriesCards" class="series-cards"></div>
+        <div id="seriesChart" class="series-chart"></div>
+      </div>
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
           <div><div class="card-title"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Insights do período</div><div class="card-sub">Anomalias e oportunidades detectadas automaticamente</div></div>
           <div class="card-actions"><button class="btn btn-ghost btn-sm" data-act="openInsightSettings">⚙ Limiares</button></div>
         </div>
@@ -398,6 +406,21 @@ document.addEventListener('DOMContentLoaded', () => {
             <button class="btn btn-ghost" data-act="exportAllTimeXlsx">⬇ Exportar TUDO</button>
           </div>
           <div id="bkMonthStatus" style="font-size:12px;color:var(--ink3)"></div>
+        </div>
+      </div>
+
+      <!-- Backup SQLite (banco pronto) -->
+      <div class="card" style="margin-bottom:18px">
+        <div class="card-head">
+          <div><div class="card-title"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg> Backup SQLite (banco pronto)</div>
+               <div class="card-sub">Baixa um arquivo <b>.sqlite</b> com todo o histórico — abre no DB Browser, Python, ou pra migrar pro servidor. Tabelas: <code>torneios</code> e <code>auditoria</code>.</div></div>
+        </div>
+        <div style="padding:16px 18px">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <button class="btn btn-gold" data-act="exportSqlite">⬇ Baixar SQLite (.sqlite)</button>
+            <span style="font-size:11.5px;color:var(--ink3)">Carrega o motor SQLite (sql.js) sob demanda na 1ª vez.</span>
+          </div>
+          <div id="bkSqliteStatus" style="font-size:12px;color:var(--ink3);margin-top:10px"></div>
         </div>
       </div>
 

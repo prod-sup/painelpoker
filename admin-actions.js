@@ -113,7 +113,7 @@
     'previewCleanup', 'previewCleanupUntil', 'closeMo', 'maskBRL',
     // EXPORTAR XLSX (leitura → arquivo). exportToSheets fica FORA: escreve no Sheets.
     'exportAuditXlsx', 'exportAuditSummaryXlsx', 'exportGradeXlsx', 'exportCnXlsx',
-    'exportMonthXlsx', 'exportAllTimeXlsx', 'copyAppsScript',
+    'exportMonthXlsx', 'exportAllTimeXlsx', 'exportSqlite', 'copyAppsScript',
   ]);
   let _roToastAt = 0, _roToastEl = null;
   function roToast(msg) {
