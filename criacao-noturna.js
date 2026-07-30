@@ -374,12 +374,10 @@ function setRole(op, role){
   if (fbDb) fbDb.ref(`${FB_PATH}/roles`).set(ROLES);
   else renderAll();
 }
-/* operadores de um bloco: os marcados com aquela função; se ninguém marcou,
-   todos dividem (fallback pra funcionar antes de atribuírem as funções) */
-function opsForRole(role){
-  const assigned = OPS.filter(o => roleOf(o) === role);
-  return assigned.length ? assigned : OPS;
-}
+/* funções removidas (modelo "pegar tarefa"): a divisão automática é só uma
+   SUGESTÃO e round-robina entre TODOS da equipe. Mantido o nome pra não mexer
+   no computeAssignments. */
+function opsForRole(_role){ return OPS; }
 
 /* extractGuDaySection e buildSections vivem em gu-parser.js */
 
@@ -1191,15 +1189,16 @@ function renderFieldDiag(){
 function renderOps(){
   const row = $('opsRow');
   if (!row) return;
+  const asg = computeAssignments();
+  const load = {}; OPS.forEach(o => load[o] = 0);
+  Object.values(asg).forEach(o => { if (o in load) load[o]++; });
   let html = OPS.map(o => {
-    const r = roleOf(o);
-    const opts = `<option value="">Sugestão de função… (opcional)</option>` + ROLE_OPTS.map(ro =>
-      `<option value="${ro.key}" ${r === ro.key ? 'selected' : ''}>${ro.label}</option>`).join('');
+    const n = load[o] || 0;
     return `
-    <span class="op-chip" ${r ? `data-role="${r}"` : ''}>
+    <span class="op-chip">
       <span class="avatar" style="background:${opColor(o)}">${escHtml(o.trim()[0].toUpperCase())}</span>
-      ${escHtml(o)}
-      <select class="role-sel" data-op="${escHtml(o)}" title="Função de ${escHtml(o)} no turno">${opts}</select>
+      ${escHtml(o)}${normText(o) === normText(ME) ? ' <span class="you">(você)</span>' : ''}
+      <span class="op-load" title="Torneios com ${escHtml(o.split(' ')[0])}">${n}</span>
       <button class="rm" data-op="${escHtml(o)}" title="Remover do turno">×</button>
     </span>`;
   }).join('');
@@ -1213,7 +1212,6 @@ function renderOps(){
   }
   row.innerHTML = html;
   row.querySelectorAll('.rm').forEach(b => b.addEventListener('click', () => saveOps(OPS.filter(o => o !== b.dataset.op))));
-  row.querySelectorAll('.role-sel').forEach(sel => sel.addEventListener('change', () => setRole(sel.dataset.op, sel.value)));
   const addOp = () => {
     const v = $('opAddInput').value.trim();
     if (!v) return;
@@ -1696,22 +1694,45 @@ function claimSection(catKey){
   saveOverrides(); logEvent('pegou seção', `${cat.label} — ${items.length}`);
   showToast(`Você pegou ${items.length} torneio(s) de ${cat.label}.`);
 }
-/* a célula "Operador" agora é clicável: mostra o dono (ou "livre") + um ✋ pegar */
+/* célula "Operador": dono (ou "livre") + ações RÁPIDAS num toque —
+   ✋ pegar · ↗ passar (abre a lista de operadores) · ✕ soltar. */
 function claimCellHtml(key, op){
   const owned = !!OVERRIDES[key];              // pego explicitamente por alguém
   const mine = isMine(op);
   const chip = op
     ? `<span class="op-tag claim-op ${mine ? 'mine' : ''}" style="background:${opColor(op)}"><span class="dot">${escHtml(op.trim()[0].toUpperCase())}</span>${escHtml(op.split(' ')[0])}${owned ? '' : ' <em style="font-style:normal;opacity:.6;font-size:.85em">·auto</em>'}</span>`
     : `<span class="op-tag none">livre</span>`;
-  return `<span class="claim-wrap"><span class="claim-tap" data-claim="${key}" role="button" tabindex="0" title="Clique pra pegar, passar ou soltar este torneio">${chip}</span>${mine ? '' : `<button class="claimbtn claim-more" data-claimme="${key}" title="Pegar pra mim">✋</button>`}</span>`;
+  const btns =
+    (mine ? '' : `<button class="claim-mini pick" data-claimme="${key}" title="Pegar pra mim">✋</button>`) +
+    `<button class="claim-mini pick" data-pass="${key}" title="Passar para outro operador">↗</button>` +
+    (owned ? `<button class="claim-mini drop" data-release="${key}" title="Soltar (deixar livre)">✕</button>` : '');
+  return `<span class="claim-wrap"><span class="claim-tap" data-claim="${key}" role="button" tabindex="0" title="Clique pra ver todas as opções">${chip}</span>${btns}</span>`;
+}
+/* ↗ passar: abre direto a lista de operadores (um toque escolhe) */
+function openPassMenu(anchor, keys){
+  const list = Array.isArray(keys) ? keys : [keys];
+  if (!list.length) return;
+  const cur = list.length === 1 ? OVERRIDES[list[0]] : null;
+  const opts = OPS.filter(o => !cur || normText(o) !== normText(cur)).map(o => ({
+    label: `${o.split(' ')[0]}${list.length > 1 ? ` — ${list.length} torneios` : ''}`, color: opColor(o), initial: o.trim()[0].toUpperCase(),
+    onPick: () => { list.forEach(k => claimItemQuiet(k, o)); saveOverrides(); logEvent('passou', `${list.length} → ${o}`); if (list.length > 1){ clearSel(); showToast(`${list.length} passado(s) pra ${o.split(' ')[0]}.`); } }
+  }));
+  if (!opts.length){ showToast('Adicione operadores na equipe primeiro (aba acima).', true); return; }
+  openPickMenu(anchor, list.length > 1 ? `Passar ${list.length} torneio(s) para:` : 'Passar para:', opts);
+}
+/* claim sem gravar/render (pra passar em lote e gravar uma vez só) */
+function claimItemQuiet(key, op){
+  if (!op) return;
+  if (!OPS.some(o => normText(o) === normText(op))) OPS = [...OPS, op];
+  OVERRIDES[key] = op;
 }
 function openClaimMenu(anchor, key){
   if (!ME){ showToast('Entre com seu nome no hub pra pegar torneios.', true); return; }
   const cur = OVERRIDES[key];
   const opts = [];
   if (!isMine(cur)) opts.push({label:'✋ Pegar pra mim', color: opColor(ME), initial: (ME.trim()[0] || '?').toUpperCase(), onPick: () => claimItem(key, ME)});
-  OPS.filter(o => !isMine(o)).forEach(o => opts.push({label:`Passar pra ${o.split(' ')[0]}`, color: opColor(o), initial: o.trim()[0].toUpperCase(), onPick: () => claimItem(key, o)}));
-  if (cur) opts.push({label:'↺ Soltar (deixar livre / voltar ao automático)', color:'var(--ink-soft)', initial:'↺', onPick: () => releaseItem(key)});
+  OPS.filter(o => !isMine(o)).forEach(o => opts.push({label:`↗ Passar pra ${o.split(' ')[0]}`, color: opColor(o), initial: o.trim()[0].toUpperCase(), onPick: () => claimItem(key, o)}));
+  if (cur) opts.push({label:'✕ Soltar (deixar livre / voltar ao automático)', color:'var(--ink-soft)', initial:'✕', onPick: () => releaseItem(key)});
   openPickMenu(anchor, 'Quem cria este torneio?', opts);
 }
 
@@ -1771,12 +1792,7 @@ function selAction(act, anchor){
     logEvent('pegou em massa', `${keys.length} torneio(s)`); showToast(`Você pegou ${keys.length} torneio(s).`); return;
   }
   if (act === 'release'){ keys.forEach(k => { delete OVERRIDES[k]; }); clearSel(); saveOverrides(); showToast(`${keys.length} torneio(s) solto(s).`); return; }
-  if (act === 'pass'){
-    const opts = OPS.filter(o => !isMine(o)).map(o => ({label:`Passar ${keys.length} pra ${o.split(' ')[0]}`, color: opColor(o), initial: o.trim()[0].toUpperCase(),
-      onPick: () => { if (!OPS.some(x => normText(x) === normText(o))){ OPS = [...OPS, o]; if (fbDb) fbDb.ref(`${FB_PATH}/ops`).set(OPS); } keys.forEach(k => OVERRIDES[k] = o); clearSel(); saveOverrides(); showToast(`${keys.length} passado(s) pra ${o.split(' ')[0]}.`); }}));
-    if (!opts.length){ showToast('Sem parceiros na equipe pra receber.', true); return; }
-    openPickMenu(anchor, `Passar ${keys.length} torneio(s) para:`, opts);
-  }
+  if (act === 'pass'){ openPassMenu(anchor, keys); }   // mesma lista de operadores do ↗ da linha
 }
 
 /* =========================================================================
@@ -1798,18 +1814,16 @@ function hiddenBarHtml(){
   return `<div class="hidden-fields-bar"><span>👁 ${HIDDEN_FIELDS.size} campo(s) oculto(s):</span>${chips}<button class="hf-chip" data-unhide="*ALL*" title="Reexibir todos">↺ mostrar todos</button></div>`;
 }
 
-/* nota abaixo do cabeçalho da seção: explica a função e quem está nela */
+/* nota curta abaixo do cabeçalho da seção */
 function sectionNoteHtml(cat){
-  const explicit = OPS.filter(o => roleOf(o) === cat.role);
-  const chips = explicit.map(o =>
-    `<span class="lk"><span class="d" style="background:${opColor(o)}"></span>${escHtml(o.split(' ')[0])}</span>`).join('');
   let msg;
-  if (cat.key === 'sat')            msg = '<b>Quem cria o Main cria os Satélites</b> — mesma função.';
-  else if (cat.key === 'main')      msg = 'Base da grade — vai junto com os Satélites.';
+  if (cat.key === 'sat')            msg = 'Satélites — receita encadeada por grupo.';
+  else if (cat.key === 'main')      msg = 'Base da grade.';
   else if (cat.key === 'sideAdmin') msg = 'Side Events que <b>cobram Admin Fee</b>.';
-  else                              msg = 'Side Events <b>sem Admin Fee</b>.';
-  const who = explicit.length ? chips : '<span style="opacity:.7">sem função marcada — todos dividem</span>';
-  return `<p class="section-note">${msg} ${who}</p>`;
+  else if (cat.key === 'sideNoAdmin') msg = 'Side Events <b>sem Admin Fee</b>.';
+  else if (cat.key === 'liga')      msg = 'Eventos Principais da Liga — grade fixa, valores em <b>R$</b>.';
+  else                              msg = '';
+  return `<p class="section-note">${msg} <span style="opacity:.7">✋ pega · ↗ passa · ✕ solta em cada torneio.</span></p>`;
 }
 
 function renderList(){
@@ -1871,6 +1885,9 @@ function wireGrid(area){
     el.addEventListener('click', () => openClaimMenu(el, el.dataset.claim));
     el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openClaimMenu(el, el.dataset.claim); } });
   });
+  // passar (↗) e soltar (✕) num toque
+  area.querySelectorAll('[data-pass]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); openPassMenu(el, el.dataset.pass); }));
+  area.querySelectorAll('[data-release]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); releaseItem(el.dataset.release); }));
   // seleção em massa: caixinha por torneio + "selecionar seção"
   area.querySelectorAll('[data-sel]').forEach(el => {
     el.addEventListener('click', e => { e.stopPropagation(); toggleSel(el.dataset.sel); });

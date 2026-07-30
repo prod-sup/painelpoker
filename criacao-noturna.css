@@ -1198,6 +1198,13 @@ body > *{position:relative;z-index:1}
   }
   .claim-wrap .claim-more:hover{background:var(--felt-bright);color:#08130c}
   .op-tag.claim-op{cursor:pointer}
+  /* ações rápidas por torneio: ✋ pegar · ↗ passar · ✕ soltar */
+  .claim-wrap .claim-mini{
+    border:1px solid var(--hairline-strong);background:var(--card);color:var(--ink-soft);
+    border-radius:8px;padding:3px 7px;font-size:12px;line-height:1;cursor:pointer;flex:none;transition:all .15s var(--ease);
+  }
+  .claim-wrap .claim-mini.pick:hover{border-color:var(--felt-bright);color:var(--felt-bright);background:var(--felt-soft)}
+  .claim-wrap .claim-mini.drop:hover{border-color:var(--red);color:var(--red);background:var(--red-soft)}
   .section-head .claim-sec{flex:none;font-size:11.5px;padding:5px 12px}
   .section-head .selbox.selall{margin-right:2px}
   /* toggle miúdo (orientação do evento) dentro da barra de navegação da tela cheia */
