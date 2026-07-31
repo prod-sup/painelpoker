@@ -929,6 +929,35 @@ function setAssign(key){
   else renderAll();
   logEvent('atribuição', `${key} → ${OVERRIDES[key] || '(livre)'}`);
 }
+function persistOverrides(){ if (fbDb) fbDb.ref(`${FB_PATH}/overrides`).set(OVERRIDES); else renderAll(); }
+/* todos os torneios atribuíveis do dia (GU + Liga Principal) */
+function assignableItems(){
+  if (!DATA) return [];
+  const arr = [...(DATA.main||[]), ...(DATA.side||[]), ...(DATA.sat||[])];
+  if (typeof LIGA_PRINCIPAL_SECTIONS !== 'undefined'){
+    const lp = LIGA_PRINCIPAL_SECTIONS[WEEKDAY_TOMORROW_EN];
+    if (lp) arr.push(...(lp.main||[]), ...(lp.side||[]), ...(lp.sat||[]));
+  }
+  return arr;
+}
+/* "Pegar livres" — a pessoa selecionada pega TODOS os torneios sem dono de uma vez */
+function claimUnassigned(){
+  if (!SELECTED_OP){ showToast('Selecione uma pessoa na equipe primeiro.', true); return; }
+  const asg = computeAssignments(); let n = 0;
+  assignableItems().forEach(it => { const k = itemKey(it); if (!asg[k]){ OVERRIDES[k] = SELECTED_OP; n++; } });
+  if (!n){ showToast('Nenhum torneio livre no momento.'); return; }
+  persistOverrides(); logEvent('pegou livres', `${SELECTED_OP} +${n}`);
+  showToast(`${n} torneio(s) livre(s) → ${SELECTED_OP.split(' ')[0]}.`);
+}
+/* "Pegar atrasados" — a pessoa selecionada pega os que estão estourando o prazo (urgência) e ainda não criados */
+function claimLate(){
+  if (!SELECTED_OP){ showToast('Selecione uma pessoa na equipe primeiro.', true); return; }
+  let n = 0;
+  assignableItems().forEach(it => { const k = itemKey(it); if (urgency(it) && !DONE[k]){ OVERRIDES[k] = SELECTED_OP; n++; } });
+  if (!n){ showToast('Nenhum torneio atrasado agora. 👍'); return; }
+  persistOverrides(); logEvent('pegou atrasados', `${SELECTED_OP} +${n}`);
+  showToast(`${n} atrasado(s) → ${SELECTED_OP.split(' ')[0]}.`);
+}
 
 /* =========================================================================
    RENDER
@@ -1138,6 +1167,16 @@ function onDataReady(fromRemote){
 }
 
 function renderAllNow(){
+  // PRESERVAR SCROLL — captura ANTES de qualquer re-render (marcar criado/ID re-renderiza
+  // tudo via listener do Firebase; se não guardar aqui, a página pula pro topo). Restaura a
+  // rolagem da JANELA + a de cada tabela (por naipe) depois do rebuild — síncrono e no rAF
+  // pra vencer o clamp/scroll-anchor do navegador. Fim do "volta pro começo ao concluir".
+  const winY = window.scrollY;
+  const secScroll = {};
+  document.querySelectorAll('#listArea .secwrap').forEach(sw => {
+    const vw = sw.querySelector('.vwrap');
+    if (vw) secScroll[sw.dataset.suit] = { t: vw.scrollTop, l: vw.scrollLeft };
+  });
   renderOps();
   renderFilters();
   renderAlerts();
@@ -1145,6 +1184,16 @@ function renderAllNow(){
   renderFieldDiag();
   renderList();
   renderTV();
+  const restoreScroll = () => {
+    document.querySelectorAll('#listArea .secwrap').forEach(sw => {
+      const p = secScroll[sw.dataset.suit]; if (!p) return;
+      const vw = sw.querySelector('.vwrap');
+      if (vw){ vw.scrollTop = p.t; vw.scrollLeft = p.l; }
+    });
+    window.scrollTo(0, winY);
+  };
+  restoreScroll();
+  requestAnimationFrame(restoreScroll);
 }
 /* PERF: os listeners do Firebase disparam em rajada (done + ids + roles no mesmo
    segundo) — agrupa tudo num render só, em vez de reconstruir a tabela 3–4x */
@@ -1393,6 +1442,41 @@ function renderOps(){
   $('opAddInput').addEventListener('keydown', e => { if (e.key === 'Enter') addOp(); });
   const me = $('opAddMe');
   if (me) me.addEventListener('click', () => saveOps([...OPS, ME]));
+  renderDivTools(asg);
+}
+/* medidor de equilíbrio (carga por pessoa) + ações rápidas: "Pegar livres" e "Pegar atrasados" */
+function renderDivTools(asg){
+  const el = $('divTools');
+  if (!el) return;
+  if (!DATA || !OPS.length){ el.innerHTML = ''; return; }
+  asg = asg || computeAssignments();
+  const cnt = {}; OPS.forEach(o => cnt[o] = 0);
+  let free = 0, late = 0;
+  assignableItems().forEach(it => {
+    const k = itemKey(it), o = asg[k];
+    if (o && (o in cnt)) cnt[o]++; else if (!o) free++;
+    if (urgency(it) && !DONE[k]) late++;
+  });
+  const max = Math.max(1, ...OPS.map(o => cnt[o]));
+  const avg = OPS.length ? OPS.reduce((s,o)=>s+cnt[o],0) / OPS.length : 0;
+  const bars = OPS.map(o => {
+    const over = cnt[o] > avg * 1.4 && cnt[o] - avg >= 2;   // sinaliza sobrecarga
+    return `<div class="bal-row"${over ? ' title="Sobrecarregado"' : ''}>
+      <span class="bal-name" style="color:${opColor(o)}">${escHtml(o.split(' ')[0])}${over ? ' ⚠' : ''}</span>
+      <span class="bal-bar"><span class="bal-fill" style="width:${Math.round(cnt[o]/max*100)}%;background:${opColor(o)}"></span></span>
+      <span class="bal-n">${cnt[o]}</span>
+    </div>`;
+  }).join('');
+  const who = SELECTED_OP ? escHtml(SELECTED_OP.split(' ')[0]) : '';
+  el.innerHTML = `
+    <div class="bal-meter">${bars}</div>
+    <div class="div-actions">
+      <button class="btn ghost divbtn" id="claimFreeBtn"${SELECTED_OP && free ? '' : ' disabled'} title="${SELECTED_OP ? '' : 'Selecione uma pessoa primeiro'}">⬇ ${who ? who + ' pega' : 'Pegar'} os livres (${free})</button>
+      <button class="btn ghost divbtn" id="claimLateBtn"${SELECTED_OP && late ? '' : ' disabled'} title="${SELECTED_OP ? '' : 'Selecione uma pessoa primeiro'}">⏰ Pegar atrasados (${late})</button>
+      ${!SELECTED_OP ? '<span class="div-hint">Selecione alguém na equipe pra usar</span>' : ''}
+    </div>`;
+  const cf = $('claimFreeBtn'); if (cf) cf.addEventListener('click', claimUnassigned);
+  const cl = $('claimLateBtn'); if (cl) cl.addEventListener('click', claimLate);
 }
 function saveOps(list){
   OPS = list;
@@ -1431,6 +1515,21 @@ function renderAlerts(){
   if (chg.length){
     const lines = chg.slice(0, 14).map(c => `<b>${escHtml(c.nome)}</b> — ${escHtml(c.campo)}: ${escHtml(fmtChangeVal(c.de))} → ${escHtml(fmtChangeVal(c.para))}`);
     html += `<div class="alert gold">🔄 <b>Global atualizada</b> — ${chg.length} alteração(ões) em relação à versão anterior. Torneios já criados com receita antiga estão marcados com <b>⚠ revisar</b>.<br>${lines.join('<br>')}${chg.length > 14 ? `<br>… e mais ${chg.length - 14}.` : ''}</div>`;
+  }
+  // REDE DE SEGURANÇA DO ID — se a GU renomear/mudar o horário de um torneio, a chave
+  // (nome|hora) muda e o ID gravado ficaria "órfão" (some da linha). Aqui ele NÃO se perde:
+  // é detectado e avisado (segue salvo no Firebase). Assim nenhum ID some em silêncio.
+  if (DATA && IDS){
+    const validKeys = new Set([...(DATA.main||[]), ...(DATA.side||[]), ...(DATA.sat||[]), ...(DATA.unknown||[])].map(itemKey));
+    if (typeof LIGA_PRINCIPAL_SECTIONS !== 'undefined'){
+      const lp = LIGA_PRINCIPAL_SECTIONS[WEEKDAY_TOMORROW_EN];
+      if (lp) [...(lp.main||[]), ...(lp.side||[]), ...(lp.sat||[])].forEach(it => validKeys.add(itemKey(it)));
+    }
+    const orphans = Object.keys(IDS).filter(k => IDS[k] && IDS[k].val && !validKeys.has(k));
+    if (orphans.length){
+      const lines = orphans.slice(0, 12).map(k => `<b>${escHtml(IDS[k].val)}</b>${IDS[k].by ? ' · por ' + escHtml(IDS[k].by) : ''}`);
+      html += `<div class="alert">🔒 <b>${orphans.length} ID(s) do Pokerbyte não casaram com a grade atual</b> — provável mudança de nome/horário na planilha. <b>Não se perderam</b> (seguem salvos): ${lines.join(', ')}${orphans.length > 12 ? ` … e mais ${orphans.length - 12}` : ''}.</div>`;
+    }
   }
   el.innerHTML = html;
 }

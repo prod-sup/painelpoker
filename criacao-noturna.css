@@ -1555,6 +1555,19 @@ html,body{overflow-x:hidden;max-width:100%}
 .op-assign.armed{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 45%,transparent)}
 .op-assign.armed:hover{background:color-mix(in srgb,var(--gold) 16%,transparent)}
 .op-assign .op-tag.none{opacity:.6;font-style:italic}
+
+/* medidor de equilíbrio + ações rápidas (pegar livres/atrasados) */
+.div-tools{margin-top:10px;display:flex;flex-direction:column;gap:9px}
+.bal-meter{display:flex;flex-direction:column;gap:4px;max-width:540px}
+.bal-row{display:grid;grid-template-columns:82px 1fr 30px;align-items:center;gap:8px;font-size:11.5px}
+.bal-name{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bal-bar{height:8px;border-radius:99px;background:var(--card-elevated);border:1px solid var(--hairline);overflow:hidden}
+.bal-fill{display:block;height:100%;border-radius:99px;transition:width .3s ease}
+.bal-n{font-variant-numeric:tabular-nums;font-weight:700;text-align:right;color:var(--ink-soft)}
+.div-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.divbtn{font-size:12px;padding:7px 13px}
+.divbtn:disabled{opacity:.45;cursor:default;pointer-events:none}
+.div-hint{font-size:11.5px;color:var(--ink3)}
 @media (max-width:640px){
   .wk-rows-head{display:none}
   .wk-row{grid-template-columns:52px 1fr;grid-auto-rows:auto;row-gap:2px}
