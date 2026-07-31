@@ -994,7 +994,7 @@ async function loadAudit(){
           ${cc.label}
           <span class="audit-group-count">${count} torneio${count>1?'s':''}</span>
         </div>
-        <table class="audit-table">
+        <div class="audit-scroll"><table class="audit-table">
           <thead><tr>
             <th style="width:32px"><input type="checkbox" id="checkAll" data-act="toggleCheckAll" data-act-self data-act-on="change" style="accent-color:var(--gold);width:14px;height:14px"></th>
             <th>Torneio</th><th>Hora</th><th>Late</th>
@@ -1003,7 +1003,7 @@ async function loadAudit(){
             <th>Operador</th><th>ID</th><th>Status</th><th>Auditoria</th>
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
-        </table>
+        </table></div>
         <div class="audit-total">
           <span>Total (${count})</span>
           <span>GTD <strong>R$ ${brl(sumGar)}</strong></span>
