@@ -20,6 +20,7 @@ let db=null, fbOk=false;
 let _email='', _name='';
 let _allData={};   // { date: { rows:{}, fixed:{}, ids:{}, field:{} } }
 let _dp=30, _gp=30;
+let _dpFrom=null, _dpTo=null;   // range custom do dashboard (calendário) — vence o _dp quando setado
 let _gradeRows=[];
 let _auditRows=[];
 let _toastTm;
@@ -1073,9 +1074,20 @@ async function loadAudit(){
 
 /* ── DASHBOARD ───────────────────────────────────────────────── */
 function setDp(n,btn){
-  _dp=n;
+  _dp=n; _dpFrom=null; _dpTo=null;                 // um preset limpa o range custom do calendário
+  const f=document.getElementById('dpFrom'), t=document.getElementById('dpTo');
+  if(f)f.value=''; if(t)t.value='';
   document.querySelectorAll('#dashTabs .ptab').forEach(b=>b.classList.remove('active'));
   if(btn)btn.classList.add('active');
+  buildDash();
+}
+/* calendário: aplica um intervalo de datas exato (vence os presets 1d/7d/30d/90d) */
+function applyDpRange(){
+  const f=document.getElementById('dpFrom'), t=document.getElementById('dpTo');
+  if(!f||!t||!f.value||!t.value) return;           // só aplica com as DUAS datas
+  _dpFrom = f.value<=t.value ? f.value : t.value;  // tolera inverter início/fim
+  _dpTo   = f.value<=t.value ? t.value : f.value;
+  document.querySelectorAll('#dashTabs .ptab').forEach(b=>b.classList.remove('active'));
   buildDash();
 }
 
@@ -1097,7 +1109,10 @@ async function buildDashCn(){
 }
 function buildDash(){
   buildDashCn();
-  const rows=flatRows(dago(_dp),nowSP());
+  const from=_dpFrom||dago(_dp), to=_dpTo||nowSP();
+  const spanDays=_dpFrom?(Math.round((new Date(to)-new Date(from))/86400000)+1):_dp;
+  const janela=_dpFrom?`${from.slice(8,10)}/${from.slice(5,7)}–${to.slice(8,10)}/${to.slice(5,7)}`:`${_dp}d janela`;
+  const rows=flatRows(from,to);
   const closed=rows.filter(r=>r.premiacao!=null);
   const withOv=closed.filter(r=>r.overlay!=null&&r.overlay<0);
   const totalGar=rows.reduce((s,r)=>s+(r.garantido||0),0);
@@ -1112,7 +1127,7 @@ function buildDash(){
   const cobertura = totalGarSum>0?(totalPrem/totalGarSum*100):0;
 
   document.getElementById('dashKpi').innerHTML=`
-    <div class="kpi"><div class="kpi-label">Torneios</div><div class="kpi-val">${rows.length}</div><div class="kpi-sub">${dias} dia${dias>1?'s':''} · ${_dp}d janela</div></div>
+    <div class="kpi"><div class="kpi-label">Torneios</div><div class="kpi-val">${rows.length}</div><div class="kpi-sub">${dias} dia${dias>1?'s':''} · ${janela}</div></div>
     <div class="kpi"><div class="kpi-label">Fechados</div><div class="kpi-val">${closed.length}</div><div class="kpi-sub">${rows.length?Math.round(closed.length/rows.length*100):0}% do total</div></div>
     <div class="kpi g"><div class="kpi-label">Premiação total</div><div class="kpi-val">${brlk(totalPrem)}</div><div class="kpi-sub">Cobertura ${cobertura.toFixed(0)}% do GTD</div></div>
     <div class="kpi r"><div class="kpi-label">Overlay total</div><div class="kpi-val">${brlk(Math.abs(totalOv))}</div><div class="kpi-sub">${closed.length?Math.round(withOv.length/closed.length*100):0}% dos fechados com OV</div></div>
@@ -1147,7 +1162,7 @@ function buildDash(){
   }).join(''):`<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--ink3)">Sem overlay no período</td></tr>`;
 
   // ── Insights inteligentes ──
-  buildInsights(rows, closed, _dp);
+  buildInsights(rows, closed, spanDays);
   // ── Projeção do mês ──
   buildMonthProjection();
 

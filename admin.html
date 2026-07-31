@@ -232,9 +232,15 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <div class="ph-actions">
           <div class="ptabs" id="dashTabs">
+            <button class="ptab" data-act="setDp" data-arg="1">1d</button>
             <button class="ptab" data-act="setDp" data-arg="7">7d</button>
             <button class="ptab active" data-act="setDp" data-arg="30">30d</button>
             <button class="ptab" data-act="setDp" data-arg="90">90d</button>
+          </div>
+          <div class="dp-range" title="Escolha um intervalo de datas">
+            <input type="date" id="dpFrom" class="dp-date" data-act="applyDpRange" data-act-on="change" data-act-self aria-label="Data inicial">
+            <span class="dp-sep">→</span>
+            <input type="date" id="dpTo" class="dp-date" data-act="applyDpRange" data-act-on="change" data-act-self aria-label="Data final">
           </div>
         </div>
       </div>

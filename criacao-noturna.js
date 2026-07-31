@@ -1075,17 +1075,23 @@ function renderWeekDetail(iso, data){
     ...data.sections.sat.map(x => ({...x, cat:'sat'}))
   ].sort((a,b) => (timeToMinutes(a.hora) ?? 9999) - (timeToMinutes(b.hora) ?? 9999));
   const withId = items.filter(it => { const r = data.ids[itemKey(it)]; return r && r.val; }).length;
+  // guarda os itens do dia pra montar a RECEITA sob demanda no clique (specSheetHtml)
+  const wi = window._weekItems = {};
   const rows = items.map(it => {
     const k = itemKey(it);
+    wi[k] = it;
     const idRec = data.ids[k], doneRec = data.done[k];
     const idTxt = idRec && idRec.val ? escHtml(idRec.val) : '<span class="wk-noid">— sem ID</span>';
     const by = (idRec && idRec.by) || (doneRec && doneRec.by) || '';
     const at = idRec && idRec.at ? new Date(idRec.at).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', timeZone:'America/Sao_Paulo'}) : '';
-    return `<div class="wk-row wk-${it.cat}${idRec && idRec.val ? ' has-id' : ''}">
-      <span class="wk-time">${escHtml(it.hora || '—')}</span>
-      <span class="wk-name" title="${escHtml(it.nome)}">${escHtml(it.nome)}</span>
-      <span class="wk-id">${idTxt}</span>
-      <span class="wk-by">${by ? escHtml(by) + (at ? ` · ${at}` : '') : ''}</span>
+    return `<div class="wk-rowwrap">
+      <div class="wk-row wk-${it.cat}${idRec && idRec.val ? ' has-id' : ''}" data-wkkey="${escHtml(k)}" role="button" tabindex="0" title="Ver a receita seguida">
+        <span class="wk-time">${escHtml(it.hora || '—')}</span>
+        <span class="wk-name">${escHtml(it.nome)} <span class="wk-exp">receita ▾</span></span>
+        <span class="wk-id">${idTxt}</span>
+        <span class="wk-by">${by ? escHtml(by) + (at ? ` · ${at}` : '') : ''}</span>
+      </div>
+      <div class="wk-recipe" hidden></div>
     </div>`;
   }).join('');
   el.innerHTML = `
@@ -1095,6 +1101,23 @@ function renderWeekDetail(iso, data){
     </div>
     <div class="wk-rows-head"><span>Horário</span><span>Torneio</span><span>ID Pokerbyte</span><span>Preencheu</span></div>
     <div class="wk-rows">${rows || '<div class="wk-empty">Sem torneios neste dia.</div>'}</div>`;
+  // clique/enter na linha → abre a RECEITA que foi seguida (a mesma ficha da aba Noite)
+  el.querySelectorAll('.wk-row[data-wkkey]').forEach(row => {
+    const toggle = () => {
+      const wrap = row.closest('.wk-rowwrap'), rec = wrap && wrap.querySelector('.wk-recipe');
+      if (!rec) return;
+      if (rec.hidden){
+        if (!rec.dataset.built){
+          const it = window._weekItems[row.dataset.wkkey];
+          rec.innerHTML = (it && typeof specSheetHtml === 'function' ? specSheetHtml(it) : '') || '<div class="wk-norecipe">Sem detalhes de receita para este torneio.</div>';
+          rec.dataset.built = '1';
+        }
+        rec.hidden = false; row.classList.add('open');
+      } else { rec.hidden = true; row.classList.remove('open'); }
+    };
+    row.addEventListener('click', toggle);
+    row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggle(); } });
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {

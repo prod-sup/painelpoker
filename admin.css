@@ -381,6 +381,15 @@ html.dark .lbox{border-color:var(--border)}
   background:var(--goldf);color:var(--gold);
   box-shadow:inset 0 0 0 1px var(--goldb);
 }
+/* ── CALENDÁRIO do dashboard (intervalo custom) ── */
+.dp-range{display:inline-flex;align-items:center;gap:6px}
+.dp-date{
+  font:inherit;font-size:12.5px;padding:6px 9px;border-radius:8px;
+  border:1px solid var(--border);background:var(--s2);color:var(--ink);color-scheme:light dark;
+}
+.dp-date:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px var(--goldf)}
+.dp-sep{color:var(--ink3);font-size:12px}
+@media (max-width:560px){ .dp-range{width:100%;justify-content:space-between} .dp-date{flex:1 1 auto;min-width:0} }
 
 /* ── KPI GRID ────────────────────────────────────────────────── */
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(216px,1fr));gap:14px;margin-bottom:26px}
@@ -635,7 +644,10 @@ td.center{text-align:center}
 .audit-group-count{margin-left:auto;font-size:11px;font-weight:500;opacity:.75}
 /* rola a tabela larga (14 colunas) na horizontal — o .audit-group tem overflow:hidden
    pros cantos, então a rolagem tem que morar NUM wrapper interno */
-.audit-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+/* touch-action:pan-x — o wrapper trata só o arraste HORIZONTAL (rolar a tabela larga);
+   o arraste vertical sobe pra página. Sem isso, no mobile o overflow-x:auto (que o
+   spec transforma em overflow-y:auto) prendia o gesto vertical e a página não rolava. */
+.audit-scroll{overflow-x:auto;touch-action:pan-x;overscroll-behavior-x:contain}
 .audit-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;background:var(--s2)}
 .audit-table th{
   padding:10px 14px;font-size:11.5px;font-weight:500;
@@ -884,8 +896,10 @@ tr.cn-erro{ background:rgba(239,68,68,.06) !important; }
   .audit-modal-grid{grid-template-columns:1fr}
   .stat-strip{flex-wrap:wrap;gap:12px}
 
-  /* qualquer tabela larga rola dentro do card (as .tbl-wrap já rolam) */
-  .card{overflow-x:auto}
+  /* qualquer tabela larga rola dentro do card (as .tbl-wrap já rolam).
+     touch-action:pan-x deixa o arraste vertical passar pra página no mobile —
+     senão o card virava um container de scroll que prendia a rolagem da tela. */
+  .card{overflow-x:auto;touch-action:pan-x}
 
   /* modais: quase tela cheia, com rolagem interna */
   .modal{width:94%;max-width:94%;padding:24px 20px;max-height:88vh;overflow-y:auto}
