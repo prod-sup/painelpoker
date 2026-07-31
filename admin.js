@@ -7,7 +7,7 @@
 const ADMIN_EMAILS = [
   'brian@suprema.group','admin@suprema.group','brian.rodrigues@suprema.group'
 ];
-const COL_HEADERS = ['Torneio','Hora','Late Reg.','Tipo','Garantido','Buy-in','Premiação','Overlay','Field','Ações','Perf. %','Fixado por','ID','Status'];
+const COL_HEADERS = ['Torneio','Hora','Late Reg.','Tipo','Garantido','Buy-in','Arrecadado','Overlay','Field','Ações','Perf. %','Fixou','ID','Status'];
 const COL_WIDTHS  = [32,7,12,13,13,11,13,12,8,8,9,18,12,11];
 const CAT_COLORS  = {
   main:{ header:'1A472A', sub:'2D6A4F', soft:'C8E6C9', label:'♠ MAIN EVENTS' },
@@ -77,6 +77,19 @@ function classify(r){
   if(n.includes('seat')||n.includes('satelit')||n.includes('satélite'))return'sat';
   if((r.garantido||0)>=20000)return'main';
   return'side';
+}
+
+// Badge do TIMING da fixação (cedo / no prazo / atrasado) pra pontuar o operador.
+// fixLeadMin = min antes do início; regra vem do flatRows (prazo = início − lead).
+function fixTimingBadge(r){
+  if(!r.fixTiming || !Number.isFinite(r.fixLeadMin)) return '';
+  const m = r.fixLeadMin;
+  const ante = m < 0 ? `${Math.abs(m)}min após início`
+             : m >= 120 ? `${(m/60).toFixed(1).replace('.',',')}h antes`
+             : `${m}min antes`;
+  const map = { ok:['var(--green)','no prazo'], atrasado:['var(--red)','atrasado'], cedo:['#3b82f6','cedo demais'] };
+  const [c,lbl] = map[r.fixTiming] || ['var(--ink3)',''];
+  return `<span class="fix-timing ${r.fixTiming}" style="display:block;font-size:9px;font-weight:700;color:${c}" title="Fixou ${ante} do início — ${lbl}">${ante} · ${lbl}</span>`;
 }
 
 function catBadge(cat){
@@ -375,7 +388,7 @@ async function loadAll(fullHistory){
 function mergeDayInto(date, snap, day){
   // 1. snapshot (rows prontas) — só cria o dia se houver rows válidas (como no original)
   if(snap && snap.rows && typeof snap.rows==='object'){
-    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{}};
+    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},premBy:{}};
     Object.entries(snap.rows).forEach(([k,r])=>{
       if(!r||typeof r!=='object')return;
       _allData[date].rows[k]={...r,_key:k};
@@ -388,7 +401,7 @@ function mergeDayInto(date, snap, day){
 
   // 2. painel ao vivo — complementa/sobrepõe o snapshot
   if(day && typeof day==='object'){
-    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{}};
+    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},premBy:{}};
     // sheet.rows é ARRAY — converter para objeto com rk_ keys
     // Merge por nome+hora (não recalcula hash) para evitar duplicar o mesmo torneio
     // quando o garantido muda entre o snapshot e o painel ao vivo (hash diferente)
@@ -431,6 +444,10 @@ function mergeDayInto(date, snap, day){
     });
     Object.entries(day.fixed||{}).forEach(([k,v])=>{
       if(v) _allData[date].fixed[k]=typeof v==='object'?v:{by:'',at:0};
+    });
+    // quem preencheu o ARRECADADO (premiação coletada) — nó painel/<data>/premBy = {by,at}
+    Object.entries(day.premBy||{}).forEach(([k,v])=>{
+      if(v) _allData[date].premBy[k]=typeof v==='object'?v:{by:'',at:0};
     });
     Object.entries(day.ids||{}).forEach(([k,v])=>{
       if(v!=null) _allData[date].ids[k]=typeof v==='object'?v:{val:v,by:''};
@@ -488,7 +505,7 @@ function watchLiveGrade(){
         .then(ss => { day.sheet = ss.val(); refreshDayLive(date); })
         .catch(() => { lastSheetAt = null; });
     });
-    ['premiacao','fixed','ids','field','garantido'].forEach(node => {
+    ['premiacao','fixed','premBy','ids','field','garantido'].forEach(node => {
       db.ref(`painel/${date}/${node}`).on('value', s => { day[node] = s.val(); refreshDayLive(date); });
     });
   });
@@ -557,8 +574,42 @@ function flatRows(fromDate, toDate){
       const fixRaw = pick(day.fixed);
       const fixBy  = typeof fixRaw==='object'&&fixRaw ? (fixRaw.by||'') :
                      fixRaw===true ? 'Sim' : '';
-      const fixAt  = typeof fixRaw==='object'&&fixRaw?.at ?
-                     new Date(fixRaw.at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}) : '';
+      // `at` só vale se for timestamp numérico de verdade — senão dava "Invalid Date"/"NaNmin"
+      // (ex.: registros antigos sem hora, ou ServerValue não resolvido no snapshot).
+      const _ms = x => {
+        if(!x || typeof x!=='object' || x.at == null) return null;
+        const n = Number(x.at);
+        if(isFinite(n) && n > 0) return n;          // ms epoch (número ou string numérica)
+        const d = Date.parse(x.at);                 // aceita também data/hora em texto (ISO)
+        return isFinite(d) ? d : null;
+      };
+      const hm  = ms => new Date(ms).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'});
+      const fixAtMs = _ms(fixRaw);
+      // hora que fixou: do timestamp do nó `fixed`; se não der, usa a hora salva no snapshot (fixadoEm)
+      const fixAt  = fixAtMs ? hm(fixAtMs) : (r.fixadoEm || '');
+      // Arrecadado — quem preencheu a premiação coletada e quando
+      const pbRaw  = pick(day.premBy);
+      const premBy = typeof pbRaw==='object'&&pbRaw ? (pbRaw.by||'') : '';
+      const pbMs   = _ms(pbRaw);
+      const premByAt = pbMs ? hm(pbMs) : '';
+      const cat = classify(r);
+      // TIMING DA FIXAÇÃO — quanto ANTES do início o torneio foi fixado, e se foi cedo/no prazo/atrasado.
+      // Prazo ideal = início − lead (Main/Side 60min, Satélite 30min). fixLeadMin>0 = fixou antes do início.
+      let fixLeadMin = null, fixTiming = '';
+      if(fixAtMs && /^\d{1,2}:\d{2}$/.test(r.hora||'')){
+        const [Y,Mo,Da] = date.split('-').map(Number);
+        const [hh,mm] = r.hora.split(':').map(Number);
+        const dayOff = (hh*60+mm) < 330 ? 1 : 0;                 // madrugada (<05:30) começa no dia civil seguinte
+        const startMs = Date.UTC(Y, Mo-1, Da+dayOff, hh+3, mm);  // São Paulo = UTC−3 (sem horário de verão no Brasil)
+        const lm = Math.round((startMs - fixAtMs)/60000);
+        if(Number.isFinite(lm)){
+          fixLeadMin = lm;
+          const lead = cat==='sat' ? 30 : 60;
+          if(fixLeadMin < lead)            fixTiming = 'atrasado';  // fixou depois do prazo (início − lead)
+          else if(fixLeadMin > lead + 180) fixTiming = 'cedo';     // fixou mais de 3h antes do prazo
+          else                             fixTiming = 'ok';
+        }
+      }
       // Field
       const field  = pick(day.field)??r.field??null;
       // Cálculos
@@ -578,10 +629,10 @@ function flatRows(fromDate, toDate){
       out.push({
         date, key,
         nome:r.nome||'', hora:r.hora||'', late:r.late||'',
-        tipo:r.tipo||'', cat:classify(r),
+        tipo:r.tipo||'', cat,
         garantido:gar, buyin, rakeEst,
         premiacao:prem, overlay:ov, perf, field, fieldNet,
-        id:idVal, idBy, fixBy, fixAt, status,
+        id:idVal, idBy, fixBy, fixAt, premBy, premByAt, fixLeadMin, fixTiming, status,
       });
     });
   });
@@ -749,7 +800,7 @@ function renderCn(){
       const when = r.doneAt ? new Date(r.doneAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'}) : '';
       const anoms = cnAnoms(r, cnAvgDur(_cnRows));
       const aud = (r.audit && r.audit.status === 'erro'
-        ? `<span style="color:var(--red);font-weight:700" title="por ${esc(r.audit.by||'—')}">⚠ erro${r.audit.tipo?' · '+esc(r.audit.tipo):''}</span>${r.audit.motivo?`<div style="font-size:11px;color:var(--ink3);max-width:220px;white-space:normal">${esc(r.audit.motivo)}</div>`:''}${r.audit.correto?`<div style="font-size:11px;color:var(--ink2);max-width:220px;white-space:normal">Correto: ${esc(r.audit.correto)}</div>`:''}${r.audit.recriadoEm?`<div style="font-size:11px;color:var(--gold);font-weight:700" title="recriado por ${esc(r.audit.recriadoPor||'—')}">↻ recriado · novo ID: ${esc(r.audit.idNovo||'—')}${r.audit.idAnterior?` <span style="color:var(--ink3);font-weight:400">(antes: ${esc(r.audit.idAnterior)})</span>`:''}</div>`:''}`
+        ? `<span style="color:var(--red);font-weight:700" title="por ${esc(r.audit.by||'—')}">⚠ erro</span>${r.audit.motivo?`<div style="font-size:11px;color:var(--ink3);max-width:200px;white-space:normal">${esc(r.audit.motivo)}</div>`:''}`
         : (r.doneBy ? '<span style="color:var(--green)">✓ ok</span>' : '<span style="color:var(--ink3)">—</span>'))
         + (anoms.length ? `<div style="font-size:11px;color:var(--amber);font-weight:600;max-width:200px;white-space:normal">⚡ ${anoms.map(esc).join(' · ')}</div>` : '');
       const btn = r.audit && r.audit.status === 'erro'
@@ -862,24 +913,6 @@ function initDates(){
   }
 }
 
-/* ── erros de criação (…/criacaoNoturna/audit) do período, pra cruzar com a
-   Acompanhamento: o evento que a Conferência/Criação marcou com ⚠ aparece
-   sinalizado aqui também. Chave = cnKey (nome|hora), a mesma da criação. ── */
-let _cnErrByDate = {};
-async function loadCnErrorsForAudit(from, to){
-  _cnErrByDate = {};
-  const dates = [], d = new Date(from + 'T12:00:00Z'), end = new Date(to + 'T12:00:00Z');
-  while(d <= end && dates.length < 62){ dates.push(d.toISOString().slice(0,10)); d.setUTCDate(d.getUTCDate()+1); }
-  const snaps = await Promise.all(dates.map(dt =>
-    db.ref(`painel/${dt}/criacaoNoturna/audit`).once('value').then(s => ({dt, v: s.val()})).catch(() => ({dt, v:null}))));
-  snaps.forEach(({dt, v}) => { if(v) _cnErrByDate[dt] = v; });
-}
-function cnErrFor(r){
-  const day = _cnErrByDate[r.date]; if(!day) return null;
-  const a = day[cnKey({nome:r.nome, hora:r.hora})];
-  return (a && a.status === 'erro') ? a : null;
-}
-
 /* ══════════════════════════════════════════════════════════════
    AUDITORIA — ACOMPANHAMENTO (visual idêntico ao painel)
 ══════════════════════════════════════════════════════════════ */
@@ -891,13 +924,12 @@ async function loadAudit(){
   const opF =document.getElementById('auOp')?.value||'';
   const qF  =(document.getElementById('auSearch')?.value||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
 
-  await Promise.all([loadAuditData(), loadCnErrorsForAudit(from, to)]);
+  await Promise.all([loadAuditData()]);
   let rows=enrichWithAudit(flatRows(from,to));
   if(catF)rows=rows.filter(r=>r.cat===catF);
   if(stF) rows=rows.filter(r=>r.status===stF);
   if(opF) rows=rows.filter(r=>r.fixBy===opF||r.idBy===opF);
   if(qF)  rows=rows.filter(r=>r.nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').includes(qF));
-  rows.forEach(r => { r._cnErr = cnErrFor(r); });   // marca os que a criação/conferência apontou como erro
 
   _auditRows=rows;
 
@@ -956,27 +988,26 @@ async function loadAudit(){
         if(r.field != null && r.buyin && r.field > 0 && r.garantido && (r.field * r.buyin) < r.garantido * 0.1) anomalias.push('Field baixo pro GTD');
         if(r.overlay != null && r.garantido && Math.abs(r.overlay) > r.garantido * 0.5) anomalias.push('Overlay >50% GTD');
         const hasAnomalia = anomalias.length > 0 && !r._audited;
-        const cnErr = r._cnErr;   // erro de criação apontado na Conferência/Criação GU
-        const trCls = [cls, r._audited?'audit-edited':'', hasAnomalia?'anomalia':'', cnErr?'cn-erro':''].filter(Boolean).join(' ');
+        const trCls = [cls, r._audited?'audit-edited':'', hasAnomalia?'anomalia':''].filter(Boolean).join(' ');
         const anomaliaHtml = hasAnomalia ? `<span title="${anomalias.join(', ')}" style="font-size:9px;background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.2);border-radius:4px;padding:1px 5px;margin-left:4px">⚠ ${anomalias[0]}</span>` : '';
-        const cnErrHtml = cnErr ? `<span title="Erro de criação${cnErr.tipo?' ['+esc(cnErr.tipo)+']':''} apontado por ${esc(cnErr.by||'—')}${cnErr.motivo?': '+esc(cnErr.motivo):''}${cnErr.correto?' · correto: '+esc(cnErr.correto):''}${cnErr.recriadoEm?` · ↻ recriado, novo ID ${esc(cnErr.idNovo||'—')}${cnErr.idAnterior?' (antes '+esc(cnErr.idAnterior)+')':''}`:''}" style="font-size:9px;background:rgba(239,68,68,.16);color:var(--red);border:1px solid rgba(239,68,68,.35);border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:800">⚠ erro criação${cnErr.recriadoEm?' ↻':''}</span>` : '';
         return `<tr class="${trCls}" data-key="${r.key}" data-date="${r.date}">
           <td><input type="checkbox" class="row-check" data-key="${r.key}" data-date="${r.date}"
             style="accent-color:var(--gold);width:14px;height:14px"
             data-act="updateBatchActions" data-act-on="change"></td>
-          <td class="nm" style="max-width:200px">${esc(r.nome)}${cnErrHtml}${anomaliaHtml}</td>
-          <td class="mono" data-label="Hora">${esc(r.hora)}</td>
-          <td class="mono" data-label="Late">${esc(r.late)}</td>
-          <td class="r mono" data-label="GTD">${r.garantido!=null?'R$ '+brl(r.garantido):'—'}</td>
-          <td class="r mono" data-label="Buy-in">${r.buyin!=null?'R$ '+brl(r.buyin):'—'}</td>
-          <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.premiacaoOriginal!==r.premiacao?'c-gold':''}" data-label="Premiação">${r.premiacao!=null?'R$ '+brl(r.premiacao,2):'—'}</td>
-          <td class="r mono ov-val" data-label="Overlay">${r.overlay!=null?'R$ '+brl(r.overlay,2):'—'}</td>
-          <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.fieldOriginal!==r.field?'c-gold':''}" data-label="Field">${r.field!=null?r.field:'—'}</td>
-          <td class="r mono" data-label="Perf.">${r.perf!=null?`<span class="perf ${r.perf>=0?'pos':'neg'}">${pct(r.perf,2)}</span>`:'—'}</td>
-          <td class="c-ink2" data-label="Operador">${esc(r.fixBy||r.idBy||'—')}</td>
-          <td class="mono c-ink2" data-label="ID">${esc(r.id)}</td>
-          <td data-label="Status">${statusBadge(r.status)}</td>
-          <td class="audit-actions-cell" style="display:flex;gap:5px;align-items:center">
+          <td class="nm" style="max-width:200px">${esc(r.nome)}${anomaliaHtml}</td>
+          <td class="mono">${esc(r.hora)}</td>
+          <td class="mono">${esc(r.late)}</td>
+          <td class="r mono">${r.garantido!=null?'R$ '+brl(r.garantido):'—'}</td>
+          <td class="r mono">${r.buyin!=null?'R$ '+brl(r.buyin):'—'}</td>
+          <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.premiacaoOriginal!==r.premiacao?'c-gold':''}">${r.premiacao!=null?'R$ '+brl(r.premiacao,2):'—'}</td>
+          <td class="r mono ov-val">${r.overlay!=null?'R$ '+brl(r.overlay,2):'—'}</td>
+          <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.fieldOriginal!==r.field?'c-gold':''}">${r.field!=null?r.field:'—'}</td>
+          <td class="r mono">${r.perf!=null?`<span class="perf ${r.perf>=0?'pos':'neg'}">${pct(r.perf,2)}</span>`:'—'}</td>
+          <td class="c-ink2">${r.fixBy?`${esc(r.fixBy)}${r.fixAt?`<span style="display:block;font-size:9px;color:var(--ink3);font-family:var(--mono)">${esc(r.fixAt)}</span>`:''}${fixTimingBadge(r)}`:'—'}</td>
+          <td class="c-ink2">${r.premBy?`${esc(r.premBy)}${r.premByAt?`<span style="display:block;font-size:9px;color:var(--ink3);font-family:var(--mono)">${esc(r.premByAt)}</span>`:''}`:'—'}</td>
+          <td class="mono c-ink2">${esc(r.id)}</td>
+          <td>${statusBadge(r.status)}</td>
+          <td style="display:flex;gap:5px;align-items:center">
             <button class="audit-edit-btn ${r._audited?'auditado':''}"
               data-key="${r.key}" data-date="${r.date}"
               data-act="openAuditEditByEl" data-act-self>
@@ -994,20 +1025,20 @@ async function loadAudit(){
           ${cc.label}
           <span class="audit-group-count">${count} torneio${count>1?'s':''}</span>
         </div>
-        <div class="audit-scroll"><table class="audit-table">
+        <table class="audit-table">
           <thead><tr>
             <th style="width:32px"><input type="checkbox" id="checkAll" data-act="toggleCheckAll" data-act-self data-act-on="change" style="accent-color:var(--gold);width:14px;height:14px"></th>
             <th>Torneio</th><th>Hora</th><th>Late</th>
-            <th class="r">GTD</th><th class="r">Buy-in</th><th class="r">Premiação</th>
+            <th class="r">GTD</th><th class="r">Buy-in</th><th class="r">Arrecadado</th>
             <th class="r">Overlay</th><th class="r">Field</th><th class="r">Perf.</th>
-            <th>Operador</th><th>ID</th><th>Status</th><th>Auditoria</th>
+            <th>Fixou</th><th>Arrecadou</th><th>ID</th><th>Status</th><th>Auditoria</th>
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
-        </table></div>
+        </table>
         <div class="audit-total">
           <span>Total (${count})</span>
           <span>GTD <strong>R$ ${brl(sumGar)}</strong></span>
-          ${sumPrem?`<span>Premiação <strong>R$ ${brl(sumPrem)}</strong></span>`:''}
+          ${sumPrem?`<span>Arrecadado <strong>R$ ${brl(sumPrem)}</strong></span>`:''}
           ${sumOv?`<span>Overlay <strong class="c-red">R$ ${brl(sumOv)}</strong></span>`:''}
         </div>
       </div>`;
@@ -1021,7 +1052,7 @@ async function loadAudit(){
         </div>
         <div style="display:flex;gap:20px;font-size:11px;font-family:var(--mono);color:var(--ink2)">
           ${allGar?`<span>GTD <strong class="c-gold">R$ ${brl(allGar)}</strong></span>`:''}
-          ${allPrem?`<span>Prem <strong class="c-green">R$ ${brl(allPrem)}</strong></span>`:''}
+          ${allPrem?`<span>Arrec <strong class="c-green">R$ ${brl(allPrem)}</strong></span>`:''}
           ${allOv<0?`<span>Overlay <strong class="c-red">R$ ${brl(allOv)}</strong></span>`:''}
         </div>
       </div>
@@ -1058,103 +1089,6 @@ async function buildDashCn(){
       <div class="kpi"><div class="kpi-label">Top criador</div><div class="kpi-val" style="font-size:20px">${topOp?esc(topOp[0]):'—'}</div><div class="kpi-sub">${topOp?topOp[1].criados+' criados':'sem dados'}</div></div>`;
   }catch(e){ el.innerHTML = '<div class="kpi"><div class="kpi-label">Erro ao carregar</div><div class="kpi-sub">'+esc(e.message)+'</div></div>'; }
 }
-/* ── DASHBOARD: sparkline + delta pros cards de KPI ────────────────────────── */
-const KPI_ICONS = {
-  torneios:'<path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/>',
-  fechados:'<path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="M22 4 12 14.01l-3-3"/>',
-  premiacao:'<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3"/>',
-  overlay:'<path d="M23 18l-9.5-9.5-5 5L1 6"/><path d="M17 18h6v-6"/>',
-  perf:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
-  nf:'<circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/>',
-};
-function kpiIcon(k){ return `<span class="kpi-ic"><svg viewBox="0 0 24 24" aria-hidden="true">${KPI_ICONS[k]||''}</svg></span>`; }
-/* mini gráfico de linha da série diária — SVG inline, esticado na largura do card */
-function kpiSpark(series, accVar){
-  const s = (series||[]).filter(v => typeof v === 'number' && isFinite(v));
-  if(s.length < 2) return '';
-  const W=100, H=34, min=Math.min(...s), max=Math.max(...s), span=(max-min)||1;
-  const pts = s.map((v,i)=>[ (i/(s.length-1))*W, H - ((v-min)/span)*(H-6) - 3 ]);
-  const line = pts.map((p,i)=>`${i?'L':'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
-  const area = `M0,${H} L${pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' L')} L${W},${H} Z`;
-  const c = accVar || 'var(--gold)', id = 'sp'+(kpiSpark._n=(kpiSpark._n||0)+1);
-  return `<div class="kpi-spark"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">`
-    + `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity=".26"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient></defs>`
-    + `<path d="${area}" fill="url(#${id})"/><path d="${line}" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg></div>`;
-}
-/* chip de variação vs período anterior. invert=true → cair é BOM (overlay, NF) */
-function kpiDelta(cur, prev, invert){
-  if(prev==null || !isFinite(prev) || prev===0 || cur==null) return '';
-  const d = ((cur-prev)/Math.abs(prev))*100;
-  if(Math.abs(d) < 0.5) return `<span class="kpi-delta flat" title="estável vs período anterior">•</span>`;
-  const up = d>0, good = invert ? !up : up;
-  return `<span class="kpi-delta ${good?'up':'down'}" title="vs ${_dp} dias anteriores">${up?'▲':'▼'} ${Math.abs(d).toFixed(0)}%</span>`;
-}
-function dailySeries(rows, valueFn){
-  const byDate={}; rows.forEach(r=>{ byDate[r.date]=(byDate[r.date]||0)+(valueFn(r)||0); });
-  return Object.keys(byDate).sort().map(d=>byDate[d]);
-}
-
-/* ── ANÁLISE POR SÉRIE ── detecta o festival pelo NOME (SPS / SPT) e resume
-   desempenho por série + a evolução semanal (série temporal). */
-function seriesOf(nome){
-  const n = String(nome||'').toUpperCase();
-  if(/\bSPS\b|SUPREMA\s+POKER\s+SERIES/.test(n)) return 'SPS';
-  if(/\bSPT\b|SUPREMA\s+POKER\s+TOUR/.test(n))   return 'SPT';
-  return null;
-}
-const SERIES_META = [
-  {id:'SPS', label:'SPS · Suprema Poker Series', color:'var(--gold)'},
-  {id:'SPT', label:'SPT · Suprema Poker Tour',   color:'var(--blue)'},
-  {id:'REG', label:'Torneios regulares',          color:'var(--ink3)'},
-];
-function buildSeriesAnalysis(rows, closed){
-  const host = document.getElementById('seriesCards'); if(!host) return;
-  const mk = ()=>({ev:0,gtd:0,prem:0,ov:0,fieldSum:0,fieldN:0,closed:0});
-  const agg = {SPS:mk(), SPT:mk(), REG:mk()};
-  rows.forEach(r=>{ const a=agg[seriesOf(r.nome)||'REG']; a.ev++; a.gtd+=r.garantido||0; if(r.field!=null){a.fieldSum+=r.field;a.fieldN++;} });
-  closed.forEach(r=>{ const a=agg[seriesOf(r.nome)||'REG']; a.closed++; a.prem+=r.premiacao||0; if(r.overlay<0) a.ov+=Math.abs(r.overlay); });
-  host.innerHTML = SERIES_META.map(m=>{
-    const a=agg[m.id]; if(!a.ev) return '';
-    const closeR   = a.ev?Math.round(a.closed/a.ev*100):0;
-    const fieldAvg = a.fieldN?Math.round(a.fieldSum/a.fieldN):null;
-    const cover    = a.gtd>0?Math.round(a.prem/a.gtd*100):0;
-    return `<div class="series-card" style="--sc:${m.color}">
-      <div class="sc-head"><span class="sc-dot"></span>${esc(m.label)}<span class="sc-count">${a.ev} ev</span></div>
-      <div class="sc-kpis">
-        <div class="sc-k"><b>${brlk(a.gtd)}</b><span>GTD total</span></div>
-        <div class="sc-k"><b>${brlk(a.prem)}</b><span>Premiação</span></div>
-        <div class="sc-k"><b class="${a.ov>0?'sc-red':''}">${brlk(a.ov)}</b><span>Overlay</span></div>
-        <div class="sc-k"><b>${fieldAvg??'—'}</b><span>Field médio</span></div>
-        <div class="sc-k"><b>${cover}%</b><span>Cobertura</span></div>
-        <div class="sc-k"><b>${closeR}%</b><span>Fechados</span></div>
-      </div></div>`;
-  }).join('') || `<div class="series-empty">Sem eventos no período.</div>`;
-  buildSeriesChart(closed);
-}
-function buildSeriesChart(closed){
-  const host = document.getElementById('seriesChart'); if(!host) return;
-  const evs = closed.filter(r=>seriesOf(r.nome));
-  if(!evs.length){ host.innerHTML = `<div class="series-empty">Nenhum evento SPS/SPT com premiação no período — a linha do tempo aparece quando rolar um festival.</div>`; return; }
-  const dates = [...new Set(evs.map(r=>r.date))].sort();
-  const start = new Date(dates[0]+'T12:00:00Z');
-  const bucket = {};
-  evs.forEach(r=>{
-    const b = Math.floor((new Date(r.date+'T12:00:00Z')-start)/(7*86400000));
-    const o = bucket[b] || (bucket[b]={SPS:0,SPT:0});
-    o[seriesOf(r.nome)] += r.premiacao||0;
-  });
-  const keys = Object.keys(bucket).map(Number).sort((a,b)=>a-b);
-  const max  = Math.max(1, ...keys.map(b=>Math.max(bucket[b].SPS, bucket[b].SPT)));
-  const lbl  = b => { const d=new Date(start.getTime()+b*7*86400000); return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}`; };
-  host.innerHTML =
-    `<div class="sc-legend"><span><i style="background:var(--gold)"></i>SPS</span><span><i style="background:var(--blue)"></i>SPT</span><span class="sc-legend-note">premiação por semana</span></div>`
-    + `<div class="sc-bars">` + keys.map(b=>{
-        const v=bucket[b];
-        return `<div class="sc-col" title="Semana de ${lbl(b)} — SPS ${brlk(v.SPS)} · SPT ${brlk(v.SPT)}">
-          <div class="sc-barwrap"><div class="sc-bar sps" style="height:${Math.round(v.SPS/max*100)}%"></div><div class="sc-bar spt" style="height:${Math.round(v.SPT/max*100)}%"></div></div>
-          <div class="sc-x">${lbl(b)}</div></div>`;
-      }).join('') + `</div>`;
-}
 function buildDash(){
   buildDashCn();
   const rows=flatRows(dago(_dp),nowSP());
@@ -1171,41 +1105,14 @@ function buildDash(){
   const totalGarSum = rows.reduce((s,r)=>s+(r.garantido||0),0);
   const cobertura = totalGarSum>0?(totalPrem/totalGarSum*100):0;
 
-  // período ANTERIOR (mesma duração) → variação nos cards
-  let pRows=[]; try{ pRows = flatRows(dago(_dp*2), dago(_dp)); }catch(e){}
-  const pClosed = pRows.filter(r=>r.premiacao!=null);
-  const pPerfArr = pClosed.filter(r=>r.perf!=null);
-  const pAvgPerf = pPerfArr.length ? pPerfArr.reduce((s,r)=>s+r.perf,0)/pPerfArr.length : null;
-  const prev = {
-    torneios:pRows.length, fechados:pClosed.length,
-    prem:pClosed.reduce((s,r)=>s+(r.premiacao||0),0),
-    ov:Math.abs(pClosed.reduce((s,r)=>s+(r.overlay||0),0)),
-    perf:pAvgPerf, nf:pRows.filter(r=>r.status==='nf').length,
-  };
-  const closeRate = rows.length?Math.round(closed.length/rows.length*100):0;
-  const ovRate    = closed.length?Math.round(withOv.length/closed.length*100):0;
-  const nfRate    = rows.length?Math.round(nfRows.length/rows.length*100):0;
-
-  const card = (cls,icon,label,val,sub,delta,spark)=>`
-    <div class="kpi ${cls||''}">
-      <div class="kpi-top">${kpiIcon(icon)}<div class="kpi-label">${label}</div></div>
-      <div class="kpi-valrow"><div class="kpi-val">${val}</div>${delta||''}</div>
-      <div class="kpi-sub">${sub}</div>${spark||''}
-    </div>`;
-  const accV = c => c==='g'?'var(--green)':c==='r'?'var(--red)':c==='b'?'var(--blue)':c==='p'?'var(--purple)':'var(--gold)';
-  document.getElementById('dashKpi').innerHTML =
-      card('', 'torneios','Torneios', rows.length, `${dias} dia${dias>1?'s':''} · janela ${_dp}d`,
-           kpiDelta(rows.length, prev.torneios), kpiSpark(dailySeries(rows,()=>1), accV('')))
-    + card('', 'fechados','Fechados', closed.length, `${closeRate}% do total`,
-           kpiDelta(closed.length, prev.fechados), kpiSpark(dailySeries(closed,()=>1), accV('')))
-    + card('g','premiacao','Premiação total', brlk(totalPrem), `Cobertura ${cobertura.toFixed(0)}% do GTD`,
-           kpiDelta(totalPrem, prev.prem), kpiSpark(dailySeries(closed,r=>r.premiacao), accV('g')))
-    + card('r','overlay','Overlay total', brlk(Math.abs(totalOv)), `${ovRate}% dos fechados com OV`,
-           kpiDelta(Math.abs(totalOv), prev.ov, true), kpiSpark(dailySeries(closed,r=>r.overlay<0?Math.abs(r.overlay):0), accV('r')))
-    + card('b','perf','Perf. média', avgPerf!=null?pct(avgPerf):'—', 'vs garantido prometido',
-           kpiDelta(avgPerf, prev.perf), '')
-    + card('p','nf','NF no período', nfRows.length, `${nfRate}% não formaram`,
-           kpiDelta(nfRows.length, prev.nf, true), kpiSpark(dailySeries(rows,r=>r.status==='nf'?1:0), accV('p')));
+  document.getElementById('dashKpi').innerHTML=`
+    <div class="kpi"><div class="kpi-label">Torneios</div><div class="kpi-val">${rows.length}</div><div class="kpi-sub">${dias} dia${dias>1?'s':''} · ${_dp}d janela</div></div>
+    <div class="kpi"><div class="kpi-label">Fechados</div><div class="kpi-val">${closed.length}</div><div class="kpi-sub">${rows.length?Math.round(closed.length/rows.length*100):0}% do total</div></div>
+    <div class="kpi g"><div class="kpi-label">Premiação total</div><div class="kpi-val">${brlk(totalPrem)}</div><div class="kpi-sub">Cobertura ${cobertura.toFixed(0)}% do GTD</div></div>
+    <div class="kpi r"><div class="kpi-label">Overlay total</div><div class="kpi-val">${brlk(Math.abs(totalOv))}</div><div class="kpi-sub">${closed.length?Math.round(withOv.length/closed.length*100):0}% dos fechados com OV</div></div>
+    <div class="kpi b"><div class="kpi-label">Perf. média</div><div class="kpi-val">${avgPerf!=null?pct(avgPerf):'—'}</div><div class="kpi-sub">vs garantido prometido</div></div>
+    <div class="kpi p"><div class="kpi-label">NF no período</div><div class="kpi-val">${nfRows.length}</div><div class="kpi-sub">${rows.length?Math.round(nfRows.length/rows.length*100):0}% não formaram</div></div>
+  `;
 
   // Top overlay
   const byName={};
@@ -1233,8 +1140,6 @@ function buildDash(){
     </tr>`;
   }).join(''):`<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--ink3)">Sem overlay no período</td></tr>`;
 
-  // ── Análise por série (SPS / SPT / regulares) ──
-  buildSeriesAnalysis(rows, closed);
   // ── Insights inteligentes ──
   buildInsights(rows, closed, _dp);
   // ── Projeção do mês ──
@@ -1416,17 +1321,6 @@ function buildInsights(rows, closed, days){
       });
     });
 
-  // 13. Séries (festivais SPS / SPT) — alerta de overlay ou elogio de cobertura
-  const serAgg = {};
-  closed.forEach(r=>{ const s=seriesOf(r.nome); if(!s) return; const a=serAgg[s]||(serAgg[s]={ev:0,ov:0,prem:0,gtd:0}); a.ev++; a.prem+=r.premiacao||0; a.gtd+=r.garantido||0; if(r.overlay<0) a.ov+=Math.abs(r.overlay); });
-  Object.entries(serAgg).forEach(([s,a])=>{
-    if(a.ev<3) return;
-    if(a.ov > cfg.overlayDia)
-      insights.push({type:'alert', icon:'🎟️', text:`Festival <b>${s}</b>: R$ ${brl(a.ov)} de overlay acumulado em ${a.ev} eventos. Revisar o GTD dos torneios da série.`});
-    else if(a.gtd>0 && a.prem/a.gtd >= 1.1)
-      insights.push({type:'ok', icon:'🎟️', text:`Festival <b>${s}</b> forte: cobriu <b>${Math.round(a.prem/a.gtd*100)}%</b> do GTD em ${a.ev} eventos, sem overlay relevante.`});
-  });
-
   if(!insights.length){
     el.innerHTML=`<div style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--ink3);padding:12px 0">${typeIcon('ok')}Nenhuma anomalia detectada no período.</div>`;
     return;
@@ -1512,154 +1406,39 @@ function renderGrade(){
 }
 
 /* ── OPERADORES ──────────────────────────────────────────────── */
-/* ── KPIs por operador (últimos 30 dias) ── junta 3 fontes: Painel do Dia
-   (flatRows), Criação Noturna (cnStatsByOp) e Notificações (userNotifs, com os
-   MOTIVOS). Chaveado pelo NOME de exibição (apelido/nome), que é como fixBy/doneBy
-   gravam; as notificações vêm por e-mail e são casadas pelo cadastro. */
-let _opKpi = {};
-function notifTypeLabel(t){
-  if(typeof NOTIF_TYPES!=='undefined' && NOTIF_TYPES[t]) return NOTIF_TYPES[t];
-  return ({bloqueio:'Acesso suspenso', anomalia:'Anomalia automática', criacao:'Erro de criação (GU)'})[t] || (t||'Outro');
-}
-async function buildOpKpis(users){
-  const kpi = {};
-  const ensure = name => kpi[name] || (kpi[name] = {fixados:0,total:0,comId:0,semPrem:0,overlay:0,
-    cnCriados:0,cnErros:0,cnComId:0,notifs:0,notifPend:0,notifJust:0,notifByType:{},notifLast:0});
-  // Painel do Dia
-  try{
-    flatRows(dago(30), nowSP()).forEach(r=>{
-      const op = r.fixBy || r.idBy; if(!op) return;
-      const o = ensure(op); o.total++;
-      if(r.fixBy) o.fixados++;
-      if(r.id && String(r.id).toUpperCase()!=='NF' && String(r.id).trim()) o.comId++;
-      if(r.status==='aberto') o.semPrem++;
-      if(r.overlay!=null && r.overlay<0) o.overlay++;
-    });
-  }catch(e){}
-  // Criação Noturna (GU)
-  try{
-    const cn = await cnStatsByOp(dago(30), nowSP());
-    Object.entries(cn.byOp).forEach(([name,s])=>{ const o=ensure(name); o.cnCriados=s.criados||0; o.cnErros=s.erros||0; o.cnComId=s.comId||0; });
-  }catch(e){}
-  // Notificações (com motivos) — por e-mail → nome via cadastro
-  try{
-    const all = await getAllNotifsCached();
-    Object.entries(all).forEach(([emailKey, notifs])=>{
-      const u = (users && users[emailKey]) || {};
-      const name = u.apelido || u.nome; if(!name) return;
-      const o = ensure(name);
-      Object.values(notifs||{}).forEach(n=>{
-        if(!n || typeof n!=='object') return;
-        o.notifs++;
-        const t = n.type || 'outro'; o.notifByType[t] = (o.notifByType[t]||0) + 1;
-        if(n.blocked && !n.justified && !n.resolved) o.notifPend++;
-        if(n.justified) o.notifJust++;
-        const at = n.sentAt || n.at || n.since || 0; if(at > o.notifLast) o.notifLast = at;
-      });
-    });
-  }catch(e){}
-  return kpi;
-}
-
 async function loadOps(){
   if(!fbOk)return;
-  const host = document.getElementById('opCards');
-  if(host) host.innerHTML = `<div class="op-loading">Carregando…</div>`;
+  document.getElementById('opBody').innerHTML=`<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--ink3)">Carregando...</td></tr>`;
   try{
-    const snap = await db.ref('users').once('value');
-    const users = snap.val()||{};
-    _opKpi = await buildOpKpis(users);
-    const list = Object.entries(users).map(([k,u])=>({key:k,...u}));
-    // ordena: quem precisa de atenção (suspenso / erro GU) primeiro, depois por atividade
-    const score = u => { const k = _opKpi[u.apelido||u.nome||u.email]||{}; return (u.pendingNotif?100:0)+(k.cnErros?50:0)+(k.notifPend?30:0); };
-    const act   = u => { const k = _opKpi[u.apelido||u.nome||u.email]||{}; return (k.fixados||0)+(k.cnCriados||0); };
-    list.sort((a,b)=> (score(b)-score(a)) || (act(b)-act(a)));
-    document.getElementById('opCount').textContent = `${list.length} cadastrado${list.length!==1?'s':''}`;
-    if(host) host.innerHTML = list.map(opCardHtml).join('') || `<div class="op-loading">Nenhum operador cadastrado.</div>`;
-    filterOps();
-  }catch(e){ if(host) host.innerHTML = `<div class="op-loading" style="color:var(--red)">${e.message}</div>`; }
-}
-
-function opCardHtml(u){
-  const email = u.email || (u.key.replace(/_dot_/g,'.').replace(/_at_/g,'@'));
-  const name  = u.apelido || u.nome || email;
-  const k = _opKpi[name] || {};
-  const suspenso = !!u.pendingNotif, isAdmin = !!u.admin;
-  const created  = u.createdAt ? new Date(u.createdAt).toLocaleDateString('pt-BR') : '—';
-  const initial  = (String(name).trim()[0] || '?').toUpperCase();
-  const attn = suspenso || (k.notifPend>0) || (k.cnErros>0);
-  const searchStr = (name+' '+email).toLowerCase();
-  const chip = (ic,lab,val,cls)=>`<div class="op-kpi ${cls||''}"><span class="v">${val}</span><span class="l">${ic} ${lab}</span></div>`;
-  const kpis = isAdmin ? '' : `<div class="op-kpis">
-    ${chip('🎯','Fixados', k.fixados||0)}
-    ${chip('🌙','Criados GU', k.cnCriados||0)}
-    ${chip('🔖','Com ID', k.comId||0)}
-    ${chip('⚠','Erros GU', k.cnErros||0, k.cnErros>0?'bad':'')}
-    ${chip('📭','Sem prem.', k.semPrem||0, k.semPrem>5?'warn':'')}
-    ${chip('📨','Notificado', k.notifs||0, k.notifs>0?'warn':'')}
-  </div>`;
-  let notifBlk = '';
-  if(!isAdmin && k.notifs>0){
-    const motivos = Object.entries(k.notifByType).sort((a,b)=>b[1]-a[1])
-      .map(([t,c])=>`<span class="op-motivo">${esc(notifTypeLabel(t))} <b>${c}</b></span>`).join('');
-    const last = k.notifLast ? new Date(k.notifLast).toLocaleDateString('pt-BR') : '—';
-    notifBlk = `<div class="op-notif ${k.notifPend>0?'pend':''}">
-      <div class="op-notif-head">📨 <b>${k.notifs}</b> notifica&ccedil;${k.notifs>1?'&otilde;es':'&atilde;o'}${k.notifPend>0?` &middot; <span class="pendtag">${k.notifPend} pendente${k.notifPend>1?'s':''}</span>`:''}${k.notifJust>0?` &middot; <span class="op-notif-just">${k.notifJust} justificada${k.notifJust>1?'s':''}</span>`:''}<span class="op-flex"></span><span class="op-notif-last">&uacute;ltima: ${last}</span></div>
-      <div class="op-motivos">${motivos}</div>
-    </div>`;
-  }
-  const access = isAdmin
-    ? `<div class="op-admin-badge">👑 Acesso total — todos os painéis, ver e editar</div>`
-    : `<div class="op-access">
-        <div class="op-access-head"><span>Acesso aos painéis</span>
-          <span class="op-access-quick">
-            <button class="qbtn" data-key="${esc(u.key)}" data-act="opGrantAllFromEl" data-act-self>Liberar tudo</button>
-            <button class="qbtn danger" data-key="${esc(u.key)}" data-act="opRevokeAllFromEl" data-act-self>Tirar tudo</button>
-          </span>
-        </div>
-        ${accessCell(u)}
-      </div>`;
-  return `<div class="op-card${attn?' attn':''}${suspenso?' susp':''}" data-op-search="${esc(searchStr)}">
-    <div class="op-card-head">
-      <span class="op-av"${isAdmin?' style="background:var(--gold);color:#1a1408"':''}>${esc(initial)}</span>
-      <div class="op-id">
-        <div class="op-name">${esc(name)} ${isAdmin?'<span class="op-tag adm">Admin</span>':'<span class="op-tag">Operador</span>'}${suspenso?' <span class="op-tag sus">Suspenso</span>':''}</div>
-        <div class="op-email">${esc(email)} &middot; desde ${created}</div>
-      </div>
-      <div class="op-card-actions">
-        ${k.notifs>0?`<button class="btn btn-ghost btn-sm" data-act="openNotifHistory" title="Histórico de notificações">Hist&oacute;rico</button>`:''}
-        ${suspenso
+    const snap=await db.ref('users').once('value');
+    const users=snap.val()||{};
+    const fixCount={};
+    Object.values(_allData).forEach(day=>Object.values(day.fixed).forEach(f=>{
+      if(typeof f==='object'&&f?.by)fixCount[f.by]=(fixCount[f.by]||0)+1;
+    }));
+    const rows=Object.entries(users).map(([k,u])=>({key:k,...u}));
+    document.getElementById('opCount').textContent=`${rows.length} cadastrado${rows.length!==1?'s':''}`;
+    document.getElementById('opBody').innerHTML=rows.map(u=>{
+      const email=u.email||(u.key.replace(/_dot_/g,'.').replace(/_at_/g,'@'));
+      const created=u.createdAt?new Date(u.createdAt).toLocaleDateString('pt-BR'):'—';
+      const name=u.apelido||u.nome||email;
+      const suspenso = !!u.pendingNotif;
+      return `<tr>
+        <td><div style="font-weight:700">${esc(name)}</div><div style="font-size:11px;color:var(--ink3)">${esc(u.nome||'')}</div></td>
+        <td class="c-ink2">${esc(email)}</td>
+        <td class="r mono">${fixCount[name]||0}</td>
+        <td style="display:flex;gap:5px;flex-wrap:wrap">
+          ${u.admin?'<span class="badge badge-closed">Admin</span>':'<span class="badge badge-open">Operador</span>'}
+          ${suspenso?'<span class="badge badge-nf">Suspenso</span>':''}
+        </td>
+        <td>${accessCell(u)}</td>
+        <td class="c-ink3">${created}</td>
+        <td>${suspenso
           ? `<button class="btn btn-gold btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" data-act="forceUnblockOpFromEl">Reativar</button>`
-          : `<button class="btn btn-ghost btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" data-act="blockOpFromEl">Suspender</button>`}
-      </div>
-    </div>
-    ${kpis}
-    ${notifBlk}
-    ${access}
-  </div>`;
-}
-
-function filterOps(){
-  const q = (document.getElementById('opSearch')?.value||'').trim().toLowerCase();
-  document.querySelectorAll('#opCards .op-card').forEach(c=>{
-    c.style.display = (!q || (c.dataset.opSearch||'').includes(q)) ? '' : 'none';
-  });
-}
-/* liberar / tirar acesso a TODOS os painéis de uma conta de uma vez */
-async function opSetAllAccess(key, on){
-  if(!fbOk){ toast('Firebase não conectado','err'); return; }
-  const updates = {};
-  ACCESS_PANELS.forEach(p => { updates[p.id] = on ? true : null; });
-  try{
-    await db.ref(`users/${key}/access`).update(updates);
-    toast(on ? '✓ Acesso liberado em todos os painéis' : 'Acessos removidos', 'ok');
-    await loadOps();
-  }catch(e){ toast('Falha ao salvar: '+(e.message||e), 'err'); }
-}
-async function opGrantAllFromEl(btn){ await opSetAllAccess(btn.dataset.key, true); }
-async function opRevokeAllFromEl(btn){
-  if(!await confirmModal({title:'Tirar todos os acessos', message:'Remover o acesso a <b>todos os painéis</b> desta conta?', confirmLabel:'Tirar tudo'})) return;
-  await opSetAllAccess(btn.dataset.key, false);
+          : `<button class="btn btn-ghost btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" data-act="blockOpFromEl">Suspender</button>`}</td>
+      </tr>`;
+    }).join('');
+  }catch(e){document.getElementById('opBody').innerHTML=`<tr><td colspan="7" style="color:var(--red);padding:16px">${e.message}</td></tr>`;}
 }
 
 /* ── CONTROLE DE ACESSO POR PAINEL ──
@@ -2155,7 +1934,7 @@ function openAuditEditByEl(btn){
   // Encontrar o row completo em _auditRows
   const r = _auditRows.find(r=>r.key===key&&r.date===date);
   if(!r){ toast('Dado não encontrado','err'); return; }
-  openAuditEdit({key:r.key,date:r.date,nome:r.nome,premiacao:r.premiacao,field:r.field,garantido:r.garantido,hora:r.hora,id:r.id});
+  openAuditEdit({key:r.key,date:r.date,nome:r.nome,premiacao:r.premiacao,field:r.field,garantido:r.garantido,hora:r.hora});
 }
 
 function openNotifByEl(btn){
@@ -2187,7 +1966,6 @@ function openAuditEdit(ctx){
     _auditContext.field != null ? _auditContext.field+' jog.' : '—';
   document.getElementById('auditOrigGar').textContent =
     _auditContext.garantido != null ? 'R$ '+brl(_auditContext.garantido) : '—';
-  document.getElementById('auditOrigId').textContent = _auditContext.id || '—';
 
   // Preencher com valor já auditado (se existir) ou original
   const premVal = audit?.premiacaoAuditada ?? _auditContext.premiacao;
@@ -2198,8 +1976,6 @@ function openAuditEdit(ctx){
     audit?.fieldAuditado ?? _auditContext.field ?? '';
   document.getElementById('auditGarInput').value =
     garVal != null ? brl(garVal,2) : '';
-  document.getElementById('auditIdInput').value =
-    audit?.idAuditado ?? _auditContext.id ?? '';
   document.getElementById('auditObs').value = audit?.obs || '';
   document.getElementById('auditApproved').checked = audit?.status === 'aprovado';
 
@@ -2217,13 +1993,11 @@ async function saveAudit(){
   const premRaw  = document.getElementById('auditPremInput').value.trim();
   const fieldRaw = document.getElementById('auditFieldInput').value.trim();
   const garRaw   = document.getElementById('auditGarInput').value.trim();
-  const idRaw    = document.getElementById('auditIdInput').value.trim();
   const obs      = document.getElementById('auditObs').value.trim();
   const approved = document.getElementById('auditApproved').checked;
-  const idChanged = idRaw && idRaw !== (_auditContext.id || '');
 
   errEl.style.display = 'none';
-  if(!premRaw && !fieldRaw && !garRaw && !idChanged && !approved){
+  if(!premRaw && !fieldRaw && !garRaw && !approved){
     errEl.textContent = 'Preencha ao menos um valor ou marque como aprovado.';
     errEl.style.display = 'block'; return;
   }
@@ -2248,8 +2022,6 @@ async function saveAudit(){
     premiacaoAuditada: approved ? (_auditContext.premiacao ?? null) : (prem ?? null),
     fieldAuditado:     approved ? (_auditContext.field ?? null) : (field ?? null),
     garantidoAuditado: approved ? (_auditContext.garantido ?? null) : (gar ?? null),
-    idOriginal:  _auditContext.id ?? null,
-    idAuditado:  approved ? (_auditContext.id ?? null) : (idRaw || (_auditContext.id ?? null)),
     status:    approved ? 'aprovado' : 'corrigido',
     obs:       obs || null,
     auditadoEm:   Date.now(),
@@ -2267,8 +2039,6 @@ async function saveAudit(){
       if(prem != null)  await db.ref(`${basePath}/premiacao/${_auditContext.key}`).set(prem);
       if(field != null) await db.ref(`${basePath}/field/${_auditContext.key}`).set(field);
       if(gar != null)   await db.ref(`${basePath}/garantido/${_auditContext.key}`).set(gar);
-      // ID corrigido: sobrescreve o ID ao vivo no painel (mesmo nó que o operador usa)
-      if(idChanged)     await db.ref(`${basePath}/ids/${_auditContext.key}`).set({val: idRaw, by: `Admin ${_name||''}`.trim(), at: Date.now()});
     }
 
     // Atualizar cache local
@@ -2283,7 +2053,6 @@ async function saveAudit(){
           if(prem != null)  r.premiacao = prem;
           if(field != null) r.field = field;
           if(gar != null)   r.garantido = gar;
-          if(idChanged)     r.id = idRaw;
           // Recalcular overlay/perf
           if(r.premiacao != null && r.garantido != null){
             r.overlay = r.premiacao - r.garantido < 0 ? r.premiacao - r.garantido : null;
@@ -2305,9 +2074,6 @@ async function saveAudit(){
     });
     // Re-renderizar a auditoria para mostrar badge
     loadAudit();
-    // Backup: se corrigiu um valor (arrecadado/field/garantido/ID), reescreve a aba
-    // daquele dia no Google Sheets com o valor AUDITADO — automático.
-    if(!approved) autoResendSheets(_auditContext.date, 'valor auditado');
   } catch(e){
     errEl.textContent = 'Erro: '+e.message; errEl.style.display='block';
   } finally {
@@ -2375,10 +2141,8 @@ async function exportAuditXlsx(){
       g.rows.forEach(r=>{
         const drRow=aoa.length;
         const ov=r.overlay??'',perf=r.perf??'';
-        // Field ia na coluna errada (9 = "Ações"), deixando a coluna "Field" (8) vazia
-        // no export. Agora Field vai na 8 e a 9 ("Ações") fica em branco.
         aoa.push([r.nome,r.hora,r.late,catLabel(r.cat),
-          r.garantido??'',r.buyin??'',r.premiacao??'',ov,r.field??'','',perf,
+          r.garantido??'',r.buyin??'',r.premiacao??'',ov,r.field??'',r.fieldNet??'',perf,
           r.fixBy||r.idBy||'',r.id,statusLabel(r.status)]);
         cnt++;if(r.garantido)sg+=r.garantido;if(r.premiacao)sp+=r.premiacao;if(r.overlay)so+=r.overlay;
         if(r.status==='nf')for(let c=0;c<14;c++)styleMap[XLSX.utils.encode_cell({r:drRow,c})]={font:{color:{rgb:'888888'},italic:true},fill:{fgColor:{rgb:'F5F5F5'}}};
@@ -2466,21 +2230,6 @@ async function initBackup(){
   if(urlField && !urlField.value) urlField.value = localStorage.getItem('suprema_sheets_url') || '';
   const secretField = document.getElementById('sheetsSecret');
   if(secretField && !secretField.value) secretField.value = localStorage.getItem('suprema_sheets_secret') || '';
-  // Re-sincroniza a config COMPARTILHADA (config/sheetsBackup) ao abrir a página, se
-  // já houver URL salva. Assim o auto-backup do PAINEL passa a funcionar mesmo que o
-  // admin não clique "Enviar hoje" de novo (ex.: depois de publicar as regras). Só
-  // grava quando falta ou mudou, pra não escrever à toa.
-  try{
-    const savedUrl = (localStorage.getItem('suprema_sheets_url') || '').trim();
-    if(fbOk && savedUrl){
-      const savedSecret = (localStorage.getItem('suprema_sheets_secret') || '').trim();
-      const snap = await db.ref('config/sheetsBackup').once('value').catch(() => null);
-      const cur = snap && snap.val();
-      if(!cur || cur.url !== savedUrl || (cur.secret||'') !== savedSecret){
-        db.ref('config/sheetsBackup').set({url:savedUrl, secret:savedSecret, by:_name||'', at:Date.now()}).catch(()=>{});
-      }
-    }
-  }catch(_){}
   await loadAll(true);   // backup exporta o histórico COMPLETO, não a janela de 60 dias
   const dates = Object.keys(_allData).sort();
   if(!dates.length){ document.getElementById('backupKpi').innerHTML='<div style="color:var(--ink3);font-size:12px">Nenhum dado encontrado.</div>'; return; }
@@ -2548,96 +2297,6 @@ async function exportMonthXlsx(){
   XLSX.writeFile(wb, `Suprema_${month}.xlsx`);
   toast(`✓ ${dates.length} dias exportados`,'ok');
   status.textContent = `✓ ${dates.length} dias exportados (${label})`;
-}
-
-// ── EXPORT SQLITE (banco pronto, via sql.js sob demanda) ──
-let _sqlJs = null;
-async function ensureSqlJs(){
-  if(_sqlJs) return _sqlJs;
-  const CDN = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3';
-  if(typeof initSqlJs === 'undefined'){
-    await new Promise((res,rej)=>{
-      const s = document.createElement('script');
-      s.src = `${CDN}/sql-wasm.js`;
-      s.onload = res; s.onerror = () => rej(new Error('não consegui baixar o sql.js (sem internet?)'));
-      document.head.appendChild(s);
-    });
-  }
-  _sqlJs = await initSqlJs({ locateFile: f => `${CDN}/${f}` });
-  return _sqlJs;
-}
-async function exportSqlite(){
-  if(!fbOk){ toast('Firebase não conectado','err'); return; }
-  const status = document.getElementById('bkSqliteStatus');
-  const set = t => { if(status) status.textContent = t; };
-  try{
-    set('Carregando o histórico completo…');
-    if(!_loadAllFull) await loadAll(true);
-    const dates = Object.keys(_allData).sort();
-    if(!dates.length){ toast('Sem dados pra exportar','err'); set(''); return; }
-    set('Carregando o motor SQLite (sql.js)…');
-    const SQL = await ensureSqlJs();
-    set('Montando o banco…');
-    const db = new SQL.Database();
-    db.run(`CREATE TABLE torneios(
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      data TEXT, nome TEXT, hora TEXT, categoria TEXT,
-      garantido REAL, buyin REAL, premiacao REAL, field INTEGER, overlay REAL,
-      perf REAL, id_pokerbyte TEXT, status TEXT, fixado_por TEXT, operador TEXT
-    );`);
-    const rows = flatRows(dates[0], dates[dates.length-1]);
-    const ins = db.prepare('INSERT INTO torneios (data,nome,hora,categoria,garantido,buyin,premiacao,field,overlay,perf,id_pokerbyte,status,fixado_por,operador) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-    rows.forEach(r => ins.run([r.date, r.nome||null, r.hora||null, r.cat||null,
-      r.garantido??null, r.buyin??null, r.premiacao??null, r.field??null, r.overlay??null, r.perf??null,
-      r.id||null, r.status||null, r.fixBy||null, r.fixBy||r.idBy||null]));
-    ins.free();
-    db.run(`CREATE TABLE auditoria(
-      data TEXT, chave TEXT, nome TEXT, hora TEXT, status TEXT,
-      premiacao_original REAL, premiacao_auditada REAL,
-      field_original INTEGER, field_auditado INTEGER,
-      garantido_original REAL, garantido_auditado REAL,
-      id_original TEXT, id_auditado TEXT,
-      obs TEXT, auditado_por TEXT, auditado_em INTEGER
-    );`);
-    let nAud = 0;
-    const insA = db.prepare('INSERT INTO auditoria (data,chave,nome,hora,status,premiacao_original,premiacao_auditada,field_original,field_auditado,garantido_original,garantido_auditado,id_original,id_auditado,obs,auditado_por,auditado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-    Object.entries(_auditData||{}).forEach(([date,byKey])=>{
-      Object.entries(byKey||{}).forEach(([key,e])=>{
-        if(!e || typeof e!=='object') return;
-        insA.run([date, key, e.nome||null, e.hora||null, e.status||null,
-          e.premiacaoOriginal??null, e.premiacaoAuditada??null,
-          e.fieldOriginal??null, e.fieldAuditado??null,
-          e.garantidoOriginal??null, e.garantidoAuditado??null,
-          e.idOriginal||null, e.idAuditado||null,
-          e.obs||null, e.auditadoPor||null, e.auditadoEm??null]);
-        nAud++;
-      });
-    });
-    insA.free();
-    db.run(`CREATE TABLE meta(chave TEXT, valor TEXT);`);
-    const insM = db.prepare('INSERT INTO meta (chave,valor) VALUES (?,?)');
-    [['gerado_em', new Date().toISOString()], ['gerado_por', _email||'admin'],
-     ['total_torneios', String(rows.length)], ['total_auditorias', String(nAud)],
-     ['dias', String(dates.length)], ['periodo', `${dates[0]} a ${dates[dates.length-1]}`],
-     ['fonte', 'Suprema OS · Painel Admin']].forEach(m => insM.run(m));
-    insM.free();
-
-    const bytes = db.export();
-    db.close();
-    const blob = new Blob([bytes], {type:'application/vnd.sqlite3'});
-    const url  = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `suprema_backup_${nowSP()}.sqlite`;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url), 4000);
-    localStorage.setItem('suprema_last_sqlite', Date.now());
-    toast(`✓ SQLite gerado — ${rows.length} torneios`, 'ok');
-    set(`✓ ${rows.length} torneios · ${nAud} auditorias · ${dates.length} dias · ${(bytes.length/1024).toFixed(0)} KB baixado`);
-  }catch(e){
-    console.error('exportSqlite', e);
-    toast('Falha ao gerar SQLite: '+(e.message||e), 'err');
-    set('Erro: '+(e.message||e));
-  }
 }
 
 // ── EXPORT TUDO ──
@@ -2840,49 +2499,42 @@ async function executeCleanup(old){
 // ── 3. GOOGLE SHEETS ──
 const APPS_SCRIPT = `// Cole este script no Apps Script da sua planilha Google
 // Extensões → Apps Script → cole → Implantar → App da Web (Qualquer pessoa)
-// Escreve a grade JÁ PRONTA (agrupada por Main/Side/Satélite) que o painel manda.
-// UMA aba por dia: limpa e reescreve a aba com a data — puxar de novo SOBRESCREVE.
 
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
-    // Segredo compartilhado (opcional): Configurações do projeto → Propriedades do
-    // script → adicione SHARED_SECRET com o mesmo valor colado no admin.
+    // Segredo compartilhado: Extensões → Apps Script → Configurações do projeto →
+    // Propriedades do script → adicione SHARED_SECRET com o mesmo valor colado no admin.
     const expected = PropertiesService.getScriptProperties().getProperty('SHARED_SECRET');
     if (expected && data.secret !== expected) {
       return ContentService.createTextOutput(JSON.stringify({error:'unauthorized'})).setMimeType(ContentService.MimeType.JSON);
     }
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    // Mesmo dia = mesma aba. Sem duplicar "dia 30".
-    const sheetName = String(data.date || new Date().toLocaleDateString('pt-BR')).slice(0, 90);
+    const sheetName = data.date || new Date().toLocaleDateString('pt-BR');
     let sheet = ss.getSheetByName(sheetName);
     if (!sheet) sheet = ss.insertSheet(sheetName);
-    sheet.clear();
+    sheet.clearContents();
 
-    const grid = data.grid || [];
-    if (grid.length) {
-      const ncol = grid.reduce((m, r) => Math.max(m, r.length), 1);
-      const norm = grid.map(r => { const c = r.slice(); while (c.length < ncol) c.push(''); return c; });
-      sheet.getRange(1, 1, norm.length, ncol).setValues(norm);
+    // Cabeçalho
+    sheet.getRange(1, 1, 1, 9).setValues([['Torneio','Hora','Categoria','Garantido','Buy-in','Premiação','Overlay','Field','Status']]);
 
-      const style = data.style || {};
-      // Cabeçalho — verde feltro, congelado no topo
-      if (style.headerRow != null) {
-        sheet.getRange(style.headerRow + 1, 1, 1, ncol)
-          .setFontWeight('bold').setBackground('#1a472a').setFontColor('#ffffff');
-        sheet.setFrozenRows(style.headerRow + 1);
-      }
-      // Faixas de seção (MAIN EVENT / SIDE EVENT / SATÉLITE) — dourado, mesclado
-      (style.sectionRows || []).forEach(idx => {
-        const rng = sheet.getRange(idx + 1, 1, 1, ncol);
-        rng.setFontWeight('bold').setBackground('#f1e2bd').setFontColor('#5c4a1a');
-        try { rng.mergeAcross(); } catch (mErr) {}
-      });
-      sheet.autoResizeColumns(1, ncol);
+    // Dados
+    if (data.rows && data.rows.length) {
+      const values = data.rows.map(r => [
+        r.nome||'', r.hora||'', r.cat||'',
+        r.garantido||'', r.buyin||'', r.premiacao||'',
+        r.overlay||'', r.field||'', r.status||''
+      ]);
+      sheet.getRange(2, 1, values.length, 9).setValues(values);
     }
-    return ContentService.createTextOutput(JSON.stringify({ok:true, rows:grid.length})).setMimeType(ContentService.MimeType.JSON);
+
+    // Formatar
+    sheet.getRange(1, 1, 1, 9).setFontWeight('bold').setBackground('#1a472a').setFontColor('#ffffff');
+    sheet.autoResizeColumns(1, 9);
+
+    return ContentService.createTextOutput(JSON.stringify({ok:true})).setMimeType(ContentService.MimeType.JSON);
   } catch(err) {
-    return ContentService.createTextOutput(JSON.stringify({error:String((err && err.message) || err)})).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({error:err.message})).setMimeType(ContentService.MimeType.JSON);
   }
 }`;
 
@@ -2897,62 +2549,43 @@ async function exportToSheets(){
   if(!url){ toast('Cole a URL do Apps Script primeiro','err'); return; }
   localStorage.setItem('suprema_sheets_url', url);
   const secret = document.getElementById('sheetsSecret').value.trim();
-  if(secret) localStorage.setItem('suprema_sheets_secret', secret); else localStorage.removeItem('suprema_sheets_secret');
-
-  // Config COMPARTILHADA: o Painel lê daqui pra fazer o auto-backup quando o
-  // último resultado do dia é preenchido (sem depender de o admin estar aberto).
-  try{ if(fbOk) db.ref('config/sheetsBackup').set({url, secret:secret||'', by:_name||'', at:Date.now()}); }catch(_){}
+  if(secret) localStorage.setItem('suprema_sheets_secret', secret);
 
   const today = nowSP();
-  const rows  = flatRows(today, today);   // já traz cat/late/status; buildGrid deriva Overlay/Ações
-  if(!rows.length){ toast('Sem dados de hoje para enviar','err'); return; }
+  const day   = _allData[today];
+  if(!day){ toast('Sem dados de hoje para enviar','err'); return; }
+
+  const rows = Object.entries(day.rows||{}).map(([key,r])=>{
+    if(!r||!r.nome) return null;
+    const prem  = day.prem?.[key]??r.premiacao??null;
+    const gar   = day.guar?.[key]??r.garantido??null;
+    const field = day.field?.[key]??r.field??null;
+    const ov    = prem!=null&&gar!=null?prem-gar:null;
+    const idRaw = day.ids?.[key];
+    const id    = typeof idRaw==='object'&&idRaw?idRaw.val||'':idRaw||'';
+    return {nome:r.nome,hora:r.hora,cat:classify(r),garantido:gar,buyin:r.buyin,
+      premiacao:prem,overlay:ov,field,status:id.toUpperCase()==='NF'?'Não formou':prem!=null?'Fechado':'Aberto'};
+  }).filter(Boolean);
 
   const status = document.getElementById('sheetsStatus');
-  if(status) status.textContent = 'Enviando...';
+  status.textContent = 'Enviando...';
 
-  const built = SupremaSheets.buildGrid(rows);
-  const out   = await SupremaSheets.send({url, secret}, today, built);
-  const now   = new Date().toLocaleTimeString('pt-BR');
-  const aba    = SupremaSheets.sheetLabel(today);
-
-  if(out.error){
-    toast('O Apps Script recusou: '+out.error, 'err');
-    if(status) status.textContent = '❌ '+out.error+' — confira o segredo (secret) e o código do script.';
-  } else if(out.confirmed){
-    localStorage.setItem('suprema_last_sheets', Date.now());
-    toast('✓ Dados enviados para Google Sheets','ok');
-    if(status) status.textContent = `✓ ${out.rows} torneios na aba ${aba} às ${now} (confirmado)`;
-  } else if(out.sent){
-    localStorage.setItem('suprema_last_sheets', Date.now());
-    toast('Enviado ao Sheets — confira a planilha','ok');
-    if(status) status.textContent = `↑ ${out.rows} torneios enviados p/ a aba ${aba} às ${now}. A resposta veio bloqueada por CORS (normal no Apps Script) — confira na planilha.`;
-  } else {
-    toast('Não consegui enviar pro Sheets','err');
-    if(status) status.textContent = '❌ Não consegui enviar. Confira a URL do Apps Script e republique o deploy como "Executar como: eu" e "Quem tem acesso: qualquer pessoa".';
-  }
-}
-
-/* Re-enviar o backup de um DIA específico, silenciosamente, quando um valor é
-   corrigido na auditoria. Usa os _auditRows já atualizados em memória (que refletem
-   a correção) e sobrescreve a MESMA aba — o "Arrecadado" auditado entra no lugar. */
-async function autoResendSheets(dateKey, reason){
   try{
-    const url = (localStorage.getItem('suprema_sheets_url')||'').trim();
-    if(!url) return;                                  // backup não configurado → ignora
-    if(typeof SupremaSheets==='undefined') return;
-    const secret = (localStorage.getItem('suprema_sheets_secret')||'').trim();
-    const rows = (Array.isArray(_auditRows) && _auditRows.length)
-      ? _auditRows.filter(r => r.date === dateKey)    // já com o valor auditado (saveAudit atualizou)
-      : flatRows(dateKey, dateKey);
-    if(!rows.length) return;
-    const built = SupremaSheets.buildGrid(rows);
-    const out   = await SupremaSheets.send({url, secret}, dateKey, built);
-    const st = document.getElementById('sheetsStatus');
-    if(out.ok){
-      localStorage.setItem('suprema_last_sheets', Date.now());
-      if(st) st.textContent = `↻ Backup atualizado (${reason||'correção'}) na aba ${SupremaSheets.sheetLabel(dateKey)} — ${out.rows} torneios reescritos.`;
+    const res = await fetch(url, {
+      method:'POST',
+      body: JSON.stringify({date:fmtDate(today), rows, secret}),
+    });
+    const json = await res.json();
+    if(json.ok){
+      toast('✓ Dados enviados para Google Sheets','ok');
+      status.textContent = `✓ ${rows.length} torneios enviados em ${new Date().toLocaleTimeString('pt-BR')}`;
+    } else {
+      throw new Error(json.error||'Resposta inválida');
     }
-  }catch(_){}
+  }catch(e){
+    toast('Erro ao enviar: '+e.message,'err');
+    status.textContent = '❌ '+e.message;
+  }
 }
 
 function timeMin(h){
@@ -2996,7 +2629,7 @@ function toggleSoAnomalia(){
   // Esconder/mostrar linhas
   document.querySelectorAll('#auditResult tr[data-key]').forEach(tr=>{
     if(_soAnomalia){
-      tr.style.display = (tr.classList.contains('anomalia') || tr.classList.contains('cn-erro')) ? '' : 'none';
+      tr.style.display = tr.classList.contains('anomalia') ? '' : 'none';
     } else {
       tr.style.display = '';
     }
@@ -3381,44 +3014,6 @@ function batchDeselect(){
   updateBatchActions();
 }
 
-/* anomalias auto-detectadas de uma linha (mesma regra do render) — "com erro" */
-function rowAnomalias(r){
-  const a = [];
-  if(r.premiacao === 0) a.push('Premiação R$0');
-  if(r.premiacao != null && r.garantido && r.premiacao > r.garantido * 3) a.push('Premiação muito alta');
-  if(r.field != null && r.buyin && r.field > 0 && r.garantido && (r.field * r.buyin) < r.garantido * 0.1) a.push('Field baixo pro GTD');
-  if(r.overlay != null && r.garantido && Math.abs(r.overlay) > r.garantido * 0.5) a.push('Overlay >50% GTD');
-  return a;
-}
-/* aprovar em massa TODOS os torneios sem anomalia e ainda não auditados
-   (aprovado = sem correção). Os que têm ⚠ ficam de fora pra revisão manual.
-   Nome casa com a entrada já existente no allowlist do admin-actions. */
-async function approveAllAudit(){
-  if(!fbOk){ toast('Firebase não conectado','err'); return; }
-  if(!_auditRows.length){ toast('Carregue os dados primeiro (Buscar)','err'); return; }
-  const targets = _auditRows.filter(r => !r._audited && rowAnomalias(r).length === 0);
-  if(!targets.length){ toast('Nada pra aprovar — todos já auditados ou têm anomalia.','ok'); return; }
-  if(!await confirmModal({title:'Aprovar todos sem erro',
-    message:`Aprovar <b>${targets.length}</b> torneio${targets.length>1?'s':''} SEM anomalia como <b>corretos (sem correção)</b>?<br><span style="font-size:11px;color:var(--ink3)">Os que têm ⚠ anomalia ficam de fora — revise um a um.</span>`,
-    confirmLabel:'Aprovar todos'})) return;
-  let done = 0;
-  for(const r of targets){
-    const entry = {
-      premiacaoOriginal: r.premiacao??null, fieldOriginal: r.field??null, garantidoOriginal: r.garantido??null,
-      premiacaoAuditada: r.premiacao??null, fieldAuditado: r.field??null, garantidoAuditado: r.garantido??null,
-      idOriginal: r.id??null, idAuditado: r.id??null,
-      status:'aprovado', obs:null, auditadoEm: Date.now(), auditadoPor: _email||'admin', nome: r.nome, hora: r.hora,
-    };
-    try{
-      await db.ref(`auditoria/${r.date}/${r.key}`).set(entry);
-      if(!_auditData[r.date]) _auditData[r.date] = {};
-      _auditData[r.date][r.key] = entry;
-      r._audited = true; r._auditEntry = entry; done++;
-    }catch(e){ console.error('approveAllClean error:', e); }
-  }
-  toast(`✓ ${done} torneio${done>1?'s':''} aprovado${done>1?'s':''} sem correção`, 'ok');
-  loadAudit();
-}
 async function batchApprove(){
   const checks = [...document.querySelectorAll('.row-check:checked')];
   if(!checks.length) return;
@@ -3621,7 +3216,6 @@ function buildMonthProjection(){
   const lastDay  = new Date(parseInt(y), parseInt(m), 0).getDate();
   const daysPast = parseInt(today.slice(8));
   const daysLeft = lastDay - daysPast;
-  const monthName = new Date(parseInt(y), parseInt(m)-1, 1).toLocaleDateString('pt-BR',{month:'long'});
 
   const rows    = flatRows(firstDay, today);
   const closed  = rows.filter(r=>r.premiacao!=null);
@@ -3630,7 +3224,7 @@ function buildMonthProjection(){
   const totalOv   = closed.reduce((s,r)=>s+(r.overlay||0),0);
 
   if(!closed.length || !daysPast){
-    el.innerHTML = '<div style="font-size:12px;color:var(--ink3);padding:6px 0">Sem dados suficientes neste mês para projetar.</div>';
+    el.innerHTML = '<div style="font-size:12px;color:var(--ink3)">Sem dados suficientes para projeção.</div>';
     return;
   }
 
@@ -3640,29 +3234,29 @@ function buildMonthProjection(){
   const projPrem    = totalPrem + premPerDay * daysLeft;
   const projOv      = totalOv   + ovPerDay   * daysLeft;
   const coveragePct = totalGar > 0 ? (totalPrem/totalGar*100) : 0;
-  const progPct     = Math.round(daysPast/lastDay*100);
 
-  // mês anterior (fechado) para comparar a projeção
-  const prevD = new Date(parseInt(y), parseInt(m)-2, 1);
-  const pY = prevD.getFullYear(), pM = String(prevD.getMonth()+1).padStart(2,'0');
-  const pLast = new Date(pY, prevD.getMonth()+1, 0).getDate();
-  const prevRows = flatRows(`${pY}-${pM}-01`, `${pY}-${pM}-${String(pLast).padStart(2,'0')}`);
-  const prevPrem = prevRows.filter(r=>r.premiacao!=null).reduce((s,r)=>s+(r.premiacao||0),0);
-  const cmp = prevPrem>0 ? ((projPrem-prevPrem)/prevPrem*100) : null;
-  const prevMonthName = prevD.toLocaleDateString('pt-BR',{month:'long'});
-
-  const cardC = (label,val,color,sub)=>`<div class="proj-card"><div class="proj-l">${label}</div><div class="proj-v"${color?` style="color:${color}"`:''}>${val}</div><div class="proj-s">${sub}</div></div>`;
   el.innerHTML = `
-    <div class="proj-head">
-      <div class="proj-title">📆 ${monthName.charAt(0).toUpperCase()+monthName.slice(1)} — <b>${daysPast}</b> de ${lastDay} dias</div>
-      <div class="proj-bar"><div class="proj-bar-fill" style="width:${progPct}%"></div></div>
-      <div class="proj-cap">${progPct}% do mês rodado${cmp!=null?` &middot; projeção <b style="color:${cmp>=0?'var(--green)':'var(--red)'}">${cmp>=0?'▲':'▼'} ${Math.abs(cmp).toFixed(0)}%</b> vs ${prevMonthName} (R$ ${brlk(prevPrem)})`:''}</div>
-    </div>
-    <div class="proj-grid">
-      ${cardC('Premiação até hoje', 'R$ '+brlk(totalPrem), '', `R$ ${brlk(premPerDay)}/dia`)}
-      ${cardC('Projeção do mês', 'R$ '+brlk(projPrem), 'var(--gold)', `+${daysLeft} dia${daysLeft!==1?'s':''} no ritmo atual`)}
-      ${cardC('Overlay projetado', (projOv<0?'-':'+')+'R$ '+brlk(Math.abs(projOv)), projOv<0?'var(--red)':'var(--green)', 'na média diária')}
-      ${cardC('Cobertura GTD', coveragePct.toFixed(0)+'%', coveragePct>=100?'var(--green)':'var(--amber)', 'premiação vs garantido')}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">
+      <div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:9px">
+        <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px">Premiação até hoje</div>
+        <div style="font-size:18px;font-weight:800;font-family:var(--mono)">${brlk(totalPrem)}</div>
+        <div style="font-size:10px;color:var(--ink3)">${daysPast}/${lastDay} dias</div>
+      </div>
+      <div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:9px">
+        <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px">Projeção do mês</div>
+        <div style="font-size:18px;font-weight:800;font-family:var(--mono);color:var(--gold)">${brlk(projPrem)}</div>
+        <div style="font-size:10px;color:var(--ink3)">+${daysLeft} dias restantes</div>
+      </div>
+      <div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:9px">
+        <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px">Overlay projetado</div>
+        <div style="font-size:18px;font-weight:800;font-family:var(--mono);color:${projOv<0?'var(--red)':'var(--green)'}">${projOv<0?'-':'+'}${brlk(Math.abs(projOv))}</div>
+        <div style="font-size:10px;color:var(--ink3)">baseado na média diária</div>
+      </div>
+      <div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:9px">
+        <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px">Cobertura GTD</div>
+        <div style="font-size:18px;font-weight:800;font-family:var(--mono);color:${coveragePct>=100?'var(--green)':'var(--amber)'}">${coveragePct.toFixed(0)}%</div>
+        <div style="font-size:10px;color:var(--ink3)">premiação vs garantido</div>
+      </div>
     </div>`;
 }
 
