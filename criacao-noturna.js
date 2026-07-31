@@ -994,52 +994,107 @@ function setView(v){
   $('actionsBar').hidden = week || !DATA;
   const hint = $('viewHint');
   if (hint) hint.textContent = week
-    ? 'Só leitura — o dia inteiro de cada data, direto da planilha. A marcação/divisão continua na aba Noite.'
+    ? 'Selecione um dia pra ver os torneios daquela madrugada e quem preencheu cada ID do Pokerbyte. Só leitura — a marcação/divisão continua na aba Noite.'
     : `Janela 06:10 → 05:30 · divisão e marcação da madrugada de ${WEEKDAY_TOMORROW.toLowerCase()}.`;
   if (week) renderWeek();
+}
+
+/* SELETOR DE DIA + HISTÓRICO — a semana são os 7 dias TERMINANDO no dia ativo (a
+   janela de criação que já rodou/está rodando). Cada dia lê o SEU nó do Firebase
+   (painel/{data}/criacaoNoturna: sheet + ids + done), então o "quem preencheu o ID
+   do Pokerbyte" é o histórico real daquela madrugada. O dia ativo usa os globais
+   ao vivo (DATA/IDS/DONE). É só leitura — a edição continua na aba Noite. */
+let _weekSel = null;               // ISO do dia selecionado
+const _weekCache = {};             // ISO -> {sections, ids, done, by} (dias passados; o ativo é sempre ao vivo)
+
+function weekDaysList(){
+  const out = [];
+  for (let i = 6; i >= 0; i--){
+    const ref = new Date(TURNO.refTomorrow.getTime() - i * 86400000);
+    out.push({ iso: refToISO(ref), dow: ref.getUTCDay(), ref });
+  }
+  return out;   // cronológico, terminando no dia ativo
 }
 
 function renderWeek(){
   const area = $('weekArea');
   if (!area) return;
-  if (!window._cnMatrix || !window._cnHeaderCols){
-    area.innerHTML = `<div class="empty-state"><span class="moon">📅</span>Buscando a planilha pra montar a semana…</div>`;
-    if (typeof syncFromSheets === 'function') syncFromSheets({});   // puxa e re-renderiza quando chegar (ver processGlobalBuffer)
+  const days = weekDaysList();
+  if (!_weekSel || !days.some(d => d.iso === _weekSel)) _weekSel = TOMORROW_ISO;   // default: dia ativo
+  const btns = days.map(d => {
+    const pt = WEEKDAYS_PT[d.dow].split('-')[0];
+    const isActive = d.iso === TOMORROW_ISO;
+    return `<button class="wk-day-btn${d.iso === _weekSel ? ' on' : ''}" data-wkiso="${d.iso}" title="${escHtml(WEEKDAYS_PT[d.dow])} ${refToLabel(d.ref)}${isActive ? ' — em criação' : ''}">
+      <span class="wd">${escHtml(pt)}</span><span class="dt">${refToLabel(d.ref)}</span>${isActive ? '<span class="wk-live">•</span>' : ''}</button>`;
+  }).join('');
+  area.innerHTML = `<div class="wk-days">${btns}</div><div class="wk-detail" id="wkDetail"><div class="wk-empty">Carregando…</div></div>`;
+  area.querySelectorAll('.wk-day-btn').forEach(b => b.addEventListener('click', () => {
+    _weekSel = b.dataset.wkiso;
+    area.querySelectorAll('.wk-day-btn').forEach(x => x.classList.toggle('on', x.dataset.wkiso === _weekSel));
+    loadWeekDay(_weekSel);
+  }));
+  loadWeekDay(_weekSel);
+}
+
+async function loadWeekDay(iso){
+  const host = () => document.getElementById('wkDetail');
+  // dia ativo: usa os globais ao vivo (reflete quem está preenchendo ID agora)
+  if (iso === TOMORROW_ISO && DATA){
+    renderWeekDetail(iso, { sections:{main:DATA.main||[], side:DATA.side||[], sat:DATA.sat||[], unknown:DATA.unknown||[]}, ids:IDS||{}, done:DONE||{}, by:DATA.by });
     return;
   }
-  const startDow = TURNO.refTomorrow.getUTCDay();
-  const cols = [];
-  for (let i = 0; i < 7; i++){
-    const dow = (startDow + i) % 7;
-    const en = WEEKDAYS_EN[dow], pt = WEEKDAYS_PT[dow];
-    const ref = new Date(TURNO.refTomorrow.getTime() + i * 86400000);
-    const sec = extractGuDaySection(window._cnMatrix, en, window._cnHeaderCols);
-    const nM = sec ? sec.main.length : 0, nS = sec ? sec.side.length : 0, nT = sec ? sec.sat.length : 0;
-    const items = sec ? [
-      ...sec.main.map(x => ({...x, cat:'main'})),
-      ...sec.side.map(x => ({...x, cat:'side'})),
-      ...sec.sat.map(x => ({...x, cat:'sat'}))
-    ].sort((a,b) => (timeToMinutes(a.hora) ?? 9999) - (timeToMinutes(b.hora) ?? 9999)) : [];
-    const rows = items.length ? items.map(it => `
-      <div class="wk-item wk-${it.cat}">
-        <span class="wk-time">${escHtml(it.hora || '—')}</span>
-        <span class="wk-name" title="${escHtml(it.nome)}">${escHtml(it.nome)}</span>
-        <span class="wk-prize">${fmtMoney(it.garantido)}</span>
-      </div>`).join('')
-      : `<div class="wk-empty">${sec ? 'Sem torneios neste dia.' : 'Dia não encontrado na planilha.'}</div>`;
-    cols.push(`
-      <div class="wk-col${i === 0 ? ' active' : ''}">
-        <div class="wk-head">
-          <div class="wk-day">${escHtml(pt.split('-')[0])}${i === 0 ? ' <span class="wk-tag">criando</span>' : ''}</div>
-          <div class="wk-date">${refToLabel(ref)}</div>
-          <div class="wk-counts" title="Main · Side · Satélite">
-            <span class="c-main">${nM}</span> <span class="c-side">${nS}</span> <span class="c-sat">${nT}</span>
-          </div>
-        </div>
-        <div class="wk-list">${rows}</div>
-      </div>`);
+  if (_weekCache[iso]){ renderWeekDetail(iso, _weekCache[iso]); return; }
+  if (!fbDb){ if (host()) host().innerHTML = `<div class="wk-empty">Sem conexão pra carregar o histórico deste dia.</div>`; return; }
+  try{
+    const base = `painel/${iso}/criacaoNoturna`;
+    const [sSnap, iSnap, dSnap] = await Promise.all([
+      fbDb.ref(`${base}/sheet`).once('value'),
+      fbDb.ref(`${base}/ids`).once('value'),
+      fbDb.ref(`${base}/done`).once('value')
+    ]);
+    const sv = sSnap.val();
+    let sections = null;
+    if (sv && sv.json){ try{ const j = JSON.parse(sv.json); sections = {main:j.main||[], side:j.side||[], sat:j.sat||[], unknown:j.unknown||[]}; }catch(e){} }
+    const data = _weekCache[iso] = { sections, ids: iSnap.val() || {}, done: dSnap.val() || {}, by: sv ? sv.by : null };
+    if (iso === _weekSel) renderWeekDetail(iso, data);   // só pinta se o usuário ainda está neste dia
+  }catch(e){
+    if (host()) host().innerHTML = `<div class="wk-empty">Erro ao carregar o histórico: ${escHtml(e.message || e)}</div>`;
   }
-  area.innerHTML = `<div class="wk-grid">${cols.join('')}</div>`;
+}
+
+function renderWeekDetail(iso, data){
+  const el = document.getElementById('wkDetail');
+  if (!el) return;
+  if (!data.sections){
+    el.innerHTML = `<div class="wk-empty"><span class="moon">🌙</span>Nenhuma grade foi criada neste dia${iso === TOMORROW_ISO ? ' ainda — suba/sincronize a Global na aba Noite' : ''}.</div>`;
+    return;
+  }
+  const items = [
+    ...data.sections.main.map(x => ({...x, cat:'main'})),
+    ...data.sections.side.map(x => ({...x, cat:'side'})),
+    ...data.sections.sat.map(x => ({...x, cat:'sat'}))
+  ].sort((a,b) => (timeToMinutes(a.hora) ?? 9999) - (timeToMinutes(b.hora) ?? 9999));
+  const withId = items.filter(it => { const r = data.ids[itemKey(it)]; return r && r.val; }).length;
+  const rows = items.map(it => {
+    const k = itemKey(it);
+    const idRec = data.ids[k], doneRec = data.done[k];
+    const idTxt = idRec && idRec.val ? escHtml(idRec.val) : '<span class="wk-noid">— sem ID</span>';
+    const by = (idRec && idRec.by) || (doneRec && doneRec.by) || '';
+    const at = idRec && idRec.at ? new Date(idRec.at).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', timeZone:'America/Sao_Paulo'}) : '';
+    return `<div class="wk-row wk-${it.cat}${idRec && idRec.val ? ' has-id' : ''}">
+      <span class="wk-time">${escHtml(it.hora || '—')}</span>
+      <span class="wk-name" title="${escHtml(it.nome)}">${escHtml(it.nome)}</span>
+      <span class="wk-id">${idTxt}</span>
+      <span class="wk-by">${by ? escHtml(by) + (at ? ` · ${at}` : '') : ''}</span>
+    </div>`;
+  }).join('');
+  el.innerHTML = `
+    <div class="wk-detail-head">
+      <div class="wk-sum"><b>${items.length}</b> torneios · <b>${withId}</b> com ID Pokerbyte${iso === TOMORROW_ISO ? ' <span class="wk-live-tag">ao vivo</span>' : ''}</div>
+      ${data.by ? `<div class="wk-src">grade por ${escHtml(data.by)}</div>` : ''}
+    </div>
+    <div class="wk-rows-head"><span>Horário</span><span>Torneio</span><span>ID Pokerbyte</span><span>Preencheu</span></div>
+    <div class="wk-rows">${rows || '<div class="wk-empty">Sem torneios neste dia.</div>'}</div>`;
 }
 
 document.addEventListener('DOMContentLoaded', () => {

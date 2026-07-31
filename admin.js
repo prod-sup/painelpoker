@@ -1434,18 +1434,77 @@ async function loadOps(){
     });
     const cnt=document.getElementById('opCount');
     if(cnt) cnt.textContent=`${rows.length} cadastrado${rows.length!==1?'s':''}`;
-    host.innerHTML=rows.map(opCardHtml).join('')||`<div class="op-loading">Nenhum operador cadastrado.</div>`;
+    const stats=await opStats30d(users);
+    host.innerHTML=rows.map(u=>opCardHtml(u,stats)).join('')||`<div class="op-loading">Nenhum operador cadastrado.</div>`;
     const s=document.getElementById('opSearch'); if(s&&s.value) filterOps(s);   // reaplica busca corrente
   }catch(e){ host.innerHTML=`<div class="op-loading" style="color:var(--red)">${esc(e.message||e)}</div>`; }
 }
 
-function opCardHtml(u){
+/* KPIs 30 dias — REAPROVEITA a MESMA conta do Ranking de operadores (openOpRanking)
+   e do ranking de grade: flatRows do período (chave fixBy||idBy), notificações de
+   erro casadas por email→nome, e o lado da Criação Noturna (cnStatsByOp). Nada
+   inventado — são as métricas que o admin já usa, agora por card.
+   Cache de 60s: loadOps roda de novo a cada toggle de acesso, e não vale refazer
+   os fetches (Firebase) a cada clique. */
+let _opStatsCache=null, _opStatsAt=0;
+async function opStats30d(usersMap){
+  if(_opStatsCache && Date.now()-_opStatsAt < 60000) return _opStatsCache;
+  const map={};
+  const get=op=>map[op]||(map[op]={total:0,comId:0,semPrem:0,overlay:0,gar:0,prem:0,notifs:0,cnCriados:0,cnErros:0});
+  try{
+    flatRows(dago(30), nowSP()).forEach(r=>{
+      const op=r.fixBy||r.idBy; if(!op) return;
+      const o=get(op);
+      o.total++;
+      if(r.id && r.id.toUpperCase()!=='NF' && String(r.id).trim()) o.comId++;
+      if(r.status==='aberto') o.semPrem++;
+      if(r.overlay!=null && r.overlay<0) o.overlay++;
+      if(r.garantido>0){ o.gar+=r.garantido; if(r.premiacao!=null) o.prem+=r.premiacao; }
+    });
+  }catch(e){}
+  // ERROS sinalizados pelo admin (notificações), casados email→nome via users
+  try{
+    const um=usersMap||_allUsers||{};
+    const all=await getAllNotifsCached();
+    Object.entries(all).forEach(([emailKey,notifs])=>{
+      const u=um[emailKey]||{}; const name=u.apelido||u.nome||'';
+      if(name && map[name]) map[name].notifs+=Object.keys(notifs||{}).length;
+    });
+  }catch(e){}
+  // lado da Criação Noturna (GU): criados e erros de criação
+  try{
+    const cn=await cnStatsByOp(dago(30), nowSP());
+    Object.entries(cn.byOp||{}).forEach(([name,s])=>{ const o=get(name); o.cnCriados=s.criados||0; o.cnErros=s.erros||0; });
+  }catch(e){}
+  Object.values(map).forEach(o=>{
+    o.trabalhados=o.total+(o.cnCriados||0);
+    o.erros=(o.notifs||0)+(o.cnErros||0);
+    o.perf=o.gar>0?(o.prem-o.gar)/o.gar*100:null;   // premiação vs garantido (mesma fórmula do ranking de grade)
+    o.idRate=o.total>0?o.comId/o.total*100:null;
+  });
+  _opStatsCache=map; _opStatsAt=Date.now();
+  return map;
+}
+/* zera o cache quando um evento muda os números (suspensão gera notificação) */
+function invalidateOpStats(){ _opStatsCache=null; }
+
+function opCardHtml(u, stats){
   const email=u.email||(u.key.replace(/_dot_/g,'.').replace(/_at_/g,'@'));
   const name=u.apelido||u.nome||email;
   const suspenso=!!u.pendingNotif;
   const initials=((name||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('')||'?').toUpperCase();
   const search=`${name} ${email} ${u.nome||''}`.toLowerCase();
   const tags=`${u.admin?'<span class="op-tag adm">Admin</span>':''}${suspenso?'<span class="op-tag sus">Suspenso</span>':''}`;
+  const st=(stats&&stats[name])||{};
+  const perf=st.perf, erros=st.erros||0, overlay=st.overlay||0, trab=st.trabalhados||0, idRate=st.idRate;
+  const perfCls=perf==null?'':(perf<0?'bad':'good');
+  const perfTxt=perf==null?'—':`${perf>0?'+':''}${Math.round(perf)}%`;
+  const kpis=`<div class="op-kpis">
+    <div class="op-kpi"><div class="v">${trab}</div><div class="l">Trabalhados 30d</div></div>
+    <div class="op-kpi ${perfCls}" title="Premiação vs garantido (mesma fórmula do ranking)"><div class="v">${perfTxt}</div><div class="l">Performance</div></div>
+    <div class="op-kpi${erros>0?' bad':''}" title="Notificações do admin + erros de criação (GU)"><div class="v">${erros}</div><div class="l">Erros</div></div>
+    <div class="op-kpi${overlay>5?' warn':''}" title="Rodadas que fecharam com overlay (abaixo do garantido)"><div class="v">${overlay}</div><div class="l">Overlay</div></div>
+  </div>`;
   const actions=suspenso
     ? `<button class="btn btn-gold btn-sm" data-act="forceUnblockOp" data-arg="${esc(u.key)}" data-arg2="${esc(name)}">Reativar</button>`
     : `<button class="btn btn-ghost btn-sm" data-act="blockOp" data-arg="${esc(u.key)}" data-arg2="${esc(name)}">Suspender</button>`;
@@ -1469,6 +1528,7 @@ function opCardHtml(u){
       </div>
       <div class="op-card-actions">${actions}</div>
     </div>
+    ${kpis}
     ${accessBlock}
   </div>`;
 }
