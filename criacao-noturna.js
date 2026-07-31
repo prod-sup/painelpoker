@@ -98,7 +98,20 @@ const NATURAL_ISO = refToISO(_clock.refTomorrow);   // madrugada que o RELÓGIO 
    passou pra uma madrugada mais nova). Tudo da página — caminho, dias, rótulos —
    passa a derivar da madrugada ATIVA, não do relógio, pra não haver descompasso. */
 let _storedDay = null; try{ _storedDay = localStorage.getItem('cn_active_day'); }catch(e){}
-const ACTIVE_ISO = _storedDay || NATURAL_ISO;
+/* GUARD DE DIA MORTO: o sticky existe pra segurar a virada de +1 dia às 05:30 (não
+   resetar criação/IDs no meio do turno — ver bloco acima). Mas se o dia gravado ficou
+   2+ dias ATRÁS do natural (uma noite inteira pulada, painel sem abrir por um dia), o
+   dia guardado está MORTO: segurar só trava o painel num dia passado (foi o bug do
+   "conta como se fosse dia 30" quando já era 01/08). Nesse caso avança sozinho pro dia
+   certo. O hold de +1 dia — a proteção real da virada — continua intacto. */
+let _activeCandidate = _storedDay || NATURAL_ISO;
+if (_storedDay){
+  const _dNat = new Date(`${NATURAL_ISO}T12:00:00Z`);
+  const _dStored = new Date(`${_storedDay}T12:00:00Z`);
+  const _daysBehind = Math.round((_dNat.getTime() - _dStored.getTime()) / 86400000);
+  if (isNaN(_dStored.getTime()) || _daysBehind >= 2) _activeCandidate = NATURAL_ISO;
+}
+const ACTIVE_ISO = _activeCandidate;
 try{ localStorage.setItem('cn_active_day', ACTIVE_ISO); }catch(e){}
 const _refTom = new Date(`${ACTIVE_ISO}T12:00:00Z`);
 const _refAfter = new Date(_refTom.getTime() + 86400000);
@@ -757,8 +770,13 @@ function processGlobalBuffer(arrayBuffer, sourceName, opts){
   }
 
   // diff contra a versão que já estava carregada (a GU corrige a Global durante a noite):
-  // o que mudou fica marcado — e o que JÁ FOI CRIADO com a receita antiga pede revisão
-  const changes = computeChanges(DATA, sections);
+  // o que mudou fica marcado — e o que JÁ FOI CRIADO com a receita antiga pede revisão.
+  // NO AUTO-SYNC, só marca "revisar" DEPOIS que a criação começou (algum torneio em DONE):
+  // antes disso o baseline troca em silêncio, pra não inundar de "131 alterações" toda vez
+  // que o painel abre contra uma versão antiga sem que ninguém tenha criado nada ainda.
+  // O upload manual é ação explícita e sempre mostra o diff.
+  const creationStarted = DONE && Object.keys(DONE).length > 0;
+  const changes = (opts.auto && !creationStarted) ? [] : computeChanges(DATA, sections);
   if (DATA && changes.length) showToast(`⚠ ${changes.length} alteração(ões) em relação à Global anterior — veja os avisos.`, true);
   window._cnLastSig = sig;
   const by = ME || (opts.auto ? 'Sheets' : 'Alguém');
