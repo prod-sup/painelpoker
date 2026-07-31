@@ -868,6 +868,16 @@ async function buildHist(){
 // (offline, bloqueado, etc.) para nunca travar o uso do dashboard.
 const RTDB_NODE='mesasCashHistory';
 const RTDB_DATA='mesasCashData';
+// Marcador minúsculo de versão do dataset bruto. O `mesasCashData` inteiro é
+// pesado (todos os dias importados) e o Modo TV o relia a cada 5 min (288×/dia) —
+// foi isso que reestourou a cota de egress do Firebase (10GB). Agora lê só este
+// carimbo e rebaixa o dataset SÓ quando muda (mesmo protocolo da Global).
+const RTDB_REV='mesasCashDataRev';
+let _rawCache=null;                    // { rev, fb } — evita rebaixar o dataset à toa
+function bumpRawRev(){                  // chamado a cada import/remoção
+  try{ if(fbOk&&db) db.ref(RTDB_REV).set(firebase.database.ServerValue.TIMESTAMP); }catch(_){ }
+  _rawCache=null;                       // invalida o cache local na hora
+}
 function labelToRtdbKey(dateStr){const[dd,mm,yy]=dateStr.split('/');return`${yy}-${mm}-${dd}`;}
 // ── Serialização segura p/ RTDB ──
 // O RTDB proíbe . # $ / [ ] em chaves. O dataset bruto usa mapas com chaves
@@ -975,7 +985,7 @@ const Store={
     const key=labelToRtdbKey(dateStr);
     const all=localRaws(); all[key]=raw; setLocalRaws(all);
     if(fbOk&&db){
-      try{await db.ref(`${RTDB_DATA}/${key}`).set(fbPack(raw));return 'cloud';}
+      try{await db.ref(`${RTDB_DATA}/${key}`).set(fbPack(raw)); bumpRawRev(); return 'cloud';}
       catch(e){console.error('Store.saveRaw (Firebase)',e);}
     }
     return 'local';
@@ -984,18 +994,29 @@ const Store={
     await whenAuthReady();
     let fb=null;
     if(fbOk&&db){
-      try{fb=fbUnpack((await db.ref(RTDB_DATA).once('value')).val()||{});}
-      catch(e){console.error('Store.listRaw (Firebase)',e);}
+      try{
+        // Lê só o carimbo de versão (bytes) e reaproveita o cache quando nada mudou.
+        // Sem isso, o dataset INTEIRO descia a cada chamada (Modo TV: a cada 5 min).
+        const rev=(await db.ref(RTDB_REV).once('value')).val();
+        if(_rawCache && _rawCache.rev===rev){
+          fb=_rawCache.fb;                                    // cache-hit → zero download pesado
+        }else{
+          fb=fbUnpack((await db.ref(RTDB_DATA).once('value')).val()||{});
+          _rawCache={rev,fb};                                 // só rebaixa quando o rev mudou
+        }
+      }catch(e){console.error('Store.listRaw (Firebase)',e);}
     }
     const local=localRaws();
     const merged={...local,...(fb||{})};
     // re-sync: dias presos só no localStorage sobem pro Firebase em background
     if(fb!==null&&fbOk&&db){
-      Object.keys(local).filter(k=>!(k in fb)).forEach(k=>{
+      const orphans=Object.keys(local).filter(k=>!(k in fb));
+      orphans.forEach(k=>{
         db.ref(`${RTDB_DATA}/${k}`).set(fbPack(local[k]))
           .then(()=>console.info('Store.listRaw: dia re-sincronizado →',k))
           .catch(e=>console.error('Store.listRaw re-sync',k,e));
       });
+      if(orphans.length) bumpRawRev();                         // subiu dia novo → invalida cache/rev
     }
     const out={};
     Object.entries(merged).forEach(([k,v])=>{const h=hydrateRaw(v);if(h)out[k]=h;});
@@ -1005,7 +1026,7 @@ const Store={
     const key=labelToRtdbKey(dateStr);
     const all=localRaws(); delete all[key]; setLocalRaws(all);
     if(fbOk&&db){
-      try{await db.ref(`${RTDB_DATA}/${key}`).remove();}
+      try{await db.ref(`${RTDB_DATA}/${key}`).remove(); bumpRawRev();}
       catch(e){console.error('Store.removeRaw (Firebase)',e);}
     }
   }
