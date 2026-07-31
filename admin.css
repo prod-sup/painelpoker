@@ -657,48 +657,16 @@ td.center{text-align:center}
 }
 .audit-total strong{color:var(--ink);font-weight:600}
 
-/* ── ACOMPANHAMENTO no MOBILE: cada linha vira um CARD ───────────────────────
-   14 colunas não cabem num celular nem rolando. Abaixo de 720px a tabela vira
-   cartões: nome no topo, cada campo como "rótulo · valor", ações embaixo. Os
-   data-label vêm do admin.js. */
-@media (max-width:720px){
-  .audit-scroll{overflow:visible}   /* vira cards: sem rolagem lateral */
-  .audit-table{display:block;background:transparent;font-size:13px}
-  .audit-table thead{display:none}
-  .audit-table tbody{display:block}
-  .audit-table tr{
-    display:block;position:relative;background:var(--s1);
-    border:1px solid var(--border);border-radius:12px;padding:12px 14px 10px;margin:0 10px 10px;
-  }
-  .audit-table td{
-    display:flex;align-items:center;justify-content:space-between;gap:12px;
-    padding:5px 0;border:none !important;text-align:right;white-space:normal;
-  }
-  .audit-table td::before{
-    content:attr(data-label);color:var(--ink3);font-weight:700;font-size:10.5px;
-    text-transform:uppercase;letter-spacing:.04em;text-align:left;flex:none;
-  }
-  /* nome = título do card (largura toda, sem rótulo) */
-  .audit-table td.nm{display:block;max-width:none !important;font-size:15px;font-weight:700;
-    color:var(--ink);margin:0 0 8px;padding:0 44px 8px 0;border-bottom:1px solid var(--border2) !important}
-  .audit-table td.nm::before{content:none}
-  /* checkbox no canto sup. direito */
-  .audit-table td:first-child{position:absolute;top:12px;right:12px;padding:0}
-  .audit-table td:first-child::before{content:none}
-  /* célula "—" vazia continua, mas discreta */
-  .audit-table td.c-ink2,.audit-table td.mono{min-width:0}
-  /* ações = botões em linha, largura toda, no rodapé do card */
-  .audit-table td.audit-actions-cell{justify-content:flex-start;margin-top:8px;padding-top:10px;
-    border-top:1px solid var(--border2) !important}
-  .audit-table td.audit-actions-cell::before{content:none}
-  .audit-table td.audit-actions-cell .btn-notif,.audit-table td.audit-actions-cell .audit-edit-btn{flex:1}
-  .audit-total{flex-wrap:wrap;gap:10px 18px}
-}
-/* tabelas genéricas (as que rolam na horizontal): mais compactas no celular */
+/* Mobile: a Acompanhamento CONTINUA tabela (a pedido) — só rola pro lado dentro
+   do .audit-scroll. Tabelas em geral ficam mais compactas pra rolar menos. */
 @media (max-width:640px){
+  .audit-table{font-size:12px}
+  .audit-table th{padding:8px 10px}
+  .audit-table td{padding:9px 10px}
   .tbl-wrap table{font-size:12px}
   .tbl-wrap thead th{padding:8px 10px}
   .tbl-wrap tbody td{padding:9px 10px}
+  .audit-total{flex-wrap:wrap;gap:10px 18px}
 }
 .audit-summary{
   background:var(--s1);border:1px solid var(--border);border-radius:var(--r2);
