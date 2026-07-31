@@ -261,13 +261,14 @@
     <div class="news-grid">
       <div class="news-card n-cri">
         <span class="badge">☾ Criação Noturna</span>
-        <h3>Mais rápida e à prova de erro</h3>
+        <h3>Fluxo de teclado pra madrugada</h3>
         <ul>
+          <li><b>⏎ Auto-avança</b>: preencheu o ID e apertou <b>Enter</b> → salva, marca criado e <b>pula pro próximo ID vazio</b>. Sem caçar campo com o mouse.</li>
+          <li><b>Pegar ao preencher</b>: cadastrou o ID de um torneio livre → ele <b>vira seu</b> automático (não rouba de quem já pegou).</li>
+          <li><b>✋ Pegar próximo</b> (botão + tecla <b>P</b>): já te entrega o próximo torneio livre e foca no ID dele.</li>
+          <li><b>⏳ Só pendentes</b> (tecla <b>O</b>) e <b>só meus</b> (tecla <b>M</b>): esconde o que já foi feito e foca na sua fila.</li>
           <li>Preenchimento de <b>ID à prova de reset</b>: cada tecla salva no ato, nada se perde.</li>
-          <li>Divisão livre: <b>pegar / passar / soltar</b> num toque + <b>seleção em massa</b> e “pegar seção”.</li>
-          <li><b>Tela cheia</b> por seção: visões Vertical, Horizontal e Evento (com setas do teclado).</li>
-          <li><b>Ocultar campos</b> da receita, <b>GTD total</b> por seção e <b>export em colunas</b> (uma aba por seção).</li>
-          <li><b>Eventos Principais (Liga)</b> em R$ — imunes ao botão de dólar.</li>
+          <li>Divisão livre: <b>pegar / passar / soltar</b> num toque + <b>seleção em massa</b>. <b>Tela cheia</b> por seção (Vertical/Horizontal/Evento), <b>ocultar campos</b>, <b>GTD por seção</b> e <b>export em colunas</b>.</li>
         </ul>
       </div>
       <div class="news-card n-pai">
@@ -461,6 +462,10 @@
       <h3>Preencher o ID Pokerbyte</h3>
       <p>Conforme você cria cada torneio no Pokerbyte, cola o <strong>ID</strong> no campo dele. Colar o ID já marca o torneio como <strong>criado</strong> automaticamente.</p>
       <div class="box tip">
+        <span class="tag">Fluxo de teclado ⏎</span>
+        <p>Cola o ID e aperta <kbd>Enter</kbd>: ele <strong>salva, marca criado e pula sozinho pro próximo campo vazio</strong> — rolando a tela até ele. Vira <strong>digita → Enter → digita → Enter</strong>, sem tocar no mouse. E preencher o ID de um torneio livre <strong>já pega ele pra você</strong> (não rouba de quem já pegou).</p>
+      </div>
+      <div class="box tip">
         <span class="tag">Pode digitar tranquilo</span>
         <p>Cada tecla é salva <strong>no ato</strong> — não depende de você sair do campo. Um parceiro marcando algo, uma reconexão ou um F5 <strong>não apagam</strong> o que você já digitou. Aquele problema de “resetou tudo” não acontece mais.</p>
       </div>
@@ -473,7 +478,8 @@
         <table>
           <thead><tr><th>Botão</th><th>O que faz</th></tr></thead>
           <tbody>
-            <tr><td class="key"><span class="chip">✋ pegar</span></td><td>Assume o torneio pra você (num toque).</td></tr>
+            <tr><td class="key"><span class="chip">✋ Pegar próximo</span> <kbd>P</kbd></td><td><b>A fila:</b> te entrega o próximo torneio livre e já foca no ID dele. Kickoff perfeito — daí é só ir de Enter em Enter.</td></tr>
+            <tr><td class="key"><span class="chip">✋ pegar</span></td><td>Assume um torneio específico pra você (num toque).</td></tr>
             <tr><td class="key"><span class="chip">↗ passar</span></td><td>Abre a lista de operadores — um toque escolhe pra quem vai.</td></tr>
             <tr><td class="key"><span class="chip">✕ soltar</span></td><td>Larga o torneio (volta a ficar livre / sugestão automática).</td></tr>
             <tr><td class="key"><span class="chip">✋ Pegar seção</span></td><td>Pega de uma vez todos os pendentes de uma seção inteira.</td></tr>
@@ -482,6 +488,10 @@
         </table>
       </div>
       <p>O nome que aparece na linha “Operador” é o dono atual. Quando ninguém pegou, o sistema mostra uma <strong>sugestão automática</strong> (marcada como <em>·auto</em>) só pra não ficar vazio — mas quem manda é quem pega.</p>
+      <div class="box tip">
+        <span class="tag">Focar na sua fila</span>
+        <p><span class="chip">⏳ Só pendentes</span> (tecla <kbd>O</kbd>) esconde tudo que já foi criado; a tecla <kbd>M</kbd> liga/desliga <strong>só meus</strong>. Junte os dois pra ver só o que <em>falta</em> e é <em>seu</em>.</p>
+      </div>
     </section>
 
     <section id="criacao-telacheia">
@@ -501,9 +511,9 @@
       <div class="sec-head"><span class="num">—</span><h2>Passo a passo do turno noturno</h2></div>
       <ol class="steps">
         <li><strong>Suba a GU.</strong> Carregue a Global MTT (aba G MTTS). Os torneios de amanhã aparecem separados por seção, com a receita completa. Só uma pessoa precisa subir.</li>
-        <li><strong>Pegue seus torneios.</strong> Use <span class="chip">✋ pegar</span> nos que são seus (ou <b>Pegar seção</b>). Combine com o parceiro pra não sobrar nem repetir.</li>
+        <li><strong>Pegue seus torneios.</strong> O jeito rápido: aperte <kbd>P</kbd> (ou <span class="chip">✋ Pegar próximo</span>) e o sistema te entrega o próximo livre já com o cursor no ID. Também dá pra usar <span class="chip">✋ pegar</span> num torneio específico ou <b>Pegar seção</b>. Combine com o parceiro pra não sobrar nem repetir.</li>
         <li><strong>Crie no Pokerbyte.</strong> Siga a receita de cada torneio (rake, admin fee, early bird, chips…). O <strong>Modo Foco</strong> ajuda a criar um por vez sem se perder.</li>
-        <li><strong>Cole o ID.</strong> A cada torneio criado, cole o ID no campo — isso já marca como <strong>criado</strong>.</li>
+        <li><strong>Cole o ID e dê Enter.</strong> A cada torneio criado, cole o ID e aperte <kbd>Enter</kbd> — marca como <strong>criado</strong>, pega o torneio pra você e <strong>pula pro próximo</strong>. Ligue <span class="chip">⏳ Só pendentes</span> (<kbd>O</kbd>) pra enxergar só o que falta.</li>
         <li><strong>Feche a noite.</strong> Quando tudo estiver criado, a página avisa. Se quiser, <strong>arquive o relatório</strong> da noite (.xlsx).</li>
       </ol>
       <div class="box warn">

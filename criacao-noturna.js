@@ -400,6 +400,7 @@ let AUDIT = {};           // itemKey -> {status:'erro', motivo, by, at} — marc
 let SEARCH = '';
 let CURRENCY = localStorage.getItem('cn_currency') || 'usd';
 let FILTER = 'all';
+let HIDE_DONE = false;   // "Só pendentes": esconde os já criados
 
 function setSync(state, label){
   const el = $('syncStatus');
@@ -1237,8 +1238,16 @@ function renderFilters(){
     <button class="fchip ${FILTER===o?'on':''}" data-f="${escHtml(o)}">
       ${escHtml(o)}${normText(o)===normText(ME) ? ' (você)' : ''} <span class="cnt">${counts[o] || 0}</span>
     </button>`).join('');
+  // controles de fluxo: esconder já-criados (toggle) + pegar o próximo da fila
+  html += `<span class="fchip-sep"></span>`;
+  html += `<button class="fchip tog ${HIDE_DONE?'on':''}" data-toggle="pend" title="Esconder os torneios já criados (tecla O)">⏳ Só pendentes</button>`;
+  html += `<button class="fchip grab" data-grab="1" title="Pega o próximo torneio livre e foca no ID (tecla P)">✋ Pegar próximo</button>`;
   $('filterChips').innerHTML = html;
-  $('filterChips').querySelectorAll('.fchip').forEach(b => b.addEventListener('click', () => { FILTER = b.dataset.f; renderAll(); }));
+  $('filterChips').querySelectorAll('.fchip[data-f]').forEach(b => b.addEventListener('click', () => { FILTER = b.dataset.f; renderAll(); }));
+  const tg = $('filterChips').querySelector('[data-toggle="pend"]');
+  if (tg) tg.addEventListener('click', () => { HIDE_DONE = !HIDE_DONE; renderAll(); });
+  const gb = $('filterChips').querySelector('[data-grab]');
+  if (gb) gb.addEventListener('click', grabNextPending);
 }
 
 function renderAlerts(){
@@ -1429,12 +1438,16 @@ function onIdChange(inp){
   clearTimeout(_idCommitT[key]);
   clearDraft(key);
   setId(key, inp.value, true);
+  // "pegar ao preencher": quem cadastra o ID foi quem criou. Se o torneio ainda
+  // não tem dono EXPLÍCITO (está livre ou só na sugestão ·auto), passa a ser seu.
+  // Não rouba de quem já pegou de propósito (override alheio vence).
+  if (String(inp.value || '').trim() && ME && !OVERRIDES[key]) claimItem(key, ME);
 }
 
 function idInputHtml(key, extraStyle){
   const v = draftOrId(key);
   const unsaved = isDraft(key);
-  return `<input type="text" class="id-inp ${v ? 'has-id' : ''}${unsaved ? ' draft' : ''}" data-idkey="${key}" value="${escHtml(v)}" placeholder="ID Pokerbyte" maxlength="20" style="${extraStyle || ''}" title="${IDS[key] && IDS[key].by ? 'ID por ' + escHtml(IDS[key].by) : 'ID do evento cadastrado no Pokerbyte'}">`;
+  return `<input type="text" class="id-inp ${v ? 'has-id' : ''}${unsaved ? ' draft' : ''}" data-idkey="${key}" value="${escHtml(v)}" placeholder="ID Pokerbyte" maxlength="20" style="${extraStyle || ''}" title="${IDS[key] && IDS[key].by ? 'ID por ' + escHtml(IDS[key].by) : 'ID do evento no Pokerbyte'} — Enter salva e pula pro próximo">`;
 }
 
 function toggleDone(key){
@@ -1648,6 +1661,7 @@ function applyExpanded(){
 
 function visibleItems(list, asg){
   let out = FILTER === 'all' ? list : list.filter(it => asg[itemKey(it)] === FILTER);
+  if (HIDE_DONE) out = out.filter(it => !DONE[itemKey(it)]);   // "Só pendentes"
   if (SEARCH){
     const q = normText(SEARCH);
     out = out.filter(it => normText(it.nome).includes(q) || it.hora.startsWith(SEARCH.trim()) || (it.groupHeader && normText(it.groupHeader).includes(q)));
@@ -1689,6 +1703,40 @@ function claimSection(catKey){
   items.forEach(it => OVERRIDES[itemKey(it)] = ME);
   saveOverrides(); logEvent('pegou seção', `${cat.label} — ${items.length}`);
   showToast(`Você pegou ${items.length} torneio(s) de ${cat.label}.`);
+}
+
+/* ── FILA: pegar o PRÓXIMO torneio pendente e focar no ID ─────────────────────
+   Kickoff do fluxo da madrugada. Acha o 1º torneio ainda não criado que esteja
+   livre (ou já seu), pega pra você e foca no campo de ID — daí é só digitar e ir
+   de Enter em Enter (auto-avança). Ignora o filtro atual pra sempre achar o
+   próximo; se ele estiver escondido, mostra tudo e foca. */
+function grabNextPending(){
+  if (!ensureMeOnTeam()){ showToast('Entre com seu nome no hub pra pegar torneios.', true); return; }
+  const asg = computeAssignments();
+  let cand = null;
+  for (const cat of SECTIONS){
+    const hit = catItems(cat).find(it => { const k = itemKey(it); return !DONE[k] && (!OVERRIDES[k] || isMine(asg[k])); });
+    if (hit){ cand = hit; break; }
+  }
+  if (!cand){ showToast('Nada pendente livre pra pegar. 🎉'); return; }
+  const k = itemKey(cand);
+  if (!isMine(asg[k])) claimItem(k, ME);   // pega pra você se ainda não for
+  const focus = () => {
+    const inp = document.querySelector(`.id-inp[data-idkey="${cssEsc(k)}"]`);
+    if (inp){ inp.focus(); inp.scrollIntoView({block:'center', inline:'nearest'}); return true; }
+    return false;
+  };
+  if (!focus()){
+    // pode estar filtrado fora da tela → mostra tudo e tenta de novo no próximo tick
+    if (FILTER !== 'all' || HIDE_DONE){ FILTER = 'all'; HIDE_DONE = false; renderAll(); }
+    setTimeout(() => { if (!focus()) showToast(`Peguei "${cand.nome}". Role até ele pra cadastrar o ID.`); }, 60);
+  }
+}
+/* Enter fora de campo: pula pro 1º ID pendente na tela (entra na fila) */
+function focusFirstPendingId(){
+  const inp = Array.from(document.querySelectorAll('.id-inp')).find(x => !x.value.trim() && !DONE[x.dataset.idkey]);
+  if (inp){ inp.focus(); inp.scrollIntoView({block:'center', inline:'nearest'}); }
+  else showToast('Nenhum ID pendente na tela.');
 }
 /* célula "Operador": dono (ou "livre") + ações RÁPIDAS num toque —
    ✋ pegar · ↗ passar (abre a lista de operadores) · ✕ soltar. */
@@ -1906,7 +1954,19 @@ function wireGrid(area){
   area.querySelectorAll('.id-inp').forEach(inp => {
     inp.addEventListener('input',  () => onIdInput(inp));
     inp.addEventListener('change', () => onIdChange(inp));
-    inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
+    // Enter = auto-avança: confirma este ID e pula pro PRÓXIMO campo ainda vazio.
+    // Vira a madrugada num fluxo "digita, Enter, digita, Enter" — sem caçar campo
+    // com o mouse. O foco no próximo faz este borrar → 'change' confirma/marca criado.
+    inp.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const inps = Array.from(area.querySelectorAll('.id-inp'));
+      const i = inps.indexOf(inp);
+      const order = i >= 0 ? [...inps.slice(i + 1), ...inps.slice(0, i)] : inps;
+      const next = order.find(x => !x.value.trim() && !DONE[x.dataset.idkey]);
+      if (next){ next.focus(); next.scrollIntoView({block:'center', inline:'nearest'}); try{ next.setSelectionRange(0, 0); }catch(_){} }
+      else inp.blur();   // nada pendente → só confirma o atual
+    });
   });
   // receita expandida sobrevive aos re-renders (sync do Firebase re-renderiza a lista toda)
   area.querySelectorAll('[data-expand]').forEach(el => el.addEventListener('click', () => {
@@ -2539,6 +2599,21 @@ setInterval(() => {
 
 /* ── busca ── */
 $('searchInp').addEventListener('input', () => { SEARCH = $('searchInp').value; renderList(); });
+
+/* ── atalhos de fluxo (fora de campo de texto e sem overlay aberto) ──────────
+   P = pegar próximo · O = só pendentes · M = só meus · Enter = pular pro 1º ID */
+document.addEventListener('keydown', e => {
+  if (FOCUS_OPEN || FS_OPEN || TV_OPEN || $('popMenu') || $('focusConfirm')) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const ae = document.activeElement;
+  const typing = ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName);
+  if (e.key === 'Enter' && !typing){ e.preventDefault(); focusFirstPendingId(); return; }
+  if (typing) return;   // digitando ID/busca: não sequestra as letras
+  const k = e.key.toLowerCase();
+  if (k === 'p'){ e.preventDefault(); grabNextPending(); }
+  else if (k === 'o'){ e.preventDefault(); HIDE_DONE = !HIDE_DONE; renderAll(); }
+  else if (k === 'm' && ME){ e.preventDefault(); FILTER = (FILTER === ME) ? 'all' : ME; renderAll(); }
+});
 
 /* relógio de urgência: a cada minuto atualiza stats/notificações, mas SÓ
    reconstrói a tabela se algum torneio mudou de estado de prazo (warn/late) —
