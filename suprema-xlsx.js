@@ -47,4 +47,35 @@
     });
     return pending;
   };
+
+  /* ── Variante COM ESTILO (xlsx-js-style) — só pra EXPORTAR bonito ───────────
+     O build community ignora `.s` (cor/negrito/borda somem). O xlsx-js-style é
+     um SheetJS 0.18.5 + estilos. Ele reatribui window.XLSX ao carregar (tem um
+     `var XLSX` no topo), então capturamos esse build em window.XLSXStyle e
+     RESTAURAMOS o community pra window.XLSX — assim os IMPORTS não trocam de
+     parser (evita surpresa em produção). Carrega sob demanda (425KB), como o
+     community: só quem exporta baixa. */
+  var STYLE_SRC = 'vendor/xlsx-js-style.min.js';
+  var stylePending = null;
+  global.ensureXLSXStyle = function ensureXLSXStyle() {
+    if (global.XLSXStyle) return Promise.resolve(global.XLSXStyle);
+    if (stylePending) return stylePending;
+    stylePending = global.ensureXLSX().then(function (community) {
+      return new Promise(function (resolve, reject) {
+        var s = document.createElement('script');
+        s.src = STYLE_SRC;
+        s.async = true;
+        s.onload = function () {
+          var styled = global.XLSX;            // o bundle reatribuiu window.XLSX
+          global.XLSXStyle = styled;
+          if (community) global.XLSX = community;   // devolve o community pros imports
+          if (styled && styled.utils) resolve(styled);
+          else { stylePending = null; reject(new Error('xlsx-js-style carregou mas não inicializou')); }
+        };
+        s.onerror = function () { stylePending = null; reject(new Error('falha ao carregar ' + STYLE_SRC)); };
+        document.head.appendChild(s);
+      });
+    });
+    return stylePending;
+  };
 })(window);

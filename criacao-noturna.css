@@ -455,6 +455,30 @@ body > *{position:relative;z-index:1}
   .fchip:hover{border-color:var(--felt-bright);color:var(--ink)}
   .fchip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
   html.dark .fchip.on{background:var(--felt-bright);color:#08130c;border-color:var(--felt-bright)}
+  /* aviso de prazo (pill fixa): rede de segurança contra evento não-criado */
+  #cnUrgBar{
+    position:fixed;left:16px;bottom:16px;z-index:45;max-width:min(92vw,520px);
+    display:flex;align-items:center;gap:12px;padding:10px 12px 10px 14px;
+    background:var(--card-elevated);border:1px solid var(--gold-line,rgba(201,168,76,.5));
+    border-left:4px solid var(--gold);border-radius:14px;
+    box-shadow:0 16px 40px -14px rgba(0,0,0,.6);font-size:13px;color:var(--ink);
+    animation:urgIn .3s var(--ease);
+  }
+  #cnUrgBar[hidden]{display:none}
+  #cnUrgBar.crit{border-color:rgba(240,96,80,.5);border-left-color:#f06050;background:color-mix(in srgb,#f06050 8%,var(--card-elevated))}
+  #cnUrgBar .u-dot{font-size:18px;line-height:1;flex:0 0 auto}
+  #cnUrgBar.crit .u-dot{animation:urgPulse 1.4s ease-in-out infinite}
+  #cnUrgBar .u-info{flex:1;min-width:0;line-height:1.4}
+  #cnUrgBar .u-info b{color:var(--ink);font-weight:750}
+  #cnUrgBar .u-late{color:#f06050}
+  #cnUrgBar .u-warn{color:var(--gold)}
+  #cnUrgBar .u-eta{display:block;font-size:11.5px;color:var(--ink-soft);margin-top:1px}
+  #cnUrgBar .u-go{flex:0 0 auto;background:var(--gold);border:none;border-radius:99px;padding:8px 14px;font-weight:750;font-size:12.5px;color:#1a1204;cursor:pointer;white-space:nowrap;transition:filter .2s var(--ease)}
+  #cnUrgBar .u-go:hover{filter:brightness(1.08)}
+  @keyframes urgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  @keyframes urgPulse{0%,100%{opacity:1}50%{opacity:.4}}
+  @media (prefers-reduced-motion:reduce){#cnUrgBar,#cnUrgBar .u-dot{animation:none}}
+  @media (max-width:640px){#cnUrgBar{left:8px;right:8px;bottom:8px;max-width:none;flex-wrap:wrap}#cnUrgBar .u-go{width:100%}}
   /* controles de fluxo: separador + botão "pegar próximo" em destaque dourado */
   .fchip-sep{width:1px;align-self:stretch;margin:2px 4px;background:var(--hairline-strong);flex:0 0 auto}
   .fchip.grab{background:var(--gold);border-color:var(--gold);color:#1a1204;font-weight:750}
@@ -1272,6 +1296,32 @@ body > *{position:relative;z-index:1}
   .fs-recipe-flow .frow .fcopy{grid-area:copy}
   .fs-recipe-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 32px}
   @media (min-width:900px){ .fs-recipe-grid{grid-template-columns:repeat(3,1fr)} }
+
+  /* EVENTO ÚNICO — ficha de criação que OCUPA a tela: barra de ação grande
+     (ID + Criado) + receita inteira num grid multi-coluna. Substitui a faixa
+     estreita de 2 colunas que deixava metade da tela vazia. */
+  .ev-action{display:flex;gap:14px;align-items:stretch;margin:2px 0 18px;flex-wrap:wrap}
+  .ev-id{flex:1 1 260px;min-width:0;display:flex;flex-direction:column;gap:6px;
+    background:var(--card);border:1px solid var(--hairline);border-radius:var(--radius-sm);padding:11px 14px}
+  .ev-id-k{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+  .ev-id .id-inp{width:100%;font-family:var(--mono);font-weight:700;font-size:clamp(18px,1.9vw,26px);padding:9px 12px}
+  .ev-done{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:10px;
+    padding:0 24px;min-height:54px;border-radius:var(--radius-sm);cursor:pointer;
+    border:1.5px solid var(--felt-bright);background:var(--felt-soft);color:var(--felt-bright);
+    font-weight:800;font-size:16px;transition:transform .15s var(--ease),background .2s var(--ease),color .2s var(--ease)}
+  .ev-done svg{width:22px;height:22px;stroke:currentColor;stroke-width:2.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .ev-done:hover{transform:translateY(-1px)}
+  .ev-done.on{background:var(--felt-bright);color:#08130c;border-color:var(--felt-bright)}
+  .ev-grid{flex:1;min-height:0;display:grid;align-content:start;
+    grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+  .ev-field{background:var(--card);border:1px solid var(--hairline);border-radius:var(--radius-sm);
+    padding:10px 13px;display:flex;flex-direction:column;gap:4px}
+  .ev-field.hot{border-color:var(--felt-bright)}
+  .ev-k{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft)}
+  .ev-v{font-family:var(--mono);font-weight:800;font-size:clamp(15px,1.25vw,20px);color:var(--ink);
+    line-height:1.2;word-break:break-word;font-variant-numeric:tabular-nums}
+  .ev-field.hot .ev-v{color:var(--felt-bright)}
+  @media (max-width:640px){ .ev-done{flex:1 1 100%} .ev-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))} }
 
   /* EVENTO · VERTICAL — um torneio na tabela transposta (campos nas linhas),
      igual ao modo Vertical mas focado num evento só. Preenche até 900px e o

@@ -1059,6 +1059,36 @@ function fsNavEvent(dir){
 function fsSetMode(mode){ if (mode === FS_MODE) return; FS_MODE = mode; renderFS({reset:true}); }
 let FS_EV_ORIENT = 'v';   // no modo Evento: 'v' (empilhado) ou 'h' (linha, estilo planilha)
 function fsSetEvOrient(o){ if (o === FS_EV_ORIENT) return; FS_EV_ORIENT = o; renderFS({reset:true}); }
+/* Ficha de criação de UM evento, ocupando a tela cheia: barra de ação grande
+   (ID Pokerbyte + Criado) e a receita inteira num grid multi-coluna (ordem de
+   criação, respeitando campos ocultos). Substitui a antiga tabela transposta de
+   2 colunas que deixava metade da tela vazia. */
+function renderEventFull(it, cat, asg){
+  const key = itemKey(it), done = !!DONE[key];
+  const tile = (label, value, hot) => (value === '' || value == null)
+    ? '' : `<div class="ev-field${hot ? ' hot' : ''}"><span class="ev-k">${escHtml(label)}</span><span class="ev-v">${value}</span></div>`;
+  let tiles = '';
+  tiles += tile('Horário', escHtml(it.hora), true);
+  tiles += tile('Criar em', escHtml(creationWhen(it)), true);
+  tiles += tile('Garantido', fmtMoney(it.garantido, it.brl), true);
+  tiles += tile('Buy-in', fmtMoney(it.buyin, it.brl), true);
+  visibleRecipeFieldsFor(cat).forEach(label => {
+    const v = it.extra ? it.extra[label] : undefined;
+    tiles += tile(label, escHtml(String(v ?? '')));
+  });
+  return `
+    <div class="ev-action">
+      <label class="ev-id">
+        <span class="ev-id-k">ID Pokerbyte</span>
+        ${idInputHtml(key, '')}
+      </label>
+      <button class="ev-done ${done ? 'on' : ''}" data-done="${key}" role="checkbox" aria-checked="${done ? 'true' : 'false'}" title="${done ? 'Criado' : 'Marcar como criado'}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg>
+        <span>${done ? 'Criado' : 'Marcar criado'}</span>
+      </button>
+    </div>
+    <div class="ev-grid">${tiles}</div>`;
+}
 function renderFS(opts){
   opts = opts || {};
   if (!FS_OPEN || !DATA) return;
@@ -1083,12 +1113,10 @@ function renderFS(opts){
   if (FS_MODE === 'event'){
     if (FS_EVENT >= items.length) FS_EVENT = 0;
     const it = items[FS_EVENT], key = itemKey(it);
-    // um evento por vez, na MESMA tabela do modo Vertical/Horizontal (com ID +
-    // Criado embutidos). Setas ‹ › ou ← → do teclado trocam de evento.
-    const recipe = FS_EV_ORIENT === 'h'
-      ? renderHorizontal([it], cat, asg)                 // deitado (estilo planilha)
-      : `<div class="fs-block-body ev-single">${renderVertical([it], cat, asg)}</div>`;   // empilhado (tabela transposta)
-    body = `<div class="fs-body mode-event ${FS_EV_ORIENT === 'h' ? 'ev-h' : 'ev-v'}">
+    // um evento por vez, como uma FICHA DE CRIAÇÃO que ocupa a tela: ação (ID +
+    // Criado) em destaque + a receita inteira num grid multi-coluna. Setas ‹ › ou
+    // ← → trocam de evento.
+    body = `<div class="fs-body mode-event">
       <div class="fs-tour">
         <div class="fs-tour-top">
           <div>
@@ -1097,16 +1125,12 @@ function renderFS(opts){
             <div style="margin-top:6px">${opTagHtml(asg[key])} ${valBadge(it, cat)} ${campBadgeHtml(it)}</div>
           </div>
           <div class="fs-eventnav">
-            <div class="fs-seg fs-seg-mini" role="tablist" aria-label="Orientação do evento">
-              <button class="fs-seg-btn ${FS_EV_ORIENT === 'v' ? 'on' : ''}" data-fsevo="v" title="Empilhado (vertical)">▦</button>
-              <button class="fs-seg-btn ${FS_EV_ORIENT === 'h' ? 'on' : ''}" data-fsevo="h" title="Deitado (horizontal)">▤</button>
-            </div>
             <button class="fs-btn" id="fsEvPrev" title="Evento anterior (←)" aria-label="Evento anterior">‹</button>
             <span class="fs-count">${FS_EVENT + 1}/${items.length}</span>
             <button class="fs-btn" id="fsEvNext" title="Próximo evento (→)" aria-label="Próximo evento">›</button>
           </div>
         </div>
-        ${recipe}
+        ${renderEventFull(it, cat, asg)}
       </div>
     </div>`;
   } else if (FS_MODE === 'horizontal'){
@@ -1348,6 +1372,44 @@ function renderStats(){
   $('progCap').textContent = total
     ? `${doneCount} de ${total} torneios criados${avgTxt}${perOp ? ' — ' + perOp : ''}`
     : 'Carregue a Global MTT pra começar';
+  renderUrgBar();
+}
+
+/* ── AVISO DE PRAZO (pill fixa) ──────────────────────────────────────────────
+   Fica sempre à vista quando há evento em risco (<6h) ainda não criado — mesmo
+   que você tenha rolado a lista. Mostra o MAIS urgente e ataca num clique. É a
+   rede de segurança contra "um torneio começou e ninguém criou". */
+function ensureUrgBar(){
+  let bar = document.getElementById('cnUrgBar');
+  if (!bar){
+    bar = document.createElement('div');
+    bar.id = 'cnUrgBar'; bar.hidden = true;
+    bar.setAttribute('role', 'status');
+    bar.innerHTML = `<span class="u-dot">⏰</span><span class="u-info"></span>` +
+      `<button class="u-go" type="button" title="Pega e foca no evento mais urgente">✋ Pegar o mais urgente</button>`;
+    document.body.appendChild(bar);
+    bar.querySelector('.u-go').addEventListener('click', attackMostUrgent);
+  }
+  return bar;
+}
+function renderUrgBar(){
+  const bar = ensureUrgBar();
+  if (!DATA || FS_OPEN || TV_OPEN || FOCUS_OPEN){ bar.hidden = true; return; }
+  const pend = pendingByUrgency();
+  const late = pend.filter(it => urgency(it) === 'late');
+  const warn = pend.filter(it => urgency(it) === 'warn');
+  if (!late.length && !warn.length){ bar.hidden = true; return; }   // nada em risco → some
+  bar.hidden = false;
+  bar.classList.toggle('crit', late.length > 0);
+  const top = pend[0];
+  const rate = nightPace();
+  const eta = (rate && pend.length) ? ` · no ritmo (~${rate.toFixed(1)}/h) termina os ${pend.length} em ~${fmtMins(pend.length / rate * 60)}` : '';
+  const counts =
+    (late.length ? `<b class="u-late">${late.length}</b> atrasado${late.length > 1 ? 's' : ''}` : '') +
+    (late.length && warn.length ? ' · ' : '') +
+    (warn.length ? `<b class="u-warn">${warn.length}</b> em risco` : '');
+  const next = top ? ` — <b>${escHtml(top.nome)}</b> começa ${escHtml(urgLabel(top))}` : '';
+  bar.querySelector('.u-info').innerHTML = `<span class="u-counts">${counts}</span>${next}<span class="u-eta">${eta}</span>`;
 }
 
 /* ── prazo: instante de início do evento vs agora (tudo em relógio de Brasília).
@@ -1705,39 +1767,64 @@ function claimSection(catKey){
   showToast(`Você pegou ${items.length} torneio(s) de ${cat.label}.`);
 }
 
-/* ── FILA: pegar o PRÓXIMO torneio pendente e focar no ID ─────────────────────
-   Kickoff do fluxo da madrugada. Acha o 1º torneio ainda não criado que esteja
-   livre (ou já seu), pega pra você e foca no campo de ID — daí é só digitar e ir
-   de Enter em Enter (auto-avança). Ignora o filtro atual pra sempre achar o
-   próximo; se ele estiver escondido, mostra tudo e foca. */
-function grabNextPending(){
-  if (!ensureMeOnTeam()){ showToast('Entre com seu nome no hub pra pegar torneios.', true); return; }
-  const asg = computeAssignments();
-  let cand = null;
-  for (const cat of SECTIONS){
-    const hit = catItems(cat).find(it => { const k = itemKey(it); return !DONE[k] && (!OVERRIDES[k] || isMine(asg[k])); });
-    if (hit){ cand = hit; break; }
-  }
-  if (!cand){ showToast('Nada pendente livre pra pegar. 🎉'); return; }
-  const k = itemKey(cand);
-  if (!isMine(asg[k])) claimItem(k, ME);   // pega pra você se ainda não for
-  const focus = () => {
+/* ── FILA POR URGÊNCIA ────────────────────────────────────────────────────────
+   O risco real da madrugada é um evento COMEÇAR sem ter sido criado. Então a fila
+   segue o RELÓGIO, não a ordem das seções: sempre o que começa mais cedo primeiro
+   (late reg chegando). `pendingByUrgency` é a base da fila, do foco e do aviso. */
+function pendingByUrgency(){
+  if (!DATA) return [];
+  const all = [];
+  SECTIONS.forEach(cat => catItems(cat).forEach(it => all.push(it)));
+  return all.filter(it => !DONE[itemKey(it)])
+            .sort((a, b) => (hoursToStart(a) ?? 999) - (hoursToStart(b) ?? 999));
+}
+/* leva o foco pro campo de ID de um torneio, revelando-o se um filtro o escondeu */
+function focusKey(k, nome){
+  const go = () => {
     const inp = document.querySelector(`.id-inp[data-idkey="${cssEsc(k)}"]`);
     if (inp){ inp.focus(); inp.scrollIntoView({block:'center', inline:'nearest'}); return true; }
     return false;
   };
-  if (!focus()){
-    // pode estar filtrado fora da tela → mostra tudo e tenta de novo no próximo tick
-    if (FILTER !== 'all' || HIDE_DONE){ FILTER = 'all'; HIDE_DONE = false; renderAll(); }
-    setTimeout(() => { if (!focus()) showToast(`Peguei "${cand.nome}". Role até ele pra cadastrar o ID.`); }, 60);
-  }
+  if (go()) return;
+  if (FILTER !== 'all' || HIDE_DONE){ FILTER = 'all'; HIDE_DONE = false; renderAll(); }
+  setTimeout(() => { if (!go() && nome) showToast(`"${nome}" — role até ele pra cadastrar o ID.`); }, 60);
 }
-/* Enter fora de campo: pula pro 1º ID pendente na tela (entra na fila) */
+/* Kickoff da madrugada: pega o próximo pendente MAIS URGENTE (livre ou já seu),
+   assume pra você e foca no ID. Daí é só ir de Enter em Enter (auto-avança). */
+function grabNextPending(){
+  if (!ensureMeOnTeam()){ showToast('Entre com seu nome no hub pra pegar torneios.', true); return; }
+  const asg = computeAssignments();
+  const cand = pendingByUrgency().find(it => { const k = itemKey(it); return !OVERRIDES[k] || isMine(asg[k]); });
+  if (!cand){ showToast('Nada pendente livre pra pegar. 🎉'); return; }
+  const k = itemKey(cand);
+  if (!isMine(asg[k])) claimItem(k, ME);
+  focusKey(k, cand.nome);
+}
+/* Enter fora de campo: pula pro ID do pendente mais urgente (entra na fila) */
 function focusFirstPendingId(){
-  const inp = Array.from(document.querySelectorAll('.id-inp')).find(x => !x.value.trim() && !DONE[x.dataset.idkey]);
-  if (inp){ inp.focus(); inp.scrollIntoView({block:'center', inline:'nearest'}); }
-  else showToast('Nenhum ID pendente na tela.');
+  const top = pendingByUrgency()[0];
+  if (top) focusKey(itemKey(top), top.nome);
+  else showToast('Nenhum ID pendente. 🎉');
 }
+/* Botão do aviso de prazo: ataca o evento mais urgente — pega se estiver livre
+   (respeita dono alheio) e foca no ID na hora. */
+function attackMostUrgent(){
+  const top = pendingByUrgency()[0];
+  if (!top){ showToast('Nada urgente pendente. 🎉'); return; }
+  const k = itemKey(top);
+  if (ME && !OVERRIDES[k]){ ensureMeOnTeam(); claimItem(k, ME); }
+  focusKey(k, top.nome);
+}
+/* ritmo da noite: torneios criados por hora, medido pelos carimbos reais de
+   "criado" (DONE.at) nas últimas ~2h — funciona em equipe, sem depender do Foco */
+function nightPace(){
+  const now = Date.now(), WINDOW = 120 * 60000;
+  const ats = Object.values(DONE).map(d => d && d.at).filter(x => typeof x === 'number' && now - x <= WINDOW);
+  if (ats.length < 2) return null;
+  const span = Math.max(now - Math.min(...ats), 10 * 60000);   // janela mínima de 10min
+  return ats.length / (span / 3600000);                        // por hora
+}
+function fmtMins(m){ m = Math.max(0, Math.round(m)); return m < 60 ? `${m}min` : `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`; }
 /* célula "Operador": dono (ou "livre") + ações RÁPIDAS num toque —
    ✋ pegar · ↗ passar (abre a lista de operadores) · ✕ soltar. */
 function claimCellHtml(key, op){
@@ -2815,49 +2902,88 @@ $('exportBtn').addEventListener('click', async () => {
    já em R$ (Liga) NÃO são convertidos pelo botão de moeda. ── */
 $('exportSecBtn').addEventListener('click', async () => {
   if (!DATA){ showToast('Carregue a Global primeiro.', true); return; }
-  try{ await ensureXLSX(); }catch(_){ showToast('A biblioteca de planilhas não carregou — recarregue a página.', true); return; }
+  let X;
+  try{ X = await ensureXLSXStyle(); }catch(_){ showToast('A biblioteca de planilhas não carregou — recarregue a página.', true); return; }
   const cur = CURRENCY === 'usd' ? '$' : 'R$';
   const convV = (it, v) => (v === null || v === undefined) ? '' : ((it && it.brl) ? v : (CURRENCY === 'usd' ? v : Math.round(v * BRL_RATE * 100) / 100));
   const asg = computeAssignments();
-  const wb = XLSX.utils.book_new();
-  let sheets = 0, grandTotal = 0;
+  const wb = X.utils.book_new();
+
+  // ── paleta (marca) + estilos ──────────────────────────────────────────────
+  const FELT='1A472A', CREAM='F1E2BD', CREAMDK='5C4A1A', ZEBRA='FAF6EC', WHITE='FFFFFF', HAIR='DBD3C4', INK='262626';
+  const bd = {style:'thin', color:{rgb:HAIR}};
+  const border = {top:bd, bottom:bd, left:bd, right:bd};
+  const stTitle = {font:{bold:true, sz:13, color:{rgb:WHITE}}, fill:{fgColor:{rgb:FELT}}, alignment:{horizontal:'left', vertical:'center'}};
+  const stHeadName = {font:{bold:true, sz:11, color:{rgb:WHITE}}, fill:{fgColor:{rgb:FELT}}, alignment:{horizontal:'center', vertical:'center', wrapText:true}, border};
+  const stHeadCorner = {font:{bold:true, sz:10, color:{rgb:WHITE}}, fill:{fgColor:{rgb:FELT}}, alignment:{horizontal:'left', vertical:'center'}, border};
+  const stLabel = z => ({font:{bold:true, sz:10, color:{rgb:CREAMDK}}, fill:{fgColor:{rgb: z?ZEBRA:CREAM}}, alignment:{horizontal:'left', vertical:'center'}, border});
+  const stVal   = z => ({font:{sz:10, color:{rgb:INK}}, fill:{fgColor:{rgb: z?ZEBRA:WHITE}}, alignment:{horizontal:'left', vertical:'center'}, border});
+  const stMoney = z => ({font:{sz:10, color:{rgb:INK}}, fill:{fgColor:{rgb: z?ZEBRA:WHITE}}, alignment:{horizontal:'right', vertical:'center'}, border});
+  const stDone  = z => ({font:{bold:true, sz:10, color:{rgb:'1A7A3A'}}, fill:{fgColor:{rgb: z?ZEBRA:WHITE}}, alignment:{horizontal:'center', vertical:'center'}, border});
+
+  let sheets = 0;
   SECTIONS.forEach(cat => {
     const items = catItems(cat);
     if (!items.length) return;
-    const fields = recipeFieldsFor(cat);            // receita COMPLETA (Liga tem campos próprios); independe do que está oculto na tela
+    const fields = recipeFieldsFor(cat);            // receita COMPLETA (independe do que está oculto na tela)
     const cCur = cat.brl ? 'R$' : cur;
-    // EM COLUNAS (igual à visão Vertical do app): 1ª coluna = rótulos das linhas,
-    // depois UMA COLUNA POR TORNEIO. Facilita bater campo a campo lado a lado.
-    const labels = ['Torneio', 'Horário', 'Criar em', 'Operador', 'ID Pokerbyte', 'Criado', `Garantido (${cCur})`, `Buy-in (${cCur})`, ...fields];
-    const valOf = (it, i) => {
+    const moneyFmt = `"${cCur}" #,##0.##`;
+    // EM COLUNAS: cada TORNEIO é uma coluna (nome no cabeçalho); cada CAMPO é uma linha.
+    const metaLabels = ['Horário', 'Criar em', 'Operador', 'ID Pokerbyte', 'Criado', 'Garantido', 'Buy-in'];
+    const fieldLabels = [...metaLabels, ...fields];
+    const moneyRows = new Set([5, 6]);              // Garantido, Buy-in (índice em fieldLabels)
+    const valOf = (it, fi) => {
       const key = itemKey(it);
-      switch (i){
-        case 0: return it.nome;
-        case 1: return it.hora;
-        case 2: return creationWhen(it);
-        case 3: return asg[key] || '';
-        case 4: return idVal(key);
-        case 5: return DONE[key] ? 'SIM' : '';
-        case 6: return convV(it, it.garantido);
-        case 7: return convV(it, it.buyin);
-        default: { const v = it.extra ? it.extra[fields[i - 8]] : undefined; return (v === undefined || v === null) ? '' : v; }
+      switch (fi){
+        case 0: return it.hora;
+        case 1: return creationWhen(it);
+        case 2: return asg[key] || '';
+        case 3: return idVal(key);
+        case 4: return DONE[key] ? 'SIM' : '';
+        case 5: return convV(it, it.garantido);
+        case 6: return convV(it, it.buyin);
+        default: { const v = it.extra ? it.extra[fields[fi - 7]] : undefined; return (v === undefined || v === null) ? '' : v; }
       }
     };
-    const rows = labels.map((label, i) => [label, ...items.map(it => valOf(it, i))]);
     const gtd = gtdSum(items);
-    grandTotal += gtd;
     const gtdVal = cat.brl ? gtd : (CURRENCY === 'usd' ? gtd : gtd * BRL_RATE);
-    rows.push([]);
-    rows.push([`${items.length} torneios · GTD total ${cCur} ${gtdVal.toLocaleString('pt-BR')}`]);
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [{wch:20}, ...items.map(() => ({wch:22}))];   // rótulos + uma coluna por torneio
-    XLSX.utils.book_append_sheet(wb, ws, cat.label.replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31));
+    const title = `${cat.label.toUpperCase()} — ${items.length} torneios · GTD ${cCur} ${Math.round(gtdVal).toLocaleString('pt-BR')}`;
+
+    const aoa = [[title], ['Campo', ...items.map(it => it.nome)]];
+    fieldLabels.forEach((label, fi) => aoa.push([label, ...items.map(it => valOf(it, fi))]));
+
+    const ws = X.utils.aoa_to_sheet(aoa);
+    const ncol = items.length + 1;
+    ws['!cols'] = [{wch:17}, ...items.map(() => ({wch:20}))];
+    ws['!rows'] = [{hpt:26}, {hpt:30}];
+    ws['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:ncol-1}}];
+
+    const setS = (r, c, s) => { const ref = X.utils.encode_cell({r, c}); if (!ws[ref]) ws[ref] = {t:'s', v:''}; ws[ref].s = s; };
+    for (let c = 0; c < ncol; c++) setS(0, c, stTitle);            // faixa do título
+    setS(1, 0, stHeadCorner);
+    for (let c = 1; c < ncol; c++) setS(1, c, stHeadName);         // nomes dos torneios
+    fieldLabels.forEach((label, fi) => {
+      const r = fi + 2, z = fi % 2 === 1;
+      setS(r, 0, stLabel(z));
+      for (let c = 1; c < ncol; c++){
+        const ref = X.utils.encode_cell({r, c});
+        if (moneyRows.has(fi)){
+          if (ws[ref] && typeof ws[ref].v === 'number'){ ws[ref].t = 'n'; ws[ref].z = moneyFmt; }
+          const st = stMoney(z); st.numFmt = moneyFmt; setS(r, c, st);
+        } else if (fi === 4){
+          setS(r, c, (ws[ref] && ws[ref].v === 'SIM') ? stDone(z) : stVal(z));
+        } else {
+          setS(r, c, stVal(z));
+        }
+      }
+    });
+    X.utils.book_append_sheet(wb, ws, cat.label.replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31));
     sheets++;
   });
   if (!sheets){ showToast('Nada para exportar.', true); return; }
-  XLSX.writeFile(wb, `CriacaoNoturna_Secoes_${TOMORROW_ISO}.xlsx`);
+  X.writeFile(wb, `CriacaoNoturna_Secoes_${TOMORROW_ISO}.xlsx`);
   logEvent('exportou seções', `${sheets} aba(s)`);
-  showToast(`Exportado — ${sheets} seção(ões) em abas separadas.`);
+  showToast(`Exportado — ${sheets} seção(ões), formatado por seção.`);
 });
 
 /* ── resumo pra colar no grupo ── */
