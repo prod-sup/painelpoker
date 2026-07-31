@@ -86,16 +86,53 @@ function turnoAmanha(){
 function refToISO(ref){ return `${ref.getUTCFullYear()}-${String(ref.getUTCMonth()+1).padStart(2,'0')}-${String(ref.getUTCDate()).padStart(2,'0')}`; }
 function refToLabel(ref){ return `${String(ref.getUTCDate()).padStart(2,'0')}/${String(ref.getUTCMonth()+1).padStart(2,'0')}`; }
 
-const TURNO = turnoAmanha();
-const TOMORROW_ISO = refToISO(TURNO.refTomorrow);
+const _clock = turnoAmanha();
+const NATURAL_ISO = refToISO(_clock.refTomorrow);   // madrugada que o RELÓGIO indica agora
+/* ── MADRUGADA ATIVA (sticky) ─────────────────────────────────────────────
+   A página LEMBRA a madrugada que você está criando (localStorage) e NUNCA troca
+   sozinha num reload. Antes, o caminho no Firebase vinha direto do relógio: passava
+   das 05:30, alguém dava F5 (ou clicava em "nova versão") e a página pulava pro dia
+   seguinte — VAZIO — parecendo que "resetou" a Criação Noturna e os IDs (que na
+   verdade continuavam salvos no dia certo). Agora só vira pra próxima madrugada
+   quando o operador CLICA em "Começar a nova" (banner abaixo, quando o relógio já
+   passou pra uma madrugada mais nova). Tudo da página — caminho, dias, rótulos —
+   passa a derivar da madrugada ATIVA, não do relógio, pra não haver descompasso. */
+let _storedDay = null; try{ _storedDay = localStorage.getItem('cn_active_day'); }catch(e){}
+const ACTIVE_ISO = _storedDay || NATURAL_ISO;
+try{ localStorage.setItem('cn_active_day', ACTIVE_ISO); }catch(e){}
+const _refTom = new Date(`${ACTIVE_ISO}T12:00:00Z`);
+const _refAfter = new Date(_refTom.getTime() + 86400000);
+const TURNO = { n: _clock.n, refTomorrow: _refTom, refDayAfter: _refAfter };
+const TOMORROW_ISO = ACTIVE_ISO;
 const WEEKDAY_TOMORROW = WEEKDAYS_PT[TURNO.refTomorrow.getUTCDay()];      // exibição
 const WEEKDAY_DAYAFTER = WEEKDAYS_PT[TURNO.refDayAfter.getUTCDay()];
 const WEEKDAY_TOMORROW_EN = WEEKDAYS_EN[TURNO.refTomorrow.getUTCDay()];   // a G MTTS usa dias em inglês
 const WEEKDAY_DAYAFTER_EN = WEEKDAYS_EN[TURNO.refDayAfter.getUTCDay()];
 const DAY_LABEL = `${WEEKDAY_TOMORROW.split('-')[0].toLowerCase()} · ${refToLabel(TURNO.refTomorrow)}`;
+const NIGHT_ADVANCED = NATURAL_ISO > ACTIVE_ISO;   // já chegou uma madrugada mais nova que a carregada
 
 $('heroDay').textContent = `de ${WEEKDAY_TOMORROW.toLowerCase()} · ${refToLabel(TURNO.refTomorrow)}`;
 $('uploadDayLabel').textContent = `${WEEKDAY_TOMORROW.toLowerCase()} (${refToLabel(TURNO.refTomorrow)})`;
+
+/* Nova madrugada disponível: NÃO troca sozinho (sticky). Oferece a troca explícita —
+   a de agora fica salva no Firebase (nada se perde); começar a nova só re-aponta o caminho. */
+if (NIGHT_ADVANCED){
+  const naturalLabel = `${WEEKDAYS_PT[_clock.refTomorrow.getUTCDay()].split('-')[0].toLowerCase()} · ${refToLabel(_clock.refTomorrow)}`;
+  const bar = document.createElement('div');
+  bar.id = 'newNightBar';
+  bar.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:160;background:var(--gold);color:#1a1206;padding:9px 10px 9px 16px;border-radius:99px;font-size:12.5px;font-weight:650;box-shadow:var(--shadow-lg);display:flex;gap:12px;align-items:center;max-width:calc(100vw - 24px)';
+  bar.innerHTML = `<span>🌙 Criando a madrugada de <b>${escHtml(DAY_LABEL)}</b> — já chegou a de <b>${escHtml(naturalLabel)}</b>.</span>`;
+  const go = document.createElement('button');
+  go.textContent = 'Começar a nova';
+  go.style.cssText = 'background:#1a1206;color:var(--gold);border:none;border-radius:99px;padding:6px 13px;font-weight:800;font-size:12px;cursor:pointer;flex:none';
+  go.onclick = () => { try{ localStorage.setItem('cn_active_day', NATURAL_ISO); }catch(e){} location.reload(); };
+  const dismiss = document.createElement('button');
+  dismiss.textContent = '✕'; dismiss.title = 'Continuar nesta madrugada';
+  dismiss.style.cssText = 'background:none;border:none;color:#1a1206;cursor:pointer;font-weight:800;font-size:14px;flex:none';
+  dismiss.onclick = () => bar.remove();
+  bar.append(go, dismiss);
+  document.body.appendChild(bar);
+}
 
 /* =========================================================================
    PARSER DA GU — aba "G MTTS" da Global: é a planilha que a GU usa pra criar
@@ -209,11 +246,11 @@ function calcValueParts(it, info, pctOnly){
   if (raw === null) return {main: info.disp, sub: '', money: null};
   if (raw > 0 && raw < 1){
     const money = (it.buyin != null) ? CriacaoCalc.moneyOf(it.buyin, raw) : null;
-    return {main: CriacaoCalc.pctText(raw), sub: money != null ? fmtMoneyPlain(money, it.brl) : '', money};
+    return {main: CriacaoCalc.pctText(raw), sub: money != null ? fmtMoneyPlain(money) : '', money};
   }
   if (pctOnly) return {main: info.disp, sub: '', money: null};
   const pct = (it.buyin && it.buyin > 0) ? CriacaoCalc.pctText(raw / it.buyin) : '';
-  return {main: fmtMoneyPlain(raw, it.brl), sub: pct, money: raw, isMoney: true};
+  return {main: fmtMoneyPlain(raw), sub: pct, money: raw, isMoney: true};
 }
 
 /* converte o valor cru de um campo pra fração percentual (0–1).
@@ -228,7 +265,7 @@ function rawToPct(it, info){
 function adminFeeParts(it){
   const pctTx = p => (Math.round(p * 10000) / 100).toLocaleString('pt-BR') + '%';
   const decTx = p => it.buyin != null
-    ? ' = ' + (((it.brl || CURRENCY === 'usd') ? it.buyin : it.buyin * BRL_RATE) * p).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})
+    ? ' = ' + ((CURRENCY === 'usd' ? it.buyin : it.buyin * BRL_RATE) * p).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})
     : '';
   const f = rawToPct(it, feeActive(it)), a = rawToPct(it, adminActive(it));
   if (!f && !a) return null;
@@ -275,13 +312,13 @@ function specTile(icon, accent, label, mainHtml, sub, hot){
 /* a FICHA: valores (com quanto o fee representa) + especificações destacadas */
 function specSheetHtml(it){
   const money = info => { // valor de célula → $ formatado (Add-on e afins)
-    if (typeof info.raw === 'number') return fmtMoney(info.raw, it.brl);
+    if (typeof info.raw === 'number') return fmtMoney(info.raw);
     const n = parseFloat(String(info.raw).replace(/[^\d.,-]/g, '').replace(',', '.'));
-    return isFinite(n) ? fmtMoney(n, it.brl) : escHtml(info.disp);
+    return isFinite(n) ? fmtMoney(n) : escHtml(info.disp);
   };
   const tiles = [];
-  tiles.push(specTile('buyin','c-felt','Buy-in', fmtMoney(it.buyin, it.brl), '', true));
-  tiles.push(specTile('prize','c-felt','Prize Pool', fmtMoney(it.garantido, it.brl), '', true));
+  tiles.push(specTile('buyin','c-felt','Buy-in', fmtMoney(it.buyin), '', true));
+  tiles.push(specTile('prize','c-felt','Prize Pool', fmtMoney(it.garantido), '', true));
   const af = adminFeeParts(it); if (af) tiles.push(specTile('admin','c-side','Admin Fee', escHtml(af.main), '10% do buy-in / +2% se tiver admin fee', true));
   const e = earlyParts(it);     if (e)  tiles.push(specTile('early','c-sat','Early Bird', escHtml(e.main), e.sub + ' (% das fichas)', true));
   const tk = ticketInfo(it);   if (tk) tiles.push(specTile('ticket','c-gold','Ticket Award', escHtml(tk.disp), '', true));
@@ -320,29 +357,8 @@ const CAT_MAIN   = {key:'main',        cls:'main',     suit:'♠', label:'Main E
 const CAT_SAT    = {key:'sat',         cls:'sat',      suit:'♣', label:'Satélites',                role:'mainSat'};
 const CAT_SIDE_A = {key:'sideAdmin',   cls:'side',     suit:'♥', label:'Side Events · com Admin Fee', role:'sideAdmin'};
 const CAT_SIDE_B = {key:'sideNoAdmin', cls:'sidefree', suit:'♦', label:'Side Events · sem Admin Fee', role:'sideNoAdmin'};
-/* EVENTOS PRINCIPAIS (Liga Principal) — grade fixa em REAIS, seção própria e
-   sempre em R$ (imune ao botão de moeda). Mesma ideia do Painel do Dia. */
-const CAT_LIGA   = {key:'liga',        cls:'liga',     suit:'♛', label:'Eventos Principais · Liga (R$)', role:'mainSat', brl:true};
-const SECTIONS = [CAT_MAIN, CAT_SAT, CAT_SIDE_A, CAT_SIDE_B, CAT_LIGA];
-
-/* itens da Liga do dia seguinte (amanhã), reconstruídos do dado local a cada
-   render — sem upload, sem gravar rows no Firebase (só o preenchimento persiste,
-   pelas mesmas chaves de done/ids/overrides). */
-let LIGA_ITEMS = [];
-function buildLigaItems(){
-  LIGA_ITEMS = [];
-  if (typeof LIGA_PRINCIPAL_SECTIONS === 'undefined') return;
-  const wd = (WEEKDAY_TOMORROW_EN || '').toUpperCase();
-  const sec = LIGA_PRINCIPAL_SECTIONS[wd];
-  if (!sec) return;
-  const push = arr => (arr || []).forEach(it => LIGA_ITEMS.push({...it, brl: true, _principal: true}));
-  push(sec.main); push(sec.side); push(sec.sat);
-  LIGA_ITEMS.sort((a, b) => (timeToMinutes(a.hora) ?? 9999) - (timeToMinutes(b.hora) ?? 9999));
-}
-buildLigaItems();   // grade fixa disponível já no load (só usa externals — seguro aqui)
-
+const SECTIONS = [CAT_MAIN, CAT_SAT, CAT_SIDE_A, CAT_SIDE_B];
 function catItems(cat){
-  if (cat.key === 'liga') return LIGA_ITEMS;   // independe da GU (grade fixa local)
   if (!DATA) return [];
   if (cat.key === 'main') return DATA.main;
   if (cat.key === 'sat')  return DATA.sat;
@@ -350,13 +366,12 @@ function catItems(cat){
   return cat.key === 'sideAdmin' ? s.admin : s.noadmin;
 }
 function allWithCat(){
-  const s = DATA ? sideSplit() : {admin:[], noadmin:[]};
+  const s = sideSplit();
   return [
-    ...(DATA ? DATA.main : []).map(it => ({it, cat: CAT_MAIN})),
+    ...DATA.main.map(it => ({it, cat: CAT_MAIN})),
     ...s.admin.map(it => ({it, cat: CAT_SIDE_A})),
     ...s.noadmin.map(it => ({it, cat: CAT_SIDE_B})),
-    ...(DATA ? DATA.sat : []).map(it => ({it, cat: CAT_SAT})),
-    ...LIGA_ITEMS.map(it => ({it, cat: CAT_LIGA}))
+    ...DATA.sat.map(it => ({it, cat: CAT_SAT}))
   ];
 }
 
@@ -374,10 +389,12 @@ function setRole(op, role){
   if (fbDb) fbDb.ref(`${FB_PATH}/roles`).set(ROLES);
   else renderAll();
 }
-/* funções removidas (modelo "pegar tarefa"): a divisão automática é só uma
-   SUGESTÃO e round-robina entre TODOS da equipe. Mantido o nome pra não mexer
-   no computeAssignments. */
-function opsForRole(_role){ return OPS; }
+/* operadores de um bloco: os marcados com aquela função; se ninguém marcou,
+   todos dividem (fallback pra funcionar antes de atribuírem as funções) */
+function opsForRole(role){
+  const assigned = OPS.filter(o => roleOf(o) === role);
+  return assigned.length ? assigned : OPS;
+}
 
 /* extractGuDaySection e buildSections vivem em gu-parser.js */
 
@@ -400,7 +417,6 @@ let AUDIT = {};           // itemKey -> {status:'erro', motivo, by, at} — marc
 let SEARCH = '';
 let CURRENCY = localStorage.getItem('cn_currency') || 'usd';
 let FILTER = 'all';
-let HIDE_DONE = false;   // "Só pendentes": esconde os já criados
 
 function setSync(state, label){
   const el = $('syncStatus');
@@ -443,6 +459,10 @@ try{
         try{
           DATA = JSON.parse(v.json);
           DATA.by = v.by; DATA.at = v.at;
+          // sincroniza a assinatura com o que veio do Firebase: sem isto, o próximo
+          // poll deste painel acharia "mudou" e reescreveria /sheet à toa (ver guarda
+          // de egress em processGlobalBuffer).
+          window._cnLastSig = globalSignature(DATA);
           onDataReady(true);
         }catch(e){ console.error('sheet corrompida no Firebase', e); }
       }
@@ -460,15 +480,12 @@ try{
   });
   fbDb.ref(`${FB_PATH}/ids`).on('value', s => {
     IDS = s.val() || {};
-    pruneDrafts();   // o que já subiu pro Firebase deixa de ser rascunho local
     // não re-renderizar a lista enquanto alguém digita um ID — só atualiza os inputs parados
     if (document.activeElement && document.activeElement.classList.contains('id-inp')){
       document.querySelectorAll('.id-inp').forEach(inp => {
         if (inp === document.activeElement) return;
-        const key = inp.dataset.idkey;
-        if (isDraft(key)) return;                    // NUNCA sobrescreve um rascunho ainda não confirmado
-        const v = draftOrId(key);
-        inp.value = v; inp.classList.toggle('has-id', !!v); inp.classList.remove('draft');
+        const v = IDS[inp.dataset.idkey] ? IDS[inp.dataset.idkey].val : '';
+        inp.value = v; inp.classList.toggle('has-id', !!v);
       });
     } else renderAll();
   });
@@ -678,49 +695,7 @@ async function handleFile(file){
   }
   $('dzTitle').textContent = 'Lendo planilha…';
   try{
-    // a criação é baseada SÓ na aba da GU (G MTTS) — valores em dólar, receita completa
-    const matrix = readSheetMatrix(await file.arrayBuffer(), 'G MTTS');
-    const headerCols = findHeaderCols(matrix);
-    if (!headerCols){
-      showToast('Não encontrei o cabeçalho da aba G MTTS (MTT MARKETING / TYPE / BUY-IN…) — é a Global MTT certa?', true);
-      $('dzTitle').textContent = 'Global MTT';
-      return;
-    }
-    const secTom = extractGuDaySection(matrix, WEEKDAY_TOMORROW_EN, headerCols);
-    const secAfter = extractGuDaySection(matrix, WEEKDAY_DAYAFTER_EN, headerCols);
-    if (!secTom){
-      showToast(`Não encontrei a seção "${WEEKDAY_TOMORROW_EN}" na aba G MTTS — é a Global MTT certa?`, true);
-      $('dzTitle').textContent = 'Global MTT';
-      return;
-    }
-    const sections = buildSections(secTom, secAfter);
-    const warnings = [];
-    if (!secAfter) warnings.push(`Seção "${WEEKDAY_DAYAFTER}" não encontrada — a madrugada de fechamento (até 05:30) pode estar faltando.`);
-    if (secTom.duplicateSection || (secAfter && secAfter.duplicateSection)) warnings.push('Nome de dia duplicado na planilha — confira se as seções usadas são as certas.');
-    const semHora = [...secTom.semHora, ...(secAfter ? secAfter.semHora : [])];
-    if (semHora.length) warnings.push(`${semHora.length} torneio(s) sem horário reconhecível ficaram de fora: ${semHora.map(x=>x.nome).join(', ')}`);
-    const aposGap = [...secTom.aposGap, ...(secAfter ? secAfter.aposGap : [])];
-    if (aposGap.length) warnings.push(`${aposGap.length} linha(s) depois do vão de linhas vazias ficaram de fora: ${aposGap.map(x=>`${x.hora} ${x.nome}`).join(', ')}`);
-    if (sections.unknown.length) warnings.push(`${sections.unknown.length} torneio(s) com tipo não reconhecido na coluna TYPE (listados em seção própria).`);
-
-    const fields = headerCols.filter(c => !isCoreLabel(c.label)).map(c => c.label);
-    // diff contra a versão que já estava carregada (a GU corrige a Global durante a noite):
-    // o que mudou fica marcado — e o que JÁ FOI CRIADO com a receita antiga pede revisão
-    const changes = computeChanges(DATA, sections);
-    if (DATA && changes.length) showToast(`⚠ ${changes.length} alteração(ões) em relação à Global anterior — veja os avisos.`, true);
-    DATA = {...sections, fields, warnings, changes, by: ME || 'Alguém', at: Date.now(), fileName: file.name};
-    onDataReady(false);
-
-    if (fbDb){
-      fbDb.ref(`${FB_PATH}/sheet`).set({
-        json: JSON.stringify({main:sections.main, side:sections.side, sat:sections.sat, unknown:sections.unknown, fields, warnings, changes, fileName:file.name}),
-        // count pequeno pra o hub contar sem baixar a grade inteira (economia de banda)
-        count: sections.main.length + sections.side.length + sections.sat.length,
-        by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP
-      });
-    }
-    logEvent('subiu Global', `${file.name} — ${sections.main.length + sections.side.length + sections.sat.length} torneios${changes.length ? ` (${changes.length} alterações)` : ''}`);
-    showToast(`Global carregada — ${sections.main.length + sections.side.length + sections.sat.length} torneios de ${WEEKDAY_TOMORROW.toLowerCase()}.`);
+    processGlobalBuffer(await file.arrayBuffer(), file.name, { manual:true });
   }catch(e){
     console.error(e);
     showToast('Erro ao ler a planilha — confira se é a Global MTT (.xlsx).', true);
@@ -728,6 +703,185 @@ async function handleFile(file){
   $('dzTitle').textContent = 'Global MTT';
   $('fileInput').value = '';
 }
+
+/* =========================================================================
+   NÚCLEO DE INGESTÃO — recebe o BINÁRIO .xlsx (upload manual OU fetch do
+   Google Sheets publicado) e roda a MESMA extração da aba G MTTS. É o ponto
+   que garante "zero diferença por origem": o auto-sync extrai IDÊNTICO ao
+   manual, porque é o mesmíssimo readSheetMatrix → findHeaderCols →
+   extractGuDaySection → buildSections. Nada de parsing paralelo.
+   Retorna {ok, count, unchanged, reason}; quem chamou decide os toasts.
+========================================================================= */
+/* assinatura só do CONTEÚDO extraído (não do fileName/at/changes): decide se
+   vale reescrever o Firebase e disparar todos os painéis. Sem ela, cada poll
+   reescreveria /sheet e re-baixaria a grade em todo painel aberto (egress). */
+function globalSignature(s){
+  try{ return JSON.stringify([s.main, s.side, s.sat, s.unknown]); }
+  catch(e){ return 'sig-' + Date.now() + '-' + Math.random(); }
+}
+
+function processGlobalBuffer(arrayBuffer, sourceName, opts){
+  opts = opts || {};
+  // a criação é baseada SÓ na aba da GU (G MTTS) — valores em dólar, receita completa
+  const matrix = readSheetMatrix(arrayBuffer, 'G MTTS');
+  const headerCols = findHeaderCols(matrix);
+  if (!headerCols){
+    if (opts.manual) showToast('Não encontrei o cabeçalho da aba G MTTS (MTT MARKETING / TYPE / BUY-IN…) — é a Global MTT certa?', true);
+    return { ok:false, reason:'header' };
+  }
+  const secTom = extractGuDaySection(matrix, WEEKDAY_TOMORROW_EN, headerCols);
+  const secAfter = extractGuDaySection(matrix, WEEKDAY_DAYAFTER_EN, headerCols);
+  if (!secTom){
+    if (opts.manual) showToast(`Não encontrei a seção "${WEEKDAY_TOMORROW_EN}" na aba G MTTS — é a Global MTT certa?`, true);
+    return { ok:false, reason:'day' };
+  }
+  const sections = buildSections(secTom, secAfter);
+  const warnings = [];
+  if (!secAfter) warnings.push(`Seção "${WEEKDAY_DAYAFTER}" não encontrada — a madrugada de fechamento (até 05:30) pode estar faltando.`);
+  if (secTom.duplicateSection || (secAfter && secAfter.duplicateSection)) warnings.push('Nome de dia duplicado na planilha — confira se as seções usadas são as certas.');
+  const semHora = [...secTom.semHora, ...(secAfter ? secAfter.semHora : [])];
+  if (semHora.length) warnings.push(`${semHora.length} torneio(s) sem horário reconhecível ficaram de fora: ${semHora.map(x=>x.nome).join(', ')}`);
+  const aposGap = [...secTom.aposGap, ...(secAfter ? secAfter.aposGap : [])];
+  if (aposGap.length) warnings.push(`${aposGap.length} linha(s) depois do vão de linhas vazias ficaram de fora: ${aposGap.map(x=>`${x.hora} ${x.nome}`).join(', ')}`);
+  if (sections.unknown.length) warnings.push(`${sections.unknown.length} torneio(s) com tipo não reconhecido na coluna TYPE (listados em seção própria).`);
+
+  const fields = headerCols.filter(c => !isCoreLabel(c.label)).map(c => c.label);
+  const total = sections.main.length + sections.side.length + sections.sat.length;
+
+  // guarda de egress: no auto-sync, se o conteúdo extraído é IDÊNTICO ao já
+  // carregado, não reescreve o Firebase (senão todo painel recarregaria a grade
+  // a cada poll). O manual é ação explícita e sempre grava.
+  const sig = globalSignature(sections);
+  if (opts.auto && DATA && sig === window._cnLastSig){
+    return { ok:true, unchanged:true, count: total };
+  }
+
+  // diff contra a versão que já estava carregada (a GU corrige a Global durante a noite):
+  // o que mudou fica marcado — e o que JÁ FOI CRIADO com a receita antiga pede revisão
+  const changes = computeChanges(DATA, sections);
+  if (DATA && changes.length) showToast(`⚠ ${changes.length} alteração(ões) em relação à Global anterior — veja os avisos.`, true);
+  window._cnLastSig = sig;
+  const by = ME || (opts.auto ? 'Sheets' : 'Alguém');
+  DATA = {...sections, fields, warnings, changes, by, at: Date.now(), fileName: sourceName};
+  onDataReady(false);
+
+  if (fbDb){
+    fbDb.ref(`${FB_PATH}/sheet`).set({
+      json: JSON.stringify({main:sections.main, side:sections.side, sat:sections.sat, unknown:sections.unknown, fields, warnings, changes, fileName:sourceName}),
+      // count pequeno pra o hub contar sem baixar a grade inteira (economia de banda)
+      count: total,
+      by, at: firebase.database.ServerValue.TIMESTAMP
+    });
+  }
+  logEvent(opts.auto ? 'sincronizou Global (Sheets)' : 'subiu Global', `${sourceName} — ${total} torneios${changes.length ? ` (${changes.length} alterações)` : ''}`);
+  if (opts.manual) showToast(`Global carregada — ${total} torneios de ${WEEKDAY_TOMORROW.toLowerCase()}.`);
+  return { ok:true, count: total, changed:true };
+}
+
+/* =========================================================================
+   AUTO-SYNC COM O GOOGLE SHEETS DA GU
+   A Global mora numa planilha publicada na web (aba G MTTS → "Publicar na web"
+   como XLSX). Buscamos esse binário e mandamos pro MESMO processGlobalBuffer do
+   upload manual — extração idêntica, sem lógica nova. O Firebase continua sendo
+   o barramento que espalha pra todos os painéis (o listener /sheet/at já existe).
+   Link é público mas expõe SÓ a aba G MTTS (single=true); o resto do doc fica
+   privado. Para trocar de planilha sem redeploy: localStorage 'cn_sheet_url'.
+   Para desligar o auto-sync: localStorage 'cn_autosync' = '0'.
+========================================================================= */
+const SHEET_XLSX_URL_DEFAULT = 'https://docs.google.com/spreadsheets/d/1GMcEG3-J1Bg8nDvivHh6yAbVv914eJJA5rDT7DuYXck/pub?gid=1114105684&single=true&output=xlsx';
+let SHEET_XLSX_URL = SHEET_XLSX_URL_DEFAULT;
+try{ const _u = localStorage.getItem('cn_sheet_url'); if (_u) SHEET_XLSX_URL = _u; }catch(e){}
+let AUTO_SYNC = true;
+try{ AUTO_SYNC = localStorage.getItem('cn_autosync') !== '0'; }catch(e){}
+const SYNC_POLL_MS = 150000;   // ~2,5 min entre leituras (só com a aba visível)
+let _syncing = false, _lastSyncAt = 0, _lastSyncOk = false;
+
+function setSyncBusy(b){
+  const btn = $('syncNowBtn'); if (!btn) return;
+  btn.classList.toggle('busy', b); btn.disabled = b;
+}
+function updateSyncMeta(){
+  const m = $('syncMeta'); if (!m) return;
+  if (!AUTO_SYNC){ m.textContent = '⏸ Auto-sync desligado — use o botão pra atualizar.'; m.hidden = false; return; }
+  const when = _lastSyncAt ? new Date(_lastSyncAt).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', timeZone:'America/Sao_Paulo'}) : null;
+  m.textContent = when
+    ? `↻ Atualiza sozinho · última leitura da planilha ${when}${_lastSyncOk ? '' : ' — falhou, vou tentar de novo'}`
+    : '↻ Atualiza sozinho a cada ~2 min direto da planilha da GU.';
+  m.hidden = false;
+}
+
+async function syncFromSheets(opts){
+  opts = opts || {};
+  if (_syncing){ return; }
+  if (!SHEET_XLSX_URL){ if (opts.manual) showToast('Sem link do Google Sheets configurado.', true); return; }
+  _syncing = true; setSyncBusy(true);
+  try{
+    await ensureXLSX();
+    // cache-buster p/ o cache DO NAVEGADOR (o cache do "Publicar na web" é do Google e não dá pra furar)
+    const url = SHEET_XLSX_URL + (SHEET_XLSX_URL.indexOf('?') >= 0 ? '&' : '?') + '_cn=' + Date.now();
+    const resp = await fetch(url, { cache:'no-store', redirect:'follow' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const buf = await resp.arrayBuffer();
+    const r = processGlobalBuffer(buf, 'Google Sheets (auto)', { auto:true, manual: !!opts.manual });
+    _lastSyncAt = Date.now(); _lastSyncOk = !!(r && r.ok);
+    if (opts.manual){
+      if (!r.ok){
+        showToast(r.reason === 'header' ? 'A planilha veio, mas não achei o cabeçalho da aba G MTTS — confira o link/gid.'
+          : r.reason === 'day' ? `Planilha ok, mas sem a seção "${WEEKDAY_TOMORROW_EN}" na G MTTS.`
+          : 'Não consegui ler a planilha.', true);
+      } else if (r.unchanged){
+        showToast('Já está na versão mais recente da planilha.');
+      } else {
+        showToast(`Sincronizado com o Google Sheets — ${r.count} torneios de ${WEEKDAY_TOMORROW.toLowerCase()}.`);
+      }
+    }
+  }catch(e){
+    console.error('syncFromSheets', e);
+    _lastSyncOk = false;
+    if (opts.manual) showToast('Não consegui buscar a planilha (sem internet, ou o "Publicar na web" saiu do ar?).', true);
+  }finally{
+    _syncing = false; setSyncBusy(false); updateSyncMeta();
+  }
+}
+
+/* poll com jitter (dessincroniza painéis p/ não gravarem juntos) e só com a aba
+   visível — aba escondida não consome banda nem bate no Google à toa. */
+function scheduleAutoSync(){
+  clearTimeout(window._cnPollT);
+  if (!AUTO_SYNC) return;
+  const jitter = Math.floor(Math.random() * 30000);
+  window._cnPollT = setTimeout(() => {
+    if (AUTO_SYNC && document.visibilityState === 'visible') syncFromSheets({});
+    scheduleAutoSync();
+  }, SYNC_POLL_MS + jitter);
+}
+document.addEventListener('visibilitychange', () => {
+  if (AUTO_SYNC && document.visibilityState === 'visible' && Date.now() - _lastSyncAt > 60000) syncFromSheets({});
+});
+
+function initSheetSync(){
+  const btn = $('syncNowBtn');
+  if (btn) btn.addEventListener('click', () => syncFromSheets({ manual:true }));
+  updateSyncMeta();
+  /* CORRIDA DE AUTH: gravar /sheet exige sessão do Firebase Auth (regras deny-by-default),
+     e a restauração da sessão é ASSÍNCRONA. Se a 1ª leitura da planilha rodasse antes
+     disso, a escrita seria NEGADA em silêncio — e a guarda de egress (_cnLastSig) travaria
+     nova tentativa até o conteúdo mudar, deixando o Firebase sem a grade. Então o auto-sync
+     só começa com a auth viva (mesmo cuidado do attachCN dos listeners). O botão manual
+     continua livre pra usar a qualquer momento. */
+  const startAuto = () => {
+    if (window._cnAutoStarted) return; window._cnAutoStarted = true;
+    setTimeout(() => { if (AUTO_SYNC) syncFromSheets({}); }, 1200);   // fora do caminho crítico de render
+    scheduleAutoSync();
+  };
+  try{
+    if (firebase.auth().currentUser) startAuto();
+    else firebase.auth().onAuthStateChanged(u => { if (u) startAuto(); });
+  }catch(e){
+    startAuto();   // sem Firebase (modo local): lê a planilha e renderiza local, sem gravar
+  }
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSheetSync); else initSheetSync();
 
 /* =========================================================================
    DIVISÃO IGUAL — determinística: mesma ordem de equipe + mesma planilha
@@ -740,6 +894,7 @@ function itemKey(it){
 }
 function computeAssignments(){
   const asg = {}; // key -> opName
+  if (!DATA || !OPS.length) return asg;
 
   // round-robin simples de uma lista dentro de um pool de operadores
   const roundRobin = (list, pool) => {
@@ -748,42 +903,36 @@ function computeAssignments(){
     list.forEach(it => { asg[itemKey(it)] = pool[cursor++ % pool.length]; });
   };
 
-  if (OPS.length){
-    if (DATA){
-      /* ── FUNÇÃO 1 · Main + Satélites — mesmo pool: quem cria o Main cria os
-         Satélites. Os Main Events vão em round-robin cronológico; cada GRUPO de
-         satélites (receita encadeada) vai inteiro pro operador do pool com menos
-         carga até ali, equilibrando dentro da própria função. ── */
-      const poolMS = opsForRole('mainSat');
-      const loadMS = Object.fromEntries(poolMS.map(o => [o,0]));
-      let msCursor = 0;
-      DATA.main.forEach(it => {
-        const op = poolMS[msCursor++ % poolMS.length];
-        asg[itemKey(it)] = op; loadMS[op]++;
-      });
-      const order = [], groups = {};
-      DATA.sat.forEach(it => {
-        const k = it.groupHeader || it.nome;
-        if (!groups[k]){ groups[k] = []; order.push(k); }
-        groups[k].push(it);
-      });
-      order.forEach(k => {
-        const op = poolMS.reduce((best,o) => loadMS[o] < loadMS[best] ? o : best, poolMS[0]);
-        groups[k].forEach(it => asg[itemKey(it)] = op);
-        loadMS[op] += groups[k].length;
-      });
+  /* ── FUNÇÃO 1 · Main + Satélites — mesmo pool: quem cria o Main cria os
+     Satélites. Os Main Events vão em round-robin cronológico; cada GRUPO de
+     satélites (receita encadeada) vai inteiro pro operador do pool com menos
+     carga até ali, equilibrando dentro da própria função. ── */
+  const poolMS = opsForRole('mainSat');
+  const loadMS = Object.fromEntries(poolMS.map(o => [o,0]));
+  let msCursor = 0;
+  DATA.main.forEach(it => {
+    const op = poolMS[msCursor++ % poolMS.length];
+    asg[itemKey(it)] = op; loadMS[op]++;
+  });
+  const order = [], groups = {};
+  DATA.sat.forEach(it => {
+    const k = it.groupHeader || it.nome;
+    if (!groups[k]){ groups[k] = []; order.push(k); }
+    groups[k].push(it);
+  });
+  order.forEach(k => {
+    const op = poolMS.reduce((best,o) => loadMS[o] < loadMS[best] ? o : best, poolMS[0]);
+    groups[k].forEach(it => asg[itemKey(it)] = op);
+    loadMS[op] += groups[k].length;
+  });
 
-      /* ── FUNÇÕES 2 e 3 · Side com / sem Admin Fee — pools próprios, cada bloco
-         dividido igualmente entre quem está naquela função. ── */
-      const {admin, noadmin} = sideSplit();
-      roundRobin(admin,   opsForRole('sideAdmin'));
-      roundRobin(noadmin, opsForRole('sideNoAdmin'));
-    }
-    /* Eventos Principais (Liga) — sugestão por round-robin no mesmo pool do Main */
-    roundRobin(LIGA_ITEMS, opsForRole('mainSat'));
-  }
+  /* ── FUNÇÕES 2 e 3 · Side com / sem Admin Fee — pools próprios, cada bloco
+     dividido igualmente entre quem está naquela função. ── */
+  const {admin, noadmin} = sideSplit();
+  roundRobin(admin,   opsForRole('sideAdmin'));
+  roundRobin(noadmin, opsForRole('sideNoAdmin'));
 
-  /* reatribuições manuais / "pegar tarefa" (pull) vencem a divisão automática,
+  /* reatribuições manuais (handoff de turno) vencem a divisão automática,
      desde que o destino ainda esteja na equipe */
   Object.keys(OVERRIDES).forEach(k => { if (OPS.includes(OVERRIDES[k])) asg[k] = OVERRIDES[k]; });
   return asg;
@@ -797,20 +946,14 @@ function opColor(name){
   const i = OPS.indexOf(name);
   return OP_COLORS[(i >= 0 ? i : 0) % OP_COLORS.length];
 }
-/* isBrl: item já está em REAIS (Liga Principal) — NÃO responde ao botão de moeda,
-   sempre R$ com o valor cru. Mesma lógica dos Eventos Principais do Painel do Dia. */
-function fmtMoney(vUsd, isBrl){
+function fmtMoney(vUsd){
   if (vUsd === null || vUsd === undefined) return '—';
-  if (isBrl){ const s0 = vUsd.toLocaleString('pt-BR', {minimumFractionDigits: vUsd % 1 ? 2 : 0, maximumFractionDigits: 2}); return `<span class="cur">R$</span>${s0}`; }
   const v = CURRENCY === 'usd' ? vUsd : vUsd * BRL_RATE;
   const s = v.toLocaleString('pt-BR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2});
   return `<span class="cur">${CURRENCY === 'usd' ? '$' : 'R$'}</span>${s}`;
 }
-/* soma do garantido (prize pool) de uma leva de torneios — total por seção */
-function gtdSum(items){ return (items || []).reduce((s, it) => s + (Number(it.garantido) || 0), 0); }
-function fmtMoneyPlain(vUsd, isBrl){
+function fmtMoneyPlain(vUsd){
   if (vUsd === null || vUsd === undefined) return '—';
-  if (isBrl) return 'R$ ' + vUsd.toLocaleString('pt-BR', {minimumFractionDigits: vUsd % 1 ? 2 : 0, maximumFractionDigits: 2});
   const v = CURRENCY === 'usd' ? vUsd : vUsd * BRL_RATE;
   return (CURRENCY === 'usd' ? '$ ' : 'R$ ') + v.toLocaleString('pt-BR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2});
 }
@@ -836,8 +979,6 @@ function renderAllNow(){
   renderFieldDiag();
   renderList();
   renderTV();
-  if (FS_OPEN) renderFS();   // sync do parceiro atualiza a tela cheia sem perder scroll/foco
-  refreshSelallBoxes(); updateSelBar();   // seleção em massa sobrevive aos re-renders
 }
 /* PERF: os listeners do Firebase disparam em rajada (done + ids + roles no mesmo
    segundo) — agrupa tudo num render só, em vez de reconstruir a tabela 3–4x */
@@ -1010,168 +1151,6 @@ function closeTV(){
 $('tvBtn').addEventListener('click', openTV);
 $('tvClose').addEventListener('click', closeTV);
 $('allDoneExport').addEventListener('click', () => $('exportBtn').click());
-
-/* =========================================================================
-   TELA CHEIA POR SEÇÃO — planilha grande pra preencher os IDs sem o ruído da
-   página. Uma seção por vez (Main / Side c-Admin / Side s-Admin / Satélites),
-   setas ‹ › trocam de seção. Dois modos (as duas visões que o Brian pediu):
-     • Planilha — a grade transposta inteira, esticada na largura da tela.
-     • Evento   — um torneio por vez, receita grande, com ← → entre eventos.
-   Os IDs aqui usam o MESMO caminho à prova de reset (rascunho + envio auto).
-========================================================================= */
-let FS_OPEN = false, FS_KEY = null, FS_MODE = 'sheet', FS_EVENT = 0;
-function fsSections(){
-  if (!DATA) return [];
-  const asg = computeAssignments();
-  return SECTIONS.filter(cat => visibleItems(catItems(cat), asg).length);
-}
-function openFullscreen(catKey){
-  if (!DATA){ showToast('Carregue a Global primeiro.', true); return; }
-  const secs = fsSections(); if (!secs.length){ showToast('Nada pra mostrar nesta seção.', true); return; }
-  FS_KEY = secs.some(c => c.key === catKey) ? catKey : secs[0].key;
-  FS_EVENT = 0;
-  FS_OPEN = true;
-  $('fsOverlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
-  renderFS({reset:true}); a11yOpenDialog('fsOverlay');
-}
-function closeFullscreen(){
-  if (!FS_OPEN) return;
-  FS_OPEN = false; $('fsOverlay').classList.remove('open');
-  document.body.style.overflow = '';
-  a11yCloseDialog('fsOverlay');
-}
-function fsNavSection(dir){
-  const secs = fsSections(); if (!secs.length) return;
-  let i = secs.findIndex(c => c.key === FS_KEY); if (i < 0) i = 0;
-  i = (i + dir + secs.length) % secs.length;
-  FS_KEY = secs[i].key; FS_EVENT = 0;
-  renderFS({reset:true});
-}
-function fsNavEvent(dir){
-  const asg = computeAssignments();
-  const cat = SECTIONS.find(c => c.key === FS_KEY);
-  const items = cat ? visibleItems(catItems(cat), asg) : [];
-  if (!items.length) return;
-  FS_EVENT = (FS_EVENT + dir + items.length) % items.length;
-  renderFS({reset:true});
-}
-function fsSetMode(mode){ if (mode === FS_MODE) return; FS_MODE = mode; renderFS({reset:true}); }
-let FS_EV_ORIENT = 'v';   // no modo Evento: 'v' (empilhado) ou 'h' (linha, estilo planilha)
-function fsSetEvOrient(o){ if (o === FS_EV_ORIENT) return; FS_EV_ORIENT = o; renderFS({reset:true}); }
-/* Ficha de criação de UM evento, ocupando a tela cheia: barra de ação grande
-   (ID Pokerbyte + Criado) e a receita inteira num grid multi-coluna (ordem de
-   criação, respeitando campos ocultos). Substitui a antiga tabela transposta de
-   2 colunas que deixava metade da tela vazia. */
-function renderEventFull(it, cat, asg){
-  const key = itemKey(it), done = !!DONE[key];
-  const tile = (label, value, hot) => (value === '' || value == null)
-    ? '' : `<div class="ev-field${hot ? ' hot' : ''}"><span class="ev-k">${escHtml(label)}</span><span class="ev-v">${value}</span></div>`;
-  let tiles = '';
-  tiles += tile('Horário', escHtml(it.hora), true);
-  tiles += tile('Criar em', escHtml(creationWhen(it)), true);
-  tiles += tile('Garantido', fmtMoney(it.garantido, it.brl), true);
-  tiles += tile('Buy-in', fmtMoney(it.buyin, it.brl), true);
-  visibleRecipeFieldsFor(cat).forEach(label => {
-    const v = it.extra ? it.extra[label] : undefined;
-    tiles += tile(label, escHtml(String(v ?? '')));
-  });
-  return `
-    <div class="ev-action">
-      <label class="ev-id">
-        <span class="ev-id-k">ID Pokerbyte</span>
-        ${idInputHtml(key, '')}
-      </label>
-      <button class="ev-done ${done ? 'on' : ''}" data-done="${key}" role="checkbox" aria-checked="${done ? 'true' : 'false'}" title="${done ? 'Criado' : 'Marcar como criado'}">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg>
-        <span>${done ? 'Criado' : 'Marcar criado'}</span>
-      </button>
-    </div>
-    <div class="ev-grid">${tiles}</div>`;
-}
-function renderFS(opts){
-  opts = opts || {};
-  if (!FS_OPEN || !DATA) return;
-  const secs = fsSections();
-  if (!secs.length){ closeFullscreen(); return; }
-  let cat = secs.find(c => c.key === FS_KEY); if (!cat){ cat = secs[0]; FS_KEY = cat.key; }
-  const asg = computeAssignments();
-  const items = visibleItems(catItems(cat), asg);
-  const doneCount = items.filter(it => DONE[itemKey(it)]).length;
-  const secPos = secs.findIndex(c => c.key === cat.key) + 1;
-  const ov = $('fsOverlay');
-  const st = captureGrid(ov);
-
-  const MODES = [
-    {key:'sheet',      cls:'mode-cols',  label:'▦ Vertical'},
-    {key:'horizontal', cls:'mode-rows',  label:'▤ Horizontal'},
-    {key:'event',      cls:'mode-event', label:'◱ Evento'}
-  ];
-  const cur = MODES.find(m => m.key === FS_MODE) || MODES[0];
-
-  let body;
-  if (FS_MODE === 'event'){
-    if (FS_EVENT >= items.length) FS_EVENT = 0;
-    const it = items[FS_EVENT], key = itemKey(it);
-    // um evento por vez, como uma FICHA DE CRIAÇÃO que ocupa a tela: ação (ID +
-    // Criado) em destaque + a receita inteira num grid multi-coluna. Setas ‹ › ou
-    // ← → trocam de evento.
-    body = `<div class="fs-body mode-event">
-      <div class="fs-tour">
-        <div class="fs-tour-top">
-          <div>
-            <div class="fs-tour-hora">${escHtml(it.hora)} · criar em ${escHtml(creationWhen(it))}</div>
-            <h2 class="fs-tour-name">${escHtml(it.nome)}</h2>
-            <div style="margin-top:6px">${opTagHtml(asg[key])} ${valBadge(it, cat)} ${campBadgeHtml(it)}</div>
-          </div>
-          <div class="fs-eventnav">
-            <button class="fs-btn" id="fsEvPrev" title="Evento anterior (←)" aria-label="Evento anterior">‹</button>
-            <span class="fs-count">${FS_EVENT + 1}/${items.length}</span>
-            <button class="fs-btn" id="fsEvNext" title="Próximo evento (→)" aria-label="Próximo evento">›</button>
-          </div>
-        </div>
-        ${renderEventFull(it, cat, asg)}
-      </div>
-    </div>`;
-  } else if (FS_MODE === 'horizontal'){
-    body = `<div class="fs-body">${renderHorizontal(items, cat, asg)}</div>`;
-  } else {
-    body = `<div class="fs-body"><div class="fs-block-body">${renderVertical(items, cat, asg)}</div></div>`;
-  }
-
-  ov.innerHTML = `
-    <button class="fs-close" id="fsClose" title="Fechar (Esc)" aria-label="Fechar tela cheia">✕</button>
-    <div class="fs-view ${cur.cls}">
-      <div class="fs-head ${cat.cls}">
-        <span class="fs-title"><span class="suit">${cat.suit}</span>${cat.label}<span class="fs-count">${doneCount}/${items.length} criados</span><span class="gtd-total" title="Soma do garantido desta seção">GTD ${fmtMoney(gtdSum(items), cat.brl)}</span></span>
-        <div class="fs-seg" role="tablist" aria-label="Visualização">
-          ${MODES.map(m => `<button class="fs-seg-btn ${FS_MODE === m.key ? 'on' : ''}" data-fsmode="${m.key}" role="tab" aria-selected="${FS_MODE === m.key}">${m.label}</button>`).join('')}
-        </div>
-        <span class="fs-nav">
-          <button class="fs-btn" id="fsPrev" title="Seção anterior" aria-label="Seção anterior">‹</button>
-          <span class="fs-pos">${secPos}/${secs.length}</span>
-          <button class="fs-btn" id="fsNext" title="Próxima seção" aria-label="Próxima seção">›</button>
-        </span>
-      </div>
-      ${body}
-    </div>`;
-
-  $('fsClose').addEventListener('click', closeFullscreen);
-  $('fsPrev').addEventListener('click', () => fsNavSection(-1));
-  $('fsNext').addEventListener('click', () => fsNavSection(1));
-  ov.querySelectorAll('[data-fsmode]').forEach(b => b.addEventListener('click', () => fsSetMode(b.dataset.fsmode)));
-  ov.querySelectorAll('[data-fsevo]').forEach(b => b.addEventListener('click', () => fsSetEvOrient(b.dataset.fsevo)));
-  const evp = $('fsEvPrev'), evn = $('fsEvNext');
-  if (evp) evp.addEventListener('click', () => fsNavEvent(-1));
-  if (evn) evn.addEventListener('click', () => fsNavEvent(1));
-  wireGrid(ov);
-  if (!opts.reset) restoreGrid(ov, st);   // sync remoto preserva scroll/foco; navegação começa do topo
-  else if (st.foc){                        // mesmo navegando, se estava digitando um ID mantém o cursor
-    const inp = ov.querySelector(`.id-inp[data-idkey="${cssEsc(st.foc.key)}"]`);
-    if (inp){ inp.focus(); try{ inp.setSelectionRange(st.foc.s, st.foc.e); }catch(e){} }
-  }
-}
-$('fsOverlay').addEventListener('click', e => { if (e.target === $('fsOverlay')) closeFullscreen(); });
 /* mostra QUAIS colunas da Global foram reconhecidas como Admin Fee / Rake /
    Early Bird / Campanha — reaproveita a MESMA lógica de detecção (probe com
    todos os rótulos). Se uma não é achada, o time vê na hora e ajusta o padrão
@@ -1210,16 +1189,15 @@ function renderFieldDiag(){
 function renderOps(){
   const row = $('opsRow');
   if (!row) return;
-  const asg = computeAssignments();
-  const load = {}; OPS.forEach(o => load[o] = 0);
-  Object.values(asg).forEach(o => { if (o in load) load[o]++; });
   let html = OPS.map(o => {
-    const n = load[o] || 0;
+    const r = roleOf(o);
+    const opts = `<option value="">Função…</option>` + ROLE_OPTS.map(ro =>
+      `<option value="${ro.key}" ${r === ro.key ? 'selected' : ''}>${ro.label}</option>`).join('');
     return `
-    <span class="op-chip">
+    <span class="op-chip" ${r ? `data-role="${r}"` : ''}>
       <span class="avatar" style="background:${opColor(o)}">${escHtml(o.trim()[0].toUpperCase())}</span>
-      ${escHtml(o)}${normText(o) === normText(ME) ? ' <span class="you">(você)</span>' : ''}
-      <span class="op-load" title="Torneios com ${escHtml(o.split(' ')[0])}">${n}</span>
+      ${escHtml(o)}
+      <select class="role-sel" data-op="${escHtml(o)}" title="Função de ${escHtml(o)} no turno">${opts}</select>
       <button class="rm" data-op="${escHtml(o)}" title="Remover do turno">×</button>
     </span>`;
   }).join('');
@@ -1233,6 +1211,7 @@ function renderOps(){
   }
   row.innerHTML = html;
   row.querySelectorAll('.rm').forEach(b => b.addEventListener('click', () => saveOps(OPS.filter(o => o !== b.dataset.op))));
+  row.querySelectorAll('.role-sel').forEach(sel => sel.addEventListener('change', () => setRole(sel.dataset.op, sel.value)));
   const addOp = () => {
     const v = $('opAddInput').value.trim();
     if (!v) return;
@@ -1262,16 +1241,8 @@ function renderFilters(){
     <button class="fchip ${FILTER===o?'on':''}" data-f="${escHtml(o)}">
       ${escHtml(o)}${normText(o)===normText(ME) ? ' (você)' : ''} <span class="cnt">${counts[o] || 0}</span>
     </button>`).join('');
-  // controles de fluxo: esconder já-criados (toggle) + pegar o próximo da fila
-  html += `<span class="fchip-sep"></span>`;
-  html += `<button class="fchip tog ${HIDE_DONE?'on':''}" data-toggle="pend" title="Esconder os torneios já criados (tecla O)">⏳ Só pendentes</button>`;
-  html += `<button class="fchip grab" data-grab="1" title="Pega o próximo torneio livre e foca no ID (tecla P)">✋ Pegar próximo</button>`;
   $('filterChips').innerHTML = html;
-  $('filterChips').querySelectorAll('.fchip[data-f]').forEach(b => b.addEventListener('click', () => { FILTER = b.dataset.f; renderAll(); }));
-  const tg = $('filterChips').querySelector('[data-toggle="pend"]');
-  if (tg) tg.addEventListener('click', () => { HIDE_DONE = !HIDE_DONE; renderAll(); });
-  const gb = $('filterChips').querySelector('[data-grab]');
-  if (gb) gb.addEventListener('click', grabNextPending);
+  $('filterChips').querySelectorAll('.fchip').forEach(b => b.addEventListener('click', () => { FILTER = b.dataset.f; renderAll(); }));
 }
 
 function renderAlerts(){
@@ -1372,44 +1343,6 @@ function renderStats(){
   $('progCap').textContent = total
     ? `${doneCount} de ${total} torneios criados${avgTxt}${perOp ? ' — ' + perOp : ''}`
     : 'Carregue a Global MTT pra começar';
-  renderUrgBar();
-}
-
-/* ── AVISO DE PRAZO (pill fixa) ──────────────────────────────────────────────
-   Fica sempre à vista quando há evento em risco (<6h) ainda não criado — mesmo
-   que você tenha rolado a lista. Mostra o MAIS urgente e ataca num clique. É a
-   rede de segurança contra "um torneio começou e ninguém criou". */
-function ensureUrgBar(){
-  let bar = document.getElementById('cnUrgBar');
-  if (!bar){
-    bar = document.createElement('div');
-    bar.id = 'cnUrgBar'; bar.hidden = true;
-    bar.setAttribute('role', 'status');
-    bar.innerHTML = `<span class="u-dot">⏰</span><span class="u-info"></span>` +
-      `<button class="u-go" type="button" title="Pega e foca no evento mais urgente">✋ Pegar o mais urgente</button>`;
-    document.body.appendChild(bar);
-    bar.querySelector('.u-go').addEventListener('click', attackMostUrgent);
-  }
-  return bar;
-}
-function renderUrgBar(){
-  const bar = ensureUrgBar();
-  if (!DATA || FS_OPEN || TV_OPEN || FOCUS_OPEN){ bar.hidden = true; return; }
-  const pend = pendingByUrgency();
-  const late = pend.filter(it => urgency(it) === 'late');
-  const warn = pend.filter(it => urgency(it) === 'warn');
-  if (!late.length && !warn.length){ bar.hidden = true; return; }   // nada em risco → some
-  bar.hidden = false;
-  bar.classList.toggle('crit', late.length > 0);
-  const top = pend[0];
-  const rate = nightPace();
-  const eta = (rate && pend.length) ? ` · no ritmo (~${rate.toFixed(1)}/h) termina os ${pend.length} em ~${fmtMins(pend.length / rate * 60)}` : '';
-  const counts =
-    (late.length ? `<b class="u-late">${late.length}</b> atrasado${late.length > 1 ? 's' : ''}` : '') +
-    (late.length && warn.length ? ' · ' : '') +
-    (warn.length ? `<b class="u-warn">${warn.length}</b> em risco` : '');
-  const next = top ? ` — <b>${escHtml(top.nome)}</b> começa ${escHtml(urgLabel(top))}` : '';
-  bar.querySelector('.u-info').innerHTML = `<span class="u-counts">${counts}</span>${next}<span class="u-eta">${eta}</span>`;
 }
 
 /* ── prazo: instante de início do evento vs agora (tudo em relógio de Brasília).
@@ -1445,11 +1378,11 @@ function urgLabel(it){
 }
 
 /* ── ID do evento (Pokerbyte) — compartilhado com o turno via Firebase ── */
-function setId(key, val, autoCheck = true, opts = {}){
+function setId(key, val, autoCheck = true){
   val = String(val || '').trim();
   if (fbDb){
-    if (val){ fbDb.ref(`${FB_PATH}/ids/${key}`).set({val, by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP}); if (!opts.quiet) logEvent('registrou ID', `${key} → ${val}`); }
-    else { fbDb.ref(`${FB_PATH}/ids/${key}`).remove(); if (!opts.quiet) logEvent('apagou ID', key); }
+    if (val){ fbDb.ref(`${FB_PATH}/ids/${key}`).set({val, by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP}); logEvent('registrou ID', `${key} → ${val}`); }
+    else { fbDb.ref(`${FB_PATH}/ids/${key}`).remove(); logEvent('apagou ID', key); }
   } else {
     if (val) IDS[key] = {val, by: ME}; else delete IDS[key];
   }
@@ -1459,57 +1392,9 @@ function setId(key, val, autoCheck = true, opts = {}){
   else if (!fbDb) renderAll();
 }
 function idVal(key){ return IDS[key] ? IDS[key].val : ''; }
-
-/* ── RASCUNHO LOCAL DE ID — à prova de "tudo resetou" ──────────────────────
-   BUG que custou os IDs de uma madrugada inteira: o campo só gravava no `change`
-   (ao SAIR do campo). Qualquer re-render no meio da digitação — um parceiro
-   marcando "criado", uma reconexão, o relógio de prazo — reconstruía a grade e
-   levava junto o que estava digitado mas não confirmado.
-   Agora cada tecla salva NO ATO em localStorage (sobrevive a re-render e até a
-   um F5) e, com um leve atraso, sobe pro Firebase sozinha — sem depender de sair
-   do campo. O rascunho some quando o valor bate com o que já está salvo. */
-const ID_DRAFT_KEY = `cn_iddraft_${TOMORROW_ISO}`;
-let ID_DRAFTS = {};
-try{ ID_DRAFTS = JSON.parse(localStorage.getItem(ID_DRAFT_KEY) || '{}') || {}; }catch(e){ ID_DRAFTS = {}; }
-function saveDrafts(){ try{ localStorage.setItem(ID_DRAFT_KEY, JSON.stringify(ID_DRAFTS)); }catch(e){} }
-function setDraft(key, val){
-  val = String(val || '');
-  if (val.trim() === idVal(key)) delete ID_DRAFTS[key];   // já bate com o salvo → não é mais rascunho
-  else ID_DRAFTS[key] = val;
-  saveDrafts();
-}
-function clearDraft(key){ if (key in ID_DRAFTS){ delete ID_DRAFTS[key]; saveDrafts(); } }
-function pruneDrafts(){ let ch = false; Object.keys(ID_DRAFTS).forEach(k => { if (String(ID_DRAFTS[k]).trim() === idVal(k)){ delete ID_DRAFTS[k]; ch = true; } }); if (ch) saveDrafts(); }
-function draftOrId(key){ return (key in ID_DRAFTS) ? ID_DRAFTS[key] : idVal(key); }
-function isDraft(key){ return (key in ID_DRAFTS) && String(ID_DRAFTS[key]).trim() !== idVal(key); }
-
-/* digitando: salva o rascunho a cada tecla e agenda o envio (700ms) — nada de
-   esperar o operador sair do campo pra gravar */
-const _idCommitT = {};
-function onIdInput(inp){
-  const key = inp.dataset.idkey;
-  setDraft(key, inp.value);
-  inp.classList.toggle('has-id', !!inp.value.trim());
-  inp.classList.toggle('draft', isDraft(key));
-  clearTimeout(_idCommitT[key]);
-  _idCommitT[key] = setTimeout(() => { setId(key, inp.value, false, {quiet:true}); }, 700);
-}
-/* confirmou (saiu do campo / Enter): grava, marca criado e registra no histórico */
-function onIdChange(inp){
-  const key = inp.dataset.idkey;
-  clearTimeout(_idCommitT[key]);
-  clearDraft(key);
-  setId(key, inp.value, true);
-  // "pegar ao preencher": quem cadastra o ID foi quem criou. Se o torneio ainda
-  // não tem dono EXPLÍCITO (está livre ou só na sugestão ·auto), passa a ser seu.
-  // Não rouba de quem já pegou de propósito (override alheio vence).
-  if (String(inp.value || '').trim() && ME && !OVERRIDES[key]) claimItem(key, ME);
-}
-
 function idInputHtml(key, extraStyle){
-  const v = draftOrId(key);
-  const unsaved = isDraft(key);
-  return `<input type="text" class="id-inp ${v ? 'has-id' : ''}${unsaved ? ' draft' : ''}" data-idkey="${key}" value="${escHtml(v)}" placeholder="ID Pokerbyte" maxlength="20" style="${extraStyle || ''}" title="${IDS[key] && IDS[key].by ? 'ID por ' + escHtml(IDS[key].by) : 'ID do evento no Pokerbyte'} — Enter salva e pula pro próximo">`;
+  const v = idVal(key);
+  return `<input type="text" class="id-inp ${v ? 'has-id' : ''}" data-idkey="${key}" value="${escHtml(v)}" placeholder="ID Pokerbyte" maxlength="20" style="${extraStyle || ''}" title="${IDS[key] && IDS[key].by ? 'ID por ' + escHtml(IDS[key].by) : 'ID do evento cadastrado no Pokerbyte'}">`;
 }
 
 function toggleDone(key){
@@ -1591,15 +1476,7 @@ function creationWhen(it){
 
 /* linhas da receita que a operação NÃO usa na criação — fora da tabela e do foco */
 const HIDDEN_RECIPE = /num\.?\s*(de\s*)?players|jogadores|\bchat\b/;
-/* campos ocultados MANUALMENTE (olhinho) — recibo por navegador, some da grade */
-function visibleRecipeFields(){ return creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l)) && !HIDDEN_FIELDS.has(l))); }
-/* a Liga Principal tem o SEU conjunto de campos (LIGA_PRINCIPAL_FIELDS), diferente da GU */
-function recipeFieldsFor(cat){
-  if (cat && cat.brl && typeof LIGA_PRINCIPAL_FIELDS !== 'undefined' && LIGA_PRINCIPAL_FIELDS.length) return LIGA_PRINCIPAL_FIELDS;
-  return recipeFields();
-}
-function visibleRecipeFieldsFor(cat){ return creationOrderFields(recipeFieldsFor(cat).filter(l => !HIDDEN_RECIPE.test(normText(l)) && !HIDDEN_FIELDS.has(l))); }
-function visibleRecipeFieldsForItem(it){ return visibleRecipeFieldsFor(it && it.brl ? {brl:true} : null); }
+function visibleRecipeFields(){ return creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l)))); }
 function recipeText(it, cat){
   // Garantido e Buy-in não entram aqui em cima: já saem UMA vez, na posição
   // deles, dentro da receita ordenada abaixo (ordem de digitação do app)
@@ -1625,7 +1502,7 @@ function recipeText(it, cat){
 /* grid com TODOS os campos da receita (mostra também os vazios — quem cria a
    mesa precisa saber que aquele campo fica em branco no app) */
 function recipeGridHtml(it){
-  const fields = (it && it.brl && typeof LIGA_PRINCIPAL_FIELDS !== 'undefined' && LIGA_PRINCIPAL_FIELDS.length) ? LIGA_PRINCIPAL_FIELDS : recipeFields();
+  const fields = recipeFields();
   if (!fields.length) return `<div class="recipe-note">Receita completa indisponível nesta planilha (cabeçalho da Global não foi lido). Recarregue a Global MTT original.</div>`;
   return `<div class="recipe-grid">${creationOrderFields(fields).map(label => {
     const v = it.extra ? it.extra[label] : undefined;
@@ -1723,7 +1600,6 @@ function applyExpanded(){
 
 function visibleItems(list, asg){
   let out = FILTER === 'all' ? list : list.filter(it => asg[itemKey(it)] === FILTER);
-  if (HIDE_DONE) out = out.filter(it => !DONE[itemKey(it)]);   // "Só pendentes"
   if (SEARCH){
     const q = normText(SEARCH);
     out = out.filter(it => normText(it.nome).includes(q) || it.hora.startsWith(SEARCH.trim()) || (it.groupHeader && normText(it.groupHeader).includes(q)));
@@ -1736,235 +1612,45 @@ function opTagHtml(op){
   return `<span class="op-tag" style="background:${opColor(op)}"><span class="dot">${escHtml(op.trim()[0].toUpperCase())}</span>${escHtml(op.split(' ')[0])}</span>`;
 }
 
-/* ── ATRIBUIÇÃO LIVRE (pull) — pegar/passar/soltar por torneio ──────────────
-   O jeito antigo era rígido: cada pessoa marcava uma FUNÇÃO e o round-robin
-   dividia tudo. Agora qualquer um pega qualquer torneio com 1 clique (a divisão
-   automática vira só uma SUGESTÃO). O dono explícito vive em /overrides e vence
-   a sugestão — o mesmo nó que o "passar pendentes" já usava. */
-function isMine(op){ return op && ME && normText(op) === normText(ME); }
-function ensureMeOnTeam(){
-  if (!ME) return false;
-  if (!OPS.some(o => normText(o) === normText(ME))){
-    OPS = [...OPS, ME];
-    if (fbDb) fbDb.ref(`${FB_PATH}/ops`).set(OPS);
-  }
-  return true;
-}
-function claimItem(key, op){
-  if (!op) return;
-  if (!OPS.some(o => normText(o) === normText(op))){ OPS = [...OPS, op]; if (fbDb) fbDb.ref(`${FB_PATH}/ops`).set(OPS); }
-  OVERRIDES[key] = op; saveOverrides(); logEvent('pegou torneio', `${key} → ${op}`);
-}
-function releaseItem(key){ if (key in OVERRIDES){ delete OVERRIDES[key]; saveOverrides(); logEvent('soltou torneio', key); } }
-function claimSection(catKey){
-  if (!ensureMeOnTeam()){ showToast('Entre com seu nome no hub pra pegar torneios.', true); return; }
-  const asg = computeAssignments();
-  const cat = SECTIONS.find(c => c.key === catKey); if (!cat) return;
-  const items = visibleItems(catItems(cat), asg).filter(it => !DONE[itemKey(it)]);
-  if (!items.length){ showToast('Nada pendente pra pegar nesta seção.'); return; }
-  items.forEach(it => OVERRIDES[itemKey(it)] = ME);
-  saveOverrides(); logEvent('pegou seção', `${cat.label} — ${items.length}`);
-  showToast(`Você pegou ${items.length} torneio(s) de ${cat.label}.`);
-}
-
-/* ── FILA POR URGÊNCIA ────────────────────────────────────────────────────────
-   O risco real da madrugada é um evento COMEÇAR sem ter sido criado. Então a fila
-   segue o RELÓGIO, não a ordem das seções: sempre o que começa mais cedo primeiro
-   (late reg chegando). `pendingByUrgency` é a base da fila, do foco e do aviso. */
-function pendingByUrgency(){
-  if (!DATA) return [];
-  const all = [];
-  SECTIONS.forEach(cat => catItems(cat).forEach(it => all.push(it)));
-  return all.filter(it => !DONE[itemKey(it)])
-            .sort((a, b) => (hoursToStart(a) ?? 999) - (hoursToStart(b) ?? 999));
-}
-/* leva o foco pro campo de ID de um torneio, revelando-o se um filtro o escondeu */
-function focusKey(k, nome){
-  const go = () => {
-    const inp = document.querySelector(`.id-inp[data-idkey="${cssEsc(k)}"]`);
-    if (inp){ inp.focus(); inp.scrollIntoView({block:'center', inline:'nearest'}); return true; }
-    return false;
-  };
-  if (go()) return;
-  if (FILTER !== 'all' || HIDE_DONE){ FILTER = 'all'; HIDE_DONE = false; renderAll(); }
-  setTimeout(() => { if (!go() && nome) showToast(`"${nome}" — role até ele pra cadastrar o ID.`); }, 60);
-}
-/* Kickoff da madrugada: pega o próximo pendente MAIS URGENTE (livre ou já seu),
-   assume pra você e foca no ID. Daí é só ir de Enter em Enter (auto-avança). */
-function grabNextPending(){
-  if (!ensureMeOnTeam()){ showToast('Entre com seu nome no hub pra pegar torneios.', true); return; }
-  const asg = computeAssignments();
-  const cand = pendingByUrgency().find(it => { const k = itemKey(it); return !OVERRIDES[k] || isMine(asg[k]); });
-  if (!cand){ showToast('Nada pendente livre pra pegar. 🎉'); return; }
-  const k = itemKey(cand);
-  if (!isMine(asg[k])) claimItem(k, ME);
-  focusKey(k, cand.nome);
-}
-/* Enter fora de campo: pula pro ID do pendente mais urgente (entra na fila) */
-function focusFirstPendingId(){
-  const top = pendingByUrgency()[0];
-  if (top) focusKey(itemKey(top), top.nome);
-  else showToast('Nenhum ID pendente. 🎉');
-}
-/* Botão do aviso de prazo: ataca o evento mais urgente — pega se estiver livre
-   (respeita dono alheio) e foca no ID na hora. */
-function attackMostUrgent(){
-  const top = pendingByUrgency()[0];
-  if (!top){ showToast('Nada urgente pendente. 🎉'); return; }
-  const k = itemKey(top);
-  if (ME && !OVERRIDES[k]){ ensureMeOnTeam(); claimItem(k, ME); }
-  focusKey(k, top.nome);
-}
-/* ritmo da noite: torneios criados por hora, medido pelos carimbos reais de
-   "criado" (DONE.at) nas últimas ~2h — funciona em equipe, sem depender do Foco */
-function nightPace(){
-  const now = Date.now(), WINDOW = 120 * 60000;
-  const ats = Object.values(DONE).map(d => d && d.at).filter(x => typeof x === 'number' && now - x <= WINDOW);
-  if (ats.length < 2) return null;
-  const span = Math.max(now - Math.min(...ats), 10 * 60000);   // janela mínima de 10min
-  return ats.length / (span / 3600000);                        // por hora
-}
-function fmtMins(m){ m = Math.max(0, Math.round(m)); return m < 60 ? `${m}min` : `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`; }
-/* célula "Operador": dono (ou "livre") + ações RÁPIDAS num toque —
-   ✋ pegar · ↗ passar (abre a lista de operadores) · ✕ soltar. */
-function claimCellHtml(key, op){
-  const owned = !!OVERRIDES[key];              // pego explicitamente por alguém
-  const mine = isMine(op);
-  const chip = op
-    ? `<span class="op-tag claim-op ${mine ? 'mine' : ''}" style="background:${opColor(op)}"><span class="dot">${escHtml(op.trim()[0].toUpperCase())}</span>${escHtml(op.split(' ')[0])}${owned ? '' : ' <em style="font-style:normal;opacity:.6;font-size:.85em">·auto</em>'}</span>`
-    : `<span class="op-tag none">livre</span>`;
-  const btns =
-    (mine ? '' : `<button class="claim-mini pick" data-claimme="${key}" title="Pegar pra mim">✋</button>`) +
-    `<button class="claim-mini pick" data-pass="${key}" title="Passar para outro operador">↗</button>` +
-    (owned ? `<button class="claim-mini drop" data-release="${key}" title="Soltar (deixar livre)">✕</button>` : '');
-  return `<span class="claim-wrap"><span class="claim-tap" data-claim="${key}" role="button" tabindex="0" title="Clique pra ver todas as opções">${chip}</span>${btns}</span>`;
-}
-/* ↗ passar: abre direto a lista de operadores (um toque escolhe) */
-function openPassMenu(anchor, keys){
-  const list = Array.isArray(keys) ? keys : [keys];
-  if (!list.length) return;
-  const cur = list.length === 1 ? OVERRIDES[list[0]] : null;
-  const opts = OPS.filter(o => !cur || normText(o) !== normText(cur)).map(o => ({
-    label: `${o.split(' ')[0]}${list.length > 1 ? ` — ${list.length} torneios` : ''}`, color: opColor(o), initial: o.trim()[0].toUpperCase(),
-    onPick: () => { list.forEach(k => claimItemQuiet(k, o)); saveOverrides(); logEvent('passou', `${list.length} → ${o}`); if (list.length > 1){ clearSel(); showToast(`${list.length} passado(s) pra ${o.split(' ')[0]}.`); } }
-  }));
-  if (!opts.length){ showToast('Adicione operadores na equipe primeiro (aba acima).', true); return; }
-  openPickMenu(anchor, list.length > 1 ? `Passar ${list.length} torneio(s) para:` : 'Passar para:', opts);
-}
-/* claim sem gravar/render (pra passar em lote e gravar uma vez só) */
-function claimItemQuiet(key, op){
-  if (!op) return;
-  if (!OPS.some(o => normText(o) === normText(op))) OPS = [...OPS, op];
-  OVERRIDES[key] = op;
-}
-function openClaimMenu(anchor, key){
-  if (!ME){ showToast('Entre com seu nome no hub pra pegar torneios.', true); return; }
-  const cur = OVERRIDES[key];
-  const opts = [];
-  if (!isMine(cur)) opts.push({label:'✋ Pegar pra mim', color: opColor(ME), initial: (ME.trim()[0] || '?').toUpperCase(), onPick: () => claimItem(key, ME)});
-  OPS.filter(o => !isMine(o)).forEach(o => opts.push({label:`↗ Passar pra ${o.split(' ')[0]}`, color: opColor(o), initial: o.trim()[0].toUpperCase(), onPick: () => claimItem(key, o)}));
-  if (cur) opts.push({label:'✕ Soltar (deixar livre / voltar ao automático)', color:'var(--ink-soft)', initial:'✕', onPick: () => releaseItem(key)});
-  openPickMenu(anchor, 'Quem cria este torneio?', opts);
-}
-
-/* =========================================================================
-   SELEÇÃO EM MASSA — marca vários torneios e pega/passa/solta todos de uma vez.
-   `SELECTED` é estado local (não sincroniza); toggles individuais atualizam a
-   caixinha no ATO (sem re-render, pra não perder rolagem) e a barra flutuante.
-========================================================================= */
-let SELECTED = new Set();
-function selKeys(){ return [...SELECTED]; }
-function selboxHtml(key){ return `<span class="selbox ${SELECTED.has(key) ? 'on' : ''}" data-sel="${key}" role="checkbox" aria-checked="${SELECTED.has(key)}" tabindex="0" title="Selecionar pra pegar em massa"></span>`; }
-function syncSelbox(key){
-  const on = SELECTED.has(key);
-  document.querySelectorAll(`.selbox[data-sel="${cssEsc(key)}"]`).forEach(b => {
-    b.classList.toggle('on', on); b.setAttribute('aria-checked', on);
-    const tr = b.closest('tr'); if (tr && tr.classList.contains('fs-srow')) tr.classList.toggle('sel', on);
-    const td = b.closest('td'); if (td) td.classList.toggle('sel-cell', on);
-  });
-}
-function toggleSel(key){ if (SELECTED.has(key)) SELECTED.delete(key); else SELECTED.add(key); syncSelbox(key); updateSelBar(); refreshSelallBoxes(); }
-function clearSel(){ const ks = selKeys(); SELECTED.clear(); ks.forEach(syncSelbox); updateSelBar(); refreshSelallBoxes(); }
-function sectionKeys(catKey){
-  const asg = computeAssignments();
-  const cat = SECTIONS.find(c => c.key === catKey); if (!cat) return [];
-  return visibleItems(catItems(cat), asg).map(itemKey);
-}
-function toggleSelAll(catKey){
-  const keys = sectionKeys(catKey);
-  const allOn = keys.length && keys.every(k => SELECTED.has(k));
-  keys.forEach(k => { if (allOn) SELECTED.delete(k); else SELECTED.add(k); syncSelbox(k); });
-  updateSelBar(); refreshSelallBoxes();
-}
-function refreshSelallBoxes(){
-  document.querySelectorAll('.selbox.selall[data-selall]').forEach(b => {
-    const keys = sectionKeys(b.dataset.selall);
-    b.classList.toggle('on', keys.length > 0 && keys.every(k => SELECTED.has(k)));
-  });
-}
-function updateSelBar(){
-  let bar = $('cnSelBar');
-  if (!SELECTED.size){ if (bar) bar.remove(); return; }
-  if (!bar){ bar = document.createElement('div'); bar.id = 'cnSelBar'; bar.className = 'sel-bar'; document.body.appendChild(bar); }
-  bar.innerHTML = `<span class="n">${SELECTED.size}</span> selecionado(s)
-    <button class="sb-btn primary" data-selact="mine">✋ Pegar pra mim</button>
-    <button class="sb-btn" data-selact="pass">Passar…</button>
-    <button class="sb-btn" data-selact="release">Soltar</button>
-    <button class="sb-btn ghost" data-selact="clear">Limpar</button>`;
-  bar.querySelectorAll('[data-selact]').forEach(b => b.addEventListener('click', () => selAction(b.dataset.selact, b)));
-}
-function selAction(act, anchor){
-  const keys = selKeys();
-  if (!keys.length) return;
-  if (act === 'clear'){ clearSel(); return; }
-  if (act === 'mine'){
-    if (!ensureMeOnTeam()){ showToast('Entre com seu nome no hub pra pegar torneios.', true); return; }
-    keys.forEach(k => OVERRIDES[k] = ME); clearSel(); saveOverrides();
-    logEvent('pegou em massa', `${keys.length} torneio(s)`); showToast(`Você pegou ${keys.length} torneio(s).`); return;
-  }
-  if (act === 'release'){ keys.forEach(k => { delete OVERRIDES[k]; }); clearSel(); saveOverrides(); showToast(`${keys.length} torneio(s) solto(s).`); return; }
-  if (act === 'pass'){ openPassMenu(anchor, keys); }   // mesma lista de operadores do ↗ da linha
-}
-
-/* =========================================================================
-   OCULTAR CAMPO (linha na vertical / coluna na horizontal) — olhinho liga/desliga.
-   Por navegador (localStorage); barra no topo lista os ocultos pra reexibir.
-========================================================================= */
-const HIDDEN_KEY = `cn_hidden_fields`;
-let HIDDEN_FIELDS = new Set();
-try{ HIDDEN_FIELDS = new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')); }catch(e){ HIDDEN_FIELDS = new Set(); }
-function saveHidden(){ try{ localStorage.setItem(HIDDEN_KEY, JSON.stringify([...HIDDEN_FIELDS])); }catch(e){} }
-function hideField(label){ HIDDEN_FIELDS.add(label); saveHidden(); renderAll(); if (FS_OPEN) renderFS(); }
-function showField(label){ HIDDEN_FIELDS.delete(label); saveHidden(); renderAll(); if (FS_OPEN) renderFS(); }
-const EYE_SVG = `<svg class="eye" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>`;
-const EYE_OFF_SVG = `<svg class="eye" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/></svg>`;
-function eyeHideBtn(label){ return `<button class="rl-hide" data-hide="${escHtml(label)}" title="Ocultar “${escHtml(label)}”" aria-label="Ocultar ${escHtml(label)}">${EYE_SVG}</button>`; }
-function hiddenBarHtml(){
-  if (!HIDDEN_FIELDS.size) return '';
-  const chips = [...HIDDEN_FIELDS].map(l => `<button class="hf-chip" data-unhide="${escHtml(l)}" title="Reexibir">${EYE_OFF_SVG}${escHtml(l)}</button>`).join('');
-  return `<div class="hidden-fields-bar"><span>👁 ${HIDDEN_FIELDS.size} campo(s) oculto(s):</span>${chips}<button class="hf-chip" data-unhide="*ALL*" title="Reexibir todos">↺ mostrar todos</button></div>`;
-}
-
-/* nota curta abaixo do cabeçalho da seção */
+/* nota abaixo do cabeçalho da seção: explica a função e quem está nela */
 function sectionNoteHtml(cat){
+  const explicit = OPS.filter(o => roleOf(o) === cat.role);
+  const chips = explicit.map(o =>
+    `<span class="lk"><span class="d" style="background:${opColor(o)}"></span>${escHtml(o.split(' ')[0])}</span>`).join('');
   let msg;
-  if (cat.key === 'sat')            msg = 'Satélites — receita encadeada por grupo.';
-  else if (cat.key === 'main')      msg = 'Base da grade.';
+  if (cat.key === 'sat')            msg = '<b>Quem cria o Main cria os Satélites</b> — mesma função.';
+  else if (cat.key === 'main')      msg = 'Base da grade — vai junto com os Satélites.';
   else if (cat.key === 'sideAdmin') msg = 'Side Events que <b>cobram Admin Fee</b>.';
-  else if (cat.key === 'sideNoAdmin') msg = 'Side Events <b>sem Admin Fee</b>.';
-  else if (cat.key === 'liga')      msg = 'Eventos Principais da Liga — grade fixa, valores em <b>R$</b>.';
-  else                              msg = '';
-  return `<p class="section-note">${msg} <span style="opacity:.7">✋ pega · ↗ passa · ✕ solta em cada torneio.</span></p>`;
+  else                              msg = 'Side Events <b>sem Admin Fee</b>.';
+  const who = explicit.length ? chips : '<span style="opacity:.7">sem função marcada — todos dividem</span>';
+  return `<p class="section-note">${msg} ${who}</p>`;
 }
 
 function renderList(){
   const area = $('listArea');
-  if (!DATA && !LIGA_ITEMS.length){
+  if (!DATA){
     area.innerHTML = `<div class="empty-state"><span class="moon">🌙</span>Nenhuma planilha carregada ainda pra este dia da grade.<br>Suba a Global MTT acima — ou aguarde: se um parceiro subir, aparece aqui sozinho.</div>`;
     return;
   }
+  // COMPORTAMENTO GOOGLE SHEETS: uma atualização de dados (listener do Firebase → renderAll)
+  // reconstrói o innerHTML e zeraria a rolagem de cada grade. Guarda a rolagem de cada grade
+  // (por naipe) + a da janela ANTES de reconstruir e restaura DEPOIS — o operador não perde o
+  // lugar onde estava quando um parceiro marca um ID/torneio do outro lado.
+  const _scroll = {};
+  area.querySelectorAll('.secwrap').forEach(sw => {
+    const vw = sw.querySelector('.vwrap');
+    if (vw) _scroll[sw.dataset.suit] = { t: vw.scrollTop, l: vw.scrollLeft };
+  });
+  const _winY = window.scrollY;
   const asg = computeAssignments();
   let html = '';
+
+  // A GRADE PRINCIPAL é SEMPRE em R$ — não responde ao toggle de moeda (esse vale só pro modo
+  // foco/detalhe e pro export). Como só os formatadores (fmtMoney*/calcValueParts) leem CURRENCY
+  // e este build é 100% síncrono, forço 'brl' aqui e restauro logo abaixo — sem tocar no toggle
+  // global nem nas outras telas. Antes, com o toggle em USD a grade mostrava dólar e confundia.
+  const _cur0 = CURRENCY;
+  CURRENCY = 'brl';
 
   SECTIONS.forEach(cat => {
     const items = visibleItems(catItems(cat), asg);
@@ -1972,16 +1658,12 @@ function renderList(){
     const doneCount = items.filter(it => DONE[itemKey(it)]).length;
     html += `
       <div class="section-head ${cat.cls}">
-        <span class="selbox selall" data-selall="${cat.key}" role="checkbox" tabindex="0" title="Selecionar todos desta seção"></span>
         <span class="tag"><span class="suit">${cat.suit}</span>${cat.label}</span>
         <span class="cnt">${doneCount}/${items.length} criados</span>
-        <span class="gtd-total" title="Soma do garantido (prize pool) desta seção">GTD ${fmtMoney(gtdSum(items), cat.brl)}</span>
         <span class="line"></span>
-        <button class="claimbtn claim-sec" data-claimsec="${cat.key}" title="Pegar todos os torneios desta seção pra você">✋ Pegar seção</button>
-        <button class="vmini blockfs" data-fsopen="${cat.key}" title="Abrir esta seção em tela cheia — planilha grande pra preencher os IDs" aria-label="Abrir ${escHtml(cat.label)} em tela cheia">⛶</button>
       </div>
       ${sectionNoteHtml(cat)}`;
-    html += `<div class="secwrap${cat.cls === 'liga' ? ' liga-sec' : ''}" data-suit="${cat.suit}" data-sec="${cat.key}">${renderVertical(items, cat, asg)}</div>`;
+    html += `<div class="secwrap" data-suit="${cat.suit}">${renderVertical(items, cat, asg)}</div>`;
   });
 
   if (DATA.unknown && DATA.unknown.length && FILTER === 'all'){
@@ -1996,38 +1678,19 @@ function renderList(){
       </tbody></table></div>`;
   }
 
-  if (!html) html = `<div class="empty-state"><span class="moon">🃏</span>Nada nesse filtro.</div>`;
-  // PRESERVA A ROLAGEM *E* O QUE ESTÁ SENDO DIGITADO: marcar um "Criado" (ou
-  // qualquer edição de parceiro) reconstrói a lista inteira — sem isto a rolagem
-  // zerava (operador "jogado pro início") e o ID em digitação sumia.
-  const st = captureGrid(area);
-  area.innerHTML = html;
-  wireGrid(area);
-  restoreGrid(area, st);
-}
+  CURRENCY = _cur0;   // restaura o toggle real pras demais telas (foco/detalhe/export)
 
-/* ── liga os eventos de uma grade (lista principal OU tela cheia) ─────────── */
-function wireGrid(area){
-  area.querySelectorAll('[data-fsopen]').forEach(el => el.addEventListener('click', () => openFullscreen(el.dataset.fsopen)));
-  area.querySelectorAll('[data-claimsec]').forEach(el => el.addEventListener('click', () => claimSection(el.dataset.claimsec)));
-  // atribuição livre: pegar num clique (✋) ou abrir o menu pegar/passar/soltar
-  area.querySelectorAll('[data-claimme]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); claimItem(el.dataset.claimme, ME); }));
-  area.querySelectorAll('[data-claim]').forEach(el => {
-    el.addEventListener('click', () => openClaimMenu(el, el.dataset.claim));
-    el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openClaimMenu(el, el.dataset.claim); } });
+  if (!html) html = `<div class="empty-state"><span class="moon">🃏</span>Nada nesse filtro.</div>`;
+  area.innerHTML = html;
+
+  // restaura a rolagem capturada acima (atribuição direta = instantânea, sem animar o scroll-behavior:smooth)
+  area.querySelectorAll('.secwrap').forEach(sw => {
+    const p = _scroll[sw.dataset.suit]; if (!p) return;
+    const vw = sw.querySelector('.vwrap');
+    if (vw){ vw.scrollTop = p.t; vw.scrollLeft = p.l; }
   });
-  // passar (↗) e soltar (✕) num toque
-  area.querySelectorAll('[data-pass]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); openPassMenu(el, el.dataset.pass); }));
-  area.querySelectorAll('[data-release]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); releaseItem(el.dataset.release); }));
-  // seleção em massa: caixinha por torneio + "selecionar seção"
-  area.querySelectorAll('[data-sel]').forEach(el => {
-    el.addEventListener('click', e => { e.stopPropagation(); toggleSel(el.dataset.sel); });
-    el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); toggleSel(el.dataset.sel); } });
-  });
-  area.querySelectorAll('[data-selall]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); toggleSelAll(el.dataset.selall); }));
-  // ocultar/reexibir campo (olhinho)
-  area.querySelectorAll('[data-hide]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); hideField(el.dataset.hide); }));
-  area.querySelectorAll('[data-unhide]').forEach(el => el.addEventListener('click', () => { el.dataset.unhide === '*ALL*' ? (HIDDEN_FIELDS.clear(), saveHidden(), renderAll(), FS_OPEN && renderFS()) : showField(el.dataset.unhide); }));
+  document.documentElement.scrollTop = _winY;
+
   area.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
   area.querySelectorAll('[data-focus]').forEach(el => {
     el.addEventListener('click', () => openFocusAt(el.dataset.focus));
@@ -2036,24 +1699,10 @@ function wireGrid(area){
       if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openFocusAt(el.dataset.focus); }
     });
   });
-  // ID Pokerbyte: cada tecla salva (rascunho local + envio automático); ao sair
-  // do campo confirma e marca criado. NÃO se perde mais no meio de um re-render.
+  // ID Pokerbyte: grava ao sair do campo ou no Enter (não a cada tecla, pra não ecoar no parceiro)
   area.querySelectorAll('.id-inp').forEach(inp => {
-    inp.addEventListener('input',  () => onIdInput(inp));
-    inp.addEventListener('change', () => onIdChange(inp));
-    // Enter = auto-avança: confirma este ID e pula pro PRÓXIMO campo ainda vazio.
-    // Vira a madrugada num fluxo "digita, Enter, digita, Enter" — sem caçar campo
-    // com o mouse. O foco no próximo faz este borrar → 'change' confirma/marca criado.
-    inp.addEventListener('keydown', e => {
-      if (e.key !== 'Enter') return;
-      e.preventDefault();
-      const inps = Array.from(area.querySelectorAll('.id-inp'));
-      const i = inps.indexOf(inp);
-      const order = i >= 0 ? [...inps.slice(i + 1), ...inps.slice(0, i)] : inps;
-      const next = order.find(x => !x.value.trim() && !DONE[x.dataset.idkey]);
-      if (next){ next.focus(); next.scrollIntoView({block:'center', inline:'nearest'}); try{ next.setSelectionRange(0, 0); }catch(_){} }
-      else inp.blur();   // nada pendente → só confirma o atual
-    });
+    inp.addEventListener('change', () => setId(inp.dataset.idkey, inp.value));
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
   });
   // receita expandida sobrevive aos re-renders (sync do Firebase re-renderiza a lista toda)
   area.querySelectorAll('[data-expand]').forEach(el => el.addEventListener('click', () => {
@@ -2068,32 +1717,6 @@ function wireGrid(area){
       showToast('Receita copiada 📋');
     }catch(e){ showToast('Não consegui copiar — copie manualmente.', true); }
   }));
-}
-
-/* captura/restaura rolagem + foco + posição do cursor de um container de grade,
-   pra que um re-render (sync) nunca "pule" a página nem interrompa a digitação */
-function cssEsc(s){ return (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/["\\]/g, '\\$&'); }
-function captureGrid(root){
-  const st = {scroll:{}, foc:null, winY: window.scrollY};
-  root.querySelectorAll('.secwrap[data-sec]').forEach(sw => { const w = sw.querySelector('.vwrap'); if (w) st.scroll[sw.dataset.sec] = {l: w.scrollLeft, t: w.scrollTop}; });
-  root.querySelectorAll('.fs-block-body').forEach((b, i) => st.scroll['fsb'+i] = {l: b.scrollLeft, t: b.scrollTop});
-  root.querySelectorAll('.fs-sheet').forEach((b, i) => st.scroll['fss'+i] = {l: b.scrollLeft, t: b.scrollTop});
-  const ae = document.activeElement;
-  if (ae && ae.classList && ae.classList.contains('id-inp') && root.contains(ae)){
-    st.foc = {key: ae.dataset.idkey, s: ae.selectionStart, e: ae.selectionEnd};
-  }
-  return st;
-}
-function restoreGrid(root, st){
-  if (!st) return;
-  root.querySelectorAll('.secwrap[data-sec]').forEach(sw => { const s = st.scroll[sw.dataset.sec], w = sw.querySelector('.vwrap'); if (s && w){ w.scrollLeft = s.l; w.scrollTop = s.t; } });
-  root.querySelectorAll('.fs-block-body').forEach((b, i) => { const s = st.scroll['fsb'+i]; if (s){ b.scrollLeft = s.l; b.scrollTop = s.t; } });
-  root.querySelectorAll('.fs-sheet').forEach((b, i) => { const s = st.scroll['fss'+i]; if (s){ b.scrollLeft = s.l; b.scrollTop = s.t; } });
-  if (st.foc){
-    const inp = root.querySelector(`.id-inp[data-idkey="${cssEsc(st.foc.key)}"]`);
-    if (inp){ inp.focus(); try{ inp.setSelectionRange(st.foc.s, st.foc.e); }catch(e){} }
-  }
-  if (st.winY) window.scrollTo(0, st.winY);
 }
 
 /* vertical (única visão): planilha transposta — campos nas linhas, torneios nas
@@ -2116,12 +1739,12 @@ function renderVertical(items, cat, asg){
   // FEE, ADMIN FEE e EARLY BIRD crus saem da receita: já estão consolidados nas linhas de cima
   const feeCols = new Set();
   cols.forEach(c => [feeInfo, adminInfo, earlyInfo].forEach(g => { const i = g(c.it); if (i && i.label) feeCols.add(i.label); }));
-  const rows = visibleRecipeFieldsFor(cat).filter(l => !feeCols.has(l));
+  const rows = visibleRecipeFields().filter(l => !feeCols.has(l));
   return `
     <div class="vwrap"><table class="vtable">
       <tr class="trow-head"><th class="rowlab">Torneio</th>${cell(c => {
         const m = mttKicker(c.it), urg = urgency(c.it);
-        return `<span class="vname-row">${selboxHtml(c.key)}<span class="vgo" data-focus="${c.key}" role="button" tabindex="0" title="Abrir este torneio no modo foco" aria-label="Abrir ${escHtml(c.it.nome)} no modo foco">${escHtml(c.it.nome)}</span></span>` + campBadgeHtml(c.it) + valBadge(c.it, cat) + changeBadge(c.it) + auditBadge(c.it)
+        return `<span class="vgo" data-focus="${c.key}" role="button" tabindex="0" title="Abrir este torneio no modo foco" aria-label="Abrir ${escHtml(c.it.nome)} no modo foco">${escHtml(c.it.nome)}</span>` + campBadgeHtml(c.it) + valBadge(c.it, cat) + changeBadge(c.it) + auditBadge(c.it)
           + (auditErr(c.it) && auditErr(c.it).motivo ? `<br><span style="font-size:10.5px;color:var(--red);font-weight:600">↳ ${escHtml(auditErr(c.it).motivo)}</span>` : '')
           + (urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(c.it)}</span>` : '')
           + (m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : '');
@@ -2133,7 +1756,7 @@ function renderVertical(items, cat, asg){
       ${cols.some(c => hasCampaign(c.it)) ? `<tr><th class="rowlab">Campanha</th>${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : ''}
       ${cat.key === 'sat' ? `<tr><th class="rowlab">Grupo</th>${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : ''}
       ${rows.length
-        ? rows.map(label => `<tr><th class="rowlab hideable ${keyLabels.has(label) ? 'key' : ''}" title="${escHtml(label)}">${escHtml(label)}${eyeHideBtn(label)}</th>${cell(c => {
+        ? rows.map(label => `<tr><th class="rowlab ${keyLabels.has(label) ? 'key' : ''}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(c => {
             const v = c.it.extra ? c.it.extra[label] : undefined;
             const has = v !== undefined && v !== null && v !== '';
             if (!has) return `<span class="mono" style="color:var(--ink-soft);opacity:.5">—</span>`;
@@ -2141,7 +1764,7 @@ function renderVertical(items, cat, asg){
             // Add-on em $; demais campos como se digita no app
             if (label === addonL){
               const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.'));
-              if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n, c.it.brl))}</span>`;
+              if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n))}</span>`;
             }
             // elementos de poker: ticket picotado, ficha de chips, carta do game type, bounty do K.O
             if (label === ticketL) return `<span class="tkt"><span class="stub">Ticket</span><span class="val" title="${escHtml(disp)}">${escHtml(disp)}</span></span>`;
@@ -2155,7 +1778,7 @@ function renderVertical(items, cat, asg){
             return `<span class="mono" style="${keyLabels.has(label) ? 'font-weight:700' : ''}">${escHtml(disp)}</span>`;
           })}</tr>`).join('')
         : `<tr><th class="rowlab">Late reg</th>${cell(c => `<span class="mono" style="color:var(--ink-soft)">${c.it.late ? escHtml(c.it.late) : '—'}</span>`)}</tr>`}
-      <tr><th class="rowlab">Operador</th>${cell(c => claimCellHtml(c.key, c.op))}</tr>
+      <tr><th class="rowlab">Operador</th>${cell(c => opTagHtml(c.op))}</tr>
       <tr><th class="rowlab">ID Pokerbyte</th>${cell(c => idInputHtml(c.key, 'width:110px'))}</tr>
       <tr><th class="rowlab">Criado</th>${cell(c => `
         <button class="chk ${c.done ? 'on' : ''}" data-done="${c.key}" role="checkbox" aria-checked="${c.done ? 'true' : 'false'}"
@@ -2164,54 +1787,6 @@ function renderVertical(items, cat, asg){
         <button class="copy-btn" data-copy="${escHtml(recipeText(c.it, cat.label))}" title="Copiar receita" style="margin-left:6px;display:inline-grid;vertical-align:middle"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>`)}</tr>
     </table></div>`;
 }
-
-/* HORIZONTAL (estilo Global MTT): torneios nas LINHAS, campos nas COLUNAS.
-   Usada no modo tela cheia (e no evento único). Hora + nome ficam fixos na
-   rolagem lateral (sticky). Compartilha as caixinhas de seleção e o olhinho. */
-function renderHorizontal(items, cat, asg){
-  const fields = visibleRecipeFieldsFor(cat);
-  const labelOf = getter => { const c0 = items.find(it => getter(it)); return c0 ? getter(c0).label : null; };
-  const addonL = labelOf(addonInfo), ticketL = labelOf(ticketInfo), chipsL = labelOf(chipsInfo), gameL = labelOf(gameTypeInfo), koL = labelOf(koInfo);
-  const keyLabels = new Set();
-  items.forEach(it => [feeInfo, adminInfo, earlyInfo, ticketInfo, payoutInfo, calcPayoutInfo, rebuyInfo, addonInfo, chipsInfo, structureInfo, gameTypeInfo, koInfo]
-    .forEach(g => { const i = g(it); if (i && i.label) keyLabels.add(i.label); }));
-  const SUITS = ['♠','♥','♦','♣'];
-  const valCell = (it, label) => {
-    const v = it.extra ? it.extra[label] : undefined;
-    const has = v !== undefined && v !== null && v !== '';
-    if (!has) return `<span class="dash">—</span>`;
-    const disp = fmtExtraVal(label, v);
-    if (label === addonL){ const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.')); if (isFinite(n) && n > 0) return `<span class="mono" style="color:var(--gold);font-weight:700">${escHtml(fmtMoneyPlain(n, it.brl))}</span>`; }
-    if (label === ticketL) return `<span class="tkt"><span class="stub">Ticket</span><span class="val" title="${escHtml(disp)}">${escHtml(disp)}</span></span>`;
-    if (label === chipsL) return `<span class="pchip">${escHtml(disp)}</span>`;
-    if (label === gameL){ const idx = [...normText(disp)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 4; return `<span class="gcard"><span class="suit ${idx === 1 || idx === 2 ? 'red' : ''}">${SUITS[idx]}</span>${escHtml(disp)}</span>`; }
-    if (label === koL && !/^(off|nao|não|no|-|—)$/i.test(String(disp).trim())) return `<span class="kochip"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>${escHtml(disp)}</span>`;
-    return `<span class="mono" style="${keyLabels.has(label) ? 'font-weight:700' : ''}">${escHtml(disp)}</span>`;
-  };
-  const head = `<thead><tr>
-    <th class="c-h">Hora</th>
-    <th class="c-n">Torneio</th>
-    <th>Criar em</th>
-    <th>Operador</th>
-    ${fields.map(l => `<th class="c-field ${keyLabels.has(l) ? 'key' : ''}" title="${escHtml(l)}">${escHtml(l)}${eyeHideBtn(l)}</th>`).join('')}
-    <th>ID Pokerbyte</th>
-    <th>Criado</th>
-  </tr></thead>`;
-  const body = items.map(it => {
-    const key = itemKey(it), done = !!DONE[key], mine = isMine(asg[key]), sel = SELECTED.has(key);
-    return `<tr class="fs-srow ${done ? 'done' : ''} ${mine ? 'mine' : ''} ${sel ? 'sel' : ''}">
-      <td class="c-h">${escHtml(it.hora)}</td>
-      <td class="c-n">${selboxHtml(key)}<span class="vgo" data-focus="${key}" role="button" tabindex="0" title="Abrir no modo foco">${escHtml(it.nome)}</span>${campBadgeHtml(it)} ${valBadge(it, cat)}</td>
-      <td><span class="mono" style="font-weight:700">${escHtml(creationWhen(it))}</span></td>
-      <td>${claimCellHtml(key, asg[key])}</td>
-      ${fields.map(l => `<td>${valCell(it, l)}</td>`).join('')}
-      <td>${idInputHtml(key, 'width:120px')}</td>
-      <td><button class="chk ${done ? 'on' : ''}" data-done="${key}" role="checkbox" aria-checked="${done ? 'true' : 'false'}" title="${done ? 'Criado' : 'Marcar como criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button></td>
-    </tr>`;
-  }).join('');
-  return `${hiddenBarHtml()}<div class="fs-sheet"><table>${head}<tbody>${body}</tbody></table></div>`;
-}
-
 
 /* =========================================================================
    MODO FOCO — criar o próximo: um torneio por vez, receita gigante, campo de
@@ -2365,7 +1940,7 @@ function focusAdvance(){ FOCUS_TARGET = null; FOCUS_ANIMATE = true; renderFocus(
    na descida. Os campos-chave (buy-in, garantido, rake, admin, early, campanha)
    ganham cor na própria linha. */
 function focusFlowHtml(it){
-  const fields = visibleRecipeFieldsForItem(it);
+  const fields = visibleRecipeFields();
   if (!fields.length)
     return `<div class="recipe-note">Receita completa indisponível nesta planilha (cabeçalho da Global não foi lido). Recarregue a Global MTT original.</div>`;
   const feeL = (feeInfo(it) || {}).label, admL = (adminInfo(it) || {}).label,
@@ -2411,7 +1986,7 @@ function focusFlowHtml(it){
     // Add-on: formata em $
     if (has && accent === 'addon'){
       const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.'));
-      if (isFinite(n) && n > 0) vHtml = escHtml(fmtMoneyPlain(n, it.brl));
+      if (isFinite(n) && n > 0) vHtml = escHtml(fmtMoneyPlain(n));
     }
     const done = FOCUS_ENTERED.has(label);
     return `<div class="frow ${accent} ${has ? '' : 'blank'} ${done ? 'entered' : ''} ${accent ? 'key-line' : ''}" data-field="${escHtml(label)}">
@@ -2473,8 +2048,8 @@ function openCreateConfirm(it, cat, key, onConfirm){
     <div class="sub"><b>${escHtml(it.nome)}</b> · ${escHtml(cat.label)} — bata os números com o que você cadastrou no Pokerbyte.</div>
     <div class="cc-grid">
       ${cci('Horário', escHtml(it.hora))}
-      ${cci('Buy-in', fmtMoney(it.buyin, it.brl), it.buyin == null)}
-      ${cci('Garantido', fmtMoney(it.garantido, it.brl), it.garantido == null)}
+      ${cci('Buy-in', fmtMoney(it.buyin), it.buyin == null)}
+      ${cci('Garantido', fmtMoney(it.garantido), it.garantido == null)}
       ${af ? cci('Admin Fee', escHtml(af.main) + (af.sub ? ` <span style="opacity:.6;font-size:11px">${escHtml(af.sub)}</span>` : '')) : cci('Admin Fee', '—', cat.key !== 'sat')}
       ${e ? cci('Early Bird', escHtml(e.main) + (e.sub ? ` <span style="opacity:.6;font-size:11px">${escHtml(e.sub)}</span>` : '')) : ''}
       ${hasCampaign(it) ? cci('✦ Campanha', escHtml((campInfo(it) || {}).disp || 'ativa'), false) : ''}
@@ -2509,7 +2084,7 @@ function renderFocus(){
   // progresso "digitei" é por torneio — zera ao trocar de torneio
   if (FOCUS_ENTERED_KEY !== key){ FOCUS_ENTERED = new Set(); FOCUS_ENTERED_KEY = key; FOCUS_CURSOR = null; }
   if (!FOCUS_SEEN_AT[key]) FOCUS_SEEN_AT[key] = Date.now();   // #4 início da criação
-  FOCUS_FIELDS = visibleRecipeFieldsFor(cat);                // #2 ordem dos campos (Liga usa os campos dela)
+  FOCUS_FIELDS = visibleRecipeFields();                      // #2 ordem dos campos (sem Num. Players/Chat)
   if (!FOCUS_CURSOR || !FOCUS_FIELDS.includes(FOCUS_CURSOR) || FOCUS_ENTERED.has(FOCUS_CURSOR))
     FOCUS_CURSOR = focusNextField(null);
   const urg = urgency(it);
@@ -2637,13 +2212,6 @@ $('focusOverlay').addEventListener('click', e => { if (e.target === $('focusOver
 document.addEventListener('keydown', e => {
   if ($('popMenu') && e.key === 'Escape'){ closePickMenu(); return; }
   if (TV_OPEN && e.key === 'Escape'){ closeTV(); return; }
-  if (FS_OPEN){
-    if (e.key === 'Escape'){ closeFullscreen(); return; }
-    const ae = document.activeElement;
-    const typing = ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName);
-    if (!typing && e.key === 'ArrowLeft'){  e.preventDefault(); (FS_MODE === 'event' ? fsNavEvent : fsNavSection)(-1); return; }
-    if (!typing && e.key === 'ArrowRight'){ e.preventDefault(); (FS_MODE === 'event' ? fsNavEvent : fsNavSection)(1);  return; }
-  }
   const confirmEl = $('focusConfirm');
   if (confirmEl){
     if (e.key === 'Escape'){ confirmEl.remove(); e.preventDefault(); }
@@ -2686,21 +2254,6 @@ setInterval(() => {
 
 /* ── busca ── */
 $('searchInp').addEventListener('input', () => { SEARCH = $('searchInp').value; renderList(); });
-
-/* ── atalhos de fluxo (fora de campo de texto e sem overlay aberto) ──────────
-   P = pegar próximo · O = só pendentes · M = só meus · Enter = pular pro 1º ID */
-document.addEventListener('keydown', e => {
-  if (FOCUS_OPEN || FS_OPEN || TV_OPEN || $('popMenu') || $('focusConfirm')) return;
-  if (e.metaKey || e.ctrlKey || e.altKey) return;
-  const ae = document.activeElement;
-  const typing = ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName);
-  if (e.key === 'Enter' && !typing){ e.preventDefault(); focusFirstPendingId(); return; }
-  if (typing) return;   // digitando ID/busca: não sequestra as letras
-  const k = e.key.toLowerCase();
-  if (k === 'p'){ e.preventDefault(); grabNextPending(); }
-  else if (k === 'o'){ e.preventDefault(); HIDE_DONE = !HIDE_DONE; renderAll(); }
-  else if (k === 'm' && ME){ e.preventDefault(); FILTER = (FILTER === ME) ? 'all' : ME; renderAll(); }
-});
 
 /* relógio de urgência: a cada minuto atualiza stats/notificações, mas SÓ
    reconstrói a tabela se algum torneio mudou de estado de prazo (warn/late) —
@@ -2838,7 +2391,7 @@ $('currencySeg').querySelectorAll('button').forEach(b => b.addEventListener('cli
   CURRENCY = b.dataset.cur;
   localStorage.setItem('cn_currency', CURRENCY);
   $('currencySeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
-  renderAll();   // atualiza lista + GTD + tela cheia (a Liga permanece em R$)
+  renderList();
 }));
 (function restoreSegs(){
   $('currencySeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.cur === CURRENCY));
@@ -2895,95 +2448,6 @@ $('exportBtn').addEventListener('click', async () => {
   XLSX.utils.book_append_sheet(wb, ws, (WEEKDAY_TOMORROW || 'Criação Noturna').slice(0,31));
   XLSX.writeFile(wb, `CriacaoNoturna_${TOMORROW_ISO}.xlsx`);
   showToast(`Exportado — ${total} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length}).`);
-});
-
-/* ── export por SEÇÃO: uma aba por bloco (Main / Side c-Admin / Side s-Admin /
-   Satélites) com a receita completa, operador, ID e status de criado. Valores
-   já em R$ (Liga) NÃO são convertidos pelo botão de moeda. ── */
-$('exportSecBtn').addEventListener('click', async () => {
-  if (!DATA){ showToast('Carregue a Global primeiro.', true); return; }
-  let X;
-  try{ X = await ensureXLSXStyle(); }catch(_){ showToast('A biblioteca de planilhas não carregou — recarregue a página.', true); return; }
-  const cur = CURRENCY === 'usd' ? '$' : 'R$';
-  const convV = (it, v) => (v === null || v === undefined) ? '' : ((it && it.brl) ? v : (CURRENCY === 'usd' ? v : Math.round(v * BRL_RATE * 100) / 100));
-  const asg = computeAssignments();
-  const wb = X.utils.book_new();
-
-  // ── paleta (marca) + estilos ──────────────────────────────────────────────
-  const FELT='1A472A', CREAM='F1E2BD', CREAMDK='5C4A1A', ZEBRA='FAF6EC', WHITE='FFFFFF', HAIR='DBD3C4', INK='262626';
-  const bd = {style:'thin', color:{rgb:HAIR}};
-  const border = {top:bd, bottom:bd, left:bd, right:bd};
-  const stTitle = {font:{bold:true, sz:13, color:{rgb:WHITE}}, fill:{fgColor:{rgb:FELT}}, alignment:{horizontal:'left', vertical:'center'}};
-  const stHeadName = {font:{bold:true, sz:11, color:{rgb:WHITE}}, fill:{fgColor:{rgb:FELT}}, alignment:{horizontal:'center', vertical:'center', wrapText:true}, border};
-  const stHeadCorner = {font:{bold:true, sz:10, color:{rgb:WHITE}}, fill:{fgColor:{rgb:FELT}}, alignment:{horizontal:'left', vertical:'center'}, border};
-  const stLabel = z => ({font:{bold:true, sz:10, color:{rgb:CREAMDK}}, fill:{fgColor:{rgb: z?ZEBRA:CREAM}}, alignment:{horizontal:'left', vertical:'center'}, border});
-  const stVal   = z => ({font:{sz:10, color:{rgb:INK}}, fill:{fgColor:{rgb: z?ZEBRA:WHITE}}, alignment:{horizontal:'left', vertical:'center'}, border});
-  const stMoney = z => ({font:{sz:10, color:{rgb:INK}}, fill:{fgColor:{rgb: z?ZEBRA:WHITE}}, alignment:{horizontal:'right', vertical:'center'}, border});
-  const stDone  = z => ({font:{bold:true, sz:10, color:{rgb:'1A7A3A'}}, fill:{fgColor:{rgb: z?ZEBRA:WHITE}}, alignment:{horizontal:'center', vertical:'center'}, border});
-
-  let sheets = 0;
-  SECTIONS.forEach(cat => {
-    const items = catItems(cat);
-    if (!items.length) return;
-    const fields = recipeFieldsFor(cat);            // receita COMPLETA (independe do que está oculto na tela)
-    const cCur = cat.brl ? 'R$' : cur;
-    const moneyFmt = `"${cCur}" #,##0.##`;
-    // EM COLUNAS: cada TORNEIO é uma coluna (nome no cabeçalho); cada CAMPO é uma linha.
-    const metaLabels = ['Horário', 'Criar em', 'Operador', 'ID Pokerbyte', 'Criado', 'Garantido', 'Buy-in'];
-    const fieldLabels = [...metaLabels, ...fields];
-    const moneyRows = new Set([5, 6]);              // Garantido, Buy-in (índice em fieldLabels)
-    const valOf = (it, fi) => {
-      const key = itemKey(it);
-      switch (fi){
-        case 0: return it.hora;
-        case 1: return creationWhen(it);
-        case 2: return asg[key] || '';
-        case 3: return idVal(key);
-        case 4: return DONE[key] ? 'SIM' : '';
-        case 5: return convV(it, it.garantido);
-        case 6: return convV(it, it.buyin);
-        default: { const v = it.extra ? it.extra[fields[fi - 7]] : undefined; return (v === undefined || v === null) ? '' : v; }
-      }
-    };
-    const gtd = gtdSum(items);
-    const gtdVal = cat.brl ? gtd : (CURRENCY === 'usd' ? gtd : gtd * BRL_RATE);
-    const title = `${cat.label.toUpperCase()} — ${items.length} torneios · GTD ${cCur} ${Math.round(gtdVal).toLocaleString('pt-BR')}`;
-
-    const aoa = [[title], ['Campo', ...items.map(it => it.nome)]];
-    fieldLabels.forEach((label, fi) => aoa.push([label, ...items.map(it => valOf(it, fi))]));
-
-    const ws = X.utils.aoa_to_sheet(aoa);
-    const ncol = items.length + 1;
-    ws['!cols'] = [{wch:17}, ...items.map(() => ({wch:20}))];
-    ws['!rows'] = [{hpt:26}, {hpt:30}];
-    ws['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:ncol-1}}];
-
-    const setS = (r, c, s) => { const ref = X.utils.encode_cell({r, c}); if (!ws[ref]) ws[ref] = {t:'s', v:''}; ws[ref].s = s; };
-    for (let c = 0; c < ncol; c++) setS(0, c, stTitle);            // faixa do título
-    setS(1, 0, stHeadCorner);
-    for (let c = 1; c < ncol; c++) setS(1, c, stHeadName);         // nomes dos torneios
-    fieldLabels.forEach((label, fi) => {
-      const r = fi + 2, z = fi % 2 === 1;
-      setS(r, 0, stLabel(z));
-      for (let c = 1; c < ncol; c++){
-        const ref = X.utils.encode_cell({r, c});
-        if (moneyRows.has(fi)){
-          if (ws[ref] && typeof ws[ref].v === 'number'){ ws[ref].t = 'n'; ws[ref].z = moneyFmt; }
-          const st = stMoney(z); st.numFmt = moneyFmt; setS(r, c, st);
-        } else if (fi === 4){
-          setS(r, c, (ws[ref] && ws[ref].v === 'SIM') ? stDone(z) : stVal(z));
-        } else {
-          setS(r, c, stVal(z));
-        }
-      }
-    });
-    X.utils.book_append_sheet(wb, ws, cat.label.replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31));
-    sheets++;
-  });
-  if (!sheets){ showToast('Nada para exportar.', true); return; }
-  X.writeFile(wb, `CriacaoNoturna_Secoes_${TOMORROW_ISO}.xlsx`);
-  logEvent('exportou seções', `${sheets} aba(s)`);
-  showToast(`Exportado — ${sheets} seção(ões), formatado por seção.`);
 });
 
 /* ── resumo pra colar no grupo ── */
@@ -3043,7 +2507,7 @@ function a11yCloseDialog(id){
 }
 document.addEventListener('keydown', function(e){
   if(e.key !== 'Tab') return;
-  var dlg = document.querySelector('#focusOverlay.open, #tvOverlay.open, #fsOverlay.open');
+  var dlg = document.querySelector('#focusOverlay.open, #tvOverlay.open');
   if(!dlg) return;
   var foc = [].slice.call(dlg.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'))
     .filter(function(el){ return el.getClientRects().length; });
@@ -3053,12 +2517,3 @@ document.addEventListener('keydown', function(e){
   else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
   else if(!dlg.contains(document.activeElement)){ e.preventDefault(); first.focus(); }
 });
-
-/* ── EVENTOS PRINCIPAIS (Liga) no load: como é grade fixa local, aparecem mesmo
-   sem GU subida — revela os controles e renderiza. Roda no fim do arquivo, com
-   todo o estado (OPS/DONE/…) já declarado. ── */
-(function showLigaOnLoad(){
-  if (!LIGA_ITEMS.length) return;
-  try{ $('controlsCard').hidden = false; $('actionsBar').hidden = false; }catch(e){}
-  renderAll();
-})();

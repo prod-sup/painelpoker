@@ -1,7 +1,7 @@
 // Suprema Poker — Service Worker
 // IMPORTANTE: incremente SW_VERSION a cada deploy — é isso que faz as abas abertas
 // receberem o aviso de "nova versão disponível" e ninguém operar com código velho
-const SW_VERSION = '3.99.9';
+const SW_VERSION = '3.84.0';
 const CACHE_NAME = `suprema-painel-v${SW_VERSION}`;
 // BASE derivada da própria URL do SW: '/' na Vercel (painelpoker.vercel.app/) e
 // '/painelpoker/' no GitHub Pages. Os assets abaixo são RELATIVOS e recebem a base
@@ -22,7 +22,6 @@ const STATIC_ASSETS = [
   /* cada .html precacheado precisa dos SEUS js/css também — senão a página abre
      offline mas sem cérebro/estilo na primeira visita sem rede */
   'hub.html',
-  'novidades.html',      // manual do operador + patch notes (linkado no hub)
   'hub.js',
   'hub-onboarding.js',   // o hub.html carrega — estava fora do precache
   'hub-motion.js',       // camada de motion (Anime.js) do redesign
@@ -73,8 +72,6 @@ const STATIC_ASSETS = [
   'suprema-palette.js',
   'suprema-copiloto.js',
   'suprema-db.js',
-  // backup pro Google Sheets (formato Acompanhamento) — usado pelo admin e pelo painel
-  'suprema-sheets.js',
   'suprema-presence.js',
   'suprema-motion.js',
   'suprema-insights.js',
@@ -125,6 +122,10 @@ self.addEventListener('fetch', e => {
     url.hostname.includes('firebase') ||
     url.hostname.includes('googleapis') ||
     url.hostname.includes('gstatic') ||
+    // Google Sheets publicado (auto-sync da Criação Noturna): o fetch usa cache-buster
+    // por poll — deixar o SW cachear encheria o cache de snapshots .xlsx de ~300KB.
+    url.hostname.includes('google.com') ||
+    url.hostname.includes('googleusercontent') ||
     e.request.method !== 'GET' ||
     e.request.headers.get('range')  // Evita status 206 (partial content) no cache
   ) return;

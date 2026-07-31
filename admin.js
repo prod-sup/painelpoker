@@ -622,16 +622,22 @@ function flatRows(fromDate, toDate){
       // Só incluir se tem dados relevantes (nome existe)
       if(!r.nome)return;
 
-      // Calcular ações (field × buyin com desconto de rake)
+      // AÇÕES = total de entradas (com re-entries) que gerou a premiação. A premiação é
+      // o LÍQUIDO (a parte da entrada que vai pro prize pool); o fator líquido depende de
+      // ser "campanha" (prefixo SPS/SPT antes do nome do evento) e de ser satélite:
+      //   com campanha 0,88 · sem campanha 0,90 · satélite 0,95
+      // "+"/série no Main NÃO é campanha — só o prefixo SPS/SPT conta.
+      // Ex.: 750 Plus (side sem campanha) prem R$1.068,30 ÷ (R$1 × 0,90) = 1.187 ações.
       const buyin = r.buyin ?? null;
-      const rakeEst = buyin ? (buyin <= 10 ? 0 : buyin <= 50 ? 0.1 : buyin <= 200 ? 0.12 : 0.15) : 0;
-      const fieldNet = field != null && buyin ? Math.round(field * buyin * (1 - rakeEst)) : null;
+      const isCampanha = /^\s*(SPS|SPT)\b/i.test(r.nome||'');
+      const netFactor = cat==='sat' ? 0.95 : (isCampanha ? 0.88 : 0.90);
+      const acoes = prem!=null && buyin ? Math.round(prem/(buyin*netFactor)) : null;
       out.push({
         date, key,
         nome:r.nome||'', hora:r.hora||'', late:r.late||'',
         tipo:r.tipo||'', cat,
-        garantido:gar, buyin, rakeEst,
-        premiacao:prem, overlay:ov, perf, field, fieldNet,
+        garantido:gar, buyin, netFactor,
+        premiacao:prem, overlay:ov, perf, field, acoes,
         id:idVal, idBy, fixBy, fixAt, premBy, premByAt, fixLeadMin, fixTiming, status,
       });
     });
@@ -2137,34 +2143,36 @@ async function exportAuditXlsx(){
       aoa.push([cc.label]);
       const chRow=aoa.length;
       aoa.push(COL_HEADERS);
-      let sg=0,sp=0,so=0,cnt=0;
+      let sg=0,sp=0,so=0,sa=0,cnt=0;
       g.rows.forEach(r=>{
         const drRow=aoa.length;
         const ov=r.overlay??'',perf=r.perf??'';
         aoa.push([r.nome,r.hora,r.late,catLabel(r.cat),
-          r.garantido??'',r.buyin??'',r.premiacao??'',ov,r.field??'',r.fieldNet??'',perf,
+          r.garantido??'',r.buyin??'',r.premiacao??'',ov,r.field??'',r.acoes??'',perf,
           r.fixBy||r.idBy||'',r.id,statusLabel(r.status)]);
-        cnt++;if(r.garantido)sg+=r.garantido;if(r.premiacao)sp+=r.premiacao;if(r.overlay)so+=r.overlay;
+        cnt++;if(r.garantido)sg+=r.garantido;if(r.premiacao)sp+=r.premiacao;if(r.overlay)so+=r.overlay;if(r.acoes)sa+=r.acoes;
         if(r.status==='nf')for(let c=0;c<14;c++)styleMap[XLSX.utils.encode_cell({r:drRow,c})]={font:{color:{rgb:'888888'},italic:true},fill:{fgColor:{rgb:'F5F5F5'}}};
         else if(r.overlay<0)styleMap[XLSX.utils.encode_cell({r:drRow,c:7})]={font:{bold:true,color:{rgb:'C62828'}}};
         if(r.perf!=null)styleMap[XLSX.utils.encode_cell({r:drRow,c:10})]={font:{bold:true,color:{rgb:r.perf>=0?'1B5E20':'C62828'}}};
       });
       const totRow=aoa.length;
-      aoa.push([`Total (${cnt})`,'','','',sg?'R$ '+brl(sg):'','',sp?'R$ '+brl(sp):'',so?'R$ '+brl(so):'—','','','','','','']);
+      aoa.push([`Total (${cnt})`,'','','',sg?'R$ '+brl(sg):'','',sp?'R$ '+brl(sp):'',so?'R$ '+brl(so):'—','',sa?brl(sa,0):'','','','','']);
       aoa.push([]);
       styleMap[XLSX.utils.encode_cell({r:ghRow,c:0})]={font:{bold:true,color:{rgb:'FFFFFF'},sz:12},fill:{fgColor:{rgb:cc.header}}};
       for(let c=0;c<COL_HEADERS.length;c++)styleMap[XLSX.utils.encode_cell({r:chRow,c})]={font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:cc.sub}},alignment:{horizontal:'center'}};
       styleMap[XLSX.utils.encode_cell({r:totRow,c:0})]={font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:cc.sub}}};
-      totalsByGroup[g.cat]={sg,sp,so,cnt};
+      totalsByGroup[g.cat]={sg,sp,so,sa,cnt};
     });
 
     const allG=groups.reduce((s,g)=>s+(totalsByGroup[g.cat]?.sg||0),0);
     const allP=groups.reduce((s,g)=>s+(totalsByGroup[g.cat]?.sp||0),0);
     const allO=groups.reduce((s,g)=>s+(totalsByGroup[g.cat]?.so||0),0);
+    const allA=groups.reduce((s,g)=>s+(totalsByGroup[g.cat]?.sa||0),0);
     const sumRow=aoa.length;
     aoa.push(['SUMÁRIO']);
     aoa.push(['Garantido total','R$ '+brl(allG)]);
     aoa.push(['Premiação total','R$ '+brl(allP)]);
+    aoa.push(['Ações totais',brl(allA,0)]);
     aoa.push(['Overlay total',allO<0?'R$ '+brl(allO)+' (déficit)':'Sem overlay']);
     aoa.push(['Performance geral',allG>0?((allP-allG)/allG*100).toFixed(1)+'%':'—']);
     styleMap[XLSX.utils.encode_cell({r:sumRow,c:0})]={font:{bold:true,color:{rgb:'FFFFFF'},sz:12},fill:{fgColor:{rgb:'1A472A'}}};
