@@ -95,17 +95,17 @@ SupremaShell.mountNav('#supNav', {
   <!-- UPLOAD — botão compacto, mesmo padrão do painel -->
   <section class="card upload-slim" id="uploadCard">
     <div class="up-row">
-      <button class="upload-btn" id="dropZone" title="Carregar Global MTT (.xlsx) — aba G MTTS (GU, dólar). Também aceita arrastar o arquivo aqui.">
-        <svg viewBox="0 0 24 24"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+      <!-- botão de subir GU removido: o auto-sync busca a planilha sozinho. O elemento
+           fica oculto (não removido) só pra não quebrar os listeners que o referenciam. -->
+      <button class="upload-btn" id="dropZone" hidden aria-hidden="true" style="display:none">
         <span id="dzTitle">Global MTT</span>
       </button>
-      <!-- SINCRONIZAR: puxa a Global direto do Google Sheets publicado (aba G MTTS)
-           e roda a MESMA extração do upload manual. Fora do clique, atualiza sozinho. -->
-      <button class="upload-btn sync-now" id="syncNowBtn" title="Buscar a Global agora direto do Google Sheets publicado (aba G MTTS) — mesma extração do upload manual.">
+      <!-- SINCRONIZAR: puxa a Global direto do Google Sheets publicado (aba G MTTS). Fora do clique, atualiza sozinho. -->
+      <button class="upload-btn sync-now" id="syncNowBtn" title="Atualizar agora direto da planilha da GU (aba G MTTS).">
         <svg class="sync-ico" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>
         <span>Sincronizar planilha</span>
       </button>
-      <span class="up-hint">Aba <b>G MTTS</b> (GU, dólar) · torneios de <b id="uploadDayLabel">amanhã</b> · janela 06:10 → 05:30 — puxa da planilha da GU sozinho; subir arquivo é o plano B.</span>
+      <span class="up-hint">Torneios de <b id="uploadDayLabel">amanhã</b> · janela 06:10 → 05:30 — a grade <b>atualiza sozinha</b> direto da planilha da GU.</span>
     </div>
     <input type="file" id="fileInput" accept=".xlsx,.xls" hidden>
     <span class="sync-meta" id="syncMeta" hidden></span>
@@ -125,13 +125,10 @@ SupremaShell.mountNav('#supNav', {
         <span class="ctrl-hint">A grade principal é sempre em R$ — o toggle muda só o modo foco e o export.</span>
       </div>
       <div class="ctrl-group" style="flex:1;min-width:280px">
-        <span class="ctrl-label">Equipe do turno — atribua a função de cada um</span>
+        <span class="ctrl-label">Equipe do turno — clique numa pessoa e depois nos torneios pra atribuir</span>
         <div class="ops-row" id="opsRow"></div>
         <p class="section-note" style="margin:4px 0 0">
-          <span class="lk"><span class="d" style="background:var(--main-bright)"></span>Main + Satélites</span>
-          <span class="lk"><span class="d" style="background:var(--side-bright)"></span>Side c/ Admin Fee</span>
-          <span class="lk"><span class="d" style="background:var(--sidefree-bright)"></span>Side s/ Admin Fee</span>
-          <span style="opacity:.8">Sem função marcada, todos dividem aquele bloco.</span>
+          <span style="opacity:.85">Selecione alguém na equipe (o chip fica destacado) e clique na célula <b>Operador</b> de cada torneio pra atribuir. Clicar de novo tira. Sem funções fixas — a divisão é livre.</span>
         </p>
       </div>
     </div>

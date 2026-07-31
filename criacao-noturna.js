@@ -424,7 +424,8 @@ let OPS = [];             // nomes da equipe
 let DONE = {};            // key -> {by, at}
 let IDS = {};             // key -> {val, by, at} — ID do evento no Pokerbyte
 let ROLES = {};           // roleKey(op) -> 'mainSat' | 'sideAdmin' | 'sideNoAdmin'
-let OVERRIDES = {};       // itemKey -> opName — reatribuições manuais (handoff) vencem a divisão
+let OVERRIDES = {};       // itemKey -> opName — atribuição manual (única fonte da divisão agora)
+let SELECTED_OP = null;   // pessoa selecionada p/ atribuir torneios no clique
 let MAP = {};             // fieldKey -> rótulo da coluna (mapeamento manual vence a auto-detecção)
 let AUDIT = {};           // itemKey -> {status:'erro', motivo, by, at} — marcado pelo Admin
 let SEARCH = '';
@@ -910,50 +911,23 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
 function itemKey(it){
   return `${normText(it.nome)}|${it.hora}`.replace(/[.#$\[\]\/]/g,'_');
 }
+/* DIVISÃO 100% MANUAL (por clique) — as funções fixas (Main+Sat / Side c-s Admin) e o
+   round-robin automático foram removidos a pedido. Cada torneio pertence a quem foi
+   atribuído no clique (OVERRIDES), desde que a pessoa siga na equipe. */
 function computeAssignments(){
-  const asg = {}; // key -> opName
-  if (!DATA || !OPS.length) return asg;
-
-  // round-robin simples de uma lista dentro de um pool de operadores
-  const roundRobin = (list, pool) => {
-    if (!pool.length) return;
-    let cursor = 0;
-    list.forEach(it => { asg[itemKey(it)] = pool[cursor++ % pool.length]; });
-  };
-
-  /* ── FUNÇÃO 1 · Main + Satélites — mesmo pool: quem cria o Main cria os
-     Satélites. Os Main Events vão em round-robin cronológico; cada GRUPO de
-     satélites (receita encadeada) vai inteiro pro operador do pool com menos
-     carga até ali, equilibrando dentro da própria função. ── */
-  const poolMS = opsForRole('mainSat');
-  const loadMS = Object.fromEntries(poolMS.map(o => [o,0]));
-  let msCursor = 0;
-  DATA.main.forEach(it => {
-    const op = poolMS[msCursor++ % poolMS.length];
-    asg[itemKey(it)] = op; loadMS[op]++;
-  });
-  const order = [], groups = {};
-  DATA.sat.forEach(it => {
-    const k = it.groupHeader || it.nome;
-    if (!groups[k]){ groups[k] = []; order.push(k); }
-    groups[k].push(it);
-  });
-  order.forEach(k => {
-    const op = poolMS.reduce((best,o) => loadMS[o] < loadMS[best] ? o : best, poolMS[0]);
-    groups[k].forEach(it => asg[itemKey(it)] = op);
-    loadMS[op] += groups[k].length;
-  });
-
-  /* ── FUNÇÕES 2 e 3 · Side com / sem Admin Fee — pools próprios, cada bloco
-     dividido igualmente entre quem está naquela função. ── */
-  const {admin, noadmin} = sideSplit();
-  roundRobin(admin,   opsForRole('sideAdmin'));
-  roundRobin(noadmin, opsForRole('sideNoAdmin'));
-
-  /* reatribuições manuais (handoff de turno) vencem a divisão automática,
-     desde que o destino ainda esteja na equipe */
+  const asg = {};
+  if (!DATA) return asg;
   Object.keys(OVERRIDES).forEach(k => { if (OPS.includes(OVERRIDES[k])) asg[k] = OVERRIDES[k]; });
   return asg;
+}
+/* atribui/tira um torneio do operador SELECIONADO (clique na célula) e persiste. */
+function setAssign(key){
+  if (!SELECTED_OP){ showToast('Selecione uma pessoa na equipe primeiro — depois clique nos torneios.', true); return; }
+  if (OVERRIDES[key] === SELECTED_OP) delete OVERRIDES[key];   // clicar de novo tira
+  else OVERRIDES[key] = SELECTED_OP;
+  if (fbDb) fbDb.ref(`${FB_PATH}/overrides`).set(OVERRIDES);   // o listener re-renderiza
+  else renderAll();
+  logEvent('atribuição', `${key} → ${OVERRIDES[key] || '(livre)'}`);
 }
 
 /* =========================================================================
@@ -1040,7 +1014,7 @@ async function loadWeekDay(iso){
   const host = () => document.getElementById('wkDetail');
   // dia ativo: usa os globais ao vivo (reflete quem está preenchendo ID agora)
   if (iso === TOMORROW_ISO && DATA){
-    renderWeekDetail(iso, { sections:{main:DATA.main||[], side:DATA.side||[], sat:DATA.sat||[], unknown:DATA.unknown||[]}, ids:IDS||{}, done:DONE||{}, by:DATA.by });
+    renderWeekDetail(iso, { sections:{main:DATA.main||[], side:DATA.side||[], sat:DATA.sat||[], unknown:DATA.unknown||[]}, fields:DATA.fields, ids:IDS||{}, done:DONE||{}, by:DATA.by });
     return;
   }
   if (_weekCache[iso]){ renderWeekDetail(iso, _weekCache[iso]); return; }
@@ -1053,13 +1027,32 @@ async function loadWeekDay(iso){
       fbDb.ref(`${base}/done`).once('value')
     ]);
     const sv = sSnap.val();
-    let sections = null;
-    if (sv && sv.json){ try{ const j = JSON.parse(sv.json); sections = {main:j.main||[], side:j.side||[], sat:j.sat||[], unknown:j.unknown||[]}; }catch(e){} }
-    const data = _weekCache[iso] = { sections, ids: iSnap.val() || {}, done: dSnap.val() || {}, by: sv ? sv.by : null };
+    let sections = null, fields = null;
+    if (sv && sv.json){ try{ const j = JSON.parse(sv.json); sections = {main:j.main||[], side:j.side||[], sat:j.sat||[], unknown:j.unknown||[]}; fields = j.fields || null; }catch(e){} }
+    const data = _weekCache[iso] = { sections, fields, ids: iSnap.val() || {}, done: dSnap.val() || {}, by: sv ? sv.by : null };
     if (iso === _weekSel) renderWeekDetail(iso, data);   // só pinta se o usuário ainda está neste dia
   }catch(e){
     if (host()) host().innerHTML = `<div class="wk-empty">Erro ao carregar o histórico: ${escHtml(e.message || e)}</div>`;
   }
+}
+
+/* receita em PLANILHA (transposta): um torneio, campos nas linhas — pro clique na aba
+   Semana. Difere do specSheetHtml (cards): aqui é tabela, no formato da operação. */
+function recipeSheetHtml(it, fields){
+  if (!it) return '';
+  const rowsFromFields = ((fields && fields.length) ? fields : Object.keys(it.extra || {}))
+    .filter(l => typeof isCoreLabel === 'function' ? !isCoreLabel(l) : true)
+    .map(l => {
+      const v = it.extra ? it.extra[l] : undefined;
+      const has = v !== undefined && v !== null && v !== '';
+      return `<tr><th>${escHtml(l)}</th><td>${has ? escHtml(fmtExtraVal(l, v)) : '<span class="rs-dash">—</span>'}</td></tr>`;
+    }).join('');
+  return `<table class="rs-table">
+    <tr><th>Horário</th><td>${escHtml(it.hora || '—')}</td></tr>
+    <tr><th>Buy-in</th><td>${fmtMoney(it.buyin)}</td></tr>
+    <tr><th>Prize Pool</th><td>${fmtMoney(it.garantido)}</td></tr>
+    ${rowsFromFields}
+  </table>`;
 }
 
 function renderWeekDetail(iso, data){
@@ -1075,8 +1068,9 @@ function renderWeekDetail(iso, data){
     ...data.sections.sat.map(x => ({...x, cat:'sat'}))
   ].sort((a,b) => (timeToMinutes(a.hora) ?? 9999) - (timeToMinutes(b.hora) ?? 9999));
   const withId = items.filter(it => { const r = data.ids[itemKey(it)]; return r && r.val; }).length;
-  // guarda os itens do dia pra montar a RECEITA sob demanda no clique (specSheetHtml)
+  // guarda os itens + campos do dia pra montar a RECEITA (planilha) sob demanda no clique
   const wi = window._weekItems = {};
+  window._weekFields = data.fields || null;
   const rows = items.map(it => {
     const k = itemKey(it);
     wi[k] = it;
@@ -1109,7 +1103,7 @@ function renderWeekDetail(iso, data){
       if (rec.hidden){
         if (!rec.dataset.built){
           const it = window._weekItems[row.dataset.wkkey];
-          rec.innerHTML = (it && typeof specSheetHtml === 'function' ? specSheetHtml(it) : '') || '<div class="wk-norecipe">Sem detalhes de receita para este torneio.</div>';
+          rec.innerHTML = (it && typeof recipeSheetHtml === 'function' ? recipeSheetHtml(it, window._weekFields) : '') || '<div class="wk-norecipe">Sem detalhes de receita para este torneio.</div>';
           rec.dataset.built = '1';
         }
         rec.hidden = false; row.classList.add('open');
@@ -1361,17 +1355,18 @@ function renderFieldDiag(){
 function renderOps(){
   const row = $('opsRow');
   if (!row) return;
+  const asg = computeAssignments();
+  const cnt = {}; OPS.forEach(o => cnt[o] = 0); Object.values(asg).forEach(o => { if (o in cnt) cnt[o]++; });
   let html = OPS.map(o => {
-    const r = roleOf(o);
-    const opts = `<option value="">Função…</option>` + ROLE_OPTS.map(ro =>
-      `<option value="${ro.key}" ${r === ro.key ? 'selected' : ''}>${ro.label}</option>`).join('');
+    const sel = SELECTED_OP && normText(SELECTED_OP) === normText(o);
     return `
-    <span class="op-chip" ${r ? `data-role="${r}"` : ''}>
+    <button class="op-chip${sel ? ' sel' : ''}" data-selop="${escHtml(o)}" style="--opc:${opColor(o)}"
+      title="${sel ? `Selecionado — clique nos torneios pra atribuir a ${escHtml(o)} (clique aqui de novo pra soltar)` : `Selecionar ${escHtml(o)} e atribuir torneios no clique`}">
       <span class="avatar" style="background:${opColor(o)}">${escHtml(o.trim()[0].toUpperCase())}</span>
       ${escHtml(o)}
-      <select class="role-sel" data-op="${escHtml(o)}" title="Função de ${escHtml(o)} no turno">${opts}</select>
-      <button class="rm" data-op="${escHtml(o)}" title="Remover do turno">×</button>
-    </span>`;
+      <span class="op-cnt" title="torneios atribuídos">${cnt[o] || 0}</span>
+      <span class="rm" data-op="${escHtml(o)}" title="Remover do turno" role="button" aria-label="Remover ${escHtml(o)}">×</span>
+    </button>`;
   }).join('');
   html += `
     <span class="op-add">
@@ -1382,8 +1377,12 @@ function renderOps(){
     html += `<button class="fchip" id="opAddMe">+ Me incluir (${escHtml(ME.split(' ')[0])})</button>`;
   }
   row.innerHTML = html;
-  row.querySelectorAll('.rm').forEach(b => b.addEventListener('click', () => saveOps(OPS.filter(o => o !== b.dataset.op))));
-  row.querySelectorAll('.role-sel').forEach(sel => sel.addEventListener('change', () => setRole(sel.dataset.op, sel.value)));
+  row.querySelectorAll('.rm').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); saveOps(OPS.filter(o => o !== b.dataset.op)); }));
+  row.querySelectorAll('[data-selop]').forEach(b => b.addEventListener('click', () => {
+    const o = b.dataset.selop;
+    SELECTED_OP = (SELECTED_OP && normText(SELECTED_OP) === normText(o)) ? null : o;   // clicar de novo solta
+    renderAll();
+  }));
   const addOp = () => {
     const v = $('opAddInput').value.trim();
     if (!v) return;
@@ -1779,9 +1778,12 @@ function visibleItems(list, asg){
   return out;
 }
 
-function opTagHtml(op){
-  if (!op) return `<span class="op-tag none">sem equipe</span>`;
-  return `<span class="op-tag" style="background:${opColor(op)}"><span class="dot">${escHtml(op.trim()[0].toUpperCase())}</span>${escHtml(op.split(' ')[0])}</span>`;
+function opTagHtml(op, key){
+  const inner = op
+    ? `<span class="op-tag" style="background:${opColor(op)}"><span class="dot">${escHtml(op.trim()[0].toUpperCase())}</span>${escHtml(op.split(' ')[0])}</span>`
+    : `<span class="op-tag none">${SELECTED_OP ? 'clique p/ atribuir' : 'sem dono'}</span>`;
+  if (!key) return inner;   // usos read-only (ex.: TV) passam sem key
+  return `<button class="op-assign${SELECTED_OP ? ' armed' : ''}" data-assign="${escHtml(key)}" title="${SELECTED_OP ? 'Atribuir a '+escHtml(SELECTED_OP)+' (clique de novo tira)' : 'Selecione uma pessoa na equipe pra atribuir'}">${inner}</button>`;
 }
 
 /* nota abaixo do cabeçalho da seção: explica a função e quem está nela */
@@ -1817,16 +1819,13 @@ function renderList(){
   const asg = computeAssignments();
   let html = '';
 
-  // #1 SOMA DO PRIZE POOL USD (coluna PRIZE POOL USD da Global) — total do dia da grade,
-  // independente do filtro. Mostra em dólar (a coluna é em USD) e o equivalente em R$ (×5).
-  const prizeUsd = ['main','side','sat'].reduce((s,k) =>
-    s + (DATA[k] || []).reduce((a,it) => a + (typeof it.garantido === 'number' ? it.garantido : 0), 0), 0);
+  // #2 soma do PRIZE POOL USD POR SEÇÃO — mostrada em cada cabeçalho (chip .gtd-total).
   const _nf = n => n.toLocaleString('pt-BR', {maximumFractionDigits:0});
-  html += `<div class="prize-sum" title="Soma da coluna PRIZE POOL USD de todos os torneios do dia">
-    <span class="ps-k">Σ Prize Pool</span>
-    <span class="ps-usd">$ ${_nf(prizeUsd)}</span>
-    <span class="ps-brl">R$ ${_nf(prizeUsd * BRL_RATE)}</span>
-  </div>`;
+  const prizeChip = (list, brl) => {
+    const usd = list.reduce((a,it) => a + (typeof it.garantido === 'number' ? it.garantido : 0), 0);
+    if (brl) return `<span class="gtd-total" title="Soma do garantido desta seção (R$)">Σ R$ ${_nf(usd * BRL_RATE)}</span>`;
+    return `<span class="gtd-total" title="Soma do PRIZE POOL USD desta seção · R$ ${_nf(usd * BRL_RATE)}">Σ $ ${_nf(usd)}</span>`;
+  };
 
   // A GRADE PRINCIPAL é SEMPRE em R$ — não responde ao toggle de moeda (esse vale só pro modo
   // foco/detalhe e pro export). Como só os formatadores (fmtMoney*/calcValueParts) leem CURRENCY
@@ -1843,6 +1842,7 @@ function renderList(){
       <div class="section-head ${cat.cls}">
         <span class="tag"><span class="suit">${cat.suit}</span>${cat.label}</span>
         <span class="cnt">${doneCount}/${items.length} criados</span>
+        ${prizeChip(items, false)}
         <span class="line"></span>
       </div>
       ${sectionNoteHtml(cat)}`;
@@ -1872,6 +1872,7 @@ function renderList(){
           <div class="section-head liga">
             <span class="tag"><span class="suit">🏆</span>Liga Principal · R$</span>
             <span class="cnt">${pdone}/${pit.length} criados</span>
+            ${prizeChip(pit, true)}
             <span class="line"></span>
           </div>
           <p class="section-note" style="margin:4px 0 0">Grade fixa dos <b>Eventos Principais</b> — valores já em <b>R$</b> (o botão de moeda não afeta).</p>
@@ -1906,6 +1907,7 @@ function renderList(){
   document.documentElement.scrollTop = _winY;
 
   area.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
+  area.querySelectorAll('[data-assign]').forEach(el => el.addEventListener('click', () => setAssign(el.dataset.assign)));
   area.querySelectorAll('[data-focus]').forEach(el => {
     el.addEventListener('click', () => openFocusAt(el.dataset.focus));
     /* teclado: o nome é role="button" — Enter/Espaço abrem o modo foco */
@@ -1992,7 +1994,7 @@ function renderVertical(items, cat, asg, fieldList){
             return `<span class="mono" style="${keyLabels.has(label) ? 'font-weight:700' : ''}">${escHtml(disp)}</span>`;
           })}</tr>`).join('')
         : `<tr><th class="rowlab">Late reg</th>${cell(c => `<span class="mono" style="color:var(--ink-soft)">${c.it.late ? escHtml(c.it.late) : '—'}</span>`)}</tr>`}
-      <tr><th class="rowlab">Operador</th>${cell(c => opTagHtml(c.op))}</tr>
+      <tr><th class="rowlab">Operador</th>${cell(c => opTagHtml(c.op, c.key))}</tr>
       <tr><th class="rowlab">ID Pokerbyte</th>${cell(c => idInputHtml(c.key, 'width:110px'))}</tr>
       <tr><th class="rowlab">Criado</th>${cell(c => `
         <button class="chk ${c.done ? 'on' : ''}" data-done="${c.key}" role="checkbox" aria-checked="${c.done ? 'true' : 'false'}"
