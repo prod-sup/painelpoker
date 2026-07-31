@@ -3120,9 +3120,16 @@ function sheetsDayComplete(){
 }
 function maybeAutoBackupSheets(){
   try{
-    if(!SHEETS_CFG || !SHEETS_CFG.url) return;          // backup não configurado
     if(typeof SupremaSheets === 'undefined') return;
     if(!sheetsDayComplete()) return;                    // só depois do ÚLTIMO preenchido
+    if(!SHEETS_CFG || !SHEETS_CFG.url){                 // dia fechou mas o backup não está configurado
+      if(!window.__sheetsWarned){
+        window.__sheetsWarned = true;
+        console.warn('[backup Sheets] O dia está completo, mas o backup automático NÃO está configurado. ' +
+          'Verifique: (1) as regras do RTDB com o nó "config" foram publicadas; (2) no Admin → Backup, cole a URL e clique "Enviar hoje" UMA vez (é isso que grava a config compartilhada em config/sheetsBackup).');
+      }
+      return;
+    }
     const rows = sheetsRowsNow();
     const sig  = SupremaSheets.signature(rows);
     if(sig === _sheetsLastSig) return;                  // nada mudou desde o último envio
@@ -3130,8 +3137,12 @@ function maybeAutoBackupSheets(){
     _sheetsTimer = setTimeout(() => {
       _sheetsLastSig = sig;
       const dateIso = (FB_BASE_PATH || '').split('/').pop();   // YYYY-MM-DD do dia da grade
+      console.info('[backup Sheets] Dia completo — enviando backup automático (' + rows.length + ' torneios)…');
       SupremaSheets.send({url:SHEETS_CFG.url, secret:SHEETS_CFG.secret||''}, dateIso, SupremaSheets.buildGrid(rows))
-        .then(out => { if(out && out.ok){ try{ localStorage.setItem('suprema_last_sheets', Date.now()); }catch(_){} } });
+        .then(out => {
+          if(out && out.ok){ try{ localStorage.setItem('suprema_last_sheets', Date.now()); }catch(_){} console.info('[backup Sheets] enviado ✓'); }
+          else console.warn('[backup Sheets] falhou:', out && out.error || 'sem resposta');
+        });
     }, 3500);   // deixa a rajada de listeners do Firebase assentar antes de mandar
   }catch(_){}
 }

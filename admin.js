@@ -965,18 +965,18 @@ async function loadAudit(){
             style="accent-color:var(--gold);width:14px;height:14px"
             data-act="updateBatchActions" data-act-on="change"></td>
           <td class="nm" style="max-width:200px">${esc(r.nome)}${cnErrHtml}${anomaliaHtml}</td>
-          <td class="mono">${esc(r.hora)}</td>
-          <td class="mono">${esc(r.late)}</td>
-          <td class="r mono">${r.garantido!=null?'R$ '+brl(r.garantido):'—'}</td>
-          <td class="r mono">${r.buyin!=null?'R$ '+brl(r.buyin):'—'}</td>
-          <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.premiacaoOriginal!==r.premiacao?'c-gold':''}">${r.premiacao!=null?'R$ '+brl(r.premiacao,2):'—'}</td>
-          <td class="r mono ov-val">${r.overlay!=null?'R$ '+brl(r.overlay,2):'—'}</td>
-          <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.fieldOriginal!==r.field?'c-gold':''}">${r.field!=null?r.field:'—'}</td>
-          <td class="r mono">${r.perf!=null?`<span class="perf ${r.perf>=0?'pos':'neg'}">${pct(r.perf,2)}</span>`:'—'}</td>
-          <td class="c-ink2">${esc(r.fixBy||r.idBy||'—')}</td>
-          <td class="mono c-ink2">${esc(r.id)}</td>
-          <td>${statusBadge(r.status)}</td>
-          <td style="display:flex;gap:5px;align-items:center">
+          <td class="mono" data-label="Hora">${esc(r.hora)}</td>
+          <td class="mono" data-label="Late">${esc(r.late)}</td>
+          <td class="r mono" data-label="GTD">${r.garantido!=null?'R$ '+brl(r.garantido):'—'}</td>
+          <td class="r mono" data-label="Buy-in">${r.buyin!=null?'R$ '+brl(r.buyin):'—'}</td>
+          <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.premiacaoOriginal!==r.premiacao?'c-gold':''}" data-label="Premiação">${r.premiacao!=null?'R$ '+brl(r.premiacao,2):'—'}</td>
+          <td class="r mono ov-val" data-label="Overlay">${r.overlay!=null?'R$ '+brl(r.overlay,2):'—'}</td>
+          <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.fieldOriginal!==r.field?'c-gold':''}" data-label="Field">${r.field!=null?r.field:'—'}</td>
+          <td class="r mono" data-label="Perf.">${r.perf!=null?`<span class="perf ${r.perf>=0?'pos':'neg'}">${pct(r.perf,2)}</span>`:'—'}</td>
+          <td class="c-ink2" data-label="Operador">${esc(r.fixBy||r.idBy||'—')}</td>
+          <td class="mono c-ink2" data-label="ID">${esc(r.id)}</td>
+          <td data-label="Status">${statusBadge(r.status)}</td>
+          <td class="audit-actions-cell" style="display:flex;gap:5px;align-items:center">
             <button class="audit-edit-btn ${r._audited?'auditado':''}"
               data-key="${r.key}" data-date="${r.date}"
               data-act="openAuditEditByEl" data-act-self>
@@ -2466,6 +2466,21 @@ async function initBackup(){
   if(urlField && !urlField.value) urlField.value = localStorage.getItem('suprema_sheets_url') || '';
   const secretField = document.getElementById('sheetsSecret');
   if(secretField && !secretField.value) secretField.value = localStorage.getItem('suprema_sheets_secret') || '';
+  // Re-sincroniza a config COMPARTILHADA (config/sheetsBackup) ao abrir a página, se
+  // já houver URL salva. Assim o auto-backup do PAINEL passa a funcionar mesmo que o
+  // admin não clique "Enviar hoje" de novo (ex.: depois de publicar as regras). Só
+  // grava quando falta ou mudou, pra não escrever à toa.
+  try{
+    const savedUrl = (localStorage.getItem('suprema_sheets_url') || '').trim();
+    if(fbOk && savedUrl){
+      const savedSecret = (localStorage.getItem('suprema_sheets_secret') || '').trim();
+      const snap = await db.ref('config/sheetsBackup').once('value').catch(() => null);
+      const cur = snap && snap.val();
+      if(!cur || cur.url !== savedUrl || (cur.secret||'') !== savedSecret){
+        db.ref('config/sheetsBackup').set({url:savedUrl, secret:savedSecret, by:_name||'', at:Date.now()}).catch(()=>{});
+      }
+    }
+  }catch(_){}
   await loadAll(true);   // backup exporta o histórico COMPLETO, não a janela de 60 dias
   const dates = Object.keys(_allData).sort();
   if(!dates.length){ document.getElementById('backupKpi').innerHTML='<div style="color:var(--ink3);font-size:12px">Nenhum dado encontrado.</div>'; return; }
