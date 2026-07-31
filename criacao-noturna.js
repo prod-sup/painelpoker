@@ -976,9 +976,84 @@ function fmtMoneyPlain(vUsd){
   return (CURRENCY === 'usd' ? '$ ' : 'R$ ') + v.toLocaleString('pt-BR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2});
 }
 
+/* =========================================================================
+   VISÃO DA SEMANA (read-only) — os 7 dias da planilha a partir do dia ativo.
+   Derivada da última matriz sincronizada (window._cnMatrix), não toca na
+   operação da noite (divisão/done/ids/TV): é só pra enxergar o que vem.
+========================================================================= */
+window.VIEW = 'day';
+function setView(v){
+  window.VIEW = v;
+  const seg = $('viewSeg');
+  if (seg) seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
+  const week = v === 'week';
+  const wa = $('weekArea'); if (wa) wa.hidden = !week;   // null-safe: sobrevive se o HTML da semana faltar
+  $('listArea').hidden = week;
+  // some com os controles/ações da operação na visão da semana (ela é só leitura)
+  $('controlsCard').hidden = week || !DATA;
+  $('actionsBar').hidden = week || !DATA;
+  const hint = $('viewHint');
+  if (hint) hint.textContent = week
+    ? 'Só leitura — o dia inteiro de cada data, direto da planilha. A marcação/divisão continua na aba Noite.'
+    : `Janela 06:10 → 05:30 · divisão e marcação da madrugada de ${WEEKDAY_TOMORROW.toLowerCase()}.`;
+  if (week) renderWeek();
+}
+
+function renderWeek(){
+  const area = $('weekArea');
+  if (!area) return;
+  if (!window._cnMatrix || !window._cnHeaderCols){
+    area.innerHTML = `<div class="empty-state"><span class="moon">📅</span>Buscando a planilha pra montar a semana…</div>`;
+    if (typeof syncFromSheets === 'function') syncFromSheets({});   // puxa e re-renderiza quando chegar (ver processGlobalBuffer)
+    return;
+  }
+  const startDow = TURNO.refTomorrow.getUTCDay();
+  const cols = [];
+  for (let i = 0; i < 7; i++){
+    const dow = (startDow + i) % 7;
+    const en = WEEKDAYS_EN[dow], pt = WEEKDAYS_PT[dow];
+    const ref = new Date(TURNO.refTomorrow.getTime() + i * 86400000);
+    const sec = extractGuDaySection(window._cnMatrix, en, window._cnHeaderCols);
+    const nM = sec ? sec.main.length : 0, nS = sec ? sec.side.length : 0, nT = sec ? sec.sat.length : 0;
+    const items = sec ? [
+      ...sec.main.map(x => ({...x, cat:'main'})),
+      ...sec.side.map(x => ({...x, cat:'side'})),
+      ...sec.sat.map(x => ({...x, cat:'sat'}))
+    ].sort((a,b) => (timeToMinutes(a.hora) ?? 9999) - (timeToMinutes(b.hora) ?? 9999)) : [];
+    const rows = items.length ? items.map(it => `
+      <div class="wk-item wk-${it.cat}">
+        <span class="wk-time">${escHtml(it.hora || '—')}</span>
+        <span class="wk-name" title="${escHtml(it.nome)}">${escHtml(it.nome)}</span>
+        <span class="wk-prize">${fmtMoney(it.garantido)}</span>
+      </div>`).join('')
+      : `<div class="wk-empty">${sec ? 'Sem torneios neste dia.' : 'Dia não encontrado na planilha.'}</div>`;
+    cols.push(`
+      <div class="wk-col${i === 0 ? ' active' : ''}">
+        <div class="wk-head">
+          <div class="wk-day">${escHtml(pt.split('-')[0])}${i === 0 ? ' <span class="wk-tag">criando</span>' : ''}</div>
+          <div class="wk-date">${refToLabel(ref)}</div>
+          <div class="wk-counts" title="Main · Side · Satélite">
+            <span class="c-main">${nM}</span> <span class="c-side">${nS}</span> <span class="c-sat">${nT}</span>
+          </div>
+        </div>
+        <div class="wk-list">${rows}</div>
+      </div>`);
+  }
+  area.innerHTML = `<div class="wk-grid">${cols.join('')}</div>`;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const seg = $('viewSeg');
+  if (seg) seg.addEventListener('click', e => {
+    const b = e.target.closest('button[data-view]');
+    if (b) setView(b.dataset.view);
+  });
+});
+
 function onDataReady(fromRemote){
   $('controlsCard').hidden = false;
   $('actionsBar').hidden = false;
+  const vs = $('viewSwitch'); if (vs) vs.hidden = false;   // null-safe: não trava o render se o seletor faltar
   const meta = $('uploadMeta');
   meta.hidden = false;
   const when = DATA.at ? new Date(DATA.at).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', timeZone:'America/Sao_Paulo'}) : '';
@@ -987,6 +1062,7 @@ function onDataReady(fromRemote){
     <span class="pill">por ${escHtml(DATA.by || '—')}${when ? ' às ' + when : ''}</span>
     <span class="pill gold">${WEEKDAY_TOMORROW.toLowerCase()} · janela 06:10 → 05:30</span>`;
   renderAll();
+  setView(window.VIEW);   // mantém a visão atual (dia/semana) coerente quando a grade chega/atualiza
 }
 
 function renderAllNow(){
@@ -2410,6 +2486,7 @@ $('currencySeg').querySelectorAll('button').forEach(b => b.addEventListener('cli
   localStorage.setItem('cn_currency', CURRENCY);
   $('currencySeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
   renderList();
+  if (window.VIEW === 'week') renderWeek();   // a visão da semana também segue a moeda
 }));
 (function restoreSegs(){
   $('currencySeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.cur === CURRENCY));

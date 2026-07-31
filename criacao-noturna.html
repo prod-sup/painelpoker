@@ -153,6 +153,18 @@ SupremaShell.mountNav('#supNav', {
     <div id="fieldDiag" class="section-note" style="margin:16px 0 0" hidden></div>
   </section>
 
+  <!-- SELETOR DE VISÃO: operação da noite (janela 06:10→05:30) x semana à frente (read-only) -->
+  <div class="view-switch" id="viewSwitch" hidden>
+    <div class="seg" id="viewSeg">
+      <button data-view="day" class="on">🌙 Noite (operação)</button>
+      <button data-view="week">📅 Semana (visão)</button>
+    </div>
+    <span class="view-hint" id="viewHint"></span>
+  </div>
+
+  <!-- SEMANA — visão read-only dos 7 dias da planilha, derivada localmente -->
+  <section id="weekArea" hidden></section>
+
   <!-- LISTA -->
   <section id="listArea">
     <div class="empty-state" id="emptyState">
