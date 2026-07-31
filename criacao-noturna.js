@@ -1817,6 +1817,17 @@ function renderList(){
   const asg = computeAssignments();
   let html = '';
 
+  // #1 SOMA DO PRIZE POOL USD (coluna PRIZE POOL USD da Global) — total do dia da grade,
+  // independente do filtro. Mostra em dólar (a coluna é em USD) e o equivalente em R$ (×5).
+  const prizeUsd = ['main','side','sat'].reduce((s,k) =>
+    s + (DATA[k] || []).reduce((a,it) => a + (typeof it.garantido === 'number' ? it.garantido : 0), 0), 0);
+  const _nf = n => n.toLocaleString('pt-BR', {maximumFractionDigits:0});
+  html += `<div class="prize-sum" title="Soma da coluna PRIZE POOL USD de todos os torneios do dia">
+    <span class="ps-k">Σ Prize Pool</span>
+    <span class="ps-usd">$ ${_nf(prizeUsd)}</span>
+    <span class="ps-brl">R$ ${_nf(prizeUsd * BRL_RATE)}</span>
+  </div>`;
+
   // A GRADE PRINCIPAL é SEMPRE em R$ — não responde ao toggle de moeda (esse vale só pro modo
   // foco/detalhe e pro export). Como só os formatadores (fmtMoney*/calcValueParts) leem CURRENCY
   // e este build é 100% síncrono, forço 'brl' aqui e restauro logo abaixo — sem tocar no toggle
@@ -1837,6 +1848,37 @@ function renderList(){
       ${sectionNoteHtml(cat)}`;
     html += `<div class="secwrap" data-suit="${cat.suit}">${renderVertical(items, cat, asg)}</div>`;
   });
+
+  // #2 LIGA PRINCIPAL — grade fixa dos Eventos Principais do dia (BRL). Mesma lógica do
+  // painel do dia: reconstruída do dado local; o preenchimento (ID/criado) persiste pelas
+  // MESMAS chaves (itemKey). A grade já é forçada em R$; como a Liga JÁ está em reais e o
+  // renderVertical converte USD→BRL (×BRL_RATE), passo os valores monetários ÷ BRL_RATE pra
+  // o × devolver o BRL certo (os campos da receita usam o `extra` original, sem conversão).
+  // NÃO entra na divisão por operador (evento fixo) — asg vazio.
+  if (typeof LIGA_PRINCIPAL_SECTIONS !== 'undefined' && FILTER === 'all'){
+    const lp = LIGA_PRINCIPAL_SECTIONS[WEEKDAY_TOMORROW_EN];
+    if (lp){
+      const toUsdEq = it => ({...it,
+        garantido: typeof it.garantido === 'number' ? it.garantido / BRL_RATE : it.garantido,
+        buyin: typeof it.buyin === 'number' ? it.buyin / BRL_RATE : it.buyin });
+      let pit = [...(lp.main||[]), ...(lp.side||[]), ...(lp.sat||[])].map(toUsdEq);
+      if (SEARCH){ const q = normText(SEARCH); pit = pit.filter(it => normText(it.nome).includes(q) || String(it.hora||'').includes(SEARCH)); }
+      pit.sort((a,b) => (timeToMinutes(a.hora) ?? 9999) - (timeToMinutes(b.hora) ?? 9999));
+      if (pit.length){
+        const pcat = { key:'liga', cls:'liga', suit:'🏆', label:'Liga Principal · R$' };
+        const ligaFields = (typeof LIGA_PRINCIPAL_FIELDS !== 'undefined' ? LIGA_PRINCIPAL_FIELDS : []).filter(l => !isCoreLabel(l));
+        const pdone = pit.filter(it => DONE[itemKey(it)]).length;
+        html += `
+          <div class="section-head liga">
+            <span class="tag"><span class="suit">🏆</span>Liga Principal · R$</span>
+            <span class="cnt">${pdone}/${pit.length} criados</span>
+            <span class="line"></span>
+          </div>
+          <p class="section-note" style="margin:4px 0 0">Grade fixa dos <b>Eventos Principais</b> — valores já em <b>R$</b> (o botão de moeda não afeta).</p>
+          <div class="secwrap liga-sec" data-suit="🏆">${renderVertical(pit, pcat, {}, ligaFields)}</div>`;
+      }
+    }
+  }
 
   if (DATA.unknown && DATA.unknown.length && FILTER === 'all'){
     html += `
@@ -1893,7 +1935,7 @@ function renderList(){
 
 /* vertical (única visão): planilha transposta — campos nas linhas, torneios nas
    colunas, na ordem em que se digita no app. Campos-chave com rótulo destacado. */
-function renderVertical(items, cat, asg){
+function renderVertical(items, cat, asg, fieldList){
   const cols = items.map(it => {
     const key = itemKey(it);
     return {it, key, done: !!DONE[key], op: asg[key]};
@@ -1911,7 +1953,7 @@ function renderVertical(items, cat, asg){
   // FEE, ADMIN FEE e EARLY BIRD crus saem da receita: já estão consolidados nas linhas de cima
   const feeCols = new Set();
   cols.forEach(c => [feeInfo, adminInfo, earlyInfo].forEach(g => { const i = g(c.it); if (i && i.label) feeCols.add(i.label); }));
-  const rows = visibleRecipeFields().filter(l => !feeCols.has(l));
+  const rows = (fieldList || visibleRecipeFields()).filter(l => !feeCols.has(l));
   return `
     <div class="vwrap"><table class="vtable">
       <tr class="trow-head"><th class="rowlab">Torneio</th>${cell(c => {

@@ -1472,6 +1472,16 @@ body > *{position:relative;z-index:1}
 /* mobile: trava o scroll horizontal acidental (a tabela da GU rola no próprio wrapper) */
 html,body{overflow-x:hidden;max-width:100%}
 
+/* Σ Prize Pool USD — soma no topo da grade */
+.prize-sum{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  margin:0 0 16px;padding:12px 18px;border-radius:14px;
+  background:var(--felt-soft, var(--card-elevated));border:1px solid var(--hairline);
+}
+.prize-sum .ps-k{font-size:12px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:var(--ink-soft)}
+.prize-sum .ps-usd{font-size:22px;font-weight:800;color:var(--felt-bright);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.prize-sum .ps-brl{font-size:14px;font-weight:700;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+
 /* ═══ VISÃO DA SEMANA (Parte 2) — selecionar o dia → histórico de IDs do Pokerbyte ═══ */
 .view-switch{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:4px 0 14px}
 .view-hint{font-size:12px;color:var(--ink-soft);line-height:1.4}
