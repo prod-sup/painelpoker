@@ -980,7 +980,7 @@ tr.cn-erro{ background:rgba(239,68,68,.06) !important; }
 .op-tag.adm{background:var(--goldf);color:var(--gold)}
 .op-tag.sus{background:var(--redf);color:var(--red)}
 .op-card-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex:none}
-.op-kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
+.op-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:7px}
 .op-kpi{background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:8px 9px;display:flex;flex-direction:column;gap:3px}
 .op-kpi .v{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:18px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
 .op-kpi .l{font-size:10px;color:var(--ink3);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

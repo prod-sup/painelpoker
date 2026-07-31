@@ -1511,13 +1511,14 @@ function opCardHtml(u, stats){
   const search=`${name} ${email} ${u.nome||''}`.toLowerCase();
   const tags=`${u.admin?'<span class="op-tag adm">Admin</span>':''}${suspenso?'<span class="op-tag sus">Suspenso</span>':''}`;
   const st=(stats&&stats[name])||{};
-  const perf=st.perf, erros=st.erros||0, overlay=st.overlay||0, trab=st.trabalhados||0, idRate=st.idRate;
+  const perf=st.perf, notifs=st.notifs||0, cnErros=st.cnErros||0, overlay=st.overlay||0, trab=st.trabalhados||0;
   const perfCls=perf==null?'':(perf<0?'bad':'good');
   const perfTxt=perf==null?'—':`${perf>0?'+':''}${Math.round(perf)}%`;
   const kpis=`<div class="op-kpis">
     <div class="op-kpi"><div class="v">${trab}</div><div class="l">Trabalhados 30d</div></div>
     <div class="op-kpi ${perfCls}" title="Premiação vs garantido (mesma fórmula do ranking)"><div class="v">${perfTxt}</div><div class="l">Performance</div></div>
-    <div class="op-kpi${erros>0?' bad':''}" title="Notificações do admin + erros de criação (GU)"><div class="v">${erros}</div><div class="l">Erros</div></div>
+    <div class="op-kpi${notifs>0?' warn':''}" title="Quantas vezes o admin notificou este operador (30 dias)"><div class="v">${notifs}</div><div class="l">Notificações</div></div>
+    <div class="op-kpi${cnErros>0?' bad':''}" title="Erros de criação apontados na GU (30 dias)"><div class="v">${cnErros}</div><div class="l">Erros criação</div></div>
     <div class="op-kpi${overlay>5?' warn':''}" title="Rodadas que fecharam com overlay (abaixo do garantido)"><div class="v">${overlay}</div><div class="l">Overlay</div></div>
   </div>`;
   const actions=suspenso
