@@ -1411,40 +1411,89 @@ function renderGrade(){
   }).join(''):`<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--ink3)">Nenhum dado</td></tr>`;
 }
 
-/* ── OPERADORES ──────────────────────────────────────────────── */
+/* ── OPERADORES ──────────────────────────────────────────────────
+   Render em CARDS (#opCards), casando com o admin.html/admin.css novos.
+   O JS original dos cards nunca foi commitado (só HTML+CSS) — esta é a
+   reconstrução do "esqueleto seguro": só dados 100% confiáveis (nome, email,
+   tags admin/suspenso, acesso por painel via accessRow, busca, suspender/
+   reativar). KPIs/notificações/motivos ficam de fora de propósito, pra não
+   inventar cálculo. Reusa toggleAccess/toggleEdit/blockOp/forceUnblockOp. */
 async function loadOps(){
   if(!fbOk)return;
-  document.getElementById('opBody').innerHTML=`<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--ink3)">Carregando...</td></tr>`;
+  const host=document.getElementById('opCards');
+  if(!host)return;                          // null-safe: sobrevive se o HTML divergir
+  host.innerHTML=`<div class="op-loading">Carregando…</div>`;
   try{
     const snap=await db.ref('users').once('value');
     const users=snap.val()||{};
-    const fixCount={};
-    Object.values(_allData).forEach(day=>Object.values(day.fixed).forEach(f=>{
-      if(typeof f==='object'&&f?.by)fixCount[f.by]=(fixCount[f.by]||0)+1;
-    }));
     const rows=Object.entries(users).map(([k,u])=>({key:k,...u}));
-    document.getElementById('opCount').textContent=`${rows.length} cadastrado${rows.length!==1?'s':''}`;
-    document.getElementById('opBody').innerHTML=rows.map(u=>{
-      const email=u.email||(u.key.replace(/_dot_/g,'.').replace(/_at_/g,'@'));
-      const created=u.createdAt?new Date(u.createdAt).toLocaleDateString('pt-BR'):'—';
-      const name=u.apelido||u.nome||email;
-      const suspenso = !!u.pendingNotif;
-      return `<tr>
-        <td><div style="font-weight:700">${esc(name)}</div><div style="font-size:11px;color:var(--ink3)">${esc(u.nome||'')}</div></td>
-        <td class="c-ink2">${esc(email)}</td>
-        <td class="r mono">${fixCount[name]||0}</td>
-        <td style="display:flex;gap:5px;flex-wrap:wrap">
-          ${u.admin?'<span class="badge badge-closed">Admin</span>':'<span class="badge badge-open">Operador</span>'}
-          ${suspenso?'<span class="badge badge-nf">Suspenso</span>':''}
-        </td>
-        <td>${accessCell(u)}</td>
-        <td class="c-ink3">${created}</td>
-        <td>${suspenso
-          ? `<button class="btn btn-gold btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" data-act="forceUnblockOpFromEl">Reativar</button>`
-          : `<button class="btn btn-ghost btn-sm" data-key="${esc(u.key)}" data-name="${esc(name)}" data-act="blockOpFromEl">Suspender</button>`}</td>
-      </tr>`;
-    }).join('');
-  }catch(e){document.getElementById('opBody').innerHTML=`<tr><td colspan="7" style="color:var(--red);padding:16px">${e.message}</td></tr>`;}
+    rows.sort((a,b)=>{
+      const admDiff=(b.admin?1:0)-(a.admin?1:0);   // admins primeiro
+      if(admDiff) return admDiff;
+      return (a.apelido||a.nome||a.email||a.key).localeCompare(b.apelido||b.nome||b.email||b.key,'pt-BR');
+    });
+    const cnt=document.getElementById('opCount');
+    if(cnt) cnt.textContent=`${rows.length} cadastrado${rows.length!==1?'s':''}`;
+    host.innerHTML=rows.map(opCardHtml).join('')||`<div class="op-loading">Nenhum operador cadastrado.</div>`;
+    const s=document.getElementById('opSearch'); if(s&&s.value) filterOps(s);   // reaplica busca corrente
+  }catch(e){ host.innerHTML=`<div class="op-loading" style="color:var(--red)">${esc(e.message||e)}</div>`; }
+}
+
+function opCardHtml(u){
+  const email=u.email||(u.key.replace(/_dot_/g,'.').replace(/_at_/g,'@'));
+  const name=u.apelido||u.nome||email;
+  const suspenso=!!u.pendingNotif;
+  const initials=((name||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('')||'?').toUpperCase();
+  const search=`${name} ${email} ${u.nome||''}`.toLowerCase();
+  const tags=`${u.admin?'<span class="op-tag adm">Admin</span>':''}${suspenso?'<span class="op-tag sus">Suspenso</span>':''}`;
+  const actions=suspenso
+    ? `<button class="btn btn-gold btn-sm" data-act="forceUnblockOp" data-arg="${esc(u.key)}" data-arg2="${esc(name)}">Reativar</button>`
+    : `<button class="btn btn-ghost btn-sm" data-act="blockOp" data-arg="${esc(u.key)}" data-arg2="${esc(name)}">Suspender</button>`;
+  const accessBlock=u.admin
+    ? `<div class="op-admin-badge">👑 Acesso total — todos os painéis, ver e editar.</div>`
+    : `<div class="op-access">
+        <div class="op-access-head">Acesso aos painéis
+          <div class="op-access-quick">
+            <button class="qbtn" data-act="grantAllAccess" data-arg="${esc(u.key)}">Liberar tudo</button>
+            <button class="qbtn danger" data-act="revokeAllAccess" data-arg="${esc(u.key)}">Tirar tudo</button>
+          </div>
+        </div>
+        <div class="perm-grid">${ACCESS_PANELS.map(p=>accessRow(u,p,EDIT_PANELS.includes(p.id))).join('')}</div>
+      </div>`;
+  return `<div class="op-card${suspenso?' attn':''}" data-search="${esc(search)}">
+    <div class="op-card-head">
+      <div class="op-av">${esc(initials)}</div>
+      <div class="op-id">
+        <div class="op-name">${esc(name)}${tags}</div>
+        <div class="op-email">${esc(email)}</div>
+      </div>
+      <div class="op-card-actions">${actions}</div>
+    </div>
+    ${accessBlock}
+  </div>`;
+}
+
+/* busca por nome/email — esconde os cards que não batem (sem re-fetch) */
+function filterOps(el){
+  const q=((el&&el.value)||'').trim().toLowerCase();
+  document.querySelectorAll('#opCards .op-card').forEach(card=>{
+    card.style.display=(!q||(card.dataset.search||'').includes(q))?'':'none';
+  });
+}
+
+/* Liberar tudo / Tirar tudo — todos os painéis de acesso de uma conta de uma vez
+   (mesma semântica do toggleAccess: grava true / remove a chave). */
+async function grantAllAccess(key){
+  if(!fbOk){ alert('Firebase não conectado.'); return; }
+  const updates={}; ACCESS_PANELS.forEach(p=>{ updates[`users/${key}/access/${p.id}`]=true; });
+  try{ await db.ref().update(updates); await loadOps(); }
+  catch(e){ alert('Falha ao liberar acesso: '+(e.message||e)); }
+}
+async function revokeAllAccess(key){
+  if(!fbOk){ alert('Firebase não conectado.'); return; }
+  const updates={}; ACCESS_PANELS.forEach(p=>{ updates[`users/${key}/access/${p.id}`]=null; });
+  try{ await db.ref().update(updates); await loadOps(); }
+  catch(e){ alert('Falha ao tirar acesso: '+(e.message||e)); }
 }
 
 /* ── CONTROLE DE ACESSO POR PAINEL ──
