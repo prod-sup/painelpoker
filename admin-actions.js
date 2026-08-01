@@ -24,12 +24,6 @@
   /* Ações que não são "chame a global de mesmo nome" — cada uma existia como
      código solto dentro do atributo. */
   const LOCAL = {
-    /* era: buildFieldTrend();document.getElementById('moFieldTrend').classList.add('open') */
-    openFieldTrend() {
-      if (typeof window.buildFieldTrend === 'function') window.buildFieldTrend();
-      const mo = document.getElementById('moFieldTrend');
-      if (mo) mo.classList.add('open');
-    },
     /* era: nav('criacao', document.querySelector('.ntab[onclick*=criacao]'));return false
        ATENÇÃO: o seletor original procurava a aba PELO PRÓPRIO onclick. Com os
        handlers inline removidos, aquele seletor não acharia mais nada — por isso
@@ -64,12 +58,12 @@
   /* Globais do admin.js que o HTML aciona. Se o admin.js for encapsulado, ESTA
      é a lista que precisa continuar exposta em window. */
   const ACTIONS = [
-    'nav', 'doLogin', 'doLogout', 'toggleDark',
+    'nav', 'doLogin', 'doLogout', 'toggleDark', 'toggleTbMenu',
     'setDp', 'setGp', 'setCnPeriod', 'setAuditPeriod',
     'renderGrade', 'renderCn', 'loadAudit', 'loadCriacao',
     'openAddOp', 'createOp', 'confirmBlockOp', 'backfillUidIndex',
-    'openAdminLog', 'openJustifs', 'openNotifHistory', 'openOpRanking',
-    'openOverlayHeatmap', 'openAuditSummary', 'openInsightSettings',
+    'openAdminLog', 'openJustifs', 'openNotifHistory', 'toggleOpRanking',
+    'buildOpRanking', 'buildHeatmap', 'filterOps', 'openAuditSummary', 'openInsightSettings',
     'buildAuditSummary', 'buildFieldTrend', 'buildMonthProjection',
     'saveAudit', 'saveAviso', 'saveHubLink', 'saveHubEvent', 'saveHubPatch',
     'saveInsightSettings', 'resetAvisoForm',
@@ -102,12 +96,12 @@
      escrita por engano seria falha). As regras do RTDB são a autoridade real; isto
      é a trava de UI que evita cliques que só falhariam no servidor. */
   const LIMITED_ALLOW = new Set([
-    'nav', 'doLogin', 'doLogout', 'toggleDark', 'loginOnEnter',
+    'nav', 'doLogin', 'doLogout', 'toggleDark', 'toggleTbMenu', 'toggleOpRanking', 'loginOnEnter',
     'setDp', 'setGp', 'setCnPeriod', 'setAuditPeriod',
     'renderGrade', 'renderCn', 'loadAudit', 'loadCriacao', 'debouncedGrade', 'debouncedCn',
     'goCriacao', 'goToAuditFor',
-    'openAdminLog', 'openJustifs', 'openNotifHistory', 'openOpRanking', 'openOverlayHeatmap',
-    'openAuditSummary', 'openInsightSettings', 'openFieldTrend',
+    'openAdminLog', 'openJustifs', 'openNotifHistory', 'toggleOpRanking', 'buildOpRanking', 'buildHeatmap',
+    'openAuditSummary', 'openInsightSettings',
     'buildAuditSummary', 'buildFieldTrend', 'buildMonthProjection',
     'toggleSoAnomalia', 'toggleCnErros', 'toggleCheckAll', 'updateBatchActions', 'filterOps',
     'previewCleanup', 'previewCleanupUntil', 'closeMo', 'maskBRL',

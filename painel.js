@@ -6021,6 +6021,10 @@ document.getElementById('shiftReportDrawerOverlay').addEventListener('click', (e
    Rake: Main/Side = 10% (12% com campanha #AS/+SPS/+SPT) · Satélite = sempre 5%.
 ========================================================================= */
 function ovcRakePercent(){
+  // override manual (5/8/10/12%) vence a regra automática quando escolhido —
+  // 8% cobre os torneios com rake fora do padrão Main/Side/Satélite.
+  const ovr = document.getElementById('ovcRakeOverride');
+  if (ovr && ovr.value){ const v = parseFloat(ovr.value); if(!isNaN(v)) return v; }
   const cat = document.getElementById('ovcCategoria').value;
   const campanha = document.getElementById('ovcCampanha').checked;
   if (cat === 'sat') return 0.05; // satélite sempre 5%, campanha não altera
@@ -6032,7 +6036,10 @@ function ovcNum(id){
 }
 function ovcCalculate(){
   const rake = ovcRakePercent();
-  document.getElementById('ovcRakeNote').textContent = `Rake aplicado: ${(rake*100).toFixed(0)}%`;
+  const manual = document.getElementById('ovcRakeOverride');
+  const isManual = manual && manual.value;
+  document.getElementById('ovcRakeNote').textContent =
+    `Rake aplicado: ${(rake*100).toFixed(0)}%` + (isManual ? ' (manual)' : '');
 
   const lines = [
     {acoesId:'ovcBuyinAcoes', valorId:'ovcBuyinValor', totalId:'ovcBuyinTotal'},
@@ -6118,6 +6125,7 @@ function ovcClear(){
   });
   document.getElementById('ovcCategoria').value = 'main';
   document.getElementById('ovcCampanha').checked = false;
+  const ovr = document.getElementById('ovcRakeOverride'); if(ovr) ovr.value = '';
   const sel = document.getElementById('ovcTorneioSelect');
   if(sel) sel.value = '';
   document.getElementById('ovcTourMatch')?.classList.remove('show');
@@ -9512,6 +9520,9 @@ function ovcOnSelectChange(){
   const autoCat = classify(row);
   const catSelect = document.getElementById('ovcCategoria');
   if(catSelect) catSelect.value = autoCat;
+  // torneio escolhido → volta o rake pro automático (rake padrão da categoria);
+  // o operador pode re-selecionar 8% manualmente se aquele torneio for exceção.
+  const ovrSel = document.getElementById('ovcRakeOverride'); if(ovrSel) ovrSel.value = '';
 
   // ── Garantido ──
   document.getElementById('ovcGarantido').value = row.garantido;

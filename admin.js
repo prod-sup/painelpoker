@@ -649,16 +649,51 @@ function flatRows(fromDate, toDate){
 /* ── NAVIGATION ─────────────────────────────────────────────── */
 function nav(id,btn){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.ntab').forEach(b=>b.classList.remove('active'));
+  // sincroniza o estado ativo em TODOS os gatilhos de navegação (sidebar + barra
+  // inferior do mobile), casando por data-arg — assim clicar em qualquer um dos
+  // dois acende os dois. Antes só o botão clicado ficava ativo.
+  document.querySelectorAll('.ntab,.mtab').forEach(b=>
+    b.classList.toggle('active', b.getAttribute('data-arg')===id));
+  closeTbMenu();                                   // fecha o menu de ações se estava aberto
   const pg=document.getElementById('page'+id.charAt(0).toUpperCase()+id.slice(1));
   if(pg)pg.classList.add('active');
-  if(btn)btn.classList.add('active');
   if(id==='dashboard')buildDash();
   if(id==='backup')initBackup(); // initBackup já faz loadAll() internamente
   if(id==='grade')renderGrade();
   if(id==='audit')loadAudit();
   if(id==='criacao')loadCriacao();
+  if(id==='operadores')buildOpRanking();   // ranking inline (o card só aparece ao expandir)
   if(id==='avisos')initAvisos();
+}
+
+/* Menu de ações da topbar no mobile (Resumo, Notificações, Log, Justificativas,
+   links e Sair). No desktop a .tb-actions já aparece inline; no celular ela vira
+   uma folha que desce, aberta pelo botão ⋯. */
+function toggleTbMenu(){
+  const box=document.getElementById('tbActions');
+  const bd=document.getElementById('tbMenuBackdrop');
+  const more=document.querySelector('.tb-more');
+  if(!box)return;
+  const open=!box.classList.contains('open');
+  box.classList.toggle('open',open);
+  if(bd){ if(open) bd.removeAttribute('hidden'); else bd.setAttribute('hidden',''); }
+  if(more) more.setAttribute('aria-expanded',open?'true':'false');
+}
+function closeTbMenu(){
+  const box=document.getElementById('tbActions');
+  if(box&&box.classList.contains('open')) toggleTbMenu();
+}
+
+/* Ranking de operadores: dobra/expande o card inline dentro da aba Operadores.
+   Substitui o antigo modal (moOpRanking) e o botão da topbar. */
+function toggleOpRanking(){
+  const card=document.getElementById('opRankingCard');
+  const btn=document.getElementById('opRankToggle');
+  if(!card)return;
+  const show=card.hasAttribute('hidden');
+  if(show){ card.removeAttribute('hidden'); buildOpRanking(); card.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+  else card.setAttribute('hidden','');
+  if(btn) btn.classList.toggle('btn-gold', show);
 }
 
 /* ══ AUDITORIA DA CRIAÇÃO NOTURNA (GU) ═══════════════════════════
@@ -1168,6 +1203,10 @@ function buildDash(){
 
   // ── 11. Comparativo semana a semana ──
   buildWeeklyComparison();
+
+  // ── Overlay por horário + Tendência de field (antes eram modais na topbar) ──
+  buildHeatmap();
+  buildFieldTrend();
 }
 
 function buildWeeklyComparison(){
@@ -1512,11 +1551,29 @@ function opCardHtml(u, stats){
   const tags=`${u.admin?'<span class="op-tag adm">Admin</span>':''}${suspenso?'<span class="op-tag sus">Suspenso</span>':''}`;
   const st=(stats&&stats[name])||{};
   const perf=st.perf, notifs=st.notifs||0, cnErros=st.cnErros||0, overlay=st.overlay||0, trab=st.trabalhados||0;
+  const idRate=st.idRate, semPrem=st.semPrem||0, total=st.total||0;
   const perfCls=perf==null?'':(perf<0?'bad':'good');
   const perfTxt=perf==null?'—':`${perf>0?'+':''}${Math.round(perf)}%`;
-  const kpis=`<div class="op-kpis">
+  const idTxt=idRate==null?'—':`${Math.round(idRate)}%`;
+  const idCls=idRate==null?'':(idRate>=90?'good':idRate<60?'bad':'warn');
+  // barrinha de qualidade: quanto do trabalho passou sem erro/overlay/notificação
+  const problemas=(overlay||0)+(notifs||0)+(cnErros||0)+(semPrem||0);
+  const base=Math.max(total+(st.cnCriados||0),1);
+  const qualidade=Math.max(0,Math.min(100,Math.round((1-problemas/base)*100)));
+  const qCls=qualidade>=85?'good':qualidade<60?'bad':'warn';
+  const semAtividade = (total+(st.cnCriados||0))===0;
+  const qualityBlock = semAtividade
+    ? `<div class="op-quality"><div class="op-quality-bar"><span style="width:0%"></span></div><div class="op-quality-tag" style="color:var(--ink3)">sem atividade (30d)</div></div>`
+    : `<div class="op-quality" title="Índice de qualidade: rodadas sem overlay, sem notificação, com premiação e sem erro de criação">
+      <div class="op-quality-bar"><span class="${qCls}" style="width:${qualidade}%"></span></div>
+      <div class="op-quality-tag ${qCls}">${qualidade}% limpo</div>
+    </div>`;
+  const kpis=`${qualityBlock}
+    <div class="op-kpis">
     <div class="op-kpi"><div class="v">${trab}</div><div class="l">Trabalhados 30d</div></div>
     <div class="op-kpi ${perfCls}" title="Premiação vs garantido (mesma fórmula do ranking)"><div class="v">${perfTxt}</div><div class="l">Performance</div></div>
+    <div class="op-kpi ${idCls}" title="Torneios com ID de evento preenchido (30 dias)"><div class="v">${idTxt}</div><div class="l">Taxa de ID</div></div>
+    <div class="op-kpi${semPrem>3?' warn':''}" title="Torneios ainda em aberto / sem premiação registrada"><div class="v">${semPrem}</div><div class="l">Sem prem.</div></div>
     <div class="op-kpi${notifs>0?' warn':''}" title="Quantas vezes o admin notificou este operador (30 dias)"><div class="v">${notifs}</div><div class="l">Notificações</div></div>
     <div class="op-kpi${cnErros>0?' bad':''}" title="Erros de criação apontados na GU (30 dias)"><div class="v">${cnErros}</div><div class="l">Erros criação</div></div>
     <div class="op-kpi${overlay>5?' warn':''}" title="Rodadas que fecharam com overlay (abaixo do garantido)"><div class="v">${overlay}</div><div class="l">Overlay</div></div>
@@ -1836,6 +1893,23 @@ function openNotif(ctx){
       });
     }
   });
+  // ── sugestão inteligente: pré-seleciona o tipo e escreve a descrição ──
+  const sug = suggestNotif(_notifContext);
+  const hint = document.getElementById('notifSmartHint');
+  if(sug){
+    _notifType = sug.type;
+    document.querySelectorAll('.notif-type-btn').forEach(b=>
+      b.classList.toggle('sel', b.dataset.arg===sug.type));
+    const descEl = document.getElementById('notifDesc');
+    if(descEl && !descEl.value) descEl.value = sug.desc;
+    if(hint){
+      hint.innerHTML = `💡 Sugestão automática: <b>${esc(NOTIF_TYPES[sug.type]||sug.type)}</b>. Revise antes de enviar.`;
+      hint.style.display = 'flex';
+    }
+    updateNotifPreview();
+  } else if(hint){
+    hint.style.display = 'none';
+  }
   document.getElementById('moNotif').classList.add('open');
 }
 
@@ -2069,12 +2143,52 @@ function openAuditEditByEl(btn){
 }
 
 function openNotifByEl(btn){
-  openNotif({
-    nome:   btn.dataset.nome,
-    date:   btn.dataset.date,
-    fixBy:  btn.dataset.fixby,
-    key:    btn.dataset.key,
-  });
+  // enriquece o contexto com os VALORES da linha (achados em _auditRows por
+  // key+date) pra a notificação já sugerir o tipo de erro e a descrição.
+  const key=btn.dataset.key, date=btn.dataset.date;
+  const row=(typeof _auditRows!=='undefined'&&Array.isArray(_auditRows))
+    ? _auditRows.find(r=>r.key===key&&r.date===date) : null;
+  openNotif(Object.assign({
+    nome:  btn.dataset.nome,
+    date:  date,
+    fixBy: btn.dataset.fixby,
+    key:   key,
+  }, row ? {
+    premiacao:row.premiacao, field:row.field, garantido:row.garantido,
+    overlay:row.overlay, id:row.id, buyin:row.buyin, hora:row.hora, status:row.status,
+  } : {}));
+}
+
+/* ── Notificação inteligente ──
+   A partir dos valores da linha, adivinha o TIPO de erro mais provável e escreve
+   uma descrição específica (com os números reais). O admin ainda revisa e pode
+   trocar o tipo/texto — isto só tira o trabalho de digitar o óbvio. */
+function suggestNotif(ctx){
+  if(!ctx) return null;
+  const g=ctx.garantido, p=ctx.premiacao, f=ctx.field, ov=ctx.overlay, id=ctx.id, b=ctx.buyin;
+  const money=v=>'R$ '+brl(v||0);
+  const idFalta = (id==null || String(id).trim()==='' || String(id).toUpperCase()==='NF');
+  // 1) ID de evento ausente — o erro operacional mais comum e barato de corrigir
+  if(idFalta && ctx.status!=='nf'){
+    return {type:'id', desc:`O torneio ${ctx.nome||''} foi registrado sem o ID do evento. Confirme e preencha o ID correto.`};
+  }
+  // 2) Premiação zerada
+  if(p===0 && g>0){
+    return {type:'premiacao', desc:`Premiação registrada como R$ 0 com garantido de ${money(g)}. Confirme o valor real da premiação paga.`};
+  }
+  // 3) Overlay alto (>50% do GTD) — geralmente premiação subestimada ou field errado
+  if(ov!=null && ov<0 && g && Math.abs(ov) > g*0.5){
+    return {type:'premiacao', desc:`Overlay de ${money(Math.abs(ov))} — mais de 50% do garantido de ${money(g)}. Revise a premiação${f!=null?` e o field (${f} jogadores)`:''} registrados.`};
+  }
+  // 4) Premiação muito acima do garantido (3x) — provável erro de digitação
+  if(p!=null && g && p > g*3){
+    return {type:'premiacao', desc:`Premiação de ${money(p)} é mais de 3× o garantido de ${money(g)}. Confirme se o valor não foi digitado errado.`};
+  }
+  // 5) Field baixo demais pro GTD (arrecadação < 10% do garantido)
+  if(f!=null && b && f>0 && g && (f*b) < g*0.1){
+    return {type:'field', desc:`Field de ${f} jogadores parece baixo para o garantido de ${money(g)}. Confirme o número de entradas.`};
+  }
+  return null;
 }
 
 function openAuditEdit(ctx){
@@ -3240,10 +3354,9 @@ async function cnStatsByOp(fromDate, toDate){
   return {byOp, total, criados, comId, erros, durSum, durN, dias};
 }
 
-async function openOpRanking(){
-  const mo = document.getElementById('moOpRanking');
+async function buildOpRanking(){
   const el = document.getElementById('opRankingBody');
-  if(!mo||!el) return;
+  if(!el) return;
 
   const rows = flatRows(dago(30), nowSP());
   const byOp = {};
@@ -3292,15 +3405,12 @@ async function openOpRanking(){
     <td class="r mono">${op.cnCriados||0}</td>
     <td class="r mono ${op.cnErros?'c-red':''}">${op.cnErros||0}</td>
   </tr>`).join('') || '<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--ink3)">Sem dados nos últimos 30 dias.</td></tr>';
-
-  mo.classList.add('open');
 }
 
-/* ── 6. Heatmap de overlay por horário ── */
-async function openOverlayHeatmap(){
-  const mo = document.getElementById('moHeatmap');
+/* ── 6. Heatmap de overlay por horário (card inline no Dashboard) ── */
+async function buildHeatmap(){
   const el = document.getElementById('heatmapBody');
-  if(!mo||!el) return;
+  if(!el) return;
 
   const rows = flatRows(dago(30), nowSP()).filter(r=>r.premiacao!=null&&r.garantido);
   const byHour = {};
@@ -3334,8 +3444,6 @@ async function openOverlayHeatmap(){
       <td class="r mono c-red">${h.ovTotal>0?brlk(h.ovTotal):'—'}</td>
     </tr>`;
   }).join('') || '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--ink3)">Sem dados suficientes.</td></tr>';
-
-  mo.classList.add('open');
 }
 
 /* ── 7. Projeção de premiação do mês ── */

@@ -404,9 +404,19 @@ document.addEventListener('DOMContentLoaded', () => {
           </select>
         </label>
       </div>
-      <label class="ovc-checkbox" style="margin-bottom:12px;">
+      <label class="ovc-checkbox" style="margin-bottom:10px;">
         <input type="checkbox" id="ovcCampanha">
         <span>Campanha (#AS / +SPS / +SPT) — rake 12%</span>
+      </label>
+      <label class="ovc-field" style="margin-bottom:12px;">
+        <span>Rake</span>
+        <select id="ovcRakeOverride">
+          <option value="">Automático (pela categoria)</option>
+          <option value="0.05">5%</option>
+          <option value="0.08">8%</option>
+          <option value="0.10">10%</option>
+          <option value="0.12">12%</option>
+        </select>
       </label>
       <div class="ovc-rake-note" id="ovcRakeNote"></div>
 

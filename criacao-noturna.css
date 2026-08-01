@@ -1518,7 +1518,18 @@ html,body{overflow-x:hidden;max-width:100%}
 .wk-row:hover{background:var(--card-elevated)}
 .wk-row.wk-main{border-left-color:var(--main-bright)}
 .wk-row.wk-side{border-left-color:var(--side-bright)}
-.wk-row.wk-sat{border-left-color:var(--sidefree-bright)}
+.wk-row.wk-sat{border-left-color:var(--sat-bright)}
+/* cabeçalho de grupo da tabela do dia — Main Event / Side Event / Satélite */
+.wk-group{display:flex;align-items:center;gap:8px;padding:9px 16px 8px;
+  font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  background:var(--card-elevated);border-bottom:1px solid var(--hairline);
+  border-left:3px solid transparent;position:sticky;top:0;z-index:1}
+.wk-group-suit{font-size:13px}
+.wk-group-count{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:800;
+  color:var(--ink3);background:var(--card);border:1px solid var(--hairline);border-radius:99px;padding:1px 9px;font-size:11px;letter-spacing:0}
+.wk-group-main{color:var(--main-bright);border-left-color:var(--main-bright)}
+.wk-group-side{color:var(--side-bright);border-left-color:var(--side-bright)}
+.wk-group-sat{color:var(--sat-bright);border-left-color:var(--sat-bright)}
 .wk-time{font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink)}
 .wk-name{color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wk-id{font-variant-numeric:tabular-nums;font-weight:700;color:var(--felt-bright);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

@@ -85,23 +85,28 @@ document.addEventListener('DOMContentLoaded', () => {
         <span class="tb-dot"></span>
         <span id="adminName">—</span>
       </div>
-      <button class="btn btn-ghost" data-act="openAuditSummary"><svg viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg> Resumo auditoria</button>
-      <button class="btn btn-ghost" data-act="openNotifHistory"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg> Notificações</button>
-      <button class="btn btn-ghost" data-act="openAdminLog"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Log admin</button>
-      <button class="btn btn-ghost" data-act="openFieldTrend"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Field trend</button>
-      <button class="btn btn-ghost" data-act="openOpRanking"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M8.21 13.89 7 23l5-3 5 3-1.21-9.12"/></svg> Ranking</button>
-      <button class="btn btn-ghost" data-act="openOverlayHeatmap"><svg viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> Heatmap</button>
-      <button class="btn btn-ghost" data-act="openJustifs" style="position:relative">
-        <svg viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg> Justificativas
-        <span id="pendingBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--amber);color:#000;font-size:9px;font-weight:800;border-radius:99px;padding:1px 5px;min-width:14px;text-align:center"></span>
+      <div class="tb-actions" id="tbActions">
+        <button class="btn btn-ghost" data-act="openAuditSummary"><svg viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg> Resumo auditoria</button>
+        <button class="btn btn-ghost" data-act="openNotifHistory"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg> Notificações</button>
+        <button class="btn btn-ghost" data-act="openAdminLog"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Log admin</button>
+        <button class="btn btn-ghost" data-act="openJustifs" style="position:relative">
+          <svg viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg> Justificativas
+          <span id="pendingBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--amber);color:#000;font-size:9px;font-weight:800;border-radius:99px;padding:1px 5px;min-width:14px;text-align:center"></span>
+        </button>
+        <a href="criacao-noturna.html" class="tb-back" title="Criação de torneios do turno noturno (GU)">🌙 Criação GU</a>
+        <a href="index.html" class="tb-back">← Painel</a>
+        <a href="hub.html" class="tb-back" title="Voltar ao hub Suprema OS">♠ OS</a>
+        <button class="tb-btn" id="darkToggle" data-act="toggleDark" title="Alternar modo claro/escuro">🌙</button>
+        <button class="tb-btn" data-act="doLogout">Sair</button>
+      </div>
+      <button class="tb-more" data-act="toggleTbMenu" aria-label="Mais opções" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
       </button>
-      <a href="criacao-noturna.html" class="tb-back" title="Criação de torneios do turno noturno (GU)">🌙 Criação GU</a>
-      <a href="index.html" class="tb-back">← Painel</a>
-      <a href="hub.html" class="tb-back" title="Voltar ao hub Suprema OS">♠ OS</a>
-      <button class="tb-btn" id="darkToggle" data-act="toggleDark" title="Alternar modo claro/escuro">🌙</button>
-      <button class="tb-btn" data-act="doLogout">Sair</button>
     </div>
   </header>
+
+  <!-- BACKDROP do menu de ações no mobile -->
+  <div class="tb-menu-backdrop" id="tbMenuBackdrop" data-act="toggleTbMenu" hidden></div>
 
   <!-- SIDEBAR -->
   <nav class="sidebar">
@@ -115,6 +120,17 @@ document.addEventListener('DOMContentLoaded', () => {
     <button class="ntab" data-act="nav" data-arg="operadores"><span class="ni"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>Operadores</button>
     <button class="ntab" data-act="nav" data-arg="backup"><span class="ni"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg></span>Backup & Arquivo</button>
     <button class="ntab" id="navAvisos" data-act="nav" data-arg="avisos"><span class="ni"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>Conteúdo do hub</button>
+  </nav>
+
+  <!-- BARRA INFERIOR (só mobile): navegação principal estilo app -->
+  <nav class="mobile-tabbar" aria-label="Navegação">
+    <button class="mtab active" data-act="nav" data-arg="audit"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><span>Auditoria</span></button>
+    <button class="mtab" data-act="nav" data-arg="criacao"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg><span>GU</span></button>
+    <button class="mtab" data-act="nav" data-arg="dashboard"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span>Dashboard</span></button>
+    <button class="mtab" data-act="nav" data-arg="grade"><svg viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg><span>Grade</span></button>
+    <button class="mtab" data-act="nav" data-arg="operadores"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Operad.</span></button>
+    <button class="mtab" data-act="nav" data-arg="backup"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg><span>Backup</span></button>
+    <button class="mtab" data-act="nav" data-arg="avisos"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span>Hub</span></button>
   </nav>
 
   <!-- MAIN -->
@@ -286,6 +302,32 @@ document.addEventListener('DOMContentLoaded', () => {
           <div style="font-size:12px;color:var(--ink3)">Carregando...</div>
         </div>
       </div>
+      <div class="dash-2col">
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title"><svg viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg> Overlay por horário</div>
+                 <div class="card-sub">Em que faixa do dia o overlay mais aparece — últimos 30 dias</div></div>
+          </div>
+          <div class="tbl-wrap" style="max-height:360px;overflow-y:auto">
+            <table>
+              <thead><tr><th>Hora</th><th class="r">Torneios</th><th class="r">Com OV</th><th>Taxa OV</th><th class="r">OV Total</th></tr></thead>
+              <tbody id="heatmapBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <div><div class="card-title"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Tendência de field</div>
+                 <div class="card-sub">Média de field: 30 dias recentes vs. 30-60 dias anteriores</div></div>
+          </div>
+          <div class="tbl-wrap" style="max-height:360px;overflow-y:auto">
+            <table>
+              <thead><tr><th>Torneio</th><th class="r">Média ant.</th><th class="r">Média rec.</th><th class="r">Variação</th><th>Tend.</th></tr></thead>
+              <tbody id="fieldTrendBody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--ink3)">Carregando…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
       <div class="card">
         <div class="card-head"><div class="card-title">Top torneios com overlay</div></div>
         <div class="tbl-wrap">
@@ -374,11 +416,26 @@ document.addEventListener('DOMContentLoaded', () => {
           <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <input type="search" id="opSearch" placeholder="Buscar nome ou email…" data-act="filterOps" data-act-self data-act-on="input"
               style="font:inherit;font-size:13px;padding:8px 12px;border:1px solid var(--hairline-strong);border-radius:9px;background:var(--bg);color:var(--ink);min-width:200px">
-            <button class="btn btn-ghost btn-sm" data-act="openOpRanking" title="Ranking de performance dos operadores">📊 Ranking</button>
+            <button class="btn btn-ghost btn-sm" id="opRankToggle" data-act="toggleOpRanking" title="Ranking de performance dos operadores">📊 Ranking</button>
           </div>
         </div>
         <p style="font-size:12px;color:var(--ink3);margin:0 0 14px">KPIs dos últimos <b>30 dias</b>. Clique nos interruptores <b>👁 Vê</b> / <b>✎ Edita</b> pra liberar cada painel — ou use <b>Liberar tudo</b> / <b>Tirar tudo</b>.</p>
         <div id="opCards" class="op-cards"></div>
+      </div>
+
+      <!-- Ranking inline (dobra/expande pelo botão 📊 Ranking) -->
+      <div class="card op-ranking-card" id="opRankingCard" hidden style="margin-top:18px">
+        <div class="card-head">
+          <div><div class="card-title"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M8.21 13.89 7 23l5-3 5 3-1.21-9.12"/></svg> Ranking de operadores</div>
+               <div class="card-sub">Produtividade e qualidade nos últimos 30 dias — inclui a Criação Noturna (GU)</div></div>
+          <div class="card-actions"><button class="btn btn-ghost btn-sm" data-act="toggleOpRanking">Ocultar</button></div>
+        </div>
+        <div class="tbl-wrap" style="max-height:460px;overflow-y:auto">
+          <table>
+            <thead><tr><th>#</th><th>Operador</th><th class="r">Torneios</th><th class="r">Fixados</th><th class="r">Com ID</th><th class="r">Sem prem.</th><th class="r">Notif.</th><th class="r" title="Torneios criados na Criação Noturna (GU)">Criados GU</th><th class="r" title="Erros de criação marcados pela auditoria">Erros GU</th></tr></thead>
+            <tbody id="opRankingBody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -619,24 +676,6 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     </div>
 
-    <!-- ══ MODAL: Tendência de Field ══ -->
-    <div class="modal-bg" id="moFieldTrend" role="dialog" aria-modal="true" aria-hidden="true">
-      <div class="modal" style="max-width:620px">
-        <h2>📈 Tendência de field por torneio</h2>
-        <div class="msub">Comparativo dos últimos 30 dias vs 30-60 dias anteriores — mínimo 2 rodadas em cada período</div>
-        <div class="tbl-wrap" style="max-height:440px;overflow-y:auto">
-          <table>
-            <thead><tr><th>Torneio</th><th class="r">Média ant.</th><th class="r">Média rec.</th><th class="r">Variação</th><th>Tendência</th></tr></thead>
-            <tbody id="fieldTrendBody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--ink3)">Clique em Atualizar</td></tr></tbody>
-          </table>
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-gold" data-act="buildFieldTrend">Atualizar</button>
-          <button class="btn btn-ghost" data-act="closeMo" data-arg="moFieldTrend" style="flex:1;justify-content:center">Fechar</button>
-        </div>
-      </div>
-    </div>
-
     <!-- ══ MODAL: Histórico de Notificações ══ -->
     <div class="modal-bg" id="moNotifHistory" role="dialog" aria-modal="true" aria-hidden="true">
       <div class="modal" style="max-width:780px">
@@ -649,36 +688,6 @@ document.addEventListener('DOMContentLoaded', () => {
           </table>
         </div>
         <div class="modal-actions"><button class="btn btn-ghost" data-act="closeMo" data-arg="moNotifHistory" style="flex:1;justify-content:center">Fechar</button></div>
-      </div>
-    </div>
-
-    <!-- ══ MODAL: Ranking de Operadores ══ -->
-    <div class="modal-bg" id="moOpRanking" role="dialog" aria-modal="true" aria-hidden="true">
-      <div class="modal" style="max-width:680px">
-        <h2>🏆 Ranking de operadores</h2>
-        <div class="msub">Performance dos últimos 30 dias</div>
-        <div class="tbl-wrap" style="max-height:420px;overflow-y:auto">
-          <table>
-            <thead><tr><th>#</th><th>Operador</th><th class="r">Torneios</th><th class="r">Fixados</th><th class="r">Com ID</th><th class="r">Sem prem.</th><th class="r">Notif.</th><th class="r" title="Torneios criados na Criação Noturna (GU), últimos 30 dias">Criados GU</th><th class="r" title="Erros de criação marcados pela auditoria">Erros GU</th></tr></thead>
-            <tbody id="opRankingBody"></tbody>
-          </table>
-        </div>
-        <div class="modal-actions"><button class="btn btn-ghost" data-act="closeMo" data-arg="moOpRanking" style="flex:1;justify-content:center">Fechar</button></div>
-      </div>
-    </div>
-
-    <!-- ══ MODAL: Heatmap de Overlay por Horário ══ -->
-    <div class="modal-bg" id="moHeatmap" role="dialog" aria-modal="true" aria-hidden="true">
-      <div class="modal" style="max-width:580px">
-        <h2>🔥 Overlay por horário</h2>
-        <div class="msub">Distribuição de overlay por faixa de horário — últimos 30 dias</div>
-        <div class="tbl-wrap" style="max-height:440px;overflow-y:auto">
-          <table>
-            <thead><tr><th>Hora</th><th class="r">Torneios</th><th class="r">Com OV</th><th>Taxa OV</th><th class="r">OV Total</th></tr></thead>
-            <tbody id="heatmapBody"></tbody>
-          </table>
-        </div>
-        <div class="modal-actions"><button class="btn btn-ghost" data-act="closeMo" data-arg="moHeatmap" style="flex:1;justify-content:center">Fechar</button></div>
       </div>
     </div>
 
@@ -802,6 +811,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <h2>📋 Notificar erro ao operador</h2>
     <div class="msub" id="notifSubtitle">Descreva o erro encontrado para que o operador justifique</div>
     <div class="merr" id="notifErr"></div>
+    <div class="notif-smart-hint" id="notifSmartHint" style="display:none"></div>
 
     <div class="mf">
       <label>Operador</label>

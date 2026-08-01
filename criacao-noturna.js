@@ -1100,7 +1100,8 @@ function renderWeekDetail(iso, data){
   // guarda os itens + campos do dia pra montar a RECEITA (planilha) sob demanda no clique
   const wi = window._weekItems = {};
   window._weekFields = data.fields || null;
-  const rows = items.map(it => {
+  // uma linha da tabela (mesmo markup de antes) — reusada por cada grupo
+  const rowHtml = it => {
     const k = itemKey(it);
     wi[k] = it;
     const idRec = data.ids[k], doneRec = data.done[k];
@@ -1116,6 +1117,19 @@ function renderWeekDetail(iso, data){
       </div>
       <div class="wk-recipe" hidden></div>
     </div>`;
+  };
+  // ── agrupa a tabela do dia em Main Event / Side Event / Satélite (nesta ordem),
+  //    com o horário ordenado DENTRO de cada grupo. Grupo vazio não aparece. ──
+  const GROUPS = [
+    {cat:'main', suit:'♠', label:'Main Events'},
+    {cat:'side', suit:'♥', label:'Side Events'},
+    {cat:'sat',  suit:'♣', label:'Satélites'},
+  ];
+  const rows = GROUPS.map(g => {
+    const list = items.filter(it => it.cat === g.cat);
+    if (!list.length) return '';
+    return `<div class="wk-group wk-group-${g.cat}"><span class="wk-group-suit">${g.suit}</span>${g.label}<span class="wk-group-count">${list.length}</span></div>`
+         + list.map(rowHtml).join('');
   }).join('');
   el.innerHTML = `
     <div class="wk-detail-head">
