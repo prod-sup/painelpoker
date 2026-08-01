@@ -66,6 +66,9 @@ SupremaAuth.guard({ panel:'tv' }); SupremaAuth.revalidateAccess('tv');
   <button class="tv-btn" id="fsBtn" title="Tela cheia" aria-label="Alternar tela cheia">⛶</button>
 </div>
 
+<!-- telão always-on: NUNCA solta a conexão por ociosidade (uma TV em tela
+     secundária pode ser marcada "hidden" pelo SO e congelaria o broadcast). -->
+<script>window.SUPREMA_KEEPALIVE = true;</script>
 <script src="suprema-db.js"></script>
 <script src="tv.js"></script>
 </body>

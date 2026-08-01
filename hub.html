@@ -152,14 +152,6 @@
     <span class="meta">BI &middot; hist&oacute;rico <span class="arrow">&rarr;</span></span>
   </a>
 
-  <!-- Sem data-panel: vis&iacute;vel pra TODO operador (capacita&ccedil;&atilde;o n&atilde;o depende de acesso a painel) -->
-  <a class="tile t-novidades" href="novidades.html" style="--i:9">
-    <span class="mark" aria-hidden="true">&#9733;</span>
-    <h2>Novidades &amp; Manual</h2>
-    <p class="desc">O que melhorou na Suprema OS e o manual completo do operador &mdash; capacita&ccedil;&atilde;o do Painel do Dia e da Cria&ccedil;&atilde;o Noturna.</p>
-    <span class="meta">Patch notes &middot; tutorial <span class="arrow">&rarr;</span></span>
-  </a>
-
 </main>
 
 <!-- ── Calendário de eventos + Patch notes ── -->
@@ -435,6 +427,9 @@ if (location.protocol === 'file:') {
 <script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<!-- fachada de dados: aqui só pelo gerenciador de conexão ociosa (goOffline em
+     aba de fundo p/ poupar conexão/egress). O hub segue falando Firebase direto. -->
+<script defer src="suprema-db.js"></script>
 <!-- fonte ÚNICA de sessão/hash/admin/tema do Suprema OS: o hub agora consome o
      mesmo módulo dos painéis em vez de reimplementar tudo inline (evita divergir
      a cada correção). Precisa vir ANTES do IIFE do gate, que só delega pra ele. -->

@@ -45,6 +45,56 @@
      ═══════════════════════════════════════════════════════════════════════ */
   var _db = null, _ready = false;
 
+  /* ── GESTÃO DE CONEXÃO OCIOSA (economia de conexões simultâneas) ──────────
+     O plano grátis do RTDB tem teto de 100 conexões SIMULTÂNEAS, e cada aba
+     aberta segura uma o dia inteiro — mesmo minimizada. Aqui: aba escondida por
+     ~2min chama db.goOffline() (libera a vaga); ao voltar o foco, db.goOnline()
+     reconecta e os listeners/presença se restabelecem sozinhos (o
+     .info/connected volta a true e a presença se reescreve).
+     · Opt-out: um painel always-on (telão/TV) faz `window.SUPREMA_KEEPALIVE=true`
+       e nunca desconecta.
+     · Ajuste do tempo: `window.SUPREMA_IDLE_MS` (ms). Default 120000 (2min).
+     Ao migrar de base, isto sai junto com o resto do ADAPTER. */
+  var _idleTimer = null, _idleOffline = false, _idleWired = false;
+  /* resolve a conexão VIVA sem depender de quem inicializou: os painéis grandes
+     (painel, admin, criação, cash, hub) chamam firebase.database() direto, não
+     SupremaDB.init(). Mas firebase.database() é SINGLETON do app default — então
+     goOffline/goOnline aqui afeta a mesma conexão que eles usam. */
+  function _liveDb() {
+    if (_db) return _db;
+    try {
+      if (global.firebase && global.firebase.apps && global.firebase.apps.length && global.firebase.database)
+        return global.firebase.database();
+    } catch (e) {}
+    return null;
+  }
+  function _reconnectIfIdle() {
+    if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null; }
+    if (_idleOffline) { var d = _liveDb(); if (d) { try { d.goOnline(); } catch (e) {} } _idleOffline = false; }
+  }
+  function _armIdle() {
+    if (_idleTimer || _idleOffline) return;
+    var ms = (global.SUPREMA_IDLE_MS | 0) || 120000;
+    _idleTimer = setTimeout(function () {
+      _idleTimer = null;
+      var d = _liveDb(); if (d) { try { d.goOffline(); } catch (e) {} _idleOffline = true; }
+    }, ms);
+  }
+  function _wireIdleConnection() {
+    if (_idleWired || typeof document === 'undefined') return;
+    _idleWired = true;
+    document.addEventListener('visibilitychange', function () {
+      if (global.SUPREMA_KEEPALIVE) { _reconnectIfIdle(); return; }  // always-on: nunca solta
+      if (document.visibilityState === 'hidden') _armIdle();
+      else _reconnectIfIdle();
+    });
+    // volta a rede na hora ao reganhar foco (cobre janela sem mudar visibility)
+    global.addEventListener('focus', _reconnectIfIdle);
+    global.addEventListener('pageshow', _reconnectIfIdle);
+    // já nasceu escondida? começa a contar (senão a vaga fica presa até o 1º toggle)
+    if (!global.SUPREMA_KEEPALIVE && document.visibilityState === 'hidden') _armIdle();
+  }
+
   var Adapter = {
     init: function () {
       if (_ready) return true;
@@ -52,6 +102,7 @@
       if (!global.firebase.apps || !global.firebase.apps.length) global.firebase.initializeApp(CONFIG);
       _db = global.firebase.database();
       _ready = true;
+      _wireIdleConnection();          // libera a conexão quando a aba fica ociosa
       return true;
     },
     ready: function () { return _ready; },
@@ -154,4 +205,11 @@
   };
 
   global.SupremaDB = SupremaDB;
+
+  /* auto-instala o gerenciador de conexão ociosa JÁ NO LOAD — independe de
+     SupremaDB.init(): painel do dia e hub inicializam o Firebase direto e nunca
+     chamam init(), mas todos carregam este arquivo. _liveDb() resolve a conexão
+     singleton na hora que a aba fica ociosa, então a ordem de carregamento do
+     Firebase não importa. */
+  _wireIdleConnection();
 })(window);

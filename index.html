@@ -29,6 +29,9 @@
 <script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<!-- fachada de dados: aqui só pelo gerenciador de conexão ociosa (goOffline em
+     aba de fundo p/ poupar conexão/egress). O painel segue falando Firebase direto. -->
+<script defer src="suprema-db.js"></script>
 <script src="gu-parser.js"></script>
 <script src="suprema-auth.js"></script>
 <!-- shell (chrome compartilhado, S1): SÍNCRONO — o mountControls do nav-right roda no parse -->
