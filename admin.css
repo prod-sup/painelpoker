@@ -922,9 +922,14 @@ tr.cn-erro{ background:rgba(239,68,68,.06) !important; }
 .av-empty{color:var(--ink3);font-size:13px;padding:12px 0}
 .av-item{display:flex;align-items:flex-start;gap:12px;padding:13px 0;border-top:1px solid var(--border)}
 .av-item.off{opacity:.5}
-.av-item{--av-c:var(--felt,#18a36b)}
+.av-item{--av-c:#5b9be0}                       /* info (padrão) → azul, casa com o hub */
 .av-item.tp-aviso{--av-c:var(--gold)}
 .av-item.tp-erro{--av-c:var(--red)}
+.av-item.tp-sucesso{--av-c:#2ec27e}
+.av-item.tp-manutencao{--av-c:#8a93a6}
+.av-item.tp-novidade{--av-c:#9b7ce0}
+/* fininho de cor à esquerda + o card respira melhor (pequeno polimento) */
+.av-item{padding-left:12px;border-left:3px solid color-mix(in srgb,var(--av-c) 55%,transparent);border-radius:0 8px 8px 0}
 .av-item-tag{
   flex:none;margin-top:2px;font-family:var(--mono);font-size:9.5px;font-weight:700;
   letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:99px;

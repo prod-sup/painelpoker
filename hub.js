@@ -744,11 +744,17 @@
   /* ── AVISOS DA CASA ── erros de atualização / informativos publicados no admin.
      Lê hub/avisos, mostra só os ativos que o usuário ainda não dispensou (dispensa
      é local, por navegador). Some a faixa inteira quando não há nada a mostrar. */
+  // ícones por tipo — MESMAS chaves do admin (AV_TIPO_LABEL) e das cores no hub.css
   const AV_ICONS = {
-    erro:  '<path d="M12 2 22 20H2L12 2Z"/><path d="M12 9v5M12 17h.01"/>',
-    aviso: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
-    info:  '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>'
+    erro:       '<path d="M12 2 22 20H2L12 2Z"/><path d="M12 9v5M12 17h.01"/>',
+    aviso:      '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
+    info:       '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+    sucesso:    '<circle cx="12" cy="12" r="10"/><path d="m8 12 2.8 2.8L16 9"/>',
+    manutencao: '<path d="M14.7 6.3a4 4 0 0 0-5.2 5.2L3 18l3 3 6.5-6.5a4 4 0 0 0 5.2-5.2l-2.9 2.9-2.6-.7-.7-2.6 2.9-2.9z"/>',
+    novidade:   '<path d="m12 3 1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.5L12 3Z"/><path d="m19 14 .8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8.8-2Z"/>'
   };
+  const AV_LABELS = { info:'Informativo', novidade:'Novidade', sucesso:'Sucesso', aviso:'Aviso', manutencao:'Manutenção', erro:'Erro' };
+  const avTipoOk = t => AV_ICONS[t] ? t : 'info';
   function avisoDismissed(id){
     try{ return (JSON.parse(localStorage.getItem('suprema_avisos_lidos')||'[]')).includes(id); }catch(e){ return false; }
   }
@@ -768,11 +774,12 @@
       .sort((a,b) => (b.at||0) - (a.at||0));
     if(!items.length){ sec.hidden = true; list.innerHTML = ''; return; }
     sec.hidden = false;
-    list.innerHTML = items.map(a => {
-      const tipo = ['erro','aviso','info'].includes(a.tipo) ? a.tipo : 'info';
-      const tagTxt = tipo === 'erro' ? 'Erro' : tipo === 'aviso' ? 'Aviso' : 'Informativo';
+    list.innerHTML = items.map((a, i) => {
+      const tipo = avTipoOk(a.tipo);
+      const tagTxt = AV_LABELS[tipo];
       const when = a.at ? new Date(a.at).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
-      return `<div class="aviso" data-tipo="${tipo}" role="status">
+      // --i alimenta o stagger da entrada (cada card entra um tiquinho depois)
+      return `<div class="aviso" data-tipo="${tipo}" role="status" style="--i:${i}">
         <span class="av-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${AV_ICONS[tipo]}</svg></span>
         <div class="av-body">
           <div class="av-head"><span class="av-tag">${tagTxt}</span><span class="av-title">${escHtml(a.titulo)}</span></div>
@@ -782,7 +789,18 @@
         <button type="button" class="av-dismiss" data-av="${escHtml(a.id)}" aria-label="Dispensar aviso" title="Dispensar">&times;</button>
       </div>`;
     }).join('');
-    list.querySelectorAll('.av-dismiss').forEach(b => b.addEventListener('click', () => dismissAviso(b.dataset.av)));
+    list.querySelectorAll('.av-dismiss').forEach(b => b.addEventListener('click', () => {
+      // follow-through: o card colapsa suavemente antes de sair (respeita reduced-motion)
+      const card = b.closest('.aviso');
+      const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (card && !reduce){
+        card.style.height = card.offsetHeight + 'px';   // trava a altura pra poder animar até 0
+        requestAnimationFrame(() => card.classList.add('dismissing'));
+        setTimeout(() => dismissAviso(b.dataset.av), 300);
+      } else {
+        dismissAviso(b.dataset.av);
+      }
+    }));
   }
 
   /* a edição de agenda / links / patch notes agora mora no Admin (Conteúdo do hub).

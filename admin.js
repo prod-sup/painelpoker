@@ -2938,7 +2938,20 @@ async function writeAdminLog(action, meta={}){
    CRUD dos avisos que aparecem no topo do hub (hub/avisos). Erros de
    atualização e informativos. Escrita restrita a admin pelas regras. */
 let _avisos = {}, _avEditId = null, _avAttached = false;
-let _hubEvents = {}, _hubLinks = {}, _hubPatch = null;
+/* tipos de aviso — fonte única (o hub.js espelha as MESMAS chaves em AV_ICONS e
+   nas cores do hub.css). Ordem = da mais neutra à mais crítica. */
+const AV_TIPO_LABEL = { info:'Informativo', novidade:'Novidade', sucesso:'Sucesso', aviso:'Aviso', manutencao:'Manutenção', erro:'Erro' };
+const avTipoOk = t => Object.prototype.hasOwnProperty.call(AV_TIPO_LABEL, t) ? t : 'info';
+let _hubEvents = {}, _hubLinks = {}, _hubPatch = null, _hubLinksHidden = {};
+/* MESMOS seeds embutidos no hub.js (DEFAULT_LINKS) — precisam bater id a id.
+   O hub mostra cada seed a menos que exista tombstone em hub/linksHidden/<id>.
+   O admin não listava os seeds, então não dava pra remover o "All-in"/"Tour"
+   padrão. Aqui a lista do admin passa a incluí-los, com Remover (grava tombstone)
+   e Restaurar (apaga o tombstone). */
+const HUB_DEFAULT_LINKS = [
+  { id:'seed-allin', url:'https://allin.supremapoker.com.br/', title:'All-in Suprema',     tag:'Campanha ativa' },
+  { id:'seed-tour',  url:'https://supremapokertour.com/',      title:'Suprema Poker Tour', tag:'Evento Live' },
+];
 /* patch notes default — igual ao do hub, pra o editor começar do conteúdo real
    quando ainda não há nada salvo no Firebase */
 const HUB_DEFAULT_PATCH =
@@ -2963,6 +2976,7 @@ function initAvisos(){
   db.ref('hub/avisos').on('value', s => { _avisos = s.val() || {}; renderAvisosAdmin(); });
   db.ref('hub/calendar').on('value', s => { _hubEvents = s.val() || {}; renderHubEvents(); });
   db.ref('hub/links').on('value', s => { _hubLinks = s.val() || {}; renderHubLinks(); });
+  db.ref('hub/linksHidden').on('value', s => { _hubLinksHidden = s.val() || {}; renderHubLinks(); });
   db.ref('hub/patchNotes').on('value', s => {
     _hubPatch = s.val();
     const ta = document.getElementById('pnTextA');
@@ -3032,21 +3046,45 @@ async function saveHubLink(){
   }catch(e){ console.error(e); toast('Falha ao adicionar link.','err'); }
 }
 async function removeHubLink(id){
-  if(!confirm('Remover este link?')) return;
-  try{ await db.ref('hub/links/'+id).remove(); await writeAdminLog('hub.link.remove',{id}); toast('Link removido','ok'); }
-  catch(e){ toast('Falha ao remover.','err'); }
+  const isSeed = String(id).indexOf('seed-') === 0;
+  if(!confirm(isSeed ? 'Ocultar este link padrão do hub?' : 'Remover este link?')) return;
+  try{
+    // seed embutido: não existe em hub/links pra apagar — grava o tombstone que o
+    // hub lê (hub/linksHidden/<id>). Link customizado: remove o nó normalmente.
+    if(isSeed) await db.ref('hub/linksHidden/'+id).set(true);
+    else       await db.ref('hub/links/'+id).remove();
+    await writeAdminLog('hub.link.remove',{id, seed:isSeed});
+    toast(isSeed ? 'Link padrão ocultado' : 'Link removido','ok');
+  }catch(e){ toast('Falha ao remover.','err'); }
+}
+/* devolve um seed padrão ocultado (apaga o tombstone) */
+async function restoreHubLink(id){
+  try{ await db.ref('hub/linksHidden/'+id).remove(); await writeAdminLog('hub.link.restore',{id}); toast('Link restaurado','ok'); }
+  catch(e){ toast('Falha ao restaurar.','err'); }
 }
 function renderHubLinks(){
   const el = document.getElementById('lkListA'); if(!el) return;
-  const items = Object.entries(_hubLinks).map(([id,l]) => ({id, ...l})).filter(l => l && l.url && l.title);
-  document.getElementById('lkCountA').textContent = items.length ? `${items.length} link(s) adicionado(s)` : 'Nenhum link adicionado';
-  if(!items.length){ el.innerHTML = '<p style="color:var(--ink3);font-size:13px;padding:12px 0">Nenhum link adicionado. Os links padrão da casa continuam no hub.</p>'; return; }
-  el.innerHTML = items.map(l => {
+  const rowHtml = (l, {seed=false, hidden=false}={}) => {
     const host = (l.url||'').replace(/^https?:\/\//,'').replace(/\/$/,'');
-    return `<div class="he-row"><div class="he-main"><div class="he-t">${esc(l.title)}${l.tag ? ` <span style="font-size:11px;color:var(--gold);font-weight:500">· ${esc(l.tag)}</span>` : ''}</div>
-      <div class="he-s">${esc(host)}${l.by ? ' · '+esc(String(l.by).split('@')[0]) : ''}</div></div>
-      <button class="btn btn-ghost btn-sm" data-act="removeHubLink" data-arg="${l.id}" style="color:var(--red)">Remover</button></div>`;
-  }).join('');
+    const tag = l.tag ? ` <span style="font-size:11px;color:var(--gold);font-weight:500">· ${esc(l.tag)}</span>` : '';
+    const badge = seed
+      ? ` <span style="font-size:10px;font-weight:700;color:var(--ink3);background:var(--s3);border:1px solid var(--border);border-radius:99px;padding:1px 7px">${hidden?'OCULTO':'PADRÃO'}</span>`
+      : '';
+    const by = l.by ? ' · '+esc(String(l.by).split('@')[0]) : '';
+    const btn = (seed && hidden)
+      ? `<button class="btn btn-ghost btn-sm" data-act="restoreHubLink" data-arg="${l.id}" style="color:var(--green)">Restaurar</button>`
+      : `<button class="btn btn-ghost btn-sm" data-act="removeHubLink" data-arg="${l.id}" style="color:var(--red)">${seed?'Ocultar':'Remover'}</button>`;
+    return `<div class="he-row"${hidden?' style="opacity:.55"':''}><div class="he-main"><div class="he-t">${esc(l.title)}${tag}${badge}</div>
+      <div class="he-s">${esc(host)}${by}</div></div>${btn}</div>`;
+  };
+  // seeds padrão (All-in, Tour) — sempre listados, com estado oculto/visível
+  const seedRows = HUB_DEFAULT_LINKS.map(l => rowHtml(l, {seed:true, hidden:!!_hubLinksHidden[l.id]})).join('');
+  // links customizados adicionados pelo admin (hub/links)
+  const custom = Object.entries(_hubLinks).map(([id,l]) => ({id, ...l})).filter(l => l && l.url && l.title);
+  const customRows = custom.map(l => rowHtml(l)).join('');
+  const shownCount = HUB_DEFAULT_LINKS.filter(l=>!_hubLinksHidden[l.id]).length + custom.length;
+  document.getElementById('lkCountA').textContent = `${shownCount} link(s) no hub`;
+  el.innerHTML = seedRows + customRows;
 }
 
 /* ── PATCH NOTES (hub/patchNotes) ── */
@@ -3090,7 +3128,7 @@ async function saveAviso(){
 function editAviso(id){
   const a = _avisos[id]; if(!a) return;
   _avEditId = id;
-  document.getElementById('avTipo').value = ['erro','aviso','info'].includes(a.tipo) ? a.tipo : 'info';
+  document.getElementById('avTipo').value = avTipoOk(a.tipo);
   document.getElementById('avTitulo').value = a.titulo || '';
   document.getElementById('avTexto').value = a.texto || '';
   document.getElementById('avAtivo').checked = a.ativo !== false;
@@ -3120,11 +3158,11 @@ function renderAvisosAdmin(){
   const ativos = items.filter(a => a.ativo !== false).length;
   count.textContent = items.length ? `${items.length} aviso(s) · ${ativos} ativo(s) no hub` : 'Nenhum aviso publicado';
   if(!items.length){ el.innerHTML = '<p class="av-empty">Nenhum aviso ainda. Publique o primeiro acima.</p>'; return; }
-  const tag = t => t==='erro'?'Erro':t==='aviso'?'Aviso':'Informativo';
+  const tag = t => AV_TIPO_LABEL[avTipoOk(t)];
   /* estilo mora em admin.css (.av-item e família) — inline aqui era caça ao
      tesouro pra qualquer ajuste visual */
   el.innerHTML = items.map(a => {
-    const tipo = ['erro','aviso','info'].includes(a.tipo)?a.tipo:'info';
+    const tipo = avTipoOk(a.tipo);
     const inativo = a.ativo === false;
     const when = a.at ? new Date(a.at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
     return `<div class="av-item tp-${tipo}${inativo?' off':''}">

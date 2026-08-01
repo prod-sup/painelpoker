@@ -76,7 +76,7 @@
     /* acionadas por markup que o próprio admin.js gera (tabelas, listas) — a
        delegação cobre elemento criado depois, então não precisam religar nada */
     'goToAuditFor', 'toggleAccess', 'toggleAviso', 'editAviso', 'removeAviso',
-    'removeHubLink', 'removeHubEvent', 'resolveNotif',
+    'removeHubLink', 'restoreHubLink', 'removeHubEvent', 'resolveNotif',
     'markCnError', 'clearCnError', 'notifyCnError',
     'toggleCheckAll', 'updateBatchActions',
     'blockOp', 'forceUnblockOp',
