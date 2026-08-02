@@ -741,11 +741,15 @@ body > *{position:relative;z-index:1}
   @media (prefers-reduced-motion:reduce){
     #secFsOverlay.open, #secFsOverlay.open .sec-fs-card{ animation:none }
   }
-  .sec-fs-card{display:flex;flex-direction:column;flex:1;min-height:0}
+  /* min-width:0 é OBRIGATÓRIO: sem ele o flex item usa min-width:auto e cresce
+     até a largura do conteúdo (tabela larga), vazando a viewport — aí o
+     overflow:auto do .secwrap nunca dispara e não dá pra rolar pro lado. */
+  .sec-fs-card{display:flex;flex-direction:column;flex:1;min-width:0;min-height:0}
   /* cabeçalho da tela cheia: mais definido que na lista — divisor + respiro */
   .sec-fs-card .section-head{flex:none;margin:0 0 14px;padding-bottom:14px;border-bottom:1px solid var(--hairline)}
-  /* o .secwrap é o ÚNICO scroll (x E y) da tela cheia */
-  .sec-fs-card .secwrap{flex:1;overflow:auto;min-height:0;overscroll-behavior:contain}
+  /* o .secwrap é o ÚNICO scroll (x E y) da tela cheia — min-width:0 pelo mesmo
+     motivo do card: liberar o encolhimento pra a barra horizontal aparecer */
+  .sec-fs-card .secwrap{flex:1;overflow:auto;min-width:0;min-height:0;overscroll-behavior:contain}
   /* .vwrap (Colunas) e .pwrap (Planilha) viram PASSTHROUGH aqui: sem scroll
      próprio, sem max-height, sem containment. Se o .vwrap continuasse sendo um
      2º scroller, a barra horizontal dele ficava clipada no rodapé e não dava pra
