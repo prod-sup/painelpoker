@@ -2180,7 +2180,7 @@ function renderSecFs(){
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
     </div>
-    <div class="secwrap" data-suit="${cat.suit}">${SEC_VIEW === 'sheet' ? renderPlanilhaRows(items, cat, asg) : renderVertical(items, cat, asg)}</div>
+    <div class="secwrap" data-suit="${cat.suit}">${SEC_VIEW === 'sheet' ? renderPlanilhaRows(items, cat, asg) : renderVertical(items, cat, asg, null, true)}</div>
     <div class="sec-fs-foot">
       <div class="keys" aria-hidden="true">
         <span class="kbtn"><kbd>←</kbd><kbd>→</kbd> navegar</span>
@@ -2214,7 +2214,7 @@ function renderSecFs(){
    "Colunas" (padrão da lista normal, e opção dentro da tela cheia da seção).
    A visão "Planilha" de verdade (uma linha por torneio) é renderPlanilhaRows,
    acima. Campos-chave com rótulo destacado. */
-function renderVertical(items, cat, asg, fieldList){
+function renderVertical(items, cat, asg, fieldList, dropEmpty){
   const cols = items.map(it => {
     const key = itemKey(it);
     return {it, key, done: !!DONE[key], op: asg[key]};
@@ -2232,7 +2232,13 @@ function renderVertical(items, cat, asg, fieldList){
   // FEE, ADMIN FEE e EARLY BIRD crus saem da receita: já estão consolidados nas linhas de cima
   const feeCols = new Set();
   cols.forEach(c => [feeInfo, adminInfo, earlyInfo].forEach(g => { const i = g(c.it); if (i && i.label) feeCols.add(i.label); }));
-  const rows = (fieldList || visibleRecipeFields()).filter(l => !feeCols.has(l));
+  let rows = (fieldList || visibleRecipeFields()).filter(l => !feeCols.has(l));
+  // tela cheia: descarta campo que é vazio ("—") em TODOS os torneios da seção —
+  // linha só de traço é ruído e come altura à toa (pedido: evitar scroll vertical)
+  if (dropEmpty) rows = rows.filter(label => cols.some(c => {
+    const v = c.it.extra ? c.it.extra[label] : undefined;
+    return v !== undefined && v !== null && v !== '';
+  }));
   return `
     <div class="vwrap"><table class="vtable">
       <tr class="trow-head"><th class="rowlab">Torneio</th>${cell(c => {

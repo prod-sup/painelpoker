@@ -759,6 +759,15 @@ body > *{position:relative;z-index:1}
     overflow:visible;max-height:none;border:none;border-radius:0;
     box-shadow:none;background:transparent;content-visibility:visible;contain:none;
   }
+  /* DENSIDADE COMPACTA na tela cheia (Colunas): mais campos por tela = menos
+     scroll vertical. Escopo só no overlay — a lista normal fica como está.
+     Cabeçalho/rodapé também encolhem pra devolver altura ao miolo. */
+  #secFsOverlay .vtable th, #secFsOverlay .vtable td{padding:4px 14px;font-size:12px}
+  #secFsOverlay .vtable td.vname{font-size:12px;line-height:1.2}
+  #secFsOverlay .vtable .rowlab{font-size:10px;min-width:104px}
+  #secFsOverlay .ptable thead th,#secFsOverlay .ptable tbody td{padding:5px 10px}
+  #secFsOverlay .section-head{margin:0 0 9px;padding-bottom:9px}
+  #secFsOverlay .sec-fs-foot{margin-top:8px;padding-top:8px}
   /* mini barra de progresso no cabeçalho (criados/total, num relance) */
   .sec-fs-prog{position:relative;flex:none;height:5px;width:120px;border-radius:99px;background:var(--hairline);overflow:hidden}
   .sec-fs-prog>i{position:absolute;inset:0 auto 0 0;border-radius:99px;background:var(--felt-bright);transition:width .5s var(--ease-expo)}
