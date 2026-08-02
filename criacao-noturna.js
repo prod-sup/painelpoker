@@ -1257,6 +1257,7 @@ function renderAllNow(){
   renderFieldDiag();
   renderList();
   renderTV();
+  renderSecFs();
   const restoreScroll = () => {
     document.querySelectorAll('#listArea .secwrap').forEach(sw => {
       const p = secScroll[sw.dataset.suit]; if (!p) return;
@@ -2022,24 +2023,18 @@ function renderList(){
     const items = visibleItems(catItems(cat), asg);
     if (!items.length) return;
     const doneCount = items.filter(it => DONE[itemKey(it)]).length;
-    const isFs = SEC_FS === cat.key;
-    html += `<div class="sec-block ${isFs ? 'sec-fs' : ''}" data-secblock="${cat.key}">
+    html += `
       <div class="section-head ${cat.cls}">
         <span class="tag"><span class="suit">${cat.suit}</span>${cat.label}</span>
         <span class="cnt">${doneCount}/${items.length} criados</span>
         ${prizeChip(items, false)}
         <span class="line"></span>
-        ${isFs ? `<div class="seg sec-view-seg" role="group" aria-label="Visão da seção">
-          <button data-secview="sheet" class="${SEC_VIEW === 'sheet' ? 'on' : ''}" title="Planilha — torneios lado a lado numa tabela só">Planilha</button>
-          <button data-secview="columns" class="${SEC_VIEW === 'columns' ? 'on' : ''}" title="Colunas — um cartão por torneio, sem scroll horizontal">Colunas</button>
-        </div>` : ''}
-        <button class="sec-fs-btn" data-secfs="${cat.key}" title="${isFs ? 'Sair da tela cheia' : 'Tela cheia'}" aria-pressed="${isFs}" aria-label="${isFs ? 'Sair da tela cheia' : 'Tela cheia desta seção'}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${isFs ? '<path d="M9 4v5H4M20 9h-5V4M9 20v-5H4M20 15h-5v5"/>' : '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'}</svg>
+        <button class="sec-fs-btn" data-secfs="${cat.key}" title="Tela cheia" aria-label="Tela cheia desta seção">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
         </button>
       </div>
       ${sectionNoteHtml(cat)}
-      <div class="secwrap" data-suit="${cat.suit}">${isFs && SEC_VIEW === 'columns' ? renderColumns(items, cat, asg) : renderVertical(items, cat, asg)}</div>
-    </div>`;
+      <div class="secwrap" data-suit="${cat.suit}">${renderVertical(items, cat, asg)}</div>`;
   });
 
   // #2 LIGA PRINCIPAL — grade fixa dos Eventos Principais do dia (BRL). Mesma lógica do
@@ -2101,7 +2096,6 @@ function renderList(){
 
   area.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
   area.querySelectorAll('[data-secfs]').forEach(el => el.addEventListener('click', () => toggleSectionFs(el.dataset.secfs)));
-  area.querySelectorAll('[data-secview]').forEach(el => el.addEventListener('click', () => setSectionView(el.dataset.secview)));
   area.querySelectorAll('[data-assign]').forEach(el => el.addEventListener('click', () => setAssign(el.dataset.assign)));
   area.querySelectorAll('[data-focus]').forEach(el => {
     el.addEventListener('click', () => openFocusAt(el.dataset.focus));
@@ -2134,19 +2128,77 @@ function renderList(){
    igual ao padrão já usado na Conferência do dia (conf-dia.js). Sair da tela
    cheia de uma volta pra ela, sair da atual fecha (mesmo botão). */
 function toggleSectionFs(catKey){
-  SEC_FS = (SEC_FS === catKey) ? null : catKey;
+  const opening = SEC_FS !== catKey;
+  SEC_FS = opening ? catKey : null;
   document.body.classList.toggle('cn-sec-fs-lock', !!SEC_FS);
-  renderAll();
+  renderSecFs();
+  if (opening) a11yOpenDialog('secFsOverlay'); else a11yCloseDialog('secFsOverlay');
 }
 function setSectionView(view){
   SEC_VIEW = view;
   try{ localStorage.setItem('cn_sec_view', view); }catch(e){}
-  renderAll();
+  renderSecFs();
+}
+/* tela cheia de UMA seção — overlay PRÓPRIO no nível do <body> (#secFsOverlay,
+   ver criacao-noturna.html, mesmo padrão do #focusOverlay/#tvOverlay), NUNCA
+   aninhado dentro de #listArea: um elemento position:fixed dentro de um
+   ancestral com transform/will-change (as animações de entrada da lista usam
+   isso) deixa de ser fixo à VIEWPORT e passa a ser fixo ao ancestral — daí o
+   bug de ter que rolar a página inteira pra alcançar o botão de fechar. Um
+   overlay solto direto no body nunca tem esse problema. */
+function renderSecFs(){
+  const ov = $('secFsOverlay');
+  if (!ov) return;
+  if (!SEC_FS || !DATA){ ov.classList.remove('open'); ov.setAttribute('aria-hidden', 'true'); return; }
+  const cat = SECTIONS.find(c => c.key === SEC_FS);
+  const asg = computeAssignments();
+  const items = cat ? visibleItems(catItems(cat), asg) : [];
+  if (!cat || !items.length){
+    SEC_FS = null;
+    document.body.classList.remove('cn-sec-fs-lock');
+    ov.classList.remove('open'); ov.setAttribute('aria-hidden', 'true');
+    return;
+  }
+  const doneCount = items.filter(it => DONE[itemKey(it)]).length;
+  const card = $('secFsCard');
+  card.innerHTML = `
+    <div class="section-head ${cat.cls}">
+      <span class="tag"><span class="suit">${cat.suit}</span>${cat.label}</span>
+      <span class="cnt">${doneCount}/${items.length} criados</span>
+      ${prizeChip(items, false)}
+      <span class="line"></span>
+      <div class="seg sec-view-seg" role="group" aria-label="Visão da seção">
+        <button data-secview="sheet" class="${SEC_VIEW === 'sheet' ? 'on' : ''}" title="Planilha — um torneio por linha, igual à Global">Planilha</button>
+        <button data-secview="columns" class="${SEC_VIEW === 'columns' ? 'on' : ''}" title="Colunas — campos empilhados, um torneio por coluna">Colunas</button>
+      </div>
+      <button class="sec-fs-btn" id="secFsClose" title="Fechar (Esc)" aria-label="Fechar tela cheia">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="secwrap" data-suit="${cat.suit}">${SEC_VIEW === 'sheet' ? renderPlanilhaRows(items, cat, asg) : renderVertical(items, cat, asg)}</div>`;
+  ov.classList.add('open');
+  ov.setAttribute('aria-hidden', 'false');
+  $('secFsClose').addEventListener('click', () => toggleSectionFs(SEC_FS));
+  card.querySelectorAll('[data-secview]').forEach(b => b.addEventListener('click', () => setSectionView(b.dataset.secview)));
+  card.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
+  card.querySelectorAll('.id-inp').forEach(inp => {
+    inp.addEventListener('change', () => setId(inp.dataset.idkey, inp.value));
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
+  });
+  card.querySelectorAll('[data-copy]').forEach(el => el.addEventListener('click', async () => {
+    try{ await navigator.clipboard.writeText(el.dataset.copy); showToast('Receita copiada 📋'); }
+    catch(e){ showToast('Não consegui copiar — copie manualmente.', true); }
+  }));
+  card.querySelectorAll('[data-focus]').forEach(el => {
+    el.addEventListener('click', () => openFocusAt(el.dataset.focus));
+    el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openFocusAt(el.dataset.focus); } });
+  });
 }
 
-/* planilha transposta: campos nas linhas, torneios nas colunas, na ordem em
-   que se digita no app. Campos-chave com rótulo destacado. Visão padrão da
-   seção; "Colunas" (renderColumns, abaixo) é a alternativa só na tela cheia. */
+/* planilha transposta: campos nas linhas, torneios nas colunas — é a visão
+   "Colunas" (padrão da lista normal, e opção dentro da tela cheia da seção).
+   A visão "Planilha" de verdade (uma linha por torneio) é renderPlanilhaRows,
+   acima. Campos-chave com rótulo destacado. */
 function renderVertical(items, cat, asg, fieldList){
   const cols = items.map(it => {
     const key = itemKey(it);
@@ -2214,45 +2266,55 @@ function renderVertical(items, cat, asg, fieldList){
     </table></div>`;
 }
 
-/* colunas: um CARTÃO por torneio (grade de campos, recipeGridHtml) em vez de
-   uma tabela só com todo mundo lado a lado — sem precisar rolar na horizontal
-   pra ler a receita de um torneio específico. Só aparece na tela cheia da
-   seção (a lista normal continua sempre em planilha, mais compacta). Mesmas
-   ações da planilha (ID, criado, copiar) — os data-attrs batem com os
-   listeners genéricos já ligados em renderList, nada de wiring novo aqui. */
-function renderColumns(items, cat, asg){
-  const cards = items.map(it => {
+/* PLANILHA DE VERDADE — uma LINHA por torneio, campos em COLUNA: a mesma
+   orientação da aba G MTTS da Global (a "vtable" de cima, usada em Colunas, é
+   TRANSPOSTA — campos na linha, torneio na coluna — o oposto disso). Só usada
+   na tela cheia. Mesmas ações de sempre (ID, criado, copiar, abrir em tela
+   cheia por evento) — data-attrs batem com os listeners já existentes. */
+function renderPlanilhaRows(items, cat, asg){
+  const feeCols = new Set();
+  items.forEach(it => [feeInfo, adminInfo, earlyInfo].forEach(g => { const i = g(it); if (i && i.label) feeCols.add(i.label); }));
+  const cols = visibleRecipeFields().filter(l => !feeCols.has(l));
+  const head = `<tr>
+      <th class="pname">Torneio</th><th>Horário</th><th class="key">Criar em</th>
+      <th>Admin Fee</th><th>Early Bird</th>
+      ${cat.key === 'sat' ? '<th>Grupo</th>' : ''}
+      ${cols.map(l => `<th title="${escHtml(l)}">${escHtml(l)}</th>`).join('')}
+      <th>Operador</th><th>ID Pokerbyte</th><th>Criado</th><th></th>
+    </tr>`;
+  const body = items.map(it => {
     const key = itemKey(it);
     const done = !!DONE[key];
     const op = asg[key];
-    const m = mttKicker(it), urg = urgency(it);
     const af = adminFeeParts(it), eb = earlyParts(it);
-    return `<div class="cn-col-card ${done ? 'is-done' : ''}">
-      <div class="cn-col-head">
-        <span class="vgo cn-col-name" data-focus="${key}" role="button" tabindex="0" title="Abrir este torneio em tela cheia (Modo Foco)" aria-label="Abrir ${escHtml(it.nome)} em tela cheia">${escHtml(it.nome)}</span>
-        <span class="cn-col-hora">${escHtml(it.hora)}</span>
-      </div>
-      <div class="cn-col-badges">
+    const m = mttKicker(it), urg = urgency(it);
+    return `<tr class="${done ? 'done-row' : ''}">
+      <td class="pname">
+        <span class="vgo" data-focus="${key}" role="button" tabindex="0" title="Abrir este torneio em tela cheia" aria-label="Abrir ${escHtml(it.nome)} em tela cheia">${escHtml(it.nome)}</span>
         ${campBadgeHtml(it)}${valBadge(it, cat)}${changeBadge(it)}${auditBadge(it)}
-        ${urg ? `<span class="urg-pill ${urg}">⏰ ${urgLabel(it)}</span>` : ''}
-        ${m ? `<span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : ''}
-        ${it.groupHeader ? `<span class="pill" style="color:var(--sat-bright)">${escHtml(it.groupHeader)}</span>` : ''}
-      </div>
-      ${af || eb ? `<div class="cn-col-calc">
-        ${af ? `<span class="calc-chip admin">${escHtml(af.main)}${af.sub ? `<span class="amt">${escHtml(af.sub)}</span>` : ''}</span>` : ''}
-        ${eb ? `<span class="calc-chip early">${escHtml(eb.main)}${eb.sub ? `<span class="amt">${escHtml(eb.sub)}</span>` : ''}</span>` : ''}
-      </div>` : ''}
-      ${recipeGridHtml(it)}
-      <div class="cn-col-foot">
-        ${opTagHtml(op, key)}
-        ${idInputHtml(key, 'flex:1')}
+        ${urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(it)}</span>` : ''}
+        ${m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : ''}
+      </td>
+      <td class="thora">${escHtml(it.hora)}</td>
+      <td class="mono key" style="font-weight:700">${escHtml(creationWhen(it))}</td>
+      <td>${af ? `<span class="calc-chip admin">${escHtml(af.main)}${af.sub ? `<span class="amt">${escHtml(af.sub)}</span>` : ''}</span>` : '<span style="opacity:.4">—</span>'}</td>
+      <td>${eb ? `<span class="calc-chip early">${escHtml(eb.main)}${eb.sub ? `<span class="amt">${escHtml(eb.sub)}</span>` : ''}</span>` : '<span style="opacity:.4">—</span>'}</td>
+      ${cat.key === 'sat' ? `<td style="font-size:11px;color:var(--sat-bright)">${escHtml(it.groupHeader || '—')}</td>` : ''}
+      ${cols.map(label => {
+        const v = it.extra ? it.extra[label] : undefined;
+        const has = v !== undefined && v !== null && v !== '';
+        return `<td>${has ? escHtml(fmtExtraVal(label, v)) : '<span style="color:var(--ink-soft);opacity:.5">—</span>'}</td>`;
+      }).join('')}
+      <td>${opTagHtml(op, key)}</td>
+      <td>${idInputHtml(key, 'width:110px')}</td>
+      <td>
         <button class="chk ${done ? 'on' : ''}" data-done="${key}" role="checkbox" aria-checked="${done ? 'true' : 'false'}"
           title="${done ? `Criado por ${escHtml((DONE[key]||{}).by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
-        <button class="copy-btn" data-copy="${escHtml(recipeText(it, cat.label))}" title="Copiar receita"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
-      </div>
-    </div>`;
+      </td>
+      <td><button class="copy-btn" data-copy="${escHtml(recipeText(it, cat.label))}" title="Copiar receita"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></td>
+    </tr>`;
   }).join('');
-  return `<div class="cn-col-grid">${cards}</div>`;
+  return `<div class="pwrap"><table class="ptable"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
 }
 
 /* =========================================================================
@@ -2367,6 +2429,10 @@ let FOCUS_TARGET = null; // clicou num torneio da tabela → foco abre direto ne
    na mesma visão (planilha/colunas) que a seção estava mostrando. */
 function openFocusAt(key){
   if (DONE[key]){ showToast('Esse torneio já foi criado.'); return; }
+  // "entra" no evento: se veio de dentro da tela cheia da seção, fecha ela
+  // primeiro — as duas telas cheias empilhadas ao mesmo tempo não fazem
+  // sentido (e brigariam de z-index); ← no foco volta pro torneio anterior.
+  if (SEC_FS) toggleSectionFs(SEC_FS);
   FOCUS_TARGET = key;
   FOCUS_FS = true;
   FOCUS_VIEW = SEC_VIEW === 'columns' ? 'grid' : 'sheet';
@@ -2629,8 +2695,8 @@ function renderFocus(){
         <span class="queue-pos">${mineDone + 1} de ${mineTotal} · ${queue.length} na fila</span>
         <div class="seg focus-view-seg" id="focusViewSeg" role="group" aria-label="Visão do torneio">
           <button data-view="flow" class="${FOCUS_VIEW === 'flow' ? 'on' : ''}" title="Fluxo — um campo de cada vez, na ordem de digitar">Fluxo</button>
-          <button data-view="sheet" class="${FOCUS_VIEW === 'sheet' ? 'on' : ''}" title="Planilha — este torneio em formato de planilha (igual à grade)">Planilha</button>
-          <button data-view="grid" class="${FOCUS_VIEW === 'grid' ? 'on' : ''}" title="Colunas — todos os campos num quadro, pra ler de relance">Colunas</button>
+          <button data-view="sheet" class="${FOCUS_VIEW === 'sheet' ? 'on' : ''}" title="Planilha — este torneio como uma linha, igual à Global">Planilha</button>
+          <button data-view="grid" class="${FOCUS_VIEW === 'grid' ? 'on' : ''}" title="Colunas — campos empilhados, como na grade normal">Colunas</button>
         </div>
         <button class="focus-close focus-fs-btn" id="focusFsBtn" title="${FOCUS_FS ? 'Sair da tela cheia' : 'Tela cheia'}" aria-pressed="${FOCUS_FS}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${FOCUS_FS ? '<path d="M9 4v5H4M20 9h-5V4M9 20v-5H4M20 15h-5v5"/>' : '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'}</svg>
@@ -2654,9 +2720,9 @@ function renderFocus(){
       ${issues.length ? `<div class="focus-alerts">${issues.map(m => `<div class="focus-alert">⚠ ${escHtml(m)}</div>`).join('')}</div>` : ''}
       ${(() => { const s = specSheetHtml(it); return s ? `<div class="spec-title"><svg viewBox="0 0 24 24"><path d="M12 2 15 9l7 .5-5.3 4.6L18.5 21 12 17l-6.5 4 1.8-6.9L2 9.5 9 9z"/></svg> Destaques</div>${s}` : ''; })()}
       ${FOCUS_VIEW === 'sheet' ? `
-        <div class="focus-altview">${renderVertical([it], cat, asg)}</div>
+        <div class="focus-altview">${renderPlanilhaRows([it], cat, asg)}</div>
       ` : FOCUS_VIEW === 'grid' ? `
-        <div class="focus-altview">${recipeGridHtml(it)}</div>
+        <div class="focus-altview">${renderVertical([it], cat, asg)}</div>
       ` : `
         <div class="flow-head">
           <span class="t"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h12"/></svg> Receita — de cima para baixo</span>
@@ -2814,6 +2880,7 @@ setInterval(() => {
   LAST_URG_SIG = sig;
   const ae = document.activeElement;
   if (!(ae && ae.classList.contains('id-inp'))) renderList();
+  if (!(SEC_FS && ae && ae.classList.contains('id-inp'))) renderSecFs();
   // não re-renderizar o foco enquanto a pessoa digita o ID ou marca campos
   if (!(FOCUS_OPEN && ae && ae.id === 'focusIdInp')) renderFocus();
 }, 60000);
@@ -3050,7 +3117,7 @@ function a11yCloseDialog(id){
 }
 document.addEventListener('keydown', function(e){
   if(e.key !== 'Tab') return;
-  var dlg = document.querySelector('#focusOverlay.open, #tvOverlay.open');
+  var dlg = document.querySelector('#focusOverlay.open, #tvOverlay.open, #secFsOverlay.open');
   if(!dlg) return;
   var foc = [].slice.call(dlg.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'))
     .filter(function(el){ return el.getClientRects().length; });

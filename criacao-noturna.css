@@ -720,15 +720,22 @@ body > *{position:relative;z-index:1}
   /* naipe no cabeçalho da seção */
   .section-head .tag .suit{font-size:12px;margin-right:5px}
 
-  /* ── tela cheia POR SEÇÃO (Main/Side/Satélite) + alternância planilha/colunas ── */
+  /* ── tela cheia POR SEÇÃO (Main/Side/Satélite) + alternância planilha/colunas ──
+     #secFsOverlay é solto no <body> (mesmo padrão do #focusOverlay/#tvOverlay
+     acima) — NUNCA um position:fixed aninhado dentro de #listArea, porque um
+     ancestral com transform/will-change (as animações de entrada da lista usam
+     isso) vira o containing block do fixed e o botão de fechar só fica
+     alcançável rolando a página inteira. Fora da árvore da lista, esse bug não
+     existe: o overlay é sempre relativo à viewport. */
   body.cn-sec-fs-lock{overflow:hidden}
-  .sec-block{transition:none}
-  .sec-block.sec-fs{
-    position:fixed;inset:0;z-index:150;background:var(--bg);
-    display:flex;flex-direction:column;padding:18px 22px;overflow:hidden;
+  #secFsOverlay{
+    position:fixed;inset:0;background:var(--bg);
+    display:none;z-index:150;padding:18px 22px;
   }
-  .sec-block.sec-fs .section-head{flex:none;margin:0 0 12px}
-  .sec-block.sec-fs .secwrap{flex:1;overflow:auto;min-height:0}
+  #secFsOverlay.open{display:flex}
+  .sec-fs-card{display:flex;flex-direction:column;flex:1;min-height:0}
+  .sec-fs-card .section-head{flex:none;margin:0 0 12px}
+  .sec-fs-card .secwrap{flex:1;overflow:auto;min-height:0}
   .sec-fs-btn{
     border:1px solid var(--hairline-strong);background:var(--card);
     border-radius:99px;width:30px;height:30px;cursor:pointer;color:var(--ink-soft);flex:none;
@@ -736,26 +743,27 @@ body > *{position:relative;z-index:1}
   }
   .sec-fs-btn svg{width:15px;height:15px}
   .sec-fs-btn:hover{color:var(--felt-bright);border-color:var(--felt-bright)}
-  .sec-fs-btn[aria-pressed="true"]{color:var(--felt-bright);border-color:var(--felt-bright)}
   .sec-view-seg{padding:2px}
   .sec-view-seg button{padding:5px 12px;font-size:11.5px}
 
-  /* colunas: grade de cartões, um por torneio — só usada na tela cheia da seção */
-  .cn-col-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;align-items:start}
-  .cn-col-card{
-    background:var(--card);border:1px solid var(--hairline);border-radius:var(--radius-md);
-    padding:14px;display:flex;flex-direction:column;gap:8px;
+  /* ── planilha de verdade (renderPlanilhaRows): uma LINHA por torneio, campos
+     em coluna — a mesma orientação da G MTTS. Cabeçalho fixo ao rolar (sticky
+     relativo ao .secwrap, que é quem rola de verdade). Só aparece na tela
+     cheia da seção/torneio. ── */
+  .pwrap{overflow-x:auto}
+  .ptable{border-collapse:separate;border-spacing:0;width:100%;white-space:nowrap}
+  .ptable thead th{
+    position:sticky;top:0;z-index:2;background:var(--card);
+    text-align:left;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ink-soft);padding:8px 10px;border-bottom:2px solid var(--hairline-strong);
   }
-  .cn-col-card.is-done{opacity:.55}
-  .cn-col-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-  .cn-col-name{font-weight:750;font-size:13.5px;cursor:pointer}
-  .cn-col-name:hover{color:var(--felt-bright)}
-  .cn-col-hora{font-family:var(--mono);font-size:12px;color:var(--felt-bright);font-weight:700;flex:none}
-  .cn-col-badges{display:flex;flex-wrap:wrap;gap:5px}
-  .cn-col-calc{display:flex;flex-wrap:wrap;gap:6px}
-  .cn-col-card .recipe-grid{margin-top:2px}
-  .cn-col-foot{display:flex;align-items:center;gap:6px;margin-top:4px;padding-top:10px;border-top:1px solid var(--hairline)}
-  .cn-col-foot .id-inp{flex:1;min-width:0}
+  html.dark .ptable thead th{background:#161e18}
+  .ptable thead th.key{color:var(--felt-bright)}
+  .ptable tbody td{padding:8px 10px;border-bottom:1px solid var(--hairline);font-size:12.5px;vertical-align:middle}
+  .ptable tbody tr:hover td{background:var(--card-elevated)}
+  .ptable tr.done-row td{opacity:.5}
+  .ptable td.pname{white-space:normal;min-width:190px;max-width:280px}
+  .ptable td.thora{font-family:var(--mono);color:var(--felt-bright);font-weight:700;white-space:nowrap}
 
   /* ── banner de turno concluído: pede a próxima GU ── */
   .alldone{
