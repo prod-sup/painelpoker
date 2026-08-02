@@ -720,6 +720,43 @@ body > *{position:relative;z-index:1}
   /* naipe no cabeçalho da seção */
   .section-head .tag .suit{font-size:12px;margin-right:5px}
 
+  /* ── tela cheia POR SEÇÃO (Main/Side/Satélite) + alternância planilha/colunas ── */
+  body.cn-sec-fs-lock{overflow:hidden}
+  .sec-block{transition:none}
+  .sec-block.sec-fs{
+    position:fixed;inset:0;z-index:150;background:var(--bg);
+    display:flex;flex-direction:column;padding:18px 22px;overflow:hidden;
+  }
+  .sec-block.sec-fs .section-head{flex:none;margin:0 0 12px}
+  .sec-block.sec-fs .secwrap{flex:1;overflow:auto;min-height:0}
+  .sec-fs-btn{
+    border:1px solid var(--hairline-strong);background:var(--card);
+    border-radius:99px;width:30px;height:30px;cursor:pointer;color:var(--ink-soft);flex:none;
+    display:inline-flex;align-items:center;justify-content:center;transition:all .25s var(--ease);
+  }
+  .sec-fs-btn svg{width:15px;height:15px}
+  .sec-fs-btn:hover{color:var(--felt-bright);border-color:var(--felt-bright)}
+  .sec-fs-btn[aria-pressed="true"]{color:var(--felt-bright);border-color:var(--felt-bright)}
+  .sec-view-seg{padding:2px}
+  .sec-view-seg button{padding:5px 12px;font-size:11.5px}
+
+  /* colunas: grade de cartões, um por torneio — só usada na tela cheia da seção */
+  .cn-col-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;align-items:start}
+  .cn-col-card{
+    background:var(--card);border:1px solid var(--hairline);border-radius:var(--radius-md);
+    padding:14px;display:flex;flex-direction:column;gap:8px;
+  }
+  .cn-col-card.is-done{opacity:.55}
+  .cn-col-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+  .cn-col-name{font-weight:750;font-size:13.5px;cursor:pointer}
+  .cn-col-name:hover{color:var(--felt-bright)}
+  .cn-col-hora{font-family:var(--mono);font-size:12px;color:var(--felt-bright);font-weight:700;flex:none}
+  .cn-col-badges{display:flex;flex-wrap:wrap;gap:5px}
+  .cn-col-calc{display:flex;flex-wrap:wrap;gap:6px}
+  .cn-col-card .recipe-grid{margin-top:2px}
+  .cn-col-foot{display:flex;align-items:center;gap:6px;margin-top:4px;padding-top:10px;border-top:1px solid var(--hairline)}
+  .cn-col-foot .id-inp{flex:1;min-width:0}
+
   /* ── banner de turno concluído: pede a próxima GU ── */
   .alldone{
     display:flex;gap:14px;align-items:flex-start;

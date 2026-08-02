@@ -447,6 +447,11 @@ let AUDIT = {};           // itemKey -> {status:'erro', motivo, by, at} — marc
 let SEARCH = '';
 let CURRENCY = localStorage.getItem('cn_currency') || 'usd';
 let FILTER = 'all';
+/* tela cheia POR SEÇÃO (Main/Side/Satélite) — só uma por vez, com escolha de
+   visão (planilha = tabela atual / colunas = um cartão por torneio, sem
+   precisar rolar na horizontal pra ver os campos de todos de uma vez) */
+let SEC_FS = null;    // cat.key da seção em tela cheia, ou null
+let SEC_VIEW = localStorage.getItem('cn_sec_view') || 'sheet'; // 'sheet' | 'columns'
 
 function setSync(state, label){
   const el = $('syncStatus');
@@ -2017,15 +2022,24 @@ function renderList(){
     const items = visibleItems(catItems(cat), asg);
     if (!items.length) return;
     const doneCount = items.filter(it => DONE[itemKey(it)]).length;
-    html += `
+    const isFs = SEC_FS === cat.key;
+    html += `<div class="sec-block ${isFs ? 'sec-fs' : ''}" data-secblock="${cat.key}">
       <div class="section-head ${cat.cls}">
         <span class="tag"><span class="suit">${cat.suit}</span>${cat.label}</span>
         <span class="cnt">${doneCount}/${items.length} criados</span>
         ${prizeChip(items, false)}
         <span class="line"></span>
+        ${isFs ? `<div class="seg sec-view-seg" role="group" aria-label="Visão da seção">
+          <button data-secview="sheet" class="${SEC_VIEW === 'sheet' ? 'on' : ''}" title="Planilha — torneios lado a lado numa tabela só">Planilha</button>
+          <button data-secview="columns" class="${SEC_VIEW === 'columns' ? 'on' : ''}" title="Colunas — um cartão por torneio, sem scroll horizontal">Colunas</button>
+        </div>` : ''}
+        <button class="sec-fs-btn" data-secfs="${cat.key}" title="${isFs ? 'Sair da tela cheia' : 'Tela cheia'}" aria-pressed="${isFs}" aria-label="${isFs ? 'Sair da tela cheia' : 'Tela cheia desta seção'}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${isFs ? '<path d="M9 4v5H4M20 9h-5V4M9 20v-5H4M20 15h-5v5"/>' : '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'}</svg>
+        </button>
       </div>
-      ${sectionNoteHtml(cat)}`;
-    html += `<div class="secwrap" data-suit="${cat.suit}">${renderVertical(items, cat, asg)}</div>`;
+      ${sectionNoteHtml(cat)}
+      <div class="secwrap" data-suit="${cat.suit}">${isFs && SEC_VIEW === 'columns' ? renderColumns(items, cat, asg) : renderVertical(items, cat, asg)}</div>
+    </div>`;
   });
 
   // #2 LIGA PRINCIPAL — grade fixa dos Eventos Principais do dia (BRL). Mesma lógica do
@@ -2086,6 +2100,8 @@ function renderList(){
   document.documentElement.scrollTop = _winY;
 
   area.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
+  area.querySelectorAll('[data-secfs]').forEach(el => el.addEventListener('click', () => toggleSectionFs(el.dataset.secfs)));
+  area.querySelectorAll('[data-secview]').forEach(el => el.addEventListener('click', () => setSectionView(el.dataset.secview)));
   area.querySelectorAll('[data-assign]').forEach(el => el.addEventListener('click', () => setAssign(el.dataset.assign)));
   area.querySelectorAll('[data-focus]').forEach(el => {
     el.addEventListener('click', () => openFocusAt(el.dataset.focus));
@@ -2114,8 +2130,23 @@ function renderList(){
   }));
 }
 
-/* vertical (única visão): planilha transposta — campos nas linhas, torneios nas
-   colunas, na ordem em que se digita no app. Campos-chave com rótulo destacado. */
+/* liga/desliga a tela cheia de UMA seção (Main/Side/Satélite) — só uma por vez,
+   igual ao padrão já usado na Conferência do dia (conf-dia.js). Sair da tela
+   cheia de uma volta pra ela, sair da atual fecha (mesmo botão). */
+function toggleSectionFs(catKey){
+  SEC_FS = (SEC_FS === catKey) ? null : catKey;
+  document.body.classList.toggle('cn-sec-fs-lock', !!SEC_FS);
+  renderAll();
+}
+function setSectionView(view){
+  SEC_VIEW = view;
+  try{ localStorage.setItem('cn_sec_view', view); }catch(e){}
+  renderAll();
+}
+
+/* planilha transposta: campos nas linhas, torneios nas colunas, na ordem em
+   que se digita no app. Campos-chave com rótulo destacado. Visão padrão da
+   seção; "Colunas" (renderColumns, abaixo) é a alternativa só na tela cheia. */
 function renderVertical(items, cat, asg, fieldList){
   const cols = items.map(it => {
     const key = itemKey(it);
@@ -2181,6 +2212,47 @@ function renderVertical(items, cat, asg, fieldList){
           title="${c.done ? `Criado por ${escHtml((DONE[c.key]||{}).by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
         <button class="copy-btn" data-copy="${escHtml(recipeText(c.it, cat.label))}" title="Copiar receita" style="margin-left:6px;display:inline-grid;vertical-align:middle"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>`)}</tr>
     </table></div>`;
+}
+
+/* colunas: um CARTÃO por torneio (grade de campos, recipeGridHtml) em vez de
+   uma tabela só com todo mundo lado a lado — sem precisar rolar na horizontal
+   pra ler a receita de um torneio específico. Só aparece na tela cheia da
+   seção (a lista normal continua sempre em planilha, mais compacta). Mesmas
+   ações da planilha (ID, criado, copiar) — os data-attrs batem com os
+   listeners genéricos já ligados em renderList, nada de wiring novo aqui. */
+function renderColumns(items, cat, asg){
+  const cards = items.map(it => {
+    const key = itemKey(it);
+    const done = !!DONE[key];
+    const op = asg[key];
+    const m = mttKicker(it), urg = urgency(it);
+    const af = adminFeeParts(it), eb = earlyParts(it);
+    return `<div class="cn-col-card ${done ? 'is-done' : ''}">
+      <div class="cn-col-head">
+        <span class="vgo cn-col-name" data-focus="${key}" role="button" tabindex="0" title="Abrir este torneio em tela cheia (Modo Foco)" aria-label="Abrir ${escHtml(it.nome)} em tela cheia">${escHtml(it.nome)}</span>
+        <span class="cn-col-hora">${escHtml(it.hora)}</span>
+      </div>
+      <div class="cn-col-badges">
+        ${campBadgeHtml(it)}${valBadge(it, cat)}${changeBadge(it)}${auditBadge(it)}
+        ${urg ? `<span class="urg-pill ${urg}">⏰ ${urgLabel(it)}</span>` : ''}
+        ${m ? `<span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : ''}
+        ${it.groupHeader ? `<span class="pill" style="color:var(--sat-bright)">${escHtml(it.groupHeader)}</span>` : ''}
+      </div>
+      ${af || eb ? `<div class="cn-col-calc">
+        ${af ? `<span class="calc-chip admin">${escHtml(af.main)}${af.sub ? `<span class="amt">${escHtml(af.sub)}</span>` : ''}</span>` : ''}
+        ${eb ? `<span class="calc-chip early">${escHtml(eb.main)}${eb.sub ? `<span class="amt">${escHtml(eb.sub)}</span>` : ''}</span>` : ''}
+      </div>` : ''}
+      ${recipeGridHtml(it)}
+      <div class="cn-col-foot">
+        ${opTagHtml(op, key)}
+        ${idInputHtml(key, 'flex:1')}
+        <button class="chk ${done ? 'on' : ''}" data-done="${key}" role="checkbox" aria-checked="${done ? 'true' : 'false'}"
+          title="${done ? `Criado por ${escHtml((DONE[key]||{}).by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
+        <button class="copy-btn" data-copy="${escHtml(recipeText(it, cat.label))}" title="Copiar receita"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="cn-col-grid">${cards}</div>`;
 }
 
 /* =========================================================================
@@ -2290,10 +2362,16 @@ function openHandoff(anchor){
 }
 
 let FOCUS_TARGET = null; // clicou num torneio da tabela → foco abre direto nele
+/* clicado direto no nome de um torneio (na planilha OU nos cartões da seção)
+   — pedido: "tela cheia por evento" a partir da seção. Abre já em tela cheia,
+   na mesma visão (planilha/colunas) que a seção estava mostrando. */
 function openFocusAt(key){
   if (DONE[key]){ showToast('Esse torneio já foi criado.'); return; }
   FOCUS_TARGET = key;
+  FOCUS_FS = true;
+  FOCUS_VIEW = SEC_VIEW === 'columns' ? 'grid' : 'sheet';
   openFocus();
+  $('focusOverlay').classList.add('fs');
 }
 function focusQueue(){
   if (!DATA) return [];
@@ -2326,7 +2404,8 @@ function openFocus(){
 }
 function closeFocus(){
   FOCUS_OPEN = false;
-  $('focusOverlay').classList.remove('open');
+  FOCUS_FS = false;                          // não carrega a tela cheia pra próxima abertura pela fila
+  $('focusOverlay').classList.remove('open', 'fs');
   const cf = $('focusConfirm'); if (cf) cf.remove();
   closePickMenu();
   a11yCloseDialog('focusOverlay');  // a11y: devolve o foco pra quem abriu
@@ -2670,6 +2749,7 @@ $('focusOverlay').addEventListener('click', e => { if (e.target === $('focusOver
 document.addEventListener('keydown', e => {
   if ($('popMenu') && e.key === 'Escape'){ closePickMenu(); return; }
   if (TV_OPEN && e.key === 'Escape'){ closeTV(); return; }
+  if (SEC_FS && e.key === 'Escape'){ toggleSectionFs(SEC_FS); return; }
   const confirmEl = $('focusConfirm');
   if (confirmEl){
     if (e.key === 'Escape'){ confirmEl.remove(); e.preventDefault(); }
