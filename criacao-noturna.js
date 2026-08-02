@@ -1985,6 +1985,18 @@ function sectionNoteHtml(cat){
   return `<p class="section-note">${msg} ${who}</p>`;
 }
 
+/* soma do PRIZE POOL USD por seção (chip .gtd-total do cabeçalho) — era local a
+   renderList(), mas renderSecFs() (tela cheia da seção) também precisa: ficou
+   TOP-LEVEL pra não duplicar. BUG CORRIGIDO: renderSecFs() chamava a versão
+   local (fora de escopo) e estourava ReferenceError — por isso o botão de
+   tela cheia "não fazia nada" (o erro parava a função antes do classList.add). */
+const _nf = n => n.toLocaleString('pt-BR', {maximumFractionDigits:0});
+const prizeChip = (list, brl) => {
+  const usd = list.reduce((a,it) => a + (typeof it.garantido === 'number' ? it.garantido : 0), 0);
+  if (brl) return `<span class="gtd-total" title="Soma do garantido desta seção (R$)">Σ R$ ${_nf(usd * BRL_RATE)}</span>`;
+  return `<span class="gtd-total" title="Soma do PRIZE POOL USD desta seção · R$ ${_nf(usd * BRL_RATE)}">Σ $ ${_nf(usd)}</span>`;
+};
+
 function renderList(){
   const area = $('listArea');
   if (!DATA){
@@ -2003,14 +2015,6 @@ function renderList(){
   const _winY = window.scrollY;
   const asg = computeAssignments();
   let html = '';
-
-  // #2 soma do PRIZE POOL USD POR SEÇÃO — mostrada em cada cabeçalho (chip .gtd-total).
-  const _nf = n => n.toLocaleString('pt-BR', {maximumFractionDigits:0});
-  const prizeChip = (list, brl) => {
-    const usd = list.reduce((a,it) => a + (typeof it.garantido === 'number' ? it.garantido : 0), 0);
-    if (brl) return `<span class="gtd-total" title="Soma do garantido desta seção (R$)">Σ R$ ${_nf(usd * BRL_RATE)}</span>`;
-    return `<span class="gtd-total" title="Soma do PRIZE POOL USD desta seção · R$ ${_nf(usd * BRL_RATE)}">Σ $ ${_nf(usd)}</span>`;
-  };
 
   // A GRADE PRINCIPAL é SEMPRE em R$ — não responde ao toggle de moeda (esse vale só pro modo
   // foco/detalhe e pro export). Como só os formatadores (fmtMoney*/calcValueParts) leem CURRENCY
