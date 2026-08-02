@@ -220,7 +220,7 @@ SupremaShell.mountNav('#supNav', {
   if (window.SupremaAuth && SupremaAuth.getSession && SupremaAuth.getSession()){
     SupremaOnboarding.start('criacao', [
       { el:'#dropZone', title:'Suba a GU aqui', text:'Carregue a Global MTT (aba G MTTS). O sistema separa Main, Side e Satélite e divide entre a equipe automaticamente.', side:'bottom' },
-      { el:'.sec-fs-btn', title:'Tela cheia por seção', text:'Expande Main, Side ou Satélite pra tela toda — dá pra ver em Planilha (uma linha por torneio) ou Colunas, e navegar entre os torneios com ← →.', side:'top' },
+      { el:'.sec-fs-btn', title:'Tela cheia por seção', text:'Expande Main, Side ou Satélite pra tela toda — Planilha (uma linha por torneio) ou Colunas. Teclado: ← → navegam, Espaço marca criado, P/C trocam a visão, Esc sai.', side:'top' },
       { el:'#exportBtn', title:'Arquive a noite', text:'No fim do turno, exporta o relatório completo do que foi criado em .xlsx.', side:'top' }
     ], { accent:'#8c5cc6', label:'Criação Noturna' });
   }

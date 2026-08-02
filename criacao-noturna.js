@@ -2163,22 +2163,33 @@ function renderSecFs(){
   // sumiu/foi criado) — cai no primeiro torneio, pra ← → sempre ter de onde partir
   if (!SEC_CURSOR || !items.some(it => itemKey(it) === SEC_CURSOR)) SEC_CURSOR = itemKey(items[0]);
   const doneCount = items.filter(it => DONE[itemKey(it)]).length;
+  const pct = items.length ? Math.round(doneCount / items.length * 100) : 0;
   const card = $('secFsCard');
   card.innerHTML = `
     <div class="section-head ${cat.cls}">
       <span class="tag"><span class="suit">${cat.suit}</span>${cat.label}</span>
       <span class="cnt">${doneCount}/${items.length} criados</span>
       ${prizeChip(items, false)}
+      <span class="sec-fs-prog" title="${pct}% criados" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></span>
       <span class="line"></span>
       <div class="seg sec-view-seg" role="group" aria-label="Visão da seção">
-        <button data-secview="sheet" class="${SEC_VIEW === 'sheet' ? 'on' : ''}" title="Planilha — um torneio por linha, igual à Global">Planilha</button>
-        <button data-secview="columns" class="${SEC_VIEW === 'columns' ? 'on' : ''}" title="Colunas — campos empilhados, um torneio por coluna">Colunas</button>
+        <button data-secview="sheet" class="${SEC_VIEW === 'sheet' ? 'on' : ''}" title="Planilha — um torneio por linha, igual à Global (tecla P)">Planilha</button>
+        <button data-secview="columns" class="${SEC_VIEW === 'columns' ? 'on' : ''}" title="Colunas — campos empilhados, um torneio por coluna (tecla C)">Colunas</button>
       </div>
       <button class="sec-fs-btn" id="secFsClose" title="Fechar (Esc)" aria-label="Fechar tela cheia">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
     </div>
-    <div class="secwrap" data-suit="${cat.suit}">${SEC_VIEW === 'sheet' ? renderPlanilhaRows(items, cat, asg) : renderVertical(items, cat, asg)}</div>`;
+    <div class="secwrap" data-suit="${cat.suit}">${SEC_VIEW === 'sheet' ? renderPlanilhaRows(items, cat, asg) : renderVertical(items, cat, asg)}</div>
+    <div class="sec-fs-foot">
+      <div class="keys" aria-hidden="true">
+        <span class="kbtn"><kbd>←</kbd><kbd>→</kbd> navegar</span>
+        <span class="kbtn"><kbd>Espaço</kbd> marcar criado</span>
+        <span class="kbtn"><kbd>P</kbd><kbd>C</kbd> planilha/colunas</span>
+        <span class="kbtn"><kbd>Esc</kbd> sair</span>
+      </div>
+      <span class="sec-fs-pos" id="secFsPos" aria-live="polite"></span>
+    </div>`;
   ov.classList.add('open');
   ov.setAttribute('aria-hidden', 'false');
   $('secFsClose').addEventListener('click', () => toggleSectionFs(SEC_FS));
@@ -2432,11 +2443,33 @@ function secFsMoveCursor(delta){
   SEC_CURSOR = keys[idx];
   secFsHighlightCursor();
 }
+/* Home/End — pula pro primeiro/último torneio da seção (idx=Infinity = último) */
+function secFsJumpCursor(idx){
+  if (!SEC_FS || !DATA) return;
+  const cat = SECTIONS.find(c => c.key === SEC_FS);
+  if (!cat) return;
+  const keys = visibleItems(catItems(cat), computeAssignments()).map(itemKey);
+  if (!keys.length) return;
+  const i = Math.max(0, Math.min(keys.length - 1, idx === Infinity ? keys.length - 1 : idx));
+  SEC_CURSOR = keys[i];
+  secFsHighlightCursor();
+}
 /* destaca e rola até o torneio "atual": em Colunas (vtable transposta) marca
-   a COLUNA inteira (mesmo índice em toda linha); em Planilha marca a LINHA. */
+   a COLUNA inteira (mesmo índice em toda linha); em Planilha marca a LINHA.
+   Também atualiza o indicador de posição "N / Total" no rodapé. */
 function secFsHighlightCursor(){
   const card = $('secFsCard');
   if (!card || !SEC_CURSOR) return;
+  // indicador de posição (N / Total) — some redundante mas barato; roda a cada ← →
+  const pos = document.getElementById('secFsPos');
+  if (pos && SEC_FS){
+    const c = SECTIONS.find(s => s.key === SEC_FS);
+    if (c){
+      const keys = visibleItems(catItems(c), computeAssignments()).map(itemKey);
+      const i = keys.indexOf(SEC_CURSOR);
+      if (i >= 0) pos.innerHTML = `<b>${i + 1}</b> / ${keys.length}`;
+    }
+  }
   const esc = k => (window.CSS && CSS.escape) ? CSS.escape(k) : k;
   card.querySelectorAll('.sec-cursor, .sec-cursor-col').forEach(el => el.classList.remove('sec-cursor', 'sec-cursor-col'));
   const table = card.querySelector('table');
@@ -2463,9 +2496,18 @@ document.addEventListener('keydown', e => {
   if (SEC_FS && e.key === 'Escape'){ toggleSectionFs(SEC_FS); return; }
   if (!SEC_FS) return;
   const ae = document.activeElement;
-  if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return; // digitando o ID: não sequestra teclas
-  if (e.key === 'ArrowRight'){ e.preventDefault(); secFsMoveCursor(1); }
-  else if (e.key === 'ArrowLeft'){ e.preventDefault(); secFsMoveCursor(-1); }
+  const tag = ae && ae.tagName;
+  if (tag && /^(INPUT|SELECT|TEXTAREA)$/.test(tag)) return; // digitando o ID: não sequestra teclas
+  // Espaço/Enter num controle (botão, nome-link) = ação dele, não "marcar criado"
+  const onControl = !!(ae && (tag === 'BUTTON' || tag === 'A' || (ae.getAttribute && ae.getAttribute('role') === 'button')));
+  // ← → e ↑ ↓ navegam torneio (o mapeamento certo depende da visão; aceitar os dois é perdão de UX)
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown'){ e.preventDefault(); secFsMoveCursor(1); }
+  else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp'){ e.preventDefault(); secFsMoveCursor(-1); }
+  else if (e.key === 'Home'){ e.preventDefault(); secFsJumpCursor(0); }
+  else if (e.key === 'End'){ e.preventDefault(); secFsJumpCursor(Infinity); }
+  else if ((e.key === ' ' || e.key === 'Enter') && !onControl){ if (SEC_CURSOR){ e.preventDefault(); toggleDone(SEC_CURSOR); } }
+  else if (e.key === 'p' || e.key === 'P'){ e.preventDefault(); setSectionView('sheet'); }
+  else if (e.key === 'c' || e.key === 'C'){ e.preventDefault(); setSectionView('columns'); }
 });
 
 /* ── busca ── */

@@ -733,9 +733,21 @@ body > *{position:relative;z-index:1}
     display:none;z-index:150;padding:18px 22px;
   }
   #secFsOverlay.open{display:flex}
+  /* entrada suave: só opacity + transform (compositor) — nunca blur (ver motion-fluidity) */
+  @keyframes secFsOverlayIn{ from{opacity:0} to{opacity:1} }
+  @keyframes secFsCardIn{ from{opacity:0;transform:translateY(16px) scale(.985)} to{opacity:1;transform:none} }
+  #secFsOverlay.open{ animation:secFsOverlayIn .2s var(--ease) both }
+  #secFsOverlay.open .sec-fs-card{ animation:secFsCardIn .34s var(--ease-expo) both }
+  @media (prefers-reduced-motion:reduce){
+    #secFsOverlay.open, #secFsOverlay.open .sec-fs-card{ animation:none }
+  }
   .sec-fs-card{display:flex;flex-direction:column;flex:1;min-height:0}
-  .sec-fs-card .section-head{flex:none;margin:0 0 12px}
+  /* cabeçalho da tela cheia: mais definido que na lista — divisor + respiro */
+  .sec-fs-card .section-head{flex:none;margin:0 0 14px;padding-bottom:14px;border-bottom:1px solid var(--hairline)}
   .sec-fs-card .secwrap{flex:1;overflow:auto;min-height:0}
+  /* mini barra de progresso no cabeçalho (criados/total, num relance) */
+  .sec-fs-prog{position:relative;flex:none;height:5px;width:120px;border-radius:99px;background:var(--hairline);overflow:hidden}
+  .sec-fs-prog>i{position:absolute;inset:0 auto 0 0;border-radius:99px;background:var(--felt-bright);transition:width .5s var(--ease-expo)}
   .sec-fs-btn{
     border:1px solid var(--hairline-strong);background:var(--card);
     border-radius:99px;width:30px;height:30px;cursor:pointer;color:var(--ink-soft);flex:none;
@@ -743,8 +755,26 @@ body > *{position:relative;z-index:1}
   }
   .sec-fs-btn svg{width:15px;height:15px}
   .sec-fs-btn:hover{color:var(--felt-bright);border-color:var(--felt-bright)}
+  #secFsClose:hover{color:var(--main-bright);border-color:var(--main-bright)}
   .sec-view-seg{padding:2px}
   .sec-view-seg button{padding:5px 12px;font-size:11.5px}
+
+  /* rodapé da tela cheia: legenda de atalhos + posição (N / Total) ao vivo */
+  .sec-fs-foot{
+    flex:none;display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+    margin-top:12px;padding-top:12px;border-top:1px solid var(--hairline);
+    font-size:11.5px;color:var(--ink-soft);
+  }
+  .sec-fs-foot .keys{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .sec-fs-foot .kbtn{display:inline-flex;align-items:center;gap:6px}
+  .sec-fs-foot kbd{
+    font-family:var(--mono);font-size:10.5px;font-weight:800;line-height:1;
+    background:var(--card-elevated);border:1px solid var(--hairline-strong);border-bottom-width:2px;
+    border-radius:6px;padding:3px 7px;color:var(--ink);min-width:16px;text-align:center;display:inline-block;
+  }
+  .sec-fs-pos{margin-left:auto;font-family:var(--mono);font-weight:800;font-variant-numeric:tabular-nums;color:var(--ink);font-size:13px}
+  .sec-fs-pos b{color:var(--felt-bright)}
+  @media (max-width:640px){ .sec-fs-foot .keys{gap:10px;font-size:10.5px} .sec-fs-prog{width:80px} }
 
   /* ── planilha de verdade (renderPlanilhaRows): uma LINHA por torneio, campos
      em coluna — a mesma orientação da G MTTS. Cabeçalho fixo ao rolar (sticky
@@ -768,8 +798,10 @@ body > *{position:relative;z-index:1}
   /* cursor ← → da tela cheia: em Planilha marca a LINHA (torneio = linha);
      em Colunas (.vtable transposta) marca a COLUNA inteira (mesmo índice em
      toda linha) — substitui a navegação que era exclusiva do Modo Foco. */
-  .ptable tr.sec-cursor td{background:var(--felt-soft);box-shadow:inset 0 0 0 1.5px var(--felt-bright)}
-  .vtable td.sec-cursor-col{background:var(--felt-soft);box-shadow:inset 0 0 0 1.5px var(--felt-bright)}
+  .ptable tr.sec-cursor td{background:var(--felt-soft);box-shadow:inset 0 0 0 2px var(--felt-bright)}
+  .ptable tr.sec-cursor td.pname{box-shadow:inset 4px 0 0 var(--felt-bright), inset 0 0 0 2px var(--felt-bright)}
+  .vtable td.sec-cursor-col{background:var(--felt-soft);box-shadow:inset 0 0 0 2px var(--felt-bright)}
+  .vtable td.sec-cursor-col.vname{box-shadow:inset 0 4px 0 var(--felt-bright), inset 0 0 0 2px var(--felt-bright)}
 
   /* ── banner de turno concluído: pede a próxima GU ── */
   .alldone{
