@@ -2559,8 +2559,9 @@ function initFirebaseSync(){
       ID_MAP = snap.val() || {};
       saveIdMapLocal(ID_MAP);
       document.querySelectorAll('.id-input').forEach(inp => {
-        const raw = ID_MAP[inp.dataset.key];
-        const v = (typeof raw === 'object' && raw) ? (raw.val || '') : (raw || '');
+        // mesma blindagem do getId() — nunca deixa um valor não-texto virar
+        // "[object Object]" dentro do input (o navegador faz String(v) sozinho)
+        const v = getId(inp.dataset.key);
         if(document.activeElement !== inp) inp.value = v;
       });
       applyIdDuplicateChecks();
@@ -3016,9 +3017,14 @@ function applyFbPremiacao(data){
     scheduleUI('unfixed', 'stats', 'results', 'upcoming');
   }
 }
+/* BUG CORRIGIDO: se v.val (ou v, no formato legado sem wrapper) não for string/número
+   — um registro corrompido de alguma escrita antiga — isto virava "[object Object]"
+   direto no input do ID na tela (String(objeto) faz isso). Agora qualquer valor que
+   não seja texto/número plano volta vazio em vez de vazar o objeto cru pra UI. */
 function getId(key){
   const v = ID_MAP[key];
-  return (typeof v === 'object' && v !== null) ? (v.val || '') : (v || '');
+  const raw = (typeof v === 'object' && v !== null) ? v.val : v;
+  return (typeof raw === 'string' || typeof raw === 'number') ? String(raw) : '';
 }
 function getIdBy(key){
   const v = ID_MAP[key];
@@ -3042,6 +3048,9 @@ function cardInvolvedNames(key){
 }
 function setId(key, val){
   if (roGuard()) return;
+  // sempre texto puro — nunca deixa um objeto/valor não-primitivo entrar no nó
+  // "val" (ver getId: era a origem do "[object Object]" aparecendo no campo ID)
+  val = (val == null) ? '' : String(val).trim();
   if(val){
     ID_MAP[key] = { val, by: OPERATOR_NAME || 'Alguém', at: Date.now() };
   } else {
@@ -9113,7 +9122,11 @@ function reinitDayListeners(){
   fbDb.ref(`${FB_BASE_PATH}/ids`).on('value', snap => {
     ID_MAP = snap.val() || {}; saveIdMapLocal(ID_MAP);
     document.querySelectorAll('.id-input').forEach(inp => {
-      const v = ID_MAP[inp.dataset.key]||'';
+      // BUG CORRIGIDO: isto pegava o objeto {val,by,at} inteiro (ID_MAP[key] não é mais
+      // texto puro desde que o registro passou a guardar quem/quando) e jogava ele cru
+      // no input.value — o navegador faz String(objeto), e "[object Object]" aparecia
+      // no campo ID mesmo com um ID de verdade salvo por trás. getId() já faz o unwrap certo.
+      const v = getId(inp.dataset.key);
       if(document.activeElement !== inp) inp.value = v;
     });
     applyIdDuplicateChecks();

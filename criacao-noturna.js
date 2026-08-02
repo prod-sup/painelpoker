@@ -98,6 +98,12 @@ const NATURAL_ISO = refToISO(_clock.refTomorrow);   // madrugada que o RELÓGIO 
    passou pra uma madrugada mais nova). Tudo da página — caminho, dias, rótulos —
    passa a derivar da madrugada ATIVA, não do relógio, pra não haver descompasso. */
 let _storedDay = null; try{ _storedDay = localStorage.getItem('cn_active_day'); }catch(e){}
+/* sem dia salvo = sessão "cega": ou é o primeiro acesso desta madrugada mesmo, ou o
+   localStorage foi limpo (PC compartilhado, modo anônimo, outro navegador/dispositivo
+   no meio do turno) e a página está prestes a recalcular do relógio — o cenário exato
+   do bug de IDs sumindo. Guardado pra depois checar no Firebase se sobrou criação
+   iniciada num dia anterior antes de aceitar o dia calculado agora como o certo. */
+const HAD_STORED_DAY = !!_storedDay;
 /* GUARD DE DIA MORTO: o sticky existe pra segurar a virada de +1 dia às 05:30 (não
    resetar criação/IDs no meio do turno — ver bloco acima). Mas se o dia gravado ficou
    2+ dias ATRÁS do natural (uma noite inteira pulada, painel sem abrir por um dia), o
@@ -115,6 +121,8 @@ const ACTIVE_ISO = _activeCandidate;
 try{ localStorage.setItem('cn_active_day', ACTIVE_ISO); }catch(e){}
 const _refTom = new Date(`${ACTIVE_ISO}T12:00:00Z`);
 const _refAfter = new Date(_refTom.getTime() + 86400000);
+/* dia anterior ao ativo — usado só pela checagem de recuperação (ver cnCheckAbandonedDay) */
+const PREV_ACTIVE_ISO = refToISO(new Date(_refTom.getTime() - 86400000));
 const TURNO = { n: _clock.n, refTomorrow: _refTom, refDayAfter: _refAfter };
 const TOMORROW_ISO = ACTIVE_ISO;
 const WEEKDAY_TOMORROW = WEEKDAYS_PT[TURNO.refTomorrow.getUTCDay()];      // exibição
@@ -423,6 +431,14 @@ let DATA = null;          // {main, side, sat[], unknown, warnings, by, at}
 let OPS = [];             // nomes da equipe
 let DONE = {};            // key -> {by, at}
 let IDS = {};             // key -> {val, by, at} — ID do evento no Pokerbyte
+/* itemKey da última ação do OPERADOR (digitar ID / marcar criado) — usado só
+   pelo restore de scroll do próximo render (ver renderAllNow): a restauração
+   por pixel (window.scrollY) quebra quando um alerta/banner acima da lista
+   aparece ou some entre um render e outro (a página toda desloca, o pixel
+   salvo já não aponta pra mesma linha) — isso é o "volta pro início" ao
+   preencher ID/marcar criado. Restaurar pela COLUNA (o torneio que você
+   mexeu) em vez de pixel absoluto resolve isso de vez. */
+let _lastTouchedKey = null;
 let ROLES = {};           // roleKey(op) -> 'mainSat' | 'sideAdmin' | 'sideNoAdmin'
 let OVERRIDES = {};       // itemKey -> opName — atribuição manual (única fonte da divisão agora)
 let SELECTED_OP = null;   // pessoa selecionada p/ atribuir torneios no clique
@@ -527,6 +543,44 @@ try{
     renderAll();
     renderFocus();
   });
+  /* ── RECUPERAÇÃO DE MADRUGADA ABANDONADA ──────────────────────────────────
+     Só roda quando esta sessão NÃO tinha 'cn_active_day' salvo (HAD_STORED_DAY
+     false) — ou seja, ou é o primeiro acesso mesmo, ou o localStorage se perdeu
+     (PC compartilhado, modo anônimo, outro dispositivo) e ACTIVE_ISO acabou de
+     ser recalculado do relógio. Nesse caso, o sticky (bloco lá em cima) não teve
+     como proteger nada — se havia criação em andamento no dia ANTERIOR e ela
+     ainda tem torneio pendente, mostra um jeito explícito de voltar pra lá em
+     vez de deixar a operação simplesmente "sumir" (ela nunca foi apagada, só
+     ficou noutro caminho do Firebase que ninguém está mais olhando). */
+  if (!HAD_STORED_DAY){
+    const prevPath = `painel/${PREV_ACTIVE_ISO}/criacaoNoturna`;
+    Promise.all([
+      fbDb.ref(`${prevPath}/sheet/at`).once('value'),
+      fbDb.ref(`${prevPath}/done`).once('value')
+    ]).then(([atSnap, doneSnap]) => {
+      const at = atSnap.val();
+      if (!at) return; // nada foi publicado nesse dia — não é o caso do bug
+      const ageH = (Date.now() - at) / 3600000;
+      if (ageH < 0 || ageH > 14) return; // fora da janela plausível de um turno — ignora
+      const doneCount = Object.keys(doneSnap.val() || {}).length;
+      if (!doneCount) return; // sheet publicada mas ninguém marcou nada ainda — nada a recuperar
+      if (document.getElementById('cnRecoverBar')) return;
+      const bar = document.createElement('div');
+      bar.id = 'cnRecoverBar';
+      bar.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:160;background:#e85d5d;color:#fff;padding:9px 10px 9px 16px;border-radius:99px;font-size:12.5px;font-weight:650;box-shadow:var(--shadow-lg);display:flex;gap:12px;align-items:center;max-width:calc(100vw - 24px)';
+      bar.innerHTML = `<span>⚠ Havia criação em andamento em <b>${escHtml(PREV_ACTIVE_ISO)}</b> (${doneCount} marcado${doneCount===1?'':'s'}) que esta aba não estava vendo.</span>`;
+      const go = document.createElement('button');
+      go.textContent = 'Voltar pra esse dia';
+      go.style.cssText = 'background:#fff;color:#a91d1d;border:none;border-radius:99px;padding:6px 13px;font-weight:800;font-size:12px;cursor:pointer;flex:none';
+      go.onclick = () => { try{ localStorage.setItem('cn_active_day', PREV_ACTIVE_ISO); }catch(e){} location.reload(); };
+      const dismiss = document.createElement('button');
+      dismiss.textContent = '✕'; dismiss.title = 'Continuar na madrugada atual';
+      dismiss.style.cssText = 'background:none;border:none;color:#fff;cursor:pointer;font-weight:800;font-size:14px;flex:none';
+      dismiss.onclick = () => bar.remove();
+      bar.append(go, dismiss);
+      document.body.appendChild(bar);
+    }).catch(()=>{});
+  }
   };  // fim do attachCN
   if (firebase.auth().currentUser) attachCN();
   else {
@@ -1205,9 +1259,19 @@ function renderAllNow(){
       if (vw){ vw.scrollTop = p.t; vw.scrollLeft = p.l; }
     });
     window.scrollTo(0, winY);
+    // restauração por pixel quebra se um alerta/banner acima da lista mudou de
+    // altura entre um render e outro (a página desloca inteira e o pixel salvo
+    // não aponta mais pra mesma linha) — a coluna do torneio que você ACABOU de
+    // mexer (ID digitado / criado marcado) é uma âncora que não depende de pixel
+    // nenhum, então tem a palavra final por cima da restauração acima.
+    if (_lastTouchedKey){
+      const esc = k => (window.CSS && CSS.escape) ? CSS.escape(k) : k;
+      const anchor = document.querySelector(`#listArea [data-idkey="${esc(_lastTouchedKey)}"], #listArea [data-done="${esc(_lastTouchedKey)}"]`);
+      if (anchor) anchor.scrollIntoView({block: 'nearest', inline: 'nearest'});
+    }
   };
   restoreScroll();
-  requestAnimationFrame(restoreScroll);
+  requestAnimationFrame(() => { restoreScroll(); _lastTouchedKey = null; });
 }
 /* PERF: os listeners do Firebase disparam em rajada (done + ids + roles no mesmo
    segundo) — agrupa tudo num render só, em vez de reconstruir a tabela 3–4x */
@@ -1663,6 +1727,7 @@ function urgLabel(it){
 
 /* ── ID do evento (Pokerbyte) — compartilhado com o turno via Firebase ── */
 function setId(key, val, autoCheck = true){
+  _lastTouchedKey = key;
   val = String(val || '').trim();
   if (fbDb){
     if (val){ fbDb.ref(`${FB_PATH}/ids/${key}`).set({val, by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP}); logEvent('registrou ID', `${key} → ${val}`); }
@@ -1682,6 +1747,7 @@ function idInputHtml(key, extraStyle){
 }
 
 function toggleDone(key){
+  _lastTouchedKey = key;
   const cur = DONE[key];
   if (fbDb){
     if (cur){ fbDb.ref(`${FB_PATH}/done/${key}`).remove(); logEvent('desmarcou criado', key); }
@@ -2130,6 +2196,12 @@ let FOCUS_ANIMATE = false;       // dispara a transição só ao avançar, não 
 let FOCUS_CURSOR = null;         // #2 rótulo do campo "atual" (auto-avanço)
 let FOCUS_FIELDS = [];           // ordem dos campos do torneio atual
 const FOCUS_SEEN_AT = {};        // #4 itemKey -> quando o torneio apareceu no foco (início da criação)
+/* navegação entre torneios no foco (← →) + visão alternativa (planilha/colunas) */
+let FOCUS_HISTORY = [];          // pilha de itemKeys já visitados — pra "voltar" com ←
+let FOCUS_CURRENT_KEY = null;    // torneio mostrado no render anterior (detecta troca pra empilhar)
+let _focusGoingBack = false;     // true só durante um pop de FOCUS_HISTORY — não empilha de novo
+let FOCUS_FS = false;            // tela cheia (sem moldura/backdrop) ligada
+let FOCUS_VIEW = localStorage.getItem('cn_focus_view') || 'flow'; // 'flow' | 'sheet' | 'grid'
 
 /* #4 duração: formata ms e calcula a média dos torneios já criados com tempo */
 function fmtDur(ms){
@@ -2262,6 +2334,36 @@ function closeFocus(){
 
 /* avança na fila com transição — usado por "Criado" e "Pular" */
 function focusAdvance(){ FOCUS_TARGET = null; FOCUS_ANIMATE = true; renderFocus(); }
+/* ← no modo foco: volta pro torneio anterior da pilha de navegação (não é a
+   fila por prioridade — é literalmente por onde você passou). Se ele já foi
+   marcado como criado nesse meio-tempo (por você ou pelo parceiro), o alvo
+   não existe mais na fila e cai de volta na prioridade normal — não trava. */
+function focusGoBack(){
+  const prevKey = FOCUS_HISTORY.pop();
+  if (!prevKey){ showToast('Não há torneio anterior nesta sessão.'); return; }
+  _focusGoingBack = true;
+  FOCUS_TARGET = prevKey;
+  FOCUS_ANIMATE = true;
+  renderFocus();
+}
+/* → no modo foco: mesmo efeito do botão "Pular" — pula o torneio atual pro
+   fim da fila e avança. Reaproveita o mecanismo já existente do botão. */
+function focusSkipCurrent(){
+  const q = focusQueue();
+  if (!q.length) return;
+  FOCUS_SKIP.add(itemKey(q[0].it));
+  focusAdvance();
+}
+function focusSetView(view){
+  FOCUS_VIEW = view;
+  try{ localStorage.setItem('cn_focus_view', view); }catch(e){}
+  renderFocus();
+}
+function focusToggleFs(){
+  FOCUS_FS = !FOCUS_FS;
+  $('focusOverlay').classList.toggle('fs', FOCUS_FS);
+  renderFocus(); // só troca o ícone/título do botão — o card em si não é recriado, a transição do CSS continua valendo
+}
 
 /* a RECEITA de cima para baixo: uma coluna, na ORDEM da planilha (= ordem que
    se digita no app). Cada campo tem valor, botão de copiar só aquele valor e
@@ -2410,6 +2512,14 @@ function renderFocus(){
   }
   const {it, cat} = queue[0];
   const key = itemKey(it);
+  // navegação ← →: empilha o torneio anterior quando o atual troca — exceto
+  // quando a própria troca É um "voltar" (senão o ← empurraria o que você
+  // acabou de sair de volta pro topo da pilha e o botão nunca avançaria)
+  if (FOCUS_CURRENT_KEY && FOCUS_CURRENT_KEY !== key){
+    if (!_focusGoingBack) FOCUS_HISTORY.push(FOCUS_CURRENT_KEY);
+    _focusGoingBack = false;
+  }
+  FOCUS_CURRENT_KEY = key;
   // progresso "digitei" é por torneio — zera ao trocar de torneio
   if (FOCUS_ENTERED_KEY !== key){ FOCUS_ENTERED = new Set(); FOCUS_ENTERED_KEY = key; FOCUS_CURSOR = null; }
   if (!FOCUS_SEEN_AT[key]) FOCUS_SEEN_AT[key] = Date.now();   // #4 início da criação
@@ -2438,6 +2548,14 @@ function renderFocus(){
         ${campBadgeHtml(it)}
         ${it.groupHeader ? `<span class="pill" style="color:var(--sat-bright)">${escHtml(it.groupHeader)}</span>` : ''}
         <span class="queue-pos">${mineDone + 1} de ${mineTotal} · ${queue.length} na fila</span>
+        <div class="seg focus-view-seg" id="focusViewSeg" role="group" aria-label="Visão do torneio">
+          <button data-view="flow" class="${FOCUS_VIEW === 'flow' ? 'on' : ''}" title="Fluxo — um campo de cada vez, na ordem de digitar">Fluxo</button>
+          <button data-view="sheet" class="${FOCUS_VIEW === 'sheet' ? 'on' : ''}" title="Planilha — este torneio em formato de planilha (igual à grade)">Planilha</button>
+          <button data-view="grid" class="${FOCUS_VIEW === 'grid' ? 'on' : ''}" title="Colunas — todos os campos num quadro, pra ler de relance">Colunas</button>
+        </div>
+        <button class="focus-close focus-fs-btn" id="focusFsBtn" title="${FOCUS_FS ? 'Sair da tela cheia' : 'Tela cheia'}" aria-pressed="${FOCUS_FS}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${FOCUS_FS ? '<path d="M9 4v5H4M20 9h-5V4M9 20v-5H4M20 15h-5v5"/>' : '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'}</svg>
+        </button>
         <button class="focus-close" id="focusClose" title="Fechar (Esc)">✕</button>
       </div>
       <div class="focus-name">${escHtml(it.nome)}</div>
@@ -2456,12 +2574,18 @@ function renderFocus(){
     <div class="focus-body">
       ${issues.length ? `<div class="focus-alerts">${issues.map(m => `<div class="focus-alert">⚠ ${escHtml(m)}</div>`).join('')}</div>` : ''}
       ${(() => { const s = specSheetHtml(it); return s ? `<div class="spec-title"><svg viewBox="0 0 24 24"><path d="M12 2 15 9l7 .5-5.3 4.6L18.5 21 12 17l-6.5 4 1.8-6.9L2 9.5 9 9z"/></svg> Destaques</div>${s}` : ''; })()}
-      <div class="flow-head">
-        <span class="t"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h12"/></svg> Receita — de cima para baixo</span>
-        <span class="flow-prog" id="flowProg">${FOCUS_ENTERED.size}/${fieldsN} campos</span>
-      </div>
-      ${focusFlowHtml(it)}
-      <div class="flow-hint"><kbd>↓</kbd><kbd>↑</kbd> muda o campo · <kbd>Enter</kbd> marca e desce · toque na linha marca "digitei"</div>
+      ${FOCUS_VIEW === 'sheet' ? `
+        <div class="focus-altview">${renderVertical([it], cat, asg)}</div>
+      ` : FOCUS_VIEW === 'grid' ? `
+        <div class="focus-altview">${recipeGridHtml(it)}</div>
+      ` : `
+        <div class="flow-head">
+          <span class="t"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h12"/></svg> Receita — de cima para baixo</span>
+          <span class="flow-prog" id="flowProg">${FOCUS_ENTERED.size}/${fieldsN} campos</span>
+        </div>
+        ${focusFlowHtml(it)}
+        <div class="flow-hint"><kbd>↓</kbd><kbd>↑</kbd> muda o campo · <kbd>Enter</kbd> marca e desce · toque na linha marca "digitei"</div>
+      `}
     </div>
 
     <div class="focus-foot">
@@ -2470,11 +2594,12 @@ function renderFocus(){
         <input type="text" id="focusIdInp" maxlength="20" placeholder="Cole o ID do evento criado no Pokerbyte" value="${escHtml(idVal(key))}">
       </div>
       <div class="focus-actions">
+        <button class="btn ghost" id="focusBack" ${FOCUS_HISTORY.length ? '' : 'disabled'} title="Torneio anterior (←)">← Anterior</button>
         <button class="btn primary" id="focusDone">
           <svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg>
           Criado — próximo
         </button>
-        <button class="btn ghost" id="focusSkip">Pular</button>
+        <button class="btn ghost" id="focusSkip" title="Pular pro próximo (→)">Pular →</button>
         <button class="btn ghost" id="focusCopy">
           <svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
           Copiar tudo
@@ -2496,13 +2621,17 @@ function renderFocus(){
   focusApplyCurrent(card, false); // #2 marca o campo atual sem rolar de repente
 
   $('focusClose').addEventListener('click', closeFocus);
+  $('focusFsBtn').addEventListener('click', focusToggleFs);
+  $('focusViewSeg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => focusSetView(b.dataset.view)));
+  const backBtn = $('focusBack');
+  if (backBtn && !backBtn.disabled) backBtn.addEventListener('click', focusGoBack);
   // #6 "Criado" abre a conferência antes de confirmar
   $('focusDone').addEventListener('click', () => {
     const idv = $('focusIdInp').value.trim();
     if (idv && idv !== idVal(key)) setId(key, idv, false); // no foco, a conferência é que confirma
     openCreateConfirm(it, cat, key, () => { markDone(key); focusAdvance(); });
   });
-  $('focusSkip').addEventListener('click', () => { FOCUS_SKIP.add(key); focusAdvance(); });
+  $('focusSkip').addEventListener('click', focusSkipCurrent);
   $('focusCopy').addEventListener('click', async () => {
     try{ await navigator.clipboard.writeText(recipeText(it, cat.label)); showToast('Receita completa copiada 📋'); }
     catch(e){ showToast('Não consegui copiar.', true); }
@@ -2555,6 +2684,10 @@ document.addEventListener('keydown', e => {
   const ae = document.activeElement;
   if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return; // digitando o ID: não sequestra teclas
   const card = $('focusCard');
+  // ← → trocam de TORNEIO (↑ ↓ continuam trocando de CAMPO, abaixo) — pular
+  // pro próximo/voltar pro anterior sem soltar o teclado
+  if (e.key === 'ArrowRight'){ e.preventDefault(); focusSkipCurrent(); return; }
+  if (e.key === 'ArrowLeft'){ e.preventDefault(); focusGoBack(); return; }
   if (!FOCUS_FIELDS.length) return;
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){
     e.preventDefault();

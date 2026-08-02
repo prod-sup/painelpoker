@@ -19,7 +19,15 @@
     if (n.hour*60 + n.minute < 330) d.setUTCDate(d.getUTCDate()-1);
     return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
   }
-  const DAY_ISO = opTodayISO();
+  /* BUG CORRIGIDO: esta função calculava o dia sozinha, direto do relógio, sem
+     nenhuma trava — recarregar a página (ou o listener rodar de novo) bem em
+     cima das 05:30 trocava DAY_ISO na hora, e a Conferência passava a mostrar a
+     grade/IDs de OUTRO dia (era isto que fazia "evento de outro dia" e "ID
+     preenchido" de repente aparecerem errados). O painel principal (painel.js)
+     já resolve a virada com segurança — segura a troca até o cronograma fechar
+     e sincroniza os operadores via Firebase (rolledTo) — então usamos o MESMO
+     dia que ele já decidiu (LAST_KNOWN_DATE) em vez de recalcular do zero. */
+  const DAY_ISO = (typeof LAST_KNOWN_DATE === 'string' && LAST_KNOWN_DATE) ? LAST_KNOWN_DATE : opTodayISO();
   const BASE = `painel/${DAY_ISO}/criacaoNoturna`;
   let gcSheet = null, gcConf = {}, gcIds = {}, gcAudit = {}, gcAttached = false, gcSearch = '';
   let gcHideDone = false, gcSrc = null; // gcSrc = {fileName, by, at} da sheet em uso
@@ -561,6 +569,35 @@
   // o fbDb só existe depois do init do Firebase — tenta já e re-tenta até conectar
   gcAttach();
   const gcRetry = setInterval(() => { gcAttach(); if (gcAttached) clearInterval(gcRetry); }, 2000);
+
+  /* ── VIRADA DE DIA ENQUANTO O DRAWER FICA ABERTO ──
+     DAY_ISO é decidido UMA vez (no load, junto com LAST_KNOWN_DATE). Se o painel
+     principal virar o dia depois (cronograma fechou, ou o parceiro fixou o
+     último card) enquanto esta aba/drawer continua aberta, a Conferência ficaria
+     travada mostrando o dia velho — sem sumir dado nenhum (nada é sobrescrito),
+     mas também sem avisar. Detecta a divergência e pede confirmação explícita
+     pra recarregar, do mesmo jeito que a Criação Noturna avisa a "madrugada
+     avançou" — nunca troca sozinho no meio de uma conferência em andamento. */
+  function gcCheckDayRollover(){
+    if (typeof LAST_KNOWN_DATE !== 'string' || !LAST_KNOWN_DATE || LAST_KNOWN_DATE === DAY_ISO) return;
+    if (document.getElementById('gcRolloverBar')) return;
+    const bar = document.createElement('div');
+    bar.id = 'gcRolloverBar';
+    bar.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:160;background:var(--gold, #c9a84c);color:#1a1206;padding:9px 10px 9px 16px;border-radius:99px;font-size:12.5px;font-weight:650;box-shadow:0 8px 24px rgba(0,0,0,.35);display:flex;gap:12px;align-items:center;max-width:calc(100vw - 24px)';
+    bar.innerHTML = `<span>📅 O painel já virou para <b>${escHtml(LAST_KNOWN_DATE)}</b> — esta Conferência ainda mostra <b>${escHtml(DAY_ISO)}</b>.</span>`;
+    const go = document.createElement('button');
+    go.textContent = 'Atualizar';
+    go.style.cssText = 'background:#1a1206;color:var(--gold, #c9a84c);border:none;border-radius:99px;padding:6px 13px;font-weight:800;font-size:12px;cursor:pointer;flex:none';
+    go.onclick = () => location.reload();
+    const dismiss = document.createElement('button');
+    dismiss.textContent = '✕'; dismiss.title = 'Continuar neste dia';
+    dismiss.style.cssText = 'background:none;border:none;color:#1a1206;cursor:pointer;font-weight:800;font-size:14px;flex:none';
+    dismiss.onclick = () => bar.remove();
+    bar.append(go, dismiss);
+    document.body.appendChild(bar);
+  }
+  if (typeof setVisibilityAwareInterval === 'function') setVisibilityAwareInterval(gcCheckDayRollover, 5 * 60 * 1000);
+  else setInterval(gcCheckDayRollover, 5 * 60 * 1000);
 
   /* ── GU DIRETO NO PAINEL (upload ou Global compartilhada) ──
      Lê a aba G MTTS da Global MTT com o gu-parser.js (o MESMO parser da

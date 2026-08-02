@@ -815,6 +815,7 @@ body > *{position:relative;z-index:1}
   .btn.primary:hover{background:var(--felt-bright);transform:translateY(-1px)}
   .btn.ghost{background:var(--card);border:1px solid var(--hairline-strong);color:var(--ink)}
   .btn.ghost:hover{border-color:var(--felt-bright)}
+  .btn:disabled{opacity:.4;cursor:default;pointer-events:none}
 
   /* ── urgência de prazo ── */
   tr.urg-warn td:nth-child(3){color:var(--warn-text, #c9a840) !important;font-weight:800}
@@ -988,7 +989,15 @@ body > *{position:relative;z-index:1}
     border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);
     width:min(780px,96vw);max-height:92vh;
     display:flex;flex-direction:column;overflow:hidden;position:relative;
+    transition:width .3s var(--ease-expo),max-height .3s var(--ease-expo),border-radius .3s var(--ease-expo);
   }
+  /* tela cheia — o mesmo card, só sem a moldura/backdrop, cobrindo a viewport
+     inteira (pedido: ver a receita — planilha ou colunas — sem nada em volta) */
+  #focusOverlay.fs{padding:0;background:var(--bg)}
+  #focusOverlay.fs .focus-card{width:100vw;max-height:100vh;height:100vh;border-radius:0;border:none}
+  /* planilha/colunas dentro do foco: mais respiro que o corpo padrão do fluxo */
+  .focus-altview{margin-top:6px}
+  .focus-altview .vwrap{margin:0}
   #focusOverlay.open .focus-card{animation:focusIn .5s var(--ease-expo)}
   @keyframes focusIn{from{opacity:0;transform:translateY(18px) scale(.985)}to{opacity:1;transform:none}}
 
@@ -1003,6 +1012,11 @@ body > *{position:relative;z-index:1}
     transition:all .25s var(--ease);
   }
   .focus-close:hover{color:var(--red);border-color:var(--red);transform:rotate(90deg)}
+  .focus-close.focus-fs-btn:hover{color:var(--felt-bright);border-color:var(--felt-bright);transform:none}
+  .focus-close.focus-fs-btn svg{width:15px;height:15px}
+  /* alterna Fluxo/Planilha/Colunas — compacto o bastante pra caber no cabeçalho */
+  .focus-view-seg{padding:2px}
+  .focus-view-seg button{padding:5px 12px;font-size:11.5px}
   .focus-name{font-family:var(--display);font-size:clamp(19px,2.6vw,26px);font-weight:800;letter-spacing:-.02em;line-height:1.12;text-wrap:balance}
   /* faixa de conferência — os 3 números que você checa primeiro */
   .focus-check{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
