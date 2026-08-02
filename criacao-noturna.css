@@ -744,7 +744,17 @@ body > *{position:relative;z-index:1}
   .sec-fs-card{display:flex;flex-direction:column;flex:1;min-height:0}
   /* cabeçalho da tela cheia: mais definido que na lista — divisor + respiro */
   .sec-fs-card .section-head{flex:none;margin:0 0 14px;padding-bottom:14px;border-bottom:1px solid var(--hairline)}
-  .sec-fs-card .secwrap{flex:1;overflow:auto;min-height:0}
+  /* o .secwrap é o ÚNICO scroll (x E y) da tela cheia */
+  .sec-fs-card .secwrap{flex:1;overflow:auto;min-height:0;overscroll-behavior:contain}
+  /* .vwrap (Colunas) e .pwrap (Planilha) viram PASSTHROUGH aqui: sem scroll
+     próprio, sem max-height, sem containment. Se o .vwrap continuasse sendo um
+     2º scroller, a barra horizontal dele ficava clipada no rodapé e não dava pra
+     alcançar os torneios da direita. Mesmo padrão do modo tela cheia antigo
+     (.mode-cols .vwrap) — o sticky do rótulo/topo passa a grudar no .secwrap. */
+  #secFsOverlay .vwrap, #secFsOverlay .pwrap{
+    overflow:visible;max-height:none;border:none;border-radius:0;
+    box-shadow:none;background:transparent;content-visibility:visible;contain:none;
+  }
   /* mini barra de progresso no cabeçalho (criados/total, num relance) */
   .sec-fs-prog{position:relative;flex:none;height:5px;width:120px;border-radius:99px;background:var(--hairline);overflow:hidden}
   .sec-fs-prog>i{position:absolute;inset:0 auto 0 0;border-radius:99px;background:var(--felt-bright);transition:width .5s var(--ease-expo)}
