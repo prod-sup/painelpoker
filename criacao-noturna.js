@@ -511,7 +511,6 @@ try{
   fbDb.ref(`${FB_PATH}/done`).on('value', s => {
     DONE = s.val() || {};
     renderAll();
-    renderFocus(); // se o modo foco estiver aberto, o parceiro marcando também avança a fila
   });
   fbDb.ref(`${FB_PATH}/ids`).on('value', s => {
     IDS = s.val() || {};
@@ -531,12 +530,10 @@ try{
   fbDb.ref(`${FB_PATH}/overrides`).on('value', s => {
     OVERRIDES = s.val() || {};
     renderAll();
-    renderFocus();
   });
   fbDb.ref(`${FB_PATH}/fieldMap`).on('value', s => {
     MAP = s.val() || {};
     renderAll();
-    renderFocus();
   });
   // presença ao vivo agora é global e compartilhada (suprema-presence.js) — ver rodapé
   // erros de criação marcados pela auditoria (admin.html → Criação GU)
@@ -546,7 +543,6 @@ try{
     const now = Object.keys(AUDIT).filter(k => AUDIT[k] && AUDIT[k].status === 'erro').length;
     if (now > before) showToast(`⚠ A auditoria marcou ${now - before} erro(s) de criação — veja o alerta no topo.`, true);
     renderAll();
-    renderFocus();
   });
   /* ── RECUPERAÇÃO DE MADRUGADA ABANDONADA ──────────────────────────────────
      Só roda quando esta sessão NÃO tinha 'cn_active_day' salvo (HAD_STORED_DAY
@@ -2102,10 +2098,10 @@ function renderList(){
   area.querySelectorAll('[data-secfs]').forEach(el => el.addEventListener('click', () => toggleSectionFs(el.dataset.secfs)));
   area.querySelectorAll('[data-assign]').forEach(el => el.addEventListener('click', () => setAssign(el.dataset.assign)));
   area.querySelectorAll('[data-focus]').forEach(el => {
-    el.addEventListener('click', () => openFocusAt(el.dataset.focus));
-    /* teclado: o nome é role="button" — Enter/Espaço abrem o modo foco */
+    el.addEventListener('click', () => openSectionFsAt(el.dataset.focuscat, el.dataset.focus));
+    /* teclado: o nome é role="button" — Enter/Espaço abrem a seção em tela cheia */
     el.addEventListener('keydown', ev => {
-      if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openFocusAt(el.dataset.focus); }
+      if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openSectionFsAt(el.dataset.focuscat, el.dataset.focus); }
     });
   });
   // ID Pokerbyte: grava ao sair do campo ou no Enter (não a cada tecla, pra não ecoar no parceiro)
@@ -2144,7 +2140,7 @@ function setSectionView(view){
   renderSecFs();
 }
 /* tela cheia de UMA seção — overlay PRÓPRIO no nível do <body> (#secFsOverlay,
-   ver criacao-noturna.html, mesmo padrão do #focusOverlay/#tvOverlay), NUNCA
+   ver criacao-noturna.html, mesmo padrão do #tvOverlay), NUNCA
    aninhado dentro de #listArea: um elemento position:fixed dentro de um
    ancestral com transform/will-change (as animações de entrada da lista usam
    isso) deixa de ser fixo à VIEWPORT e passa a ser fixo ao ancestral — daí o
@@ -2163,6 +2159,9 @@ function renderSecFs(){
     ov.classList.remove('open'); ov.setAttribute('aria-hidden', 'true');
     return;
   }
+  // sem cursor válido nesta seção (primeira abertura pelo ⛶, ou o item
+  // sumiu/foi criado) — cai no primeiro torneio, pra ← → sempre ter de onde partir
+  if (!SEC_CURSOR || !items.some(it => itemKey(it) === SEC_CURSOR)) SEC_CURSOR = itemKey(items[0]);
   const doneCount = items.filter(it => DONE[itemKey(it)]).length;
   const card = $('secFsCard');
   card.innerHTML = `
@@ -2194,9 +2193,10 @@ function renderSecFs(){
     catch(e){ showToast('Não consegui copiar — copie manualmente.', true); }
   }));
   card.querySelectorAll('[data-focus]').forEach(el => {
-    el.addEventListener('click', () => openFocusAt(el.dataset.focus));
-    el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openFocusAt(el.dataset.focus); } });
+    el.addEventListener('click', () => { SEC_CURSOR = el.dataset.focus; secFsHighlightCursor(); });
+    el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); SEC_CURSOR = el.dataset.focus; secFsHighlightCursor(); } });
   });
+  secFsHighlightCursor();
 }
 
 /* planilha transposta: campos nas linhas, torneios nas colunas — é a visão
@@ -2226,7 +2226,7 @@ function renderVertical(items, cat, asg, fieldList){
     <div class="vwrap"><table class="vtable">
       <tr class="trow-head"><th class="rowlab">Torneio</th>${cell(c => {
         const m = mttKicker(c.it), urg = urgency(c.it);
-        return `<span class="vgo" data-focus="${c.key}" role="button" tabindex="0" title="Abrir este torneio no modo foco" aria-label="Abrir ${escHtml(c.it.nome)} no modo foco">${escHtml(c.it.nome)}</span>` + campBadgeHtml(c.it) + valBadge(c.it, cat) + changeBadge(c.it) + auditBadge(c.it)
+        return `<span class="vgo" data-focus="${c.key}" data-focuscat="${cat.key}" role="button" tabindex="0" title="Abrir a seção em tela cheia neste torneio" aria-label="Abrir a seção em tela cheia em ${escHtml(c.it.nome)}">${escHtml(c.it.nome)}</span>` + campBadgeHtml(c.it) + valBadge(c.it, cat) + changeBadge(c.it) + auditBadge(c.it)
           + (auditErr(c.it) && auditErr(c.it).motivo ? `<br><span style="font-size:10.5px;color:var(--red);font-weight:600">↳ ${escHtml(auditErr(c.it).motivo)}</span>` : '')
           + (urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(c.it)}</span>` : '')
           + (m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : '');
@@ -2294,7 +2294,7 @@ function renderPlanilhaRows(items, cat, asg){
     const m = mttKicker(it), urg = urgency(it);
     return `<tr class="${done ? 'done-row' : ''}">
       <td class="pname">
-        <span class="vgo" data-focus="${key}" role="button" tabindex="0" title="Abrir este torneio em tela cheia" aria-label="Abrir ${escHtml(it.nome)} em tela cheia">${escHtml(it.nome)}</span>
+        <span class="vgo" data-focus="${key}" data-focuscat="${cat.key}" role="button" tabindex="0" title="Ir pra este torneio na tela cheia" aria-label="Ir pra ${escHtml(it.nome)} na tela cheia">${escHtml(it.nome)}</span>
         ${campBadgeHtml(it)}${valBadge(it, cat)}${changeBadge(it)}${auditBadge(it)}
         ${urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(it)}</span>` : ''}
         ${m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : ''}
@@ -2321,37 +2321,15 @@ function renderPlanilhaRows(items, cat, asg){
   return `<div class="pwrap"><table class="ptable"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
 }
 
-/* =========================================================================
-   MODO FOCO — criar o próximo: um torneio por vez, receita gigante, campo de
-   ID e avanço automático ao marcar como criado. A fila prioriza quem está
-   mais perto de estourar o prazo e, se você está na equipe, mostra só os seus.
-========================================================================= */
-const FOCUS_SKIP = new Set();
-let FOCUS_OPEN = false;
-let FOCUS_ENTERED = new Set();   // campos já digitados do torneio atual (efêmero)
-let FOCUS_ENTERED_KEY = null;    // de qual torneio esse progresso é
-let FOCUS_ANIMATE = false;       // dispara a transição só ao avançar, não no tick de 1min
-let FOCUS_CURSOR = null;         // #2 rótulo do campo "atual" (auto-avanço)
-let FOCUS_FIELDS = [];           // ordem dos campos do torneio atual
-const FOCUS_SEEN_AT = {};        // #4 itemKey -> quando o torneio apareceu no foco (início da criação)
-/* navegação entre torneios no foco (← →) + visão alternativa (planilha/colunas) */
-let FOCUS_HISTORY = [];          // pilha de itemKeys já visitados — pra "voltar" com ←
-let FOCUS_CURRENT_KEY = null;    // torneio mostrado no render anterior (detecta troca pra empilhar)
-let _focusGoingBack = false;     // true só durante um pop de FOCUS_HISTORY — não empilha de novo
-let FOCUS_FS = false;            // tela cheia (sem moldura/backdrop) ligada
-let FOCUS_VIEW = localStorage.getItem('cn_focus_view') || 'flow'; // 'flow' | 'sheet' | 'grid'
-
-/* #4 duração: formata ms e calcula a média dos torneios já criados com tempo */
-function fmtDur(ms){
-  const s = Math.max(0, Math.round(ms/1000));
-  return s < 60 ? `${s}s` : `${Math.floor(s/60)}m${String(s%60).padStart(2,'0')}s`;
-}
+/* duração média de criação (mostrada nos stats/TV) — sem o rastreamento
+   por-torneio que o Modo Foco fazia (removido, ver abaixo), fica sem dado
+   até algo popular DONE[key].dur de novo; a função não quebra, só devolve null. */
 function avgDurMin(){
   const ds = Object.values(DONE).map(d => d && d.dur).filter(x => typeof x === 'number' && x > 0);
   return ds.length ? ds.reduce((a,b) => a+b, 0) / ds.length / 60000 : null;
 }
 
-/* #3 validação da receita — só regras conservadoras (sem falso alarme) */
+/* validação da receita — só regras conservadoras (sem falso alarme) */
 function validateItem(it, cat){
   const out = [];
   if (it.buyin === null || it.buyin === undefined) out.push('Buy-in ausente na receita');
@@ -2365,21 +2343,18 @@ function valBadge(it, cat){
 }
 
 function markDone(key){
-  // #4 duração: do 1º instante que o torneio apareceu no foco até marcar criado
-  const start = FOCUS_SEEN_AT[key];
-  const dur = start ? Date.now() - start : null;
-  DONE[key] = {by: ME || 'Alguém', at: Date.now(), ...(dur ? {dur} : {})}; // otimista — o eco do Firebase confirma
-  // transação: se dois operadores marcarem juntos, o primeiro vence e o by/dur dele fica
+  DONE[key] = {by: ME || 'Alguém', at: Date.now()}; // otimista — o eco do Firebase confirma
+  // transação: se dois operadores marcarem juntos, o primeiro vence
   if (fbDb){
     fbDb.ref(`${FB_PATH}/done/${key}`).transaction(existing =>
-      existing ? undefined : {by: ME || 'Alguém', at: Date.now(), ...(dur ? {dur} : {})});
-    logEvent('criou (modo foco)', key);
+      existing ? undefined : {by: ME || 'Alguém', at: Date.now()});
+    logEvent('marcou criado', key);
   }
   renderAll();
 }
 
 /* =========================================================================
-   #5 HANDOFF DE TURNO + menu popover reaproveitável
+   HANDOFF DE TURNO + menu popover reaproveitável
 ========================================================================= */
 function closePickMenu(){ const m = $('popMenu'); if (m) m.remove(); document.removeEventListener('mousedown', pickMenuOutside, true); }
 function pickMenuOutside(e){ const m = $('popMenu'); if (m && !m.contains(e.target)) closePickMenu(); }
@@ -2404,7 +2379,7 @@ function myPending(){
   const items = allWithCat().map(x => x.it).filter(it => asg[itemKey(it)] === op && !DONE[itemKey(it)]);
   return {op, items};
 }
-function saveOverrides(){ if (fbDb) fbDb.ref(`${FB_PATH}/overrides`).set(OVERRIDES); else { renderAll(); renderFocus(); } }
+function saveOverrides(){ if (fbDb) fbDb.ref(`${FB_PATH}/overrides`).set(OVERRIDES); else renderAll(); }
 function handoffTo(items, toOp){
   items.forEach(it => OVERRIDES[itemKey(it)] = toOp);
   saveOverrides();
@@ -2427,442 +2402,71 @@ function openHandoff(anchor){
   openPickMenu(anchor, title, opts);
 }
 
-let FOCUS_TARGET = null; // clicou num torneio da tabela → foco abre direto nele
-/* clicado direto no nome de um torneio (na planilha OU nos cartões da seção)
-   — pedido: "tela cheia por evento" a partir da seção. Abre já em tela cheia,
-   na mesma visão (planilha/colunas) que a seção estava mostrando. */
-function openFocusAt(key){
-  if (DONE[key]){ showToast('Esse torneio já foi criado.'); return; }
-  // "entra" no evento: se veio de dentro da tela cheia da seção, fecha ela
-  // primeiro — as duas telas cheias empilhadas ao mesmo tempo não fazem
-  // sentido (e brigariam de z-index); ← no foco volta pro torneio anterior.
-  if (SEC_FS) toggleSectionFs(SEC_FS);
-  FOCUS_TARGET = key;
-  FOCUS_FS = true;
-  FOCUS_VIEW = SEC_VIEW === 'columns' ? 'grid' : 'sheet';
-  openFocus();
-  $('focusOverlay').classList.add('fs');
+/* =========================================================================
+   NAVEGAÇÃO POR TORNEIO NA TELA CHEIA DA SEÇÃO — substituiu o Modo Foco
+   (overlay separado, removido): clicar o nome de um torneio, na lista normal
+   ou já dentro da tela cheia, abre/mantém a seção em tela cheia com o cursor
+   nesse torneio; ← → andam pro anterior/próximo sem sair dali. Pedido
+   explícito: "as funcionalidades tem que ser por seção não no modo foco".
+========================================================================= */
+let SEC_CURSOR = null; // itemKey do torneio "atual" dentro da seção em tela cheia
+function openSectionFsAt(catKey, key){
+  if (SEC_FS !== catKey){
+    SEC_FS = catKey;
+    document.body.classList.add('cn-sec-fs-lock');
+  }
+  SEC_CURSOR = key;
+  renderSecFs();
+  a11yOpenDialog('secFsOverlay');
 }
-function focusQueue(){
-  if (!DATA) return [];
+function secFsMoveCursor(delta){
+  if (!SEC_FS || !DATA) return;
+  const cat = SECTIONS.find(c => c.key === SEC_FS);
+  if (!cat) return;
   const asg = computeAssignments();
-  let all = allWithCat().filter(x => !DONE[itemKey(x.it)]);
-  // torneio clicado na tabela fura a fila (mesmo sendo de outro operador)
-  if (FOCUS_TARGET){
-    const hit = all.find(x => itemKey(x.it) === FOCUS_TARGET);
-    if (hit) return [hit, ...all.filter(x => x !== hit).sort((a,b) => (hoursToStart(a.it) ?? 999) - (hoursToStart(b.it) ?? 999))];
-    FOCUS_TARGET = null;
-  }
-  // meus torneios primeiro: se meu nome está na equipe, a fila é só minha;
-  // senão respeita o filtro de operador escolhido na tela
-  const mineOp = OPS.find(o => normText(o) === normText(ME)) || (FILTER !== 'all' ? FILTER : null);
-  if (mineOp) all = all.filter(x => asg[itemKey(x.it)] === mineOp);
-  // prioridade: menos horas até o início (prazo estourando primeiro)
-  all.sort((a,b) => (hoursToStart(a.it) ?? 999) - (hoursToStart(b.it) ?? 999));
-  const notSkipped = all.filter(x => !FOCUS_SKIP.has(itemKey(x.it)));
-  if (!notSkipped.length && all.length) FOCUS_SKIP.clear(); // pulou tudo: recomeça a fila
-  return notSkipped.length ? notSkipped : all;
+  const items = visibleItems(catItems(cat), asg);
+  if (!items.length) return;
+  const keys = items.map(itemKey);
+  let idx = SEC_CURSOR ? keys.indexOf(SEC_CURSOR) : -1;
+  idx = idx === -1 ? 0 : Math.max(0, Math.min(keys.length - 1, idx + delta));
+  SEC_CURSOR = keys[idx];
+  secFsHighlightCursor();
 }
-
-function openFocus(){
-  if (!DATA){ showToast('Carregue a Global primeiro.', true); return; }
-  FOCUS_OPEN = true;
-  FOCUS_ENTERED = new Set(); FOCUS_ENTERED_KEY = null; FOCUS_ANIMATE = true;
-  $('focusOverlay').classList.add('open');
-  renderFocus();
-  a11yOpenDialog('focusOverlay');   // a11y: aria-hidden + foco entra no diálogo
-}
-function closeFocus(){
-  FOCUS_OPEN = false;
-  FOCUS_FS = false;                          // não carrega a tela cheia pra próxima abertura pela fila
-  $('focusOverlay').classList.remove('open', 'fs');
-  const cf = $('focusConfirm'); if (cf) cf.remove();
-  closePickMenu();
-  a11yCloseDialog('focusOverlay');  // a11y: devolve o foco pra quem abriu
-}
-
-/* avança na fila com transição — usado por "Criado" e "Pular" */
-function focusAdvance(){ FOCUS_TARGET = null; FOCUS_ANIMATE = true; renderFocus(); }
-/* ← no modo foco: volta pro torneio anterior da pilha de navegação (não é a
-   fila por prioridade — é literalmente por onde você passou). Se ele já foi
-   marcado como criado nesse meio-tempo (por você ou pelo parceiro), o alvo
-   não existe mais na fila e cai de volta na prioridade normal — não trava. */
-function focusGoBack(){
-  const prevKey = FOCUS_HISTORY.pop();
-  if (!prevKey){ showToast('Não há torneio anterior nesta sessão.'); return; }
-  _focusGoingBack = true;
-  FOCUS_TARGET = prevKey;
-  FOCUS_ANIMATE = true;
-  renderFocus();
-}
-/* → no modo foco: mesmo efeito do botão "Pular" — pula o torneio atual pro
-   fim da fila e avança. Reaproveita o mecanismo já existente do botão. */
-function focusSkipCurrent(){
-  const q = focusQueue();
-  if (!q.length) return;
-  FOCUS_SKIP.add(itemKey(q[0].it));
-  focusAdvance();
-}
-function focusSetView(view){
-  FOCUS_VIEW = view;
-  try{ localStorage.setItem('cn_focus_view', view); }catch(e){}
-  renderFocus();
-}
-function focusToggleFs(){
-  FOCUS_FS = !FOCUS_FS;
-  $('focusOverlay').classList.toggle('fs', FOCUS_FS);
-  renderFocus(); // só troca o ícone/título do botão — o card em si não é recriado, a transição do CSS continua valendo
-}
-
-/* a RECEITA de cima para baixo: uma coluna, na ORDEM da planilha (= ordem que
-   se digita no app). Cada campo tem valor, botão de copiar só aquele valor e
-   um toque pra marcar "digitei" (apaga a linha) — assim não se perde o lugar
-   na descida. Os campos-chave (buy-in, garantido, rake, admin, early, campanha)
-   ganham cor na própria linha. */
-function focusFlowHtml(it){
-  const fields = visibleRecipeFields();
-  if (!fields.length)
-    return `<div class="recipe-note">Receita completa indisponível nesta planilha (cabeçalho da Global não foi lido). Recarregue a Global MTT original.</div>`;
-  const feeL = (feeInfo(it) || {}).label, admL = (adminInfo(it) || {}).label,
-        earL = (earlyInfo(it) || {}).label, campL = (campInfo(it) || {}).label;
-  // mapa rótulo→destaque dos campos-chave (game type, ticket, chips, structure, time bank, payout)
-  const featMap = {};
-  const setFeat = (info, cls) => { if (info && info.label && !featMap[info.label]) featMap[info.label] = cls; };
-  setFeat(gameTypeInfo(it),'game'); setFeat(ticketInfo(it),'ticket'); setFeat(chipsInfo(it),'chips');
-  setFeat(structureInfo(it),'structure'); setFeat(timeBankInfo(it),'timebank'); setFeat(payoutInfo(it),'payout');
-  setFeat(calcPayoutInfo(it),'payout'); setFeat(rebuyInfo(it),'rebuy'); setFeat(addonInfo(it),'addon'); setFeat(koInfo(it),'game');
-  const copySvg = `<svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`;
-  // linha 0 — quando o evento deve ser criado (2026-xx-xx dia 00:00); só leitura
-  const quando = creationWhen(it);
-  const quandoRow = `<div class="frow prize key-line" data-static="1">
-    <span class="fnum">♦</span>
-    <span class="fk">Criar em</span>
-    <span class="fv">${escHtml(quando)}</span>
-    <button class="fcopy" data-fcopy="${escHtml(quando)}" title="Copiar data e hora">${copySvg}</button>
-  </div>`;
-  return quandoRow + fields.map((label, i) => {
-    const v = it.extra ? it.extra[label] : undefined;
-    const has = v !== undefined && v !== null && v !== '';
-    const disp = has ? fmtExtraVal(label, v) : '';
-    const nl = normText(label);
-    let accent = '';
-    if ((label === feeL && feeActive(it)) || (label === admL && adminActive(it))) accent = 'admin';
-    else if (label === earL && earlyActive(it)) accent = 'early';
-    else if (label === campL && hasCampaign(it)) accent = 'camp';
-    else if (nl.includes('buy')) accent = 'buyin';
-    else if (nl.includes('prize') || nl.includes('guarant')) accent = 'prize';
-    else if (featMap[label]) accent = featMap[label];
-    let vHtml = has ? escHtml(disp) : 'deixar em branco';
-    // linha de fee: mostra as parcelas separadas (10% / 2%) com o decimal do buy-in
-    if (has && accent === 'admin'){
-      const af = adminFeeParts(it);
-      if (af) vHtml = escHtml(disp) + `<span class="fsub">${escHtml(af.main)}</span>`;
+/* destaca e rola até o torneio "atual": em Colunas (vtable transposta) marca
+   a COLUNA inteira (mesmo índice em toda linha); em Planilha marca a LINHA. */
+function secFsHighlightCursor(){
+  const card = $('secFsCard');
+  if (!card || !SEC_CURSOR) return;
+  const esc = k => (window.CSS && CSS.escape) ? CSS.escape(k) : k;
+  card.querySelectorAll('.sec-cursor, .sec-cursor-col').forEach(el => el.classList.remove('sec-cursor', 'sec-cursor-col'));
+  const table = card.querySelector('table');
+  if (!table) return;
+  const anchor = table.querySelector(`[data-idkey="${esc(SEC_CURSOR)}"], [data-done="${esc(SEC_CURSOR)}"]`);
+  if (!anchor) return;
+  if (table.classList.contains('ptable')){
+    const tr = anchor.closest('tr');
+    if (tr){ tr.classList.add('sec-cursor'); tr.scrollIntoView({block:'nearest', behavior:'smooth'}); }
+  } else {
+    const td = anchor.closest('td');
+    if (td){
+      const idx = td.cellIndex;
+      table.querySelectorAll('tr').forEach(row => { const cell = row.cells[idx]; if (cell) cell.classList.add('sec-cursor-col'); });
+      td.scrollIntoView({inline:'center', block:'nearest', behavior:'smooth'});
     }
-    // Early Bird: % das fichas — mostra as fichas extras que o % representa
-    if (has && accent === 'early'){
-      const p = earlyParts(it);
-      if (p) vHtml = escHtml(p.main) + (p.sub ? `<span class="fsub">${escHtml(p.sub)}</span>` : '');
-    }
-    // Add-on: formata em $
-    if (has && accent === 'addon'){
-      const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.,-]/g, '').replace(',', '.'));
-      if (isFinite(n) && n > 0) vHtml = escHtml(fmtMoneyPlain(n));
-    }
-    const done = FOCUS_ENTERED.has(label);
-    return `<div class="frow ${accent} ${has ? '' : 'blank'} ${done ? 'entered' : ''} ${accent ? 'key-line' : ''}" data-field="${escHtml(label)}">
-      <span class="fnum">${done ? '✓' : (i + 1)}</span>
-      <span class="fk" title="${escHtml(label)}">${escHtml(label)}</span>
-      <span class="fv">${vHtml}</span>
-      ${has ? `<button class="fcopy" data-fcopy="${escHtml(disp)}" title="Copiar valor">${copySvg}</button>` : `<span></span>`}
-    </div>`;
-  }).join('');
-}
-
-/* #2 auto-avanço do campo "atual" */
-function focusRowByField(card, f){ return [...card.querySelectorAll('.frow')].find(r => r.dataset.field === f) || null; }
-function focusNextField(after){
-  const start = after != null ? FOCUS_FIELDS.indexOf(after) + 1 : 0;
-  for (let i = start; i < FOCUS_FIELDS.length; i++) if (!FOCUS_ENTERED.has(FOCUS_FIELDS[i])) return FOCUS_FIELDS[i];
-  for (let i = 0; i < FOCUS_FIELDS.length; i++) if (!FOCUS_ENTERED.has(FOCUS_FIELDS[i])) return FOCUS_FIELDS[i];
-  return null;
-}
-function focusApplyCurrent(card, scroll){
-  card.querySelectorAll('.frow.current').forEach(r => r.classList.remove('current'));
-  if (!FOCUS_CURSOR) return;
-  const row = focusRowByField(card, FOCUS_CURSOR);
-  if (!row) return;
-  row.classList.add('current');
-  if (scroll){
-    const reduce = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
-    row.scrollIntoView({block:'center', behavior: reduce ? 'auto' : 'smooth'});
   }
 }
-function updateFlowProg(card){
-  const p = card.querySelector('#flowProg');
-  if (p) p.textContent = `${FOCUS_ENTERED.size}/${FOCUS_FIELDS.length} campos`;
-}
-function focusMarkField(card, label, entered){
-  if (entered) FOCUS_ENTERED.add(label); else FOCUS_ENTERED.delete(label);
-  const row = focusRowByField(card, label);
-  if (row){
-    row.classList.toggle('entered', entered);
-    const num = row.querySelector('.fnum');
-    if (num) num.textContent = entered ? '✓' : (FOCUS_FIELDS.indexOf(label) + 1);
-  }
-  updateFlowProg(card);
-}
-
-/* #6 conferência pós-criação — folha que sobe com o recap dos números-chave */
-function openCreateConfirm(it, cat, key, onConfirm){
-  const card = $('focusCard');
-  if ($('focusConfirm')) return;
-  const af = adminFeeParts(it), e = earlyParts(it);
-  const idv = $('focusIdInp') ? $('focusIdInp').value.trim() : idVal(key);
-  const issues = validateItem(it, cat);
-  const cci = (k, v, warn) => `<div class="cci ${warn ? 'warn' : ''}"><div class="k">${k}</div><div class="v">${v}</div></div>`;
-  const ov = document.createElement('div');
-  ov.className = 'focus-confirm'; ov.id = 'focusConfirm';
-  ov.dataset.openedAt = Date.now();
-  ov.innerHTML = `<div class="cc">
-    <h4>Conferir antes de criar</h4>
-    <div class="sub"><b>${escHtml(it.nome)}</b> · ${escHtml(cat.label)} — bata os números com o que você cadastrou no Pokerbyte.</div>
-    <div class="cc-grid">
-      ${cci('Horário', escHtml(it.hora))}
-      ${cci('Buy-in', fmtMoney(it.buyin), it.buyin == null)}
-      ${cci('Garantido', fmtMoney(it.garantido), it.garantido == null)}
-      ${af ? cci('Admin Fee', escHtml(af.main) + (af.sub ? ` <span style="opacity:.6;font-size:11px">${escHtml(af.sub)}</span>` : '')) : cci('Admin Fee', '—', cat.key !== 'sat')}
-      ${e ? cci('Early Bird', escHtml(e.main) + (e.sub ? ` <span style="opacity:.6;font-size:11px">${escHtml(e.sub)}</span>` : '')) : ''}
-      ${hasCampaign(it) ? cci('✦ Campanha', escHtml((campInfo(it) || {}).disp || 'ativa'), false) : ''}
-      ${cci('ID Pokerbyte', idv ? escHtml(idv) : 'em branco', !idv)}
-    </div>
-    ${issues.length ? `<div class="focus-alerts">${issues.map(m => `<div class="focus-alert">⚠ ${escHtml(m)}</div>`).join('')}</div>` : ''}
-    <div class="focus-actions">
-      <button class="btn primary" id="ccConfirm"><svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg> Confere — criar</button>
-      <button class="btn ghost" id="ccBack">Voltar e revisar</button>
-    </div>
-  </div>`;
-  card.appendChild(ov);
-  const close = () => ov.remove();
-  ov.addEventListener('click', ev => { if (ev.target === ov) close(); });
-  $('ccBack').addEventListener('click', close);
-  $('ccConfirm').addEventListener('click', () => { close(); onConfirm(); });
-}
-
-function renderFocus(){
-  if (!FOCUS_OPEN) return;
-  const card = $('focusCard');
-  const queue = focusQueue();
-  if (!queue.length){
-    card.innerHTML = `
-      <div class="focus-head" style="border:none"><div class="focus-top"><span class="queue-pos">fila vazia</span><button class="focus-close" id="focusClose" title="Fechar">✕</button></div></div>
-      <div class="focus-empty">🎉 <b>Tudo criado!</b><br>Nenhum torneio pendente na sua fila — bom descanso, ou ajude um parceiro trocando o filtro de operador.</div>`;
-    $('focusClose').addEventListener('click', closeFocus);
-    return;
-  }
-  const {it, cat} = queue[0];
-  const key = itemKey(it);
-  // navegação ← →: empilha o torneio anterior quando o atual troca — exceto
-  // quando a própria troca É um "voltar" (senão o ← empurraria o que você
-  // acabou de sair de volta pro topo da pilha e o botão nunca avançaria)
-  if (FOCUS_CURRENT_KEY && FOCUS_CURRENT_KEY !== key){
-    if (!_focusGoingBack) FOCUS_HISTORY.push(FOCUS_CURRENT_KEY);
-    _focusGoingBack = false;
-  }
-  FOCUS_CURRENT_KEY = key;
-  // progresso "digitei" é por torneio — zera ao trocar de torneio
-  if (FOCUS_ENTERED_KEY !== key){ FOCUS_ENTERED = new Set(); FOCUS_ENTERED_KEY = key; FOCUS_CURSOR = null; }
-  if (!FOCUS_SEEN_AT[key]) FOCUS_SEEN_AT[key] = Date.now();   // #4 início da criação
-  FOCUS_FIELDS = visibleRecipeFields();                      // #2 ordem dos campos (sem Num. Players/Chat)
-  if (!FOCUS_CURSOR || !FOCUS_FIELDS.includes(FOCUS_CURSOR) || FOCUS_ENTERED.has(FOCUS_CURSOR))
-    FOCUS_CURSOR = focusNextField(null);
-  const urg = urgency(it);
-  const issues = validateItem(it, cat);
-
-  // progresso da MINHA fila da noite (pra saber o ritmo)
-  const asg = computeAssignments();
-  const mineOp = OPS.find(o => normText(o) === normText(ME)) || (FILTER !== 'all' ? FILTER : null);
-  const mineAll = mineOp ? allWithCat().filter(x => asg[itemKey(x.it)] === mineOp) : allWithCat();
-  const mineDone = mineAll.filter(x => DONE[itemKey(x.it)]).length;
-  const mineTotal = mineAll.length || 1;
-  const nightPct = Math.round(mineDone / mineTotal * 100);
-  const next = queue[1] ? queue[1].it : null;
-  const fieldsN = FOCUS_FIELDS.length;
-
-  card.innerHTML = `
-    <div class="focus-head">
-      <div class="focus-top">
-        <span class="tag" style="background:var(--${cat.cls}-soft);color:var(--${cat.cls}-bright)">${cat.label}</span>
-        ${urg ? `<span class="urg-pill ${urg}">⏰ começa ${urgLabel(it)}</span>` : ''}
-        ${auditBadge(it)}
-        ${campBadgeHtml(it)}
-        ${it.groupHeader ? `<span class="pill" style="color:var(--sat-bright)">${escHtml(it.groupHeader)}</span>` : ''}
-        <span class="queue-pos">${mineDone + 1} de ${mineTotal} · ${queue.length} na fila</span>
-        <div class="seg focus-view-seg" id="focusViewSeg" role="group" aria-label="Visão do torneio">
-          <button data-view="flow" class="${FOCUS_VIEW === 'flow' ? 'on' : ''}" title="Fluxo — um campo de cada vez, na ordem de digitar">Fluxo</button>
-          <button data-view="sheet" class="${FOCUS_VIEW === 'sheet' ? 'on' : ''}" title="Planilha — este torneio como uma linha, igual à Global">Planilha</button>
-          <button data-view="grid" class="${FOCUS_VIEW === 'grid' ? 'on' : ''}" title="Colunas — campos empilhados, como na grade normal">Colunas</button>
-        </div>
-        <button class="focus-close focus-fs-btn" id="focusFsBtn" title="${FOCUS_FS ? 'Sair da tela cheia' : 'Tela cheia'}" aria-pressed="${FOCUS_FS}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${FOCUS_FS ? '<path d="M9 4v5H4M20 9h-5V4M9 20v-5H4M20 15h-5v5"/>' : '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'}</svg>
-        </button>
-        <button class="focus-close" id="focusClose" title="Fechar (Esc)">✕</button>
-      </div>
-      <div class="focus-name">${escHtml(it.nome)}</div>
-      ${(() => { const m = mttKicker(it); return m ? `<div class="focus-mtt"><span class="tag-k">MTT</span>${escHtml(m)}</div>` : ''; })()}
-      <div class="focus-check">
-        <div class="fc hora"><span class="k">Criar em</span><span class="v">${escHtml(creationWhen(it))}</span></div>
-        ${it.late ? `<div class="fc"><span class="k">Fim late reg</span><span class="v">${escHtml(it.late)}</span></div>` : ''}
-      </div>
-      <div class="focus-night">
-        <div class="bar"><div class="fill" style="width:${nightPct}%"></div></div>
-        <span class="cap">${mineDone}/${mineTotal} da sua noite</span>
-        <span class="cap" id="focusElapsed"></span>
-      </div>
-    </div>
-
-    <div class="focus-body">
-      ${issues.length ? `<div class="focus-alerts">${issues.map(m => `<div class="focus-alert">⚠ ${escHtml(m)}</div>`).join('')}</div>` : ''}
-      ${(() => { const s = specSheetHtml(it); return s ? `<div class="spec-title"><svg viewBox="0 0 24 24"><path d="M12 2 15 9l7 .5-5.3 4.6L18.5 21 12 17l-6.5 4 1.8-6.9L2 9.5 9 9z"/></svg> Destaques</div>${s}` : ''; })()}
-      ${FOCUS_VIEW === 'sheet' ? `
-        <div class="focus-altview">${renderPlanilhaRows([it], cat, asg)}</div>
-      ` : FOCUS_VIEW === 'grid' ? `
-        <div class="focus-altview">${renderVertical([it], cat, asg)}</div>
-      ` : `
-        <div class="flow-head">
-          <span class="t"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h12"/></svg> Receita — de cima para baixo</span>
-          <span class="flow-prog" id="flowProg">${FOCUS_ENTERED.size}/${fieldsN} campos</span>
-        </div>
-        ${focusFlowHtml(it)}
-        <div class="flow-hint"><kbd>↓</kbd><kbd>↑</kbd> muda o campo · <kbd>Enter</kbd> marca e desce · toque na linha marca "digitei"</div>
-      `}
-    </div>
-
-    <div class="focus-foot">
-      <div class="focus-id-row">
-        <label>ID Pokerbyte</label>
-        <input type="text" id="focusIdInp" maxlength="20" placeholder="Cole o ID do evento criado no Pokerbyte" value="${escHtml(idVal(key))}">
-      </div>
-      <div class="focus-actions">
-        <button class="btn ghost" id="focusBack" ${FOCUS_HISTORY.length ? '' : 'disabled'} title="Torneio anterior (←)">← Anterior</button>
-        <button class="btn primary" id="focusDone">
-          <svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"/></svg>
-          Criado — próximo
-        </button>
-        <button class="btn ghost" id="focusSkip" title="Pular pro próximo (→)">Pular →</button>
-        <button class="btn ghost" id="focusCopy">
-          <svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
-          Copiar tudo
-        </button>
-        ${next ? `<span class="focus-next">próximo<br><span class="h">${escHtml(next.hora)}</span> <b>${escHtml(next.nome.length > 30 ? next.nome.slice(0,30) + '…' : next.nome)}</b></span>` : ''}
-      </div>
-    </div>`;
-
-  // transição só ao avançar de torneio (não no tick de 1 min)
-  if (FOCUS_ANIMATE){
-    const body = card.querySelector('.focus-body');
-    if (body){
-      body.scrollTop = 0;
-      body.classList.add('swap');
-      body.addEventListener('animationend', () => body.classList.remove('swap'), {once:true});
-    }
-    FOCUS_ANIMATE = false;
-  }
-  focusApplyCurrent(card, false); // #2 marca o campo atual sem rolar de repente
-
-  $('focusClose').addEventListener('click', closeFocus);
-  $('focusFsBtn').addEventListener('click', focusToggleFs);
-  $('focusViewSeg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => focusSetView(b.dataset.view)));
-  const backBtn = $('focusBack');
-  if (backBtn && !backBtn.disabled) backBtn.addEventListener('click', focusGoBack);
-  // #6 "Criado" abre a conferência antes de confirmar
-  $('focusDone').addEventListener('click', () => {
-    const idv = $('focusIdInp').value.trim();
-    if (idv && idv !== idVal(key)) setId(key, idv, false); // no foco, a conferência é que confirma
-    openCreateConfirm(it, cat, key, () => { markDone(key); focusAdvance(); });
-  });
-  $('focusSkip').addEventListener('click', focusSkipCurrent);
-  $('focusCopy').addEventListener('click', async () => {
-    try{ await navigator.clipboard.writeText(recipeText(it, cat.label)); showToast('Receita completa copiada 📋'); }
-    catch(e){ showToast('Não consegui copiar.', true); }
-  });
-  $('focusIdInp').addEventListener('change', () => setId(key, $('focusIdInp').value, false));
-  $('focusIdInp').addEventListener('keydown', e => { if (e.key === 'Enter') $('focusDone').click(); });
-
-  // por-campo: toque marca "digitei" e AVANÇA o campo atual; botão copia só o valor
-  card.querySelectorAll('.frow').forEach(row => {
-    row.addEventListener('click', e => {
-      if (row.dataset.static) return;   // linha "Criar em": só leitura/cópia
-      if (e.target.closest('.fcopy')) return;
-      const f = row.dataset.field;
-      const willEnter = !FOCUS_ENTERED.has(f);
-      focusMarkField(card, f, willEnter);
-      if (willEnter){ FOCUS_CURSOR = focusNextField(f); focusApplyCurrent(card, true); }
-      else { FOCUS_CURSOR = f; focusApplyCurrent(card, true); }
-    });
-  });
-  card.querySelectorAll('.fcopy').forEach(btn => btn.addEventListener('click', async e => {
-    e.stopPropagation();
-    try{
-      await navigator.clipboard.writeText(btn.dataset.fcopy || '');
-      showToast('Valor copiado 📋');
-      const row = btn.closest('.frow');
-      const f = row && row.dataset.field;
-      if (f && !FOCUS_ENTERED.has(f)){ focusMarkField(card, f, true); FOCUS_CURSOR = focusNextField(f); focusApplyCurrent(card, true); }
-    }catch(err){ showToast('Não consegui copiar.', true); }
-  }));
-}
-$('focusBtn').addEventListener('click', openFocus);
 $('handoffBtn').addEventListener('click', e => openHandoff(e.currentTarget));
-$('focusOverlay').addEventListener('click', e => { if (e.target === $('focusOverlay')) closeFocus(); });
 
-/* #2 teclado no foco: setas movem o campo atual, Enter marca e desce */
 document.addEventListener('keydown', e => {
   if ($('popMenu') && e.key === 'Escape'){ closePickMenu(); return; }
   if (TV_OPEN && e.key === 'Escape'){ closeTV(); return; }
   if (SEC_FS && e.key === 'Escape'){ toggleSectionFs(SEC_FS); return; }
-  const confirmEl = $('focusConfirm');
-  if (confirmEl){
-    if (e.key === 'Escape'){ confirmEl.remove(); e.preventDefault(); }
-    else if (e.key === 'Enter'){
-      if (Date.now() - (+confirmEl.dataset.openedAt || 0) < 350) return; // ignora o Enter que abriu a conferência
-      const b = $('ccConfirm'); if (b){ b.click(); e.preventDefault(); }
-    }
-    return;
-  }
-  if (!FOCUS_OPEN) return;
-  if (e.key === 'Escape'){ closeFocus(); return; }
+  if (!SEC_FS) return;
   const ae = document.activeElement;
   if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return; // digitando o ID: não sequestra teclas
-  const card = $('focusCard');
-  // ← → trocam de TORNEIO (↑ ↓ continuam trocando de CAMPO, abaixo) — pular
-  // pro próximo/voltar pro anterior sem soltar o teclado
-  if (e.key === 'ArrowRight'){ e.preventDefault(); focusSkipCurrent(); return; }
-  if (e.key === 'ArrowLeft'){ e.preventDefault(); focusGoBack(); return; }
-  if (!FOCUS_FIELDS.length) return;
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){
-    e.preventDefault();
-    let i = FOCUS_CURSOR ? FOCUS_FIELDS.indexOf(FOCUS_CURSOR) : -1;
-    i = Math.max(0, Math.min(FOCUS_FIELDS.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)));
-    FOCUS_CURSOR = FOCUS_FIELDS[i];
-    focusApplyCurrent(card, true);
-  } else if (e.key === 'Enter' || e.key === ' '){
-    if (!FOCUS_CURSOR) return;
-    e.preventDefault();
-    const f = FOCUS_CURSOR;
-    focusMarkField(card, f, true);
-    FOCUS_CURSOR = focusNextField(f);
-    focusApplyCurrent(card, true);
-  }
+  if (e.key === 'ArrowRight'){ e.preventDefault(); secFsMoveCursor(1); }
+  else if (e.key === 'ArrowLeft'){ e.preventDefault(); secFsMoveCursor(-1); }
 });
-
-/* #4 cronômetro ao vivo do torneio em criação (só enquanto o foco está aberto) */
-setInterval(() => {
-  if (!FOCUS_OPEN) return;
-  const el = $('focusElapsed');
-  if (!el) return;
-  const t = FOCUS_SEEN_AT[FOCUS_ENTERED_KEY];
-  el.textContent = t ? '· ⏱ ' + fmtDur(Date.now() - t) : '';
-}, 1000);
 
 /* ── busca ── */
 $('searchInp').addEventListener('input', () => { SEARCH = $('searchInp').value; renderList(); });
@@ -2885,8 +2489,6 @@ setInterval(() => {
   const ae = document.activeElement;
   if (!(ae && ae.classList.contains('id-inp'))) renderList();
   if (!(SEC_FS && ae && ae.classList.contains('id-inp'))) renderSecFs();
-  // não re-renderizar o foco enquanto a pessoa digita o ID ou marca campos
-  if (!(FOCUS_OPEN && ae && ae.id === 'focusIdInp')) renderFocus();
 }, 60000);
 
 /* ── AVISO: fechamento dos planos de mesa — toda SEGUNDA 05:00 (BRT) ──
@@ -3103,7 +2705,7 @@ $('summaryBtn').addEventListener('click', async () => {
   document.addEventListener('visibilitychange', () => set(document.hidden));
 })();
 
-/* ── a11y dos diálogos (focusOverlay / tvOverlay) ──────────────────────────
+/* ── a11y dos diálogos (secFsOverlay / tvOverlay) ──────────────────────────
    Move o foco pra DENTRO do diálogo ao abrir, prende o Tab lá e devolve o foco
    pra quem abriu ao fechar. O Esc já é tratado no handler global acima. */
 var _a11yLastFocus = null;
@@ -3121,7 +2723,7 @@ function a11yCloseDialog(id){
 }
 document.addEventListener('keydown', function(e){
   if(e.key !== 'Tab') return;
-  var dlg = document.querySelector('#focusOverlay.open, #tvOverlay.open, #secFsOverlay.open');
+  var dlg = document.querySelector('#tvOverlay.open, #secFsOverlay.open');
   if(!dlg) return;
   var foc = [].slice.call(dlg.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'))
     .filter(function(el){ return el.getClientRects().length; });
