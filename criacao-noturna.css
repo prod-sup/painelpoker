@@ -1283,6 +1283,20 @@ body > *{position:relative;z-index:1}
     background:none;border:none;color:var(--felt-bright);text-decoration:underline;text-underline-offset:2px;
   }
 
+  /* ── ARRASTAR-E-SOLTAR das colunas (rótulo com data-col) ──────────────────
+     Segure no ⋮⋮ e arraste pra reordenar. Vale na lista (Colunas → reordena as
+     linhas-campo) e na Planilha (reordena as colunas de verdade). */
+  .col-drag{cursor:grab}
+  .col-drag:active{cursor:grabbing}
+  .rl-grip{
+    display:inline-block;opacity:.3;font-size:11px;line-height:1;letter-spacing:-3px;
+    margin-right:6px;cursor:grab;user-select:none;vertical-align:middle;
+  }
+  .rowlab.col-drag:hover .rl-grip, th.col-drag:hover .rl-grip{opacity:.7}
+  .col-dragging{opacity:.4}
+  /* alvo do drop: contorno tracejado no feltro (não empurra layout, convive com o filete key) */
+  .col-over{outline:2px dashed var(--felt-bright);outline-offset:-2px;background:var(--felt-soft)}
+
   /* ── TELA CHEIA: setas de navegação por torneio ────────────────────────── */
   .fs-arrow{
     position:fixed;top:50%;transform:translateY(-50%);z-index:93;

@@ -381,6 +381,15 @@ async function loadAll(fullHistory){
   Object.entries(painelRaw).forEach(([date,day])=> mergeDayInto(date, null, day));
 }
 
+/* CHAVE nome+hora NORMALIZADA pra dedup/merge — tolerante às diferenças de grafia
+   entre o snapshot e o painel ao vivo. hora "0:00"/"00:00:00" vira "00:00" (o 00:00
+   da madrugada era o caso que duplicava: representações diferentes de meia-noite
+   escapavam do dedup e o evento repetia na lista); nome sem acento/caixa/espaço extra. */
+function nhKey(nome, hora){
+  const n = String(nome||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ');
+  const h = String(hora||'').trim().replace(/^(\d{1,2}):(\d{2}).*$/, (_,hh,mm)=>`${hh.padStart(2,'0')}:${mm}`);
+  return `${n}|${h}`;
+}
 /* Faz o merge de UM dia (snapshot + painel) dentro de _allData[date]. É a MESMA
    lógica que o loadAll usava inline — extraída pra ser reusada pelo refresh ao
    vivo (que reprocessa só o dia que mudou, sem rebaixar os 60 dias). `snap` é o
@@ -408,13 +417,13 @@ function mergeDayInto(date, snap, day){
     // quando o garantido muda entre o snapshot e o painel ao vivo (hash diferente)
     const existingByNomeHora = {};
     Object.entries(_allData[date].rows).forEach(([k,r])=>{
-      if(r?.nome && r?.hora) existingByNomeHora[`${r.nome}|${r.hora}`] = k;
+      if(r?.nome && r?.hora) existingByNomeHora[nhKey(r.nome, r.hora)] = k;
     });
 
     const arr = Array.isArray(day.sheet?.rows) ? day.sheet.rows : [];
     arr.forEach(r=>{
       if(!r||typeof r!=='object')return;
-      const mergeKey = `${r.nome}|${r.hora}`;
+      const mergeKey = nhKey(r.nome, r.hora);
       const existingK = existingByNomeHora[mergeKey];
       if(existingK){
         // Já existe (veio do snapshot) — não duplicar, só garantir que os dados base estão completos
@@ -556,7 +565,7 @@ function flatRows(fromDate, toDate){
     const seenInDay = new Set();
     Object.entries(day.rows).forEach(([key,r])=>{
       if(!r||typeof r!=='object')return;
-      const dedupeKey = `${(r.nome||'').trim()}|${(r.hora||'').trim()}`;
+      const dedupeKey = nhKey(r.nome, r.hora); // normalizado: pega meia-noite em qualquer grafia
       if(seenInDay.has(dedupeKey)) return; // já processado este torneio neste dia
       seenInDay.add(dedupeKey);
 
@@ -643,7 +652,27 @@ function flatRows(fromDate, toDate){
       });
     });
   });
-  return out;
+
+  // DEDUP CROSS-DATA — a MESMA ocorrência da madrugada às vezes é gravada em DOIS dias de
+  // grade (a virada das 05:30 e a grade do dia seguinte que ainda lista o 00:00), e o evento
+  // aparecia repetido na auditoria em dois cabeçalhos de dia. Resolve pela DATA CIVIL real do
+  // evento (grade +1 dia quando é madrugada <05:30) + nome/hora normalizados: mesma ocorrência
+  // vira UMA linha. Ocorrências em NOITES diferentes têm data civil diferente → as duas ficam
+  // (não são dup). Mantém a linha MAIS "forte": já auditada > com premiação > com ID > primeira.
+  const civilOf = (date, hora) => {
+    const m = String(hora||'').match(/^(\d{1,2}):(\d{2})/);
+    const mins = m ? (+m[1])*60 + (+m[2]) : 9999;
+    if (mins < 330){ const d = new Date(date+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+1); return d.toISOString().slice(0,10); }
+    return date;
+  };
+  const score = r => (getAuditEntry(r.date, r.key)?4:0) + (r.premiacao!=null?2:0) + (r.id?1:0);
+  const byOcc = new Map();
+  for (const r of out){
+    const k = `${civilOf(r.date, r.hora)}|${nhKey(r.nome, r.hora)}`;
+    const prev = byOcc.get(k);
+    if (!prev || score(r) > score(prev)) byOcc.set(k, r);
+  }
+  return [...byOcc.values()];
 }
 
 /* ── NAVIGATION ─────────────────────────────────────────────── */
@@ -2139,7 +2168,15 @@ function openAuditEditByEl(btn){
   // Encontrar o row completo em _auditRows
   const r = _auditRows.find(r=>r.key===key&&r.date===date);
   if(!r){ toast('Dado não encontrado','err'); return; }
-  openAuditEdit({key:r.key,date:r.date,nome:r.nome,premiacao:r.premiacao,field:r.field,garantido:r.garantido,hora:r.hora});
+  // Passar os valores ORIGINAIS de verdade (não os já corrigidos): se a linha já foi
+  // auditada, r.premiacao/field/garantido são os CORRIGIDOS. Usá-los como "original" fazia
+  // o premiacaoOriginal derivar a cada reedição (perdia o valor real da planilha). O
+  // prefill do input continua vindo do premiacaoAuditada dentro de openAuditEdit.
+  const e = r._auditEntry;
+  openAuditEdit({key:r.key,date:r.date,nome:r.nome,hora:r.hora,
+    premiacao: e && e.premiacaoOriginal!=null ? e.premiacaoOriginal : r.premiacao,
+    field:     e && e.fieldOriginal!=null     ? e.fieldOriginal     : r.field,
+    garantido: e && e.garantidoOriginal!=null ? e.garantidoOriginal : r.garantido});
 }
 
 function openNotifByEl(btn){
@@ -2332,10 +2369,14 @@ function enrichWithAudit(rows){
     const a = getAuditEntry(r.date, r.key);
     if(!a) return r;
     const corr = a.status === 'corrigido';
-    // Se corrigido, usar valores auditados
-    const prem = corr && a.premiacaoAuditada != null ? a.premiacaoAuditada : r.premiacao;
-    const gar  = corr && a.garantidoAuditado != null ? a.garantidoAuditado : r.garantido;
-    const field= corr && a.fieldAuditado != null ? a.fieldAuditado : r.field;
+    // Honra o valor AUDITADO quando corrigido, E TAMBÉM quando um "aprovado" preservou uma
+    // correção anterior (auditada ≠ original). Antes, "aprovado" ignorava a auditada e caía
+    // no valor da planilha — então aprovar um que você já tinha corrigido REVERTIA o valor
+    // (o "muda o valor" relatado). Aprovação limpa (auditada == original) segue o valor vivo.
+    const useAudited = (aud, orig) => aud != null && (corr || aud !== orig);
+    const prem = useAudited(a.premiacaoAuditada, a.premiacaoOriginal) ? a.premiacaoAuditada : r.premiacao;
+    const gar  = useAudited(a.garantidoAuditado, a.garantidoOriginal) ? a.garantidoAuditado : r.garantido;
+    const field= useAudited(a.fieldAuditado,     a.fieldOriginal)     ? a.fieldAuditado     : r.field;
     // Recalcular overlay/perf com base nos valores corrigidos
     const diff = prem!=null&&gar!=null ? prem-gar : null;
     const overlay = diff!=null&&diff<0 ? diff : null;
@@ -3307,12 +3348,16 @@ async function batchApprove(){
   const bar = document.getElementById('batchActions');
   if(bar) bar.innerHTML = '<span style="font-size:11px;color:var(--ink3)">Salvando...</span>';
 
-  let done = 0;
+  let done = 0, skipped = 0;
   for(const cb of checks){
     const key  = cb.dataset.key;
     const date = cb.dataset.date;
     const r = _auditRows.find(r=>r.key===key&&r.date===date);
     if(!r) continue;
+    // NÃO reaprovar um que já foi CORRIGIDO: "aprovado" ignora premiacaoAuditada
+    // (ver enrichWithAudit), então trocar corrigido→aprovado reverteria o valor pro
+    // original — era o "muda o valor". Corrigido já está auditado; pula e avisa.
+    if(r._auditEntry && r._auditEntry.status === 'corrigido'){ skipped++; continue; }
     const entry = {
       premiacaoOriginal: r.premiacao??null, fieldOriginal: r.field??null,
       premiacaoAuditada: r.premiacao??null, fieldAuditado: r.field??null,
@@ -3328,8 +3373,46 @@ async function batchApprove(){
       done++;
     }catch(e){ console.error('batchApprove error:', e); }
   }
-  toast(`✓ ${done} torneio${done>1?'s':''} aprovado${done>1?'s':''}`, 'ok');
+  toast(`✓ ${done} torneio${done>1?'s':''} aprovado${done>1?'s':''}${skipped?` · ${skipped} corrigido(s) mantido(s)`:''}`, 'ok');
   batchDeselect();
+  loadAudit();
+}
+
+/* "Aprovar todos sem erro" (botão do topo da Auditoria) — marca como APROVADO,
+   SEM correção, todos os torneios do período que (a) não têm anomalia automática e
+   (b) ainda NÃO foram auditados. Os já auditados/corrigidos ficam INTOCADOS de
+   propósito: reaprovar um corrigido reverteria o valor pro original (ver
+   enrichWithAudit) — a causa do "muda o valor" relatado. Estava faltando a função
+   (o botão existia e caía no vazio). */
+function _auditAnomalia(r){
+  return (r.premiacao === 0)
+    || (r.premiacao != null && r.garantido && r.premiacao > r.garantido * 3)
+    || (r.field != null && r.buyin && r.field > 0 && r.garantido && (r.field * r.buyin) < r.garantido * 0.1)
+    || (r.overlay != null && r.garantido && Math.abs(r.overlay) > r.garantido * 0.5);
+}
+async function approveAllAudit(){
+  if(!fbOk){ toast('Sem conexão com o Firebase','err'); return; }
+  const alvos = (_auditRows || []).filter(r => !r._audited && !_auditAnomalia(r));
+  if(!alvos.length){ toast('Nada a aprovar — todos já foram auditados ou têm anomalia.','ok'); return; }
+  if(!await confirmModal({title:'Aprovar todos sem erro',message:`Aprovar <b>${alvos.length}</b> torneio${alvos.length>1?'s':''} sem anomalia e ainda não auditado${alvos.length>1?'s':''}?<br><span style="font-size:11px;color:var(--ink3)">Os já auditados/corrigidos não são tocados.</span>`,confirmLabel:'Aprovar todos'})) return;
+  let done = 0;
+  for(const r of alvos){
+    const entry = {
+      premiacaoOriginal: r.premiacao??null, fieldOriginal: r.field??null,
+      premiacaoAuditada: r.premiacao??null, fieldAuditado: r.field??null,
+      status:'aprovado', obs:null,
+      auditadoEm: Date.now(), auditadoPor: _email||'admin',
+      nome: r.nome, hora: r.hora,
+    };
+    try{
+      await db.ref(`auditoria/${r.date}/${r.key}`).set(entry);
+      if(!_auditData[r.date]) _auditData[r.date] = {};
+      _auditData[r.date][r.key] = entry;
+      r._audited = true; r._auditEntry = entry;
+      done++;
+    }catch(e){ console.error('approveAllAudit error:', e); }
+  }
+  toast(`✓ ${done} torneio${done>1?'s':''} aprovado${done>1?'s':''} sem erro`, 'ok');
   loadAudit();
 }
 

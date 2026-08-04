@@ -465,6 +465,11 @@ let SEC_VIEW = localStorage.getItem('cn_sec_view') || 'sheet'; // 'sheet' | 'col
 // campos ocultos na tela cheia (o "olhinho") — persistido, vale pras duas visões
 let SEC_HIDDEN = new Set();
 try{ SEC_HIDDEN = new Set(JSON.parse(localStorage.getItem('cn_sec_hidden') || '[]')); }catch(e){}
+// ORDEM PERSONALIZADA das colunas (arrastar-e-soltar) — array de rótulos na ordem que o
+// operador montou. null = usa a ordem padrão (CREATION_ORDER). Guardado POR OPERADOR
+// (localStorage), então cada um arruma a grade do jeito dele sem atrapalhar os colegas.
+let COL_ORDER = null;
+try{ const _co = localStorage.getItem('cn_col_order'); if(_co) COL_ORDER = JSON.parse(_co); }catch(e){}
 
 function setSync(state, label){
   const el = $('syncStatus');
@@ -1963,7 +1968,71 @@ function creationWhen(it){
    CHAT inclusos), na ordem da imagem — então nada é escondido aqui. `HIDDEN_RECIPE`
    fica como regex que não casa nada (documenta a decisão sem filtrar). */
 const HIDDEN_RECIPE = /(?!)/;
-function visibleRecipeFields(){ return creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l)))); }
+/* aplica a ORDEM PERSONALIZADA (arrastar-e-soltar) por cima da ordem padrão: os campos
+   que o operador arrumou vêm na ordem dele; colunas novas (que ainda não existiam quando
+   ele arrumou) entram no fim, na ordem padrão — assim uma Global nova não some nada. */
+function applyColOrder(fields){
+  if (!COL_ORDER || !COL_ORDER.length) return fields;
+  const set = new Set(fields);
+  const ordered = COL_ORDER.filter(l => set.has(l));
+  const rest = fields.filter(l => !COL_ORDER.includes(l));
+  return [...ordered, ...rest];
+}
+function visibleRecipeFields(){ return applyColOrder(creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l))))); }
+/* salva a nova ordem (lista completa de rótulos) e re-renderiza */
+function saveColOrder(list){
+  COL_ORDER = list;
+  try{ localStorage.setItem('cn_col_order', JSON.stringify(list)); }catch(e){}
+  renderAll();
+}
+function resetColOrder(){
+  COL_ORDER = null;
+  try{ localStorage.removeItem('cn_col_order'); }catch(e){}
+  renderAll();
+  showToast('Ordem das colunas restaurada pro padrão.');
+}
+/* reordena movendo `src` pra posição de `target` (respeitando a direção do arrasto) */
+function reorderCol(src, target){
+  if (!src || src === target) return;
+  const full = visibleRecipeFields();
+  const sIdx = full.indexOf(src), tIdx = full.indexOf(target);
+  if (sIdx < 0 || tIdx < 0) return;
+  const order = full.filter(l => l !== src);
+  let at = order.indexOf(target);
+  if (sIdx < tIdx) at += 1;                 // veio de cima → cai DEPOIS do alvo
+  order.splice(at, 0, src);
+  saveColOrder(order);
+}
+/* ── ARRASTAR-E-SOLTAR das colunas (rótulos com data-col) ── */
+let _dragCol = null;
+function bindColDrag(root){
+  if (!root) return;
+  root.querySelectorAll('[data-col]').forEach(el => {
+    el.addEventListener('dragstart', e => {
+      _dragCol = el.dataset.col;
+      el.classList.add('col-dragging');
+      try{ e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', _dragCol); }catch(_){}
+    });
+    el.addEventListener('dragend', () => {
+      _dragCol = null;
+      root.querySelectorAll('.col-dragging, .col-over').forEach(x => x.classList.remove('col-dragging', 'col-over'));
+    });
+    el.addEventListener('dragover', e => {
+      if (_dragCol && _dragCol !== el.dataset.col){ e.preventDefault(); el.classList.add('col-over'); }
+    });
+    el.addEventListener('dragleave', () => el.classList.remove('col-over'));
+    el.addEventListener('drop', e => {
+      e.preventDefault(); el.classList.remove('col-over');
+      reorderCol(_dragCol, el.dataset.col);
+    });
+  });
+}
+/* barra "ordem personalizada" com o botão de restaurar (só quando há ordem custom) */
+function orderBarHtml(){
+  if (!COL_ORDER || !COL_ORDER.length) return '';
+  return `<div class="hidden-fields-bar"><b>Ordem personalizada</b> das colunas — arraste o ⋮⋮ no rótulo pra mudar. <button class="hf-all" data-resetorder>↺ Ordem padrão</button></div>`;
+}
+function listBarsHtml(){ return orderBarHtml() + hiddenBarHtml(); }
 function recipeText(it, cat){
   // Garantido e Buy-in não entram aqui em cima: já saem UMA vez, na posição
   // deles, dentro da receita ordenada abaixo (ordem de digitação do app)
@@ -2148,7 +2217,7 @@ function renderList(){
   });
   const _winY = window.scrollY;
   const asg = computeAssignments();
-  let html = hiddenBarHtml();   // barra de "linhas ocultas" (olhinho por linha), quando houver
+  let html = listBarsHtml();   // barras de "ordem personalizada" + "linhas ocultas", quando houver
   const isBrl = CURRENCY === 'brl';   // a grade agora SEGUE o toggle (default US$, clique → R$)
 
   SECTIONS.forEach(cat => {
@@ -2194,7 +2263,7 @@ function renderList(){
       pit.sort((a,b) => (timeToMinutes(a.hora) ?? 9999) - (timeToMinutes(b.hora) ?? 9999));
       if (pit.length){
         const pcat = { key:'liga', cls:'liga', suit:'🏆', label:`Liga Principal · ${cur === 'usd' ? '$' : 'R$'}` };
-        const ligaFields = creationOrderFields((typeof LIGA_PRINCIPAL_FIELDS !== 'undefined' ? LIGA_PRINCIPAL_FIELDS : []).filter(l => !isCoreLabel(l)));
+        const ligaFields = applyColOrder(creationOrderFields((typeof LIGA_PRINCIPAL_FIELDS !== 'undefined' ? LIGA_PRINCIPAL_FIELDS : []).filter(l => !isCoreLabel(l))));
         const ligaAsg = withSecOwner(asg, pit, 'liga');   // per-evento + dono da seção
         const pdone = pit.filter(it => DONE[itemKey(it)]).length;
         html += `
@@ -2223,8 +2292,8 @@ function renderList(){
       </tbody></table></div>`;
   }
 
-  // "vazio" = só a barra de linhas ocultas (ou nada) — nenhuma grade renderizada
-  if (html === hiddenBarHtml()) html += `<div class="empty-state"><span class="moon">🃏</span>Nada nesse filtro.</div>`;
+  // "vazio" = só as barras de estado (ou nada) — nenhuma grade renderizada
+  if (html === listBarsHtml()) html += `<div class="empty-state"><span class="moon">🃏</span>Nada nesse filtro.</div>`;
   area.innerHTML = html;
   applyListHidden();   // aplica as linhas ocultas na lista recém-montada
 
@@ -2242,6 +2311,8 @@ function renderList(){
   area.querySelectorAll('[data-hiderow]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); hideRow(el.dataset.hiderow); }));
   area.querySelectorAll('[data-showrow]').forEach(el => el.addEventListener('click', () => showRow(el.dataset.showrow)));
   area.querySelectorAll('[data-showall]').forEach(el => el.addEventListener('click', showAllRows));
+  area.querySelectorAll('[data-resetorder]').forEach(el => el.addEventListener('click', resetColOrder));
+  bindColDrag(area);   // arrastar-e-soltar das colunas
   area.querySelectorAll('[data-assign]').forEach(el => el.addEventListener('click', el2 => onAssignClick(el)));
   area.querySelectorAll('[data-focus]').forEach(el => {
     el.addEventListener('click', () => openSectionFsAt(el.dataset.focuscat, el.dataset.focus));
@@ -2352,6 +2423,7 @@ function renderSecFs(){
   card.querySelectorAll('[data-secowner]').forEach(el => el.addEventListener('click', () => openSecOwnerMenu(el, el.dataset.secowner)));
   card.querySelectorAll('[data-assign]').forEach(el => el.addEventListener('click', () => onAssignClick(el)));
   card.querySelectorAll('[data-hiderow]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); hideRow(el.dataset.hiderow); }));
+  bindColDrag(card);   // arrastar-e-soltar das colunas também na tela cheia
   card.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
   card.querySelectorAll('.id-inp').forEach(inp => {
     inp.addEventListener('change', () => setId(inp.dataset.idkey, inp.value));
@@ -2471,8 +2543,13 @@ const EYE_OFF_SVG = `<svg class="eye" viewBox="0 0 24 24" aria-hidden="true"><pa
    com o data-field da <tr> — clicar oculta a linha (some da lista E da tela cheia, pois
    compartilham SEC_HIDDEN). Linhas de ação (operador/id/criado) não passam por aqui. */
 function rlabTh(field, label, isKey){
-  return `<th class="rowlab hideable ${isKey ? 'key' : ''}" title="${escHtml(label)}"><span class="rl-txt">${escHtml(label)}</span>`
-    + `<button class="rl-hide" data-hiderow="${escHtml(field)}" title="Ocultar a linha “${escHtml(label)}” (dá pra restaurar na barra acima)" aria-label="Ocultar ${escHtml(label)}">${EYE_OFF_SVG}</button></th>`;
+  // só as COLUNAS DA PLANILHA (f:) são arrastáveis pra reordenar; linhas de UI (Horário,
+  // Criar em, Operador…) ficam fixas. data-col guarda o rótulo pra saber o que arrastou.
+  const isCol = field.indexOf('f:') === 0;
+  const drag = isCol ? ` draggable="true" data-col="${escHtml(label)}"` : '';
+  const grip = isCol ? `<span class="rl-grip" aria-hidden="true" title="Arraste pra reordenar">⋮⋮</span>` : '';
+  return `<th class="rowlab hideable ${isKey ? 'key' : ''}${isCol ? ' col-drag' : ''}"${drag} title="${escHtml(label)}${isCol ? ' — arraste ⋮⋮ pra reordenar' : ''}">${grip}<span class="rl-txt">${escHtml(label)}</span>`
+    + `<button class="rl-hide" draggable="false" data-hiderow="${escHtml(field)}" title="Ocultar a linha “${escHtml(label)}” (dá pra restaurar na barra acima)" aria-label="Ocultar ${escHtml(label)}">${EYE_OFF_SVG}</button></th>`;
 }
 function renderVertical(items, cat, asg, fieldList, dropEmpty){
   const cols = items.map(it => {
@@ -2558,7 +2635,7 @@ function renderPlanilhaRows(items, cat, asg){
       <th class="pname">Torneio</th><th data-field="hora" data-flabel="Horário">Horário</th><th class="key" data-field="criar" data-flabel="Criar em">Criar em</th>
       <th data-field="admin" data-flabel="Admin Fee">Admin Fee</th><th data-field="early" data-flabel="Early Bird">Early Bird</th>
       ${cat.key === 'sat' ? '<th data-field="grupo" data-flabel="Grupo">Grupo</th>' : ''}
-      ${cols.map(l => `<th data-field="f:${escHtml(l)}" data-flabel="${escHtml(l)}" title="${escHtml(l)}">${escHtml(l)}</th>`).join('')}
+      ${cols.map(l => `<th class="col-drag" draggable="true" data-col="${escHtml(l)}" data-field="f:${escHtml(l)}" data-flabel="${escHtml(l)}" title="${escHtml(l)} — arraste pra reordenar"><span class="rl-grip" aria-hidden="true">⋮⋮</span>${escHtml(l)}</th>`).join('')}
       <th data-field="op" data-flabel="Operador">Operador</th><th data-field="id" data-flabel="ID Pokerbyte">ID Pokerbyte</th><th data-field="done" data-flabel="Criado">Criado</th><th></th>
     </tr>`;
   const body = items.map(it => {
