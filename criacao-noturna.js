@@ -386,13 +386,22 @@ function catItems(cat){
   const s = sideSplit();
   return cat.key === 'sideAdmin' ? s.admin : s.noadmin;
 }
+const CAT_LIGA = {key:'liga', cls:'liga', suit:'🏆', label:'Liga Principal'};
+function ligaItemsForDay(){
+  if (typeof LIGA_PRINCIPAL_SECTIONS === 'undefined') return [];
+  const lp = LIGA_PRINCIPAL_SECTIONS[WEEKDAY_TOMORROW_EN];
+  return lp ? [...(lp.main||[]), ...(lp.side||[]), ...(lp.sat||[])] : [];
+}
 function allWithCat(){
   const s = sideSplit();
   return [
     ...DATA.main.map(it => ({it, cat: CAT_MAIN})),
     ...s.admin.map(it => ({it, cat: CAT_SIDE_A})),
     ...s.noadmin.map(it => ({it, cat: CAT_SIDE_B})),
-    ...DATA.sat.map(it => ({it, cat: CAT_SAT}))
+    ...DATA.sat.map(it => ({it, cat: CAT_SAT})),
+    // Liga Principal agora entra na divisão/handoff — itemKey (nome|hora) casa com as
+    // cópias US-eq do render, então atribuição e "meus torneios" enxergam a Liga também
+    ...ligaItemsForDay().map(it => ({it, cat: CAT_LIGA}))
   ];
 }
 
@@ -440,7 +449,8 @@ let IDS = {};             // key -> {val, by, at} — ID do evento no Pokerbyte
    mexeu) em vez de pixel absoluto resolve isso de vez. */
 let _lastTouchedKey = null;
 let ROLES = {};           // roleKey(op) -> 'mainSat' | 'sideAdmin' | 'sideNoAdmin'
-let OVERRIDES = {};       // itemKey -> opName — atribuição manual (única fonte da divisão agora)
+let OVERRIDES = {};       // itemKey -> opName — atribuição manual por evento (clique)
+let SEC_OWNERS = {};      // catKey (main/side/sat/liga) -> opName — dono da seção inteira (cobre os sem override)
 let SELECTED_OP = null;   // pessoa selecionada p/ atribuir torneios no clique
 let MAP = {};             // fieldKey -> rótulo da coluna (mapeamento manual vence a auto-detecção)
 let AUDIT = {};           // itemKey -> {status:'erro', motivo, by, at} — marcado pelo Admin
@@ -452,6 +462,9 @@ let FILTER = 'all';
    precisar rolar na horizontal pra ver os campos de todos de uma vez) */
 let SEC_FS = null;    // cat.key da seção em tela cheia, ou null
 let SEC_VIEW = localStorage.getItem('cn_sec_view') || 'sheet'; // 'sheet' | 'columns'
+// campos ocultos na tela cheia (o "olhinho") — persistido, vale pras duas visões
+let SEC_HIDDEN = new Set();
+try{ SEC_HIDDEN = new Set(JSON.parse(localStorage.getItem('cn_sec_hidden') || '[]')); }catch(e){}
 
 function setSync(state, label){
   const el = $('syncStatus');
@@ -529,6 +542,10 @@ try{
   });
   fbDb.ref(`${FB_PATH}/overrides`).on('value', s => {
     OVERRIDES = s.val() || {};
+    renderAll();
+  });
+  fbDb.ref(`${FB_PATH}/secOwners`).on('value', s => {
+    SEC_OWNERS = s.val() || {};
     renderAll();
   });
   fbDb.ref(`${FB_PATH}/fieldMap`).on('value', s => {
@@ -815,6 +832,22 @@ function processGlobalBuffer(arrayBuffer, sourceName, opts){
   if (sections.unknown.length) warnings.push(`${sections.unknown.length} torneio(s) com tipo não reconhecido na coluna TYPE (listados em seção própria).`);
 
   const fields = headerCols.filter(c => !isCoreLabel(c.label)).map(c => c.label);
+  // A operação quer TYPE e HORA TAMBÉM como coluna da receita (a imagem lista as duas).
+  // O gu-parser as trata como "core" (viram seção e linha Horário) e não põe no `extra`,
+  // então re-hidrato AQUI, só na Criação Noturna: acha o rótulo real no cabeçalho, adiciona
+  // à lista de campos e escreve o valor de cada torneio no `extra` (TYPE = it.tipo cru;
+  // HORA = it.hora). Ficam posicionadas pela CREATION_ORDER (slots TYPE e HORA).
+  const typeCol = headerCols.find(c => isTypeLabel(normText(c.label)));
+  const horaCol = headerCols.find(c => ['hora','horario','time'].includes(normText(c.label)));
+  const typeLabel = typeCol ? typeCol.label : null;
+  const horaLabel = horaCol ? horaCol.label : 'HORA';
+  if (typeLabel && !fields.includes(typeLabel)) fields.push(typeLabel);
+  if (!fields.includes(horaLabel)) fields.push(horaLabel);
+  [sections.main, sections.side, sections.sat, sections.unknown].forEach(list => (list || []).forEach(it => {
+    it.extra = it.extra || {};
+    if (typeLabel && it.tipo != null && it.tipo !== '') it.extra[typeLabel] = it.tipo;
+    if (it.hora) it.extra[horaLabel] = it.hora;
+  }));
   const total = sections.main.length + sections.side.length + sections.sat.length;
 
   // guarda de egress: no auto-sync, se o conteúdo extraído é IDÊNTICO ao já
@@ -974,6 +1007,48 @@ function computeAssignments(){
   if (!DATA) return asg;
   Object.keys(OVERRIDES).forEach(k => { if (OPS.includes(OVERRIDES[k])) asg[k] = OVERRIDES[k]; });
   return asg;
+}
+/* DONO DA SEÇÃO — cobre os torneios da seção que NÃO têm dono por evento (override).
+   Devolve um asg derivado: override do evento vence; senão, o dono da seção (se ainda
+   está na equipe). Usado por seção no render, e por myOp/myPending pra "meus torneios". */
+function withSecOwner(baseAsg, items, catKey){
+  const owner = SEC_OWNERS[catKey];
+  if (!owner || !OPS.includes(owner)) return baseAsg;
+  const m = {...baseAsg};
+  (items || []).forEach(it => { const k = itemKey(it); if (!m[k]) m[k] = owner; });
+  return m;
+}
+/* asg efetivo do DIA inteiro (todas as seções + Liga), já com dono de seção aplicado —
+   é o que "meus torneios" e o handoff enxergam. */
+function effectiveAssignments(){
+  let asg = computeAssignments();
+  SECTIONS.forEach(cat => { asg = withSecOwner(asg, catItems(cat), cat.key); });
+  if (typeof LIGA_PRINCIPAL_SECTIONS !== 'undefined'){
+    const lp = LIGA_PRINCIPAL_SECTIONS[WEEKDAY_TOMORROW_EN];
+    if (lp) asg = withSecOwner(asg, [...(lp.main||[]), ...(lp.side||[]), ...(lp.sat||[])], 'liga');
+  }
+  return asg;
+}
+/* define/limpa o dono de uma seção inteira e persiste (mesmo trilho do overrides) */
+function setSecOwner(catKey, op){
+  if (op) SEC_OWNERS[catKey] = op; else delete SEC_OWNERS[catKey];
+  if (fbDb) fbDb.ref(`${FB_PATH}/secOwners`).set(SEC_OWNERS); else renderAll();
+  logEvent('dono da seção', `${catKey} → ${op || '(livre)'}`);
+}
+/* chip no cabeçalho da seção: mostra/define o dono da seção inteira (popover da equipe) */
+function secOwnerChipHtml(catKey){
+  const owner = SEC_OWNERS[catKey];
+  const valid = owner && OPS.includes(owner);
+  const label = valid ? escHtml(owner.split(' ')[0]) : 'Dono da seção';
+  return `<button class="sec-owner-chip${valid ? ' set' : ''}" data-secowner="${escHtml(catKey)}" title="${valid ? `Seção de ${escHtml(owner)} — clique pra trocar/limpar` : 'Definir um responsável pela seção inteira'}">`
+    + `<span class="so-ic">👤</span>${label}</button>`;
+}
+/* abre o popover pra escolher (ou limpar) o dono da seção */
+function openSecOwnerMenu(anchor, catKey){
+  if (!OPS.length){ showToast('Ninguém na equipe ainda — adicione operadores primeiro.', true); return; }
+  const opts = OPS.map(o => ({ label: o, color: opColor(o), initial: o.trim()[0].toUpperCase(), onPick: () => setSecOwner(catKey, o) }));
+  if (SEC_OWNERS[catKey]) opts.push({ label:'✕ Limpar dono da seção', color:'var(--ink-soft)', initial:'✕', onPick: () => setSecOwner(catKey, null) });
+  openPickMenu(anchor, 'Dono da seção inteira:', opts);
 }
 /* atribui/tira um torneio do operador SELECIONADO (clique na célula) e persiste. */
 function setAssign(key){
@@ -1485,7 +1560,9 @@ function renderOps(){
   const row = $('opsRow');
   if (!row) return;
   const asg = computeAssignments();
-  const cnt = {}; OPS.forEach(o => cnt[o] = 0); Object.values(asg).forEach(o => { if (o in cnt) cnt[o]++; });
+  // contagem no chip da equipe inclui o dono da seção (não só override por evento)
+  const effAsg = effectiveAssignments();
+  const cnt = {}; OPS.forEach(o => cnt[o] = 0); Object.values(effAsg).forEach(o => { if (o in cnt) cnt[o]++; });
   let html = OPS.map(o => {
     const sel = SELECTED_OP && normText(SELECTED_OP) === normText(o);
     return `
@@ -1566,15 +1643,24 @@ function saveOps(list){
 }
 
 function renderFilters(){
-  const asg = computeAssignments();
-  const counts = {};
-  OPS.forEach(o => counts[o] = 0);
-  Object.values(asg).forEach(o => { if (o in counts) counts[o]++; });
-  const total = DATA ? DATA.main.length + DATA.side.length + DATA.sat.length : 0;
+  // status/dono mais claro: contagem por pessoa agora inclui o DONO DA SEÇÃO, não só o
+  // override por evento — e mostra "pendentes" (ainda não criados) além do total atribuído.
+  const asg = effectiveAssignments();
+  const counts = {}, pend = {};
+  OPS.forEach(o => { counts[o] = 0; pend[o] = 0; });
+  if (DATA) allWithCat().forEach(({it}) => {
+    const o = asg[itemKey(it)];
+    if (o in counts){ counts[o]++; if (!DONE[itemKey(it)]) pend[o]++; }
+  });
+  const total = DATA ? DATA.main.length + DATA.side.length + DATA.sat.length + ligaItemsForDay().length : 0;
+  const cntBadge = o => `<span class="cnt" title="${counts[o]||0} atribuído(s) · ${pend[o]||0} pendente(s)">${pend[o]||0}/${counts[o] || 0}</span>`;
   let html = `<button class="fchip ${FILTER==='all'?'on':''}" data-f="all">Todos <span class="cnt">${total}</span></button>`;
+  // atalho destacado: "Meus torneios" (só quando você está na equipe) — vai direto pro seu filtro
+  const meOp = OPS.find(o => normText(o) === normText(ME));
+  if (meOp) html += `<button class="fchip me ${FILTER===meOp?'on':''}" data-f="${escHtml(meOp)}" title="Ver só os torneios atribuídos a você (por evento ou como dono da seção)">🙋 Meus torneios ${cntBadge(meOp)}</button>`;
   html += OPS.map(o => `
     <button class="fchip ${FILTER===o?'on':''}" data-f="${escHtml(o)}">
-      ${escHtml(o)}${normText(o)===normText(ME) ? ' (você)' : ''} <span class="cnt">${counts[o] || 0}</span>
+      ${escHtml(o)}${normText(o)===normText(ME) ? ' (você)' : ''} ${cntBadge(o)}
     </button>`).join('');
   $('filterChips').innerHTML = html;
   $('filterChips').querySelectorAll('.fchip').forEach(b => b.addEventListener('click', () => { FILTER = b.dataset.f; renderAll(); }));
@@ -1778,29 +1864,43 @@ function recipeFields(){ return (DATA && DATA.fields) || []; }
    Colunas fora da lista entram DEPOIS, na ordem original da planilha.
    Garantido e Buy-in aparecem UMA vez só: se outra coluna casar de novo
    (ex.: "Size buy-in"), ela sai da receita em vez de duplicar. */
+/* ORDEM EXATA pedida pela operação (imagem da GU) — a receita das seções segue
+   ESTA sequência, mostrando TODAS as colunas da planilha. Cada slot casa o rótulo
+   por radical (tolerante à grafia). A ordem dos slots É a ordem final; matcher
+   guloso claima o 1º que casar e remove, então slots mais específicos vêm antes
+   dos genéricos (BREAK LATE / PÓS LATE antes de LATE REG; PAYOUT antes/…).
+   normText já tira acento e baixa a caixa. */
 const CREATION_ORDER = [
-  { m: n => n === 'mtt' },                                                          // Torneio
+  { m: n => n === 'mtt' },                                                          // MTT (nome interno)
+  { m: n => isTypeLabel(n), once: true },                                           // TYPE (injetado em criação)
+  { m: n => n.includes('game') && n.includes('type') },                            // GAME TYPE
   { m: n => /(^|[^a-z])k\.?\s*o\b/.test(n) || n.includes('knock') },                // K.O (REG/PROG/OFF)
   { m: n => n.includes('max') && n.includes('table') },                             // MAX. TABLE
-  { m: n => n.includes('prize pool') || n.includes('guarant') || n.includes('garantido'), once: true }, // Garantido (1x)
+  { m: n => n.includes('prize') || n.includes('guarant') || n.includes('garantido'), once: true }, // PRIZE POOL USD
   { m: n => n.includes('ticket') && n.includes('award') },                          // TICKET AWARD
+  { m: n => (n.includes('personal') || n.includes('pessoal')) && n.includes('award') }, // PERSONALIZED AWARD
+  { m: n => n.includes('payout') && !n.includes('calculated') && !n.includes('calculado'), once: true }, // PAYOUT
   { m: n => n.includes('payout') && (n.includes('calculated') || n.includes('calculado')) }, // CALCULATED PAYOUT
-  { m: n => n.includes('payout') || n.includes('premiac') },                        // PAYOUT
-  { m: n => n.includes('buy-in') || n.includes('buy in') || n === 'buyin', once: true }, // Buy-in (1x)
-  { m: n => (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) && !n.includes('stack') && !n.includes('condition') },
-  { m: n => n.includes('stack') && (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) },
-  { m: n => n.includes('rebuy') && n.includes('condition') },
-  { m: n => (n.includes('add-on') || n.includes('addon')) && !n.includes('stack') },
-  { m: n => n.includes('stack') && (n.includes('add-on') || n.includes('addon')) },
+  { m: n => /buy[\s-]?in/.test(n) && !n.includes('size'), once: true },             // BUY-IN
+  { m: n => (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) && !n.includes('stack') && !n.includes('condition') }, // REENTRY/REBUY
+  { m: n => n.includes('stack') && (n.includes('reentry') || n.includes('re-entry') || n.includes('rebuy')) }, // STACK REENTRY/REBUY
+  { m: n => n.includes('rebuy') && n.includes('condition') },                       // REBUY CONDITION
+  { m: n => (n.includes('add-on') || n.includes('addon')) && !n.includes('stack') }, // ADD-ON
+  { m: n => n.includes('stack') && (n.includes('add-on') || n.includes('addon')) }, // STACK ADD-ON
   { m: n => n.includes('break') && n.includes('late') },                            // BREAK LATE REG.
-  { m: n => n.includes('admin') && n.includes('fee') },                             // Admin Fee
+  { m: n => n === 'rake' || n.includes('rake') },                                   // RAKE
+  { m: n => (n.includes('adm') || n.includes('admin')) && n.includes('fee') },      // ADM FEE
   { m: n => n.includes('structure') || n.includes('estrutura') },                   // STRUCTURE
-  { m: n => n === 'chips' || n.includes('chip stack') || n.includes('starting stack') || n.includes('stack inicial') },
-  { m: n => n.includes('early game') },                                             // Early game (blinds)
-  { m: n => n.includes('pos late') },                                               // Pós Late Reg. (normText tira o acento)
-  { m: n => n.includes('final table') },                                            // Final Table
-  { m: n => n.includes('early bird') },                                             // Early Bird
+  { m: n => n === 'chips' || n.includes('chip') || n.includes('starting stack') || n.includes('stack inicial') }, // CHIPS
+  { m: n => n.includes('early game') },                                             // EARLY GAME
+  { m: n => n.includes('pos late') },                                               // PÓS LATE REG. (normText tira o acento)
+  { m: n => n.includes('final table') },                                            // FINAL TABLE
+  { m: n => n === 'late reg' || (n.includes('late') && n.includes('reg')) },        // LATE REG (após BREAK/PÓS já claimados)
+  { m: n => n.includes('num') && n.includes('player') || n.includes('players') || n.includes('jogadores') }, // NUM PLAYERS
+  { m: n => n.includes('early bird') },                                             // EARLY BIRD
   { m: n => n.includes('time bank') || n === 'tb' },                                // TIME BANK
+  { m: n => n === 'chat' || n.includes('chat') },                                   // CHAT
+  { m: n => n === 'hora' || n === 'horario' || n.includes('hora') },                // HORA (injetado em criação)
 ];
 function creationOrderFields(fields){
   const remaining = fields.slice(), out = [];
@@ -1826,8 +1926,10 @@ function creationWhen(it){
   return `${refToISO(ref)} dia ${it.hora}`;
 }
 
-/* linhas da receita que a operação NÃO usa na criação — fora da tabela e do foco */
-const HIDDEN_RECIPE = /num\.?\s*(de\s*)?players|jogadores|\bchat\b/;
+/* A operação pediu pra ver TODAS as colunas da planilha nas seções (NUM PLAYERS e
+   CHAT inclusos), na ordem da imagem — então nada é escondido aqui. `HIDDEN_RECIPE`
+   fica como regex que não casa nada (documenta a decisão sem filtrar). */
+const HIDDEN_RECIPE = /(?!)/;
 function visibleRecipeFields(){ return creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l)))); }
 function recipeText(it, cat){
   // Garantido e Buy-in não entram aqui em cima: já saem UMA vez, na posição
@@ -2011,60 +2113,64 @@ function renderList(){
   const _winY = window.scrollY;
   const asg = computeAssignments();
   let html = '';
-
-  // A GRADE PRINCIPAL é SEMPRE em R$ — não responde ao toggle de moeda (esse vale só pro modo
-  // foco/detalhe e pro export). Como só os formatadores (fmtMoney*/calcValueParts) leem CURRENCY
-  // e este build é 100% síncrono, forço 'brl' aqui e restauro logo abaixo — sem tocar no toggle
-  // global nem nas outras telas. Antes, com o toggle em USD a grade mostrava dólar e confundia.
-  const _cur0 = CURRENCY;
-  CURRENCY = 'brl';
+  const isBrl = CURRENCY === 'brl';   // a grade agora SEGUE o toggle (default US$, clique → R$)
 
   SECTIONS.forEach(cat => {
-    const items = visibleItems(catItems(cat), asg);
+    const all = catItems(cat);
+    const secAsg = withSecOwner(asg, all, cat.key);        // dono da seção cobre os sem dono
+    const items = visibleItems(all, secAsg);               // filtro por pessoa já enxerga o dono da seção
     if (!items.length) return;
     const doneCount = items.filter(it => DONE[itemKey(it)]).length;
     html += `
       <div class="section-head ${cat.cls}">
         <span class="tag"><span class="suit">${cat.suit}</span>${cat.label}</span>
         <span class="cnt">${doneCount}/${items.length} criados</span>
-        ${prizeChip(items, false)}
+        ${prizeChip(items, isBrl)}
+        ${secOwnerChipHtml(cat.key)}
         <span class="line"></span>
         <button class="sec-fs-btn" data-secfs="${cat.key}" title="Tela cheia" aria-label="Tela cheia desta seção">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
         </button>
       </div>
       ${sectionNoteHtml(cat)}
-      <div class="secwrap" data-suit="${cat.suit}">${renderVertical(items, cat, asg)}</div>`;
+      <div class="secwrap" data-suit="${cat.suit}">${renderVertical(items, cat, secAsg)}</div>`;
   });
 
-  // #2 LIGA PRINCIPAL — grade fixa dos Eventos Principais do dia (BRL). Mesma lógica do
-  // painel do dia: reconstruída do dado local; o preenchimento (ID/criado) persiste pelas
-  // MESMAS chaves (itemKey). A grade já é forçada em R$; como a Liga JÁ está em reais e o
-  // renderVertical converte USD→BRL (×BRL_RATE), passo os valores monetários ÷ BRL_RATE pra
-  // o × devolver o BRL certo (os campos da receita usam o `extra` original, sem conversão).
-  // NÃO entra na divisão por operador (evento fixo) — asg vazio.
-  if (typeof LIGA_PRINCIPAL_SECTIONS !== 'undefined' && FILTER === 'all'){
+  // #2 LIGA PRINCIPAL — grade fixa dos Eventos Principais do dia. Reconstruída do dado
+  // local; preenchimento (ID/criado) e AGORA a atribuição por operador persistem pelas
+  // MESMAS chaves (itemKey). A Liga é R$ NATIVO: converto pra US-equivalente (÷BRL_RATE)
+  // e deixo o renderVertical/formatadores reaplicarem a moeda do toggle (×BRL_RATE em R$),
+  // então ela segue o botão igual às outras seções. Entra na divisão: por evento (clique)
+  // e por dono da seção (secAsg).
+  const cur = CURRENCY;
+  // Liga aparece em "Todos" e TAMBÉM quando o filtro é uma pessoa que tem evento da Liga
+  // (por override ou dono da seção) — senão "meus torneios" esconderia a Liga do dono dela.
+  if (typeof LIGA_PRINCIPAL_SECTIONS !== 'undefined'){
     const lp = LIGA_PRINCIPAL_SECTIONS[WEEKDAY_TOMORROW_EN];
     if (lp){
       const toUsdEq = it => ({...it,
         garantido: typeof it.garantido === 'number' ? it.garantido / BRL_RATE : it.garantido,
         buyin: typeof it.buyin === 'number' ? it.buyin / BRL_RATE : it.buyin });
       let pit = [...(lp.main||[]), ...(lp.side||[]), ...(lp.sat||[])].map(toUsdEq);
+      const ligaAsgAll = withSecOwner(asg, pit, 'liga');
+      if (FILTER !== 'all') pit = pit.filter(it => ligaAsgAll[itemKey(it)] === FILTER);
       if (SEARCH){ const q = normText(SEARCH); pit = pit.filter(it => normText(it.nome).includes(q) || String(it.hora||'').includes(SEARCH)); }
       pit.sort((a,b) => (timeToMinutes(a.hora) ?? 9999) - (timeToMinutes(b.hora) ?? 9999));
       if (pit.length){
-        const pcat = { key:'liga', cls:'liga', suit:'🏆', label:'Liga Principal · R$' };
-        const ligaFields = (typeof LIGA_PRINCIPAL_FIELDS !== 'undefined' ? LIGA_PRINCIPAL_FIELDS : []).filter(l => !isCoreLabel(l));
+        const pcat = { key:'liga', cls:'liga', suit:'🏆', label:`Liga Principal · ${cur === 'usd' ? '$' : 'R$'}` };
+        const ligaFields = creationOrderFields((typeof LIGA_PRINCIPAL_FIELDS !== 'undefined' ? LIGA_PRINCIPAL_FIELDS : []).filter(l => !isCoreLabel(l)));
+        const ligaAsg = withSecOwner(asg, pit, 'liga');   // per-evento + dono da seção
         const pdone = pit.filter(it => DONE[itemKey(it)]).length;
         html += `
           <div class="section-head liga">
-            <span class="tag"><span class="suit">🏆</span>Liga Principal · R$</span>
+            <span class="tag"><span class="suit">🏆</span>Liga Principal · ${cur === 'usd' ? '$' : 'R$'}</span>
             <span class="cnt">${pdone}/${pit.length} criados</span>
-            ${prizeChip(pit, true)}
+            ${prizeChip(pit, isBrl)}
+            ${secOwnerChipHtml('liga')}
             <span class="line"></span>
           </div>
-          <p class="section-note" style="margin:4px 0 0">Grade fixa dos <b>Eventos Principais</b> — valores já em <b>R$</b> (o botão de moeda não afeta).</p>
-          <div class="secwrap liga-sec" data-suit="🏆">${renderVertical(pit, pcat, {}, ligaFields)}</div>`;
+          <p class="section-note" style="margin:4px 0 0">Grade fixa dos <b>Eventos Principais</b> (R$ nativo). Selecione alguém na equipe e clique nos eventos pra atribuir, ou defina um <b>dono da seção</b>.</p>
+          <div class="secwrap liga-sec" data-suit="🏆">${renderVertical(pit, pcat, ligaAsg, ligaFields)}</div>`;
       }
     }
   }
@@ -2081,8 +2187,6 @@ function renderList(){
       </tbody></table></div>`;
   }
 
-  CURRENCY = _cur0;   // restaura o toggle real pras demais telas (foco/detalhe/export)
-
   if (!html) html = `<div class="empty-state"><span class="moon">🃏</span>Nada nesse filtro.</div>`;
   area.innerHTML = html;
 
@@ -2096,6 +2200,7 @@ function renderList(){
 
   area.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
   area.querySelectorAll('[data-secfs]').forEach(el => el.addEventListener('click', () => toggleSectionFs(el.dataset.secfs)));
+  area.querySelectorAll('[data-secowner]').forEach(el => el.addEventListener('click', () => openSecOwnerMenu(el, el.dataset.secowner)));
   area.querySelectorAll('[data-assign]').forEach(el => el.addEventListener('click', () => setAssign(el.dataset.assign)));
   area.querySelectorAll('[data-focus]').forEach(el => {
     el.addEventListener('click', () => openSectionFsAt(el.dataset.focuscat, el.dataset.focus));
@@ -2151,8 +2256,11 @@ function renderSecFs(){
   if (!ov) return;
   if (!SEC_FS || !DATA){ ov.classList.remove('open'); ov.setAttribute('aria-hidden', 'true'); return; }
   const cat = SECTIONS.find(c => c.key === SEC_FS);
-  const asg = computeAssignments();
-  const items = cat ? visibleItems(catItems(cat), asg) : [];
+  // tela cheia usa o MESMO asg da grade: override por evento + dono da seção, e respeita
+  // o filtro por pessoa — assim o dono aparece na tela de criação e "meus torneios" bate.
+  const allCat = cat ? catItems(cat) : [];
+  const asg = withSecOwner(computeAssignments(), allCat, SEC_FS);
+  const items = cat ? visibleItems(allCat, asg) : [];
   if (!cat || !items.length){
     SEC_FS = null;
     document.body.classList.remove('cn-sec-fs-lock');
@@ -2169,13 +2277,18 @@ function renderSecFs(){
     <div class="section-head ${cat.cls}">
       <span class="tag"><span class="suit">${cat.suit}</span>${cat.label}</span>
       <span class="cnt">${doneCount}/${items.length} criados</span>
-      ${prizeChip(items, false)}
+      ${prizeChip(items, CURRENCY === 'brl')}
+      ${secOwnerChipHtml(SEC_FS)}
       <span class="sec-fs-prog" title="${pct}% criados" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></span>
       <span class="line"></span>
       <div class="seg sec-view-seg" role="group" aria-label="Visão da seção">
         <button data-secview="sheet" class="${SEC_VIEW === 'sheet' ? 'on' : ''}" title="Planilha — um torneio por linha, igual à Global (tecla P)">Planilha</button>
         <button data-secview="columns" class="${SEC_VIEW === 'columns' ? 'on' : ''}" title="Colunas — campos empilhados, um torneio por coluna (tecla C)">Colunas</button>
       </div>
+      <button class="sec-fs-btn sec-fs-eye" id="secFsEye" title="Mostrar/ocultar campos" aria-label="Escolher campos visíveis" aria-haspopup="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span class="eye-n"></span>
+      </button>
       <button class="sec-fs-btn" id="secFsClose" title="Fechar (Esc)" aria-label="Fechar tela cheia">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
@@ -2193,7 +2306,9 @@ function renderSecFs(){
   ov.classList.add('open');
   ov.setAttribute('aria-hidden', 'false');
   $('secFsClose').addEventListener('click', () => toggleSectionFs(SEC_FS));
+  $('secFsEye').addEventListener('click', e => { e.stopPropagation(); openFieldEye(e.currentTarget); });
   card.querySelectorAll('[data-secview]').forEach(b => b.addEventListener('click', () => setSectionView(b.dataset.secview)));
+  card.querySelectorAll('[data-secowner]').forEach(el => el.addEventListener('click', () => openSecOwnerMenu(el, el.dataset.secowner)));
   card.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
   card.querySelectorAll('.id-inp').forEach(inp => {
     inp.addEventListener('change', () => setId(inp.dataset.idkey, inp.value));
@@ -2207,7 +2322,76 @@ function renderSecFs(){
     el.addEventListener('click', () => { SEC_CURSOR = el.dataset.focus; secFsHighlightCursor(); });
     el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); SEC_CURSOR = el.dataset.focus; secFsHighlightCursor(); } });
   });
+  applySecFsHidden();
   secFsHighlightCursor();
+}
+
+/* ── O "OLHINHO": mostra/oculta campos na tela cheia (Colunas = linhas,
+   Planilha = colunas). Cada campo carrega data-field; ocultar é só esconder
+   todo elemento com aquele data-field. O conjunto é persistido e vale pras
+   duas visões — serve pra enxugar a tela e evitar scroll. ─────────────────── */
+function applySecFsHidden(){
+  const card = $('secFsCard'); if (!card) return;
+  card.querySelectorAll('[data-field]').forEach(el => {
+    el.style.display = SEC_HIDDEN.has(el.dataset.field) ? 'none' : '';
+  });
+  const btn = document.getElementById('secFsEye');
+  if (btn){
+    const n = SEC_HIDDEN.size;
+    btn.classList.toggle('has-hidden', n > 0);
+    const tag = btn.querySelector('.eye-n'); if (tag) tag.textContent = n ? String(n) : '';
+  }
+}
+function closeFieldEye(){
+  const m = document.getElementById('fieldEyeMenu'); if (m) m.remove();
+  document.removeEventListener('mousedown', fieldEyeOutside, true);
+}
+function fieldEyeOutside(e){
+  const m = document.getElementById('fieldEyeMenu');
+  if (m && !m.contains(e.target) && e.target.id !== 'secFsEye' && !e.target.closest('#secFsEye')) closeFieldEye();
+}
+function openFieldEye(anchor){
+  if (document.getElementById('fieldEyeMenu')){ closeFieldEye(); return; } // toggle
+  const card = $('secFsCard'); if (!card) return;
+  // fonte de verdade = o que está renderizado agora (fica em sincronia com a visão)
+  const seen = new Map();
+  card.querySelectorAll('[data-flabel]').forEach(el => { if (!seen.has(el.dataset.field)) seen.set(el.dataset.field, el.dataset.flabel); });
+  const fields = [...seen.entries()]; // [ [key,label], ... ] na ordem de render
+  if (!fields.length) return;
+  const eyeOn  = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>`;
+  const eyeOff = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>`;
+  const m = document.createElement('div');
+  m.className = 'pop-menu fieldeye'; m.id = 'fieldEyeMenu';
+  m.setAttribute('role', 'menu');
+  m.innerHTML =
+    `<div class="ph">Campos visíveis · clique pra ocultar</div>` +
+    fields.map(([k, lbl]) => {
+      const off = SEC_HIDDEN.has(k);
+      return `<button class="pm feye ${off ? 'off' : ''}" data-fk="${escHtml(k)}" role="menuitemcheckbox" aria-checked="${off ? 'false' : 'true'}">
+        <span class="eye" aria-hidden="true">${off ? eyeOff : eyeOn}</span><span class="lbl">${escHtml(lbl)}</span></button>`;
+    }).join('') +
+    `<button class="pm feye-all">↺ Mostrar tudo</button>`;
+  document.body.appendChild(m);
+  const r = anchor.getBoundingClientRect();
+  m.style.left = Math.max(12, Math.min(r.right - m.offsetWidth, window.innerWidth - m.offsetWidth - 12)) + 'px';
+  m.style.top  = Math.min(r.bottom + 6, window.innerHeight - m.offsetHeight - 12) + 'px';
+  // toggle de cada campo — atualiza o item no lugar, sem fechar o menu
+  m.querySelectorAll('.feye[data-fk]').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.fk;
+    if (SEC_HIDDEN.has(k)) SEC_HIDDEN.delete(k); else SEC_HIDDEN.add(k);
+    try{ localStorage.setItem('cn_sec_hidden', JSON.stringify([...SEC_HIDDEN])); }catch(e){}
+    const off = SEC_HIDDEN.has(k);
+    b.classList.toggle('off', off);
+    b.setAttribute('aria-checked', off ? 'false' : 'true');
+    b.querySelector('.eye').innerHTML = off ? eyeOff : eyeOn;
+    applySecFsHidden();
+  }));
+  m.querySelector('.feye-all').addEventListener('click', () => {
+    SEC_HIDDEN.clear();
+    try{ localStorage.setItem('cn_sec_hidden', '[]'); }catch(e){}
+    applySecFsHidden(); closeFieldEye();
+  });
+  setTimeout(() => document.addEventListener('mousedown', fieldEyeOutside, true), 0);
 }
 
 /* planilha transposta: campos nas linhas, torneios nas colunas — é a visão
@@ -2229,10 +2413,10 @@ function renderVertical(items, cat, asg, fieldList, dropEmpty){
   const addonL = labelOf(addonInfo), ticketL = labelOf(ticketInfo), chipsL = labelOf(chipsInfo),
         gameL = labelOf(gameTypeInfo), koL = labelOf(koInfo);
   const SUITS = ['♠','♥','♦','♣'];
-  // FEE, ADMIN FEE e EARLY BIRD crus saem da receita: já estão consolidados nas linhas de cima
-  const feeCols = new Set();
-  cols.forEach(c => [feeInfo, adminInfo, earlyInfo].forEach(g => { const i = g(c.it); if (i && i.label) feeCols.add(i.label); }));
-  let rows = (fieldList || visibleRecipeFields()).filter(l => !feeCols.has(l));
+  // MOSTRAR TODAS as colunas: FEE/ADMIN FEE/EARLY BIRD crus continuam na receita, na
+  // ordem da planilha (a operação pediu). Os chips Admin Fee/Early Bird no topo são só
+  // atalho JÁ CALCULADO (10% / +2% / % das fichas), não substituem a coluna original.
+  let rows = (fieldList || visibleRecipeFields());
   // tela cheia: descarta campo que é vazio ("—") em TODOS os torneios da seção —
   // linha só de traço é ruído e come altura à toa (pedido: evitar scroll vertical)
   if (dropEmpty) rows = rows.filter(label => cols.some(c => {
@@ -2248,14 +2432,14 @@ function renderVertical(items, cat, asg, fieldList, dropEmpty){
           + (urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(c.it)}</span>` : '')
           + (m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : '');
       }, 'vname')}</tr>
-      <tr><th class="rowlab">Horário</th>${cell(c => `<span class="thora">${escHtml(c.it.hora)}</span>`)}</tr>
-      <tr><th class="rowlab key">Criar em</th>${cell(c => `<span class="mono" style="font-weight:700">${escHtml(creationWhen(c.it))}</span>`)}</tr>
-      <tr><th class="rowlab">Admin Fee</th>${cell(c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
-      <tr><th class="rowlab">Early Bird</th>${cell(c => { const p = earlyParts(c.it); return p ? `<span class="calc-chip early">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
-      ${cols.some(c => hasCampaign(c.it)) ? `<tr><th class="rowlab">Campanha</th>${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : ''}
-      ${cat.key === 'sat' ? `<tr><th class="rowlab">Grupo</th>${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : ''}
+      <tr data-field="hora" data-flabel="Horário"><th class="rowlab">Horário</th>${cell(c => `<span class="thora">${escHtml(c.it.hora)}</span>`)}</tr>
+      <tr data-field="criar" data-flabel="Criar em"><th class="rowlab key">Criar em</th>${cell(c => `<span class="mono" style="font-weight:700">${escHtml(creationWhen(c.it))}</span>`)}</tr>
+      <tr data-field="admin" data-flabel="Admin Fee"><th class="rowlab">Admin Fee</th>${cell(c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
+      <tr data-field="early" data-flabel="Early Bird"><th class="rowlab">Early Bird</th>${cell(c => { const p = earlyParts(c.it); return p ? `<span class="calc-chip early">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
+      ${cols.some(c => hasCampaign(c.it)) ? `<tr data-field="camp" data-flabel="Campanha"><th class="rowlab">Campanha</th>${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : ''}
+      ${cat.key === 'sat' ? `<tr data-field="grupo" data-flabel="Grupo"><th class="rowlab">Grupo</th>${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : ''}
       ${rows.length
-        ? rows.map(label => `<tr><th class="rowlab ${keyLabels.has(label) ? 'key' : ''}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(c => {
+        ? rows.map(label => `<tr data-field="f:${escHtml(label)}" data-flabel="${escHtml(label)}"><th class="rowlab ${keyLabels.has(label) ? 'key' : ''}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(c => {
             const v = c.it.extra ? c.it.extra[label] : undefined;
             const has = v !== undefined && v !== null && v !== '';
             if (!has) return `<span class="mono" style="color:var(--ink-soft);opacity:.5">—</span>`;
@@ -2276,10 +2460,10 @@ function renderVertical(items, cat, asg, fieldList, dropEmpty){
               return `<span class="kochip"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg>${escHtml(disp)}</span>`;
             return `<span class="mono" style="${keyLabels.has(label) ? 'font-weight:700' : ''}">${escHtml(disp)}</span>`;
           })}</tr>`).join('')
-        : `<tr><th class="rowlab">Late reg</th>${cell(c => `<span class="mono" style="color:var(--ink-soft)">${c.it.late ? escHtml(c.it.late) : '—'}</span>`)}</tr>`}
-      <tr><th class="rowlab">Operador</th>${cell(c => opTagHtml(c.op, c.key))}</tr>
-      <tr><th class="rowlab">ID Pokerbyte</th>${cell(c => idInputHtml(c.key, 'width:110px'))}</tr>
-      <tr><th class="rowlab">Criado</th>${cell(c => `
+        : `<tr data-field="late" data-flabel="Late reg"><th class="rowlab">Late reg</th>${cell(c => `<span class="mono" style="color:var(--ink-soft)">${c.it.late ? escHtml(c.it.late) : '—'}</span>`)}</tr>`}
+      <tr data-field="op" data-flabel="Operador"><th class="rowlab">Operador</th>${cell(c => opTagHtml(c.op, c.key))}</tr>
+      <tr data-field="id" data-flabel="ID Pokerbyte"><th class="rowlab">ID Pokerbyte</th>${cell(c => idInputHtml(c.key, 'width:110px'))}</tr>
+      <tr data-field="done" data-flabel="Criado"><th class="rowlab">Criado</th>${cell(c => `
         <button class="chk ${c.done ? 'on' : ''}" data-done="${c.key}" role="checkbox" aria-checked="${c.done ? 'true' : 'false'}"
           aria-label="${c.done ? `Criado por ${escHtml((DONE[c.key]||{}).by || '—')} — desmarcar` : `Marcar ${escHtml(c.it.nome)} como criado`}"
           title="${c.done ? `Criado por ${escHtml((DONE[c.key]||{}).by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
@@ -2293,15 +2477,13 @@ function renderVertical(items, cat, asg, fieldList, dropEmpty){
    na tela cheia. Mesmas ações de sempre (ID, criado, copiar, abrir em tela
    cheia por evento) — data-attrs batem com os listeners já existentes. */
 function renderPlanilhaRows(items, cat, asg){
-  const feeCols = new Set();
-  items.forEach(it => [feeInfo, adminInfo, earlyInfo].forEach(g => { const i = g(it); if (i && i.label) feeCols.add(i.label); }));
-  const cols = visibleRecipeFields().filter(l => !feeCols.has(l));
+  const cols = visibleRecipeFields();   // TODAS as colunas, na ordem da planilha (ver renderVertical)
   const head = `<tr>
-      <th class="pname">Torneio</th><th>Horário</th><th class="key">Criar em</th>
-      <th>Admin Fee</th><th>Early Bird</th>
-      ${cat.key === 'sat' ? '<th>Grupo</th>' : ''}
-      ${cols.map(l => `<th title="${escHtml(l)}">${escHtml(l)}</th>`).join('')}
-      <th>Operador</th><th>ID Pokerbyte</th><th>Criado</th><th></th>
+      <th class="pname">Torneio</th><th data-field="hora" data-flabel="Horário">Horário</th><th class="key" data-field="criar" data-flabel="Criar em">Criar em</th>
+      <th data-field="admin" data-flabel="Admin Fee">Admin Fee</th><th data-field="early" data-flabel="Early Bird">Early Bird</th>
+      ${cat.key === 'sat' ? '<th data-field="grupo" data-flabel="Grupo">Grupo</th>' : ''}
+      ${cols.map(l => `<th data-field="f:${escHtml(l)}" data-flabel="${escHtml(l)}" title="${escHtml(l)}">${escHtml(l)}</th>`).join('')}
+      <th data-field="op" data-flabel="Operador">Operador</th><th data-field="id" data-flabel="ID Pokerbyte">ID Pokerbyte</th><th data-field="done" data-flabel="Criado">Criado</th><th></th>
     </tr>`;
   const body = items.map(it => {
     const key = itemKey(it);
@@ -2316,19 +2498,19 @@ function renderPlanilhaRows(items, cat, asg){
         ${urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(it)}</span>` : ''}
         ${m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : ''}
       </td>
-      <td class="thora">${escHtml(it.hora)}</td>
-      <td class="mono key" style="font-weight:700">${escHtml(creationWhen(it))}</td>
-      <td>${af ? `<span class="calc-chip admin">${escHtml(af.main)}${af.sub ? `<span class="amt">${escHtml(af.sub)}</span>` : ''}</span>` : '<span style="opacity:.4">—</span>'}</td>
-      <td>${eb ? `<span class="calc-chip early">${escHtml(eb.main)}${eb.sub ? `<span class="amt">${escHtml(eb.sub)}</span>` : ''}</span>` : '<span style="opacity:.4">—</span>'}</td>
-      ${cat.key === 'sat' ? `<td style="font-size:11px;color:var(--sat-bright)">${escHtml(it.groupHeader || '—')}</td>` : ''}
+      <td class="thora" data-field="hora">${escHtml(it.hora)}</td>
+      <td class="mono key" style="font-weight:700" data-field="criar">${escHtml(creationWhen(it))}</td>
+      <td data-field="admin">${af ? `<span class="calc-chip admin">${escHtml(af.main)}${af.sub ? `<span class="amt">${escHtml(af.sub)}</span>` : ''}</span>` : '<span style="opacity:.4">—</span>'}</td>
+      <td data-field="early">${eb ? `<span class="calc-chip early">${escHtml(eb.main)}${eb.sub ? `<span class="amt">${escHtml(eb.sub)}</span>` : ''}</span>` : '<span style="opacity:.4">—</span>'}</td>
+      ${cat.key === 'sat' ? `<td data-field="grupo" style="font-size:11px;color:var(--sat-bright)">${escHtml(it.groupHeader || '—')}</td>` : ''}
       ${cols.map(label => {
         const v = it.extra ? it.extra[label] : undefined;
         const has = v !== undefined && v !== null && v !== '';
-        return `<td>${has ? escHtml(fmtExtraVal(label, v)) : '<span style="color:var(--ink-soft);opacity:.5">—</span>'}</td>`;
+        return `<td data-field="f:${escHtml(label)}">${has ? escHtml(fmtExtraVal(label, v)) : '<span style="color:var(--ink-soft);opacity:.5">—</span>'}</td>`;
       }).join('')}
-      <td>${opTagHtml(op, key)}</td>
-      <td>${idInputHtml(key, 'width:110px')}</td>
-      <td>
+      <td data-field="op">${opTagHtml(op, key)}</td>
+      <td data-field="id">${idInputHtml(key, 'width:110px')}</td>
+      <td data-field="done">
         <button class="chk ${done ? 'on' : ''}" data-done="${key}" role="checkbox" aria-checked="${done ? 'true' : 'false'}"
           title="${done ? `Criado por ${escHtml((DONE[key]||{}).by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
       </td>
@@ -2390,7 +2572,7 @@ function openPickMenu(anchor, title, options){
 }
 function myOp(){ return OPS.find(o => normText(o) === normText(ME)) || (FILTER !== 'all' ? FILTER : null); }
 function myPending(){
-  const asg = computeAssignments();
+  const asg = effectiveAssignments();   // inclui dono da seção, não só override por evento
   const op = myOp();
   if (!op) return {op:null, items:[]};
   const items = allWithCat().map(x => x.it).filter(it => asg[itemKey(it)] === op && !DONE[itemKey(it)]);

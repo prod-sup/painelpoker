@@ -265,7 +265,10 @@ function extractGuDaySection(matrix, weekdayEn, headerCols){
       if (typeof v === 'string') v = v.trim();
       if (v !== null && v !== undefined && v !== '') extra[label] = v;
     });
-    const entry = {nome, hora, garantido, buyin, late:lateHH, groupHeader: cat === 'sat' ? lastGroupName : null, extra};
+    // `tipo` = valor CRU da coluna TYPE (ex.: "Side Event"); guardado no entry pra
+    // quem quiser exibir TYPE como coluna (Criação Noturna) sem reparsear. Aditivo:
+    // consumidores antigos ignoram. `extra` continua sem colunas core (não duplica).
+    const entry = {nome, hora, garantido, buyin, late:lateHH, tipo: tipo || null, groupHeader: cat === 'sat' ? lastGroupName : null, extra};
     if (cat === 'main') main.push(entry);
     else if (cat === 'side') side.push(entry);
     else if (cat === 'sat') sat.push(entry);
