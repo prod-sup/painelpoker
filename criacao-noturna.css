@@ -489,7 +489,7 @@ body > *{position:relative;z-index:1}
     border-color:color-mix(in srgb, var(--liga) 42%, var(--hairline));
     box-shadow:0 0 0 1px color-mix(in srgb, var(--liga) 20%, transparent), var(--shadow-sm);
   }
-  .liga-sec .vtable .rowlab.key{color:var(--liga-bright)}
+  .liga-sec .vtable .rowlab.key{color:var(--ink);box-shadow:inset 3px 0 0 color-mix(in srgb,var(--liga) 55%,transparent)}
   .liga-sec .chk.on{background:var(--liga-bright);border-color:var(--liga-bright)}
   .section-head h2{font-family:var(--display);font-size:19px;font-weight:750;letter-spacing:-.02em}
   .section-head .cnt{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
@@ -681,10 +681,16 @@ body > *{position:relative;z-index:1}
   .vtable .rowlab{
     position:sticky;left:0;z-index:2;
     background:var(--card-elevated);
-    font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+    font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
     color:var(--ink-soft);min-width:110px;
   }
-  .vtable .rowlab.key{color:var(--felt-bright)}
+  /* campo-CHAVE: em vez de pintar o texto de verde (poluía a coluna toda), marca
+     com um filete discreto na cor do feltro + texto em ink cheio. Lê como "importante"
+     sem virar um paredão verde. */
+  .vtable .rowlab.key{
+    color:var(--ink);font-weight:800;
+    box-shadow:inset 3px 0 0 color-mix(in srgb,var(--felt) 55%,transparent);
+  }
   .vtable td.vname{font-weight:650;font-size:12.5px;max-width:190px;white-space:normal;line-height:1.35}
   .vtable td.done-col{opacity:.45}
   .vtable td.done-col.vname{text-decoration:line-through}

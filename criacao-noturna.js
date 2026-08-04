@@ -1060,6 +1060,39 @@ function setAssign(key){
   logEvent('atribuição', `${key} → ${OVERRIDES[key] || '(livre)'}`);
 }
 function persistOverrides(){ if (fbDb) fbDb.ref(`${FB_PATH}/overrides`).set(OVERRIDES); else renderAll(); }
+/* atribui/transfere UM evento a um operador explícito (ou limpa, com op=null) e persiste */
+function setAssignTo(key, op){
+  if (op) OVERRIDES[key] = op; else delete OVERRIDES[key];
+  if (fbDb) fbDb.ref(`${FB_PATH}/overrides`).set(OVERRIDES); else renderAll();
+  logEvent('atribuição', `${key} → ${op || '(livre)'}`);
+}
+/* garante que EU estou na equipe (pra "pegar pra mim" funcionar mesmo sem me adicionar antes) */
+function ensureMeInOps(){
+  const meIn = OPS.find(o => normText(o) === normText(ME));
+  if (meIn) return meIn;
+  if (ME){ saveOps([...OPS, ME]); return ME; }
+  return null;
+}
+/* menu por evento: PEGAR PRA MIM, TRANSFERIR PARA <operador>, TIRAR dono */
+function openAssignMenu(anchor, key){
+  const cur = OVERRIDES[key];
+  const opts = [];
+  if (ME) opts.push({ label:'🙋 Pegar pra mim', color: opColor(ME), initial:(ME.trim()[0] || '?').toUpperCase(),
+    onPick: () => { const me = ensureMeInOps(); if (me) setAssignTo(key, me); } });
+  OPS.filter(o => normText(o) !== normText(ME)).forEach(o => opts.push({
+    label:`Transferir para ${o.split(' ')[0]}`, color: opColor(o), initial:o.trim()[0].toUpperCase(),
+    onPick: () => setAssignTo(key, o) }));
+  if (cur) opts.push({ label:'✕ Tirar dono (deixar livre)', color:'var(--ink-soft)', initial:'✕', onPick: () => setAssignTo(key, null) });
+  if (!opts.length){ showToast('Adicione operadores na equipe primeiro.', true); return; }
+  openPickMenu(anchor, cur ? `Dono: ${cur.split(' ')[0]} — passar para:` : 'Atribuir este evento a:', opts);
+}
+/* clique no operador de um evento: com pessoa selecionada na equipe = atribuição rápida
+   (fluxo antigo, bom pra vários seguidos); SEM seleção = abre o menu pegar/transferir. */
+function onAssignClick(el){
+  const key = el.dataset.assign;
+  if (SELECTED_OP) setAssign(key);
+  else openAssignMenu(el, key);
+}
 /* todos os torneios atribuíveis do dia (GU + Liga Principal) */
 function assignableItems(){
   if (!DATA) return [];
@@ -2064,9 +2097,12 @@ function visibleItems(list, asg){
 function opTagHtml(op, key){
   const inner = op
     ? `<span class="op-tag" style="background:${opColor(op)}"><span class="dot">${escHtml(op.trim()[0].toUpperCase())}</span>${escHtml(op.split(' ')[0])}</span>`
-    : `<span class="op-tag none">${SELECTED_OP ? 'clique p/ atribuir' : 'sem dono'}</span>`;
+    : `<span class="op-tag none">${SELECTED_OP ? 'clique p/ atribuir' : 'atribuir ▾'}</span>`;
   if (!key) return inner;   // usos read-only (ex.: TV) passam sem key
-  return `<button class="op-assign${SELECTED_OP ? ' armed' : ''}" data-assign="${escHtml(key)}" title="${SELECTED_OP ? 'Atribuir a '+escHtml(SELECTED_OP)+' (clique de novo tira)' : 'Selecione uma pessoa na equipe pra atribuir'}">${inner}</button>`;
+  const tip = SELECTED_OP
+    ? 'Atribuir a ' + escHtml(SELECTED_OP) + ' (clique de novo tira)'
+    : 'Clique: pegar pra mim ou transferir para outro operador';
+  return `<button class="op-assign${SELECTED_OP ? ' armed' : ''}" data-assign="${escHtml(key)}" title="${tip}">${inner}</button>`;
 }
 
 /* nota abaixo do cabeçalho da seção: explica a função e quem está nela */
@@ -2112,7 +2148,7 @@ function renderList(){
   });
   const _winY = window.scrollY;
   const asg = computeAssignments();
-  let html = '';
+  let html = hiddenBarHtml();   // barra de "linhas ocultas" (olhinho por linha), quando houver
   const isBrl = CURRENCY === 'brl';   // a grade agora SEGUE o toggle (default US$, clique → R$)
 
   SECTIONS.forEach(cat => {
@@ -2187,8 +2223,10 @@ function renderList(){
       </tbody></table></div>`;
   }
 
-  if (!html) html = `<div class="empty-state"><span class="moon">🃏</span>Nada nesse filtro.</div>`;
+  // "vazio" = só a barra de linhas ocultas (ou nada) — nenhuma grade renderizada
+  if (html === hiddenBarHtml()) html += `<div class="empty-state"><span class="moon">🃏</span>Nada nesse filtro.</div>`;
   area.innerHTML = html;
+  applyListHidden();   // aplica as linhas ocultas na lista recém-montada
 
   // restaura a rolagem capturada acima (atribuição direta = instantânea, sem animar o scroll-behavior:smooth)
   area.querySelectorAll('.secwrap').forEach(sw => {
@@ -2201,7 +2239,10 @@ function renderList(){
   area.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
   area.querySelectorAll('[data-secfs]').forEach(el => el.addEventListener('click', () => toggleSectionFs(el.dataset.secfs)));
   area.querySelectorAll('[data-secowner]').forEach(el => el.addEventListener('click', () => openSecOwnerMenu(el, el.dataset.secowner)));
-  area.querySelectorAll('[data-assign]').forEach(el => el.addEventListener('click', () => setAssign(el.dataset.assign)));
+  area.querySelectorAll('[data-hiderow]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); hideRow(el.dataset.hiderow); }));
+  area.querySelectorAll('[data-showrow]').forEach(el => el.addEventListener('click', () => showRow(el.dataset.showrow)));
+  area.querySelectorAll('[data-showall]').forEach(el => el.addEventListener('click', showAllRows));
+  area.querySelectorAll('[data-assign]').forEach(el => el.addEventListener('click', el2 => onAssignClick(el)));
   area.querySelectorAll('[data-focus]').forEach(el => {
     el.addEventListener('click', () => openSectionFsAt(el.dataset.focuscat, el.dataset.focus));
     /* teclado: o nome é role="button" — Enter/Espaço abrem a seção em tela cheia */
@@ -2309,6 +2350,8 @@ function renderSecFs(){
   $('secFsEye').addEventListener('click', e => { e.stopPropagation(); openFieldEye(e.currentTarget); });
   card.querySelectorAll('[data-secview]').forEach(b => b.addEventListener('click', () => setSectionView(b.dataset.secview)));
   card.querySelectorAll('[data-secowner]').forEach(el => el.addEventListener('click', () => openSecOwnerMenu(el, el.dataset.secowner)));
+  card.querySelectorAll('[data-assign]').forEach(el => el.addEventListener('click', () => onAssignClick(el)));
+  card.querySelectorAll('[data-hiderow]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); hideRow(el.dataset.hiderow); }));
   card.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
   card.querySelectorAll('.id-inp').forEach(inp => {
     inp.addEventListener('change', () => setId(inp.dataset.idkey, inp.value));
@@ -2342,6 +2385,30 @@ function applySecFsHidden(){
     const tag = btn.querySelector('.eye-n'); if (tag) tag.textContent = n ? String(n) : '';
   }
 }
+/* rótulo legível a partir do data-field (pra barra de "linhas ocultas") */
+function fieldLabelFor(key){
+  if (key.startsWith('f:')) return key.slice(2);
+  return ({hora:'Horário', criar:'Criar em', admin:'Admin Fee', early:'Early Bird', camp:'Campanha', grupo:'Grupo', late:'Late reg'})[key] || key;
+}
+function persistHidden(){ try{ localStorage.setItem('cn_sec_hidden', JSON.stringify([...SEC_HIDDEN])); }catch(e){} }
+/* aplica SEC_HIDDEN na LISTA normal (#listArea) — some/aparece a <tr> inteira (vtable
+   é transposta, então cada campo é uma linha). Compartilha o conjunto com a tela cheia. */
+function applyListHidden(){
+  const area = $('listArea'); if (!area) return;
+  area.querySelectorAll('.vtable tr[data-field]').forEach(tr => {
+    tr.style.display = SEC_HIDDEN.has(tr.dataset.field) ? 'none' : '';
+  });
+}
+/* barra acima das grades listando as linhas ocultas — clique num chip mostra de volta */
+function hiddenBarHtml(){
+  if (!SEC_HIDDEN.size) return '';
+  const chips = [...SEC_HIDDEN].map(k =>
+    `<button class="hf-chip" data-showrow="${escHtml(k)}" title="Mostrar a linha “${escHtml(fieldLabelFor(k))}” de novo">${EYE_OFF_SVG}${escHtml(fieldLabelFor(k))}</button>`).join('');
+  return `<div class="hidden-fields-bar"><b>${SEC_HIDDEN.size}</b> linha(s) oculta(s): ${chips}<button class="hf-all" data-showall>Mostrar todas</button></div>`;
+}
+function hideRow(field){ SEC_HIDDEN.add(field); persistHidden(); renderAll(); }
+function showRow(field){ SEC_HIDDEN.delete(field); persistHidden(); renderAll(); }
+function showAllRows(){ SEC_HIDDEN.clear(); persistHidden(); renderAll(); }
 function closeFieldEye(){
   const m = document.getElementById('fieldEyeMenu'); if (m) m.remove();
   document.removeEventListener('mousedown', fieldEyeOutside, true);
@@ -2398,6 +2465,15 @@ function openFieldEye(anchor){
    "Colunas" (padrão da lista normal, e opção dentro da tela cheia da seção).
    A visão "Planilha" de verdade (uma linha por torneio) é renderPlanilhaRows,
    acima. Campos-chave com rótulo destacado. */
+/* SVG do olho-fechado (ocultar) — reusado no th das linhas e no menu do olhinho */
+const EYE_OFF_SVG = `<svg class="eye" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>`;
+/* th (rótulo) de uma linha da vtable com o OLHINHO de ocultar embutido. `field` casa
+   com o data-field da <tr> — clicar oculta a linha (some da lista E da tela cheia, pois
+   compartilham SEC_HIDDEN). Linhas de ação (operador/id/criado) não passam por aqui. */
+function rlabTh(field, label, isKey){
+  return `<th class="rowlab hideable ${isKey ? 'key' : ''}" title="${escHtml(label)}"><span class="rl-txt">${escHtml(label)}</span>`
+    + `<button class="rl-hide" data-hiderow="${escHtml(field)}" title="Ocultar a linha “${escHtml(label)}” (dá pra restaurar na barra acima)" aria-label="Ocultar ${escHtml(label)}">${EYE_OFF_SVG}</button></th>`;
+}
 function renderVertical(items, cat, asg, fieldList, dropEmpty){
   const cols = items.map(it => {
     const key = itemKey(it);
@@ -2432,14 +2508,14 @@ function renderVertical(items, cat, asg, fieldList, dropEmpty){
           + (urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(c.it)}</span>` : '')
           + (m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : '');
       }, 'vname')}</tr>
-      <tr data-field="hora" data-flabel="Horário"><th class="rowlab">Horário</th>${cell(c => `<span class="thora">${escHtml(c.it.hora)}</span>`)}</tr>
-      <tr data-field="criar" data-flabel="Criar em"><th class="rowlab key">Criar em</th>${cell(c => `<span class="mono" style="font-weight:700">${escHtml(creationWhen(c.it))}</span>`)}</tr>
-      <tr data-field="admin" data-flabel="Admin Fee"><th class="rowlab">Admin Fee</th>${cell(c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
-      <tr data-field="early" data-flabel="Early Bird"><th class="rowlab">Early Bird</th>${cell(c => { const p = earlyParts(c.it); return p ? `<span class="calc-chip early">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
-      ${cols.some(c => hasCampaign(c.it)) ? `<tr data-field="camp" data-flabel="Campanha"><th class="rowlab">Campanha</th>${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : ''}
-      ${cat.key === 'sat' ? `<tr data-field="grupo" data-flabel="Grupo"><th class="rowlab">Grupo</th>${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : ''}
+      <tr data-field="hora" data-flabel="Horário">${rlabTh('hora', 'Horário', false)}${cell(c => `<span class="thora">${escHtml(c.it.hora)}</span>`)}</tr>
+      <tr data-field="criar" data-flabel="Criar em">${rlabTh('criar', 'Criar em', true)}${cell(c => `<span class="mono" style="font-weight:700">${escHtml(creationWhen(c.it))}</span>`)}</tr>
+      <tr data-field="admin" data-flabel="Admin Fee">${rlabTh('admin', 'Admin Fee', false)}${cell(c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
+      <tr data-field="early" data-flabel="Early Bird">${rlabTh('early', 'Early Bird', false)}${cell(c => { const p = earlyParts(c.it); return p ? `<span class="calc-chip early">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
+      ${cols.some(c => hasCampaign(c.it)) ? `<tr data-field="camp" data-flabel="Campanha">${rlabTh('camp', 'Campanha', false)}${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : ''}
+      ${cat.key === 'sat' ? `<tr data-field="grupo" data-flabel="Grupo">${rlabTh('grupo', 'Grupo', false)}${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : ''}
       ${rows.length
-        ? rows.map(label => `<tr data-field="f:${escHtml(label)}" data-flabel="${escHtml(label)}"><th class="rowlab ${keyLabels.has(label) ? 'key' : ''}" title="${escHtml(label)}">${escHtml(label)}</th>${cell(c => {
+        ? rows.map(label => `<tr data-field="f:${escHtml(label)}" data-flabel="${escHtml(label)}">${rlabTh('f:' + label, label, keyLabels.has(label))}${cell(c => {
             const v = c.it.extra ? c.it.extra[label] : undefined;
             const has = v !== undefined && v !== null && v !== '';
             if (!has) return `<span class="mono" style="color:var(--ink-soft);opacity:.5">—</span>`;
@@ -2460,7 +2536,7 @@ function renderVertical(items, cat, asg, fieldList, dropEmpty){
               return `<span class="kochip"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg>${escHtml(disp)}</span>`;
             return `<span class="mono" style="${keyLabels.has(label) ? 'font-weight:700' : ''}">${escHtml(disp)}</span>`;
           })}</tr>`).join('')
-        : `<tr data-field="late" data-flabel="Late reg"><th class="rowlab">Late reg</th>${cell(c => `<span class="mono" style="color:var(--ink-soft)">${c.it.late ? escHtml(c.it.late) : '—'}</span>`)}</tr>`}
+        : `<tr data-field="late" data-flabel="Late reg">${rlabTh('late', 'Late reg', false)}${cell(c => `<span class="mono" style="color:var(--ink-soft)">${c.it.late ? escHtml(c.it.late) : '—'}</span>`)}</tr>`}
       <tr data-field="op" data-flabel="Operador"><th class="rowlab">Operador</th>${cell(c => opTagHtml(c.op, c.key))}</tr>
       <tr data-field="id" data-flabel="ID Pokerbyte"><th class="rowlab">ID Pokerbyte</th>${cell(c => idInputHtml(c.key, 'width:110px'))}</tr>
       <tr data-field="done" data-flabel="Criado"><th class="rowlab">Criado</th>${cell(c => `
