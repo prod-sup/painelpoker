@@ -1283,17 +1283,22 @@ body > *{position:relative;z-index:1}
     background:none;border:none;color:var(--felt-bright);text-decoration:underline;text-underline-offset:2px;
   }
 
-  /* ── ARRASTAR-E-SOLTAR das colunas (rótulo com data-col) ──────────────────
+  /* ── ARRASTAR-E-SOLTAR das colunas — POINTER EVENTS (mouse + toque) ────────
      Segure no ⋮⋮ e arraste pra reordenar. Vale na lista (Colunas → reordena as
-     linhas-campo) e na Planilha (reordena as colunas de verdade). */
-  .col-drag{cursor:grab}
-  .col-drag:active{cursor:grabbing}
+     linhas-campo) e na Planilha (reordena as colunas de verdade). A alça ⋮⋮ tem
+     touch-action:none pra o DEDO arrastar sem rolar a grade; o resto rola normal. */
   .rl-grip{
-    display:inline-block;opacity:.3;font-size:11px;line-height:1;letter-spacing:-3px;
-    margin-right:6px;cursor:grab;user-select:none;vertical-align:middle;
+    display:inline-flex;align-items:center;justify-content:center;
+    opacity:.35;font-size:12px;line-height:1;letter-spacing:-3px;
+    margin-right:4px;padding:2px 4px;min-width:18px;min-height:22px;
+    cursor:grab;user-select:none;-webkit-user-select:none;vertical-align:middle;
+    touch-action:none;                 /* o dedo na alça arrasta a coluna, não rola */
   }
-  .rowlab.col-drag:hover .rl-grip, th.col-drag:hover .rl-grip{opacity:.7}
-  .col-dragging{opacity:.4}
+  .rl-grip:active{cursor:grabbing}
+  .col-drag:hover .rl-grip{opacity:.75}
+  @media (pointer:coarse){ .rl-grip{opacity:.6;min-width:26px;min-height:28px} }  /* alvo maior no touch */
+  /* enquanto arrasta: cursor de "pegando" e sem seleção acidental de texto */
+  body.cn-col-dragging{cursor:grabbing !important;user-select:none;-webkit-user-select:none}
   /* alvo do drop: contorno tracejado no feltro (não empurra layout, convive com o filete key) */
   .col-over{outline:2px dashed var(--felt-bright);outline-offset:-2px;background:var(--felt-soft)}
 

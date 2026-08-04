@@ -2003,29 +2003,60 @@ function reorderCol(src, target){
   order.splice(at, 0, src);
   saveColOrder(order);
 }
-/* ── ARRASTAR-E-SOLTAR das colunas (rótulos com data-col) ── */
-let _dragCol = null;
+/* ── ARRASTAR-E-SOLTAR das colunas — POINTER EVENTS (mouse no PC, toque no mobile) ──
+   A alça é o ⋮⋮ (.col-grip, touch-action:none só nele: o dedo arrasta a coluna sem
+   rolar a grade; tocar em qualquer outro lugar continua rolando normal). Acha o alvo
+   sob o ponteiro com elementFromPoint, então funciona igual com dedo ou cursor. */
+let _dragCol = null, _dragGrip = null, _dragActive = false, _dragX = 0, _dragY = 0;
+function clearColOver(){ document.querySelectorAll('.col-over').forEach(x => x.classList.remove('col-over')); }
+function endColDrag(){
+  document.body.classList.remove('cn-col-dragging');
+  clearColOver();
+  if (_dragGrip){
+    _dragGrip.removeEventListener('pointermove', onColMove);
+    _dragGrip.removeEventListener('pointerup', onColUp);
+    _dragGrip.removeEventListener('pointercancel', onColUp);
+  }
+  _dragGrip = null; _dragCol = null; _dragActive = false;
+}
+function colTargetAt(x, y){
+  const el = document.elementFromPoint(x, y);
+  const host = el && el.closest ? el.closest('[data-col]') : null;
+  return host && host.dataset.col !== _dragCol ? host : null;
+}
+function onColMove(e){
+  if (!_dragCol) return;
+  if (!_dragActive){
+    if (Math.abs(e.clientX - _dragX) < 6 && Math.abs(e.clientY - _dragY) < 6) return;  // ainda é um toque, não arrasto
+    _dragActive = true;
+    document.body.classList.add('cn-col-dragging');
+  }
+  e.preventDefault();
+  clearColOver();
+  const host = colTargetAt(e.clientX, e.clientY);
+  if (host) host.classList.add('col-over');
+}
+function onColUp(e){
+  const src = _dragCol, active = _dragActive;
+  const host = active ? colTargetAt(e.clientX, e.clientY) : null;
+  const target = host ? host.dataset.col : null;
+  endColDrag();
+  if (active && target) reorderCol(src, target);   // reorderCol re-renderiza
+}
+function onColDown(e){
+  const host = e.target.closest('[data-col]');
+  if (!host) return;
+  _dragCol = host.dataset.col; _dragActive = false;
+  _dragX = e.clientX; _dragY = e.clientY;
+  _dragGrip = e.currentTarget;
+  try{ _dragGrip.setPointerCapture(e.pointerId); }catch(_){}
+  _dragGrip.addEventListener('pointermove', onColMove);
+  _dragGrip.addEventListener('pointerup', onColUp);
+  _dragGrip.addEventListener('pointercancel', onColUp);
+}
 function bindColDrag(root){
   if (!root) return;
-  root.querySelectorAll('[data-col]').forEach(el => {
-    el.addEventListener('dragstart', e => {
-      _dragCol = el.dataset.col;
-      el.classList.add('col-dragging');
-      try{ e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', _dragCol); }catch(_){}
-    });
-    el.addEventListener('dragend', () => {
-      _dragCol = null;
-      root.querySelectorAll('.col-dragging, .col-over').forEach(x => x.classList.remove('col-dragging', 'col-over'));
-    });
-    el.addEventListener('dragover', e => {
-      if (_dragCol && _dragCol !== el.dataset.col){ e.preventDefault(); el.classList.add('col-over'); }
-    });
-    el.addEventListener('dragleave', () => el.classList.remove('col-over'));
-    el.addEventListener('drop', e => {
-      e.preventDefault(); el.classList.remove('col-over');
-      reorderCol(_dragCol, el.dataset.col);
-    });
-  });
+  root.querySelectorAll('.col-grip').forEach(grip => grip.addEventListener('pointerdown', onColDown));
 }
 /* barra "ordem personalizada" com o botão de restaurar (só quando há ordem custom) */
 function orderBarHtml(){
@@ -2544,11 +2575,12 @@ const EYE_OFF_SVG = `<svg class="eye" viewBox="0 0 24 24" aria-hidden="true"><pa
    compartilham SEC_HIDDEN). Linhas de ação (operador/id/criado) não passam por aqui. */
 function rlabTh(field, label, isKey){
   // só as COLUNAS DA PLANILHA (f:) são arrastáveis pra reordenar; linhas de UI (Horário,
-  // Criar em, Operador…) ficam fixas. data-col guarda o rótulo pra saber o que arrastou.
+  // Criar em, Operador…) ficam fixas. data-col guarda o rótulo; o ⋮⋮ é a alça (Pointer
+  // Events = mouse no PC e toque no mobile). O drag NÃO usa HTML5 draggable de propósito.
   const isCol = field.indexOf('f:') === 0;
-  const drag = isCol ? ` draggable="true" data-col="${escHtml(label)}"` : '';
-  const grip = isCol ? `<span class="rl-grip" aria-hidden="true" title="Arraste pra reordenar">⋮⋮</span>` : '';
-  return `<th class="rowlab hideable ${isKey ? 'key' : ''}${isCol ? ' col-drag' : ''}"${drag} title="${escHtml(label)}${isCol ? ' — arraste ⋮⋮ pra reordenar' : ''}">${grip}<span class="rl-txt">${escHtml(label)}</span>`
+  const col = isCol ? ` data-col="${escHtml(label)}"` : '';
+  const grip = isCol ? `<span class="rl-grip col-grip" aria-hidden="true" title="Arraste pra reordenar">⋮⋮</span>` : '';
+  return `<th class="rowlab hideable ${isKey ? 'key' : ''}${isCol ? ' col-drag' : ''}"${col} title="${escHtml(label)}${isCol ? ' — arraste ⋮⋮ pra reordenar' : ''}">${grip}<span class="rl-txt">${escHtml(label)}</span>`
     + `<button class="rl-hide" draggable="false" data-hiderow="${escHtml(field)}" title="Ocultar a linha “${escHtml(label)}” (dá pra restaurar na barra acima)" aria-label="Ocultar ${escHtml(label)}">${EYE_OFF_SVG}</button></th>`;
 }
 function renderVertical(items, cat, asg, fieldList, dropEmpty){
@@ -2635,7 +2667,7 @@ function renderPlanilhaRows(items, cat, asg){
       <th class="pname">Torneio</th><th data-field="hora" data-flabel="Horário">Horário</th><th class="key" data-field="criar" data-flabel="Criar em">Criar em</th>
       <th data-field="admin" data-flabel="Admin Fee">Admin Fee</th><th data-field="early" data-flabel="Early Bird">Early Bird</th>
       ${cat.key === 'sat' ? '<th data-field="grupo" data-flabel="Grupo">Grupo</th>' : ''}
-      ${cols.map(l => `<th class="col-drag" draggable="true" data-col="${escHtml(l)}" data-field="f:${escHtml(l)}" data-flabel="${escHtml(l)}" title="${escHtml(l)} — arraste pra reordenar"><span class="rl-grip" aria-hidden="true">⋮⋮</span>${escHtml(l)}</th>`).join('')}
+      ${cols.map(l => `<th class="col-drag" data-col="${escHtml(l)}" data-field="f:${escHtml(l)}" data-flabel="${escHtml(l)}" title="${escHtml(l)} — arraste pra reordenar"><span class="rl-grip col-grip" aria-hidden="true">⋮⋮</span>${escHtml(l)}</th>`).join('')}
       <th data-field="op" data-flabel="Operador">Operador</th><th data-field="id" data-flabel="ID Pokerbyte">ID Pokerbyte</th><th data-field="done" data-flabel="Criado">Criado</th><th></th>
     </tr>`;
   const body = items.map(it => {
