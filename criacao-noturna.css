@@ -695,6 +695,20 @@ body > *{position:relative;z-index:1}
   .vtable td.done-col{opacity:.45}
   .vtable td.done-col.vname{text-decoration:line-through}
 
+  /* ══ DENSIDADE COMPACTA (toggle "Compacto") ═══════════════════════════════
+     Enxuga padding/fonte/larguras das grades pra caber MUITO mais na tela — menos
+     scroll pra baixo (linhas mais baixas) e pro lado (colunas mais estreitas).
+     Combina com o 👁 de ocultar linha e com "Compacto" ficando lembrado. */
+  .cn-compact .vtable th, .cn-compact .vtable td{ padding:3px 9px; font-size:11.5px; }
+  .cn-compact .vtable .rowlab{ min-width:88px; font-size:9.5px; letter-spacing:.03em; }
+  .cn-compact .vtable .rowlab.hideable{ padding-right:20px; }
+  .cn-compact .vtable td.vname{ font-size:11.5px; max-width:150px; line-height:1.25; }
+  .cn-compact .vtable .calc-chip, .cn-compact .vtable .tkt, .cn-compact .vtable .pchip,
+  .cn-compact .vtable .kochip, .cn-compact .vtable .gcard{ font-size:10.5px; padding-top:1px; padding-bottom:1px; }
+  .cn-compact .section-head{ margin-top:18px; }
+  .cn-compact .id-inp{ height:24px; }
+  .cn-compact .vwrap{ max-height:82vh; }
+
 
   /* ══ ELEMENTOS DE POKER na planilha ══ */
   /* ticket com borda picotada (furos nas laterais + picote no canhoto) */

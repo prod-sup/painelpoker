@@ -2915,8 +2915,20 @@ $('currencySeg').querySelectorAll('button').forEach(b => b.addEventListener('cli
   renderList();
   if (window.VIEW === 'week') renderWeek();   // a visão da semana também segue a moeda
 }));
+/* ── densidade: Confortável / Compacto — cabe mais na tela, menos scroll ── */
+let DENSITY = localStorage.getItem('cn_density') || 'comfy';
+function applyDensity(){ document.body.classList.toggle('cn-compact', DENSITY === 'compact'); }
+const _densitySeg = $('densitySeg');
+if (_densitySeg) _densitySeg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+  DENSITY = b.dataset.density;
+  localStorage.setItem('cn_density', DENSITY);
+  _densitySeg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  applyDensity();
+}));
 (function restoreSegs(){
   $('currencySeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.cur === CURRENCY));
+  if (_densitySeg) _densitySeg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.density === DENSITY));
+  applyDensity();
 })();
 
 /* ── export xlsx — EXATAMENTE o formato da "Conferência de amanhã" do Painel
