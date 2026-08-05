@@ -755,7 +755,7 @@ function initMobileFilters(){
       filters.insertBefore(head, filters.firstChild);
       var foot=document.createElement('div');
       foot.className='fs-foot';
-      foot.innerHTML='<button type="button" class="btn btn-gold" data-act="closeFilterSheet">Ver resultados</button>';
+      foot.innerHTML='<button type="button" class="btn btn-gold" data-act="applyFilterSheet">Ver resultados</button>';
       filters.appendChild(foot);
     }
     if(actions && !actions.querySelector('.filters-trigger')){
@@ -810,6 +810,15 @@ function closeFilterSheet(){
   if(bd) bd.hidden=true;
   document.body.classList.remove('fs-lock');
   refreshFilterCount();
+}
+/* "Ver resultados": APLICA os filtros (dispara a Busca da página — loadAudit/
+   loadCriacao via o botão dourado do cabeçalho) e fecha a folha. Sem isso o
+   sheet só fechava e os filtros de Categoria/Status/Operador/Busca não pegavam. */
+function applyFilterSheet(){
+  var pg=document.querySelector('.page.active');
+  var searchBtn=pg?pg.querySelector('.ph-actions .btn-gold:not(.filters-trigger)'):null;
+  closeFilterSheet();
+  if(searchBtn) searchBtn.click();
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', initMobileFilters);
 else initMobileFilters();
