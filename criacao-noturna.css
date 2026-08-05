@@ -1702,3 +1702,23 @@ html,body{overflow-x:hidden;max-width:100%}
 .sec-fs-search::placeholder{color:var(--ink3)}
 .sec-fs-search:focus{outline:none;border-color:var(--felt-bright)}
 @media (max-width:640px){ .sec-fs-search{flex:1 1 100%;order:5;height:38px} }
+
+/* ═══ CONFERÊNCIA — GRIFAR CAMPOS (marca que inseriu no software) ═══
+   Toque numa célula da receita na visão Colunas → fica grifada (marca-texto
+   dourado + ✓). Progresso X/Y por torneio na barra. Pessoal, por dia. */
+td.grifavel{cursor:pointer;position:relative;transition:background .15s var(--ease)}
+@media (hover:hover){ td.grifavel:hover{background:color-mix(in srgb,var(--gold) 9%,transparent)} }
+td.grifavel:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+td.grifado{background:color-mix(in srgb,var(--gold) 20%,transparent);box-shadow:inset 3px 0 0 var(--gold)}
+td.grifado::after{content:"✓";position:absolute;top:2px;right:5px;font-size:9px;font-weight:900;color:var(--gold);opacity:.92;pointer-events:none}
+.grif-pop{animation:grifPop .28s var(--ease)}
+@keyframes grifPop{0%{transform:scale(1)}45%{transform:scale(1.045)}100%{transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){ .grif-pop{animation:none} }
+
+/* chip de progresso da conferência na barra da tela cheia */
+.grif-prog{display:inline-flex;align-items:center;gap:7px;flex:none;font-size:12px;font-weight:700;color:var(--ink-soft);padding:4px 11px 4px 5px;border-radius:99px;border:1px solid var(--hairline-strong);background:var(--card)}
+.grif-prog b{color:var(--ink);font-variant-numeric:tabular-nums}
+.grif-prog .gp-ring{width:18px;height:18px;border-radius:50%;flex:none;background:conic-gradient(var(--gold) calc(var(--gp,0)*1%),var(--hairline) 0);-webkit-mask:radial-gradient(circle 5px at center,transparent 98%,#000 100%);mask:radial-gradient(circle 5px at center,transparent 98%,#000 100%)}
+.grif-prog.complete{border-color:color-mix(in srgb,var(--felt-bright) 45%,transparent);color:var(--felt-bright)}
+.grif-prog.complete b{color:var(--felt-bright)}
+.grif-prog.complete .gp-ring{background:var(--felt-bright)}

@@ -473,6 +473,16 @@ let SEC_VIEW = localStorage.getItem('cn_sec_view') || 'sheet'; // 'sheet' | 'col
 // campos ocultos na tela cheia (o "olhinho") — persistido, vale pras duas visões
 let SEC_HIDDEN = new Set();
 try{ SEC_HIDDEN = new Set(JSON.parse(localStorage.getItem('cn_sec_hidden') || '[]')); }catch(e){}
+/* GRIFOS — conferência de campos: enquanto cria, o operador GRIFA cada campo da
+   receita (MTT, K.O, Prize Pool, Buy-in, Add-on, Structure…) conforme insere no
+   software. Set de "torneioKey§Rótulo". Pessoal (localStorage) e por DIA da grade. */
+const GRIF_LS = 'cn_grifos_' + TOMORROW_ISO;
+let GRIFOS = new Set();
+try{ GRIFOS = new Set(JSON.parse(localStorage.getItem(GRIF_LS) || '[]')); }catch(e){}
+function persistGrifos(){ try{ localStorage.setItem(GRIF_LS, JSON.stringify([...GRIFOS])); }catch(e){} }
+function toggleGrif(gk){ if (GRIFOS.has(gk)) GRIFOS.delete(gk); else GRIFOS.add(gk); persistGrifos(); }
+/* limpa todos os grifos de UM torneio (usado ao criar / botão limpar) */
+function clearGrifsOf(key){ let ch = false; GRIFOS.forEach(g => { if (g.indexOf(key + '§') === 0){ GRIFOS.delete(g); ch = true; } }); if (ch) persistGrifos(); return ch; }
 // ORDEM PERSONALIZADA das colunas (arrastar-e-soltar) — array de rótulos na ordem que o
 // operador montou. null = usa a ordem padrão (CREATION_ORDER). Guardado POR OPERADOR
 // (localStorage), então cada um arruma a grade do jeito dele sem atrapalhar os colegas.
@@ -2469,6 +2479,7 @@ function renderSecFs(){
       <span class="cnt">${doneCount}/${items.length} criados</span>
       ${prizeChip(items, CURRENCY === 'brl')}
       ${secOwnerChipHtml(SEC_FS)}
+      <span class="grif-prog" id="secGrifProg" title="Campos grifados (conferidos) do torneio em foco" hidden></span>
       <span class="sec-fs-prog" title="${pct}% criados" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></span>
       <span class="line"></span>
       <input type="search" class="sec-fs-search" id="secFsSearch" placeholder="Buscar (/)" value="${escHtml(SEARCH || '')}" aria-label="Buscar torneio na seção">
@@ -2650,6 +2661,13 @@ function renderVertical(items, cat, asg, fieldList, dropEmpty){
     return {it, key, done: !!DONE[key], op: asg[key]};
   });
   const cell = (fn, cls) => cols.map(c => `<td class="${c.done ? 'done-col' : ''} ${cls || ''}">${fn(c)}</td>`).join('');
+  // gcell = célula GRIFÁVEL (conferência): toque marca que o campo foi inserido no
+  // software. Carrega data-grif="torneioKey§Rótulo" e a classe .grifado se já grifado.
+  const gcell = (label, fn, cls) => cols.map(c => {
+    const gk = c.key + '§' + label;
+    const on = GRIFOS.has(gk);
+    return `<td class="${c.done ? 'done-col' : ''} grifavel${on ? ' grifado' : ''} ${cls || ''}" data-grif="${escHtml(gk)}" role="button" tabindex="0" aria-pressed="${on}" title="Toque pra grifar — marca que você já inseriu este campo no software">${fn(c)}</td>`;
+  }).join('');
   // rótulos das colunas-chave pra destacar a linha correspondente da receita
   const keyLabels = new Set();
   cols.forEach(c => [feeInfo, adminInfo, earlyInfo, ticketInfo, payoutInfo, calcPayoutInfo, rebuyInfo, addonInfo, chipsInfo, structureInfo, gameTypeInfo, koInfo]
@@ -2680,12 +2698,12 @@ function renderVertical(items, cat, asg, fieldList, dropEmpty){
       }, 'vname')}</tr>
       <tr data-field="hora" data-flabel="Horário">${rlabTh('hora', 'Horário', false)}${cell(c => `<span class="thora">${escHtml(c.it.hora)}</span>`)}</tr>
       <tr data-field="criar" data-flabel="Criar em">${rlabTh('criar', 'Criar em', true)}${cell(c => `<span class="mono" style="font-weight:700">${escHtml(creationWhen(c.it))}</span>`)}</tr>
-      <tr data-field="admin" data-flabel="Admin Fee">${rlabTh('admin', 'Admin Fee', false)}${cell(c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
-      <tr data-field="early" data-flabel="Early Bird">${rlabTh('early', 'Early Bird', false)}${cell(c => { const p = earlyParts(c.it); return p ? `<span class="calc-chip early">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
+      <tr data-field="admin" data-flabel="Admin Fee">${rlabTh('admin', 'Admin Fee', false)}${gcell('Admin Fee', c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
+      <tr data-field="early" data-flabel="Early Bird">${rlabTh('early', 'Early Bird', false)}${gcell('Early Bird', c => { const p = earlyParts(c.it); return p ? `<span class="calc-chip early">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
       ${cols.some(c => hasCampaign(c.it)) ? `<tr data-field="camp" data-flabel="Campanha">${rlabTh('camp', 'Campanha', false)}${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : ''}
       ${cat.key === 'sat' ? `<tr data-field="grupo" data-flabel="Grupo">${rlabTh('grupo', 'Grupo', false)}${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : ''}
       ${rows.length
-        ? rows.map(label => `<tr data-field="f:${escHtml(label)}" data-flabel="${escHtml(label)}">${rlabTh('f:' + label, label, keyLabels.has(label))}${cell(c => {
+        ? rows.map(label => `<tr data-field="f:${escHtml(label)}" data-flabel="${escHtml(label)}">${rlabTh('f:' + label, label, keyLabels.has(label))}${gcell(label, c => {
             const v = c.it.extra ? c.it.extra[label] : undefined;
             const has = v !== undefined && v !== null && v !== '';
             if (!has) return `<span class="mono" style="color:var(--ink-soft);opacity:.5">—</span>`;
@@ -2918,6 +2936,7 @@ function secFsHighlightCursor(){
       if (i >= 0) pos.innerHTML = `<b>${i + 1}</b> / ${keys.length}`;
     }
   }
+  updateGrifProgress();   // atualiza X/Y campos grifados do torneio em foco
   const esc = k => (window.CSS && CSS.escape) ? CSS.escape(k) : k;
   card.querySelectorAll('.sec-cursor, .sec-cursor-col').forEach(el => el.classList.remove('sec-cursor', 'sec-cursor-col'));
   const table = card.querySelector('table');
@@ -2960,6 +2979,44 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'c' || e.key === 'C'){ e.preventDefault(); setSectionView('columns'); }
   else if (e.key === '/'){ e.preventDefault(); const s = document.getElementById('secFsSearch'); if (s){ s.focus(); s.select(); } }   // B3: busca rápida
 });
+
+/* ── GRIFAR campos (conferência): toque/Enter numa célula grifável marca que o
+   campo foi inserido no software. Delegação global — cobre lista e tela cheia. ── */
+function doGrif(cell){
+  if (!cell || !cell.dataset || !cell.dataset.grif) return;
+  toggleGrif(cell.dataset.grif);
+  const on = cell.classList.toggle('grifado');
+  cell.setAttribute('aria-pressed', on ? 'true' : 'false');
+  if (on){ cell.classList.remove('grif-pop'); void cell.offsetWidth; cell.classList.add('grif-pop'); }  // micro-anim
+  updateGrifProgress();
+}
+document.addEventListener('click', e => {
+  const cell = e.target.closest && e.target.closest('td[data-grif]');
+  if (!cell) return;
+  if (e.target.closest('input, button, a, select, textarea, [data-focus], [data-assign], .id-inp')) return;
+  doGrif(cell);
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const t = e.target;
+  if (t && t.matches && t.matches('td[data-grif]')){ e.preventDefault(); doGrif(t); }
+});
+/* progresso da conferência do torneio EM FOCO (tela cheia): X/Y campos grifados */
+function updateGrifProgress(){
+  const chip = document.getElementById('secGrifProg');
+  const card = $('secFsCard');
+  if (!chip || !card || !SEC_CURSOR){ if (chip) chip.hidden = true; return; }
+  const pref = SEC_CURSOR + '§';
+  let total = 0, done = 0;
+  card.querySelectorAll('td[data-grif]').forEach(el => {
+    if (el.dataset.grif.indexOf(pref) === 0){ total++; if (el.classList.contains('grifado')) done++; }
+  });
+  if (!total){ chip.hidden = true; return; }
+  chip.hidden = false;
+  chip.classList.toggle('complete', done === total);
+  chip.style.setProperty('--gp', total ? Math.round(done / total * 100) : 0);
+  chip.innerHTML = `<span class="gp-ring" aria-hidden="true"></span><b>${done}/${total}</b> campos${done === total ? ' ✓' : ''}`;
+}
 
 /* ── busca ── */
 $('searchInp').addEventListener('input', () => { SEARCH = $('searchInp').value; renderList(); });
