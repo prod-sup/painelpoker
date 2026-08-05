@@ -1285,3 +1285,41 @@ body.fs-lock{overflow:hidden}
     -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
   .fs-backdrop[hidden]{display:none}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PLANILHA DE AUDITORIA no mobile (ago/2026) — O PRINCIPAL: ler a auditoria fácil.
+   Continua TABELA (planilha), mas a coluna do TORNEIO fica CONGELADA à esquerda —
+   o nome não sai da tela enquanto você desliza os números. Padrão de planilha no
+   celular (Sheets/Excel). Escopo em #auditResult; CN/ranking não mudam. */
+@media (max-width:640px){
+  #auditResult .audit-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;touch-action:pan-x pan-y}
+  #auditResult .audit-table{font-size:12px}
+  #auditResult .audit-table th,#auditResult .audit-table td{padding:9px 11px;white-space:nowrap}
+  #auditResult .audit-table td.r,#auditResult .audit-table th.r{text-align:right}
+
+  /* coluna 1 — checkbox — largura fixa e colada à esquerda */
+  #auditResult .audit-table th:first-child,
+  #auditResult .audit-table td.au-check{
+    width:30px;min-width:30px;max-width:30px;padding-left:8px;padding-right:2px;
+    position:sticky;left:0;z-index:3;background:var(--s1);
+  }
+  #auditResult .audit-table thead th:first-child{z-index:5;background:var(--s2)}
+
+  /* coluna 2 — TORNEIO — congelada logo após a checkbox (offset = 30px exatos) */
+  #auditResult .audit-table th:nth-child(2),
+  #auditResult .audit-table td.nm{
+    position:sticky;left:30px;z-index:3;background:var(--s1);
+    max-width:44vw;overflow:hidden;text-overflow:ellipsis;
+    box-shadow:6px 0 8px -6px rgba(0,0,0,.28);
+  }
+  #auditResult .audit-table thead th:nth-child(2){z-index:5;background:var(--s2)}
+  /* o fundo das colunas fixas acompanha o realce da linha (anomalia/auditada) */
+  #auditResult .audit-table tr.anomalia td.au-check,
+  #auditResult .audit-table tr.anomalia td.nm{background:color-mix(in srgb,var(--red) 9%,var(--s1))}
+  #auditResult .audit-table tr.audit-edited td.au-check,
+  #auditResult .audit-table tr.audit-edited td.nm{background:color-mix(in srgb,var(--green) 8%,var(--s1))}
+  #auditResult .audit-table tbody tr:hover td.au-check,
+  #auditResult .audit-table tbody tr:hover td.nm{background:var(--s2)}
+  /* botões de ação compactos mas tocáveis */
+  #auditResult .audit-table td.au-actions button{padding:7px 9px}
+}

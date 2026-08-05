@@ -102,7 +102,10 @@
       '.suprema-footer .sf-mark-os{margin-left:5px;color:var(--gold,var(--sup-gold,#8f6c14))}' +
       '.suprema-footer .sf-tagline{' +
         'font-size:11.5px;letter-spacing:.02em;color:var(--sup-ink-soft,#6e6e73)}' +
-      '.suprema-footer .sf-social{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}' +
+      /* position:static — defende o rodapé de um seletor amplo `nav{position:fixed}`
+         do painel (painel.css ~L586, feito pra topbar) que VAZAVA neste <nav>, colando
+         as redes sociais no topo por cima do herói. O rodapé sempre fica no fluxo. */
+      '.suprema-footer .sf-social{position:static;display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}' +
       '.suprema-footer .sf-link{' +
         'display:inline-flex;align-items:center;gap:9px;text-decoration:none;' +
         'padding:8px 13px;border-radius:12px;' +

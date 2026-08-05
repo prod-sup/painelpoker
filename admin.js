@@ -1163,23 +1163,23 @@ async function loadAudit(){
         const trCls = [cls, r._audited?'audit-edited':'', hasAnomalia?'anomalia':''].filter(Boolean).join(' ');
         const anomaliaHtml = hasAnomalia ? `<span title="${anomalias.join(', ')}" style="font-size:9px;background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.2);border-radius:4px;padding:1px 5px;margin-left:4px">⚠ ${anomalias[0]}</span>` : '';
         return `<tr class="${trCls}" data-key="${r.key}" data-date="${r.date}">
-          <td><input type="checkbox" class="row-check" data-key="${r.key}" data-date="${r.date}"
+          <td class="au-check"><input type="checkbox" class="row-check" data-key="${r.key}" data-date="${r.date}"
             style="accent-color:var(--gold);width:14px;height:14px"
             data-act="updateBatchActions" data-act-on="change"></td>
           <td class="nm" style="max-width:200px">${esc(r.nome)}${anomaliaHtml}</td>
-          <td class="mono">${esc(r.hora)}</td>
-          <td class="mono">${esc(r.late)}</td>
-          <td class="r mono">${r.garantido!=null?'R$ '+brl(r.garantido):'—'}</td>
-          <td class="r mono">${r.buyin!=null?'R$ '+brl(r.buyin):'—'}</td>
-          <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.premiacaoOriginal!==r.premiacao?'c-gold':''}">${r.premiacao!=null?'R$ '+brl(r.premiacao,2):'—'}</td>
-          <td class="r mono ov-val">${r.overlay!=null?'R$ '+brl(r.overlay,2):'—'}</td>
-          <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.fieldOriginal!==r.field?'c-gold':''}">${r.field!=null?r.field:'—'}</td>
-          <td class="r mono">${r.perf!=null?`<span class="perf ${r.perf>=0?'pos':'neg'}">${pct(r.perf,2)}</span>`:'—'}</td>
-          <td class="c-ink2">${r.fixBy?`${esc(r.fixBy)}${r.fixAt?`<span style="display:block;font-size:9px;color:var(--ink3);font-family:var(--mono)">${esc(r.fixAt)}</span>`:''}${fixTimingBadge(r)}`:'—'}</td>
-          <td class="c-ink2">${r.premBy?`${esc(r.premBy)}${r.premByAt?`<span style="display:block;font-size:9px;color:var(--ink3);font-family:var(--mono)">${esc(r.premByAt)}</span>`:''}`:'—'}</td>
-          <td class="mono c-ink2">${esc(r.id)}</td>
-          <td>${statusBadge(r.status)}</td>
-          <td style="display:flex;gap:5px;align-items:center">
+          <td class="mono" data-label="Hora">${esc(r.hora)}</td>
+          <td class="mono" data-label="Late">${esc(r.late)}</td>
+          <td class="r mono" data-label="GTD">${r.garantido!=null?'R$ '+brl(r.garantido):'—'}</td>
+          <td class="r mono" data-label="Buy-in">${r.buyin!=null?'R$ '+brl(r.buyin):'—'}</td>
+          <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.premiacaoOriginal!==r.premiacao?'c-gold':''}" data-label="Arrecadado">${r.premiacao!=null?'R$ '+brl(r.premiacao,2):'—'}</td>
+          <td class="r mono ov-val" data-label="Overlay">${r.overlay!=null?'R$ '+brl(r.overlay,2):'—'}</td>
+          <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.fieldOriginal!==r.field?'c-gold':''}" data-label="Field">${r.field!=null?r.field:'—'}</td>
+          <td class="r mono" data-label="Perf.">${r.perf!=null?`<span class="perf ${r.perf>=0?'pos':'neg'}">${pct(r.perf,2)}</span>`:'—'}</td>
+          <td class="c-ink2" data-label="Fixou">${r.fixBy?`${esc(r.fixBy)}${r.fixAt?`<span style="display:block;font-size:9px;color:var(--ink3);font-family:var(--mono)">${esc(r.fixAt)}</span>`:''}${fixTimingBadge(r)}`:'—'}</td>
+          <td class="c-ink2" data-label="Arrecadou">${r.premBy?`${esc(r.premBy)}${r.premByAt?`<span style="display:block;font-size:9px;color:var(--ink3);font-family:var(--mono)">${esc(r.premByAt)}</span>`:''}`:'—'}</td>
+          <td class="mono c-ink2" data-label="ID">${esc(r.id)}</td>
+          <td class="au-status" data-label="Status">${statusBadge(r.status)}</td>
+          <td class="au-actions" style="display:flex;gap:5px;align-items:center">
             <button class="audit-edit-btn ${r._audited?'auditado':''}"
               data-key="${r.key}" data-date="${r.date}"
               data-act="openAuditEditByEl" data-act-self>
