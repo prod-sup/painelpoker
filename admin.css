@@ -1295,12 +1295,18 @@ body.fs-lock{overflow:hidden}
    NADA de sticky aqui — rolagem lateral pura, que funciona em todo navegador.
    Escopo em #auditResult; as tabelas de CN/ranking não mudam. */
 @media (max-width:640px){
-  /* container de rolagem: transborda no X, momentum do iOS, e o arraste vertical
-     sobe pra página (overflow-y:hidden + touch-action:pan-x). SEM sticky. */
+  /* container de rolagem robusto no iOS: SEM -webkit-overflow-scrolling:touch — essa
+     camada de momentum QUEBRA quando um ancestral tem overflow:hidden ou transform
+     (o .audit-group tem overflow:hidden; as .page do admin animam com transform).
+     O scroll padrão do iOS moderno rola liso sem ela. overflow-y:hidden + pan-x =
+     arraste vertical sobe pra página; horizontal rola a tabela. SEM sticky. */
   #auditResult .audit-scroll{
     overflow-x:auto;overflow-y:hidden;
-    -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;touch-action:pan-x;
+    overscroll-behavior-x:contain;touch-action:pan-x;
+    -webkit-overflow-scrolling:auto;
   }
+  /* o pai NÃO pode clipar/estabelecer camada que trave o scroll do filho no iOS */
+  #auditResult .audit-group{overflow:visible}
   /* barra de rolagem fininha SEMPRE visível — afirma que dá pra rolar (no iOS o
      Safari esconde, então o degradê da direita abaixo faz o papel de dica). */
   #auditResult .audit-scroll{scrollbar-width:thin}
