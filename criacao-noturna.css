@@ -1607,3 +1607,34 @@ html,body{overflow-x:hidden;max-width:100%}
   .wk-day-btn{min-height:44px}
   .view-switch .seg button{padding:11px 16px}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DATA-FIRST no mobile (ago/2026 · v2) — a página tinha ~3500px de herói +
+   controles ANTES da lista de torneios (o trabalho de verdade). Padrão de app:
+   herói enxuto, textos-guia recolhidos (progressive disclosure), controles
+   densos. A lista sobe pra perto da dobra. Mesmas funções e interações.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width:640px){
+  /* HERÓI enxuto: título menor, padding menor e o parágrafo-guia limitado a 2
+     linhas (a explicação inteira vive melhor no onboarding, não na dobra). */
+  .hero{padding-top:26px;padding-bottom:20px}
+  .hero-eyebrow{margin-bottom:12px;padding:5px 11px;font-size:10px}
+  .hero h1{font-size:clamp(23px,6.6vw,30px);line-height:1.08}
+  .hero p.sub{
+    margin-top:8px;font-size:13px;line-height:1.5;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  }
+  .hero-stats{margin-top:18px}
+  .cn-rings{margin-top:16px}
+
+  /* CONTROLES densos: os textos-guia (hints/notas) somem no celular — são
+     aprendizado, não operação. Corta ~200px de leitura antes da lista. */
+  .controls{gap:16px}
+  .ctrl-hint,.controls .section-note{display:none}
+  .ctrl-group{gap:6px}
+  #controlsCard.card{padding:16px 14px}
+  /* segmentos e busca ocupam a largura no dedo */
+  .seg{width:100%}
+  .seg button{flex:1 1 0}
+  .search-inp,.search-inp:focus{width:100%}
+}

@@ -1218,3 +1218,70 @@ tr.cn-erro{ background:rgba(239,68,68,.06) !important; }
     background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--s1) 86%,transparent));
   }
 }
+
+/* Desktop (padrão): a folha de filtros não existe — os filtros seguem inline como
+   sempre; as peças do bottom sheet (cabeçalho, rodapé, gatilho, backdrop) somem.
+   VÊM ANTES do @media pra que as regras mobile abaixo vençam por ordem de fonte. */
+.fs-head,.fs-foot,.filters-trigger,.fs-backdrop{display:none}
+body.fs-lock{overflow:hidden}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DENSIDADE DA PÁGINA no mobile (ago/2026 · v2) — o problema real: as regras
+   antigas empilhavam AÇÕES e FILTROS em blocos full-width, jogando os DADOS pra
+   muito abaixo da dobra (parede de ~8 controles). Padrão de app de verdade
+   (Linear/iOS/Stripe): ações viram fila rolável, filtros recolhem numa folha.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width:640px){
+  /* AÇÕES da página: fila horizontal rolável, ação primária primeiro — em vez de
+     5 botões full-width empilhados. Cabe numa faixa; os dados sobem pra dobra. */
+  .ph{flex-direction:column;align-items:stretch;gap:10px}
+  .ph-actions{
+    width:auto;flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;
+    -webkit-overflow-scrolling:touch;gap:8px;justify-content:flex-start;
+    scrollbar-width:none;padding-bottom:2px;margin:0 -2px;
+  }
+  .ph-actions::-webkit-scrollbar{display:none}
+  .ph-actions .btn{flex:0 0 auto;justify-content:center;white-space:nowrap}
+  .ph-actions .btn-gold{order:-1;box-shadow:var(--sh-2)}   /* Buscar/primária vem primeiro */
+
+  /* FILTROS recolhidos numa FOLHA (bottom sheet) acionada pelo botão "Filtros" da
+     barra de ações. Fora do fluxo (position:fixed) → os dados encostam no topo.
+     Dentro da folha os campos vão 2-a-2; período e o par De/Até tomam a linha. */
+  .filters{
+    position:fixed;left:0;right:0;bottom:0;z-index:130;margin:0;
+    display:flex;flex-direction:row;flex-wrap:wrap;align-items:flex-end;gap:12px;
+    max-height:86vh;overflow-y:auto;overscroll-behavior:contain;
+    padding:8px 16px calc(16px + env(safe-area-inset-bottom,0px));
+    background:var(--glass,var(--s1));border-top:1px solid var(--border);border-radius:22px 22px 0 0;
+    -webkit-backdrop-filter:saturate(180%) blur(24px);backdrop-filter:saturate(180%) blur(24px);
+    box-shadow:0 -18px 50px -20px rgba(0,0,0,.55);
+    transform:translateY(calc(100% + 40px));transition:transform .34s var(--ease-expo);
+    visibility:hidden;
+  }
+  .filters.sheet-open{transform:none;visibility:visible}
+  .filters > div[style]{flex:1 1 100%;min-width:0}
+  .filters .fld{flex:1 1 44%;min-width:0;width:auto}
+  .fld input,.fld select{width:100%;min-width:0;padding:11px 12px}
+  .filters > div[style] > .btn-sm{flex:0 0 auto;min-height:38px}
+  #batchActions{flex-wrap:wrap}
+
+  /* cabeçalho + rodapé da folha (injetados pelo JS) e o gatilho "Filtros" */
+  .fs-head{flex:1 1 100%;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:2;
+    padding:10px 0 2px;background:linear-gradient(var(--s1) 55%,color-mix(in srgb,var(--s1) 40%,transparent))}
+  .fs-grab{position:absolute;left:50%;top:1px;transform:translateX(-50%);width:38px;height:4px;border-radius:99px;background:var(--ink3);opacity:.4}
+  .fs-title{font-size:16px;font-weight:700;letter-spacing:-.012em;color:var(--ink);margin-top:8px}
+  .fs-x{margin-left:auto;margin-top:6px;width:34px;height:34px;flex:none;border-radius:99px;cursor:pointer;
+    background:var(--s2);border:1px solid var(--border);color:var(--ink2);font-size:13px;display:grid;place-items:center}
+  .fs-foot{flex:1 1 100%;display:block;position:sticky;bottom:0;z-index:2;padding:12px 0 2px;margin-top:2px;
+    background:linear-gradient(color-mix(in srgb,var(--s1) 40%,transparent),var(--s1) 45%)}
+  .fs-foot .btn{width:100%;justify-content:center;min-height:46px;font-size:15px}
+  /* gatilho "Filtros" fixado como PRIMEIRO item da fila (antes até do Buscar), com
+     acento dourado — nunca rola pra fora da tela, é o ponto de entrada dos filtros */
+  .filters-trigger{display:inline-flex;flex:0 0 auto;order:-2;border-color:var(--goldb);color:var(--gold);font-weight:600}
+  .ph-actions .btn-gold{order:-1}
+  .ft-count{display:inline-grid;place-items:center;min-width:16px;height:16px;padding:0 5px;
+    background:var(--gold);color:#fff;font-size:10px;font-weight:800;border-radius:99px;margin-left:4px}
+  .fs-backdrop{display:block;position:fixed;inset:0;z-index:125;background:rgba(0,0,0,.34);
+    -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+  .fs-backdrop[hidden]{display:none}
+}

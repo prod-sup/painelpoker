@@ -687,6 +687,7 @@ function nav(id,btn){
   const more=document.getElementById('mtabMore');
   if(more) more.classList.toggle('active', ['criacao','backup','avisos'].includes(id));
   closeNavSheet();                                 // fecha a folha de navegação do mobile
+  closeFilterSheet();                              // fecha a folha de filtros do mobile
   closeTbMenu();                                   // fecha o menu de ações se estava aberto
   const pg=document.getElementById('page'+id.charAt(0).toUpperCase()+id.slice(1));
   if(pg)pg.classList.add('active');
@@ -734,6 +735,84 @@ function closeNavSheet(){
   const sheet=document.getElementById('navSheet');
   if(sheet&&sheet.classList.contains('open')) toggleNavSheet();
 }
+
+/* ── FILTROS COMO BOTTOM SHEET (mobile) ──────────────────────────────────────
+   No celular os filtros de cada página deixam de empilhar full-width (jogando os
+   dados pra baixo da dobra) e passam a morar numa folha acionada pelo botão
+   "Filtros" da barra de ações, com contador de filtros ativos. Padrão iOS/Linear.
+   Genérico: injeta cabeçalho/rodapé em cada .filters e um gatilho em cada
+   .ph-actions — no desktop tudo isso fica display:none e os filtros seguem inline. */
+function initMobileFilters(){
+  document.querySelectorAll('.page').forEach(function(pg){
+    var filters=pg.querySelector('.filters');
+    var actions=pg.querySelector('.ph-actions');
+    if(!filters) return;
+    if(!filters.querySelector('.fs-head')){
+      var head=document.createElement('div');
+      head.className='fs-head';
+      head.innerHTML='<span class="fs-grab" aria-hidden="true"></span><span class="fs-title">Filtros</span>'+
+        '<button type="button" class="fs-x" data-act="closeFilterSheet" aria-label="Fechar filtros">✕</button>';
+      filters.insertBefore(head, filters.firstChild);
+      var foot=document.createElement('div');
+      foot.className='fs-foot';
+      foot.innerHTML='<button type="button" class="btn btn-gold" data-act="closeFilterSheet">Ver resultados</button>';
+      filters.appendChild(foot);
+    }
+    if(actions && !actions.querySelector('.filters-trigger')){
+      var t=document.createElement('button');
+      t.type='button'; t.className='btn btn-ghost filters-trigger';
+      t.setAttribute('data-act','toggleFilterSheet');
+      t.setAttribute('aria-haspopup','dialog');
+      t.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg> Filtros <span class="ft-count" hidden></span>';
+      actions.appendChild(t);
+    }
+  });
+  if(!document.getElementById('filterSheetBackdrop')){
+    var bd=document.createElement('div');
+    bd.id='filterSheetBackdrop'; bd.className='fs-backdrop';
+    bd.setAttribute('data-act','closeFilterSheet'); bd.hidden=true;
+    document.body.appendChild(bd);
+  }
+  if(!window.__fsCountBound){
+    window.__fsCountBound=true;
+    document.addEventListener('change', function(e){ if(e.target.closest && e.target.closest('.filters')) refreshFilterCount(); });
+    document.addEventListener('input', function(e){ if(e.target.closest && e.target.closest('.filters')) refreshFilterCount(); });
+  }
+  refreshFilterCount();
+}
+function refreshFilterCount(){
+  document.querySelectorAll('.page').forEach(function(pg){
+    var filters=pg.querySelector('.filters');
+    var cnt=pg.querySelector('.ft-count');
+    if(!filters||!cnt) return;
+    var n=0;
+    filters.querySelectorAll('input,select').forEach(function(el){
+      if(el.closest('.fs-head')||el.closest('.fs-foot')) return;
+      if(el.tagName==='SELECT'){ if(el.selectedIndex>0) n++; }
+      else if(el.value && String(el.value).trim()) n++;
+    });
+    if(n>0){ cnt.textContent=n; cnt.hidden=false; } else { cnt.textContent=''; cnt.hidden=true; }
+  });
+}
+function toggleFilterSheet(){
+  var f=document.querySelector('.page.active .filters');
+  if(!f) return;
+  var bd=document.getElementById('filterSheetBackdrop');
+  var open=!f.classList.contains('sheet-open');
+  f.classList.toggle('sheet-open',open);
+  if(bd){ if(open) bd.hidden=false; else bd.hidden=true; }
+  document.body.classList.toggle('fs-lock',open);
+}
+function closeFilterSheet(){
+  var f=document.querySelector('.page.active .filters.sheet-open');
+  var bd=document.getElementById('filterSheetBackdrop');
+  if(f) f.classList.remove('sheet-open');
+  if(bd) bd.hidden=true;
+  document.body.classList.remove('fs-lock');
+  refreshFilterCount();
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', initMobileFilters);
+else initMobileFilters();
 
 /* Ranking de operadores: dobra/expande o card inline dentro da aba Operadores.
    Substitui o antigo modal (moOpRanking) e o botão da topbar. */
