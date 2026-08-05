@@ -149,7 +149,7 @@
      nav. Idempotente (cria uma vez). */
   var PANEL_ACCENT = {
     painel:'#18a36b', gu:'#8c5cc6', cash:'#4f8ef7', eventos:'#b3475d',
-    learn:'#e8933d', analytics:'#4f8ef7', tv:'#c9a84c', pipe:'#b3475d',
+    learn:'#e8933d', tv:'#c9a84c', pipe:'#b3475d',
     admin:'#c9a84c', org:'#c9a84c'
   };
   function panelHref(p){ return p.external ? p.url : (p.file || (p.id === 'hub' ? 'hub.html' : '')); }

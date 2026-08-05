@@ -61,7 +61,6 @@
                  RTDB (database.rules.json) espelham isso e são a autoridade real. */
   var PANELS = [
     { id: 'painel', label: 'Painel do Dia',     file: 'index.html',              def: true, defEdit: true },
-    { id: 'analytics', label: 'Suprema Analytics', file: 'analytics.html' },
     { id: 'gu',     label: 'Criação Noturna',   file: 'criacao-noturna.html',    def: true, defEdit: true },
     { id: 'cash',   label: 'Cash Intelligence', file: 'dashboard-mesa-cash.html' },
     { id: 'eventos',label: 'Radar de Eventos',  file: 'eventos.html' },

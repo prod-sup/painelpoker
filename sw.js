@@ -1,7 +1,7 @@
 // Suprema Poker — Service Worker
 // IMPORTANTE: incremente SW_VERSION a cada deploy — é isso que faz as abas abertas
 // receberem o aviso de "nova versão disponível" e ninguém operar com código velho
-const SW_VERSION = '3.113.0';
+const SW_VERSION = '3.114.0';
 const CACHE_NAME = `suprema-painel-v${SW_VERSION}`;
 // BASE derivada da própria URL do SW: '/' na Vercel (painelpoker.vercel.app/) e
 // '/painelpoker/' no GitHub Pages. Os assets abaixo são RELATIVOS e recebem a base
@@ -48,10 +48,6 @@ const STATIC_ASSETS = [
   'eventos.css',
   'eventos.js',
   'radar-core.js',
-  'analytics.html',
-  'analytics.css',
-  'analytics.js',
-  'analytics-core.js',
   // o Worker de parse da Global: sem ele no cache, o Radar/TV offline perdem o
   // caminho rápido e caem no parse síncrono (funciona, mas trava a aba)
   'suprema-global-worker.js',

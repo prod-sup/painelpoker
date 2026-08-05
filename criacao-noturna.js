@@ -1586,12 +1586,15 @@ function renderFieldDiag(){
     ['Time Bank', seek(timeBankInfo)],
     ['Structure', seek(structureInfo)]
   ];
-  const chips = items.map(([k, lab]) => lab
-    ? `<span class="lk" title="coluna reconhecida: ${escHtml(lab)}"><span class="d" style="background:var(--felt-bright)"></span>${k}</span>`
-    : `<span class="lk" style="opacity:.6" title="Nenhuma coluna da Global bateu com ${k} — o destaque/divisão desse item não aparece até a coluna existir ou o padrão ser ajustado"><span class="d" style="background:var(--ink-soft)"></span>${k}: não achada</span>`
+  // Só ERRO: as colunas reconhecidas não precisam aparecer — só avisamos quando
+  // alguma coluna da recipe NÃO bateu com nenhuma coluna da Global (a pedido).
+  const missing = items.filter(([, lab]) => !lab).map(([k]) => k);
+  if (!missing.length){ el.hidden = true; return; }   // tudo reconhecido → não mostra nada
+  const chips = missing.map(k =>
+    `<span class="lk"><span class="d" style="background:var(--ink-soft)"></span>${k}</span>`
   ).join('');
   el.hidden = false;
-  el.innerHTML = `<b>Colunas lidas da Global:</b> ${chips}`;
+  el.innerHTML = `<b style="color:var(--red,#e5484d)">⚠ Colunas da Global não reconhecidas:</b> ${chips} <span style="opacity:.72">— o destaque/divisão desses itens não aparece até a coluna existir ou o padrão ser ajustado.</span>`;
 }
 
 function renderOps(){
