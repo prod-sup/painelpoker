@@ -51,12 +51,20 @@ const $ = id => document.getElementById(id);
    painel-scope.test.js falha se qualquer escHtml do repo deixar de cobrir os 5. */
 function escHtml(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 /* normText, parser da G MTTS, janelas da grade e BRL_RATE vêm de gu-parser.js */
-function showToast(msg, isErr){
+function showToast(msg, isErr, action){
   const t = $('toast');
-  t.textContent = msg;
+  if (action && action.label){
+    t.innerHTML = '';
+    const s = document.createElement('span'); s.textContent = msg;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'toast-act'; b.textContent = action.label;
+    b.addEventListener('click', () => { try { action.onClick(); } catch (e) {} t.className = ''; });
+    t.appendChild(s); t.appendChild(b);
+  } else {
+    t.textContent = msg;
+  }
   t.className = isErr ? 'show err' : 'show';
   clearTimeout(t._h);
-  t._h = setTimeout(() => t.className = '', 3200);
+  t._h = setTimeout(() => t.className = '', action ? 6000 : 3200);   // mais tempo quando tem ação (Desfazer)
 }
 
 /* ── relógio de Brasília (mesma regra do painel: nunca confiar no fuso do dispositivo) ── */
@@ -1111,20 +1119,29 @@ function assignableItems(){
 /* "Pegar livres" — a pessoa selecionada pega TODOS os torneios sem dono de uma vez */
 function claimUnassigned(){
   if (!SELECTED_OP){ showToast('Selecione uma pessoa na equipe primeiro.', true); return; }
-  const asg = computeAssignments(); let n = 0;
-  assignableItems().forEach(it => { const k = itemKey(it); if (!asg[k]){ OVERRIDES[k] = SELECTED_OP; n++; } });
+  const asg = computeAssignments(); let n = 0; const undo = [];
+  assignableItems().forEach(it => { const k = itemKey(it); if (!asg[k]){ undo.push([k, OVERRIDES[k]]); OVERRIDES[k] = SELECTED_OP; n++; } });
   if (!n){ showToast('Nenhum torneio livre no momento.'); return; }
+  const who = SELECTED_OP.split(' ')[0];
   persistOverrides(); logEvent('pegou livres', `${SELECTED_OP} +${n}`);
-  showToast(`${n} torneio(s) livre(s) → ${SELECTED_OP.split(' ')[0]}.`);
+  showToast(`${n} livre(s) → ${who}.`, false, { label:'Desfazer', onClick: () => undoClaim(undo, 'pegar livres') });
 }
 /* "Pegar atrasados" — a pessoa selecionada pega os que estão estourando o prazo (urgência) e ainda não criados */
 function claimLate(){
   if (!SELECTED_OP){ showToast('Selecione uma pessoa na equipe primeiro.', true); return; }
-  let n = 0;
-  assignableItems().forEach(it => { const k = itemKey(it); if (urgency(it) && !DONE[k]){ OVERRIDES[k] = SELECTED_OP; n++; } });
+  let n = 0; const undo = [];
+  assignableItems().forEach(it => { const k = itemKey(it); if (urgency(it) && !DONE[k]){ undo.push([k, OVERRIDES[k]]); OVERRIDES[k] = SELECTED_OP; n++; } });
   if (!n){ showToast('Nenhum torneio atrasado agora. 👍'); return; }
+  const who = SELECTED_OP.split(' ')[0];
   persistOverrides(); logEvent('pegou atrasados', `${SELECTED_OP} +${n}`);
-  showToast(`${n} atrasado(s) → ${SELECTED_OP.split(' ')[0]}.`);
+  showToast(`${n} atrasado(s) → ${who}.`, false, { label:'Desfazer', onClick: () => undoClaim(undo, 'pegar atrasados') });
+}
+/* A3 — desfaz um comando em lote: restaura o dono anterior de cada torneio
+   (undefined = volta a ficar livre). */
+function undoClaim(undo, what){
+  undo.forEach(([k, prev]) => { if (prev == null) delete OVERRIDES[k]; else OVERRIDES[k] = prev; });
+  persistOverrides(); logEvent(`desfez ${what}`, `${undo.length}`);
+  showToast(`Desfeito (${undo.length}).`);
 }
 
 /* =========================================================================
@@ -1641,6 +1658,26 @@ function renderOps(){
   const me = $('opAddMe');
   if (me) me.addEventListener('click', () => saveOps([...OPS, ME]));
   renderDivTools(asg);
+  renderAssignBanner();
+}
+/* A1 — barra fixa de "modo atribuição": quando alguém está armado (SELECTED_OP),
+   deixa o estado VISÍVEL (antes só o chip .sel indicava) e dá um botão Concluir.
+   Some em tela cheia/TV pra não sobrepor. */
+function renderAssignBanner(){
+  let b = document.getElementById('assignBanner');
+  const active = SELECTED_OP && !SEC_FS && !TV_OPEN;
+  if (!active){ if (b) b.classList.remove('show'); return; }
+  if (!b){
+    b = document.createElement('div');
+    b.id = 'assignBanner';
+    b.setAttribute('role', 'status');
+    b.innerHTML = '<span class="ab-dot" aria-hidden="true"></span><span class="ab-txt"></span><button class="ab-done" type="button">Concluir</button>';
+    document.body.appendChild(b);
+    b.querySelector('.ab-done').addEventListener('click', () => { SELECTED_OP = null; renderAll(); });
+  }
+  b.querySelector('.ab-dot').style.background = opColor(SELECTED_OP);
+  b.querySelector('.ab-txt').innerHTML = `Atribuindo a <b>${escHtml(SELECTED_OP.split(' ')[0])}</b> — clique nos torneios`;
+  b.classList.add('show');
 }
 /* medidor de equilíbrio (carga por pessoa) + ações rápidas: "Pegar livres" e "Pegar atrasados" */
 function renderDivTools(asg){
@@ -1657,11 +1694,14 @@ function renderDivTools(asg){
   });
   const max = Math.max(1, ...OPS.map(o => cnt[o]));
   const avg = OPS.length ? OPS.reduce((s,o)=>s+cnt[o],0) / OPS.length : 0;
+  const avgPct = max ? Math.round(avg / max * 100) : 0;
+  // linha da MÉDIA no medidor: "equilibrado" fica visível de relance (só faz sentido com 2+)
+  const avgMark = OPS.length > 1 ? `<i class="bal-avg" style="left:${avgPct}%" title="Média: ${avg.toFixed(1)} por pessoa"></i>` : '';
   const bars = OPS.map(o => {
     const over = cnt[o] > avg * 1.4 && cnt[o] - avg >= 2;   // sinaliza sobrecarga
     return `<div class="bal-row"${over ? ' title="Sobrecarregado"' : ''}>
       <span class="bal-name" style="color:${opColor(o)}">${escHtml(o.split(' ')[0])}${over ? ' ⚠' : ''}</span>
-      <span class="bal-bar"><span class="bal-fill" style="width:${Math.round(cnt[o]/max*100)}%;background:${opColor(o)}"></span></span>
+      <span class="bal-bar"><span class="bal-fill" style="width:${Math.round(cnt[o]/max*100)}%;background:${opColor(o)}"></span>${avgMark}</span>
       <span class="bal-n">${cnt[o]}</span>
     </div>`;
   }).join('');
@@ -2198,8 +2238,12 @@ function visibleItems(list, asg){
 }
 
 function opTagHtml(op, key){
+  // A2 — origem do dono: override POR EVENTO (explícito, chip sólido) x DONO DA SEÇÃO
+  // (herdado, chip fantasma/tracejado). Sem isso não dava pra saber se a pessoa foi
+  // atribuída àquele torneio ou só "cobre" a seção inteira.
+  const inherited = !!(op && key && OVERRIDES[key] !== op);
   const inner = op
-    ? `<span class="op-tag" style="background:${opColor(op)}"><span class="dot">${escHtml(op.trim()[0].toUpperCase())}</span>${escHtml(op.split(' ')[0])}</span>`
+    ? `<span class="op-tag${inherited ? ' inherited' : ''}" style="${inherited ? `--opc:${opColor(op)}` : `background:${opColor(op)}`}"${inherited ? ' title="Herdado do dono da seção — clique pra atribuir este torneio direto"' : ''}><span class="dot">${escHtml(op.trim()[0].toUpperCase())}</span>${escHtml(op.split(' ')[0])}${inherited ? '<span class="op-tag-src">seção</span>' : ''}</span>`
     : `<span class="op-tag none">${SELECTED_OP ? 'clique p/ atribuir' : 'atribuir ▾'}</span>`;
   if (!key) return inner;   // usos read-only (ex.: TV) passam sem key
   const tip = SELECTED_OP
@@ -2427,6 +2471,7 @@ function renderSecFs(){
       ${secOwnerChipHtml(SEC_FS)}
       <span class="sec-fs-prog" title="${pct}% criados" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></span>
       <span class="line"></span>
+      <input type="search" class="sec-fs-search" id="secFsSearch" placeholder="Buscar (/)" value="${escHtml(SEARCH || '')}" aria-label="Buscar torneio na seção">
       <div class="seg sec-view-seg" role="group" aria-label="Visão da seção">
         <button data-secview="sheet" class="${SEC_VIEW === 'sheet' ? 'on' : ''}" title="Planilha — um torneio por linha, igual à Global (tecla P)">Planilha</button>
         <button data-secview="columns" class="${SEC_VIEW === 'columns' ? 'on' : ''}" title="Colunas — campos empilhados, um torneio por coluna (tecla C)">Colunas</button>
@@ -2443,7 +2488,9 @@ function renderSecFs(){
     <div class="sec-fs-foot">
       <div class="keys" aria-hidden="true">
         <span class="kbtn"><kbd>←</kbd><kbd>→</kbd> navegar</span>
-        <span class="kbtn"><kbd>Espaço</kbd> marcar criado</span>
+        <span class="kbtn"><kbd>Espaço</kbd> marcar + avançar</span>
+        <span class="kbtn"><kbd>1</kbd>–<kbd>9</kbd> atribuir</span>
+        <span class="kbtn"><kbd>/</kbd> buscar</span>
         <span class="kbtn"><kbd>P</kbd><kbd>C</kbd> planilha/colunas</span>
         <span class="kbtn"><kbd>Esc</kbd> sair</span>
       </div>
@@ -2451,8 +2498,19 @@ function renderSecFs(){
     </div>`;
   ov.classList.add('open');
   ov.setAttribute('aria-hidden', 'false');
+  card.classList.toggle('sec-complete', pct === 100);   // B4: momento de conclusão (100% criados)
   $('secFsClose').addEventListener('click', () => toggleSectionFs(SEC_FS));
   $('secFsEye').addEventListener('click', e => { e.stopPropagation(); openFieldEye(e.currentTarget); });
+  const secSearch = document.getElementById('secFsSearch');
+  if (secSearch) secSearch.addEventListener('input', () => {
+    SEARCH = secSearch.value;
+    clearTimeout(window.__secSearchT);
+    window.__secSearchT = setTimeout(() => {
+      renderSecFs();
+      const i2 = document.getElementById('secFsSearch');
+      if (i2){ i2.focus(); try { i2.setSelectionRange(i2.value.length, i2.value.length); } catch (e) {} }
+    }, 160);
+  });
   card.querySelectorAll('[data-secview]').forEach(b => b.addEventListener('click', () => setSectionView(b.dataset.secview)));
   card.querySelectorAll('[data-secowner]').forEach(el => el.addEventListener('click', () => openSecOwnerMenu(el, el.dataset.secowner)));
   card.querySelectorAll('[data-assign]').forEach(el => el.addEventListener('click', () => onAssignClick(el)));
@@ -2819,6 +2877,20 @@ function secFsMoveCursor(delta){
   SEC_CURSOR = keys[idx];
   secFsHighlightCursor();
 }
+/* Flow state: ao marcar CRIADO (Espaço), pula pro próximo torneio NÃO-criado da
+   seção (dá a volta). Se não sobrou nenhum, fica no lugar — o momento de conclusão
+   (100%) cuida do resto. O item atual acabou de ser marcado, então é pulado. */
+function secFsAdvanceToNextUndone(){
+  if (!SEC_FS || !DATA) return;
+  const cat = SECTIONS.find(c => c.key === SEC_FS); if (!cat) return;
+  const keys = visibleItems(catItems(cat), computeAssignments()).map(itemKey);
+  if (!keys.length) return;
+  const i = SEC_CURSOR ? keys.indexOf(SEC_CURSOR) : -1;
+  for (let step = 1; step <= keys.length; step++){
+    const j = ((i < 0 ? 0 : i) + step) % keys.length;
+    if (keys[j] !== SEC_CURSOR && !DONE[keys[j]]){ SEC_CURSOR = keys[j]; secFsHighlightCursor(); return; }
+  }
+}
 /* Home/End — pula pro primeiro/último torneio da seção (idx=Infinity = último) */
 function secFsJumpCursor(idx){
   if (!SEC_FS || !DATA) return;
@@ -2881,9 +2953,12 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp'){ e.preventDefault(); secFsMoveCursor(-1); }
   else if (e.key === 'Home'){ e.preventDefault(); secFsJumpCursor(0); }
   else if (e.key === 'End'){ e.preventDefault(); secFsJumpCursor(Infinity); }
-  else if ((e.key === ' ' || e.key === 'Enter') && !onControl){ if (SEC_CURSOR){ e.preventDefault(); toggleDone(SEC_CURSOR); } }
+  else if ((e.key === ' ' || e.key === 'Enter') && !onControl){ if (SEC_CURSOR){ e.preventDefault(); const wasDone = !!DONE[SEC_CURSOR]; toggleDone(SEC_CURSOR); if (!wasDone) secFsAdvanceToNextUndone(); } }
+  // teclas 1–9: atribui o torneio em foco ao N-ésimo operador da equipe (velocidade)
+  else if (/^[1-9]$/.test(e.key) && !onControl){ const op = OPS[parseInt(e.key,10)-1]; if (op && SEC_CURSOR){ e.preventDefault(); setAssignTo(SEC_CURSOR, op); showToast(`Atribuído a ${op.split(' ')[0]}`); } }
   else if (e.key === 'p' || e.key === 'P'){ e.preventDefault(); setSectionView('sheet'); }
   else if (e.key === 'c' || e.key === 'C'){ e.preventDefault(); setSectionView('columns'); }
+  else if (e.key === '/'){ e.preventDefault(); const s = document.getElementById('secFsSearch'); if (s){ s.focus(); s.select(); } }   // B3: busca rápida
 });
 
 /* ── busca ── */
