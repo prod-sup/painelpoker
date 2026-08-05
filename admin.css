@@ -1292,7 +1292,9 @@ body.fs-lock{overflow:hidden}
    o nome não sai da tela enquanto você desliza os números. Padrão de planilha no
    celular (Sheets/Excel). Escopo em #auditResult; CN/ranking não mudam. */
 @media (max-width:640px){
-  #auditResult .audit-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;touch-action:pan-x pan-y}
+  /* rolagem horizontal robusta (iOS + Android): pan-x = a tabela rola pro lado e o
+     arraste vertical sobe pra página (valor testado no DESIGN.md). momentum no iOS. */
+  #auditResult .audit-scroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;touch-action:pan-x}
   #auditResult .audit-table{font-size:12px}
   #auditResult .audit-table th,#auditResult .audit-table td{padding:9px 11px;white-space:nowrap}
   #auditResult .audit-table td.r,#auditResult .audit-table th.r{text-align:right}
