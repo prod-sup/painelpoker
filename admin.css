@@ -362,7 +362,7 @@ html.dark .lbox{border-color:var(--border)}
 }
 .ph h1{font-size:32px;font-weight:700;letter-spacing:-.028em;line-height:1.1;color:var(--ink)}
 .ph p{font-size:14px;color:var(--ink2);margin-top:6px;line-height:1.5;letter-spacing:-.01em}
-.ph-actions{display:flex;gap:10px;align-items:center;flex:none}
+.ph-actions{display:flex;gap:10px;align-items:center;flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end}
 
 /* ── PERIOD TABS (segmented control) ─────────────────────────── */
 .ptabs{

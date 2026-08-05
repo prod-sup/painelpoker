@@ -1577,3 +1577,33 @@ html,body{overflow-x:hidden;max-width:100%}
   .wk-id{grid-column:2;color:var(--felt-bright)}
   .wk-by{grid-column:2}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MELHORIAS ago/2026 (mobile + desktop) — vem por último de propósito, refina
+   as regras acima. Ref.: skills mobile-app-ui-design (grid 8pt, valor > rótulo,
+   thumb-zone) + DESIGN.md (nada de degradê em dado, alvo de toque, safe-area).
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* safe-area lateral (paisagem/notch): a barra tem overflow-x:hidden, então sem
+   isso o conteúdo colava na borda arredondada no iPhone deitado. */
+.hero{padding-left:max(28px,env(safe-area-inset-left));padding-right:max(28px,env(safe-area-inset-right))}
+.wrap{padding-left:max(28px,env(safe-area-inset-left));padding-right:max(28px,env(safe-area-inset-right))}
+
+@media (max-width:560px){
+  .hero{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+  .wrap{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+  /* KPIs do herói: grade 2-col em vez de flex-wrap esfarrapado — leitura por
+     coluna, valor grande em cima do rótulo (Peak/hierarquia da skill) */
+  .hero-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .hstat{min-width:0;padding:12px 14px}
+  .hstat .n{font-size:22px}
+  /* barra de ações da noite ancorada como fila de polegar */
+  .actions-bar{gap:8px}
+}
+
+/* alvos de toque no dedo (qualquer largura com ponteiro grosso) */
+@media (pointer:coarse){
+  .btn{min-height:44px}
+  .upload-btn,.sync-now{min-height:44px}
+  .wk-day-btn{min-height:44px}
+  .view-switch .seg button{padding:11px 16px}
+}

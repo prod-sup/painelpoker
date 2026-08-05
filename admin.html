@@ -91,12 +91,12 @@ document.addEventListener('DOMContentLoaded', () => {
         <button class="btn btn-ghost" data-act="openAdminLog"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Log admin</button>
         <button class="btn btn-ghost" data-act="openJustifs" style="position:relative">
           <svg viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg> Justificativas
-          <span id="pendingBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--amber);color:#000;font-size:9px;font-weight:800;border-radius:99px;padding:1px 5px;min-width:14px;text-align:center"></span>
+          <span id="pendingBadge" aria-live="polite" aria-atomic="true" style="display:none;position:absolute;top:-4px;right:-4px;background:var(--amber);color:#000;font-size:9px;font-weight:800;border-radius:99px;padding:1px 5px;min-width:14px;text-align:center"></span>
         </button>
         <a href="criacao-noturna.html" class="tb-back" title="Criação de torneios do turno noturno (GU)">🌙 Criação GU</a>
         <a href="index.html" class="tb-back">← Painel</a>
         <a href="hub.html" class="tb-back" title="Voltar ao hub Suprema OS">♠ OS</a>
-        <button class="tb-btn" id="darkToggle" data-act="toggleDark" title="Alternar modo claro/escuro">🌙</button>
+        <button class="tb-btn" id="darkToggle" data-act="toggleDark" title="Alternar modo claro/escuro" aria-label="Alternar modo claro/escuro">🌙</button>
         <button class="tb-btn" data-act="doLogout">Sair</button>
       </div>
       <button class="tb-more" data-act="toggleTbMenu" aria-label="Mais opções" aria-expanded="false">
