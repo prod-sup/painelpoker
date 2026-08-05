@@ -683,6 +683,10 @@ function nav(id,btn){
   // dois acende os dois. Antes só o botão clicado ficava ativo.
   document.querySelectorAll('.ntab,.mtab').forEach(b=>
     b.classList.toggle('active', b.getAttribute('data-arg')===id));
+  // destinos secundários (fora da barra inferior) acendem o botão "Mais"
+  const more=document.getElementById('mtabMore');
+  if(more) more.classList.toggle('active', ['criacao','backup','avisos'].includes(id));
+  closeNavSheet();                                 // fecha a folha de navegação do mobile
   closeTbMenu();                                   // fecha o menu de ações se estava aberto
   const pg=document.getElementById('page'+id.charAt(0).toUpperCase()+id.slice(1));
   if(pg)pg.classList.add('active');
@@ -711,6 +715,24 @@ function toggleTbMenu(){
 function closeTbMenu(){
   const box=document.getElementById('tbActions');
   if(box&&box.classList.contains('open')) toggleTbMenu();
+}
+
+/* Folha de navegação do mobile (botão "Mais" da barra inferior): destinos
+   secundários que não cabem nas 5 colunas fixas. Slide de baixo pra cima. */
+function toggleNavSheet(){
+  const sheet=document.getElementById('navSheet');
+  const bd=document.getElementById('navSheetBackdrop');
+  const more=document.getElementById('mtabMore');
+  if(!sheet)return;
+  const open=!sheet.classList.contains('open');
+  sheet.classList.toggle('open',open);
+  sheet.setAttribute('aria-hidden',open?'false':'true');
+  if(bd){ if(open) bd.removeAttribute('hidden'); else bd.setAttribute('hidden',''); }
+  if(more) more.setAttribute('aria-expanded',open?'true':'false');
+}
+function closeNavSheet(){
+  const sheet=document.getElementById('navSheet');
+  if(sheet&&sheet.classList.contains('open')) toggleNavSheet();
 }
 
 /* Ranking de operadores: dobra/expande o card inline dentro da aba Operadores.

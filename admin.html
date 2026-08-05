@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Admin · Suprema OS</title>
 <script src="suprema-auth.js"></script>
 <script>
@@ -122,16 +122,28 @@ document.addEventListener('DOMContentLoaded', () => {
     <button class="ntab" id="navAvisos" data-act="nav" data-arg="avisos"><span class="ni"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>Conteúdo do hub</button>
   </nav>
 
-  <!-- BARRA INFERIOR (só mobile): navegação principal estilo app -->
-  <nav class="mobile-tabbar" aria-label="Navegação">
+  <!-- BARRA INFERIOR (só mobile): navegação principal estilo app.
+       5 colunas FIXAS (sem rolagem lateral — o excesso rolável escondia os
+       últimos itens, o bug de toolbar nº1). 4 destinos quentes + "Mais", que
+       abre a folha de navegação com os destinos secundários. -->
+  <nav class="mobile-tabbar" aria-label="Navegação principal">
     <button class="mtab active" data-act="nav" data-arg="audit"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><span>Auditoria</span></button>
-    <button class="mtab" data-act="nav" data-arg="criacao"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg><span>GU</span></button>
     <button class="mtab" data-act="nav" data-arg="dashboard"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span>Dashboard</span></button>
     <button class="mtab" data-act="nav" data-arg="grade"><svg viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg><span>Grade</span></button>
     <button class="mtab" data-act="nav" data-arg="operadores"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Operad.</span></button>
-    <button class="mtab" data-act="nav" data-arg="backup"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg><span>Backup</span></button>
-    <button class="mtab" data-act="nav" data-arg="avisos"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span>Hub</span></button>
+    <button class="mtab mtab-more" id="mtabMore" data-act="toggleNavSheet" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg><span>Mais</span></button>
   </nav>
+
+  <!-- FOLHA DE NAVEGAÇÃO (só mobile): destinos secundários fora da barra.
+       Botões usam data-act="nav" → reaproveitam o nav() existente. -->
+  <div class="nav-sheet-backdrop" id="navSheetBackdrop" data-act="toggleNavSheet" hidden></div>
+  <div class="nav-sheet" id="navSheet" role="dialog" aria-modal="true" aria-label="Mais destinos" aria-hidden="true">
+    <div class="nav-sheet-grab" aria-hidden="true"></div>
+    <span class="nav-sheet-title">Ir para</span>
+    <button class="nav-sheet-item" data-act="nav" data-arg="criacao"><span class="nsi-ic"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></span><span class="nsi-t">Criação (GU)</span><span class="nsi-s">Auditoria da criação noturna</span></button>
+    <button class="nav-sheet-item" data-act="nav" data-arg="backup"><span class="nsi-ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg></span><span class="nsi-t">Backup &amp; Arquivo</span><span class="nsi-s">Snapshots e arquivamento</span></button>
+    <button class="nav-sheet-item" data-act="nav" data-arg="avisos"><span class="nsi-ic"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span><span class="nsi-t">Conteúdo do hub</span><span class="nsi-s">Avisos, eventos e links</span></button>
+  </div>
 
   <!-- MAIN -->
   <main class="app-main">
