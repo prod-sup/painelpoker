@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Teste mobile — Auditoria</title>
+<link rel="stylesheet" href="admin.css">
+<link rel="stylesheet" href="suprema-tokens.css">
+<style>#app{display:block !important}</style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="tb-brand"><span class="tb-suit">♠</span>Suprema OS <span class="admin-chip">TESTE</span></div>
+    <div class="tb-right"><div class="tb-user"><span class="tb-dot"></span><span>local</span></div>
+      <div class="tb-actions" id="tbActions"></div><button class="tb-more">⋯</button></div>
+  </header>
+  <main class="app-main">
+    <div class="page active" style="display:block" id="pageAudit">
+      <div class="ph"><div><div class="ph-eyebrow">Auditoria</div><h1>Acompanhamento de Torneios</h1>
+        <p>TESTE LOCAL — deslize a tabela pro lado e teste os Filtros</p></div>
+        <div class="ph-actions">
+          <button class="btn btn-ghost filters-trigger" onclick="tgl()">▽ Filtros <span class="ft-count">1</span></button>
+          <button class="btn btn-gold" onclick="alert('Buscar rodou (aqui é só teste local)')">Buscar</button>
+          <button class="btn btn-ghost">⚠ Só anomalias</button>
+          <button class="btn btn-ghost">✓ Aprovar todos</button>
+          <button class="btn btn-ghost">⬇ Exportar</button>
+        </div>
+      </div>
+      <div class="filters" id="filters" style="flex-wrap:wrap;gap:8px">
+        <div class="fs-head"><span class="fs-grab"></span><span class="fs-title">Filtros</span><button class="fs-x" onclick="cls()">✕</button></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><span style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--ink3)">Período</span>
+          <button class="btn btn-ghost btn-sm">Hoje</button><button class="btn btn-ghost btn-sm">Semana</button><button class="btn btn-ghost btn-sm">Mês</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><div class="fld"><label>De</label><input type="date"></div><div class="fld"><label>Até</label><input type="date"></div></div>
+        <div class="fld"><label>Categoria</label><select><option>Todas</option><option>Main</option></select></div>
+        <div class="fld"><label>Status</label><select><option>Todos</option><option>Fechado</option></select></div>
+        <div class="fld"><label>Operador</label><select><option>Todos</option></select></div>
+        <div class="fld"><label>Torneio</label><input type="text" placeholder="Buscar por nome..."></div>
+        <div class="fs-foot"><button class="btn btn-gold" onclick="cls()">Ver resultados</button></div>
+      </div>
+      <div id="auditResult"></div>
+    </div>
+  </main>
+</div>
+<div class="fs-backdrop" id="bd" hidden onclick="cls()"></div>
+<script>
+function esc(s){return s;}
+var names=['SPS 15-M 100K WarmUp','SPS 16-M 75K Plus HR','SPS 20-L 60K Battle','SPS 21-L 300K Big Plus','SPS 18-M 60K Freeze HR','SPS 19-M 1M Battle HR','SPS 8-H 300K HighS','SPS 23-L 30K Freeze'];
+function row(n,i){var an=i===1;return '<tr class="'+(an?'anomalia':'')+'"><td class="au-check"><input type="checkbox"></td><td class="nm" style="max-width:200px">'+n+'</td><td class="mono" data-label="Hora">1'+(4+i%5)+':00</td><td class="mono" data-label="Late">18:00</td><td class="r mono" data-label="GTD">R$ '+(100+i*7)+'.000</td><td class="r mono" data-label="Buy-in">R$ 500</td><td class="r mono" data-label="Arrecadado">R$ '+(50+i*3)+'.000</td><td class="r mono ov-val" data-label="Overlay">R$ 0</td><td class="r mono" data-label="Field">'+(80+i*11)+'</td><td class="r mono" data-label="Perf.">+'+(i*8)+'%</td><td class="c-ink2" data-label="Fixou">André</td><td class="c-ink2" data-label="Arrecadou">Bruna</td><td class="mono c-ink2" data-label="ID">881'+(20+i)+'</td><td class="au-status" data-label="Status"><span class="badge badge-closed">Fechado</span></td><td class="au-actions"><button class="audit-edit-btn">✏ Editar</button><button class="btn-notif">⚠</button></td></tr>';}
+var rows=names.map(row).join('');
+document.getElementById('auditResult').innerHTML='<div class="audit-day"><div class="audit-day-header"><div><div class="audit-day-title">Segunda, 04 ago</div><div class="audit-day-meta">'+names.length+' torneios</div></div></div><div class="audit-group"><div class="audit-group-header main">♠ Main Event <span class="audit-group-count">'+names.length+'</span></div><div class="audit-scroll"><table class="audit-table"><thead><tr><th></th><th>Torneio</th><th>Hora</th><th>Late</th><th class="r">GTD</th><th class="r">Buy-in</th><th class="r">Arrecadado</th><th class="r">Overlay</th><th class="r">Field</th><th class="r">Perf.</th><th>Fixou</th><th>Arrecadou</th><th>ID</th><th>Status</th><th>Auditoria</th></tr></thead><tbody>'+rows+'</tbody></table></div></div></div>';
+function tgl(){var f=document.getElementById('filters');var o=!f.classList.contains('sheet-open');f.classList.toggle('sheet-open',o);document.getElementById('bd').hidden=!o;document.body.classList.toggle('fs-lock',o);}
+function cls(){document.getElementById('filters').classList.remove('sheet-open');document.getElementById('bd').hidden=true;document.body.classList.remove('fs-lock');}
+</script>
+</body>
+</html>
