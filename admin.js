@@ -401,7 +401,12 @@ function mergeDayInto(date, snap, day){
     if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},premBy:{}};
     Object.entries(snap.rows).forEach(([k,r])=>{
       if(!r||typeof r!=='object')return;
-      _allData[date].rows[k]={...r,_key:k};
+      // _snap: veio de um snapshot já finalizado. Nesse ponto o painel JÁ removeu toda premiação
+      // sem carimbo, então a premiação do snapshot é confiável mesmo sem premBy (dias passados).
+      // _snapPrem GUARDA essa premiação LIMPA numa chave própria, porque logo abaixo o nó ao vivo
+      // (day.premiacao, L455) sobrescreve rows[k].premiacao/prem[k] — e um valor-fantasma sem premBy
+      // no nó ao vivo (inclusive no snapshot automático de HOJE) poluiria a fonte confiável.
+      _allData[date].rows[k]={...r,_key:k,_snap:true,_snapPrem:(r.premiacao!=null?r.premiacao:null)};
       if(r.premiacao!=null) _allData[date].prem[k]=r.premiacao;
       if(r.field!=null)     _allData[date].field[k]=r.field;
       if(r.id)              _allData[date].ids[k]={val:r.id,by:r.fixadoPor||''};
@@ -572,8 +577,16 @@ function flatRows(fromDate, toDate){
       // Busca com alias: os dados digitados no card podem estar sob a chave ao vivo
       // (r._altKeys) em vez da chave do snapshot — sem isso o ID do card não aparecia
       const pick = map => pickByKey(map, key, r);
-      // Premiação: snapshot já tem r.premiacao, ou vem do nó premiacao
-      const prem = pick(day.prem)??r.premiacao??null;
+      // Premiação (ARRECADADO): regra ÚNICA, igual à do painel. Duas fontes distintas:
+      //  1) nó AO VIVO (day.prem/rows[k].premiacao) — só vale se ALGUÉM carimbou (premBy). Sem carimbo
+      //     = fantasma (coluna "Premiação" da planilha, legado, migração de chave) → NÃO exibe.
+      //  2) SNAPSHOT finalizado (_snapPrem) — já limpo pelo painel antes de arquivar, confiável mesmo
+      //     sem premBy. Usa a CÓPIA preservada, não pick(day.prem), que o nó ao vivo pode ter sobrescrito.
+      // Assim o Fechado-fantasma some do admin sem apagar o histórico dos dias já fechados.
+      const _pbGate = pick(day.premBy);
+      const _hasPremBy = _pbGate != null && _pbGate !== false && _pbGate !== '';
+      const livePrem = _hasPremBy ? (pick(day.prem) ?? null) : null;
+      const prem = livePrem ?? (r._snap ? (r._snapPrem ?? null) : null);
       // Garantido: sobrescrito ou da planilha
       const gar  = pick(day.guar)??r.garantido??null;
       // ID
@@ -598,7 +611,7 @@ function flatRows(fromDate, toDate){
       // hora que fixou: do timestamp do nó `fixed`; se não der, usa a hora salva no snapshot (fixadoEm)
       const fixAt  = fixAtMs ? hm(fixAtMs) : (r.fixadoEm || '');
       // Arrecadado — quem preencheu a premiação coletada e quando
-      const pbRaw  = pick(day.premBy);
+      const pbRaw  = _pbGate;
       const premBy = typeof pbRaw==='object'&&pbRaw ? (pbRaw.by||'') : '';
       const pbMs   = _ms(pbRaw);
       const premByAt = pbMs ? hm(pbMs) : '';
@@ -2428,7 +2441,16 @@ async function saveAudit(){
     // Se corrigido: sobrescrever o dado ao vivo no painel também
     if(!approved){
       const basePath = `painel/${_auditContext.date}`;
-      if(prem != null)  await db.ref(`${basePath}/premiacao/${_auditContext.key}`).set(prem);
+      if(prem != null){
+        await db.ref(`${basePath}/premiacao/${_auditContext.key}`).set(prem);
+        // A correção do admin é um preenchimento HUMANO: precisa de carimbo premBy, senão o gate
+        // do painel (e agora o do admin) a trata como valor-fantasma e NÃO exibe em lugar nenhum.
+        // Só carimba se ainda não houver — preserva o crédito do operador que já tinha preenchido.
+        const pbRef = db.ref(`${basePath}/premBy/${_auditContext.key}`);
+        if(!(await pbRef.once('value')).exists()){
+          await pbRef.set({ by: (_email || 'Admin') + ' (auditoria)', at: Date.now() });
+        }
+      }
       if(field != null) await db.ref(`${basePath}/field/${_auditContext.key}`).set(field);
       if(gar != null)   await db.ref(`${basePath}/garantido/${_auditContext.key}`).set(gar);
     }
