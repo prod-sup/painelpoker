@@ -476,6 +476,18 @@ function mergeDayInto(date, snap, day){
     Object.entries(day.garantido||{}).forEach(([k,v])=>{
       if(v!=null) _allData[date].guar[k]=v;
     });
+
+    // Torneios ADICIONADOS na auditoria (painel/<date>/manualRows) — só admin lê. Entram como
+    // linhas normais, iguais ao snapshot; premiação/field/garantido vêm dos nós overlay já
+    // processados acima. Não estão em sheet.rows, então não aparecem na grade ao vivo.
+    if(day.manualRows && typeof day.manualRows==='object'){
+      Object.entries(day.manualRows).forEach(([k,r])=>{
+        if(!r || typeof r!=='object' || !r.nome) return;
+        _allData[date].rows[k]={...r,_key:k,manual:true};
+        if(r.field!=null && _allData[date].field[k]==null) _allData[date].field[k]=r.field;
+        if(r.garantido!=null && _allData[date].guar[k]==null) _allData[date].guar[k]=r.garantido;
+      });
+    }
   }
 }
 
@@ -520,7 +532,7 @@ function watchLiveGrade(){
         .then(ss => { day.sheet = ss.val(); refreshDayLive(date); })
         .catch(() => { lastSheetAt = null; });
     });
-    ['premiacao','fixed','premBy','ids','field','garantido'].forEach(node => {
+    ['premiacao','fixed','premBy','ids','field','garantido','manualRows'].forEach(node => {
       db.ref(`painel/${date}/${node}`).on('value', s => { day[node] = s.val(); refreshDayLive(date); });
     });
   });
@@ -1208,7 +1220,7 @@ async function loadAudit(){
               ${r._audited ? '✓ Auditado' : '✏ Editar'}
             </button>
             <button class="btn-notif"
-              data-nome="${esc(r.nome)}" data-date="${r.date}" data-fixby="${esc(r.fixBy||r.idBy||'')}" data-key="${r.key}"
+              data-nome="${esc(r.nome)}" data-date="${r.date}" data-fixby="${esc(r.premBy||r.fixBy||r.idBy||'')}" data-key="${r.key}"
               data-act="openNotifByEl" data-act-self>⚠ Notif</button>
           </td>
         </tr>`;
@@ -2495,6 +2507,104 @@ async function saveAudit(){
   }
 }
 
+/* ── ADICIONAR TORNEIO (audit-only) ──────────────────────────────
+   Lança um torneio que não veio na planilha. Grava a base em
+   painel/<data>/manualRows/<rk_key> (nó que só o admin lê — mergeDayInto o dobra
+   em _allData[date].rows como qualquer linha) e os valores preenchidos nos MESMOS
+   nós overlay do painel (premiacao/premBy/field/garantido/ids), pelo mesmo padrão
+   do saveAudit. Não toca em painel/<data>/sheet.rows → não aparece na grade ao
+   vivo dos operadores. */
+function openAddTorneio(){
+  const err = document.getElementById('addErr');
+  if(err){ err.style.display='none'; err.textContent=''; }
+  const d = document.getElementById('addDate');
+  if(d) d.value = document.getElementById('auFrom')?.value || nowSP();
+  ['addNome','addHora','addBuyin','addGar','addPrem','addField','addId','addObs']
+    .forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  const cat = document.getElementById('addCat'); if(cat) cat.value='side';
+  document.getElementById('moAddTorneio').classList.add('open');
+  setTimeout(() => document.getElementById('addNome')?.focus(), 80);
+}
+
+async function saveAddTorneio(){
+  if(!fbOk){ toast('Firebase não conectado','err'); return; }
+  const err = document.getElementById('addErr');
+  const lbl = document.getElementById('addBtnLabel');
+  const fail = m => { err.textContent=m; err.style.display='block'; };
+  err.style.display='none';
+
+  const date     = document.getElementById('addDate').value;
+  const nome     = document.getElementById('addNome').value.trim();
+  const hora     = document.getElementById('addHora').value.trim();
+  const cat      = document.getElementById('addCat').value || 'side';
+  const buyinRaw = document.getElementById('addBuyin').value.trim();
+  const garRaw   = document.getElementById('addGar').value.trim();
+  const premRaw  = document.getElementById('addPrem').value.trim();
+  const fieldRaw = document.getElementById('addField').value.trim();
+  const idVal    = document.getElementById('addId').value.trim();
+  const obs      = document.getElementById('addObs').value.trim();
+
+  if(!date)  return fail('Escolha a data da grade.');
+  if(!nome)  return fail('Preencha o nome do torneio.');
+  if(!/^\d{1,2}:\d{2}$/.test(hora)) return fail('Hora inválida — use HH:MM (ex: 20:00).');
+
+  const buyin = buyinRaw ? parseBRL(buyinRaw)     : null;
+  const gar   = garRaw   ? parseBRL(garRaw)       : null;
+  const prem  = premRaw  ? parseBRL(premRaw)      : null;
+  const field = fieldRaw ? parseInt(fieldRaw,10)  : null;
+  if(buyinRaw && isNaN(buyin)) return fail('Buy-in inválido.');
+  if(garRaw   && isNaN(gar))   return fail('Garantido inválido.');
+  if(premRaw  && isNaN(prem))  return fail('Arrecadado inválido.');
+
+  // `tipo` = categoria escolhida; classify() já mapeia 'main'/'side'/'sat' de volta pra cat.
+  const row = {
+    nome, hora, tipo:cat,
+    buyin: buyin!=null?buyin:null,
+    garantido: gar!=null?gar:null,
+    field: field!=null?field:null,
+    late:'', obs: obs||null,
+    manual:true, by:(_email||'admin'), at:Date.now(),
+  };
+  const key = rowKey(row);              // hash de nome|hora|buyin|garantido (mesmo do painel)
+  const stamp = { by:(_email||'Admin')+' (add)', at:Date.now() };
+
+  if(lbl) lbl.textContent='Adicionando...';
+  try{
+    const base = `painel/${date}`;
+    await db.ref(`${base}/manualRows/${key}`).set(row);
+    if(idVal)      await db.ref(`${base}/ids/${key}`).set({ val:idVal, by:stamp.by, at:stamp.at });
+    if(gar != null)   await db.ref(`${base}/garantido/${key}`).set(gar);
+    if(field != null) await db.ref(`${base}/field/${key}`).set(field);
+    if(prem != null){
+      await db.ref(`${base}/premiacao/${key}`).set(prem);
+      // carimbo premBy obrigatório, senão o gate de premiação-fantasma esconde o valor (ver saveAudit)
+      await db.ref(`${base}/premBy/${key}`).set(stamp);
+    }
+
+    // Reflete em memória já (sem esperar o refresh ao vivo)
+    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},premBy:{}};
+    _allData[date].rows[key]={...row,_key:key,manual:true};
+    if(idVal)      _allData[date].ids[key]={val:idVal,by:stamp.by};
+    if(gar != null)   _allData[date].guar[key]=gar;
+    if(field != null) _allData[date].field[key]=field;
+    if(prem != null){ _allData[date].prem[key]=prem; _allData[date].premBy[key]={by:stamp.by,at:stamp.at}; }
+
+    closeMo('moAddTorneio');
+    toast('✓ Torneio adicionado à auditoria','ok');
+    writeAdminLog('adicionar', { torneio:nome, date, hora, cat, buyin, garantido:gar, premiacao:prem, field, id:idVal, obs });
+
+    // Garante que o período visível cobre a data lançada, senão a linha não apareceria
+    const fromEl=document.getElementById('auFrom'), toEl=document.getElementById('auTo');
+    if(fromEl && date < fromEl.value) fromEl.value=date;
+    if(toEl   && date > toEl.value)   toEl.value=date;
+    loadAudit();
+  }catch(e){
+    fail('Erro: '+e.message);
+  }finally{
+    if(lbl) lbl.textContent='Adicionar à auditoria';
+  }
+}
+
 // Enriquecer flatRows com dados de auditoria
 function enrichWithAudit(rows){
   return rows.map(r => {
@@ -3067,7 +3177,10 @@ async function batchNotifyAnomalias(){
     const key  = tr.dataset.key;
     const date = tr.dataset.date;
     const r    = _auditRows.find(r=>r.key===key&&r.date===date);
-    if(!r||!r.fixBy) continue;
+    // alvo = quem preencheu o Arrecadado/Field (premBy); as anomalias são de premiação/overlay,
+    // responsabilidade de quem arrecadou. Cai pra fixBy só se ninguém arrecadou ainda.
+    const alvo = r && (r.premBy || r.fixBy);
+    if(!r||!alvo) continue;
     // Identificar a anomalia
     const anomalias = [];
     if(r.premiacao===0) anomalias.push('Premiação R$0');
@@ -3076,7 +3189,7 @@ async function batchNotifyAnomalias(){
     if(!anomalias.length) anomalias.push('Anomalia detectada');
 
     try{
-      const emailKey = r.fixBy.replace(/[.#$\[\]]/g,'_').toLowerCase();
+      const emailKey = alvo.replace(/[.#$\[\]]/g,'_').toLowerCase();
       const notifId = 'notif_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
       await db.ref(`userNotifs/${emailKey}/${notifId}`).set({
         type:'anomalia', typeLabel:'Anomalia automática',

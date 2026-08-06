@@ -1467,7 +1467,7 @@
   // Os produtos da casa (painel, admin, gu, cash) se auto-registram via
   // SupremaAuth.trackUse ao abrir — aqui o hub só cobre os EXTERNOS
   // (Learn e Org), que não têm como escrever no nosso Firebase.
-  const EXTERNAL_TILES = { 't-learn':'learn', 't-org':'org' };
+  const EXTERNAL_TILES = { 't-learn':'learn', 't-org':'org', 't-pipe':'pipe' };
   function trackOpen(toolId){
     if(!session) return;
     const key = emailToKey(session.email);

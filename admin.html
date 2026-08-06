@@ -160,6 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <button class="btn btn-ghost" id="btnSoAnomalia" data-act="toggleSoAnomalia">⚠ Só anomalias</button>
           <button class="btn btn-ghost" data-act="approveAllAudit" title="Marca como aprovado (sem correção) todos os torneios que NÃO têm anomalia e ainda não foram auditados">✓ Aprovar todos sem erro</button>
           <button class="btn btn-ghost" data-act="batchNotifyAnomalias">📨 Notificar anomalias</button>
+          <button class="btn btn-ghost" data-act="openAddTorneio" title="Lançar um torneio que não veio na planilha — aparece só na auditoria/relatórios">➕ Adicionar torneio</button>
           <button class="btn btn-ghost" data-act="exportAuditXlsx">⬇ Exportar XLSX</button>
           <button class="btn btn-gold" data-act="loadAudit">Buscar</button>
         </div>
@@ -929,6 +930,74 @@ document.addEventListener('DOMContentLoaded', () => {
       <button class="btn btn-ghost" data-act="closeMo" data-arg="moAudit">Cancelar</button>
       <button class="btn btn-gold" data-act="saveAudit">
         <span id="auditBtnLabel">Salvar auditoria</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Adicionar torneio (audit-only) ══
+     Lança um torneio que não veio na planilha. Grava em painel/<data>/manualRows
+     (só a auditoria/relatórios do admin leem) — NÃO entra na grade ao vivo. -->
+<div class="modal-bg" id="moAddTorneio" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal" style="max-width:520px;max-height:90vh;overflow-y:auto">
+    <h2>➕ Adicionar torneio</h2>
+    <div class="msub">Lança um torneio que faltou na planilha. Aparece só na auditoria e nos relatórios — não vai pra grade ao vivo dos operadores.</div>
+    <div class="merr" id="addErr"></div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div class="mf" style="flex:1;min-width:140px">
+        <label>Data da grade</label>
+        <input type="date" id="addDate">
+      </div>
+      <div class="mf" style="flex:1;min-width:120px">
+        <label>Hora (HH:MM)</label>
+        <input type="text" id="addHora" placeholder="20:00" inputmode="numeric" maxlength="5" autocomplete="off">
+      </div>
+    </div>
+    <div class="mf">
+      <label>Nome do torneio</label>
+      <input type="text" id="addNome" placeholder="Ex: SPS 500K Warm-up" maxlength="120" autocomplete="off">
+    </div>
+    <div class="mf">
+      <label>Categoria</label>
+      <select id="addCat">
+        <option value="main">Main Event</option>
+        <option value="side" selected>Side Event</option>
+        <option value="sat">Satélite</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div class="mf" style="flex:1;min-width:120px">
+        <label>Buy-in (R$)</label>
+        <input type="text" inputmode="decimal" id="addBuyin" placeholder="0,00" data-act="maskBRL" data-act-self data-act-on="input" onblur="fmtBRLInput(this)">
+      </div>
+      <div class="mf" style="flex:1;min-width:120px">
+        <label>Garantido (R$)</label>
+        <input type="text" inputmode="decimal" id="addGar" placeholder="0,00" data-act="maskBRL" data-act-self data-act-on="input" onblur="fmtBRLInput(this)">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div class="mf" style="flex:1;min-width:120px">
+        <label>Arrecadado (R$) <span style="color:var(--ink3);font-weight:400">· opcional</span></label>
+        <input type="text" inputmode="decimal" id="addPrem" placeholder="—" data-act="maskBRL" data-act-self data-act-on="input" onblur="fmtBRLInput(this)">
+      </div>
+      <div class="mf" style="flex:1;min-width:120px">
+        <label>Field <span style="color:var(--ink3);font-weight:400">· opcional</span></label>
+        <input type="number" id="addField" placeholder="—" step="1" min="0">
+      </div>
+    </div>
+    <div class="mf">
+      <label>ID Pokerbyte <span style="color:var(--ink3);font-weight:400">· opcional</span></label>
+      <input type="text" id="addId" placeholder="—" maxlength="40" autocomplete="off">
+    </div>
+    <div class="mf">
+      <label>Observação</label>
+      <textarea id="addObs" rows="2" placeholder="Ex: torneio extra fora da grade, lançado na mão"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-act="closeMo" data-arg="moAddTorneio">Cancelar</button>
+      <button class="btn btn-gold" data-act="saveAddTorneio">
+        <span id="addBtnLabel">Adicionar à auditoria</span>
       </button>
     </div>
   </div>
