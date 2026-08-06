@@ -73,33 +73,37 @@ document.addEventListener('DOMContentLoaded', () => {
   <nav class="nav">
     <button class="nt on" onclick="pg('resumo',this)">Resumo</button>
     <button class="nt" onclick="pg('dash',this)">Overview</button>
-    <button class="nt" onclick="pg('turnos',this)">Turnos</button>
     <button class="nt" onclick="pg('stakes',this)">Stakes</button>
     <button class="nt" onclick="pg('salas',this)">Salas</button>
     <button class="nt" onclick="pg('eventos',this)">Eventos</button>
     <button class="nt" onclick="pg('player',this)">Comportamento</button>
     <button class="nt" onclick="pg('hist',this)">Histórico</button>
     <button class="nt" onclick="pg('forecast',this)">Previsão</button>
-    <button class="nt" onclick="pg('validar',this)">Validar Dados</button>
+    <button class="nt" onclick="pg('validar',this)">Importar Semana</button>
   </nav>
   <div class="hdr-r">
     <div class="presence-wrap" id="presenceWrap" title="Operadores online agora" hidden></div>
-    <div class="shift-chip dia" id="shiftChip">
-      <span class="pulse dia" id="shiftPulse"></span>
-      <span id="shiftLabel">Turno Dia</span>
-    </div>
     <a href="hub.html" class="theme-toggle" title="Voltar ao hub Suprema OS" style="text-decoration:none;font-size:13px">♠</a>
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Alternar tema" aria-label="Alternar tema claro/escuro"><i class="ph ph-moon"></i></button>
     <button class="theme-toggle" id="tvBtn" onclick="tvEnter()" title="Modo TV — telão em tela cheia com rotação automática" aria-label="Modo TV"><i class="ph ph-monitor-play"></i></button>
-    <select id="daySel" title="Dia exibido no dashboard" onchange="onDaySel(this.value)"
-      style="height:32px;border-radius:8px;padding:0 10px;font-size:11px;font-weight:700;background:var(--surf);color:var(--ink);border:1px solid var(--bdr);cursor:pointer;max-width:190px">
-      <option value="__demo__">Demonstração (22/06)</option>
-    </select>
-    <label class="up-btn" id="cashImportBtn">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
-      <span>Importar</span>
-      <input type="file" accept=".xlsx" style="display:none" onchange="handleUpload(this)">
-    </label>
+    <!-- Seletor de dias: checklist dos dias importados; recombina o dashboard com os dias marcados -->
+    <div class="day-picker" id="dayPicker" style="position:relative">
+      <button type="button" class="day-btn" id="daysBtn" onclick="toggleDaysPop()" aria-haspopup="true" aria-expanded="false" title="Escolher os dias exibidos no dashboard"
+        style="height:32px;display:inline-flex;align-items:center;gap:7px;border-radius:8px;padding:0 10px;font-size:11px;font-weight:700;background:var(--surf);color:var(--ink);border:1px solid var(--bdr);cursor:pointer;max-width:210px">
+        <i class="ph ph-calendar-blank"></i><span id="daysBtnLabel" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Demonstração</span><i class="ph ph-caret-down" style="font-size:10px;opacity:.7"></i>
+      </button>
+      <div class="day-pop" id="daysPop" hidden
+        style="position:absolute;top:calc(100% + 6px);right:0;z-index:60;width:250px;max-height:min(60vh,420px);overflow-y:auto;background:var(--surf);border:1px solid var(--bdr);border-radius:10px;box-shadow:0 16px 40px -12px rgba(0,0,0,.5);padding:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 6px 8px;border-bottom:1px solid var(--bdr);margin-bottom:6px">
+          <span style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3)">Dias no dashboard</span>
+          <span style="display:flex;gap:10px">
+            <button type="button" onclick="selectAllDays(true)" style="background:none;border:none;color:var(--gold);font-size:10px;font-weight:800;cursor:pointer;padding:0">Todos</button>
+            <button type="button" onclick="selectAllDays(false)" style="background:none;border:none;color:var(--ink3);font-size:10px;font-weight:800;cursor:pointer;padding:0">Limpar</button>
+          </span>
+        </div>
+        <div id="daysList"></div>
+      </div>
+    </div>
     <div class="app-hdr-user"><i class="ph ph-user-circle"></i> <span id="appUserName"></span></div>
     <button class="logout-btn" onclick="doLogout()" title="Sair" aria-label="Sair"><i class="ph ph-sign-out"></i></button>
   </div>
@@ -149,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
   <div class="pgh">
     <div class="pgh-label"><i class="ph-fill ph-spade"></i> Suprema Cash Intelligence · 22/06/2026</div>
     <div class="pgh-title">Dashboard de Mesa Cash</div>
-    <div class="pgh-sub" id="ovSub">2.965 sessões cash · Turno Dia R$ 641.410 (58,1%) · Turno Noite R$ 463.030 (41,9%) · 570 sessões cruzaram a virada de turno · Top 1% das mesas gera 32,6% do rake</div>
+    <div class="pgh-sub" id="ovSub">Fee bruto, buyin, comportamento e previsão da operação cash · recorte pelos dias selecionados no header</div>
   </div>
 
   <!-- FECHO DO DIA CASH — anéis de saúde de relance (mesas ativas, retenção
@@ -162,15 +166,15 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="kv">R$ 1.104.440</div>
       <div class="ks">Fee líquido R$ 1.013.225 após JP</div>
     </div>
-    <div class="kpi c-dia">
-      <div class="kl">Turno Dia (07–19h) <i class="ph-fill ph-sun"></i></div>
-      <div class="kv" id="ovDiaFee">R$ 641.410</div>
-      <div class="ks" id="ovDiaSub">1.899 mesas · R$ 337,7/mesa</div>
+    <div class="kpi">
+      <div class="kl">Sessões cash</div>
+      <div class="kv" id="ovSessions">2.965</div>
+      <div class="ks" id="ovSessionsSub">mesas ring abertas no período</div>
     </div>
-    <div class="kpi c-noite">
-      <div class="kl">Turno Noite (19–07h) <i class="ph-fill ph-moon-stars"></i></div>
-      <div class="kv" id="ovNoiteFee">R$ 463.030</div>
-      <div class="ks" id="ovNoiteSub">1.066 mesas · R$ 434,4/mesa</div>
+    <div class="kpi">
+      <div class="kl">Fee / mesa</div>
+      <div class="kv" id="ovFeePerTable">R$ 372,5</div>
+      <div class="ks" id="ovFeePerTableSub">rake médio por sessão</div>
     </div>
     <div class="kpi c-green">
       <div class="kl">Buyin total</div>
@@ -180,8 +184,8 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="kpi c-amber">
       <div class="kb a">24,5%</div>
       <div class="kl">Mesas mortas</div>
-      <div class="kv">726</div>
-      <div class="ks" id="ovDeadSub">463 Dia · 263 Noite</div>
+      <div class="kv" id="ovDeadTables">726</div>
+      <div class="ks" id="ovDeadSub">sem retenção (&lt;10 mãos)</div>
     </div>
     <div class="kpi c-gold">
       <div class="kb b">VIP</div>
@@ -192,7 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="kpi c-green">
       <div class="kl">Fee / mão</div>
       <div class="kv">R$ 3,80</div>
-      <div class="ks">Noite 4,55 › Dia 3,40</div>
+      <div class="ks">eficiência média por mão</div>
     </div>
     <div class="kpi c-red">
       <div class="kb r">8,3%</div>
@@ -210,26 +214,21 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="kv">606</div>
       <div class="ks">17h — maior concorrência</div>
     </div>
-    <div class="kpi c-noite">
+    <div class="kpi c-gold">
       <div class="kl">Slot mais eficiente</div>
       <div class="kv">23:00</div>
       <div class="ks">R$ 269,5/mesa/hora</div>
-    </div>
-    <div class="kpi">
-      <div class="kl">Sessões cruzam turno</div>
-      <div class="kv">570</div>
-      <div class="ks">19,2% das sessões cash</div>
     </div>
   </div>
 
   <!-- TIMELINE -->
   <div class="card" style="margin-bottom:12px">
     <div class="ct">Mapa de intensidade de rake — 00:00 a 23:30</div>
-    <div class="cs">Cada segmento = 30 min · intensidade = fee gerado · azul = Turno Dia · roxo = Turno Noite · hover para detalhes</div>
+    <div class="cs">Cada segmento = 30 min · intensidade = fee gerado · quanto mais forte, mais rake · hover para detalhes</div>
     <div class="tl-wrap" id="timeline"></div>
     <div class="tl-legend">
-      <span class="tl-li"><span class="tl-dot" style="background:var(--dia)"></span>Turno Dia (07–19h)</span>
-      <span class="tl-li"><span class="tl-dot" style="background:var(--noite)"></span>Turno Noite (19–07h)</span>
+      <span class="tl-li"><span class="tl-dot" style="background:var(--gold)"></span>Mais rake</span>
+      <span class="tl-li"><span class="tl-dot" style="background:rgba(212,168,83,.28)"></span>Menos rake</span>
       <span class="tl-li"><span class="tl-dot" style="background:rgba(255,255,255,.06)"></span>Sem atividade</span>
     </div>
   </div>
@@ -237,8 +236,8 @@ document.addEventListener('DOMContentLoaded', () => {
   <!-- FEE HORA + LIFECYCLE -->
   <div class="g2">
     <div class="card">
-      <div class="ct">Fee por hora · cor indica turno</div>
-      <div class="cs">Pico 23h R$ 109.115 (Noite) · 21h R$ 113.430 (Noite) · 09h R$ 96.000 (Dia)</div>
+      <div class="ct">Fee por hora</div>
+      <div class="cs">Rake por hora do dia · alterne para players, mãos ou mesas simultâneas</div>
       <div class="chtabs">
         <span class="chtab on" onclick="swHr('fee',this)">Fee</span>
         <span class="chtab" onclick="swHr('players',this)">Players</span>
@@ -262,15 +261,15 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="cw" style="height:220px"><canvas id="cModal" role="img" aria-label="Modalidades"></canvas></div>
     </div>
     <div class="card">
-      <div class="ct">Operadores × Turno</div>
-      <div class="cs">Distribuição de rake por sala e período</div>
+      <div class="ct">Operadores</div>
+      <div class="cs">Distribuição de rake por sala</div>
       <div id="opDiv"></div>
     </div>
   </div>
 
   <!-- TOP 10 -->
   <div class="card" style="margin-bottom:12px">
-    <div class="ct">Top 10 sessões por fee — com turno e eficiência</div>
+    <div class="ct">Top 10 sessões por fee — eficiência</div>
     <div class="cs">Sessões individuais com maior rake · take rate colorido por eficiência</div>
     <div class="tw"><table class="t" id="top10t"></table></div>
   </div>
@@ -280,76 +279,11 @@ document.addEventListener('DOMContentLoaded', () => {
   <div class="recs" id="recsDiv"></div>
 </div>
 
-<!-- ═══════════════ TURNOS ═══ -->
-<div id="pg-turnos" class="pg">
-  <div class="pgh">
-    <div class="pgh-label"><i class="ph ph-circle-half"></i> Análise de Turnos</div>
-    <div class="pgh-title">Turno Dia vs Turno Noite</div>
-    <div class="pgh-sub" id="turnosSub">Dia 07h–19h · Noturno 19h–07h · comparativo de rake, eficiência e ociosidade por turno</div>
-  </div>
-
-  <div class="shift-pair">
-    <div class="scard dia">
-      <div class="scard-hdr">
-        <div class="scard-ico dia"><i class="ph-fill ph-sun"></i></div>
-        <div>
-          <div class="scard-title">Turno Dia</div>
-          <div class="scard-sub">07:00 — 19:00 · Dia</div>
-        </div>
-      </div>
-      <div class="scard-big dia" id="sDiaFee">R$ 641.410</div>
-      <div class="sr"><span class="sr-l">Sessões abertas</span><span class="sr-v" id="sDiaTables">1.899</span></div>
-      <div class="sr"><span class="sr-l">Jogadores</span><span class="sr-v" id="sDiaPlayers">24.407</span></div>
-      <div class="sr"><span class="sr-l">Mãos jogadas</span><span class="sr-v" id="sDiaHands">187.745</span></div>
-      <div class="sr"><span class="sr-l">Mesas mortas</span><span class="sr-v a" id="sDiaDead">463 (24,4%)</span></div>
-      <div class="sr"><span class="sr-l">Fee por mão</span><span class="sr-v b" id="sDiaFph">R$ 3,415</span></div>
-      <div class="sr"><span class="sr-l">Fee por mesa</span><span class="sr-v b" id="sDiaFpm">R$ 338,0</span></div>
-      <div class="sr"><span class="sr-l">Participação no rake</span><span class="sr-v" id="sDiaPct">58,1%</span></div>
-      <div style="margin-top:12px;font-size:9px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px">Melhores slots (30min)</div>
-      <div id="diaBestSlots"></div>
-    </div>
-    <div class="scard noite">
-      <div class="scard-hdr">
-        <div class="scard-ico noite"><i class="ph-fill ph-moon-stars"></i></div>
-        <div>
-          <div class="scard-title">Turno Noite</div>
-          <div class="scard-sub">19:00 — 07:00 · Noturno</div>
-        </div>
-      </div>
-      <div class="scard-big noite" id="sNoiteFee">R$ 463.030</div>
-      <div class="sr"><span class="sr-l">Sessões abertas</span><span class="sr-v" id="sNoiteTables">1.066</span></div>
-      <div class="sr"><span class="sr-l">Jogadores</span><span class="sr-v" id="sNoitePlayers">13.370</span></div>
-      <div class="sr"><span class="sr-l">Mãos jogadas</span><span class="sr-v" id="sNoiteHands">102.309</span></div>
-      <div class="sr"><span class="sr-l">Mesas mortas</span><span class="sr-v a" id="sNoiteDead">263 (24,7%)</span></div>
-      <div class="sr"><span class="sr-l">Fee por mão</span><span class="sr-v g" id="sNoiteFph">R$ 4,525</span></div>
-      <div class="sr"><span class="sr-l">Fee por mesa</span><span class="sr-v g" id="sNoiteFpm">R$ 434,5</span></div>
-      <div class="sr"><span class="sr-l">Participação no rake</span><span class="sr-v" id="sNoitePct">41,9%</span></div>
-      <div style="margin-top:12px;font-size:9px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px">Melhores slots (30min)</div>
-      <div id="nBestSlots"></div>
-    </div>
-  </div>
-
-  <div class="g2">
-    <div class="card">
-      <div class="ct">Fee por slot de 30 min — Dia vs Noite</div>
-      <div class="cs">Evolução intra-turno em janelas de 30 minutos</div>
-      <div class="cw" style="height:230px"><canvas id="cShiftFee" role="img" aria-label="Fee por turno"></canvas></div>
-    </div>
-    <div class="card">
-      <div class="ct">Mesas simultâneas abertas por hora</div>
-      <div class="cs">Pico de 606 mesas às 17h · queda abrupta após 22h</div>
-      <div class="cw" style="height:230px"><canvas id="cConcurrent" role="img" aria-label="Simultâneas"></canvas></div>
-    </div>
-  </div>
-
-  <div class="card" style="margin-bottom:12px">
-    <div class="ct">Operadores × Turno — detalhamento completo</div>
-    <div class="cs">Fee, mesas, ociosidade e eficiência por sala em cada turno</div>
-    <div class="tw"><table class="t" id="opShiftTbl"></table></div>
-  </div>
-
-  <div class="intel-grid" id="shiftRecs"></div>
-</div>
+<!-- ═══════════════ TURNOS — REMOVIDO ═══
+     A divisão por turno (Dia 07–19 / Noite 19–07) foi descontinuada: mesas cruzam a virada,
+     então dividir o rake por turno engana. A operação agora é total único e o recorte é por
+     seleção de dias (checklist no header). A concorrência por hora vive na aba "Simultâneas"
+     do gráfico "Fee por hora" no Overview. -->
 
 <!-- ═══════════════ STAKES ═══ -->
 <div id="pg-stakes" class="pg">

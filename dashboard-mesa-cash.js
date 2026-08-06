@@ -234,17 +234,9 @@ window.addEventListener('storage', e => {
 });
 
 // ══════════════════════════════ SHIFT DETECT
-function detectShift(){
-  const h=new Date().getHours();
-  const s=shiftOf(h);
-  const chip=document.getElementById('shiftChip');
-  const pl=document.getElementById('shiftPulse');
-  const lb=document.getElementById('shiftLabel');
-  chip.className='shift-chip '+s;
-  pl.className='pulse '+s;
-  lb.textContent=s==='dia'?'Turno Dia (07–19)':'Turno Noite (19–07)';
-}
-detectShift();
+// Chip de turno ao vivo REMOVIDO (divisão por turno descontinuada). Mantido como
+// no-op porque applyDataset ainda o chamava; o elemento #shiftChip não existe mais.
+function detectShift(){}
 
 // ══════════════════════════════ PAGE NAV
 function pg(id,btn){
@@ -278,8 +270,8 @@ function buildTimeline(){
   D.slots30.forEach(s=>{
     const p=s.fee/max;
     const a=Math.max(0.06,p*0.94+0.06);
-    const c=s.turno==='dia'?`rgba(79,142,247,${a.toFixed(2)})`:`rgba(167,139,250,${a.toFixed(2)})`;
-    const tt=`${s.slot} · Turno ${s.turno==='dia'?'Dia':'Noite'} · R$ ${f(s.fee,0)} · ${s.tables} mesas · ${s.players} players`;
+    const c=`rgba(212,168,83,${a.toFixed(2)})`;   // intensidade de rake (dourado), sem divisão por turno
+    const tt=`${s.slot} · R$ ${f(s.fee,0)} · ${s.tables} mesas · ${s.players} players`;
     band+=`<div class="tl-seg" style="background:${c}" title="${tt}"></div>`;
   });
   band+='</div>';
@@ -294,7 +286,7 @@ function buildHrChart(){
   D.slots30.forEach(s=>{const h=parseInt(s.slot);if(!hrByH[h]){hrByH[h]={fee:0,players:0,hands:0,tables:0,concurrent:0}}hrByH[h].fee+=s.fee;hrByH[h].players+=s.players;hrByH[h].hands+=s.hands;hrByH[h].tables+=s.tables;});
   D.concurrent.forEach(c=>{if(hrByH[c.h])hrByH[c.h].concurrent=c.open;});
   const hrLabels=[],hrFee=[],hrPl=[],hrHd=[],hrTb=[],hrCc=[],hrBg=[],hrBd=[];
-  for(let h=0;h<24;h++){hrLabels.push(String(h).padStart(2,'0')+'h');const d=hrByH[h]||{fee:0,players:0,hands:0,tables:0,concurrent:0};hrFee.push(d.fee);hrPl.push(d.players);hrHd.push(d.hands);hrTb.push(d.tables);hrCc.push(d.concurrent);hrBg.push(shiftOf(h)==='dia'?'rgba(79,142,247,.2)':'rgba(167,139,250,.2)');hrBd.push(shiftOf(h)==='dia'?'#4f8ef7':'#a78bfa');}
+  for(let h=0;h<24;h++){hrLabels.push(String(h).padStart(2,'0')+'h');const d=hrByH[h]||{fee:0,players:0,hands:0,tables:0,concurrent:0};hrFee.push(d.fee);hrPl.push(d.players);hrHd.push(d.hands);hrTb.push(d.tables);hrCc.push(d.concurrent);hrBg.push('rgba(212,168,83,.22)');hrBd.push('#d4a853');}
   hrC=new Chart(document.getElementById('cHour'),{
     type:'bar',
     data:{labels:hrLabels,datasets:[
@@ -302,7 +294,7 @@ function buildHrChart(){
       {type:'bar',data:hrFee,backgroundColor:hrBg,borderColor:hrBd,borderWidth:1,borderRadius:4,yAxisID:'y',order:2}
     ]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{...CTOP,callbacks:{title:c=>`${c[0].label} · ${shiftOf(parseInt(c[0].label))==='dia'?'Turno Dia':'Turno Noite'}`,label:c=>c.datasetIndex===0?` R$ ${f(c.parsed.y,0)}`:''}},
+      plugins:{legend:{display:false},tooltip:{...CTOP,callbacks:{title:c=>c[0].label,label:c=>c.datasetIndex===0?` R$ ${f(c.parsed.y,0)}`:''}},
       },
       scales:{x:{grid:{display:false},ticks:{font:{size:9},color:CTEXT,maxRotation:0,callback:(v,i)=>i%3===0?hrLabels[i]:''},border:{display:false}},y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>fK(v)},border:{display:false}}}
     }
@@ -320,7 +312,7 @@ function buildLifecycle(){
   new Chart(document.getElementById('cLife'),{
     type:'bar',
     data:{labels:D.slots30.map(s=>s.slot),datasets:[
-      {type:'bar',label:'Abertas',data:D.slots30.map(s=>s.tables),backgroundColor:D.slots30.map(s=>s.turno==='dia'?'rgba(79,142,247,.3)':'rgba(167,139,250,.3)'),borderColor:D.slots30.map(s=>s.turno==='dia'?'#4f8ef7':'#a78bfa'),borderWidth:1,borderRadius:3},
+      {type:'bar',label:'Abertas',data:D.slots30.map(s=>s.tables),backgroundColor:'rgba(212,168,83,.28)',borderColor:'#d4a853',borderWidth:1,borderRadius:3},
       {type:'line',label:'Encerradas',data:D.end30.map(s=>s.tables),borderColor:'#f87171',borderWidth:1.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:4}
     ]},
     options:{responsive:true,maintainAspectRatio:false,
@@ -346,21 +338,22 @@ function buildModal(){
 
 // ══════════════════════════════ OPERATORS
 function buildOpDiv(){
+  // Ranking ÚNICO por operador/sala (sem split de turno): agrega D.opShift por op.
   const ops=['Mesas S1','Mesas S2','Mesas S3','Mesas P1'];
-  const total=D.opShift.reduce((a,b)=>a+b.fee,0);
+  const total=D.opShift.reduce((a,b)=>a+b.fee,0)||1;
+  const feeOf=op=>D.opShift.filter(x=>x.op===op).reduce((a,b)=>a+b.fee,0);
+  const maxFee=Math.max(1,...ops.map(feeOf));
   document.getElementById('opDiv').innerHTML=ops.map(op=>{
-    const dia=D.opShift.find(x=>x.op===op&&x.turno==='dia')||{tables:0,fee:0,players:0};
-    const noite=D.opShift.find(x=>x.op===op&&x.turno==='noite')||{tables:0,fee:0,players:0};
-    const t=dia.fee+noite.fee;if(!t)return'';
+    const rows=D.opShift.filter(x=>x.op===op);
+    const fee=rows.reduce((a,b)=>a+b.fee,0);
+    const tables=rows.reduce((a,b)=>a+b.tables,0);
+    if(!fee)return'';
     return`<div class="pb" style="margin-bottom:14px">
-      <div class="pb-top"><span class="pb-t">${op}</span><span class="pb-s">R$ ${f(t,0)} · ${(t/total*100).toFixed(1)}%</span></div>
-      <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;gap:1px">
-        <div style="width:${(dia.fee/t*100).toFixed(1)}%;background:#4f8ef7;border-radius:4px 0 0 4px;min-width:2px"></div>
-        <div style="flex:1;background:#a78bfa;border-radius:0 4px 4px 0;min-width:2px"></div>
+      <div class="pb-top"><span class="pb-t">${op}</span><span class="pb-s">R$ ${f(fee,0)} · ${(fee/total*100).toFixed(1)}%</span></div>
+      <div style="height:8px;border-radius:4px;overflow:hidden;background:rgba(130,132,142,.18)">
+        <div style="width:${(fee/maxFee*100).toFixed(1)}%;height:100%;background:var(--gold);border-radius:4px;min-width:2px"></div>
       </div>
-      <div style="display:flex;justify-content:space-between;font-size:8px;color:var(--ink3);margin-top:3px">
-        <span style="color:var(--dia)"><i class="ph-fill ph-sun"></i> ${f(dia.fee,0)}</span><span style="color:var(--noite)"><i class="ph-fill ph-moon-stars"></i> ${f(noite.fee,0)}</span>
-      </div>
+      <div style="font-size:8px;color:var(--ink3);margin-top:3px">${f(tables)} mesas</div>
     </div>`;
   }).join('');
 }
@@ -368,15 +361,14 @@ function buildOpDiv(){
 // ══════════════════════════════ TOP 10
 function buildTop10(){
   const t=document.getElementById('top10t');
-  t.innerHTML=`<thead><tr><th>#</th><th>Sessão</th><th>Tipo</th><th>Turno</th><th class="r">Players</th><th class="r">Mãos</th><th class="r">Dur.</th><th class="r">Buyin R$</th><th class="r">Fee R$</th><th class="r">Take rate</th></tr></thead><tbody>`+
+  t.innerHTML=`<thead><tr><th>#</th><th>Sessão</th><th>Tipo</th><th class="r">Players</th><th class="r">Mãos</th><th class="r">Dur.</th><th class="r">Buyin R$</th><th class="r">Fee R$</th><th class="r">Take rate</th></tr></thead><tbody>`+
   D.top10.map((r,i)=>{
-    const sh=shiftOf(r.start_h);const tr=(r.fee/r.buyin*100).toFixed(1);
+    const tr=(r.fee/r.buyin*100).toFixed(1);
     const trc=tr>15?'var(--red)':tr>10?'var(--amber)':'var(--green)';
     return`<tr>
       <td><span class="rk">${i+1}</span></td>
       <td class="b" style="max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</td>
       <td><span class="tag ${tagCls(r.type)}">${r.type}</span></td>
-      <td><span class="sbdg ${sh}"><span class="sdot ${sh}"></span>${sh==='dia'?'Dia':'Noite'}</span></td>
       <td class="r m">${r.players}</td><td class="r m">${f(r.hands)}</td>
       <td class="r m">${r.dur.toFixed(1)}h</td><td class="r m">${f(r.buyin,0)}</td>
       <td class="r b">${f(r.fee,2)}</td>
@@ -396,20 +388,10 @@ function computeOverviewRecs(){
   if(D.gametypes.length&&totalGameFee>0){
     const top=D.gametypes.reduce((a,b)=>b.fee>a.fee?b:a);
     const topShare=top.fee/totalGameFee*100;
-    const bestDiaSlot=D.slots30.filter(s=>s.turno==='dia'&&s.tables).reduce((a,b)=>b.fee>(a?a.fee:0)?b:a,null);
-    const bestNoiteSlot=D.slots30.filter(s=>s.turno==='noite'&&s.tables).reduce((a,b)=>b.fee>(a?a.fee:0)?b:a,null);
-    const slotsTxt=[bestDiaSlot&&`${bestDiaSlot.slot} (Dia)`,bestNoiteSlot&&`${bestNoiteSlot.slot} (Noite)`].filter(Boolean).join(' e ');
+    const bestSlotOfAll=D.slots30.filter(s=>s.tables).reduce((a,b)=>b.fee>(a?a.fee:0)?b:a,null);
+    const slotsTxt=bestSlotOfAll?` Priorizar abertura em torno de ${bestSlotOfAll.slot} — o slot de maior rake.`:'';
     recs.push({i:ic('fire',1),c:'g',t:`${top.type} domina ${f(topShare,1)}% do rake`,
-      b:`R$ ${f(top.fee,0)} em ${top.tables} mesas.${slotsTxt?` Priorizar abertura em ${slotsTxt} — os melhores slots de cada turno.`:''}`,sh:'dia'});
-  }
-
-  if(KPI_DEMO.tablesDia>0&&KPI_DEMO.tablesNoite>0){
-    const diaFpm=KPI_DEMO.feeDia/KPI_DEMO.tablesDia, noiteFpm=KPI_DEMO.feeNoite/KPI_DEMO.tablesNoite;
-    const shiftUp=noiteFpm>=diaFpm?'noite':'dia', shiftDown=shiftUp==='dia'?'noite':'dia';
-    const minFpm=Math.min(diaFpm,noiteFpm);
-    const shiftGap=minFpm>0?(Math.abs(noiteFpm-diaFpm)/minFpm*100):0;
-    recs.push({i:ic(shiftUp==='noite'?'moon-stars':'sun',1),c:'i',t:`Turno ${shiftUp==='dia'?'Dia':'Noite'}: fee/mesa ${f(shiftGap,0)}% maior`,
-      b:`R$ ${f(Math.max(diaFpm,noiteFpm),1)} vs R$ ${f(minFpm,1)} no Turno ${shiftDown==='dia'?'Dia':'Noite'}. A diferença de eficiência por mesa é o principal sinal de qualidade de player entre turnos.`,sh:shiftUp});
+      b:`R$ ${f(top.fee,0)} em ${top.tables} mesas.${slotsTxt}`,sh:''});
   }
 
   if(KPI_DEMO.anteTables>0&&KPI_DEMO.noAnteTables>0&&KPI_DEMO.noAnteFph>0){
@@ -439,10 +421,7 @@ function computeOverviewRecs(){
   let bestSlot=null,bestSlotEff=0;
   D.slots30.forEach(s=>{if(!s.tables)return;const eff=s.fee/(s.tables*0.5);if(eff>bestSlotEff){bestSlotEff=eff;bestSlot=s;}});
   if(bestSlot)recs.push({i:ic('sun-horizon',1),c:'i',t:`${bestSlot.slot}: slot mais eficiente (R$ ${f(bestSlotEff,1)}/mesa/h)`,
-    b:`O melhor slot de toda a operação, no Turno ${bestSlot.turno==='dia'?'Dia':'Noite'}. Garantir cobertura operacional máxima nesse horário.`,sh:bestSlot.turno});
-
-  if(KPI_DEMO.crossShift>0)recs.push({i:ic('arrows-clockwise',1),c:'w',t:`${f(KPI_DEMO.crossShift)} sessões cruzam a virada de turno`,
-    b:`${f(KPI_DEMO.crossShiftPct,1)}% das sessões diárias. Handoff crítico às 07h e 19h — rastrear quais salas geram mais mesas órfãs nesse momento.`,sh:''});
+    b:`O melhor slot de toda a operação. Garantir cobertura operacional máxima nesse horário.`,sh:''});
 
   return recs;
 }
@@ -1383,9 +1362,11 @@ function buildEventos(){
 // turno vazio…), os outros continuam renderizando em vez de travar tudo.
 function safeBuild(fn){try{fn();}catch(e){console.error('render '+(fn.name||'?'),e);}}
 function renderAll(){
-  [renderShiftStats,
+  // Builders de turno removidos (renderShiftStats, buildBestSlots, buildShiftFee,
+  // buildConcurrent, buildOpShiftTable, buildShiftRecs) — aba Turnos descontinuada.
+  [renderOverviewStats,
    buildTimeline,buildHrChart,buildLifecycle,buildModal,buildOpDiv,buildTop10,buildRecs,
-   buildBestSlots,buildShiftFee,buildForecast,buildConcurrent,buildOpShiftTable,buildShiftRecs,
+   buildForecast,
    buildTierCharts,buildConc,buildHuMulti,buildJP,buildFPP,
    buildRooms,buildRR,buildBlindBars,buildBubble,
    buildRet,buildDurFee,buildHM,buildHist,
@@ -1399,35 +1380,84 @@ function applyDataset(ds){
   renderAll();
   detectShift();
 }
-async function onDaySel(val){
-  if(val==='__demo__'){ applyDataset(DEMO_DS); return; }
-  const raws=await Store.listRaw();
-  if(val==='__all__'){
-    const list=Object.values(raws); if(!list.length){applyDataset(DEMO_DS);return;}
-    applyDataset(finalizeDataset(mergeRaws(list),`Todos os dias (${list.length})`)); return;
+// ══════════════════════════════ SELEÇÃO DE DIAS (checklist)
+// Substitui o antigo <select> single. O recorte da operação agora é POR DIAS: o
+// usuário marca quais dias importados alimentam TODAS as visualizações. Recombina
+// via mergeRaws → finalizeDataset → applyDataset (mesma infra do antigo "Todos os dias").
+let _selDays = [];          // keys yyyy-mm-dd marcadas
+let _rawsCache = {};        // último Store.listRaw()
+
+function toggleDaysPop(force){
+  const pop=document.getElementById('daysPop'), btn=document.getElementById('daysBtn');
+  if(!pop)return;
+  const show = force!=null ? force : pop.hidden;
+  pop.hidden = !show;
+  if(btn) btn.setAttribute('aria-expanded', show?'true':'false');
+}
+// fecha o popover ao clicar fora dele
+document.addEventListener('click', e=>{
+  const dp=document.getElementById('dayPicker');
+  if(dp && !dp.contains(e.target)) toggleDaysPop(false);
+});
+
+// (re)carrega os dias do Store e desenha a lista. preselectAll=true marca todos.
+async function refreshDays(preselectAll){
+  _rawsCache = await Store.listRaw();
+  const keys = Object.keys(_rawsCache);
+  if(preselectAll) _selDays = keys.slice();
+  else _selDays = _selDays.filter(k => _rawsCache[k]);   // descarta keys que sumiram
+  renderDayChecklist();
+  updateDaysBtnLabel();
+}
+function renderDayChecklist(){
+  const list=document.getElementById('daysList'); if(!list)return;
+  const keys=Object.keys(_rawsCache).sort().reverse();   // yyyy-mm-dd desc
+  const DOW=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  if(!keys.length){
+    list.innerHTML='<div style="padding:10px 6px;font-size:11px;color:var(--ink3);line-height:1.5">Nenhum dia importado ainda.<br>Suba uma planilha em <b>Importar Semana</b>.</div>';
+    return;
   }
-  const R=raws[val]; if(!R){applyDataset(DEMO_DS);return;}
-  applyDataset(finalizeDataset(R, R.dates&&R.dates[0]||val));
+  list.innerHTML=keys.map(k=>{
+    const r=_rawsCache[k], lbl=(r.dates&&r.dates[0])||k;
+    const p=k.split('-'), dt=p.length===3?new Date(+p[0],+p[1]-1,+p[2]):null;
+    const dow=dt&&!isNaN(dt)?DOW[dt.getDay()]:'';
+    const on=_selDays.includes(k);
+    return `<label style="display:flex;align-items:center;gap:9px;padding:7px 6px;border-radius:7px;cursor:pointer;font-size:12px;color:var(--ink)">
+      <input type="checkbox" ${on?'checked':''} data-daykey="${esc(k)}" onchange="onDayCheck()" style="accent-color:var(--gold);width:15px;height:15px;flex:none">
+      <span style="flex:1">${esc(lbl)}</span><span style="font-size:10px;font-weight:800;color:var(--ink3)">${dow}</span>
+    </label>`;
+  }).join('');
 }
-async function refreshDaySelector(preferKey){
-  const sel=document.getElementById('daySel'); if(!sel)return;
-  const raws=await Store.listRaw();
-  const keys=Object.keys(raws).sort().reverse(); // yyyy-mm-dd desc
-  let html='<option value="__demo__">Demonstração (22/06)</option>';
-  if(keys.length>1)html+=`<option value="__all__">Todos os dias (${keys.length})</option>`;
-  html+=keys.map(k=>`<option value="${k}">${(raws[k].dates&&raws[k].dates[0])||k}</option>`).join('');
-  sel.innerHTML=html;
-  if(preferKey && (preferKey==='__demo__'||preferKey==='__all__'||raws[preferKey]))sel.value=preferKey;
+function onDayCheck(){
+  _selDays=[...document.querySelectorAll('#daysList input[type=checkbox]:checked')].map(c=>c.dataset.daykey);
+  updateDaysBtnLabel();
+  applySelectedDays();
 }
-// No load: se já há dias importados, abre na visão COMBINADA (todos os dias
-// juntos, com as análises inteligentes sobre o agregado); senão, a demo.
+function selectAllDays(on){
+  document.querySelectorAll('#daysList input[type=checkbox]').forEach(c=>{c.checked=!!on;});
+  onDayCheck();
+}
+function updateDaysBtnLabel(){
+  const el=document.getElementById('daysBtnLabel'); if(!el)return;
+  const total=Object.keys(_rawsCache).length, n=_selDays.length;
+  if(!total) el.textContent='Demonstração';
+  else if(!n) el.textContent='Nenhum dia';
+  else if(n===1){ const r=_rawsCache[_selDays[0]]; el.textContent=(r&&r.dates&&r.dates[0])||_selDays[0]; }
+  else if(n===total) el.textContent=`Todos os dias (${n})`;
+  else el.textContent=`${n} dias`;
+}
+// Recombina o dashboard a partir dos dias marcados (nenhum → demo).
+function applySelectedDays(){
+  const chosen=_selDays.map(k=>_rawsCache[k]).filter(Boolean);
+  if(!chosen.length){ applyDataset(DEMO_DS); return; }
+  const label = chosen.length===1 ? ((chosen[0].dates&&chosen[0].dates[0])||_selDays[0]) : `${chosen.length} dias`;
+  applyDataset(finalizeDataset(mergeRaws(chosen), label));
+}
+// No load: marca TODOS os dias importados (visão combinada, como antes); sem dias, segue na demo.
 async function initDayView(){
   try{
-    const raws=await Store.listRaw(); const keys=Object.keys(raws).sort();
-    if(!keys.length)return; // segue na demo já renderizada
-    const start=keys.length>1?'__all__':keys[keys.length-1];
-    await refreshDaySelector(start);
-    await onDaySel(start);
+    await refreshDays(true);
+    if(Object.keys(_rawsCache).length) applySelectedDays();
   }catch(e){console.error('initDayView',e);}
 }
 
@@ -1453,7 +1483,7 @@ async function handleUpload(input){
     if(!saved)return;
     const where=await Store.saveRaw(label,raw);
     setBtnLoading(lbl,true,'Montando dashboard…');
-    await refreshDaySelector(labelToRtdbKey(label));
+    await refreshDays(false);      // atualiza a checklist de dias (upload diário legado)
     applyDataset(ds);
     await buildHist();
     const aviso=where==='local'
@@ -1522,8 +1552,8 @@ async function confirmarSemana(){
     if(await Store.saveRaw(label,raw)==='local')localOnly++;
   }
   await buildHist();
-  await refreshDaySelector('__all__');
-  await onDaySel('__all__');
+  await refreshDays(true);        // recarrega a checklist e marca todos os dias
+  applySelectedDays();
   status.innerHTML=`${ic('check-circle',1)} ${keys.length} dia(s) gravados · dashboard mostrando "Todos os dias".`
     +(localOnly?` <span class="tag to">${ic('warning')} ${localOnly} dia(s) só neste navegador — Firebase indisponível, re-sync automático depois.</span>`:'');
   if(btn){btn.disabled=false;btn.style.opacity='';}
@@ -1545,11 +1575,9 @@ async function removeHistoryDay(dateStr){
   if(!confirm(`Remover o registro de ${dateStr} do histórico?`))return;
   await Store.remove(dateStr);
   await Store.removeRaw(dateStr);
-  const sel=document.getElementById('daySel');
-  const wasViewing=sel && sel.value===labelToRtdbKey(dateStr);
   await buildHist();
-  await refreshDaySelector(wasViewing?'__demo__':(sel&&sel.value));
-  if(wasViewing)await onDaySel(document.getElementById('daySel').value);
+  await refreshDays(false);       // remove o dia da checklist, preservando a seleção dos demais
+  applySelectedDays();
 }
 
 
@@ -1731,24 +1759,17 @@ function shiftAgg(){
   return g;
 }
 let SHIFT=null;
-function renderShiftStats(){
-  SHIFT=shiftAgg();
-  const g=SHIFT, tot=g.dia.fee+g.noite.fee||1;
-  const pctD=g.dia.fee/tot*100, pctN=g.noite.fee/tot*100;
+// Estatísticas unificadas do Overview (sem divisão por turno). Atualiza os KPIs
+// que passaram a ser o recorte único da operação + o subtítulo da página.
+function renderOverviewStats(){
+  const K=KPI_DEMO;
   const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
-  const fpm=t=>t.tables?t.fee/t.tables:0, fph=t=>t.hands?t.fee/t.hands:0, dpct=t=>t.tables?t.dead/t.tables*100:0;
-  // Overview
-  set('ovDiaFee','R$ '+f(g.dia.fee,0)); set('ovDiaSub',`${f(g.dia.tables)} mesas · R$ ${f(fpm(g.dia),0)}/mesa`);
-  set('ovNoiteFee','R$ '+f(g.noite.fee,0)); set('ovNoiteSub',`${f(g.noite.tables)} mesas · R$ ${f(fpm(g.noite),0)}/mesa`);
-  set('ovDeadSub',`${f(g.dia.dead)} Dia · ${f(g.noite.dead)} Noite`);
-  set('ovSub',`${f(KPI_DEMO.sessions)} sessões cash · Turno Dia R$ ${f(g.dia.fee,0)} (${f(pctD,1)}%) · Turno Noite R$ ${f(g.noite.fee,0)} (${f(pctN,1)}%) · ${f(KPI_DEMO.crossShift)} sessões cruzaram a virada · Top 1% das mesas gera 32,6% do rake`);
-  // Aba Turnos
-  set('sDiaFee','R$ '+f(g.dia.fee,0)); set('sDiaTables',f(g.dia.tables)); set('sDiaPlayers',f(g.dia.players));
-  set('sDiaHands',f(g.dia.hands)); set('sDiaDead',`${f(g.dia.dead)} (${f(dpct(g.dia),1)}%)`);
-  set('sDiaFph','R$ '+f(fph(g.dia),3)); set('sDiaFpm','R$ '+f(fpm(g.dia),1)); set('sDiaPct',f(pctD,1)+'%');
-  set('sNoiteFee','R$ '+f(g.noite.fee,0)); set('sNoiteTables',f(g.noite.tables)); set('sNoitePlayers',f(g.noite.players));
-  set('sNoiteHands',f(g.noite.hands)); set('sNoiteDead',`${f(g.noite.dead)} (${f(dpct(g.noite),1)}%)`);
-  set('sNoiteFph','R$ '+f(fph(g.noite),3)); set('sNoiteFpm','R$ '+f(fpm(g.noite),1)); set('sNoitePct',f(pctN,1)+'%');
+  const fpt = K.sessions ? K.feeGross/K.sessions : 0;
+  set('ovSessions', f(K.sessions));
+  set('ovFeePerTable', 'R$ '+f(fpt,0));
+  set('ovDeadTables', f(K.deadTables));
+  set('ovDeadSub', `${f(K.deadPct,1)}% das sessões (<10 mãos)`);
+  set('ovSub', `${f(K.sessions)} sessões cash · fee bruto R$ ${f(K.feeGross,0)} · líquido R$ ${f(K.feeNet,0)} após jackpot · take rate ${f(K.takeRate,2)}%`);
 }
 
 // ══════════════════════════════ RESUMO EXECUTIVO (a aba de abertura)
@@ -1756,22 +1777,20 @@ function renderShiftStats(){
 // inteligentes já priorizadas. Deriva tudo de KPI_DEMO/D/SHIFT — nada hardcoded.
 function buildResumo(){
   if(!document.getElementById('pg-resumo'))return;
-  const g=SHIFT||shiftAgg();
-  const tot=g.dia.fee+g.noite.fee||1;
-  const pctD=g.dia.fee/tot*100, pctN=g.noite.fee/tot*100;
-  const melhorTurno=g.noite.fee/((g.noite.tables)||1) > g.dia.fee/((g.dia.tables)||1) ? 'Noite' : 'Dia';
+  const tot=KPI_DEMO.feeGross||1;
+  const fpt=KPI_DEMO.sessions?KPI_DEMO.feeGross/KPI_DEMO.sessions:0;
   const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
   set('rsDate',KPI_DEMO.date);
   set('rsBaseDay',f(KPI_DEMO.feeGross,0));
-  set('rsSub',`${f(KPI_DEMO.sessions)} sessões · R$ ${f(KPI_DEMO.feeGross,0)} bruto · take rate ${f(KPI_DEMO.takeRate,2)}% · Turno ${melhorTurno} lidera em fee/mesa · ${f(KPI_DEMO.deadPct,1)}% de mesas mortas é o maior vazamento.`);
+  set('rsSub',`${f(KPI_DEMO.sessions)} sessões · R$ ${f(KPI_DEMO.feeGross,0)} bruto · take rate ${f(KPI_DEMO.takeRate,2)}% · R$ ${f(fpt,0)} de fee/mesa · ${f(KPI_DEMO.deadPct,1)}% de mesas mortas é o maior vazamento.`);
 
   // ── KPIs essenciais (reaproveita os cards .kpi)
   const topRoom=[...D.rooms].sort((a,b)=>b.fee-a.fee)[0]||{name:'—',fee:0,tables:0,rake_rate:0};
   const topTier=[...D.tiers].sort((a,b)=>b.fee-a.fee)[0]||{tier:'—',fee:0,tables:0,avg_fph:0};
   const kpis=[
     {cls:'hero',l:'Fee bruto do dia',v:'R$ '+f(KPI_DEMO.feeGross,0),s:'líquido R$ '+f(KPI_DEMO.feeNet,0)+' após JP'},
-    {cls:'c-dia',l:'Turno Dia (07–19h)',v:'R$ '+f(g.dia.fee,0),s:f(pctD,1)+'% do rake · '+f(g.dia.tables)+' mesas'},
-    {cls:'c-noite',l:'Turno Noite (19–07h)',v:'R$ '+f(g.noite.fee,0),s:f(pctN,1)+'% do rake · '+f(g.noite.tables)+' mesas'},
+    {cls:'',l:'Sessões cash',v:f(KPI_DEMO.sessions),s:f(KPI_DEMO.playersTotal)+' jogadores'},
+    {cls:'c-green',l:'Fee / mesa',v:'R$ '+f(fpt,0),s:'rake médio por sessão'},
     {cls:'c-gold',l:'Concentração top 1%',v:f(KPI_DEMO.conc1pct,1)+'%',s:KPI_DEMO.conc1Tables+' mesas = R$ '+f(KPI_DEMO.conc1Fee,0)},
     {cls:'c-amber',l:'Mesas mortas',v:f(KPI_DEMO.deadTables),s:f(KPI_DEMO.deadPct,1)+'% do total · receita parada'},
     {cls:'c-green',l:'Take rate médio',v:f(KPI_DEMO.takeRate,2)+'%',s:'fee ÷ R$ '+fK(KPI_DEMO.buyinTotal)+' em buyins'},
@@ -1799,12 +1818,7 @@ function buildResumo(){
   const highlights=[
     {ic:'crown',tt:`${topTier.tier} é o motor do rake`,sb:`R$ ${f(topTier.fee,0)} com ${f(topTier.tables)} mesas · fee/mão R$ ${f(topTier.avg_fph,3)}`,vl:(topTier.fee/tot*100).toFixed(0)+'%'},
     {ic:'buildings',tt:`Sala campeã: ${topRoom.name}`,sb:`R$ ${f(topRoom.fee,0)} de fee · take rate ${f(topRoom.rake_rate,2)}%`,vl:'R$ '+fK(topRoom.fee)},
-    (function(){
-      const fmD=g.dia.fee/(g.dia.tables||1), fmN=g.noite.fee/(g.noite.tables||1);
-      const lead=Math.max(fmD,fmN), other=Math.min(fmD,fmN)||1;
-      return {ic:melhorTurno==='Dia'?'sun':'moon-stars',tt:`Turno ${melhorTurno} rende mais por mesa`,
-        sb:`fee/mesa R$ ${f(fmD,0)} no Dia vs R$ ${f(fmN,0)} no Noite`,vl:'+'+f(lead/other*100-100,0)+'%'};
-    })(),
+    {ic:'clock',tt:`Pico às ${KPI_DEMO.peakHour||'—'}`,sb:`${KPI_DEMO.peakConcurrent} mesas simultâneas no auge · melhor slot ${KPI_DEMO.bestSlot||'—'}`,vl:KPI_DEMO.bestSlot||'—'},
     {ic:'target',tt:'Top 1% das mesas concentra o rake',sb:`${KPI_DEMO.conc1Tables} mesas geram R$ ${f(KPI_DEMO.conc1Fee,0)} — proteger esses jogadores é prioridade`,vl:f(KPI_DEMO.conc1pct,1)+'%'},
   ];
   const hel=document.getElementById('rsHighlights');
@@ -1816,7 +1830,7 @@ function buildResumo(){
   const risks=[
     {ic:'skull',tt:`${f(KPI_DEMO.deadPct,1)}% das mesas estão mortas`,sb:`${f(KPI_DEMO.deadTables)} mesas sem retenção · custo estimado R$ ${f(deadFee,0)}/dia em receita parada`,vl:'R$ '+fK(deadFee)},
     {ic:'trend-down',tt:'Cenário pessimista corrói o mês',sb:'+30% mortas e −18% sessões (fuga de VHigh) derrubam a receita mensal',vl:'−R$ '+fK(badLoss)},
-    {ic:'arrows-left-right',tt:`${f(KPI_DEMO.crossShift)} sessões cruzam a virada de turno`,sb:'sem SLA de handoff às 07h/19h, jogadores dessas mesas ficam sem suporte',vl:f(KPI_DEMO.crossShiftPct,1)+'%'},
+    {ic:'coins',tt:`Jackpot deduz ${f(KPI_DEMO.jackpotPct,1)}% do fee bruto`,sb:`R$ ${f(KPI_DEMO.jackpot,0)} saíram pro pool em ${f(KPI_DEMO.jackpotTables)} mesas — a margem real é menor que o fee bruto sugere`,vl:'R$ '+fK(KPI_DEMO.jackpot)},
     {ic:'warning',tt:'Receita dependente de poucos',sb:`só ${KPI_DEMO.conc1Tables} mesas seguram ${f(KPI_DEMO.conc1pct,1)}% do rake — perda de 1 VIP é sensível`,vl:'risco'},
   ];
   const rrel=document.getElementById('rsRisks');
@@ -1883,10 +1897,10 @@ function buildCashRings(){
 let _appStarted=false;
 function startApp(){
   if(_appStarted)return;_appStarted=true;
-  renderShiftStats();
+  renderOverviewStats();
   buildCashRings();
   buildTimeline();buildHrChart();buildLifecycle();buildModal();buildOpDiv();buildTop10();buildRecs();
-  buildBestSlots();buildShiftFee();buildForecast();buildConcurrent();buildOpShiftTable();buildShiftRecs();
+  buildForecast();
   buildTierCharts();buildConc();buildHuMulti();buildJP();buildFPP();
   buildRooms();buildRR();buildBlindBars();buildBubble();
   buildRet();buildDurFee();buildHM();buildHist();
@@ -2147,8 +2161,10 @@ function tvEnter(){
   // re-sincroniza o dataset a cada 5 min (novos imports aparecem sozinhos no telão)
   TV.refresh=setInterval(async()=>{
     try{
-      const sel=document.getElementById('daySel');
-      if(sel&&sel.value!=='__demo__'){await onDaySel(sel.value);}
+      // se todos os dias estavam marcados, re-inclui imports novos; senão preserva a seleção
+      const wasAll=_selDays.length && _selDays.length===Object.keys(_rawsCache).length;
+      await refreshDays(wasAll);
+      if(_selDays.length) applySelectedDays();
       if(TV.on){const d2=document.getElementById('tvDate');if(d2)d2.textContent=KPI_DEMO.date||'';tvTickerFill();tvShow(TV.scene);}
     }catch(e){console.error('tv refresh',e);}
   },5*60*1000);
