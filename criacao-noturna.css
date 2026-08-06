@@ -489,7 +489,7 @@ body > *{position:relative;z-index:1}
     border-color:color-mix(in srgb, var(--liga) 42%, var(--hairline));
     box-shadow:0 0 0 1px color-mix(in srgb, var(--liga) 20%, transparent), var(--shadow-sm);
   }
-  .liga-sec .vtable .rowlab.key{color:var(--ink);box-shadow:inset 3px 0 0 color-mix(in srgb,var(--liga) 55%,transparent)}
+  .liga-sec .vtable .rowlab.key{color:var(--ink)}
   .liga-sec .chk.on{background:var(--liga-bright);border-color:var(--liga-bright)}
   .section-head h2{font-family:var(--display);font-size:19px;font-weight:750;letter-spacing:-.02em}
   .section-head .cnt{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
@@ -684,13 +684,9 @@ body > *{position:relative;z-index:1}
     font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
     color:var(--ink-soft);min-width:110px;
   }
-  /* campo-CHAVE: em vez de pintar o texto de verde (poluía a coluna toda), marca
-     com um filete discreto na cor do feltro + texto em ink cheio. Lê como "importante"
-     sem virar um paredão verde. */
-  .vtable .rowlab.key{
-    color:var(--ink);font-weight:800;
-    box-shadow:inset 3px 0 0 color-mix(in srgb,var(--felt) 55%,transparent);
-  }
+  /* campo-CHAVE: grifo/filete colorido REMOVIDO (a operação pediu grade limpa).
+     A ênfase agora é só peso tipográfico — sem barra colorida, sem paredão. */
+  .vtable .rowlab.key{ color:var(--ink);font-weight:800; }
   .vtable td.vname{font-weight:650;font-size:12.5px;max-width:190px;white-space:normal;line-height:1.35}
   .vtable td.done-col{opacity:.45}
   .vtable td.done-col.vname{text-decoration:line-through}
@@ -799,10 +795,12 @@ body > *{position:relative;z-index:1}
   }
   /* DENSIDADE COMPACTA na tela cheia (Colunas): mais campos por tela = menos
      scroll vertical. Escopo só no overlay — a lista normal fica como está.
-     Cabeçalho/rodapé também encolhem pra devolver altura ao miolo. */
-  #secFsOverlay .vtable th, #secFsOverlay .vtable td{padding:4px 14px;font-size:12px}
-  #secFsOverlay .vtable td.vname{font-size:12px;line-height:1.2}
-  #secFsOverlay .vtable .rowlab{font-size:10px;min-width:104px}
+     Cabeçalho/rodapé também encolhem pra devolver altura ao miolo.
+     :not(.focus) é OBRIGATÓRIO: sem ele estas regras (têm ID → especificidade
+     alta) esmagavam o Modo Foco pra 12px — era a causa do foco "horrível". */
+  #secFsOverlay .secwrap:not(.focus) .vtable th, #secFsOverlay .secwrap:not(.focus) .vtable td{padding:4px 14px;font-size:12px}
+  #secFsOverlay .secwrap:not(.focus) .vtable td.vname{font-size:12px;line-height:1.2}
+  #secFsOverlay .secwrap:not(.focus) .vtable .rowlab{font-size:10px;min-width:104px}
   #secFsOverlay .ptable thead th,#secFsOverlay .ptable tbody td{padding:5px 10px}
   #secFsOverlay .section-head{margin:0 0 9px;padding-bottom:9px}
   #secFsOverlay .sec-fs-foot{margin-top:8px;padding-top:8px}
@@ -1299,8 +1297,10 @@ body > *{position:relative;z-index:1}
   @media (pointer:coarse){ .rl-grip{opacity:.6;min-width:26px;min-height:28px} }  /* alvo maior no touch */
   /* enquanto arrasta: cursor de "pegando" e sem seleção acidental de texto */
   body.cn-col-dragging{cursor:grabbing !important;user-select:none;-webkit-user-select:none}
-  /* alvo do drop: contorno tracejado no feltro (não empurra layout, convive com o filete key) */
-  .col-over{outline:2px dashed var(--felt-bright);outline-offset:-2px;background:var(--felt-soft)}
+  /* alvo do drop: contorno tracejado no feltro (não empurra layout). position+z-index
+     ALTO garante que o realce fique POR CIMA do cabeçalho/coluna sticky (z 2–6) — sem
+     isso o indicador ficava escondido atrás deles em alguns PCs ("encobrindo"). */
+  .col-over{outline:2px dashed var(--felt-bright);outline-offset:-2px;background:var(--felt-soft);position:relative;z-index:20}
 
   /* ── TELA CHEIA: setas de navegação por torneio ────────────────────────── */
   .fs-arrow{
@@ -1703,22 +1703,242 @@ html,body{overflow-x:hidden;max-width:100%}
 .sec-fs-search:focus{outline:none;border-color:var(--felt-bright)}
 @media (max-width:640px){ .sec-fs-search{flex:1 1 100%;order:5;height:38px} }
 
-/* ═══ CONFERÊNCIA — GRIFAR CAMPOS (marca que inseriu no software) ═══
-   Toque numa célula da receita na visão Colunas → fica grifada (marca-texto
-   dourado + ✓). Progresso X/Y por torneio na barra. Pessoal, por dia. */
-td.grifavel{cursor:pointer;position:relative;transition:background .15s var(--ease)}
-@media (hover:hover){ td.grifavel:hover{background:color-mix(in srgb,var(--gold) 9%,transparent)} }
-td.grifavel:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
-td.grifado{background:color-mix(in srgb,var(--gold) 20%,transparent);box-shadow:inset 3px 0 0 var(--gold)}
-td.grifado::after{content:"✓";position:absolute;top:2px;right:5px;font-size:9px;font-weight:900;color:var(--gold);opacity:.92;pointer-events:none}
-.grif-pop{animation:grifPop .28s var(--ease)}
-@keyframes grifPop{0%{transform:scale(1)}45%{transform:scale(1.045)}100%{transform:scale(1)}}
-@media (prefers-reduced-motion:reduce){ .grif-pop{animation:none} }
+/* ═══ DESTAQUE das linhas-chave REMOVIDO ═══
+   O grifo dourado (fundo + rótulo + filete) foi retirado a pedido da operação:
+   virava um paredão que poluía a grade. Sem regra visual aqui — a classe
+   .destaque não é mais aplicada (isDestaque() é no-op), mas fica sem estilo
+   caso reapareça. A hierarquia agora vem só do peso tipográfico. */
 
-/* chip de progresso da conferência na barra da tela cheia */
-.grif-prog{display:inline-flex;align-items:center;gap:7px;flex:none;font-size:12px;font-weight:700;color:var(--ink-soft);padding:4px 11px 4px 5px;border-radius:99px;border:1px solid var(--hairline-strong);background:var(--card)}
-.grif-prog b{color:var(--ink);font-variant-numeric:tabular-nums}
-.grif-prog .gp-ring{width:18px;height:18px;border-radius:50%;flex:none;background:conic-gradient(var(--gold) calc(var(--gp,0)*1%),var(--hairline) 0);-webkit-mask:radial-gradient(circle 5px at center,transparent 98%,#000 100%);mask:radial-gradient(circle 5px at center,transparent 98%,#000 100%)}
-.grif-prog.complete{border-color:color-mix(in srgb,var(--felt-bright) 45%,transparent);color:var(--felt-bright)}
-.grif-prog.complete b{color:var(--felt-bright)}
-.grif-prog.complete .gp-ring{background:var(--felt-bright)}
+/* ═══ MODO FOCO — UM torneio por vez, um cartão de trabalho premium ═══
+   Nome-herói no topo (cor da categoria), a receita vira lista rótulo/valor
+   limpa (SEM grifo dourado) e as ações (Operador · ID · Criado) descem pra um
+   rodapé destacado. Prefixado com #secFsOverlay pra VENCER a especificidade das
+   regras compactas do overlay — sem isso o font-size:12px genérico esmagava o
+   foco (era a causa do "horrível"). */
+/* o .secwrap (herda flex:1 do card) vira o SCROLLER; o cartão de verdade é a
+   .vtable, centrada com margin:auto — padrão robusto que centra nos 2 eixos e
+   ainda rola direito quando a receita é longa (align-items:center clipava o topo). */
+#secFsOverlay .secwrap.focus{display:flex;overflow:auto}
+#secFsOverlay .secwrap.focus .vtable{
+  display:block;margin:auto;width:min(760px,100%);border-collapse:separate;overflow:hidden;
+  background:var(--card);border:1px solid var(--hairline);border-radius:22px;box-shadow:var(--shadow-lg);
+}
+#secFsOverlay .secwrap.focus .vtable tbody{display:block;width:100%}
+#secFsOverlay .secwrap.focus .vtable tr{
+  display:grid;grid-template-columns:minmax(140px,30%) 1fr;align-items:center;gap:20px;
+  padding:14px 30px;border-bottom:1px solid color-mix(in srgb,var(--hairline) 60%,transparent);
+}
+#secFsOverlay .secwrap.focus .vtable tr:hover{background:color-mix(in srgb,var(--ink) 3%,transparent)}
+
+/* HERÓI — nome grande + faixa de acento da categoria à esquerda */
+#secFsOverlay .secwrap.focus .vtable tr.trow-head{
+  grid-template-columns:1fr;gap:8px;padding:26px 30px 22px;position:relative;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--felt-bright) 12%,transparent),transparent);
+  border-bottom:1px solid var(--hairline);border-radius:22px 22px 0 0;
+}
+#secFsOverlay .secwrap.focus.main .vtable tr.trow-head{background:linear-gradient(180deg,color-mix(in srgb,var(--main-bright) 15%,transparent),transparent)}
+#secFsOverlay .secwrap.focus.side .vtable tr.trow-head{background:linear-gradient(180deg,color-mix(in srgb,var(--side-bright) 15%,transparent),transparent)}
+#secFsOverlay .secwrap.focus.sat  .vtable tr.trow-head{background:linear-gradient(180deg,color-mix(in srgb,var(--sat-bright) 15%,transparent),transparent)}
+#secFsOverlay .secwrap.focus .vtable tr.trow-head::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:4px;
+  border-radius:22px 0 0 0;background:var(--felt-bright);
+}
+#secFsOverlay .secwrap.focus.main .vtable tr.trow-head::before{background:var(--main-bright)}
+#secFsOverlay .secwrap.focus.side .vtable tr.trow-head::before{background:var(--side-bright)}
+#secFsOverlay .secwrap.focus.sat  .vtable tr.trow-head::before{background:var(--sat-bright)}
+#secFsOverlay .secwrap.focus .vtable tr.trow-head:hover{background:linear-gradient(180deg,color-mix(in srgb,var(--felt-bright) 12%,transparent),transparent)}
+#secFsOverlay .secwrap.focus .vtable tr.trow-head th.rowlab{display:none}
+/* neutraliza a herança do cabeçalho da LISTA: lá o td é sticky + fundo branco
+   opaco + max-width:190px (pra não vazar ao rolar). No foco isso tapava metade
+   do gradiente do herói e espremia o nome em 3 linhas. */
+#secFsOverlay .secwrap.focus .vtable tr.trow-head td.vname{
+  font-size:26px;font-weight:800;line-height:1.14;color:var(--ink);letter-spacing:-.015em;
+  position:static;background:transparent;max-width:none;box-shadow:none;
+}
+#secFsOverlay .secwrap.focus .vtable tr.trow-head td.vname .mtt-kick,
+#secFsOverlay .secwrap.focus .vtable tr.trow-head td.vname .urg-pill{font-size:12px}
+
+/* rótulo discreto + valor legível pra digitar no software */
+#secFsOverlay .secwrap.focus .vtable th.rowlab{
+  display:flex;align-items:center;text-align:left;padding:0;border:none;box-shadow:none;background:none;min-width:0;
+  font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);white-space:normal;
+}
+#secFsOverlay .secwrap.focus .vtable th.rowlab .rl-txt{color:inherit}
+#secFsOverlay .secwrap.focus .vtable th.rowlab .rl-hide,
+#secFsOverlay .secwrap.focus .vtable th.rowlab .rl-grip{display:none}  /* limpa: sem olhinho/alça no foco */
+#secFsOverlay .secwrap.focus .vtable td{
+  display:block;padding:0;border:none;font-size:17px;font-weight:600;color:var(--ink);
+  white-space:normal;word-break:break-word;font-variant-numeric:tabular-nums;line-height:1.35;
+}
+
+/* CRIAR EM — o gatilho da ação: valor maior, na cor do feltro (sem grifo de fundo) */
+#secFsOverlay .secwrap.focus .vtable tr[data-field="criar"] td{font-size:20px;font-weight:800;color:var(--felt-bright)}
+
+/* RODAPÉ DE AÇÃO — Operador · ID · Criado agrupados num bloco destacado no pé */
+#secFsOverlay .secwrap.focus .vtable tr[data-field="op"],
+#secFsOverlay .secwrap.focus .vtable tr[data-field="id"],
+#secFsOverlay .secwrap.focus .vtable tr[data-field="done"]{
+  background:color-mix(in srgb,var(--ink) 3%,transparent);border-bottom:none;
+}
+#secFsOverlay .secwrap.focus .vtable tr[data-field="op"]{margin-top:6px;padding-top:18px;border-top:1px solid var(--hairline)}
+#secFsOverlay .secwrap.focus .vtable tr[data-field="done"]{padding-bottom:22px;border-radius:0 0 22px 22px}
+#secFsOverlay .secwrap.focus .vtable tr[data-field="done"] .chk{width:40px;height:40px}
+#secFsOverlay .secwrap.focus .vtable .id-inp{width:100%;max-width:280px;font-size:15px;height:38px}
+#secFsOverlay .secwrap.focus .vtable .op-assign{font-size:14px}
+
+@media (max-width:640px){
+  #secFsOverlay .secwrap.focus{border-radius:18px}
+  #secFsOverlay .secwrap.focus .vtable tr{padding:12px 18px;grid-template-columns:minmax(104px,38%) 1fr;gap:12px}
+  #secFsOverlay .secwrap.focus .vtable tr.trow-head{padding:20px 18px 16px}
+  #secFsOverlay .secwrap.focus .vtable tr.trow-head td.vname{font-size:21px}
+  #secFsOverlay .secwrap.focus .vtable td{font-size:15.5px}
+  #secFsOverlay .secwrap.focus .vtable tr[data-field="criar"] td{font-size:17px}
+}
+
+/* ═══ VISÃO CARDS — deck de cartas na tela cheia (◎ Foco = 1 por vez; ▦ Cards = todos) ═══
+   Grade responsiva de cartões; cada carta é auto-suficiente (nome, dados-chave,
+   operador, ID, criar). Filete no topo na cor da categoria (Main/Side/Satélite). */
+#secFsOverlay .secwrap.cards{overflow:auto}
+/* cartas MAIS LARGAS: a receita cabe em 3 colunas → carta mais BAIXA (menos scroll)
+   e ainda entram 3–4 por linha em tela grande (usa a largura toda). */
+.cards-wrap{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));
+  gap:12px;padding:2px 2px 6px;align-items:start;
+}
+.cn-card{
+  display:flex;flex-direction:column;gap:7px;position:relative;
+  background:var(--card);border:1px solid var(--hairline);border-top:3px solid var(--felt-bright);
+  border-radius:14px;padding:13px 15px 11px;box-shadow:var(--shadow-sm);
+  transition:box-shadow .2s var(--ease),transform .2s var(--ease);
+}
+.cn-card.main{border-top-color:var(--main-bright)}
+.cn-card.side{border-top-color:var(--side-bright)}
+.cn-card.sat{border-top-color:var(--sat-bright)}
+.cn-card.liga{border-top-color:var(--liga,#c9a84c)}
+.cn-card:hover{box-shadow:var(--shadow-md);transform:translateY(-2px)}
+.cn-card.is-done{opacity:.6}
+.cn-card.is-done .cn-card-name .vgo{text-decoration:line-through}
+.cn-card-head{display:flex;align-items:center;gap:8px}
+.cn-card-suit{font-size:16px;line-height:1}
+.cn-card-hora{font-family:var(--mono);font-weight:800;font-size:15px;color:var(--ink);font-variant-numeric:tabular-nums}
+.cn-card-tick{margin-left:auto;font-size:10.5px;font-weight:800;color:var(--felt-bright);text-transform:uppercase;letter-spacing:.05em}
+.cn-card-name{font-size:15.5px;font-weight:750;line-height:1.22;color:var(--ink)}
+.cn-card-name .vgo{cursor:pointer}
+.cn-card-name .vgo:hover{color:var(--felt-bright);text-decoration:underline;text-underline-offset:3px}
+.cn-card-badges{display:flex;flex-wrap:wrap;gap:6px}
+.cn-card-badges:empty{display:none}
+.cn-card-facts{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:7px 14px;
+  padding:8px 0;margin:1px 0;border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline);
+}
+.cn-card-fact{display:flex;flex-direction:column;gap:1px;min-width:0}
+.cn-card-fact.chip{grid-column:span 1}
+.cn-card-fact .k{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink3)}
+.cn-card-fact .v{font-size:13.5px;font-weight:650;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cn-card-fact.chip .v{white-space:normal;overflow:visible}
+.cn-card-fact.hot .v{color:var(--felt-bright);font-weight:800}
+/* RECEITA COMPLETA dentro do card — 3 colunas: mais campos por linha, carta mais baixa */
+.cn-card-recipe{display:flex;flex-direction:column;gap:6px}
+.cn-card-recipe-h{display:flex;align-items:center;gap:10px;font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
+.cn-card-recipe-h .ln{flex:1;height:1px;background:var(--hairline)}
+.cn-card-grp{font-size:11px;color:var(--sat-bright);font-weight:600}
+.cn-card-recipe .recipe-grid{grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:5px 12px}
+.cn-card-recipe .recipe-grid .rf .k{font-size:8.5px;margin-bottom:0}
+.cn-card-recipe .recipe-grid .rf .v{font-size:11.5px;line-height:1.25}
+.cn-card-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px}
+.cn-card-foot .id-inp{flex:1;min-width:88px;height:32px}
+.cn-card-foot .op-assign{flex:none}
+.cn-card-foot .copy-btn{margin-left:auto}
+/* COMPACTO: cartas menores ainda + receita bem densa = o máximo por tela */
+.cn-compact .cards-wrap{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:9px}
+.cn-compact .cn-card{padding:11px 13px 9px;gap:6px}
+.cn-compact .cn-card-recipe .recipe-grid{gap:4px 10px}
+.cn-compact .cn-card-recipe .recipe-grid .rf .v{font-size:11px}
+
+/* ═══ MODO LIVRE — montador de seções + acento das seções custom ═══ */
+/* seções de tipos mistos usam o dourado da marca como acento neutro */
+.section-head.cust .tag{background:color-mix(in srgb,var(--gold) 16%,transparent);color:var(--gold)}
+.cn-card.cust{border-top-color:var(--gold)}
+#secFsOverlay .secwrap.focus.cust .vtable tr.trow-head{background:linear-gradient(180deg,color-mix(in srgb,var(--gold) 14%,transparent),transparent)}
+#secFsOverlay .secwrap.focus.cust .vtable tr.trow-head::before{background:var(--gold)}
+
+.mysec-mount{margin-top:18px}
+.mysec-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px}
+.mysec-mode{flex:none}
+.mysec-chip{
+  display:inline-flex;align-items:center;gap:7px;padding:5px 7px 5px 11px;border-radius:99px;
+  background:var(--card-elevated);border:1px solid var(--hairline-strong);font-size:12.5px;color:var(--ink);
+}
+.mysec-chip b{font-weight:700}
+.mysec-suit{opacity:.8}
+.mysec-chip.main{box-shadow:inset 3px 0 0 var(--main-bright)}
+.mysec-chip.sat{box-shadow:inset 3px 0 0 var(--sat-bright)}
+.mysec-chip.side{box-shadow:inset 3px 0 0 var(--side-bright)}
+.mysec-chip.sidefree{box-shadow:inset 3px 0 0 var(--sidefree-bright)}
+.mysec-chip.cust{box-shadow:inset 3px 0 0 var(--gold)}
+.mysec-n{font-family:var(--mono);font-size:11px;font-weight:800;background:var(--hairline);border-radius:99px;padding:1px 7px;color:var(--ink-soft)}
+.mysec-ed,.mysec-rm{border:none;background:none;cursor:pointer;color:var(--ink3);font-size:13px;line-height:1;padding:3px 4px;border-radius:6px}
+.mysec-ed:hover{color:var(--felt-bright);background:var(--felt-soft)}
+.mysec-rm:hover{color:var(--red);background:var(--red-soft)}
+.mysec-add{
+  border:1px dashed var(--hairline-strong);background:transparent;color:var(--ink-soft);
+  border-radius:99px;padding:6px 14px;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .18s var(--ease);
+}
+.mysec-add:hover{border-color:var(--felt-bright);color:var(--felt-bright)}
+.mysec-form{
+  margin-top:12px;padding:14px;border:1px solid var(--hairline);border-radius:14px;
+  background:var(--card-elevated);display:flex;flex-direction:column;gap:12px;max-width:580px;
+}
+.mysec-f-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.mysec-form input[type=text]{
+  flex:1;min-width:180px;height:36px;padding:0 12px;border:1px solid var(--hairline-strong);
+  border-radius:9px;background:var(--card);color:var(--ink);font:inherit;font-size:13px;outline:none;
+}
+.mysec-form input[type=text]:focus{border-color:var(--felt-bright)}
+.mysec-until{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-soft);font-weight:600}
+.mysec-until input[type=time]{height:36px;padding:0 8px;border:1px solid var(--hairline-strong);border-radius:9px;background:var(--card);color:var(--ink);font:inherit;font-size:13px;outline:none}
+.mysec-until input[type=time]:focus{border-color:var(--felt-bright)}
+.mysec-types{display:flex;flex-wrap:wrap;gap:8px}
+.mysec-type{
+  position:relative;display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:99px;cursor:pointer;
+  border:1px solid var(--hairline-strong);background:var(--card);font-size:12.5px;font-weight:600;color:var(--ink-soft);
+  transition:all .16s var(--ease);user-select:none;
+}
+.mysec-type .s{opacity:.7}
+.mysec-type:hover{border-color:var(--ink3)}
+.mysec-type.on{border-color:var(--felt-bright);color:var(--ink);background:var(--felt-soft)}
+.mysec-type input{position:absolute;opacity:0;width:0;height:0}
+.mysec-f-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.mysec-f-actions .btn{padding:8px 16px}
+.mysec-hint{font-size:11.5px;color:var(--ink3)}
+
+/* ═══ SUSPENSOS — torneios que NÃO se cria (marcados na GU) ═══
+   Cartão informativo: nome + motivo, sem ID e sem "criado". Tom vermelho discreto
+   pra ler como "atenção, não crie" sem competir com as seções de trabalho. */
+.section-head.susp .tag{background:var(--red-soft);color:var(--red);font-weight:800}
+.section-head.susp .cnt{color:var(--red);font-weight:700}
+.susp-list{
+  display:grid;gap:8px;margin-top:4px;
+  background:var(--card);border:1px solid var(--hairline);border-radius:var(--radius-md);
+  box-shadow:var(--shadow-sm);padding:10px;
+}
+.susp-item{
+  display:flex;align-items:flex-start;gap:12px;padding:11px 13px;border-radius:12px;
+  background:var(--red-soft);border:1px solid color-mix(in srgb,var(--red) 26%,transparent);
+}
+.susp-x{font-size:17px;line-height:1.3;flex:none;filter:grayscale(.15)}
+.susp-body{min-width:0}
+.susp-name{
+  font-weight:750;font-size:14px;color:var(--ink);
+  text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--red) 60%,transparent);
+  display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;
+}
+.susp-hora{
+  font-family:var(--mono);font-size:11.5px;font-weight:700;letter-spacing:.02em;
+  color:var(--red);text-decoration:none;
+  background:color-mix(in srgb,var(--red) 12%,transparent);border-radius:6px;padding:1px 7px;
+}
+.susp-why{margin-top:3px;font-size:12.5px;color:var(--ink-soft);line-height:1.4}
+.susp-why b{color:var(--red);font-weight:700}
+.cn-compact .susp-item{padding:7px 10px}
+.cn-compact .susp-name{font-size:12.5px}

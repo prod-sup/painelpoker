@@ -389,11 +389,64 @@ const CAT_SIDE_B = {key:'sideNoAdmin', cls:'sidefree', suit:'♦', label:'Side E
 const SECTIONS = [CAT_MAIN, CAT_SAT, CAT_SIDE_A, CAT_SIDE_B];
 function catItems(cat){
   if (!DATA) return [];
+  if (cat.custom) return customPool(cat);
   if (cat.key === 'main') return DATA.main;
   if (cat.key === 'sat')  return DATA.sat;
   const s = sideSplit();
   return cat.key === 'sideAdmin' ? s.admin : s.noadmin;
 }
+
+/* ═══ MODO LIVRE — seções montadas pelo operador (PRIVADAS, localStorage) ═══
+   Cada seção junta 1+ tipos (main/sat/sideAdmin/sideNoAdmin) + um corte de
+   horário opcional ("pegar até HH:MM"). A montagem é LOCAL (cada um monta o
+   fluxo dele); só IDs e "criado" sincronizam ao vivo, como já era. Admin Fee é
+   auto-detectado (sideSplit → hasAdminFee), sem marcação manual. */
+const TYPE_META = {
+  main:        { label:'Main',          cls:'main',     suit:'♠' },
+  sat:         { label:'Satélite',      cls:'sat',      suit:'♣' },
+  sideAdmin:   { label:'Side c/ Admin', cls:'side',     suit:'♥' },
+  sideNoAdmin: { label:'Side s/ Admin', cls:'sidefree', suit:'♦' },
+};
+const TYPE_ORDER = ['main','sat','sideAdmin','sideNoAdmin'];
+let CUSTOM_SECTIONS = [];
+try{ CUSTOM_SECTIONS = JSON.parse(localStorage.getItem('cn_custom_sections') || '[]') || []; }catch(e){ CUSTOM_SECTIONS = []; }
+let SECTION_MODE = localStorage.getItem('cn_section_mode') || 'default';   // 'default' | 'custom'
+function persistCustomSections(){ try{ localStorage.setItem('cn_custom_sections', JSON.stringify(CUSTOM_SECTIONS)); }catch(e){} }
+function setSectionMode(m){ SECTION_MODE = m; try{ localStorage.setItem('cn_section_mode', m); }catch(e){} renderAll(); }
+function typePool(t){
+  if (!DATA) return [];
+  if (t === 'main') return DATA.main;
+  if (t === 'sat')  return DATA.sat;
+  const s = sideSplit();
+  return t === 'sideAdmin' ? s.admin : t === 'sideNoAdmin' ? s.noadmin : [];
+}
+/* minuto "na janela" 06:10→05:30: o que é depois da meia-noite conta como +24h,
+   pra "até 02:00" incluir a madrugada e não cortar antes das 22:00 da noite */
+const _wmin = m => m == null ? null : (m >= CONF_WINDOW_START_MIN ? m : m + 1440);
+function withinUntil(hora, untilStr){
+  const mu = _wmin(timeToMinutes(untilStr)); if (mu == null) return true;   // sem corte = tudo
+  const mh = _wmin(timeToMinutes(hora));      if (mh == null) return true;
+  return mh <= mu;
+}
+function typesLabel(types){ return (types || []).slice().sort((a,b)=>TYPE_ORDER.indexOf(a)-TYPE_ORDER.indexOf(b)).map(t => (TYPE_META[t]||{}).label).filter(Boolean).join(' + '); }
+function customSuit(types){ const s = (types||[]).slice().sort((a,b)=>TYPE_ORDER.indexOf(a)-TYPE_ORDER.indexOf(b)).map(t => (TYPE_META[t]||{}).suit).filter(Boolean).join(''); return s || '◆'; }
+function customCls(types){ const set = new Set((types||[]).map(t => (TYPE_META[t]||{}).cls)); return set.size === 1 ? [...set][0] : 'cust'; }
+function autoName(cs){ const t = typesLabel(cs.types) || 'Seção'; return cs.until ? `${t} · até ${cs.until}` : t; }
+function customCat(cs){
+  return { key:'cs:'+cs.id, cls:customCls(cs.types), suit:customSuit(cs.types), label:cs.name || autoName(cs), custom:true, types:cs.types||[], until:cs.until||'' };
+}
+function customPool(cat){
+  if (!DATA) return [];
+  let out = [];
+  (cat.types||[]).forEach(t => { out = out.concat(typePool(t)); });
+  if (cat.until) out = out.filter(it => withinUntil(it.hora, cat.until));
+  return out.slice().sort((a,b) => (_wmin(timeToMinutes(a.hora)) ?? 99999) - (_wmin(timeToMinutes(b.hora)) ?? 99999));
+}
+function customCats(){ return CUSTOM_SECTIONS.map(customCat); }
+/* seções que a lista/tela cheia renderizam: as minhas (se houver e o modo estiver
+   ligado) OU as fixas do turno. Aditivo — quem não montar nada vê o padrão. */
+function activeSections(){ return (SECTION_MODE === 'custom' && CUSTOM_SECTIONS.length) ? customCats() : SECTIONS; }
+function findCat(key){ return SECTIONS.find(c => c.key === key) || customCats().find(c => c.key === key) || null; }
 const CAT_LIGA = {key:'liga', cls:'liga', suit:'🏆', label:'Liga Principal'};
 function ligaItemsForDay(){
   if (typeof LIGA_PRINCIPAL_SECTIONS === 'undefined') return [];
@@ -473,16 +526,11 @@ let SEC_VIEW = localStorage.getItem('cn_sec_view') || 'sheet'; // 'sheet' | 'col
 // campos ocultos na tela cheia (o "olhinho") — persistido, vale pras duas visões
 let SEC_HIDDEN = new Set();
 try{ SEC_HIDDEN = new Set(JSON.parse(localStorage.getItem('cn_sec_hidden') || '[]')); }catch(e){}
-/* GRIFOS — conferência de campos: enquanto cria, o operador GRIFA cada campo da
-   receita (MTT, K.O, Prize Pool, Buy-in, Add-on, Structure…) conforme insere no
-   software. Set de "torneioKey§Rótulo". Pessoal (localStorage) e por DIA da grade. */
-const GRIF_LS = 'cn_grifos_' + TOMORROW_ISO;
-let GRIFOS = new Set();
-try{ GRIFOS = new Set(JSON.parse(localStorage.getItem(GRIF_LS) || '[]')); }catch(e){}
-function persistGrifos(){ try{ localStorage.setItem(GRIF_LS, JSON.stringify([...GRIFOS])); }catch(e){} }
-function toggleGrif(gk){ if (GRIFOS.has(gk)) GRIFOS.delete(gk); else GRIFOS.add(gk); persistGrifos(); }
-/* limpa todos os grifos de UM torneio (usado ao criar / botão limpar) */
-function clearGrifsOf(key){ let ch = false; GRIFOS.forEach(g => { if (g.indexOf(key + '§') === 0){ GRIFOS.delete(g); ch = true; } }); if (ch) persistGrifos(); return ch; }
+/* DESTAQUE das colunas-chave REMOVIDO a pedido da operação: o grifo dourado
+   (fundo + rótulo + filete) virava um paredão que poluía a grade. A hierarquia
+   agora vem só do peso tipográfico. Mantido como no-op pra não mexer nas
+   chamadas espalhadas pela renderização. */
+function isDestaque(label){ return false; }
 // ORDEM PERSONALIZADA das colunas (arrastar-e-soltar) — array de rótulos na ordem que o
 // operador montou. null = usa a ordem padrão (CREATION_ORDER). Guardado POR OPERADOR
 // (localStorage), então cada um arruma a grade do jeito dele sem atrapalhar os colegas.
@@ -541,7 +589,10 @@ try{
   });
   fbDb.ref(`${FB_PATH}/ops`).on('value', s => {
     const v = s.val();
-    OPS = Array.isArray(v) ? v.filter(Boolean) : (v ? Object.values(v).filter(Boolean) : []);
+    const raw = Array.isArray(v) ? v.filter(Boolean) : (v ? Object.values(v).filter(Boolean) : []);
+    OPS = raw.filter(o => !isPhantomOp(o));   // some com o operador-fantasma "Suspenso" (ver isPhantomOp)
+    // limpeza permanente: se o Firebase ainda guarda o fantasma, reescreve a lista limpa
+    if (fbDb && raw.length !== OPS.length) fbDb.ref(`${FB_PATH}/ops`).set(OPS);
     renderAll();
   });
   fbDb.ref(`${FB_PATH}/done`).on('value', s => {
@@ -897,7 +948,7 @@ function processGlobalBuffer(arrayBuffer, sourceName, opts){
 
   if (fbDb){
     fbDb.ref(`${FB_PATH}/sheet`).set({
-      json: JSON.stringify({main:sections.main, side:sections.side, sat:sections.sat, unknown:sections.unknown, fields, warnings, changes, fileName:sourceName}),
+      json: JSON.stringify({main:sections.main, side:sections.side, sat:sections.sat, unknown:sections.unknown, suspensos:sections.suspensos||[], fields, warnings, changes, fileName:sourceName}),
       // count pequeno pra o hub contar sem baixar a grade inteira (economia de banda)
       count: total,
       by, at: firebase.database.ServerValue.TIMESTAMP
@@ -1045,7 +1096,7 @@ function withSecOwner(baseAsg, items, catKey){
    é o que "meus torneios" e o handoff enxergam. */
 function effectiveAssignments(){
   let asg = computeAssignments();
-  SECTIONS.forEach(cat => { asg = withSecOwner(asg, catItems(cat), cat.key); });
+  activeSections().forEach(cat => { asg = withSecOwner(asg, catItems(cat), cat.key); });
   if (typeof LIGA_PRINCIPAL_SECTIONS !== 'undefined'){
     const lp = LIGA_PRINCIPAL_SECTIONS[WEEKDAY_TOMORROW_EN];
     if (lp) asg = withSecOwner(asg, [...(lp.main||[]), ...(lp.side||[]), ...(lp.sat||[])], 'liga');
@@ -1090,6 +1141,10 @@ function setAssignTo(key, op){
   logEvent('atribuição', `${key} → ${op || '(livre)'}`);
 }
 /* garante que EU estou na equipe (pra "pegar pra mim" funcionar mesmo sem me adicionar antes) */
+/* "Suspenso" NÃO é operador: era um balde manual pros torneios suspensos antes de
+   existir a seção ⛔ Suspensos. Filtra da equipe e impede re-adicionar, pra o
+   fantasma sumir sozinho. Match EXATO normalizado — não pega nome real de pessoa. */
+function isPhantomOp(name){ return /^suspens[oa]s?$/.test(normText(name || '')); }
 function ensureMeInOps(){
   const meIn = OPS.find(o => normText(o) === normText(ME));
   if (meIn) return meIn;
@@ -1387,6 +1442,7 @@ function renderAllNow(){
     if (vw) secScroll[sw.dataset.suit] = { t: vw.scrollTop, l: vw.scrollLeft };
   });
   renderOps();
+  renderMySections();
   renderFilters();
   renderAlerts();
   renderStats();
@@ -1660,6 +1716,7 @@ function renderOps(){
   const addOp = () => {
     const v = $('opAddInput').value.trim();
     if (!v) return;
+    if (isPhantomOp(v)){ showToast('“Suspenso” não é operador — torneios suspensos aparecem na seção ⛔ Suspensos.', true); return; }
     if (OPS.some(o => normText(o) === normText(v))){ showToast('Esse nome já está na equipe.', true); return; }
     saveOps([...OPS, v]);
   };
@@ -1669,6 +1726,93 @@ function renderOps(){
   if (me) me.addEventListener('click', () => saveOps([...OPS, ME]));
   renderDivTools(asg);
   renderAssignBanner();
+}
+
+/* ═══ MONTADOR DE SEÇÕES (modo livre) — render + interações ═══
+   Privado por operador (localStorage). Mostra o toggle Padrão/Minhas, os chips das
+   seções montadas (com a contagem de torneios que caem em cada uma) e o formulário
+   de criar/editar (tipos + corte de horário). */
+let _mySecEditing = null;      // id da seção em edição, ou null
+let _mySecFormOpen = false;
+function renderMySections(){
+  const mount = $('mySecMount'); if (!mount) return;
+  if (!DATA){ mount.innerHTML = ''; return; }
+  const has = CUSTOM_SECTIONS.length > 0;
+  const chip = cs => {
+    const cat = customCat(cs);
+    const n = catItems(cat).length;
+    return `<span class="mysec-chip ${cat.cls}" title="${escHtml(typesLabel(cs.types))}${cs.until ? ' · até ' + escHtml(cs.until) : ''}">
+      <span class="mysec-suit">${customSuit(cs.types)}</span><b>${escHtml(cs.name || autoName(cs))}</b>
+      <span class="mysec-n" title="torneios nesta seção">${n}</span>
+      <button class="mysec-ed" data-editsec="${cs.id}" title="Editar seção" aria-label="Editar">✎</button>
+      <button class="mysec-rm" data-delsec="${cs.id}" title="Remover seção" aria-label="Remover">×</button>
+    </span>`;
+  };
+  mount.innerHTML = `
+    <div class="ctrl-group" style="flex:1;min-width:280px">
+      <span class="ctrl-label">Minhas seções — monte o SEU fluxo por tipo e horário (só você vê)</span>
+      <div class="mysec-row">
+        <div class="seg mysec-mode">
+          <button data-secmode="default" class="${SECTION_MODE === 'default' || !has ? 'on' : ''}">Padrão do turno</button>
+          <button data-secmode="custom" class="${SECTION_MODE === 'custom' && has ? 'on' : ''}"${has ? '' : ' disabled title="Monte uma seção primeiro"'}>Minhas seções</button>
+        </div>
+        ${CUSTOM_SECTIONS.map(chip).join('')}
+        <button class="mysec-add" data-addsec>+ Montar seção</button>
+      </div>
+      ${_mySecFormOpen ? mySecFormHtml() : ''}
+    </div>`;
+  mount.querySelectorAll('[data-secmode]').forEach(b => b.addEventListener('click', () => { if (!b.disabled) setSectionMode(b.dataset.secmode); }));
+  mount.querySelectorAll('[data-delsec]').forEach(b => b.addEventListener('click', () => {
+    CUSTOM_SECTIONS = CUSTOM_SECTIONS.filter(c => c.id !== b.dataset.delsec);
+    if (!CUSTOM_SECTIONS.length){ SECTION_MODE = 'default'; try{ localStorage.setItem('cn_section_mode', 'default'); }catch(e){} }
+    persistCustomSections(); _mySecFormOpen = false; _mySecEditing = null; renderAll();
+  }));
+  mount.querySelectorAll('[data-editsec]').forEach(b => b.addEventListener('click', () => { _mySecEditing = b.dataset.editsec; _mySecFormOpen = true; renderMySections(); }));
+  const addBtn = mount.querySelector('[data-addsec]');
+  if (addBtn) addBtn.addEventListener('click', () => { _mySecEditing = null; _mySecFormOpen = !_mySecFormOpen; renderMySections(); });
+  bindMySecForm(mount);
+}
+function mySecFormHtml(){
+  const ed = _mySecEditing ? CUSTOM_SECTIONS.find(c => c.id === _mySecEditing) : null;
+  const sel = new Set(ed ? ed.types : []);
+  const types = TYPE_ORDER.map(t => `<label class="mysec-type ${sel.has(t) ? 'on' : ''}"><input type="checkbox" value="${t}"${sel.has(t) ? ' checked' : ''}><span class="s">${TYPE_META[t].suit}</span>${TYPE_META[t].label}</label>`).join('');
+  return `
+    <div class="mysec-form">
+      <div class="mysec-f-row">
+        <input type="text" id="mysecName" maxlength="40" placeholder="Nome (opcional — ex.: Mains cedo)" value="${ed ? escHtml(ed.name || '') : ''}">
+        <label class="mysec-until">Pegar até <input type="time" id="mysecUntil" value="${ed ? escHtml(ed.until || '') : ''}"></label>
+      </div>
+      <div class="mysec-types">${types}</div>
+      <div class="mysec-f-actions">
+        <button class="btn primary" data-savesec>${ed ? 'Salvar alterações' : 'Criar seção'}</button>
+        <button class="btn ghost" data-cancelsec>Cancelar</button>
+        <span class="mysec-hint">${ed ? 'Editando “' + escHtml(ed.name || autoName(ed)) + '”' : 'Escolha 1+ tipos. Sem horário = dia inteiro.'}</span>
+      </div>
+    </div>`;
+}
+function bindMySecForm(mount){
+  mount.querySelectorAll('.mysec-type input').forEach(cb => cb.addEventListener('change', () => cb.closest('.mysec-type').classList.toggle('on', cb.checked)));
+  const save = mount.querySelector('[data-savesec]');
+  if (save) save.addEventListener('click', () => {
+    const types = [...mount.querySelectorAll('.mysec-type input:checked')].map(c => c.value);
+    if (!types.length){ showToast('Escolha pelo menos um tipo pra seção.', true); return; }
+    const name = (mount.querySelector('#mysecName').value || '').trim();
+    const until = mount.querySelector('#mysecUntil').value || '';
+    const editing = !!_mySecEditing;
+    if (editing){
+      const cs = CUSTOM_SECTIONS.find(c => c.id === _mySecEditing);
+      if (cs){ cs.types = types; cs.name = name; cs.until = until; }
+    } else {
+      CUSTOM_SECTIONS.push({ id: Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36), types, name, until });
+    }
+    persistCustomSections();
+    SECTION_MODE = 'custom'; try{ localStorage.setItem('cn_section_mode', 'custom'); }catch(e){}
+    _mySecFormOpen = false; _mySecEditing = null;
+    showToast(editing ? 'Seção atualizada.' : 'Seção criada — mostrando as suas seções.');
+    renderAll();
+  });
+  const cancel = mount.querySelector('[data-cancelsec]');
+  if (cancel) cancel.addEventListener('click', () => { _mySecFormOpen = false; _mySecEditing = null; renderMySections(); });
 }
 /* A1 — barra fixa de "modo atribuição": quando alguém está armado (SELECTED_OP),
    deixa o estado VISÍVEL (antes só o chip .sel indicava) e dá um botão Concluir.
@@ -2060,17 +2204,21 @@ function reorderCol(src, target){
    A alça é o ⋮⋮ (.col-grip, touch-action:none só nele: o dedo arrasta a coluna sem
    rolar a grade; tocar em qualquer outro lugar continua rolando normal). Acha o alvo
    sob o ponteiro com elementFromPoint, então funciona igual com dedo ou cursor. */
-let _dragCol = null, _dragGrip = null, _dragActive = false, _dragX = 0, _dragY = 0;
+let _dragCol = null, _dragGrip = null, _dragActive = false, _dragX = 0, _dragY = 0, _dragId = null;
 function clearColOver(){ document.querySelectorAll('.col-over').forEach(x => x.classList.remove('col-over')); }
 function endColDrag(){
   document.body.classList.remove('cn-col-dragging');
   clearColOver();
-  if (_dragGrip){
-    _dragGrip.removeEventListener('pointermove', onColMove);
-    _dragGrip.removeEventListener('pointerup', onColUp);
-    _dragGrip.removeEventListener('pointercancel', onColUp);
-  }
-  _dragGrip = null; _dragCol = null; _dragActive = false;
+  // Os listeners moram na WINDOW (não no ⋮⋮): assim sobrevivem a um re-render do
+  // Firebase que destrua a alça no MEIO do arrasto. Antes ficavam na alça — quando
+  // um parceiro marcava um ID, renderAll() reconstruía a lista, a alça sumia, o
+  // pointerup nunca chegava e o estado travava: o .col-over e o cursor "grabbing"
+  // ficavam ENCOBRINDO a grade "em alguns PCs" (justo quem arrastava num turno cheio).
+  window.removeEventListener('pointermove', onColMove);
+  window.removeEventListener('pointerup', onColUp);
+  window.removeEventListener('pointercancel', onColUp);
+  if (_dragGrip){ try{ _dragGrip.releasePointerCapture(_dragId); }catch(_){} }
+  _dragGrip = null; _dragCol = null; _dragActive = false; _dragId = null;
 }
 function colTargetAt(x, y){
   const el = document.elementFromPoint(x, y);
@@ -2079,6 +2227,7 @@ function colTargetAt(x, y){
 }
 function onColMove(e){
   if (!_dragCol) return;
+  if (_dragId != null && e.pointerId !== _dragId) return;   // ignora um 2º dedo/ponteiro
   if (!_dragActive){
     if (Math.abs(e.clientX - _dragX) < 6 && Math.abs(e.clientY - _dragY) < 6) return;  // ainda é um toque, não arrasto
     _dragActive = true;
@@ -2090,6 +2239,7 @@ function onColMove(e){
   if (host) host.classList.add('col-over');
 }
 function onColUp(e){
+  if (_dragId != null && e.pointerId !== _dragId) return;
   const src = _dragCol, active = _dragActive;
   const host = active ? colTargetAt(e.clientX, e.clientY) : null;
   const target = host ? host.dataset.col : null;
@@ -2099,13 +2249,15 @@ function onColUp(e){
 function onColDown(e){
   const host = e.target.closest('[data-col]');
   if (!host) return;
+  if (_dragCol) endColDrag();                       // higiene: nunca acumula 2 arrastos
   _dragCol = host.dataset.col; _dragActive = false;
   _dragX = e.clientX; _dragY = e.clientY;
-  _dragGrip = e.currentTarget;
+  _dragGrip = e.currentTarget; _dragId = e.pointerId;
   try{ _dragGrip.setPointerCapture(e.pointerId); }catch(_){}
-  _dragGrip.addEventListener('pointermove', onColMove);
-  _dragGrip.addEventListener('pointerup', onColUp);
-  _dragGrip.addEventListener('pointercancel', onColUp);
+  // listeners na WINDOW (ver endColDrag): sobrevivem a re-render que destrua a alça
+  window.addEventListener('pointermove', onColMove);
+  window.addEventListener('pointerup', onColUp);
+  window.addEventListener('pointercancel', onColUp);
 }
 function bindColDrag(root){
   if (!root) return;
@@ -2264,6 +2416,12 @@ function opTagHtml(op, key){
 
 /* nota abaixo do cabeçalho da seção: explica a função e quem está nela */
 function sectionNoteHtml(cat){
+  // seção montada pelo operador (modo livre): descreve os tipos + o corte de horário
+  if (cat.custom){
+    const t = typesLabel(cat.types) || 'Sem tipo';
+    const cut = cat.until ? ` até <b>${escHtml(cat.until)}</b>` : ' (dia inteiro)';
+    return `<p class="section-note">Sua seção: <b>${escHtml(t)}</b>${cut}. Admin Fee detectado automático. Só você vê essa montagem.</p>`;
+  }
   const explicit = OPS.filter(o => roleOf(o) === cat.role);
   const chips = explicit.map(o =>
     `<span class="lk"><span class="d" style="background:${opColor(o)}"></span>${escHtml(o.split(' ')[0])}</span>`).join('');
@@ -2288,7 +2446,20 @@ const prizeChip = (list, brl) => {
   return `<span class="gtd-total" title="Soma do PRIZE POOL USD desta seção · R$ ${_nf(usd * BRL_RATE)}">Σ $ ${_nf(usd)}</span>`;
 };
 
+/* motivo de suspensão legível: remove o marcador "suspenso/suspensa/suspensão" e os
+   separadores das pontas, deixando só o detalhe (ex.: "SUSPENSO - compliance" → "compliance").
+   Vazio ('') quando não há detalhe — a UI mostra "sem motivo informado". */
+function suspReason(s){
+  if (!s || !s.motivo) return '';
+  return String(s.motivo)
+    .replace(/suspens\S*/ig, ' ')
+    .replace(/^[\s\-–—:.,()]+|[\s\-–—:.,()]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function renderList(){
+  if (_dragCol) endColDrag();   // sync do Firebase reconstrói a lista: cancela arrasto pendente e limpa .col-over/cursor travado
   const area = $('listArea');
   if (!DATA){
     area.innerHTML = `<div class="empty-state"><span class="moon">🌙</span>Nenhuma planilha carregada ainda pra este dia da grade.<br>Suba a Global MTT acima — ou aguarde: se um parceiro subir, aparece aqui sozinho.</div>`;
@@ -2308,7 +2479,7 @@ function renderList(){
   let html = listBarsHtml();   // barras de "ordem personalizada" + "linhas ocultas", quando houver
   const isBrl = CURRENCY === 'brl';   // a grade agora SEGUE o toggle (default US$, clique → R$)
 
-  SECTIONS.forEach(cat => {
+  activeSections().forEach(cat => {
     const all = catItems(cat);
     const secAsg = withSecOwner(asg, all, cat.key);        // dono da seção cobre os sem dono
     const items = visibleItems(all, secAsg);               // filtro por pessoa já enxerga o dono da seção
@@ -2366,6 +2537,28 @@ function renderList(){
           <div class="secwrap liga-sec" data-suit="🏆">${renderVertical(pit, pcat, ligaAsg, ligaFields)}</div>`;
       }
     }
+  }
+
+  // ⛔ SUSPENSOS — torneios marcados como "suspenso" na GU: NÃO criar. Informativos
+  // (nome + motivo), sem ID e sem "criado", e fora de todas as contagens (não estão em
+  // main/side/sat). Aparecem só em "Todos" pra não poluir a visão pessoal.
+  if (DATA.suspensos && DATA.suspensos.length && FILTER === 'all'){
+    html += `
+      <div class="section-head susp">
+        <span class="tag">⛔ Suspensos</span>
+        <span class="cnt">${DATA.suspensos.length} — não criar</span>
+        <span class="line"></span>
+      </div>
+      <p class="section-note">Marcados como <b>suspensos</b> na GU — <b>não crie</b>. Sem ID e sem “criado”, e fora da contagem do turno.</p>
+      <div class="susp-list">
+        ${DATA.suspensos.map(s => { const why = suspReason(s); return `<div class="susp-item">
+          <span class="susp-x" aria-hidden="true">⛔</span>
+          <div class="susp-body">
+            <div class="susp-name">${escHtml(s.nome || '(sem nome)')}${s.hora ? `<span class="susp-hora">${escHtml(s.hora)}</span>` : ''}</div>
+            <div class="susp-why">${why ? '<b>Motivo:</b> ' + escHtml(why) : 'Suspenso — sem motivo informado na GU'}</div>
+          </div>
+        </div>`; }).join('')}
+      </div>`;
   }
 
   if (DATA.unknown && DATA.unknown.length && FILTER === 'all'){
@@ -2452,10 +2645,11 @@ function setSectionView(view){
    bug de ter que rolar a página inteira pra alcançar o botão de fechar. Um
    overlay solto direto no body nunca tem esse problema. */
 function renderSecFs(){
+  if (_dragCol) endColDrag();   // idem renderList: nunca deixa arrasto travado ao reconstruir a tela cheia
   const ov = $('secFsOverlay');
   if (!ov) return;
   if (!SEC_FS || !DATA){ ov.classList.remove('open'); ov.setAttribute('aria-hidden', 'true'); return; }
-  const cat = SECTIONS.find(c => c.key === SEC_FS);
+  const cat = findCat(SEC_FS);
   // tela cheia usa o MESMO asg da grade: override por evento + dono da seção, e respeita
   // o filtro por pessoa — assim o dono aparece na tela de criação e "meus torneios" bate.
   const allCat = cat ? catItems(cat) : [];
@@ -2479,11 +2673,12 @@ function renderSecFs(){
       <span class="cnt">${doneCount}/${items.length} criados</span>
       ${prizeChip(items, CURRENCY === 'brl')}
       ${secOwnerChipHtml(SEC_FS)}
-      <span class="grif-prog" id="secGrifProg" title="Campos grifados (conferidos) do torneio em foco" hidden></span>
       <span class="sec-fs-prog" title="${pct}% criados" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></span>
       <span class="line"></span>
       <input type="search" class="sec-fs-search" id="secFsSearch" placeholder="Buscar (/)" value="${escHtml(SEARCH || '')}" aria-label="Buscar torneio na seção">
       <div class="seg sec-view-seg" role="group" aria-label="Visão da seção">
+        <button data-secview="focus" class="${SEC_VIEW === 'focus' ? 'on' : ''}" title="Foco — UM torneio por vez, sem rolar pro lado (tecla F). Use ← → pra trocar de torneio.">◎ Foco</button>
+        <button data-secview="cards" class="${SEC_VIEW === 'cards' ? 'on' : ''}" title="Cards — todos os torneios como cartas, num grid (tecla D). Escaneia a seção inteira e age em qualquer um.">▦ Cards</button>
         <button data-secview="sheet" class="${SEC_VIEW === 'sheet' ? 'on' : ''}" title="Planilha — um torneio por linha, igual à Global (tecla P)">Planilha</button>
         <button data-secview="columns" class="${SEC_VIEW === 'columns' ? 'on' : ''}" title="Colunas — campos empilhados, um torneio por coluna (tecla C)">Colunas</button>
       </div>
@@ -2495,14 +2690,19 @@ function renderSecFs(){
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
     </div>
-    <div class="secwrap" data-suit="${cat.suit}">${SEC_VIEW === 'sheet' ? renderPlanilhaRows(items, cat, asg) : renderVertical(items, cat, asg, null, true)}</div>
+    <div class="secwrap${SEC_VIEW === 'focus' ? ' focus ' + cat.cls : SEC_VIEW === 'cards' ? ' cards ' + cat.cls : ''}" data-suit="${cat.suit}">${
+      SEC_VIEW === 'sheet' ? renderPlanilhaRows(items, cat, asg)
+      : SEC_VIEW === 'focus' ? renderVertical(items.filter(it => itemKey(it) === SEC_CURSOR), cat, asg, null, false)
+      : SEC_VIEW === 'cards' ? renderCards(items, cat, asg)
+      : renderVertical(items, cat, asg, null, true)
+    }</div>
     <div class="sec-fs-foot">
       <div class="keys" aria-hidden="true">
         <span class="kbtn"><kbd>←</kbd><kbd>→</kbd> navegar</span>
         <span class="kbtn"><kbd>Espaço</kbd> marcar + avançar</span>
         <span class="kbtn"><kbd>1</kbd>–<kbd>9</kbd> atribuir</span>
         <span class="kbtn"><kbd>/</kbd> buscar</span>
-        <span class="kbtn"><kbd>P</kbd><kbd>C</kbd> planilha/colunas</span>
+        <span class="kbtn"><kbd>F</kbd> foco · <kbd>D</kbd> cards · <kbd>P</kbd><kbd>C</kbd> planilha/colunas</span>
         <span class="kbtn"><kbd>Esc</kbd> sair</span>
       </div>
       <span class="sec-fs-pos" id="secFsPos" aria-live="polite"></span>
@@ -2661,13 +2861,6 @@ function renderVertical(items, cat, asg, fieldList, dropEmpty){
     return {it, key, done: !!DONE[key], op: asg[key]};
   });
   const cell = (fn, cls) => cols.map(c => `<td class="${c.done ? 'done-col' : ''} ${cls || ''}">${fn(c)}</td>`).join('');
-  // gcell = célula GRIFÁVEL (conferência): toque marca que o campo foi inserido no
-  // software. Carrega data-grif="torneioKey§Rótulo" e a classe .grifado se já grifado.
-  const gcell = (label, fn, cls) => cols.map(c => {
-    const gk = c.key + '§' + label;
-    const on = GRIFOS.has(gk);
-    return `<td class="${c.done ? 'done-col' : ''} grifavel${on ? ' grifado' : ''} ${cls || ''}" data-grif="${escHtml(gk)}" role="button" tabindex="0" aria-pressed="${on}" title="Toque pra grifar — marca que você já inseriu este campo no software">${fn(c)}</td>`;
-  }).join('');
   // rótulos das colunas-chave pra destacar a linha correspondente da receita
   const keyLabels = new Set();
   cols.forEach(c => [feeInfo, adminInfo, earlyInfo, ticketInfo, payoutInfo, calcPayoutInfo, rebuyInfo, addonInfo, chipsInfo, structureInfo, gameTypeInfo, koInfo]
@@ -2698,12 +2891,12 @@ function renderVertical(items, cat, asg, fieldList, dropEmpty){
       }, 'vname')}</tr>
       <tr data-field="hora" data-flabel="Horário">${rlabTh('hora', 'Horário', false)}${cell(c => `<span class="thora">${escHtml(c.it.hora)}</span>`)}</tr>
       <tr data-field="criar" data-flabel="Criar em">${rlabTh('criar', 'Criar em', true)}${cell(c => `<span class="mono" style="font-weight:700">${escHtml(creationWhen(c.it))}</span>`)}</tr>
-      <tr data-field="admin" data-flabel="Admin Fee">${rlabTh('admin', 'Admin Fee', false)}${gcell('Admin Fee', c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
-      <tr data-field="early" data-flabel="Early Bird">${rlabTh('early', 'Early Bird', false)}${gcell('Early Bird', c => { const p = earlyParts(c.it); return p ? `<span class="calc-chip early">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
+      <tr data-field="admin" data-flabel="Admin Fee">${rlabTh('admin', 'Admin Fee', false)}${cell(c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
+      <tr data-field="early" data-flabel="Early Bird">${rlabTh('early', 'Early Bird', false)}${cell(c => { const p = earlyParts(c.it); return p ? `<span class="calc-chip early">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
       ${cols.some(c => hasCampaign(c.it)) ? `<tr data-field="camp" data-flabel="Campanha">${rlabTh('camp', 'Campanha', false)}${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : ''}
       ${cat.key === 'sat' ? `<tr data-field="grupo" data-flabel="Grupo">${rlabTh('grupo', 'Grupo', false)}${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : ''}
       ${rows.length
-        ? rows.map(label => `<tr data-field="f:${escHtml(label)}" data-flabel="${escHtml(label)}">${rlabTh('f:' + label, label, keyLabels.has(label))}${gcell(label, c => {
+        ? rows.map(label => `<tr data-field="f:${escHtml(label)}" data-flabel="${escHtml(label)}" class="${isDestaque(label) ? 'destaque' : ''}">${rlabTh('f:' + label, label, keyLabels.has(label))}${cell(c => {
             const v = c.it.extra ? c.it.extra[label] : undefined;
             const has = v !== undefined && v !== null && v !== '';
             if (!has) return `<span class="mono" style="color:var(--ink-soft);opacity:.5">—</span>`;
@@ -2733,6 +2926,50 @@ function renderVertical(items, cat, asg, fieldList, dropEmpty){
           title="${c.done ? `Criado por ${escHtml((DONE[c.key]||{}).by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
         <button class="copy-btn" data-copy="${escHtml(recipeText(c.it, cat.label))}" title="Copiar receita" style="margin-left:6px;display:inline-grid;vertical-align:middle"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>`)}</tr>
     </table></div>`;
+}
+
+/* ── VISÃO CARDS: cada torneio como uma CARTA — deck em grade. 4ª opção da tela
+   cheia (◎ Foco = um por vez; ▦ Cards = todos em cartões, ótimo pra escanear a
+   seção inteira e agir em qualquer um). Reusa os MESMOS data-attrs
+   (done/assign/id/copy/focus) → os listeners do renderSecFs pegam automático,
+   sem fiação nova. Clicar no nome abre aquele torneio no Foco (um por vez). */
+function renderCards(items, cat, asg){
+  const fact = (k, v, cls) => v ? `<div class="cn-card-fact ${cls || ''}"><span class="k">${k}</span><span class="v">${v}</span></div>` : '';
+  return `<div class="cards-wrap">${items.map(it => {
+    const key = itemKey(it);
+    const done = !!DONE[key], op = asg[key];
+    const af = adminFeeParts(it), eb = earlyParts(it), urg = urgency(it), m = mttKicker(it);
+    const gtd = typeof it.garantido === 'number' ? fmtMoney(it.garantido) : '';
+    const buy = typeof it.buyin === 'number' ? fmtMoney(it.buyin) : '';
+    return `<div class="cn-card ${cat.cls} ${done ? 'is-done' : ''}">
+      <div class="cn-card-head">
+        <span class="cn-card-suit">${cat.suit}</span>
+        <span class="cn-card-hora">${escHtml(it.hora || '—')}</span>
+        ${urg ? `<span class="urg-pill ${urg}">⏰ ${escHtml(urgLabel(it))}</span>` : ''}
+        ${done ? '<span class="cn-card-tick">✓ criado</span>' : ''}
+      </div>
+      <div class="cn-card-name"><span class="vgo" data-focus="${key}" data-focuscat="${cat.key}" role="button" tabindex="0" title="Abrir este torneio no Foco">${escHtml(it.nome)}</span></div>
+      <div class="cn-card-badges">${campBadgeHtml(it)}${valBadge(it, cat)}${changeBadge(it)}${auditBadge(it)}${m ? `<span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : ''}</div>
+      <div class="cn-card-facts">
+        ${fact('Criar em', escHtml(creationWhen(it)), 'hot')}
+        ${fact('Garantido', gtd)}
+        ${fact('Buy-in', buy)}
+        ${af ? fact('Admin Fee', `<span class="calc-chip admin">${escHtml(af.main)}${af.sub ? `<span class="amt">${escHtml(af.sub)}</span>` : ''}</span>`, 'chip') : ''}
+        ${eb ? fact('Early Bird', `<span class="calc-chip early">${escHtml(eb.main)}${eb.sub ? `<span class="amt">${escHtml(eb.sub)}</span>` : ''}</span>`, 'chip') : ''}
+      </div>
+      <div class="cn-card-recipe">
+        <div class="cn-card-recipe-h"><span>Receita completa</span><span class="ln"></span></div>
+        ${cat.key === 'sat' && it.groupHeader ? `<div class="cn-card-grp">Grupo: <b>${escHtml(it.groupHeader)}</b></div>` : ''}
+        ${recipeGridHtml(it)}
+      </div>
+      <div class="cn-card-foot">
+        ${opTagHtml(op, key)}
+        ${idInputHtml(key, '')}
+        <button class="chk ${done ? 'on' : ''}" data-done="${key}" role="checkbox" aria-checked="${done ? 'true' : 'false'}" title="${done ? `Criado por ${escHtml((DONE[key]||{}).by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
+        <button class="copy-btn" data-copy="${escHtml(recipeText(it, cat.label))}" title="Copiar receita"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
 }
 
 /* PLANILHA DE VERDADE — uma LINHA por torneio, campos em COLUNA: a mesma
@@ -2884,7 +3121,7 @@ function openSectionFsAt(catKey, key){
 }
 function secFsMoveCursor(delta){
   if (!SEC_FS || !DATA) return;
-  const cat = SECTIONS.find(c => c.key === SEC_FS);
+  const cat = findCat(SEC_FS);
   if (!cat) return;
   const asg = computeAssignments();
   const items = visibleItems(catItems(cat), asg);
@@ -2893,14 +3130,15 @@ function secFsMoveCursor(delta){
   let idx = SEC_CURSOR ? keys.indexOf(SEC_CURSOR) : -1;
   idx = idx === -1 ? 0 : Math.max(0, Math.min(keys.length - 1, idx + delta));
   SEC_CURSOR = keys[idx];
-  secFsHighlightCursor();
+  if (SEC_VIEW === 'focus') renderSecFs();   // modo foco: troca o torneio mostrado (re-render)
+  else secFsHighlightCursor();
 }
 /* Flow state: ao marcar CRIADO (Espaço), pula pro próximo torneio NÃO-criado da
    seção (dá a volta). Se não sobrou nenhum, fica no lugar — o momento de conclusão
    (100%) cuida do resto. O item atual acabou de ser marcado, então é pulado. */
 function secFsAdvanceToNextUndone(){
   if (!SEC_FS || !DATA) return;
-  const cat = SECTIONS.find(c => c.key === SEC_FS); if (!cat) return;
+  const cat = findCat(SEC_FS); if (!cat) return;
   const keys = visibleItems(catItems(cat), computeAssignments()).map(itemKey);
   if (!keys.length) return;
   const i = SEC_CURSOR ? keys.indexOf(SEC_CURSOR) : -1;
@@ -2912,13 +3150,14 @@ function secFsAdvanceToNextUndone(){
 /* Home/End — pula pro primeiro/último torneio da seção (idx=Infinity = último) */
 function secFsJumpCursor(idx){
   if (!SEC_FS || !DATA) return;
-  const cat = SECTIONS.find(c => c.key === SEC_FS);
+  const cat = findCat(SEC_FS);
   if (!cat) return;
   const keys = visibleItems(catItems(cat), computeAssignments()).map(itemKey);
   if (!keys.length) return;
   const i = Math.max(0, Math.min(keys.length - 1, idx === Infinity ? keys.length - 1 : idx));
   SEC_CURSOR = keys[i];
-  secFsHighlightCursor();
+  if (SEC_VIEW === 'focus') renderSecFs();
+  else secFsHighlightCursor();
 }
 /* destaca e rola até o torneio "atual": em Colunas (vtable transposta) marca
    a COLUNA inteira (mesmo índice em toda linha); em Planilha marca a LINHA.
@@ -2929,14 +3168,13 @@ function secFsHighlightCursor(){
   // indicador de posição (N / Total) — some redundante mas barato; roda a cada ← →
   const pos = document.getElementById('secFsPos');
   if (pos && SEC_FS){
-    const c = SECTIONS.find(s => s.key === SEC_FS);
+    const c = findCat(SEC_FS);
     if (c){
       const keys = visibleItems(catItems(c), computeAssignments()).map(itemKey);
       const i = keys.indexOf(SEC_CURSOR);
       if (i >= 0) pos.innerHTML = `<b>${i + 1}</b> / ${keys.length}`;
     }
   }
-  updateGrifProgress();   // atualiza X/Y campos grifados do torneio em foco
   const esc = k => (window.CSS && CSS.escape) ? CSS.escape(k) : k;
   card.querySelectorAll('.sec-cursor, .sec-cursor-col').forEach(el => el.classList.remove('sec-cursor', 'sec-cursor-col'));
   const table = card.querySelector('table');
@@ -2977,46 +3215,11 @@ document.addEventListener('keydown', e => {
   else if (/^[1-9]$/.test(e.key) && !onControl){ const op = OPS[parseInt(e.key,10)-1]; if (op && SEC_CURSOR){ e.preventDefault(); setAssignTo(SEC_CURSOR, op); showToast(`Atribuído a ${op.split(' ')[0]}`); } }
   else if (e.key === 'p' || e.key === 'P'){ e.preventDefault(); setSectionView('sheet'); }
   else if (e.key === 'c' || e.key === 'C'){ e.preventDefault(); setSectionView('columns'); }
+  else if (e.key === 'f' || e.key === 'F'){ e.preventDefault(); setSectionView('focus'); }
+  else if (e.key === 'd' || e.key === 'D'){ e.preventDefault(); setSectionView('cards'); }
   else if (e.key === '/'){ e.preventDefault(); const s = document.getElementById('secFsSearch'); if (s){ s.focus(); s.select(); } }   // B3: busca rápida
 });
 
-/* ── GRIFAR campos (conferência): toque/Enter numa célula grifável marca que o
-   campo foi inserido no software. Delegação global — cobre lista e tela cheia. ── */
-function doGrif(cell){
-  if (!cell || !cell.dataset || !cell.dataset.grif) return;
-  toggleGrif(cell.dataset.grif);
-  const on = cell.classList.toggle('grifado');
-  cell.setAttribute('aria-pressed', on ? 'true' : 'false');
-  if (on){ cell.classList.remove('grif-pop'); void cell.offsetWidth; cell.classList.add('grif-pop'); }  // micro-anim
-  updateGrifProgress();
-}
-document.addEventListener('click', e => {
-  const cell = e.target.closest && e.target.closest('td[data-grif]');
-  if (!cell) return;
-  if (e.target.closest('input, button, a, select, textarea, [data-focus], [data-assign], .id-inp')) return;
-  doGrif(cell);
-});
-document.addEventListener('keydown', e => {
-  if (e.key !== 'Enter' && e.key !== ' ') return;
-  const t = e.target;
-  if (t && t.matches && t.matches('td[data-grif]')){ e.preventDefault(); doGrif(t); }
-});
-/* progresso da conferência do torneio EM FOCO (tela cheia): X/Y campos grifados */
-function updateGrifProgress(){
-  const chip = document.getElementById('secGrifProg');
-  const card = $('secFsCard');
-  if (!chip || !card || !SEC_CURSOR){ if (chip) chip.hidden = true; return; }
-  const pref = SEC_CURSOR + '§';
-  let total = 0, done = 0;
-  card.querySelectorAll('td[data-grif]').forEach(el => {
-    if (el.dataset.grif.indexOf(pref) === 0){ total++; if (el.classList.contains('grifado')) done++; }
-  });
-  if (!total){ chip.hidden = true; return; }
-  chip.hidden = false;
-  chip.classList.toggle('complete', done === total);
-  chip.style.setProperty('--gp', total ? Math.round(done / total * 100) : 0);
-  chip.innerHTML = `<span class="gp-ring" aria-hidden="true"></span><b>${done}/${total}</b> campos${done === total ? ' ✓' : ''}`;
-}
 
 /* ── busca ── */
 $('searchInp').addEventListener('input', () => { SEARCH = $('searchInp').value; renderList(); });

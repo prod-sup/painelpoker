@@ -208,7 +208,7 @@ function extractGuDaySection(matrix, weekdayEn, headerCols){
   const gi = guIdx(headerCols);
   const range = findWeekdaySectionRange(matrix, weekdayEn, gi.name);
   if (!range) return null;
-  const main = [], side = [], sat = [], unknown = [], semHora = [], aposGap = [], semTipo = [];
+  const main = [], side = [], sat = [], unknown = [], semHora = [], aposGap = [], semTipo = [], suspensos = [];
   // na G MTTS o nome de marketing (MTT MARKETING) vem mesclado quando um grupo de
   // satélites tem vários horários — herda o último visto até a próxima linha vazia
   let lastGroupName = null, lastHora = null, emptyCount = 0;
@@ -248,7 +248,22 @@ function extractGuDaySection(matrix, weekdayEn, headerCols){
     if (['mtt','satellite','satelite'].includes(normText(nomeMkt || '')) || ['satellite','satelite'].includes(normText(nomeCurto || ''))) continue;
     const nome = (cat === 'sat' ? (nomeCurto || nomeMkt) : (nomeMkt || nomeCurto));
     if (!nome) continue;
-    if (normText(nome) === 'suspenso') continue;
+    // TORNEIO SUSPENSO — reconhece a palavra "suspenso/suspensa/suspensão" em QUALQUER
+    // célula de nome (ou no TYPE) e NÃO deixa criar: vira item informativo (nome real +
+    // motivo), sem ID e sem "criado". Antes a linha era simplesmente descartada, então o
+    // torneio sumia sem explicar por quê. Preserva o texto CRU da GU pra nada ficar oculto.
+    const isSusp = s => normText(s || '').includes('suspens');
+    if (isSusp(nomeMkt) || isSusp(nomeCurto) || isSusp(tipo)){
+      const carrier = [nomeMkt, nomeCurto, tipo].find(isSusp) || 'Suspenso';   // a célula que traz o marcador (+ motivo, se houver)
+      const real = [nomeMkt, nomeCurto].find(s => s && !isSusp(s));            // o nome de verdade, se estiver na outra coluna
+      suspensos.push({
+        nome: real || carrier,               // nome real quando existe; senão o próprio texto marcado
+        motivo: real ? carrier : '',         // se o nome veio da outra coluna, o texto marcado é o "porquê"
+        hora: hora || null,                  // pode não ter horário — tudo bem, é informativo
+        tipo: tipo || null
+      });
+      continue;
+    }
     if (!hora && lastHora) hora = lastHora;
     else if (hora) lastHora = hora;
     if (!hora){ semHora.push({nome, hora:row[gi.hora], tipo}); continue; }
@@ -286,7 +301,7 @@ function extractGuDaySection(matrix, weekdayEn, headerCols){
   }
   // coluna TYPE não achada no cabeçalho: TUDO passou pelo fallback por nome/garantido.
   // Sinaliza pra virar aviso GRITANTE (antes isso era silencioso — a origem do bug crônico).
-  return {main, side, sat, unknown, semHora, aposGap, semTipo, tipoColMissing: gi.tipo < 0, duplicateSection: range.duplicate};
+  return {main, side, sat, unknown, semHora, aposGap, semTipo, suspensos, tipoColMissing: gi.tipo < 0, duplicateSection: range.duplicate};
 }
 
 /* janela 06:10(amanhã) → 05:30(dia seguinte): mesma montagem da Conferência de amanhã */
@@ -302,6 +317,9 @@ function buildSections(sectionTomorrow, sectionDayAfter){
   const sat = [...(sectionTomorrow ? inWindow(sectionTomorrow.sat) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.sat) : [])];
   const unknown = [...(sectionTomorrow ? inWindow(sectionTomorrow.unknown) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.unknown) : [])];
   const semTipo = [...(sectionTomorrow ? inWindow(sectionTomorrow.semTipo) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.semTipo) : [])];
+  // suspensos: informativos — mantém os que estão na janela E também os sem horário (não some ninguém)
+  const suspInWin = list => (list || []).filter(it => { const m = timeToMinutes(it.hora); return it.hora == null || m === null ? true : m >= CONF_WINDOW_START_MIN; });
+  const suspensos = [...(sectionTomorrow ? suspInWin(sectionTomorrow.suspensos) : []), ...(sectionDayAfter ? inWindowNextDay(sectionDayAfter.suspensos || []) : [])];
   const tipoColMissing = !!(sectionTomorrow && sectionTomorrow.tipoColMissing);
-  return { main, side, sat, unknown, semTipo, tipoColMissing };
+  return { main, side, sat, unknown, semTipo, suspensos, tipoColMissing };
 }
