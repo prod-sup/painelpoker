@@ -526,20 +526,14 @@ document.addEventListener('DOMContentLoaded', () => {
   <!-- alerta proativo (mortas acima da meta) -->
   <div id="mdAlert"></div>
 
-  <!-- META DO CLUBE — editável, salva no Firebase (nó mesasCashGoals) -->
+  <!-- METAS DA OPERAÇÃO — editáveis, salvas no Firebase (nó mesasCashGoals) -->
   <div class="card" id="mdGoalCard" style="margin-bottom:12px">
-    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-      <div style="flex:1;min-width:190px">
-        <div class="ct" style="margin:0"><i class="ph-fill ph-target" style="color:var(--gold)"></i> Meta do clube — mesas perdidas</div>
-        <div class="cs" id="mdGoalReadout">Defina o teto de mesas perdidas que a operação aceita.</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:11px;color:var(--ink2);font-weight:700">máx.</span>
-        <input id="mdGoalInput" type="number" min="1" max="60" step="0.5" inputmode="decimal" aria-label="Meta de mesas perdidas em %"
-          style="width:74px;height:36px;border:1px solid var(--bdr);border-radius:9px;background:var(--surf);color:var(--ink);text-align:right;padding:0 9px;font-weight:800;font-size:14px">
-        <span style="font-size:12px;color:var(--ink2);font-weight:700">%</span>
-        <button class="btn-p" id="mdGoalSave" onclick="saveDeadGoal()"><i class="ph ph-check"></i> Salvar meta</button>
-      </div>
+    <div class="ct" style="margin:0"><i class="ph-fill ph-target" style="color:var(--gold)"></i> Metas da operação</div>
+    <div class="cs">Alvos que a operação persegue — salvos no Firebase, valem pra todos os painéis. Deixe em branco (0) o que não quiser acompanhar.</div>
+    <div id="mdGoalGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:12px"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px">
+      <div class="cs" id="mdGoalScore" style="margin:0"></div>
+      <button class="btn-p" id="mdGoalSave" onclick="saveGoalsFromUI()"><i class="ph ph-check"></i> Salvar metas</button>
     </div>
   </div>
 

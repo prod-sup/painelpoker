@@ -204,7 +204,10 @@ function deadAlertHtml(deadPct,lostRake,scope){
 // nos dados — caminhos independentes. Compartilhado entre todos os painéis;
 // cai p/ localStorage se o Firebase estiver fora. O alerta passa a usar a meta.
 const GOALS_NODE='mesasCashGoals';
-const GOALS_DEFAULT={deadPct:20};
+// Metas independentes: mortas (teto), fee bruto/dia (piso), take rate (piso).
+// Retenção é o inverso de mortas (100−dead), então não vira meta separada p/ não
+// criar alvos contraditórios. 0 = meta não definida.
+const GOALS_DEFAULT={deadPct:20, feeDia:0, takeRate:8};
 let GOALS=Object.assign({},GOALS_DEFAULT);
 async function loadGoals(){
   let g=null;
@@ -814,13 +817,16 @@ async function buildMedias(){
   }
 
   // KPIs médios
+  const gDead=+GOALS.deadPct||0, gFee=+GOALS.feeDia||0, gTake=+GOALS.takeRate||0;
+  const takeKpiCls = gTake>0 ? (avgTake>=gTake?'c-green':'c-red') : 'c-green';
+  const deadKpiCls = gDead>0 ? (avgDead<=gDead?'c-green':'c-red') : deadCls;
   set('mdKpis',[
-    kcard('hero','Fee bruto médio/dia','R$ '+f(avgFee,0), wowSub('fee')||('total R$ '+f(weekFee,0)+' · '+week.length+' dia(s)')),
+    kcard('hero','Fee bruto médio/dia','R$ '+f(avgFee,0), gFee>0?`meta ≥ R$ ${fK(gFee)} · ${avgFee>=gFee?'na meta ✓':'abaixo'}`:(wowSub('fee')||('total R$ '+f(weekFee,0)+' · '+week.length+' dia(s)'))),
     kcard('c-green','Fee líquido médio/dia','R$ '+f(avgNet,0), wowSub('netFee')||'após jackpot'),
     kcard('','Sessões médias/dia',f(avgSess), wowSub('sessions')||(f(avgPlayers)+' players/dia')),
     kcard('c-gold','Fee/mão médio','R$ '+f(avgFph,2), wowSub('feePerHand')||'rake por mão jogada'),
-    kcard('c-green','Take rate médio',f(avgTake,2)+'%','fee ÷ buyin movimentado'),
-    kcard(deadCls,'Mesas perdidas (média)',f(avgDead,1)+'%', deadWord+' · ~'+f(avgDeadTables,0)+' mesas/dia'),
+    kcard(takeKpiCls,'Take rate médio',f(avgTake,2)+'%', gTake>0?`meta ≥ ${f(gTake,1)}% · ${avgTake>=gTake?'ok':'abaixo'}`:'fee ÷ buyin movimentado'),
+    kcard(deadKpiCls,'Mesas perdidas (média)',f(avgDead,1)+'%', gDead>0?`meta ≤ ${f(gDead,1)}% · ${avgDead<=gDead?'ok':'acima'}`:(deadWord+' · ~'+f(avgDeadTables,0)+' mesas/dia')),
   ].join(''));
 
   // KPIs de mesas perdidas
@@ -835,14 +841,41 @@ async function buildMedias(){
 
   // ALERTA PROATIVO — dispara quando a média da semana passa da META
   set('mdAlert', deadAlertHtml(avgDead, avgLostRake, 'na média da semana'));
-  // META — preenche o input (sem atropelar quem está digitando) e o "real vs meta"
-  const goal=goalDeadPct();
-  const gi=document.getElementById('mdGoalInput'); if(gi&&document.activeElement!==gi)gi.value=goal;
-  const rd=document.getElementById('mdGoalReadout');
-  if(rd){ const diff=avgDead-goal;
-    rd.innerHTML = preview
-      ? `Meta: mortas ≤ <b>${f(goal,1)}%</b> · importe a semana para comparar com o real. Salva no Firebase, vale pra todos os painéis.`
-      : `Meta ≤ <b>${f(goal,1)}%</b> · real (semana) <b style="color:${diff<=0?'var(--green)':'var(--red)'}">${f(avgDead,1)}%</b> — ${diff<=0?`dentro da meta, ${f(-diff,1)} pp de folga`:`<b style="color:var(--red)">${f(diff,1)} pp acima</b>, alvo ~${f(avgDeadTables*(1-goal/(avgDead||1)),0)} mesas/dia a menos`}`;
+  // METAS — grade editável (mortas/fee-dia/take rate) + placar de dias na meta.
+  // Não atropela quem está digitando: só reescreve inputs que não estão em foco.
+  const metaDefs=[
+    {key:'deadPct', label:'Mesas perdidas (máx)', dir:'max', real:avgDead, unit:'%',  step:'0.5', min:'1', max:'60', fmt:v=>f(v,1)+'%',  pp:true},
+    {key:'feeDia',  label:'Fee bruto/dia (mín)',  dir:'min', real:avgFee,  unit:'R$', step:'1000', min:'0', max:'99999999', fmt:v=>'R$ '+fK(v), money:true},
+    {key:'takeRate',label:'Take rate (mín)',      dir:'min', real:avgTake, unit:'%',  step:'0.1', min:'0', max:'30', fmt:v=>f(v,2)+'%'},
+  ];
+  const grid=document.getElementById('mdGoalGrid');
+  if(grid){ grid.innerHTML=metaDefs.map(m=>{
+    const g=+GOALS[m.key]||0, on=g>0, pass=!on?null:(m.dir==='max'?m.real<=g:m.real>=g);
+    const active=document.getElementById('goal_'+m.key)===document.activeElement;
+    const vs = preview ? 'importe a semana p/ comparar'
+      : !on ? 'meta não definida'
+      : m.pp ? `real <b style="color:${pass?'var(--green)':'var(--red)'}">${f(m.real,1)}%</b> · ${pass?`${f(g-m.real,1)} pp de folga`:`${f(m.real-g,1)} pp acima`}`
+             : `real <b style="color:${pass?'var(--green)':'var(--red)'}">${m.fmt(m.real)}</b> · ${pass?'na meta':'abaixo'}`;
+    return `<div style="border:1px solid ${on&&pass===false?'var(--red)':'var(--bdr)'};border-radius:10px;padding:10px 12px;background:var(--surf)">
+      <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3)">${m.label}</div>
+      <div style="display:flex;align-items:center;gap:6px;margin:7px 0 5px">
+        ${m.money?'<span style="font-size:11px;color:var(--ink2);font-weight:700">R$</span>':''}
+        <input id="goal_${m.key}" type="number" min="${m.min}" max="${m.max}" step="${m.step}" inputmode="decimal" ${active?'':`value="${g||''}"`} placeholder="—"
+          style="width:${m.money?'112px':'74px'};height:34px;border:1px solid var(--bdr);border-radius:8px;background:var(--bg);color:var(--ink);text-align:right;padding:0 8px;font-weight:800;font-size:14px">
+        ${!m.money?`<span style="font-size:11px;color:var(--ink2);font-weight:700">${m.unit}</span>`:''}
+      </div>
+      <div style="font-size:10px;color:var(--ink2)">${vs}</div>
+    </div>`;
+  }).join(''); }
+  const score=document.getElementById('mdGoalScore');
+  if(score){
+    if(preview){ score.innerHTML='Placar (dias na meta) aparece com a semana importada.'; }
+    else{ const cnt=p=>week.filter(p).length, parts=[];
+      if(gDead>0)parts.push(`Mesas perdidas <b>${cnt(d=>(+d.deadPct||0)<=gDead)}/${week.length}</b>`);
+      if(gFee>0) parts.push(`Fee/dia <b>${cnt(d=>(+d.fee||0)>=gFee)}/${week.length}</b>`);
+      if(gTake>0)parts.push(`Take rate <b>${cnt(d=>(+d.takeRate||0)>=gTake)}/${week.length}</b>`);
+      score.innerHTML = parts.length ? `Placar — dias na meta: ${parts.join(' · ')}` : 'Defina metas acima para ver o placar.';
+    }
   }
   // CUSTO DE OPORTUNIDADE É UM TETO — deixa explícito p/ não vender o número cheio
   set('mdLostNote', `${ic('info',1)} <b>Custo de oportunidade é um teto</b>: assume que cada mesa perdida renderia como uma mesa <i>viva</i> média. É o potencial máximo — use o cenário <b>−20%</b> como meta realista de curto prazo.`);
@@ -1713,53 +1746,123 @@ async function exportHistory(){
   a.click();
   URL.revokeObjectURL(url);
 }
-// Exporta o RESUMO SEMANAL em CSV (pt-BR: delimitador ';' + decimal ','), pronto
-// pra abrir no Excel e levar pra reunião. Linhas por dia + linha de médias + bloco
-// de mesas perdidas. Sem dias reais, exporta a prévia do dataset atual.
+// Exporta o RESUMO SEMANAL como um RELATÓRIO HTML autossuficiente (abre no
+// navegador e "Salvar como PDF" → pronto pra reunião). Substituiu o CSV cru:
+// KPIs médios, metas vs real, mesas perdidas, padrão por dia e a tabela diária,
+// com a marca Suprema. Sem dependência de lib. Prévia se não houver semana real.
 async function exportWeekSummary(){
   let days=[]; try{ days=await Store.list(); }catch(_){ }
   const real=(days||[]).filter(d=>d&&d.date&&!d.demo).sort((a,b)=>parseDateLabel(a.date)-parseDateLabel(b.date));
   const preview=real.length===0;
   const week=preview?[medPseudoDay()]:real.slice(-7);
   const WD=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-  const cn=(n,d=2)=>String(Number(n||0).toFixed(d)).replace('.',',');   // decimal pt-BR
-  const q=v=>`"${String(v).replace(/"/g,'""')}"`;
-  const row=arr=>arr.map(q).join(';');
-  const lostOf=d=>{const s=+d.sessions||0,dead=s*(+d.deadPct||0)/100,live=Math.max(1,s-dead);return{dead,cost:dead*((+d.fee||0)/live)};};
-  const head=['Data','Dia','Sessões','Fee Bruto','Fee Líquido','Buyin','Players','Fee/mão','Mortas %','Take rate %','Mesas perdidas','Custo oportunidade'];
-  const lines=[row(head)];
-  week.forEach(d=>{const l=lostOf(d);lines.push(row([
-    d.date, preview?'—':WD[parseDateLabel(d.date).getDay()], cn(d.sessions,0), cn(d.fee,0), cn(d.netFee,0),
-    cn(d.buyin,0), cn(d.players,0), cn(d.feePerHand,2), cn(d.deadPct,1), cn(d.takeRate,2), cn(l.dead,0), cn(l.cost,0)
-  ]));});
-  // linha de médias
   const avg=k=>week.reduce((a,d)=>a+(+d[k]||0),0)/week.length;
+  const lostOf=d=>{const s=+d.sessions||0,dead=s*(+d.deadPct||0)/100,live=Math.max(1,s-dead);return{dead,cost:dead*((+d.fee||0)/live)};};
+  const money=n=>'R$ '+f(n,0);
+  const avgFee=avg('fee'),avgNet=avg('netFee'),avgSess=avg('sessions'),avgPl=avg('players'),avgFph=avg('feePerHand'),avgTake=avg('takeRate'),avgDead=avg('deadPct');
   const totLost=week.reduce((a,d)=>a+lostOf(d).cost,0), totDead=week.reduce((a,d)=>a+lostOf(d).dead,0);
-  lines.push('');
-  lines.push(row(['MÉDIA/DIA','',cn(avg('sessions'),0),cn(avg('fee'),0),cn(avg('netFee'),0),cn(avg('buyin'),0),cn(avg('players'),0),cn(avg('feePerHand'),2),cn(avg('deadPct'),1),cn(avg('takeRate'),2),cn(totDead/week.length,0),cn(totLost/week.length,0)]));
-  lines.push(row(['TOTAL SEMANA','',cn(avg('sessions')*week.length,0),cn(avg('fee')*week.length,0),'','','','','','',cn(totDead,0),cn(totLost,0)]));
-  lines.push('');
-  lines.push(row(['Custo de oportunidade das mesas perdidas na semana','R$ '+cn(totLost,0)]));
-  lines.push(row(['Recuperável cortando mortas em 20%','R$ '+cn(totLost*0.2,0)]));
-  lines.push(row(['Dias no relatório', preview?'prévia (1 dia, dataset atual)':String(week.length)]));
+  const avgLost=totLost/week.length, avgDeadT=totDead/week.length;
+  const period = week.length>1 ? `${week[0].date} — ${week[week.length-1].date}` : (week[0].date||'—');
+  const now=new Date(), stamp=`${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
+  const gDead=+GOALS.deadPct||0,gFee=+GOALS.feeDia||0,gTake=+GOALS.takeRate||0;
+  const kpi=(l,v,s)=>`<div class="kpi"><div class="kl">${esc(l)}</div><div class="kv">${v}</div><div class="ks">${s||''}</div></div>`;
+  const metaRow=(label,goal,realTxt,pass)=>`<tr><td>${label}</td><td>${goal}</td><td>${realTxt}</td><td class="${pass?'ok':'bad'}">${pass?'✓ na meta':'✗ fora da meta'}</td></tr>`;
+  const cnt=p=>week.filter(p).length;
+  const metasBody=[
+    gDead?metaRow('Mesas perdidas','≤ '+f(gDead,1)+'%',f(avgDead,1)+'%',avgDead<=gDead)+`<tr class="sub"><td colspan="4">${preview?'':`Placar: ${cnt(d=>(+d.deadPct||0)<=gDead)}/${week.length} dias na meta`}</td></tr>`:'',
+    gFee?metaRow('Fee bruto/dia','≥ '+money(gFee),money(avgFee),avgFee>=gFee)+`<tr class="sub"><td colspan="4">${preview?'':`Placar: ${cnt(d=>(+d.fee||0)>=gFee)}/${week.length} dias na meta`}</td></tr>`:'',
+    gTake?metaRow('Take rate','≥ '+f(gTake,1)+'%',f(avgTake,2)+'%',avgTake>=gTake)+`<tr class="sub"><td colspan="4">${preview?'':`Placar: ${cnt(d=>(+d.takeRate||0)>=gTake)}/${week.length} dias na meta`}</td></tr>`:'',
+  ].join('');
+  // padrão por dia da semana
+  const byWD={}; if(!preview)week.forEach(d=>{const w=parseDateLabel(d.date).getDay();if(!byWD[w])byWD[w]={fee:0,dead:0,n:0};byWD[w].fee+=(+d.fee||0);byWD[w].dead+=(+d.deadPct||0);byWD[w].n++;});
+  const wdRows=[1,2,3,4,5,6,0].filter(w=>byWD[w]).map(w=>`<tr><td>${WD[w]}</td><td class="r">${money(byWD[w].fee/byWD[w].n)}</td><td class="r">${f(byWD[w].dead/byWD[w].n,1)}%</td></tr>`).join('');
+  // tabela diária
+  const rows=week.map(d=>{const l=lostOf(d);return `<tr><td>${esc(d.date)}</td><td>${preview?'—':WD[parseDateLabel(d.date).getDay()]}</td><td class="r">${f(d.sessions)}</td><td class="r">${money(d.fee)}</td><td class="r">${money(d.netFee)}</td><td class="r">${f(d.players)}</td><td class="r">${(+d.feePerHand||0).toFixed(2)}</td><td class="r ${gDead&&(+d.deadPct||0)>gDead?'bad':''}">${f(d.deadPct,1)}%</td><td class="r">${f(d.takeRate,2)}%</td><td class="r">${money(l.cost)}</td></tr>`;}).join('');
 
-  const blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const html=`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Resumo Semanal — Mesa Cash · ${esc(period)}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:14px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1a1c1a;background:#f4f2ec;padding:28px}
+.sheet{max-width:900px;margin:0 auto;background:#fff;border:1px solid #e6e1d5;border-radius:14px;overflow:hidden;box-shadow:0 8px 30px -18px rgba(0,0,0,.3)}
+.hd{background:linear-gradient(120deg,#1a1c1a,#2a2c28);color:#f2ede2;padding:24px 28px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.hd .t{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#c9a84c;font-weight:800}
+.hd h1{font-size:22px;font-weight:800;margin-top:3px}
+.hd .p{font-size:12.5px;color:rgba(242,237,226,.7);margin-top:4px}
+.hd .meta{text-align:right;font-size:11px;color:rgba(242,237,226,.6)}
+.bd{padding:24px 28px}
+.sec{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#8f6b2d;margin:22px 0 10px;border-bottom:1px solid #ece7db;padding-bottom:6px}
+.sec:first-child{margin-top:0}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.kpi{border:1px solid #ece7db;border-radius:10px;padding:12px 14px;background:#faf8f2}
+.kpi .kl{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#8a857a}
+.kpi .kv{font-size:21px;font-weight:800;margin:3px 0 1px;font-variant-numeric:tabular-nums}
+.kpi .ks{font-size:10px;color:#8a857a}
+.hero{background:linear-gradient(120deg,#8f6b2d10,#c9a84c14);border-color:#dcc48a}
+.lost{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.lost .b{border:1px solid #ece7db;border-radius:10px;padding:12px 14px}
+.lost .b.red{border-color:#e7b3b3;background:#fbf1f1}
+.lost .b .l{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#8a857a}
+.lost .b .v{font-size:20px;font-weight:800;margin-top:3px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{padding:7px 10px;border-bottom:1px solid #eee7d8;text-align:left}
+th{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#8a857a;background:#faf8f2}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+td.ok{color:#1a7a44;font-weight:700}td.bad{color:#b4443a;font-weight:700}
+tr.sub td{border:none;padding:2px 10px 8px;font-size:10.5px;color:#8a857a}
+.note{font-size:10.5px;color:#8a857a;margin-top:8px;font-style:italic}
+.ft{padding:16px 28px;border-top:1px solid #ece7db;font-size:10.5px;color:#9a958a;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.pbtn{position:fixed;top:16px;right:16px;background:#8f6b2d;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px -6px rgba(0,0,0,.4)}
+@media print{body{background:#fff;padding:0}.sheet{border:none;box-shadow:none;border-radius:0;max-width:none}.pbtn{display:none}}
+</style></head><body>
+<button class="pbtn" onclick="window.print()">🖨 Salvar como PDF</button>
+<div class="sheet">
+  <div class="hd">
+    <div><div class="t">♠ Suprema · Mesa Cash</div><h1>Resumo Semanal</h1><div class="p">${esc(period)} · média por dia de ${week.length} dia(s)${preview?' · PRÉVIA (1 dia)':''}</div></div>
+    <div class="meta">Gerado em ${stamp}</div>
+  </div>
+  <div class="bd">
+    <div class="sec">Médias por dia</div>
+    <div class="kpis">
+      ${kpi('Fee bruto médio/dia',money(avgFee),'líquido '+money(avgNet))}
+      ${kpi('Sessões médias/dia',f(avgSess),f(avgPl)+' players/dia')}
+      ${kpi('Fee/mão médio','R$ '+f(avgFph,2),'take rate '+f(avgTake,2)+'%')}
+    </div>
+    <div class="sec">Mesas perdidas — o maior vazamento controlável</div>
+    <div class="lost">
+      <div class="b red"><div class="l">Custo de oportunidade / dia</div><div class="v">${money(avgLost)}</div></div>
+      <div class="b red"><div class="l">Custo na semana</div><div class="v">${money(totLost)}</div></div>
+      <div class="b"><div class="l">Recuperável (−20%)</div><div class="v" style="color:#1a7a44">+${money(avgLost*0.2)}/dia</div></div>
+    </div>
+    <div class="note">Custo de oportunidade é um teto: assume que a mesa perdida renderia como uma mesa viva média. Média de ${f(avgDead,1)}% de mesas perdidas (~${f(avgDeadT,0)}/dia). Retenção média ${f(100-avgDead,1)}%.</div>
+    <div class="sec">Metas vs. real</div>
+    ${(gDead||gFee||gTake)?`<table><thead><tr><th>Métrica</th><th>Meta</th><th>Real (média)</th><th>Status</th></tr></thead><tbody>${metasBody}</tbody></table>`:'<div class="note">Nenhuma meta definida no painel.</div>'}
+    ${wdRows?`<div class="sec">Padrão por dia da semana</div><table><thead><tr><th>Dia</th><th class="r">Fee médio</th><th class="r">Mortas médias</th></tr></thead><tbody>${wdRows}</tbody></table>`:''}
+    <div class="sec">Detalhe por dia</div>
+    <table><thead><tr><th>Data</th><th>Dia</th><th class="r">Sessões</th><th class="r">Fee bruto</th><th class="r">Fee líq.</th><th class="r">Players</th><th class="r">Fee/mão</th><th class="r">Mortas</th><th class="r">Take</th><th class="r">Custo perdido</th></tr></thead><tbody>${rows}</tbody></table>
+  </div>
+  <div class="ft"><span>Suprema OS · Cash Intelligence</span><span>${preview?'Prévia com o dataset atual — importe a semana para números reais.':'Fonte: relatórios importados no painel Mesa Cash.'}</span></div>
+</div></body></html>`;
+
+  const blob=new Blob([html],{type:'text/html;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  a.href=url;a.download=`resumo-semanal-cash-${new Date().toISOString().slice(0,10)}.csv`;
+  a.href=url;a.download=`resumo-semanal-cash-${now.toISOString().slice(0,10)}.html`;
   a.click();URL.revokeObjectURL(url);
-  if(typeof showToast==='function')try{showToast('Resumo semanal exportado');}catch(_){}
+  if(typeof showToast==='function')try{showToast('Resumo gerado — abra o arquivo e "Salvar como PDF"');}catch(_){}
 }
-// Salva a meta de mesas perdidas → Firebase (mesasCashGoals) + re-renderiza os
-// painéis que dependem dela (Médias e Resumo). Independente do upload de planilha.
-function saveDeadGoal(){
-  const inp=document.getElementById('mdGoalInput'); if(!inp)return;
-  let v=parseFloat(String(inp.value).replace(',','.'));
-  if(!isFinite(v)||v<=0){ alert('Informe uma meta válida em % (ex.: 20).'); return; }
-  v=Math.min(60,Math.max(1,Math.round(v*10)/10));
+// Salva as metas (mortas/fee-dia/take rate) → Firebase (mesasCashGoals) e
+// re-renderiza o que depende delas. Independente do upload de planilha.
+function saveGoalsFromUI(){
+  const num=id=>{ const e=document.getElementById(id); if(!e)return 0; const v=parseFloat(String(e.value).replace(',','.')); return isFinite(v)&&v>0?v:0; };
+  const patch={
+    deadPct: Math.min(60, num('goal_deadPct')),
+    feeDia:  Math.max(0,  num('goal_feeDia')),
+    takeRate:Math.min(30, num('goal_takeRate')),
+  };
   const btn=document.getElementById('mdGoalSave'); if(btn){btn.disabled=true;btn.style.opacity='.6';}
-  saveGoals({deadPct:v}).then(()=>{
-    if(typeof showToast==='function'){try{showToast('Meta salva: mortas ≤ '+f(v,1)+'%');}catch(_){}}
+  saveGoals(patch).then(()=>{
+    if(typeof showToast==='function'){try{showToast('Metas salvas');}catch(_){}}
     try{buildMedias();}catch(_){} try{buildResumo();}catch(_){}
   }).finally(()=>{ if(btn){btn.disabled=false;btn.style.opacity='';} });
 }
