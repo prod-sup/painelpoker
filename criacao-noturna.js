@@ -1942,13 +1942,17 @@ function renderAllDone(total, doneCount){
   el.hidden = !complete;
   if (complete && !ALLDONE_TOASTED){
     ALLDONE_TOASTED = true;
-    showToast('🌙 Tudo criado! Suba uma nova GU pra atualizar o cronograma de criação.');
+    showToast('🌙 Tudo criado! Toque em "Pular para o próximo dia" pra começar a próxima madrugada.');
   }
   if (!complete) ALLDONE_TOASTED = false;
 }
+/* GU é automática (planilha conectada em tempo real): "pular pro próximo dia" só
+   re-aponta o caminho pro dia seguinte da grade (ACTIVE+1) e recarrega — o auto-sync
+   popula o novo cronograma sozinho. Nada se perde: o dia atual fica salvo no Firebase.
+   Mesmo mecanismo do pill "Começar a nova". */
 $('allDoneGo').addEventListener('click', () => {
-  $('uploadCard').scrollIntoView({behavior:'smooth', block:'start'});
-  $('fileInput').click();
+  try{ localStorage.setItem('cn_active_day', refToISO(_refAfter)); }catch(e){}
+  location.reload();
 });
 
 /* ── ANÉIS DE CRIAÇÃO (ref. getfluently) — progresso POR FUNÇÃO do turno,
