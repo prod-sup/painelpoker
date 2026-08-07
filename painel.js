@@ -3454,7 +3454,7 @@ async function detectHeldDayOnLoad(){
     ROLLOVER_HELD_TOAST = true;          // já avisamos aqui, checkStaleness não precisa repetir
     registerSheetListener();
     reinitDayListeners();
-    showToast(`🕐 Quadro de ${ontem} restaurado — faltam ${pendentes.length} card(s) pra fechar o dia. O painel vira quando o último for preenchido.`);
+    showToast(`🕐 Quadro de ${ontem} restaurado — falta fixar: ${fmtPendentesFixar(pendentes)}. O painel vira o dia quando o último for fixado.`);
   }catch(e){ console.error('Erro ao detectar dia segurado:', e); }
 }
 
@@ -3556,6 +3556,15 @@ async function copyToClipboard(text, btnEl, successMsg){
   showToast(successMsg || 'Linha copiada — pronta para colar.');
 }
 
+/* monta um texto curto nomeando os torneios que ainda travam a virada do dia (nome + hora),
+   pra que a mensagem de "virada segurada" diga QUAL card falta fixar, não só quantos.
+   Lista até `max` nomes e resume o resto como "+N". Recebe as linhas já filtradas (pendentes). */
+function fmtPendentesFixar(pendentes, max = 3){
+  const nomes = pendentes.map(r => `${r.nome}${r.hora ? ' (' + r.hora + ')' : ''}`);
+  if (nomes.length <= max) return nomes.join(', ');
+  return nomes.slice(0, max).join(', ') + ` +${nomes.length - max}`;
+}
+
 /* =========================================================================
    INGEST — single source feeds Unfixed + Agenda + Resultados
 ========================================================================= */
@@ -3588,12 +3597,15 @@ function computeUnfixed(){
    assim a barra cresce de forma estável ao longo do dia, sem pular pra trás quando um torneio sai da janela */
 function updateProgress(){
   const block = document.getElementById('progressBlock');
-  if (!RAW_ROWS.length){ block.hidden = true; return; }
+  if (!RAW_ROWS.length){ block.hidden = true; renderHeldDayBanner([]); return; }
   const relevant = RAW_ROWS.filter(r => mustFix(r, classify(r)));
   const total = relevant.length;
-  if (total === 0){ block.hidden = true; return; }
+  if (total === 0){ block.hidden = true; renderHeldDayBanner([]); return; }
   const done = relevant.filter(r => isFixed(r._key)).length;
   const pct = Math.round((done / total) * 100);
+  // banner clicável de "virada segurada": só quando a grade já virou (05:30+) e o dia está
+  // sendo segurado esperando fixar. Recalculado a cada fix/sync, some sozinho no último card.
+  renderHeldDayBanner(todayPathSP() > LAST_KNOWN_DATE ? relevant.filter(r => !isFixed(r._key)) : []);
   block.hidden = false;
   const countEl = document.getElementById('progressCount');
   countEl.textContent = `${done} de ${total} fixados`;
@@ -3640,6 +3652,32 @@ function maybeNotifyGlobalRefresh(){
     bar.remove();
   });
   document.body.appendChild(bar);
+}
+
+/* banner de "virada segurada": lista CLICÁVEL dos torneios que ainda travam a virada do dia.
+   Cada chip rola até o card pendente e dá flash (jumpToCardByKey), pra operadora ir direto fixar em vez
+   de caçar qual é. Fica na tela enquanto houver pendência e é atualizado AO VIVO por updateProgress —
+   some sozinho quando o último for fixado (e aí a virada acontece). Chamar com lista vazia esconde. */
+function renderHeldDayBanner(pendentes){
+  const existing = document.getElementById('heldDayBanner');
+  if(!pendentes || !pendentes.length){ if(existing) existing.remove(); return; }
+  const bar = existing || document.createElement('div');
+  if(!existing){
+    bar.id = 'heldDayBanner';
+    bar.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:99998;background:var(--gold,#c08000);color:#000;padding:10px 16px;border-radius:16px;font-size:13px;font-weight:700;box-shadow:0 6px 24px rgba(0,0,0,.35);display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:92vw';
+    document.body.appendChild(bar);
+  }
+  const chips = pendentes.map(r => {
+    const key = r._key || rowKey(r);
+    const label = `${r.nome}${r.hora ? ' (' + r.hora + ')' : ''}`;
+    return `<button type="button" class="held-chip" data-key="${escHtml(key)}" style="cursor:pointer;border:none;background:rgba(0,0,0,.15);color:#000;font-weight:800;font-size:12px;padding:4px 10px;border-radius:99px">📌 ${escHtml(label)}</button>`;
+  }).join('');
+  bar.innerHTML = `<span>🕐 Falta fixar pra virar o dia:</span>${chips}`;
+  bar.querySelectorAll('.held-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if(!jumpToCardByKey(btn.dataset.key)) showToast('Card não está visível na agenda atual (verifique os filtros).');
+    });
+  });
 }
 
 /* progresso de resultados fechados: quantos dos torneios "relevantes" (mustFix — Main/Satélite/Side marcado)
@@ -6846,6 +6884,18 @@ function ovcGenerateImage(){
 }
 document.getElementById('ovcImageBtn')?.addEventListener('click', ovcGenerateImage);
 
+/* rola até o card do torneio (pela chave), com um flash pra o operador achar de imediato.
+   Retorna false se o card não está renderizado na agenda atual (filtro escondeu, etc).
+   Reusado pelo "Ir para o card" da calculadora e pelos chips do banner de virada segurada. */
+function jumpToCardByKey(key){
+  const card = document.querySelector(`.tcard[data-key="${key}"], .compact-table tbody tr[data-key="${key}"], .ucard[data-key="${key}"]`);
+  if(!card) return false;
+  card.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'center' });
+  card.classList.add('card-flash');
+  setTimeout(() => card.classList.remove('card-flash'), 1800);
+  return true;
+}
+
 /* "Ir para o card": fecha a calculadora e rola até o card do torneio selecionado,
    com um flash pra o operador achar de imediato onde o pote foi aplicado. */
 function ovcGoToCard(){
@@ -6853,14 +6903,7 @@ function ovcGoToCard(){
   if(!key){ showToast('Selecione o torneio primeiro.'); return; }
   closeDrawer('overlayCalcDrawerOverlay');
   setTimeout(() => {
-    const card = document.querySelector(`.tcard[data-key="${key}"], .compact-table tbody tr[data-key="${key}"], .ucard[data-key="${key}"]`);
-    if(card){
-      card.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'center' });
-      card.classList.add('card-flash');
-      setTimeout(() => card.classList.remove('card-flash'), 1800);
-    } else {
-      showToast('Card não está visível na agenda atual (verifique os filtros).');
-    }
+    if(!jumpToCardByKey(key)) showToast('Card não está visível na agenda atual (verifique os filtros).');
   }, 300);
 }
 document.getElementById('ovcGoToCardBtn')?.addEventListener('click', ovcGoToCard);
@@ -8732,11 +8775,12 @@ function checkStaleness(){
     // preenchido — o turno termina o trabalho no dia antigo (dados continuam indo pro nó certo)
     // e a troca acontece na hora em que o último card for fixado (ver updateProgress)
     if (!allCardsDone()){
+      const relevant = RAW_ROWS.filter(r => mustFix(r, classify(r)));
+      const pendentes = relevant.filter(r => !isFixed(r._key));
+      renderHeldDayBanner(pendentes); // banner clicável fica na tela enquanto segurar
       if (!ROLLOVER_HELD_TOAST){
         ROLLOVER_HELD_TOAST = true;
-        const relevant = RAW_ROWS.filter(r => mustFix(r, classify(r)));
-        const pendentes = relevant.filter(r => !isFixed(r._key)).length;
-        showToast(`🕐 Grade virou (05:30), mas ainda faltam ${pendentes} card(s) — o painel troca de dia quando o último for preenchido.`);
+        showToast(`🕐 Grade virou (05:30), mas falta fixar: ${fmtPendentesFixar(pendentes)}. O painel vira o dia quando o último for fixado.`);
       }
     } else {
       ROLLOVER_HELD_TOAST = false;
