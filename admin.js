@@ -48,6 +48,38 @@ window.addEventListener('storage', e => {
 const brl = (v,d=2) => v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const brlk = v => { if(v==null||isNaN(v))return'—'; const a=Math.abs(v),s=v<0?'-':''; return a>=1e6?s+'R$'+brl(a/1e6,1)+'M':a>=1e3?s+'R$'+brl(a/1e3,0)+'K':s+'R$'+brl(a,0); };
 const pct  = (v,d=2) => v==null?'—':(v>=0?'+':'')+Number(v).toFixed(d)+'%';
+
+// ── TAXAS DA CASA (config, não mais chumbado) ────────────────────────────
+// netFactor = fração da entrada que vira prize pool. A casa fica com (1−netFactor).
+// Regra padrão: normal 10% rake · campanha (SPS/SPT) 10% rake + 2% admin ·
+// satélite 5% rake. Editável no card "Metas & taxas" → nó adminDashConfig.
+const DASH_RATES_DEFAULT={normal:0.90, campanha:0.88, sat:0.95, adminPct:0.02};
+let DASH_RATES={...DASH_RATES_DEFAULT};
+const netFactorOf=(cat,isCamp)=> cat==='sat'?DASH_RATES.sat:(isCamp?DASH_RATES.campanha:DASH_RATES.normal);
+// ── METAS DA DASHBOARD (rake/dia mínimo, overlay% máximo) → nó adminDashGoals ──
+const DASH_GOALS_DEFAULT={rakeDia:0, overlayPct:5};
+let DASH_GOALS={...DASH_GOALS_DEFAULT};
+let _dashSettingsLoaded=false;
+async function loadDashSettings(){
+  try{ const lg=JSON.parse(localStorage.getItem('adminDashGoals')||'null'); if(lg)DASH_GOALS=Object.assign({},DASH_GOALS_DEFAULT,lg); }catch(_){}
+  try{ const lc=JSON.parse(localStorage.getItem('adminDashConfig')||'null'); if(lc)DASH_RATES=Object.assign({},DASH_RATES_DEFAULT,lc); }catch(_){}
+  if(typeof db!=='undefined' && db){
+    try{
+      const [g,c]=await Promise.all([
+        db.ref('adminDashGoals').once('value').then(s=>s.val()),
+        db.ref('adminDashConfig').once('value').then(s=>s.val()),
+      ]);
+      if(g)DASH_GOALS=Object.assign({},DASH_GOALS_DEFAULT,g);
+      if(c)DASH_RATES=Object.assign({},DASH_RATES_DEFAULT,c);
+    }catch(e){ console.error('loadDashSettings',e); }
+  }
+}
+async function saveDashSettings(goalsPatch, ratesPatch){
+  if(goalsPatch){ DASH_GOALS=Object.assign({},DASH_GOALS,goalsPatch); try{localStorage.setItem('adminDashGoals',JSON.stringify(DASH_GOALS));}catch(_){}
+    if(db){ try{await db.ref('adminDashGoals').update(goalsPatch);}catch(e){console.error(e);} } }
+  if(ratesPatch){ DASH_RATES=Object.assign({},DASH_RATES,ratesPatch); try{localStorage.setItem('adminDashConfig',JSON.stringify(DASH_RATES));}catch(_){}
+    if(db){ try{await db.ref('adminDashConfig').update(ratesPatch);}catch(e){console.error(e);} } }
+}
 // Parse valor em formato pt-BR ("400.708,00" ou "308500") → número (400708)
 const parseBRL = raw => {
   const s = String(raw??'').trim().replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.');
@@ -665,7 +697,7 @@ function flatRows(fromDate, toDate){
       // Ex.: 750 Plus (side sem campanha) prem R$1.068,30 ÷ (R$1 × 0,90) = 1.187 ações.
       const buyin = r.buyin ?? null;
       const isCampanha = /^\s*(SPS|SPT)\b/i.test(r.nome||'');
-      const netFactor = cat==='sat' ? 0.95 : (isCampanha ? 0.88 : 0.90);
+      const netFactor = netFactorOf(cat, isCampanha);
       const acoes = prem!=null && buyin ? Math.round(prem/(buyin*netFactor)) : null;
       out.push({
         date, key,
@@ -716,7 +748,7 @@ function nav(id,btn){
   closeTbMenu();                                   // fecha o menu de ações se estava aberto
   const pg=document.getElementById('page'+id.charAt(0).toUpperCase()+id.slice(1));
   if(pg)pg.classList.add('active');
-  if(id==='dashboard')buildDash();
+  if(id==='dashboard'){ buildDash(); if(!_dashSettingsLoaded){ _dashSettingsLoaded=true; loadDashSettings().then(()=>buildDash()); } }
   if(id==='backup')initBackup(); // initBackup já faz loadAll() internamente
   if(id==='grade')renderGrade();
   if(id==='audit')loadAudit();
@@ -1306,6 +1338,30 @@ async function buildDashCn(){
       <div class="kpi"><div class="kpi-label">Top criador</div><div class="kpi-val" style="font-size:20px">${topOp?esc(topOp[0]):'—'}</div><div class="kpi-sub">${topOp?topOp[1].criados+' criados':'sem dados'}</div></div>`;
   }catch(e){ el.innerHTML = '<div class="kpi"><div class="kpi-label">Erro ao carregar</div><div class="kpi-sub">'+esc(e.message)+'</div></div>'; }
 }
+// Tooltip flutuante compartilhado pros cards [data-tip]. Delegação no document
+// (sobrevive aos re-renders do dashKpi) + segue o cursor com position:fixed.
+let _tipBound=false;
+function initKpiTips(){
+  if(_tipBound)return; _tipBound=true;
+  let t=document.getElementById('supTip');
+  if(!t){ t=document.createElement('div'); t.id='supTip'; t.className='sup-tip'; document.body.appendChild(t); }
+  const place=e=>{
+    const pad=15, w=t.offsetWidth, h=t.offsetHeight;
+    let x=e.clientX+pad, y=e.clientY+pad;
+    if(x+w>innerWidth-8)  x=e.clientX-w-pad;
+    if(y+h>innerHeight-8) y=e.clientY-h-pad;
+    t.style.left=Math.max(8,x)+'px'; t.style.top=Math.max(8,y)+'px';
+  };
+  document.addEventListener('mouseover',e=>{
+    const el=e.target.closest && e.target.closest('[data-tip]');
+    if(el){ t.innerHTML=el.getAttribute('data-tip')||''; t.classList.add('on'); place(e); }
+  });
+  document.addEventListener('mousemove',e=>{ if(t.classList.contains('on'))place(e); });
+  document.addEventListener('mouseout',e=>{
+    const el=e.target.closest && e.target.closest('[data-tip]');
+    if(el && !el.contains(e.relatedTarget)) t.classList.remove('on');
+  });
+}
 function buildDash(){
   buildDashCn();
   const from=_dpFrom||dago(_dp), to=_dpTo||nowSP();
@@ -1325,14 +1381,89 @@ function buildDash(){
   const totalGarSum = rows.reduce((s,r)=>s+(r.garantido||0),0);
   const cobertura = totalGarSum>0?(totalPrem/totalGarSum*100):0;
 
+  // ── ARRECADADO + RAKE + ADMIN FEE ──────────────────────────────────────
+  // A premiação é o LÍQUIDO (parte da entrada que vira prize pool). O bruto
+  // arrecadado = premiação ÷ netFactor. A casa fica com (1−netFactor):
+  //   normal netFactor 0,90 → 10% rake · campanha 0,88 → 10% rake + 2% admin ·
+  //   satélite 0,95 → 5% rake. Admin fee só existe em evento SPS/SPT (regra da
+  //   casa: 10% do buy-in / +2% se tiver admin fee). Só rows FECHADAS (têm prem).
+  let grossSum=0, rakeSum=0, adminSum=0, entradas=0, adminEvents=0;
+  const catAgg={main:{gross:0,rake:0,admin:0,ov:0,gar:0,prem:0,n:0},side:{gross:0,rake:0,admin:0,ov:0,gar:0,prem:0,n:0},sat:{gross:0,rake:0,admin:0,ov:0,gar:0,prem:0,n:0}};
+  rows.forEach(r=>{ const c=catAgg[r.cat]; if(c && r.garantido) c.gar+=r.garantido; });
+  closed.forEach(r=>{
+    if(r.premiacao==null || !r.netFactor) return;
+    const gross    = r.premiacao / r.netFactor;
+    const isCamp   = /^\s*(SPS|SPT)\b/i.test(r.nome||'');
+    const adminFrac= isCamp ? DASH_RATES.adminPct : 0;
+    const rakeFrac = Math.max(0, (1 - r.netFactor) - adminFrac);
+    const gRake=gross*rakeFrac, gAdmin=gross*adminFrac;
+    grossSum += gross; adminSum += gAdmin; rakeSum += gRake;
+    if(r.acoes) entradas += r.acoes;
+    if(adminFrac>0) adminEvents++;
+    const c=catAgg[r.cat];
+    if(c){ c.gross+=gross; c.rake+=gRake; c.admin+=gAdmin; c.prem+=r.premiacao; if(r.overlay)c.ov+=r.overlay; c.n++; }
+  });
+  const houseSum = rakeSum + adminSum;                       // receita da casa (rake+admin)
+  const rakePct  = grossSum>0 ? rakeSum/grossSum*100 : 0;
+  const housePct = grossSum>0 ? houseSum/grossSum*100 : 0;
+  const overlayPctGar = totalGar>0 ? Math.abs(totalOv)/totalGar*100 : 0;   // overlay como % do GTD
+  const margem   = houseSum - Math.abs(totalOv);             // margem real: receita − overlay coberto
+  const ticket   = entradas>0 ? grossSum/entradas : 0;       // arrecadado por entrada
+  const fieldMed = closed.length ? entradas/closed.length : 0;
+  const rakeDiaReal = dias>0 ? houseSum/dias : houseSum;     // receita da casa por dia
+  // metas + semáforo
+  const gOvl = +DASH_GOALS.overlayPct||0, gRakeDia = +DASH_GOALS.rakeDia||0;
+  const ovlOK  = gOvl>0 ? overlayPctGar<=gOvl : null;
+  const rakeOK = gRakeDia>0 ? rakeDiaReal>=gRakeDia : null;
+  const garByCat = {main:catAgg.main.gar,side:catAgg.side.gar,sat:catAgg.sat.gar};
+  const intBR = n => Math.round(n||0).toLocaleString('pt-BR');
+  // tooltip flutuante (HTML rico em data-tip; renderizado pelo initKpiTips).
+  // Sem aspas duplas no conteúdo → seguro dentro de data-tip="...".
+  const tRow=(k,v)=>`<div class='tip-l'><span>${k}</span><b>${v}</b></div>`;
+  const tCard=(head,big,rows,foot)=>`<div class='tip-h'>${head}</div><div class='tip-b'>${big}</div>${rows.join('')}${foot?`<div class='tip-f'>${foot}</div>`:''}`;
+  const garTip = tCard('Garantido prometido','R$ '+brl(totalGar,0),[
+    tRow('Main','R$ '+brl(garByCat.main,0)), tRow('Side','R$ '+brl(garByCat.side,0)), tRow('Satélite','R$ '+brl(garByCat.sat,0)),
+  ],`Premiação cobre ${cobertura.toFixed(0)}% do garantido`);
+  const arrTip = tCard('Arrecadado (bruto)','R$ '+brl(grossSum,0),[
+    tRow('Premiação','R$ '+brl(totalPrem,0)), tRow('Rake','R$ '+brl(rakeSum,0)), tRow('Admin fee','R$ '+brl(adminSum,0)), tRow('Entradas',intBR(entradas)),
+  ],`A casa fica com ${housePct.toFixed(1)}% do arrecadado`);
+  const rakeTip = tCard('Rake gerado','R$ '+brl(rakeSum,0),[
+    tRow('Admin fee','R$ '+brl(adminSum,0)), tRow('Receita da casa','R$ '+brl(houseSum,0)),
+  ],`Média de ${rakePct.toFixed(1)}% do arrecadado`);
+  const admTip = tCard('Admin fee gerado','R$ '+brl(adminSum,0),[
+    tRow('Eventos c/ admin',intBR(adminEvents)), tRow('Taxa',(DASH_RATES.adminPct*100).toFixed(0)+'% do buy-in'),
+  ],'Só eventos SPS/SPT');
+  const houseTip = tCard('Receita da casa','R$ '+brl(houseSum,0),[
+    tRow('Rake','R$ '+brl(rakeSum,0)), tRow('Admin fee','R$ '+brl(adminSum,0)),
+    tRow('Overlay coberto','−R$ '+brl(Math.abs(totalOv),0)), tRow('Margem real','R$ '+brl(margem,0)),
+  ],`${housePct.toFixed(1)}% do arrecadado · R$ ${brl(rakeDiaReal,0)}/dia`);
+  const margTip = tCard('Margem real','R$ '+brl(margem,0),[
+    tRow('Receita da casa','R$ '+brl(houseSum,0)), tRow('Overlay','−R$ '+brl(Math.abs(totalOv),0)),
+  ],'O que sobra pra casa depois de cobrir o garantido');
+  const tickTip = tCard('Ticket médio','R$ '+brl(ticket,0),[
+    tRow('Arrecadado','R$ '+brl(grossSum,0)), tRow('Entradas',intBR(entradas)), tRow('Field médio',intBR(fieldMed)+'/torneio'),
+  ],'Quanto cada entrada colocou em média');
+  initKpiTips();
+
   document.getElementById('dashKpi').innerHTML=`
     <div class="kpi"><div class="kpi-label">Torneios</div><div class="kpi-val">${rows.length}</div><div class="kpi-sub">${dias} dia${dias>1?'s':''} · ${janela}</div></div>
     <div class="kpi"><div class="kpi-label">Fechados</div><div class="kpi-val">${closed.length}</div><div class="kpi-sub">${rows.length?Math.round(closed.length/rows.length*100):0}% do total</div></div>
+    <div class="kpi b" data-tip="${garTip}"><div class="kpi-label">Garantido</div><div class="kpi-val">${brlk(totalGar)}</div><div class="kpi-sub">GTD prometido · passe o mouse p/ detalhe</div></div>
+    <div class="kpi b" data-tip="${arrTip}"><div class="kpi-label">Arrecadado (bruto)</div><div class="kpi-val">${brlk(grossSum)}</div><div class="kpi-sub">${intBR(entradas)} entradas · casa ${housePct.toFixed(1)}%</div></div>
     <div class="kpi g"><div class="kpi-label">Premiação total</div><div class="kpi-val">${brlk(totalPrem)}</div><div class="kpi-sub">Cobertura ${cobertura.toFixed(0)}% do GTD</div></div>
-    <div class="kpi r"><div class="kpi-label">Overlay total</div><div class="kpi-val">${brlk(Math.abs(totalOv))}</div><div class="kpi-sub">${closed.length?Math.round(withOv.length/closed.length*100):0}% dos fechados com OV</div></div>
+    <div class="kpi g" data-tip="${rakeTip}"><div class="kpi-label">Rake gerado</div><div class="kpi-val">${brlk(rakeSum)}</div><div class="kpi-sub">${rakePct.toFixed(1)}% do arrecadado · +admin = ${brlk(houseSum)}</div></div>
+    <div class="kpi p" data-tip="${admTip}"><div class="kpi-label">Admin fee</div><div class="kpi-val">${brlk(adminSum)}</div><div class="kpi-sub">${adminEvents} evento(s) SPS/SPT · ${(DASH_RATES.adminPct*100).toFixed(0)}% do buy-in</div></div>
+    <div class="kpi ${rakeOK==null?'g':rakeOK?'g':'r'}" data-tip="${houseTip}"><div class="kpi-label">Receita da casa</div><div class="kpi-val">${brlk(houseSum)}</div><div class="kpi-sub">R$ ${brl(rakeDiaReal,0)}/dia${gRakeDia>0?` · meta ≥ ${brlk(gRakeDia)} ${rakeOK?'✓':'✗'}`:''}</div></div>
+    <div class="kpi ${margem>=0?'g':'r'}" data-tip="${margTip}"><div class="kpi-label">Margem real</div><div class="kpi-val">${brlk(margem)}</div><div class="kpi-sub">receita − overlay coberto</div></div>
+    <div class="kpi b" data-tip="${tickTip}"><div class="kpi-label">Ticket médio</div><div class="kpi-val">${brlk(ticket)}</div><div class="kpi-sub">field médio ${intBR(fieldMed)}/torneio</div></div>
+    <div class="kpi ${ovlOK==null?'r':ovlOK?'g':'r'}"><div class="kpi-label">Overlay total</div><div class="kpi-val">${brlk(Math.abs(totalOv))}</div><div class="kpi-sub">${overlayPctGar.toFixed(1)}% do GTD${gOvl>0?` · meta ≤ ${gOvl}% ${ovlOK?'✓':'✗'}`:''}</div></div>
     <div class="kpi b"><div class="kpi-label">Perf. média</div><div class="kpi-val">${avgPerf!=null?pct(avgPerf):'—'}</div><div class="kpi-sub">vs garantido prometido</div></div>
     <div class="kpi p"><div class="kpi-label">NF no período</div><div class="kpi-val">${nfRows.length}</div><div class="kpi-sub">${rows.length?Math.round(nfRows.length/rows.length*100):0}% não formaram</div></div>
   `;
+  // ── alerta proativo + quebra por categoria + settings (metas/taxas) ──
+  renderDashAlert(overlayPctGar, gOvl, totalOv, rakeDiaReal, gRakeDia);
+  renderDashCatBreakdown(catAgg);
+  renderDashSettings();
 
   // Top overlay
   const byName={};
@@ -1373,6 +1504,68 @@ function buildDash(){
   buildFieldTrend();
 }
 
+// Alerta proativo: overlay acima do teto ou receita/dia abaixo da meta.
+function renderDashAlert(ovlPct, gOvl, totalOv, rakeDia, gRakeDia){
+  const el=document.getElementById('dashAlert'); if(!el)return;
+  const a=[];
+  if(gOvl>0 && ovlPct>gOvl) a.push({t:`Overlay em ${ovlPct.toFixed(1)}% do garantido — acima do teto de ${gOvl}%`,
+    s:`R$ ${brl(Math.abs(totalOv),0)} pagos pela casa além do arrecadado. Revisar garantidos e fields dos eventos que mais estouram.`});
+  if(gRakeDia>0 && rakeDia<gRakeDia) a.push({t:`Receita da casa em R$ ${brl(rakeDia,0)}/dia — abaixo da meta de ${brlk(gRakeDia)}`,
+    s:`Faltam R$ ${brl(gRakeDia-rakeDia,0)}/dia. Puxar arrecadação (field) ou revisar a estrutura de rake.`});
+  if(!a.length){ el.innerHTML=''; el.style.display='none'; return; }
+  el.style.display='';
+  el.innerHTML=a.map(x=>`<div class="card" style="border:1px solid var(--red);background:color-mix(in srgb,var(--red) 8%,transparent);margin-bottom:12px;display:flex;gap:12px;align-items:center;padding:12px 14px">
+    <div style="font-size:22px;color:var(--red);line-height:1">⚠</div>
+    <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:800;color:var(--ink)">${esc(x.t)}</div><div style="font-size:11px;color:var(--ink2);margin-top:1px">${esc(x.s)}</div></div>
+  </div>`).join('');
+}
+
+// Receita por categoria (Main/Side/Satélite): onde o dinheiro entra e onde o overlay corrói.
+function renderDashCatBreakdown(catAgg){
+  const el=document.getElementById('dashCatBreakdown'); if(!el)return;
+  const cats=[{k:'main',n:'Main'},{k:'side',n:'Side'},{k:'sat',n:'Satélite'}];
+  const tot={gross:0,rake:0,admin:0,ov:0,gar:0};
+  cats.forEach(c=>{const x=catAgg[c.k];tot.gross+=x.gross;tot.rake+=x.rake;tot.admin+=x.admin;tot.ov+=x.ov;tot.gar+=x.gar;});
+  const row=(n,x,bold)=>{const house=x.rake+x.admin, marg=house-Math.abs(x.ov);
+    return `<tr${bold?' style="font-weight:700;border-top:2px solid var(--border)"':''}>
+      <td class="nm">${n}</td>
+      <td class="r mono">${brlk(x.gar)}</td><td class="r mono">${brlk(x.gross)}</td>
+      <td class="r mono c-green">${brlk(x.rake)}</td><td class="r mono">${brlk(x.admin)}</td>
+      <td class="r mono ${x.ov<0?'c-red':''}">${brlk(x.ov)}</td>
+      <td class="r mono ${marg>=0?'c-green':'c-red'}">${brlk(marg)}</td></tr>`;};
+  el.innerHTML=`<div class="tbl-wrap"><table>
+    <thead><tr><th>Categoria</th><th class="r">GTD</th><th class="r">Arrecadado</th><th class="r">Rake</th><th class="r">Admin</th><th class="r">Overlay</th><th class="r">Margem</th></tr></thead>
+    <tbody>${cats.map(c=>row(c.n,catAgg[c.k])).join('')}${row('Total',tot,true)}</tbody></table></div>`;
+}
+
+// Editor de metas + taxas (salva no Firebase; re-renderiza a dashboard).
+function renderDashSettings(){
+  const el=document.getElementById('dashSettings'); if(!el)return;
+  const g=DASH_GOALS, r=DASH_RATES;
+  const inp=(id,val,step)=>`<input id="${id}" type="number" step="${step||'1'}" value="${val}" style="width:78px;height:32px;border:1px solid var(--border);border-radius:8px;background:var(--s1);color:var(--ink);text-align:right;padding:0 8px;font-weight:700">`;
+  const fld=(lab,ctrl)=>`<div><div style="font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);margin-bottom:4px">${lab}</div><div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink2)">${ctrl}</div></div>`;
+  const sep=`<div style="width:1px;align-self:stretch;background:var(--border)"></div>`;
+  el.innerHTML=`
+    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-end">
+      ${fld('Meta rake/dia (mín)','R$ '+inp('dgRakeDia',g.rakeDia,'100'))}
+      ${fld('Teto overlay (% GTD)',inp('dgOvl',g.overlayPct,'0.5')+' %')}
+      ${sep}
+      ${fld('Casa retém — normal',inp('drNormal',((1-r.normal)*100).toFixed(1),'0.5')+' %')}
+      ${fld('Casa retém — campanha',inp('drCamp',((1-r.campanha)*100).toFixed(1),'0.5')+' %')}
+      ${fld('Casa retém — satélite',inp('drSat',((1-r.sat)*100).toFixed(1),'0.5')+' %')}
+      ${fld('Admin fee (na campanha)',inp('drAdmin',(r.adminPct*100).toFixed(1),'0.5')+' %')}
+      <button class="btn btn-gold btn-sm" data-act="saveDashSettingsFromUI">Salvar</button>
+    </div>
+    <div style="font-size:10.5px;color:var(--ink3);margin-top:9px">"Casa retém" = fração da entrada que NÃO vai pro prize (rake + admin). Campanha inclui o admin fee. Salvo no Firebase, vale pra todos os painéis.</div>`;
+}
+function saveDashSettingsFromUI(){
+  const num=id=>{const e=document.getElementById(id);const v=e?parseFloat(String(e.value).replace(',','.')):NaN;return isFinite(v)?v:0;};
+  const clampF=p=>Math.min(0.999,Math.max(0,1-p/100));   // % retido → netFactor
+  const goals={ rakeDia:Math.max(0,num('dgRakeDia')), overlayPct:Math.max(0,num('dgOvl')) };
+  const rates={ normal:clampF(num('drNormal')), campanha:clampF(num('drCamp')), sat:clampF(num('drSat')), adminPct:Math.max(0,Math.min(0.5,num('drAdmin')/100)) };
+  saveDashSettings(goals, rates).then(()=>{ try{buildDash();}catch(_){}} );
+}
+
 function buildWeeklyComparison(){
   const el = document.getElementById('weeklyComparison');
   if(!el) return;
@@ -1387,11 +1580,12 @@ function buildWeeklyComparison(){
     const gar   = rows.reduce((s,r)=>s+(r.garantido||0),0);
     const prem  = rows.reduce((s,r)=>s+(r.premiacao||0),0);
     const ov    = rows.reduce((s,r)=>s+(r.overlay||0),0);
+    const house = rows.reduce((s,r)=>s+((r.premiacao!=null&&r.netFactor)?(r.premiacao/r.netFactor-r.premiacao):0),0); // rake+admin
     const perf  = gar>0?(prem-gar)/gar*100:null;
     const nf    = flatRows(from,to).filter(r=>r.status==='nf').length;
     const [fy,fm,fd] = from.split('-');
     const [ty,tm,td] = to.split('-');
-    weeks.push({label:`${fd}/${fm}–${td}/${tm}`, gar, prem, ov, perf, n:rows.length, nf});
+    weeks.push({label:`${fd}/${fm}–${td}/${tm}`, gar, prem, ov, house, perf, n:rows.length, nf});
   }
 
   const valid = weeks.filter(Boolean);
@@ -1401,6 +1595,7 @@ function buildWeeklyComparison(){
   const curr = weeks[0], prev = weeks[1];
   const perfDiff = curr&&prev&&curr.perf!=null&&prev.perf!=null ? curr.perf-prev.perf : null;
   const ovDiff   = curr&&prev ? curr.ov-prev.ov : null;
+  const houseDiff= curr&&prev ? curr.house-prev.house : null;
 
   el.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:14px">
@@ -1412,23 +1607,28 @@ function buildWeeklyComparison(){
         <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px">Overlay vs semana anterior</div>
         <div style="font-size:20px;font-weight:800;font-family:var(--mono);color:${ovDiff<=0?'var(--green)':'var(--red)'}">${ovDiff<=0?'':'+'}${brlk(ovDiff)}</div>
       </div>`:''}
+      ${houseDiff!=null?`<div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:9px">
+        <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px">Receita da casa vs semana anterior</div>
+        <div style="font-size:20px;font-weight:800;font-family:var(--mono);color:${houseDiff>=0?'var(--green)':'var(--red)'}">${houseDiff>=0?'+':''}${brlk(houseDiff)}</div>
+      </div>`:''}
     </div>
     <div class="tbl-wrap">
       <table>
         <thead><tr>
           <th>Semana</th><th class="r">Fechados</th>
           <th class="r">GTD total</th><th class="r">Premiação</th>
-          <th class="r">Overlay</th><th class="r">Perf.</th><th class="r">NF</th>
+          <th class="r">Rake+Admin</th><th class="r">Overlay</th><th class="r">Perf.</th><th class="r">NF</th>
         </tr></thead>
         <tbody>${weeks.map((w,i)=>w?`<tr style="${i===0?'font-weight:700':''}">
           <td class="mono c-ink2">${w.label}</td>
           <td class="r mono">${w.n}</td>
           <td class="r mono">${brlk(w.gar)}</td>
           <td class="r mono">${brlk(w.prem)}</td>
+          <td class="r mono c-green">${brlk(w.house)}</td>
           <td class="r mono ${w.ov<0?'c-red':'c-green'}">${brlk(w.ov)}</td>
           <td class="r"><span class="perf ${w.perf>=0?'pos':'neg'}">${w.perf!=null?pct(w.perf):'—'}</span></td>
           <td class="r mono ${w.nf>3?'c-red':'c-ink3'}">${w.nf}</td>
-        </tr>`:'<tr><td colspan="7" style="color:var(--ink3);font-size:11px;padding:6px 10px">Sem dados</td></tr>').join('')}</tbody>
+        </tr>`:'<tr><td colspan="8" style="color:var(--ink3);font-size:11px;padding:6px 10px">Sem dados</td></tr>').join('')}</tbody>
       </table>
     </div>`;
 }
