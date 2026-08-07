@@ -630,7 +630,14 @@ function flatRows(fromDate, toDate){
       const _pbGate = pick(day.premBy);
       const _hasPremBy = _pbGate != null && _pbGate !== false && _pbGate !== '';
       const livePrem = _hasPremBy ? (pick(day.prem) ?? null) : null;
-      const prem = livePrem ?? (r._snap ? (r._snapPrem ?? null) : null);
+      // SNAPSHOT também exige prova de coleta: o snapshot grava `premPor` (premBy do painel)
+      // POR LINHA — só existe quando um operador DIGITOU o arrecadado. Snapshots antigos foram
+      // arquivados por uma versão do painel que ainda deixava a coluna "Premiação" da planilha
+      // (prize pool anunciado, nunca coletado) entrar — sem premPor. Sem esta trava, cada dia
+      // arquivado somava premiação-fantasma da planilha e o total inflava (~5×). Como o premBy
+      // sempre existiu, toda premiação COLETADA real tem premPor → o histórico verdadeiro fica.
+      const _snapHasPremPor = r.premPor != null && r.premPor !== false && r.premPor !== '';
+      const prem = livePrem ?? ((r._snap && _snapHasPremPor) ? (r._snapPrem ?? null) : null);
       // Garantido: sobrescrito ou da planilha
       const gar  = pick(day.guar)??r.garantido??null;
       // ID
