@@ -3831,6 +3831,7 @@ function buildFieldTrend(){
   const mid   = dago(30);
   const old   = dago(60);
 
+  const avg = a => a.reduce((s,x)=>s+x,0)/a.length;
   const rows60 = flatRows(old, today).filter(r=>r.field!=null&&r.field>0);
   const byName = {};
   rows60.forEach(r=>{
@@ -3839,33 +3840,49 @@ function buildFieldTrend(){
     else              byName[r.nome].older.push(r.field);
   });
 
+  // Comparação: 2+ rodadas recentes (estabilidade) vs. 1+ antiga (histórico curto já vale)
   const trends = Object.entries(byName)
-    .filter(([,v])=>v.recent.length>=2&&v.older.length>=2)
+    .filter(([,v])=>v.recent.length>=2&&v.older.length>=1)
     .map(([nome,v])=>{
-      const avgR = v.recent.reduce((s,x)=>s+x,0)/v.recent.length;
-      const avgO = v.older.reduce((s,x)=>s+x,0)/v.older.length;
-      const pct  = avgO>0?((avgR-avgO)/avgO*100):0;
-      return {nome, avgR:Math.round(avgR), avgO:Math.round(avgO), pct:Math.round(pct*10)/10};
+      const avgR=avg(v.recent), avgO=avg(v.older), p=avgO>0?((avgR-avgO)/avgO*100):0;
+      return {nome, avgR:Math.round(avgR), avgO:Math.round(avgO), pct:Math.round(p*10)/10, n:v.recent.length};
     })
     .sort((a,b)=>Math.abs(b.pct)-Math.abs(a.pct))
     .slice(0,20);
 
-  if(!trends.length){
-    el.innerHTML='<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--ink3)">Dados insuficientes (mín. 2 rodadas em cada período).</td></tr>';
+  if(trends.length){
+    el.innerHTML = trends.map(t=>{
+      const up=t.pct>=10, down=t.pct<=-10;
+      const color = up?'var(--green)':down?'var(--red)':'var(--ink3)';
+      const arrow = up?'▲':down?'▼':'—';
+      return `<tr>
+        <td class="nm">${esc(t.nome)}</td>
+        <td class="r mono c-ink3">${t.avgO}</td>
+        <td class="r mono">${t.avgR}</td>
+        <td class="r mono" style="color:${color};font-weight:700">${t.pct>=0?'+':''}${t.pct}%</td>
+        <td style="text-align:center;color:${color};font-weight:800">${arrow}</td>
+      </tr>`;
+    }).join('');
     return;
   }
 
-  el.innerHTML = trends.map(t=>{
-    const icon = t.pct>=10?'📈':t.pct<=-10?'📉':'➡️';
-    const color = t.pct>=10?'var(--green)':t.pct<=-10?'var(--red)':'var(--ink3)';
-    return `<tr>
-      <td class="nm">${esc(t.nome)}</td>
-      <td class="r mono">${t.avgO}</td>
-      <td class="r mono">${t.avgR}</td>
-      <td class="r mono" style="color:${color};font-weight:700">${t.pct>=0?'+':''}${t.pct}%</td>
-      <td style="font-size:16px;text-align:center">${icon}</td>
-    </tr>`;
-  }).join('');
+  // FALLBACK: sem 60 dias p/ comparar → ranking dos maiores fields dos últimos 30 dias
+  const recent = Object.entries(byName)
+    .filter(([,v])=>v.recent.length>=2)
+    .map(([nome,v])=>({nome, avgR:Math.round(avg(v.recent)), n:v.recent.length}))
+    .sort((a,b)=>b.avgR-a.avgR).slice(0,20);
+  if(recent.length){
+    el.innerHTML = `<tr><td colspan="5" style="padding:8px 10px;color:var(--ink3);font-size:11px;background:var(--s2)">Sem 60 dias de histórico p/ comparar — mostrando os <b>maiores fields dos últimos 30 dias</b>.</td></tr>`
+      + recent.map(t=>`<tr>
+        <td class="nm">${esc(t.nome)}</td>
+        <td class="r mono c-ink3">—</td>
+        <td class="r mono">${t.avgR}</td>
+        <td class="r mono c-ink3">—</td>
+        <td style="text-align:center;font-size:10px;color:var(--ink3)">${t.n}×</td>
+      </tr>`).join('');
+    return;
+  }
+  el.innerHTML='<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--ink3)">Ainda sem field registrado no período (o campo "field" dos torneios está vazio).</td></tr>';
 }
 
 /* ── 1. Atalhos de período ── */
@@ -4125,27 +4142,29 @@ async function buildHeatmap(){
   });
 
   const hours = Object.values(byHour).sort((a,b)=>a.h.localeCompare(b.h));
-  const maxOvPct = Math.max(...hours.map(h=>h.total>0?h.ovCount/h.total:0), 0.01);
+  const maxMoney = Math.max(...hours.map(h=>h.ovTotal), 1);   // barra = onde o dinheiro sangra
+  const worst = hours.reduce((a,b)=>b.ovTotal>(a?a.ovTotal:0)?b:a, null);
 
-  el.innerHTML = hours.map(h=>{
-    const pct_ = h.total>0 ? h.ovCount/h.total : 0;
-    const bar = Math.round(pct_/maxOvPct*100);
-    const color = pct_>=0.6?'var(--red)':pct_>=0.3?'var(--amber)':'var(--green)';
-    return `<tr>
-      <td class="mono c-ink2">${h.h}:xx</td>
+  el.innerHTML = (hours.map(h=>{
+    const rate = h.total>0 ? h.ovCount/h.total : 0;
+    const has  = h.ovTotal>0;
+    // taxa colorida por severidade (verde baixo → vermelho alto); horas limpas ficam apagadas
+    const rateColor = rate>=0.5?'var(--red)':rate>=0.25?'var(--amber)':(has?'var(--ink2)':'var(--ink3)');
+    const moneyBar  = Math.round(h.ovTotal/maxMoney*100);
+    const isWorst   = worst && h.h===worst.h && has;
+    return `<tr style="${has?'':'opacity:.45'}${isWorst?';background:color-mix(in srgb,var(--red) 6%,transparent)':''}">
+      <td class="mono c-ink2">${h.h}:xx${isWorst?' <span style="font-size:9px;color:var(--red);font-weight:700">pior</span>':''}</td>
       <td class="r mono">${h.total}</td>
-      <td class="r mono ${pct_>=0.4?'c-red':''}">${h.ovCount}</td>
-      <td class="r" style="min-width:120px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <div style="flex:1;height:8px;background:var(--s3);border-radius:4px;overflow:hidden">
-            <div style="width:${bar}%;height:100%;background:${color};border-radius:4px"></div>
-          </div>
-          <span style="font-size:10px;font-family:var(--mono);color:${color}">${Math.round(pct_*100)}%</span>
+      <td class="r mono ${has?'c-amber':'c-ink3'}">${h.ovCount||'—'}</td>
+      <td class="r mono" style="color:${rateColor}">${h.total?Math.round(rate*100)+'%':'—'}</td>
+      <td class="r" style="min-width:132px">
+        <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end">
+          ${has?`<div style="flex:1;max-width:78px;height:7px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="width:${moneyBar}%;height:100%;background:linear-gradient(90deg,var(--amber),var(--red));border-radius:4px"></div></div>`:''}
+          <span class="mono" style="min-width:52px;text-align:right;font-size:11px;color:${has?'var(--red)':'var(--ink3)'}">${has?brlk(h.ovTotal):'—'}</span>
         </div>
       </td>
-      <td class="r mono c-red">${h.ovTotal>0?brlk(h.ovTotal):'—'}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--ink3)">Sem dados suficientes.</td></tr>';
+  }).join('')) || '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--ink3)">Sem dados suficientes.</td></tr>';
 }
 
 /* ── 7. Projeção de premiação do mês ── */
