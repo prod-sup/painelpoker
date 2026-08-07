@@ -525,7 +525,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="cs">Dados salvos localmente no navegador · importe novos arquivos pelo botão no cabeçalho</div>
     <div class="tw"><table class="t" id="histTbl">
       <thead><tr>
-        <th>Data</th><th>Turno</th>
+        <th>Data</th>
         <th class="r">Sessões</th><th class="r">Fee Bruto</th>
         <th class="r">Fee Líquido</th><th class="r">Buyin</th>
         <th class="r">Players</th><th class="r">Fee/mão</th>
@@ -604,18 +604,11 @@ document.addEventListener('DOMContentLoaded', () => {
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:4px" id="scenGrid"></div>
   </div>
 
-  <!-- ALAVANCAS + PROJEÇÃO TURNO -->
-  <div class="g2">
-    <div class="card">
-      <div class="ct">Alavancas de receita — ROI por ação</div>
-      <div class="cs">Impacto diário estimado de cada mudança operacional</div>
-      <div id="leverBars" style="margin-top:6px"></div>
-    </div>
-    <div class="card">
-      <div class="ct">Projeção mensal por turno</div>
-      <div class="cs">Dia vs Noite extrapolados · potencial se Noite atingir eficiência do Dia</div>
-      <div class="cw" style="height:240px"><canvas id="cFcTurno" role="img" aria-label="Projeção por turno"></canvas></div>
-    </div>
+  <!-- ALAVANCAS DE RECEITA -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="ct">Alavancas de receita — ROI por ação</div>
+    <div class="cs">Impacto diário estimado de cada mudança operacional</div>
+    <div id="leverBars" style="margin-top:6px"></div>
   </div>
 
   <!-- INTEL FINANCEIRO -->
@@ -667,8 +660,8 @@ document.addEventListener('DOMContentLoaded', () => {
 <script>
   if (window.SupremaAuth && SupremaAuth.getSession && SupremaAuth.getSession()){
     SupremaOnboarding.start('cash', [
-      { el:'#cashImportBtn', title:'Importe a planilha cash', text:'Suba o export das mesas cash (.xlsx). O dashboard monta receita por turno, comportamento e previsão.', side:'bottom' },
-      { el:'.kpi.hero', title:'Seus números do dia', text:'Fee bruto e líquido, divisão por turno e as mesas que mais geram rake — tudo consolidado aqui em cima.', side:'bottom' },
+      { el:'#cashImportBtn', title:'Importe a planilha cash', text:'Suba o export das mesas cash (.xlsx). O dashboard monta receita, comportamento e previsão.', side:'bottom' },
+      { el:'.kpi.hero', title:'Seus números do dia', text:'Fee bruto e líquido e as mesas que mais geram rake — tudo consolidado aqui em cima.', side:'bottom' },
       { el:'#themeToggle', title:'Tema claro ou escuro', text:'Alterna a aparência do dashboard conforme sua preferência.', side:'left' }
     ], { accent:'#4f8ef7', label:'Cash Intelligence' });
   }

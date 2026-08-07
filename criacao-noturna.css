@@ -1672,6 +1672,25 @@ html,body{overflow-x:hidden;max-width:100%}
 .vtable td.sec-cursor-col{background:color-mix(in srgb,var(--felt-bright) 15%,var(--card))}
 .ptable tr.sec-cursor td.pname,.vtable td.sec-cursor-col.vname{font-weight:800}
 
+/* ── Cursor de navegação (Cards/Planilha/Colunas): feedback de "pousou aqui" ──
+   ← → movem o cursor entre torneios visíveis. O alvo dá um flash curto ao
+   receber o foco; nos Cards e na âncora das Colunas ainda faz um nudge na direção
+   do movimento (.cur-next/.cur-prev). Só background/transform. O kill-switch
+   global de prefers-reduced-motion zera tudo automaticamente. */
+.ptable tr.sec-cursor td,.vtable td.sec-cursor-col{animation:cnCursorLand .3s var(--ease)}
+@keyframes cnCursorLand{0%{background:color-mix(in srgb,var(--felt-bright) 40%,var(--card))}100%{background:color-mix(in srgb,var(--felt-bright) 15%,var(--card))}}
+
+.cn-card.sec-cursor{box-shadow:0 0 0 2px var(--felt-bright),0 14px 34px -16px color-mix(in srgb,var(--felt-bright) 60%,transparent)}
+.cn-card.sec-cursor.cur-next{animation:cnCardNext .3s var(--ease-expo)}
+.cn-card.sec-cursor.cur-prev{animation:cnCardPrev .3s var(--ease-expo)}
+@keyframes cnCardNext{from{opacity:.45;transform:translate3d(12px,0,0) scale(.985)}to{opacity:1;transform:none}}
+@keyframes cnCardPrev{from{opacity:.45;transform:translate3d(-12px,0,0) scale(.985)}to{opacity:1;transform:none}}
+
+.vtable td.sec-cursor-col.vname.cur-next{animation:cnCursorLand .3s var(--ease),cnNudgeNext .26s var(--ease-expo)}
+.vtable td.sec-cursor-col.vname.cur-prev{animation:cnCursorLand .3s var(--ease),cnNudgePrev .26s var(--ease-expo)}
+@keyframes cnNudgeNext{from{transform:translate3d(7px,0,0)}to{transform:none}}
+@keyframes cnNudgePrev{from{transform:translate3d(-7px,0,0)}to{transform:none}}
+
 /* B4 — momento de conclusão: 100% criados → barra verde acesa + pulso do card */
 #secFsCard.sec-complete .sec-fs-prog{background:color-mix(in srgb,var(--felt-bright) 30%,transparent)}
 #secFsCard.sec-complete .sec-fs-prog i{background:var(--felt-bright);box-shadow:0 0 12px var(--felt-bright)}
@@ -1747,6 +1766,32 @@ html,body{overflow-x:hidden;max-width:100%}
 #secFsOverlay .secwrap.focus.side .vtable tr.trow-head::before{background:var(--side-bright)}
 #secFsOverlay .secwrap.focus.sat  .vtable tr.trow-head::before{background:var(--sat-bright)}
 #secFsOverlay .secwrap.focus .vtable tr.trow-head:hover{background:linear-gradient(180deg,color-mix(in srgb,var(--felt-bright) 12%,transparent),transparent)}
+
+/* ══ Modo Foco — transição direcional + profundidade por naipe ══
+   O renderSecFs descarta o card anterior (pose-to-pose), então a transição é
+   ENTER-ONLY: avançar (← →/Espaço) entra deslizando da direita, voltar da
+   esquerda, clique/entrar no Foco faz fade+scale. Só transform+opacity (60fps);
+   overflow-x:hidden no scroller impede o deslize de piscar barra horizontal. O
+   kill-switch global de prefers-reduced-motion zera essas animações sozinho. */
+#secFsOverlay .secwrap.focus{overflow-x:hidden}
+#secFsOverlay .secwrap.focus.foc-next .vtable{animation:cnFocNext .26s var(--ease-expo) both;will-change:transform,opacity}
+#secFsOverlay .secwrap.focus.foc-prev .vtable{animation:cnFocPrev .26s var(--ease-expo) both;will-change:transform,opacity}
+#secFsOverlay .secwrap.focus.foc-fade .vtable{animation:cnFocFade .22s var(--ease) both}
+@keyframes cnFocNext{from{opacity:0;transform:translate3d(26px,0,0)}to{opacity:1;transform:none}}
+@keyframes cnFocPrev{from{opacity:0;transform:translate3d(-26px,0,0)}to{opacity:1;transform:none}}
+@keyframes cnFocFade{from{opacity:0;transform:scale(.984)}to{opacity:1;transform:none}}
+
+/* profundidade: além da --shadow-lg, um halo suave da cor do naipe eleva o card */
+#secFsOverlay .secwrap.focus .vtable{box-shadow:var(--shadow-lg),0 20px 64px -34px color-mix(in srgb,var(--felt-bright) 55%,transparent)}
+#secFsOverlay .secwrap.focus.main .vtable{box-shadow:var(--shadow-lg),0 20px 64px -34px color-mix(in srgb,var(--main-bright) 60%,transparent)}
+#secFsOverlay .secwrap.focus.side .vtable{box-shadow:var(--shadow-lg),0 20px 64px -34px color-mix(in srgb,var(--side-bright) 60%,transparent)}
+#secFsOverlay .secwrap.focus.sat  .vtable{box-shadow:var(--shadow-lg),0 20px 64px -34px color-mix(in srgb,var(--sat-bright) 60%,transparent)}
+
+/* faixa-herói do naipe: mais presente (gradiente + brilho na cor da categoria) */
+#secFsOverlay .secwrap.focus .vtable tr.trow-head::before{width:5px;box-shadow:0 0 16px -1px color-mix(in srgb,var(--felt-bright) 70%,transparent)}
+#secFsOverlay .secwrap.focus.main .vtable tr.trow-head::before{background:linear-gradient(180deg,var(--main-bright),color-mix(in srgb,var(--main-bright) 35%,transparent));box-shadow:0 0 16px -1px color-mix(in srgb,var(--main-bright) 70%,transparent)}
+#secFsOverlay .secwrap.focus.side .vtable tr.trow-head::before{background:linear-gradient(180deg,var(--side-bright),color-mix(in srgb,var(--side-bright) 35%,transparent));box-shadow:0 0 16px -1px color-mix(in srgb,var(--side-bright) 70%,transparent)}
+#secFsOverlay .secwrap.focus.sat  .vtable tr.trow-head::before{background:linear-gradient(180deg,var(--sat-bright),color-mix(in srgb,var(--sat-bright) 35%,transparent));box-shadow:0 0 16px -1px color-mix(in srgb,var(--sat-bright) 70%,transparent)}
 #secFsOverlay .secwrap.focus .vtable tr.trow-head th.rowlab{display:none}
 /* neutraliza a herança do cabeçalho da LISTA: lá o td é sticky + fundo branco
    opaco + max-width:190px (pra não vazar ao rolar). No foco isso tapava metade

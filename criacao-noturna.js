@@ -2632,9 +2632,14 @@ function toggleSectionFs(catKey){
   renderSecFs();
   if (opening) a11yOpenDialog('secFsOverlay'); else a11yCloseDialog('secFsOverlay');
 }
+// Modo Foco: direção da última navegação, consumida por renderSecFs pra dar a
+// transição direcional (avançar entra da direita, voltar da esquerda). 'none' =
+// re-render sem navegação (update ao vivo/busca) → sem animação, evita "pular".
+let _focusDir = 'none';
 function setSectionView(view){
   SEC_VIEW = view;
   try{ localStorage.setItem('cn_sec_view', view); }catch(e){}
+  if (view === 'focus') _focusDir = 'fade';   // entrar no Foco (tecla F): fade suave
   renderSecFs();
 }
 /* tela cheia de UMA seção — overlay PRÓPRIO no nível do <body> (#secFsOverlay,
@@ -2710,6 +2715,12 @@ function renderSecFs(){
   ov.classList.add('open');
   ov.setAttribute('aria-hidden', 'false');
   card.classList.toggle('sec-complete', pct === 100);   // B4: momento de conclusão (100% criados)
+  // Modo Foco: transição direcional ao trocar de torneio (só quando houve navegação)
+  if (SEC_VIEW === 'focus' && _focusDir !== 'none'){
+    const fw = card.querySelector('.secwrap.focus');
+    if (fw) fw.classList.add(_focusDir === 'next' ? 'foc-next' : _focusDir === 'prev' ? 'foc-prev' : 'foc-fade');
+  }
+  _focusDir = 'none';
   $('secFsClose').addEventListener('click', () => toggleSectionFs(SEC_FS));
   $('secFsEye').addEventListener('click', e => { e.stopPropagation(); openFieldEye(e.currentTarget); });
   const secSearch = document.getElementById('secFsSearch');
@@ -2941,7 +2952,7 @@ function renderCards(items, cat, asg){
     const af = adminFeeParts(it), eb = earlyParts(it), urg = urgency(it), m = mttKicker(it);
     const gtd = typeof it.garantido === 'number' ? fmtMoney(it.garantido) : '';
     const buy = typeof it.buyin === 'number' ? fmtMoney(it.buyin) : '';
-    return `<div class="cn-card ${cat.cls} ${done ? 'is-done' : ''}">
+    return `<div class="cn-card ${cat.cls} ${done ? 'is-done' : ''}" data-cardkey="${key}">
       <div class="cn-card-head">
         <span class="cn-card-suit">${cat.suit}</span>
         <span class="cn-card-hora">${escHtml(it.hora || '—')}</span>
@@ -3116,6 +3127,7 @@ function openSectionFsAt(catKey, key){
     document.body.classList.add('cn-sec-fs-lock');
   }
   SEC_CURSOR = key;
+  if (SEC_VIEW === 'focus') _focusDir = 'fade';   // abrir um torneio direto no Foco: fade suave
   renderSecFs();
   a11yOpenDialog('secFsOverlay');
 }
@@ -3130,7 +3142,8 @@ function secFsMoveCursor(delta){
   let idx = SEC_CURSOR ? keys.indexOf(SEC_CURSOR) : -1;
   idx = idx === -1 ? 0 : Math.max(0, Math.min(keys.length - 1, idx + delta));
   SEC_CURSOR = keys[idx];
-  if (SEC_VIEW === 'focus') renderSecFs();   // modo foco: troca o torneio mostrado (re-render)
+  _focusDir = delta > 0 ? 'next' : 'prev';   // direção da navegação (foco desliza; cards/planilha pulsam)
+  if (SEC_VIEW === 'focus') renderSecFs();
   else secFsHighlightCursor();
 }
 /* Flow state: ao marcar CRIADO (Espaço), pula pro próximo torneio NÃO-criado da
@@ -3144,7 +3157,7 @@ function secFsAdvanceToNextUndone(){
   const i = SEC_CURSOR ? keys.indexOf(SEC_CURSOR) : -1;
   for (let step = 1; step <= keys.length; step++){
     const j = ((i < 0 ? 0 : i) + step) % keys.length;
-    if (keys[j] !== SEC_CURSOR && !DONE[keys[j]]){ SEC_CURSOR = keys[j]; secFsHighlightCursor(); return; }
+    if (keys[j] !== SEC_CURSOR && !DONE[keys[j]]){ SEC_CURSOR = keys[j]; _focusDir = 'next'; if (SEC_VIEW === 'focus') renderSecFs(); else secFsHighlightCursor(); return; }
   }
 }
 /* Home/End — pula pro primeiro/último torneio da seção (idx=Infinity = último) */
@@ -3156,6 +3169,7 @@ function secFsJumpCursor(idx){
   if (!keys.length) return;
   const i = Math.max(0, Math.min(keys.length - 1, idx === Infinity ? keys.length - 1 : idx));
   SEC_CURSOR = keys[i];
+  _focusDir = idx === Infinity ? 'next' : 'prev';
   if (SEC_VIEW === 'focus') renderSecFs();
   else secFsHighlightCursor();
 }
@@ -3176,19 +3190,31 @@ function secFsHighlightCursor(){
     }
   }
   const esc = k => (window.CSS && CSS.escape) ? CSS.escape(k) : k;
-  card.querySelectorAll('.sec-cursor, .sec-cursor-col').forEach(el => el.classList.remove('sec-cursor', 'sec-cursor-col'));
+  card.querySelectorAll('.sec-cursor, .sec-cursor-col, .cur-next, .cur-prev')
+      .forEach(el => el.classList.remove('sec-cursor', 'sec-cursor-col', 'cur-next', 'cur-prev'));
+  // direção da navegação → pulso direcional ao pousar o cursor (consumida aqui)
+  const dirCls = _focusDir === 'prev' ? 'cur-prev' : 'cur-next';
+  _focusDir = 'none';
+  // Cards: não é <table> — realça o próprio cartão (antes ← → não fazia nada aqui)
+  const cardEl = card.querySelector(`.cn-card[data-cardkey="${esc(SEC_CURSOR)}"]`);
+  if (cardEl){
+    cardEl.classList.add('sec-cursor', dirCls);
+    cardEl.scrollIntoView({block:'nearest', behavior:'smooth'});
+    return;
+  }
   const table = card.querySelector('table');
   if (!table) return;
   const anchor = table.querySelector(`[data-idkey="${esc(SEC_CURSOR)}"], [data-done="${esc(SEC_CURSOR)}"]`);
   if (!anchor) return;
   if (table.classList.contains('ptable')){
     const tr = anchor.closest('tr');
-    if (tr){ tr.classList.add('sec-cursor'); tr.scrollIntoView({block:'nearest', behavior:'smooth'}); }
+    if (tr){ tr.classList.add('sec-cursor', dirCls); tr.scrollIntoView({block:'nearest', behavior:'smooth'}); }
   } else {
     const td = anchor.closest('td');
     if (td){
       const idx = td.cellIndex;
       table.querySelectorAll('tr').forEach(row => { const cell = row.cells[idx]; if (cell) cell.classList.add('sec-cursor-col'); });
+      td.classList.add(dirCls);   // o pulso direcional vai na célula-âncora (nome)
       td.scrollIntoView({inline:'center', block:'nearest', behavior:'smooth'});
     }
   }

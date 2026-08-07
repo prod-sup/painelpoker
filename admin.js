@@ -2500,6 +2500,8 @@ async function saveAudit(){
     });
     // Re-renderizar a auditoria para mostrar badge
     loadAudit();
+    // Correção mudou um valor → reescreve a aba do dia no Sheets (silencioso se não configurado)
+    if(!approved) autoResendSheets(_auditContext.date);
   } catch(e){
     errEl.textContent = 'Erro: '+e.message; errEl.style.display='block';
   } finally {
@@ -2760,6 +2762,11 @@ async function initBackup(){
   if(urlField && !urlField.value) urlField.value = localStorage.getItem('suprema_sheets_url') || '';
   const secretField = document.getElementById('sheetsSecret');
   if(secretField && !secretField.value) secretField.value = localStorage.getItem('suprema_sheets_secret') || '';
+  // Re-arma o backup diário automático: se já há URL salva localmente, re-sincroniza
+  // config/sheetsBackup no RTDB ao abrir. Cobre o caso de a URL ter sido configurada
+  // ANTES das regras do nó `config` serem publicadas (a 1ª escrita falhava em silêncio).
+  const _savedSheetsUrl = (localStorage.getItem('suprema_sheets_url')||'').trim();
+  if(_savedSheetsUrl) syncSheetsCfgToRTDB(_savedSheetsUrl, (localStorage.getItem('suprema_sheets_secret')||'').trim());
   await loadAll(true);   // backup exporta o histórico COMPLETO, não a janela de 60 dias
   const dates = Object.keys(_allData).sort();
   if(!dates.length){ document.getElementById('backupKpi').innerHTML='<div style="color:var(--ink3);font-size:12px">Nenhum dado encontrado.</div>'; return; }
@@ -3074,47 +3081,176 @@ function copyAppsScript(){
     .catch(()=>{ prompt('Copie o script abaixo:', APPS_SCRIPT); });
 }
 
+// Config do Sheets salva localmente (URL do Apps Script + segredo). null se não há URL.
+function _sheetsCfg(){
+  const url = (localStorage.getItem('suprema_sheets_url')||'').trim();
+  if(!url) return null;
+  return { url, secret:(localStorage.getItem('suprema_sheets_secret')||'').trim() };
+}
+
+// Grava a config do backup no RTDB (config/sheetsBackup) — é isso que ARMA o
+// backup diário AUTOMÁTICO: o painel lê esse nó (leitura p/ qualquer auth, escrita
+// só admin) e, quando o último resultado do dia é preenchido, envia sozinho pro
+// Sheets. Sem esta escrita, o auto-backup fica dormente por mais que a URL esteja
+// salva no navegador do admin. Silencioso/best-effort (não trava a UI).
+async function syncSheetsCfgToRTDB(url, secret){
+  if(!fbOk || !url) return false;
+  try{
+    await db.ref('config/sheetsBackup').set({
+      url, secret: secret||'', updatedBy: _email||'admin', updatedAt: Date.now(),
+    });
+    return true;
+  }catch(e){ console.warn('syncSheetsCfgToRTDB:', e.message); return false; }
+}
+
 async function exportToSheets(){
   const url = document.getElementById('sheetsUrl').value.trim();
   if(!url){ toast('Cole a URL do Apps Script primeiro','err'); return; }
-  localStorage.setItem('suprema_sheets_url', url);
   const secret = document.getElementById('sheetsSecret').value.trim();
-  if(secret) localStorage.setItem('suprema_sheets_secret', secret);
-
-  const today = nowSP();
-  const day   = _allData[today];
-  if(!day){ toast('Sem dados de hoje para enviar','err'); return; }
-
-  const rows = Object.entries(day.rows||{}).map(([key,r])=>{
-    if(!r||!r.nome) return null;
-    const prem  = day.prem?.[key]??r.premiacao??null;
-    const gar   = day.guar?.[key]??r.garantido??null;
-    const field = day.field?.[key]??r.field??null;
-    const ov    = prem!=null&&gar!=null?prem-gar:null;
-    const idRaw = day.ids?.[key];
-    const id    = typeof idRaw==='object'&&idRaw?idRaw.val||'':idRaw||'';
-    return {nome:r.nome,hora:r.hora,cat:classify(r),garantido:gar,buyin:r.buyin,
-      premiacao:prem,overlay:ov,field,status:id.toUpperCase()==='NF'?'Não formou':prem!=null?'Fechado':'Aberto'};
-  }).filter(Boolean);
+  localStorage.setItem('suprema_sheets_url', url);
+  localStorage.setItem('suprema_sheets_secret', secret);   // grava sempre (inclusive vazio) pra permitir limpar
 
   const status = document.getElementById('sheetsStatus');
-  status.textContent = 'Enviando...';
+  const today  = nowSP();
 
+  // ARMA o backup diário automático: grava a config compartilhada no RTDB pra o
+  // PAINEL ler e enviar sozinho quando o dia fecha. É o passo que faltava.
+  const armed = await syncSheetsCfgToRTDB(url, secret);
+  const armMsg = armed ? ' · ⏱ backup diário automático armado'
+    : (fbOk ? ' · ⚠ não consegui armar o automático (confira: você é admin e as regras do RTDB foram publicadas?)'
+            : ' · (automático offline — Firebase não conectado)');
+
+  // a página de Backup roda loadAll(true) ao abrir, mas seja robusto se chamada antes
+  if(!Object.keys(_allData).length){ status.textContent='Carregando dados…'; await loadAll(true); }
+  const rows = flatRows(today, today).filter(r=>r&&r.nome);
+  if(!rows.length){
+    toast(armed?'✓ Backup automático armado':'Config salva','ok');
+    status.textContent = (armed?'✓ Configuração salva.':'Configuração salva localmente.') + armMsg + ' Ainda não há torneios hoje para enviar agora.';
+    return;
+  }
+
+  status.textContent = 'Enviando…';
+  // SupremaSheets.send é resiliente a CORS: o Apps Script responde via redirect pro
+  // googleusercontent SEM header CORS, então res.json() estoura mesmo com o POST entregue.
+  // send() distingue "confirmado" (leu o ok) de "enviado" (entregou mas não deu pra ler).
+  const built = SupremaSheets.buildGrid(rows);
+  const res = await SupremaSheets.send(_sheetsCfg()||{url,secret}, today, built);
+  const aba = SupremaSheets.sheetLabel(today);
+  if(res.confirmed){
+    toast('✓ Dados enviados para Google Sheets','ok');
+    status.textContent = `✓ ${res.rows} torneios enviados em ${new Date().toLocaleTimeString('pt-BR')}`+armMsg;
+    localStorage.setItem('suprema_last_sheets', String(Date.now()));
+  } else if(res.sent){
+    toast('✓ Enviado — confira a planilha','ok');
+    status.textContent = `✓ ${res.rows} torneios enviados (resposta bloqueada por CORS — confira a aba ${aba}). Se não aparecer, reimplante o Apps Script como App da Web para "Qualquer pessoa".`+armMsg;
+    localStorage.setItem('suprema_last_sheets', String(Date.now()));
+  } else {
+    toast('Erro ao enviar'+(res.error?': '+res.error:''),'err');
+    status.textContent = '❌ Não foi possível enviar. Verifique a URL e reimplante o Apps Script como App da Web para "Qualquer pessoa".'+armMsg;
+  }
+}
+
+// Re-envia a aba do dia ao Sheets quando a auditoria CORRIGE um valor — assim a
+// planilha reflete o Arrecadado auditado sem envio manual. Silencioso se o Sheets
+// não estiver configurado (a auditoria não depende disso). Usa as linhas JÁ
+// corrigidas: o saveAudit patcha _auditRows antes de chamar aqui.
+async function autoResendSheets(date){
+  const cfg = _sheetsCfg();
+  if(!cfg) return;
+  const src = (typeof _auditRows!=='undefined' && _auditRows.length)
+    ? _auditRows.filter(r=>r.date===date)
+    : flatRows(date, date);
+  const rows = src.filter(r=>r&&r.nome);
+  if(!rows.length) return;
   try{
-    const res = await fetch(url, {
-      method:'POST',
-      body: JSON.stringify({date:fmtDate(today), rows, secret}),
-    });
-    const json = await res.json();
-    if(json.ok){
-      toast('✓ Dados enviados para Google Sheets','ok');
-      status.textContent = `✓ ${rows.length} torneios enviados em ${new Date().toLocaleTimeString('pt-BR')}`;
-    } else {
-      throw new Error(json.error||'Resposta inválida');
+    const res = await SupremaSheets.send(cfg, date, SupremaSheets.buildGrid(rows));
+    if(res.confirmed || res.sent){
+      localStorage.setItem('suprema_last_sheets', String(Date.now()));
+      toast('↻ Aba '+SupremaSheets.sheetLabel(date)+' atualizada no Sheets','ok');
     }
+  }catch(e){ console.warn('autoResendSheets:', e.message); }
+}
+
+// ── BACKUP SQLITE (sql.js sob demanda, mesmo padrão do ensureXLSX) ──
+// Carrega o motor sql.js 1.10.3 do cdnjs na 1ª vez. Sem CSP no admin.html e o SW
+// faz network-first em cross-origin (deixa o CDN passar), então funciona online.
+let _sqlJsP = null;
+function ensureSqlJs(){
+  if(window.SQL) return Promise.resolve(window.SQL);
+  if(_sqlJsP) return _sqlJsP;
+  const CDN = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/';
+  _sqlJsP = new Promise((resolve,reject)=>{
+    if(window.initSqlJs) return resolve();
+    const s = document.createElement('script');
+    s.src = CDN+'sql-wasm.js'; s.async = true;
+    s.onload = ()=> window.initSqlJs ? resolve() : (_sqlJsP=null, reject(new Error('sql.js carregou mas initSqlJs não inicializou')));
+    s.onerror = ()=>{ _sqlJsP=null; reject(new Error('falha ao carregar sql.js do CDN')); };
+    document.head.appendChild(s);
+  }).then(()=> window.initSqlJs({ locateFile: f => CDN+f }))
+    .then(SQL=>{ window.SQL = SQL; return SQL; });
+  return _sqlJsP;
+}
+
+// Exporta TODO o histórico num arquivo .sqlite (tabelas torneios + auditoria + meta).
+async function exportSqlite(){
+  const status = document.getElementById('bkSqliteStatus');
+  try{
+    status.textContent = 'Carregando motor SQLite (sql.js)…';
+    const SQL = await ensureSqlJs();
+    status.textContent = 'Lendo histórico completo…';
+    await loadAll(true);                 // banco inteiro, não a janela de 60 dias
+    const rows = flatRows();             // sem datas = tudo
+    const sdb = new SQL.Database();
+
+    sdb.run(`CREATE TABLE torneios(
+      data TEXT, chave TEXT, nome TEXT, hora TEXT, late TEXT, tipo TEXT, categoria TEXT,
+      garantido REAL, buyin REAL, premiacao REAL, overlay REAL, perf REAL, field INTEGER,
+      acoes INTEGER, id TEXT, fixado_por TEXT, fixado_em TEXT, prem_por TEXT, status TEXT);`);
+    const insT = sdb.prepare(`INSERT INTO torneios VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    rows.forEach(r=>insT.run([r.date, r.key, r.nome, r.hora, r.late, r.tipo, r.cat,
+      r.garantido, r.buyin, r.premiacao, r.overlay, r.perf, r.field, r.acoes,
+      r.id, r.fixBy, r.fixAt, r.premBy, r.status]));
+    insT.free();
+
+    sdb.run(`CREATE TABLE auditoria(
+      data TEXT, chave TEXT, nome TEXT, hora TEXT,
+      premiacao_original REAL, premiacao_auditada REAL,
+      field_original INTEGER, field_auditado INTEGER,
+      garantido_original REAL, garantido_auditado REAL,
+      status TEXT, obs TEXT, auditado_por TEXT, auditado_em INTEGER);`);
+    const insA = sdb.prepare(`INSERT INTO auditoria VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    let nAudit = 0;
+    Object.entries(_auditData).forEach(([date,keys])=> Object.entries(keys||{}).forEach(([key,e])=>{
+      if(!e || typeof e!=='object') return;
+      insA.run([date, key, e.nome||'', e.hora||'',
+        e.premiacaoOriginal ?? null, e.premiacaoAuditada ?? null,
+        e.fieldOriginal ?? null, e.fieldAuditado ?? null,
+        e.garantidoOriginal ?? null, e.garantidoAuditado ?? null,
+        e.status||'', e.obs||'', e.auditadoPor||'', e.auditadoEm ?? null]);
+      nAudit++;
+    }));
+    insA.free();
+
+    const dts = rows.map(r=>r.date).sort();
+    sdb.run(`CREATE TABLE meta(chave TEXT, valor TEXT);`);
+    sdb.run(`INSERT INTO meta VALUES ('gerado_em',?),('torneios',?),('auditorias',?),('periodo_ini',?),('periodo_fim',?),('gerado_por',?)`,
+      [new Date().toISOString(), String(rows.length), String(nAudit), dts[0]||'', dts[dts.length-1]||'', _email||'admin']);
+
+    const bytes = sdb.export();
+    sdb.close();
+    const blob = new Blob([bytes], {type:'application/x-sqlite3'});
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = href; a.download = `suprema_${nowSP()}.sqlite`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(href), 4000);
+
+    status.textContent = `✓ ${rows.length} torneios · ${nAudit} auditorias exportados (.sqlite)`;
+    toast('✓ SQLite gerado','ok');
+    localStorage.setItem('suprema_last_sqlite', String(Date.now()));
   }catch(e){
-    toast('Erro ao enviar: '+e.message,'err');
     status.textContent = '❌ '+e.message;
+    toast('Erro no SQLite: '+e.message,'err');
   }
 }
 

@@ -110,7 +110,7 @@ console.log('\naccent por estado do turno:');
 
   const feito = [item(null, true)];
   a = ambiente(feito); a.fn(100, feito);
-  eq(a.chamadas.accent[0], '#e6c34f', 'fechado: dourado da casa');
+  eq(a.chamadas.accent[0], '#c9a84c', 'fechado: dourado da marca (tema escuro do telão)');
 }
 
 /* ── 6. pulse e boom: o corte e a celebração ──

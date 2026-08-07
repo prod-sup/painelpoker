@@ -178,7 +178,7 @@ const CMUTE='rgba(130,132,142,.32)'; /* preenchimento neutro de barras/fatias de
 // ══════════════════════════════ ICON HELPER
 const ic=(name,fill)=>`<i class="ph${fill?'-fill':''} ph-${name}"></i>`;
 
-// ══════════════════════════════ INTEL CARD RENDERER (shared by recs/shiftRecs/fcIntel)
+// ══════════════════════════════ INTEL CARD RENDERER (shared by recs/fcIntel)
 function renderIntelCards(elId,cards){
   const el=document.getElementById(elId);if(!el)return;
   el.innerHTML=cards.map(c=>`
@@ -432,46 +432,7 @@ function buildRecs(){
       <span class="rec-ico">${r.i}</span>
       <div class="rec-t">${r.t}</div>
       <div class="rec-b">${r.b}</div>
-      ${r.sh?`<div class="rec-sh ${r.sh}">${r.sh==='dia'?ic('sun',1)+' Turno Dia':ic('moon-stars',1)+' Turno Noite'}</div>`:''}
     </div>`).join('');
-}
-
-// ══════════════════════════════ SHIFT BEST SLOTS
-function buildBestSlots(){
-  const dia=D.slots30.filter(s=>s.turno==='dia').sort((a,b)=>b.fee-a.fee).slice(0,3);
-  const noite=D.slots30.filter(s=>s.turno==='noite').sort((a,b)=>b.fee-a.fee).slice(0,3);
-  const maxDia=dia[0]?.fee||1;const maxNoite=noite[0]?.fee||1;
-  const renderSlots=(arr,maxF,col,elId)=>{
-    document.getElementById(elId).innerHTML=arr.map(s=>`
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <span style="font-size:10px;font-weight:800;width:40px;color:${col}">${s.slot}</span>
-        <div style="flex:1;height:5px;background:rgba(130,132,142,.18);border-radius:3px;overflow:hidden">
-          <div style="width:${(s.fee/maxF*100).toFixed(0)}%;height:100%;background:${col};border-radius:3px"></div>
-        </div>
-        <span style="font-size:9px;font-weight:700;color:${col};width:60px;text-align:right">R$ ${fK(s.fee)}</span>
-      </div>`).join('');
-  };
-  renderSlots(dia,maxDia,'#4f8ef7','diaBestSlots');
-  renderSlots(noite,maxNoite,'#a78bfa','nBestSlots');
-}
-
-// ══════════════════════════════ SHIFT FEE CHART
-function buildShiftFee(){
-  const dia=D.slots30.filter(s=>s.turno==='dia');
-  const noite=D.slots30.filter(s=>s.turno==='noite');
-  const ctx=document.getElementById('cShiftFee');if(!ctx)return;
-  new Chart(ctx,{
-    type:'bar',
-    data:{labels:Array.from({length:Math.max(dia.length,noite.length)},(_,i)=>i),
-      datasets:[
-        {label:'Dia (07-19h)',data:dia.map(s=>s.fee),backgroundColor:'rgba(79,142,247,.3)',borderColor:'#4f8ef7',borderWidth:1,borderRadius:4},
-        {label:'Noite (19-07h)',data:noite.map(s=>s.fee),backgroundColor:'rgba(167,139,250,.3)',borderColor:'#a78bfa',borderWidth:1,borderRadius:4}
-      ]},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{position:'bottom',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:10}},tooltip:{...CTOP,callbacks:{title:c=>c[0].datasetIndex===0?dia[c[0].dataIndex]?.slot:noite[c[0].dataIndex]?.slot}}},
-      scales:{x:{grid:{display:false},ticks:{font:{size:8},color:CTEXT,callback:(v,i)=>i%3===0?(dia[i]?.slot||''):''},border:{display:false}},y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>fK(v)},border:{display:false}}}
-    }
-  });
 }
 
 // ══════════════════════════════ CONCURRENT
@@ -492,129 +453,6 @@ function buildConcurrent(){
       scales:{x:{grid:{display:false},ticks:{font:{size:9},color:CTEXT,maxRotation:0},border:{display:false}},y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT},border:{display:false},min:0}}
     }
   });
-}
-
-// ══════════════════════════════ OP SHIFT TABLE
-function buildOpShiftTable(){
-  const t=document.getElementById('opShiftTbl');if(!t)return;
-  const ops=[...new Set(D.opShift.map(x=>x.op))];
-  t.innerHTML=`<thead><tr><th>Operador</th><th>Turno</th><th class="r">Mesas</th><th class="r">Fee R$</th><th class="r">Players</th><th class="r">Mortas</th><th class="r">Fee/mesa</th></tr></thead><tbody>`+
-  ops.flatMap(op=>{
-    const d=D.opShift.find(x=>x.op===op&&x.turno==='dia')||{tables:0,fee:0,players:0,dead:0};
-    const n=D.opShift.find(x=>x.op===op&&x.turno==='noite')||{tables:0,fee:0,players:0,dead:0};
-    return[`<tr><td rowspan="2" class="b" style="border-right:1px solid var(--bdr)">${op}</td>
-      <td><span class="sbdg dia"><span class="sdot dia"></span><i class="ph-fill ph-sun"></i> Dia</span></td>
-      <td class="r m">${f(d.tables)}</td><td class="r b">${f(d.fee,0)}</td><td class="r m">${f(d.players)}</td>
-      <td class="r" style="color:${d.tables?d.dead/d.tables>0.25?'var(--amber)':'var(--ink2)':'var(--ink3)'}">${d.dead} (${d.tables?f(d.dead/d.tables*100,0):0}%)</td>
-      <td class="r m">${d.tables?f(d.fee/d.tables,1):'—'}</td></tr>`,
-    `<tr style="background:rgba(255,255,255,.015)"><td><span class="sbdg noite"><span class="sdot noite"></span><i class="ph-fill ph-moon-stars"></i> Noite</span></td>
-      <td class="r m">${f(n.tables)}</td><td class="r b">${f(n.fee,0)}</td><td class="r m">${f(n.players)}</td>
-      <td class="r" style="color:${n.tables?n.dead/n.tables>0.25?'var(--amber)':'var(--ink2)':'var(--ink3)'}">${n.dead} (${n.tables?f(n.dead/n.tables*100,0):0}%)</td>
-      <td class="r m">${n.tables?f(n.fee/n.tables,1):'—'}</td></tr>`];
-  }).join('')+'</tbody>';
-}
-
-// ══════════════════════════════ SHIFT RECS — INTEL CARDS
-function buildShiftRecs(){
-  if(!document.getElementById('shiftRecs'))return;
-
-  const diaFee=KPI_DEMO.feeDia, noiteFee=KPI_DEMO.feeNoite;
-  const diaMesas=KPI_DEMO.tablesDia, noiteMesas=KPI_DEMO.tablesNoite;
-  const diaFpm=diaFee/diaMesas, noiteFpm=noiteFee/noiteMesas;
-  const diaDeadPct=KPI_DEMO.deadDia/diaMesas*100, noiteDeadPct=KPI_DEMO.deadNoite/noiteMesas*100;
-  const higherFpm=noiteFpm>=diaFpm?'noite':'dia';
-  const gain=(Math.abs(noiteFpm-diaFpm)/Math.min(diaFpm,noiteFpm)*100);
-  const volumeUp=diaMesas>=noiteMesas?'dia':'noite';
-  const volumeGain=(Math.abs(diaMesas-noiteMesas)/Math.min(diaMesas,noiteMesas)*100);
-  const revenueUp=diaFee>=noiteFee?'dia':'noite';
-  const revenueGain=(Math.abs(diaFee-noiteFee)/Math.min(diaFee,noiteFee)*100);
-
-  const diaSlots=D.slots30.filter(s=>s.turno==='dia'), noiteSlots=D.slots30.filter(s=>s.turno==='noite');
-  const bestDiaSlot=diaSlots.reduce((a,b)=>b.fee>a.fee?b:a);
-  const bestNoiteSlot=noiteSlots.reduce((a,b)=>b.fee>a.fee?b:a);
-  const bestDiaEff=bestDiaSlot.fee/(bestDiaSlot.tables*0.5);
-  const bestNoiteEff=bestNoiteSlot.fee/(bestNoiteSlot.tables*0.5);
-  const avgEff=D.slots30.filter(s=>s.tables).reduce((a,s)=>a+s.fee/(s.tables*0.5),0)/D.slots30.filter(s=>s.tables).length;
-  const overallBest=bestNoiteSlot.fee>=bestDiaSlot.fee?bestNoiteSlot:bestDiaSlot, overallOther=overallBest===bestNoiteSlot?bestDiaSlot:bestNoiteSlot;
-  const overallBestEff=overallBest===bestNoiteSlot?bestNoiteEff:bestDiaEff;
-  const diaSlotShare=bestDiaSlot.fee/diaFee*100;
-
-  const crossing=KPI_DEMO.crossShift;
-  const crossPct=crossing/(diaMesas+noiteMesas)*100;
-
-  const lostDeadFee=Math.round((diaDeadPct/100)*diaFee+(noiteDeadPct/100)*noiteFee);
-
-  // slot de chegada logo antes da virada às 07h (06:30 é o último bloco do Noite)
-  const noite7hSlot=noiteSlots.find(s=>s.slot==='06:30');
-  const noiteRank=[...noiteSlots].sort((a,b)=>b.fee-a.fee).findIndex(s=>s.slot==='06:30')+1;
-
-  const cards=[
-    {
-      type:'both', icon:ic('scales',1),
-      tag:'Comparativo',
-      title:`Turno ${higherFpm==='noite'?'Noite':'Dia'} é ${f(gain,0)}% mais eficiente por mesa — mas Turno ${revenueUp==='dia'?'Dia':'Noite'} gera ${f(revenueGain,0)}% mais receita total`,
-      body:`O Turno ${volumeUp==='dia'?'Dia':'Noite'} abre ${f(volumeGain,0)}% mais mesas e domina em volume. O outro turno compensa com qualidade: players com stakes mais altos produzem R$ ${f(gain,0)}% a mais por mesa. A estratégia ótima é maximizar volume onde ele já é forte e proteger qualidade no outro turno.`,
-      compare:{
-        left:{label:'dia', val:'R$ '+f(diaFpm,0), sub:'fee por mesa ativa'},
-        right:{label:'noite', val:'R$ '+f(noiteFpm,0), sub:'fee por mesa ativa'}
-      },
-      action:{cls:'both', text:'Oportunidade estrutural de longo prazo'}
-    },
-    {
-      type:overallBest===bestNoiteSlot?'noite':'dia', icon:ic('sparkle',1),
-      tag:`Turno ${overallBest===bestNoiteSlot?'Noite':'Dia'}`,
-      title:`${overallBest.slot} supera qualquer slot do outro turno — o melhor momento de toda a operação`,
-      body:`O slot das ${overallBest.slot} gera R$ ${f(overallBest.fee,0)} em apenas 30 minutos, ${f((overallBest.fee/overallOther.fee-1)*100,0)}% acima do melhor slot do outro turno. Fee/mesa/hora de R$ ${f(overallBestEff,1)} — ${f(overallBestEff/avgEff,1)}x a média geral. Cobertura operacional neste bloco é inegociável.`,
-      metric:{val:'R$ '+f(overallBestEff,1), cls:overallBest===bestNoiteSlot?'noite':'dia', label:`fee por mesa por hora no slot ${overallBest.slot}`},
-      compare:{
-        left:{label:'noite', val:'R$ '+f(bestNoiteSlot.fee,0), sub:'melhor slot: '+bestNoiteSlot.slot},
-        right:{label:'dia', val:'R$ '+f(bestDiaSlot.fee,0), sub:'melhor slot: '+bestDiaSlot.slot}
-      },
-      action:{cls:overallBest===bestNoiteSlot?'noite':'dia', text:'Prioridade máxima nesse bloco'}
-    },
-    {
-      type:'dia', icon:ic('sun',1),
-      tag:'Turno Dia',
-      title:`${bestDiaSlot.slot} concentra ${f(diaSlotShare,1)}% de todo o fee diurno em 30 minutos`,
-      body:`O slot das ${bestDiaSlot.slot} gera R$ ${f(bestDiaSlot.fee,0)}, representando ${f(diaSlotShare,1)}% de todo o rake do Turno Dia. Mesas premium, promoções e atenção operacional devem se concentrar neste momento.`,
-      metric:{val:f(diaSlotShare,1)+'%', cls:'dia', label:`do rake do Turno Dia gerado no slot ${bestDiaSlot.slot}`},
-      compare:{
-        left:{label:'dia', val:'R$ '+f(bestDiaSlot.fee,0), sub:`slot ${bestDiaSlot.slot} (30 min)`},
-        right:{label:'dia', val:'R$ '+f(diaFee/diaSlots.length,0), sub:'média por slot 30min'}
-      },
-      action:{cls:'dia', text:`Preparar grade antes das ${bestDiaSlot.slot}`}
-    },
-    {
-      type:'alert', icon:ic('arrows-clockwise',1),
-      tag:'Risco operacional',
-      title:`${f(crossing)} sessões ativas na virada de turno — ${f(crossPct,1)}% das mesas não têm dono claro`,
-      body:`Às 07:00 e 19:00 há ${f(crossing)} mesas em andamento que foram abertas no turno anterior. Com crescimento da base, esse número vai aumentar. Sem protocolo de handoff, jogadores nessas mesas ficam sem suporte. Criar SLA de transferência é urgente.`,
-      metric:{val:f(crossPct,1)+'%', cls:'r', label:'das sessões diárias cruzam a fronteira de turno'},
-      action:{cls:'a', text:'Implementar protocolo de handoff'}
-    },
-    {
-      type:'gold', icon:ic('hand-coins',1),
-      tag:'Fee desperdiçado',
-      title:`R$ ${f(lostDeadFee,0)} perdidos por mesas mortas — ${f(diaDeadPct,1)}% Dia e ${f(noiteDeadPct,1)}% Noite`,
-      body:`Taxa de ociosidade próxima nos dois turnos indica problema estrutural, não de gestão por turno. As mesas abertas sem jogadores custam rake não gerado. Cada 1% de redução na taxa de mortas equivale a aproximadamente R$ ${f(lostDeadFee/100*20,0)} extras por dia.`,
-      compare:{
-        left:{label:'dia', val:f(diaDeadPct,1)+'%', sub:'mesas sem retenção'},
-        right:{label:'noite', val:f(noiteDeadPct,1)+'%', sub:'mesas sem retenção'}
-      },
-      action:{cls:'a', text:'Auditar salas com maior ociosidade'}
-    },
-  ];
-  if(noite7hSlot){
-    cards.push({
-      type:'noite', icon:ic('rocket-launch',1),
-      tag:'Underdog do Noite',
-      title:`06:30 é o slot surpresa — R$ ${f(noite7hSlot.fee,0)} ignorado nos relatórios convencionais`,
-      body:`O bloco das 06h30 gera R$ ${f(noite7hSlot.fee,0)} — mais que a maioria dos slots do Turno Noite tardio. É o "pico de chegada" de jogadores logo antes da virada às 07h. Abrir mesas premium nesse slot adianta receita da transição de turno.`,
-      metric:{val:'R$ '+f(noite7hSlot.fee,0), cls:'noite', label:`gerados no slot 06:30 — ${noiteRank}° melhor do Turno Noite`},
-      action:{cls:'noite', text:'Abrir grade premium às 06:30'}
-    });
-  }
-  renderIntelCards('shiftRecs',cards);
 }
 
 // ══════════════════════════════ TIER CHARTS
@@ -814,7 +652,7 @@ async function buildHist(){
   }
 
   body.innerHTML=all.map(d=>`<tr>
-    <td class="b">${d.date}${d.demo?` <span class="tag t6">demo</span>`:''}</td><td>${d.shift||'—'}</td>
+    <td class="b">${d.date}${d.demo?` <span class="tag t6">demo</span>`:''}</td>
     <td class="r m">${f(d.sessions)}</td><td class="r b">${f(d.fee,0)}</td>
     <td class="r m">${f(d.netFee,0)}</td><td class="r m">${f(d.buyin,0)}</td>
     <td class="r m">${f(d.players)}</td><td class="r m">${(d.feePerHand||0).toFixed(2)}</td>
@@ -1661,26 +1499,6 @@ function buildForecast(){
       <div style="font-size:8px;color:var(--ink3)">${l.note} · +R$ ${fK(l.daily*30)}/mês</div>
     </div>`).join('');
 
-  // ── Turno projection bar chart
-  const ctx3=document.getElementById('cFcTurno');if(!ctx3)return;
-  const dF=KPI_DEMO.feeDia, nF=KPI_DEMO.feeNoite;
-  new Chart(ctx3,{type:'bar',
-    data:{labels:['Semana','Mês','Trimestre','Ano'],
-      datasets:[
-        {label:'Turno Dia',data:[dF*7,dF*30,dF*90,dF*365],backgroundColor:'rgba(79,142,247,.7)',borderRadius:5,borderSkipped:false},
-        {label:'Turno Noite',data:[nF*7,nF*30,nF*90,nF*365],backgroundColor:'rgba(167,139,250,.7)',borderRadius:5,borderSkipped:false},
-        {label:'Noite → patamar Dia',data:[(dF-nF)*7,(dF-nF)*30,(dF-nF)*90,(dF-nF)*365],backgroundColor:'rgba(52,211,153,.35)',borderRadius:5,borderSkipped:false},
-      ]},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{position:'bottom',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:8}},
-        tooltip:{...CTOP,callbacks:{label:c=>` R$ ${fK(c.parsed.y)}`}}},
-      scales:{
-        x:{grid:{display:false},ticks:{font:{size:10},color:CTEXT},border:{display:false},stacked:true},
-        y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>'R$ '+fK(v)},border:{display:false},stacked:true}
-      }
-    }
-  });
-
   // ── Financial intel cards (fully computed)
   const otherShare=100-KPI_DEMO.conc1pct;
   const anteFphGain=KPI_DEMO.anteFph-KPI_DEMO.noAnteFph;
@@ -1938,7 +1756,7 @@ const TV_RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
 
    Os blobs em CSS continuam sendo o fallback: sem WebGL/em lite eles ficam. */
 let TV_FELTRO=null;
-/* matiz por cena, na ordem de tvSceneList(): Resumo, Turnos, Ritmo, Stakes,
+/* matiz por cena, na ordem de tvSceneList(): Resumo, Ritmo, Stakes,
    Top mesas, Eventos. Cores da paleta da casa (as mesmas do painel). */
 const TV_SCENE_ACCENT=['#22d47e','#4f8ef7','#c9a84c','#a78bfa','#e0a33c','#f36b70'];
 
@@ -2030,27 +1848,6 @@ function tvSceneList(){
     tvCount(document.getElementById('tvcPlayers'),K.playersTotal,0);
     tvCount(document.getElementById('tvcBuyin'),K.buyinTotal,0,'R$ ');
   }});
-  if(K.tablesDia>0||K.tablesNoite>0){
-    const fpmD=K.tablesDia?K.feeDia/K.tablesDia:0, fpmN=K.tablesNoite?K.feeNoite/K.tablesNoite:0;
-    list.push({name:'Turnos',html(){return`
-      <div class="tv-kicker">Divisão de turnos · 07h—19h—07h</div>
-      <div class="tv-h">${fpmN>=fpmD?'Noite':'Dia'} lidera em eficiência por mesa</div>
-      <div class="tv-duel">
-        <div>
-          ${tvStat('☀ Turno Dia','0',f(K.tablesDia)+' mesas · '+f(K.feeDiaPct,1)+'% do rake','dia','tvcFeeD')}
-          <div class="tv-hero-sub" style="margin-top:14px">R$ <b>${f(fpmD,1)}</b> por mesa · ${f(K.deadDia)} mortas</div>
-        </div>
-        <div>
-          ${tvStat('☾ Turno Noite','0',f(K.tablesNoite)+' mesas · '+f(K.feeNoitePct,1)+'% do rake','noite','tvcFeeN')}
-          <div class="tv-hero-sub" style="margin-top:14px">R$ <b>${f(fpmN,1)}</b> por mesa · ${f(K.deadNoite)} mortas</div>
-        </div>
-      </div>
-      <div class="tv-share"><div style="width:${f(K.feeDiaPct,1)}%;background:linear-gradient(90deg,#4f8ef7,#6ba3f8)"></div></div>
-      <div class="tv-hero-sub" style="margin-top:10px">${f(K.crossShift)} sessões cruzam a virada de turno (${f(K.crossShiftPct,1)}%)</div>`;},run(){
-      tvCount(document.getElementById('tvcFeeD'),K.feeDia,0,'R$ ');
-      tvCount(document.getElementById('tvcFeeN'),K.feeNoite,0,'R$ ');
-    }});
-  }
   if(D.slots30&&D.slots30.some(s=>s.fee>0)){
     list.push({name:'Ritmo',html(){return`
       <div class="tv-kicker">Ritmo do dia · fee por janela de 30 minutos</div>
@@ -2060,7 +1857,7 @@ function tvSceneList(){
       if(TV.chart){try{TV.chart.destroy()}catch(_){}TV.chart=null;}
       TV.chart=new Chart(ctx,{type:'bar',
         data:{labels:D.slots30.map(s=>s.slot),datasets:[{data:D.slots30.map(s=>s.fee),
-          backgroundColor:D.slots30.map(s=>s.turno==='dia'?'rgba(79,142,247,.85)':'rgba(167,139,250,.85)'),borderRadius:5,borderSkipped:false}]},
+          backgroundColor:'rgba(216,181,109,.85)',borderRadius:5,borderSkipped:false}]},
         options:{responsive:true,maintainAspectRatio:false,animation:TV_RM?false:{duration:1100,easing:'easeOutQuart'},
           plugins:{legend:{display:false},tooltip:{enabled:false}},
           scales:{x:{grid:{display:false},ticks:{font:{size:15,weight:700},color:'#6a706a',maxTicksLimit:12},border:{display:false}},
@@ -2201,13 +1998,13 @@ if(location.hash==='#tv'){
 })();
 
 /* ── ⌘K Command Palette: navegação de seções do Cash ─────────────────────────
-   Pluga as abas do Cash (Resumo/Overview/Turnos…) no buscador global do OS.
+   Pluga as abas do Cash (Resumo/Overview/Stakes…) no buscador global do OS.
    "abrir" chama pg() com o botão certo (mantém o realce da aba). */
 document.addEventListener('DOMContentLoaded', () => {
   if (!window.SupremaPalette) return;
   const pnorm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const SECTIONS = [
-    ['resumo','Resumo'], ['dash','Overview'], ['turnos','Turnos'], ['stakes','Stakes'],
+    ['resumo','Resumo'], ['dash','Overview'], ['stakes','Stakes'],
     ['salas','Salas'], ['eventos','Eventos'], ['player','Comportamento'],
     ['hist','Histórico'], ['forecast','Previsão'], ['validar','Validar Dados']
   ];
