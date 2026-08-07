@@ -178,6 +178,63 @@ const CMUTE='rgba(130,132,142,.32)'; /* preenchimento neutro de barras/fatias de
 // ══════════════════════════════ ICON HELPER
 const ic=(name,fill)=>`<i class="ph${fill?'-fill':''} ph-${name}"></i>`;
 
+// ══════════════════════════════ CONFIABILIDADE + ALERTAS PROATIVOS
+// Limite de mesas perdidas que dispara alerta. Configurável (localStorage), com
+// padrão 25% — acima disso a operação está sangrando rake por ociosidade.
+const DEAD_ALERT_PCT=(()=>{ const v=parseFloat(localStorage.getItem('cashDeadAlertPct')); return isFinite(v)&&v>0?v:25; })();
+// Turnos: fonte única do corte é shiftOf (07–19 dia / 19–07 noite), atribuído
+// pelo horário de INÍCIO da mesa — mesma regra no demo e nos dias importados.
+const SHIFT_NOTE='Turnos: Dia 07h–19h · Noite 19h–07h · atribuído pelo horário de início da mesa.';
+// Banner de alerta reutilizável (Resumo = dia · Médias = semana). Só aparece
+// quando o % de mortas passa do limite; mostra o rake parado e a ação de maior ROI.
+function deadAlertHtml(deadPct,lostRake,scope){
+  const goal=goalDeadPct();
+  if(!(Number(deadPct)>goal))return '';
+  return `<div class="card" style="border:1px solid var(--red);background:rgba(248,113,113,.09);margin-bottom:12px;display:flex;align-items:center;gap:12px;padding:12px 14px">
+    <div style="font-size:24px;color:var(--red);line-height:1">${ic('warning-octagon',1)}</div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:12px;font-weight:800;color:var(--ink)">Alerta — mesas perdidas em ${f(deadPct,1)}% ${scope}, acima da meta de ${f(goal,1)}% (${f(deadPct-goal,1)} pp)</div>
+      <div style="font-size:10.5px;color:var(--ink2);margin-top:1px">${lostRake?`~R$ ${f(lostRake,0)} de rake parado. `:''}Fechar mesa ociosa mais rápido e realocar dealer é a ação de maior ROI agora — sem gasto em aquisição.</div>
+    </div>
+  </div>`;
+}
+// ── METAS DO CLUBE ──────────────────────────────────────────────────────
+// Nó Firebase SEPARADO das planilhas: `mesasCashGoals` guarda só os alvos
+// (ex.: mortas ≤ 20%). Subir relatório NÃO toca aqui, e editar meta NÃO toca
+// nos dados — caminhos independentes. Compartilhado entre todos os painéis;
+// cai p/ localStorage se o Firebase estiver fora. O alerta passa a usar a meta.
+const GOALS_NODE='mesasCashGoals';
+const GOALS_DEFAULT={deadPct:20};
+let GOALS=Object.assign({},GOALS_DEFAULT);
+async function loadGoals(){
+  let g=null;
+  try{ const l=localStorage.getItem('cashGoals'); if(l)g=JSON.parse(l); }catch(_){}
+  if(fbOk&&db){ try{ const v=(await db.ref(GOALS_NODE).once('value')).val(); if(v)g=v; }catch(e){ console.error('loadGoals',e); } }
+  GOALS=Object.assign({},GOALS_DEFAULT,g||{});
+  return GOALS;
+}
+async function saveGoals(patch){
+  GOALS=Object.assign({},GOALS,patch);
+  try{ localStorage.setItem('cashGoals',JSON.stringify(GOALS)); }catch(_){}
+  if(fbOk&&db){ try{ await db.ref(GOALS_NODE).update(Object.assign({},patch,{updatedAt:Date.now(),updatedBy:_email||''})); }catch(e){ console.error('saveGoals',e); } }
+  return GOALS;
+}
+const goalDeadPct=()=>{ const v=GOALS&&+GOALS.deadPct; return isFinite(v)&&v>0?v:DEAD_ALERT_PCT; };
+
+// Detector de anomalia de dados (moeda/escala trocada, take rate impossível).
+// Um dia em GU no meio de dias em BRL fica ~5× fora da mediana → sinaliza erro
+// de import antes de contaminar tendência e média. Retorna motivo ou ''.
+function dataAnomaly(day, medianFee, nDays){
+  const fee=+day.fee||0, tr=+day.takeRate||0;
+  if(tr>0 && (tr<1 || tr>30)) return `take rate ${f(tr,1)}% fora da faixa plausível (1–30%)`;
+  if(nDays>=3 && medianFee>0){
+    const r=fee/medianFee;
+    if(r>2.6) return `fee ${f(r,1)}× a mediana — possível dia em GU (não convertido) ou duplicado`;
+    if(r<0.38) return `fee ${f(r,2)}× a mediana — possível escala trocada ou dia parcial`;
+  }
+  return '';
+}
+
 // ══════════════════════════════ INTEL CARD RENDERER (shared by recs/fcIntel)
 function renderIntelCards(elId,cards){
   const el=document.getElementById(elId);if(!el)return;
@@ -627,8 +684,15 @@ function parseDateLabel(s){const[dd,mm,yy]=s.split('/').map(Number);return new D
 async function buildHist(){
   const body=document.getElementById('histBody');if(!body)return;
   const days=await Store.list();
-  const base={date:'22/06/2026',shift:'Dia + Noite',sessions:2965,fee:220888,netFee:202645,buyin:2683388,players:37777,feePerHand:0.76,deadPct:24.5,takeRate:8.23,demo:true};
+  // MOEDA COERENTE: os valores da planilha entram em GU e são convertidos p/ BRL
+  // (× GU_TO_BRL) no import. O dia-demo estava cru (GU) e aparecia ~5× menor que
+  // os dias reais, criando um "abismo" falso na tendência. Convertido aqui p/ BRL.
+  const base={date:'22/06/2026',shift:'Dia + Noite',sessions:2965,fee:220888*GU_TO_BRL,netFee:202645*GU_TO_BRL,buyin:2683388*GU_TO_BRL,players:37777,feePerHand:0.76*GU_TO_BRL,deadPct:24.5,takeRate:8.23,demo:true};
   const all=[base,...days.filter(d=>d.date!==base.date)].sort((a,b)=>parseDateLabel(a.date)-parseDateLabel(b.date));
+  // CONFIABILIDADE: mediana do fee dos dias reais p/ flagar anomalias de escala.
+  const realFees=all.filter(d=>!d.demo).map(d=>+d.fee||0).sort((a,b)=>a-b);
+  const medFee=realFees.length?realFees[Math.floor(realFees.length/2)]:0;
+  let flagged=0;
 
   // day-over-day comparison card
   const cmpEl=document.getElementById('histCompare');
@@ -651,14 +715,22 @@ async function buildHist(){
     }else{cmpEl.style.display='none';}
   }
 
-  body.innerHTML=all.map(d=>`<tr>
-    <td class="b">${d.date}${d.demo?` <span class="tag t6">demo</span>`:''}</td>
+  body.innerHTML=all.map(d=>{
+    const anom=d.demo?'':dataAnomaly(d,medFee,realFees.length); if(anom)flagged++;
+    const warn=anom?` <span class="tag" style="color:var(--amber);border-color:var(--amber)" title="${esc(anom)}">${ic('warning')} suspeito</span>`:'';
+    return `<tr${anom?' style="background:rgba(251,191,36,.06)"':''}>
+    <td class="b">${d.date}${d.demo?` <span class="tag t6">demo</span>`:''}${warn}</td>
     <td class="r m">${f(d.sessions)}</td><td class="r b">${f(d.fee,0)}</td>
     <td class="r m">${f(d.netFee,0)}</td><td class="r m">${f(d.buyin,0)}</td>
     <td class="r m">${f(d.players)}</td><td class="r m">${(d.feePerHand||0).toFixed(2)}</td>
     <td class="r m">${d.deadPct}%</td><td class="r m">${d.takeRate||'—'}%</td>
     <td class="r">${d.demo?'':`<button class="icon-btn" title="Remover" onclick="removeHistoryDay('${d.date}')">${ic('trash')}</button>`}</td>
-  </tr>`).join('');
+  </tr>`;}).join('');
+  // aviso de confiabilidade acima da tabela quando algum dia foi flagado
+  const hwarn=document.getElementById('histDataWarn');
+  if(hwarn){ hwarn.style.display=flagged?'':'none';
+    if(flagged)hwarn.innerHTML=`<span style="color:var(--amber);font-weight:700">${ic('warning',1)} ${flagged} dia(s) com valores suspeitos</span> — confira se o arquivo veio na moeda certa (GU × BRL) ou se há duplicidade antes de confiar na tendência.`;
+  }
 
   const hw=document.getElementById('histChartWrap');
   if(all.length<2){
@@ -761,6 +833,20 @@ async function buildMedias(){
     kcard('c-green','Recuperável (−20%)','+R$ '+f(recover20,0)+'/dia','se 1 em 5 mesas mortas virar ativa'),
   ].join(''));
 
+  // ALERTA PROATIVO — dispara quando a média da semana passa da META
+  set('mdAlert', deadAlertHtml(avgDead, avgLostRake, 'na média da semana'));
+  // META — preenche o input (sem atropelar quem está digitando) e o "real vs meta"
+  const goal=goalDeadPct();
+  const gi=document.getElementById('mdGoalInput'); if(gi&&document.activeElement!==gi)gi.value=goal;
+  const rd=document.getElementById('mdGoalReadout');
+  if(rd){ const diff=avgDead-goal;
+    rd.innerHTML = preview
+      ? `Meta: mortas ≤ <b>${f(goal,1)}%</b> · importe a semana para comparar com o real. Salva no Firebase, vale pra todos os painéis.`
+      : `Meta ≤ <b>${f(goal,1)}%</b> · real (semana) <b style="color:${diff<=0?'var(--green)':'var(--red)'}">${f(avgDead,1)}%</b> — ${diff<=0?`dentro da meta, ${f(-diff,1)} pp de folga`:`<b style="color:var(--red)">${f(diff,1)} pp acima</b>, alvo ~${f(avgDeadTables*(1-goal/(avgDead||1)),0)} mesas/dia a menos`}`;
+  }
+  // CUSTO DE OPORTUNIDADE É UM TETO — deixa explícito p/ não vender o número cheio
+  set('mdLostNote', `${ic('info',1)} <b>Custo de oportunidade é um teto</b>: assume que cada mesa perdida renderia como uma mesa <i>viva</i> média. É o potencial máximo — use o cenário <b>−20%</b> como meta realista de curto prazo.`);
+
   // gráfico de tendência de mesas perdidas (%) por dia — só com 2+ dias reais
   const cw=document.getElementById('mdLostChartWrap');
   if(cw){
@@ -780,6 +866,32 @@ async function buildMedias(){
     }
   }
 
+  // DIA × NOITE — qual turno perde mais mesa (decisão de escala/supervisão).
+  // Vem do dataset ATUAL (KPI_DEMO já traz deadDia/deadNoite/tablesDia/... por turno).
+  const shiftStat=(dead,tables,fee)=>{const t=+tables||0,d=+dead||0,live=Math.max(1,t-d),fp=(+fee||0)/live;
+    return {t,d,pct:t?d/t*100:0,ret:t?(t-d)/t*100:0,lost:d*fp};};
+  const K=KPI_DEMO, dia=shiftStat(K.deadDia,K.tablesDia,K.feeDia), noite=shiftStat(K.deadNoite,K.tablesNoite,K.feeNoite);
+  const worseNight=noite.pct>=dia.pct;
+  const shiftCol=(name,icon,s,bad)=>`
+    <div style="flex:1;min-width:0;border:1px solid ${bad?'var(--red)':'var(--bdr)'};border-radius:12px;padding:12px 14px;background:${bad?'rgba(248,113,113,.06)':'var(--surf)'}">
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800;color:var(--ink)">${ic(icon,1)} ${name}${bad?`<span class="tag t6" style="margin-left:auto;color:var(--red);border-color:var(--red)">vaza mais</span>`:''}</div>
+      <div style="font-size:23px;font-weight:800;color:${bad?'var(--red)':'var(--ink)'};margin:6px 0 1px;font-variant-numeric:tabular-nums">${f(s.pct,1)}%</div>
+      <div style="font-size:9.5px;color:var(--ink3)">mesas perdidas · ${f(s.d)} de ${f(s.t)}</div>
+      <div style="margin-top:8px;font-size:10px;color:var(--ink2)">Custo <b style="color:var(--red)">R$ ${f(s.lost,0)}</b>/dia · retenção ${f(s.ret,0)}%</div>
+    </div>`;
+  set('mdShift',
+    `<div style="display:flex;gap:12px">${shiftCol('Dia','sun',dia,!worseNight)}${shiftCol('Noite','moon-stars',noite,worseNight)}</div>`+
+    `<div style="margin-top:10px;font-size:10.5px;color:var(--ink2);display:flex;align-items:center;gap:6px">${ic('arrow-right')} ${worseNight?'A noite':'O dia'} perde mais mesa (${f(Math.abs(dia.pct-noite.pct),1)} pp de diferença) — é onde reforçar supervisão de sala devolve mais rake.</div>`+
+    `<div class="cs" style="margin-top:6px;font-size:9.5px">${SHIFT_NOTE}</div>`);
+
+  // PROJEÇÃO MENSAL — run-rate: a média por dia extrapolada ×30.
+  const monthFee=avgFee*30, monthLost=avgLostRake*30, monthRecover=recover20*30;
+  set('mdMonth',[
+    kcard('hero','Fee bruto / mês','R$ '+fK(monthFee),'run-rate = média/dia × 30'),
+    kcard('c-red','Mortas custam / mês','R$ '+fK(monthLost),'oportunidade parada'),
+    kcard('c-green','Recuperável / mês','+R$ '+fK(monthRecover),'cortando mortas em 20%'),
+  ].join(''));
+
   // ONDE MORREM — por horário (dataset selecionado)
   const byH={};
   D.slots30.forEach(s=>{const h=parseInt(s.slot,10); if(!byH[h])byH[h]={dead:0,tables:0}; byH[h].dead+=(+s.dead||0); byH[h].tables+=(+s.tables||0);});
@@ -798,6 +910,54 @@ async function buildMedias(){
     hdr('Por stake (tier)')+
     tierS.slice(0,3).map(x=>rsLine('dn','stack',esc(x.tier),`${f(x.dead)} mortas de ${f(x.tables)} mesas`,f(x.ab,0)+'%')).join('')
   );
+
+  // PADRÃO POR DIA DA SEMANA — agrupa TODOS os dias reais por weekday. Um clube
+  // tem ritmo semanal (fim de semana enche, meio de semana esvazia); saber disso
+  // guia promoção e escala. Precisa de dias reais; na prévia, mostra o convite.
+  const WD=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const byWD={};
+  real.forEach(d=>{const w=parseDateLabel(d.date).getDay(); if(!byWD[w])byWD[w]={fee:0,dead:0,n:0}; byWD[w].fee+=(+d.fee||0); byWD[w].dead+=(+d.deadPct||0); byWD[w].n++;});
+  const wdKeys=Object.keys(byWD).map(Number);
+  const order=[1,2,3,4,5,6,0];   // Seg→Dom (semana de trabalho)
+  if(preview||wdKeys.length<2){
+    set('mdWeekday',`<div style="text-align:center;padding:16px 6px;font-size:10.5px;color:var(--ink3)">${ic('calendar-dots')} Importe dias de <b>datas diferentes</b> para revelar o padrão semanal (qual dia rende mais e qual mais esvazia).</div>`);
+  }else{
+    const wdFee=w=>byWD[w]?byWD[w].fee/byWD[w].n:0;
+    const maxWd=Math.max(...wdKeys.map(wdFee),1);
+    const present=wdKeys.map(w=>({w,fee:wdFee(w)}));
+    const bestW=present.reduce((a,b)=>b.fee>a.fee?b:a).w, worstW=present.reduce((a,b)=>b.fee<a.fee?b:a).w;
+    set('mdWeekday',order.map(w=>{
+      const o=byWD[w];
+      if(!o)return `<div style="display:flex;align-items:center;gap:8px;margin:5px 0;opacity:.4"><div style="width:30px;font-size:10px;font-weight:700;color:var(--ink3)">${WD[w]}</div><div style="flex:1;height:15px;border-radius:5px;background:var(--surf2)"></div><div style="width:104px;text-align:right;font-size:9.5px;color:var(--ink3)">sem dado</div></div>`;
+      const fee=o.fee/o.n, dead=o.dead/o.n, pct=fee/maxWd*100, col=w===bestW?'var(--green)':w===worstW?'var(--red)':'var(--gold)';
+      return `<div style="display:flex;align-items:center;gap:8px;margin:5px 0">
+        <div style="width:30px;font-size:10px;font-weight:800;color:var(--ink2)">${WD[w]}</div>
+        <div style="flex:1;height:15px;border-radius:5px;background:var(--surf2);position:relative;overflow:hidden"><div style="position:absolute;inset:0 auto 0 0;width:${pct.toFixed(1)}%;background:${col};opacity:.85;border-radius:5px"></div></div>
+        <div style="width:58px;text-align:right;font-size:10px;font-weight:700;font-variant-numeric:tabular-nums">R$ ${fK(fee)}</div>
+        <div style="width:42px;text-align:right;font-size:9px;color:var(--ink3)">${f(dead,0)}% m.</div>
+      </div>`;
+    }).join('')+`<div style="margin-top:8px;font-size:10.5px;color:var(--ink2);display:flex;align-items:center;gap:6px">${ic('arrow-right')} <b>${WD[bestW]}</b> é o dia mais forte, <b>${WD[worstW]}</b> o mais fraco — concentre promoção e escala onde o retorno é maior.</div>`);
+  }
+
+  // CONSISTÊNCIA / VOLATILIDADE — coeficiente de variação (desvio-padrão ÷ média)
+  // do fee diário na janela da semana. Receita previsível facilita meta e escala;
+  // montanha-russa é risco de fluxo de caixa. Precisa de 2+ dias reais.
+  const feeVals=week.map(d=>+d.fee||0);
+  if(preview||feeVals.length<2){
+    set('mdConsist',`<div style="text-align:center;padding:16px 6px;font-size:10.5px;color:var(--ink3)">${ic('pulse')} Com <b>2+ dias</b> a aba calcula a oscilação típica do fee diário (previsível vs. volátil).</div>`);
+  }else{
+    const mean=avgFee, variance=feeVals.reduce((a,v)=>a+(v-mean)*(v-mean),0)/feeVals.length, sd=Math.sqrt(variance);
+    const cv=mean?sd/mean*100:0, minV=Math.min(...feeVals), maxV=Math.max(...feeVals);
+    const cvVar=cv<15?'--green':cv<30?'--amber':'--red', cvWord=cv<15?'muito estável':cv<30?'oscilação moderada':'volátil — atenção ao caixa';
+    set('mdConsist',
+      `<div style="display:flex;align-items:baseline;gap:10px"><div style="font-size:32px;font-weight:800;color:var(${cvVar});font-variant-numeric:tabular-nums">±${f(cv,0)}%</div><div style="font-size:11px;font-weight:800;color:var(${cvVar})">${cvWord}</div></div>`+
+      `<div class="cs" style="margin-top:2px">variação típica do fee diário em torno da média de R$ ${f(mean,0)}</div>`+
+      `<div style="display:flex;gap:8px;margin-top:12px">`+
+        `<div style="flex:1;border:1px solid var(--bdr);border-radius:10px;padding:9px 11px;background:var(--surf)"><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3)">Melhor dia</div><div style="font-size:15px;font-weight:800;color:var(--green)">R$ ${fK(maxV)}</div></div>`+
+        `<div style="flex:1;border:1px solid var(--bdr);border-radius:10px;padding:9px 11px;background:var(--surf)"><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3)">Pior dia</div><div style="font-size:15px;font-weight:800;color:var(--red)">R$ ${fK(minV)}</div></div>`+
+      `</div>`+
+      `<div style="margin-top:10px;font-size:10.5px;color:var(--ink2)">${ic('arrow-right')} Quanto menor a oscilação, mais previsível o caixa — meta e escala ficam confiáveis. Acima de 30% o mês vira montanha-russa.</div>`);
+  }
 
   // PLANO DE RECUPERAÇÃO — cards de ação (lente de CEO)
   const cards=[
@@ -1553,6 +1713,56 @@ async function exportHistory(){
   a.click();
   URL.revokeObjectURL(url);
 }
+// Exporta o RESUMO SEMANAL em CSV (pt-BR: delimitador ';' + decimal ','), pronto
+// pra abrir no Excel e levar pra reunião. Linhas por dia + linha de médias + bloco
+// de mesas perdidas. Sem dias reais, exporta a prévia do dataset atual.
+async function exportWeekSummary(){
+  let days=[]; try{ days=await Store.list(); }catch(_){ }
+  const real=(days||[]).filter(d=>d&&d.date&&!d.demo).sort((a,b)=>parseDateLabel(a.date)-parseDateLabel(b.date));
+  const preview=real.length===0;
+  const week=preview?[medPseudoDay()]:real.slice(-7);
+  const WD=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const cn=(n,d=2)=>String(Number(n||0).toFixed(d)).replace('.',',');   // decimal pt-BR
+  const q=v=>`"${String(v).replace(/"/g,'""')}"`;
+  const row=arr=>arr.map(q).join(';');
+  const lostOf=d=>{const s=+d.sessions||0,dead=s*(+d.deadPct||0)/100,live=Math.max(1,s-dead);return{dead,cost:dead*((+d.fee||0)/live)};};
+  const head=['Data','Dia','Sessões','Fee Bruto','Fee Líquido','Buyin','Players','Fee/mão','Mortas %','Take rate %','Mesas perdidas','Custo oportunidade'];
+  const lines=[row(head)];
+  week.forEach(d=>{const l=lostOf(d);lines.push(row([
+    d.date, preview?'—':WD[parseDateLabel(d.date).getDay()], cn(d.sessions,0), cn(d.fee,0), cn(d.netFee,0),
+    cn(d.buyin,0), cn(d.players,0), cn(d.feePerHand,2), cn(d.deadPct,1), cn(d.takeRate,2), cn(l.dead,0), cn(l.cost,0)
+  ]));});
+  // linha de médias
+  const avg=k=>week.reduce((a,d)=>a+(+d[k]||0),0)/week.length;
+  const totLost=week.reduce((a,d)=>a+lostOf(d).cost,0), totDead=week.reduce((a,d)=>a+lostOf(d).dead,0);
+  lines.push('');
+  lines.push(row(['MÉDIA/DIA','',cn(avg('sessions'),0),cn(avg('fee'),0),cn(avg('netFee'),0),cn(avg('buyin'),0),cn(avg('players'),0),cn(avg('feePerHand'),2),cn(avg('deadPct'),1),cn(avg('takeRate'),2),cn(totDead/week.length,0),cn(totLost/week.length,0)]));
+  lines.push(row(['TOTAL SEMANA','',cn(avg('sessions')*week.length,0),cn(avg('fee')*week.length,0),'','','','','','',cn(totDead,0),cn(totLost,0)]));
+  lines.push('');
+  lines.push(row(['Custo de oportunidade das mesas perdidas na semana','R$ '+cn(totLost,0)]));
+  lines.push(row(['Recuperável cortando mortas em 20%','R$ '+cn(totLost*0.2,0)]));
+  lines.push(row(['Dias no relatório', preview?'prévia (1 dia, dataset atual)':String(week.length)]));
+
+  const blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`resumo-semanal-cash-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();URL.revokeObjectURL(url);
+  if(typeof showToast==='function')try{showToast('Resumo semanal exportado');}catch(_){}
+}
+// Salva a meta de mesas perdidas → Firebase (mesasCashGoals) + re-renderiza os
+// painéis que dependem dela (Médias e Resumo). Independente do upload de planilha.
+function saveDeadGoal(){
+  const inp=document.getElementById('mdGoalInput'); if(!inp)return;
+  let v=parseFloat(String(inp.value).replace(',','.'));
+  if(!isFinite(v)||v<=0){ alert('Informe uma meta válida em % (ex.: 20).'); return; }
+  v=Math.min(60,Math.max(1,Math.round(v*10)/10));
+  const btn=document.getElementById('mdGoalSave'); if(btn){btn.disabled=true;btn.style.opacity='.6';}
+  saveGoals({deadPct:v}).then(()=>{
+    if(typeof showToast==='function'){try{showToast('Meta salva: mortas ≤ '+f(v,1)+'%');}catch(_){}}
+    try{buildMedias();}catch(_){} try{buildResumo();}catch(_){}
+  }).finally(()=>{ if(btn){btn.disabled=false;btn.style.opacity='';} });
+}
 async function removeHistoryDay(dateStr){
   if(!confirm(`Remover o registro de ${dateStr} do histórico?`))return;
   await Store.remove(dateStr);
@@ -1745,6 +1955,10 @@ function buildResumo(){
   set('rsDate',KPI_DEMO.date);
   set('rsBaseDay',f(KPI_DEMO.feeGross,0));
   set('rsSub',`${f(KPI_DEMO.sessions)} sessões · R$ ${f(KPI_DEMO.feeGross,0)} bruto · take rate ${f(KPI_DEMO.takeRate,2)}% · R$ ${f(fpt,0)} de fee/mesa · ${f(KPI_DEMO.deadPct,1)}% de mesas mortas é o maior vazamento.`);
+  // ALERTA PROATIVO do dia — mesmo modelo de custo de oportunidade (teto) das Médias
+  const _rsAlert=document.getElementById('rsAlert');
+  if(_rsAlert){ const dead=KPI_DEMO.deadTables||0, live=Math.max(1,(KPI_DEMO.sessions||0)-dead), lostDay=dead*((KPI_DEMO.feeGross||0)/live);
+    _rsAlert.innerHTML=deadAlertHtml(KPI_DEMO.deadPct, lostDay, 'no dia'); }
 
   // ── KPIs essenciais (reaproveita os cards .kpi)
   const topRoom=[...D.rooms].sort((a,b)=>b.fee-a.fee)[0]||{name:'—',fee:0,tables:0,rake_rate:0};
@@ -1754,7 +1968,7 @@ function buildResumo(){
     {cls:'',l:'Sessões cash',v:f(KPI_DEMO.sessions),s:f(KPI_DEMO.playersTotal)+' jogadores'},
     {cls:'c-green',l:'Fee / mesa',v:'R$ '+f(fpt,0),s:'rake médio por sessão'},
     {cls:'c-gold',l:'Concentração top 1%',v:f(KPI_DEMO.conc1pct,1)+'%',s:KPI_DEMO.conc1Tables+' mesas = R$ '+f(KPI_DEMO.conc1Fee,0)},
-    {cls:'c-amber',l:'Mesas mortas',v:f(KPI_DEMO.deadTables),s:f(KPI_DEMO.deadPct,1)+'% do total · receita parada'},
+    {cls:(KPI_DEMO.deadPct>goalDeadPct()?'c-red':'c-green'),l:'Mesas mortas',v:f(KPI_DEMO.deadPct,1)+'%',s:`${f(KPI_DEMO.deadTables)} mesas · meta ≤ ${f(goalDeadPct(),1)}% ${KPI_DEMO.deadPct>goalDeadPct()?'(acima)':'(ok)'}`},
     {cls:'c-green',l:'Take rate médio',v:f(KPI_DEMO.takeRate,2)+'%',s:'fee ÷ R$ '+fK(KPI_DEMO.buyinTotal)+' em buyins'},
   ];
   const kel=document.getElementById('rsKpis');
@@ -1866,7 +2080,9 @@ function startApp(){
   buildTierCharts();buildConc();buildHuMulti();buildJP();buildFPP();
   buildRooms();buildRR();buildBlindBars();buildBubble();
   buildRet();buildDurFee();buildHM();buildHist();
-  buildResumo();buildEventos();
+  buildResumo();buildEventos();buildMedias();
+  // metas vêm do Firebase (assíncrono) — re-renderiza o que depende delas ao chegar
+  loadGoals().then(()=>{ try{buildMedias();}catch(_){} try{buildResumo();}catch(_){} });
   initDayView(); // se há dias importados, troca a demo pelo dia mais recente
 }
 /* mesmo motivo do initFb: startApp() usa `db`, que só existe depois do Firebase (deferido)

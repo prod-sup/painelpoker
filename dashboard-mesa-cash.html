@@ -120,6 +120,8 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="pgh-sub" id="rsSub">As melhores informações do dia e as análises inteligentes que exigem ação — consolidadas para decisão rápida.</div>
   </div>
 
+  <!-- alerta proativo (mortas do dia acima do limite) -->
+  <div id="rsAlert"></div>
   <!-- FAIXA DE KPIs ESSENCIAIS -->
   <div class="kg" id="rsKpis"></div>
 
@@ -512,10 +514,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
 <!-- ═══════════════ MÉDIAS DA SEMANA ═══ -->
 <div id="pg-medias" class="pg">
-  <div class="pgh">
-    <div class="pgh-label"><i class="ph-fill ph-chart-bar"></i> Gestão do Clube · Médias da Semana</div>
-    <div class="pgh-title">A semana em médias</div>
-    <div class="pgh-sub" id="mdSub">Média por dia dos relatórios importados — o ritmo real da operação, sem o ruído de um dia isolado.</div>
+  <div class="pgh" style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <div>
+      <div class="pgh-label"><i class="ph-fill ph-chart-bar"></i> Gestão do Clube · Médias da Semana</div>
+      <div class="pgh-title">A semana em médias</div>
+      <div class="pgh-sub" id="mdSub">Média por dia dos relatórios importados — o ritmo real da operação, sem o ruído de um dia isolado.</div>
+    </div>
+    <button class="btn-p" style="background:var(--surf2);color:var(--ink2);border:1px solid var(--bdr)" onclick="exportWeekSummary()"><i class="ph ph-download-simple"></i> Exportar resumo</button>
+  </div>
+
+  <!-- alerta proativo (mortas acima da meta) -->
+  <div id="mdAlert"></div>
+
+  <!-- META DO CLUBE — editável, salva no Firebase (nó mesasCashGoals) -->
+  <div class="card" id="mdGoalCard" style="margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div style="flex:1;min-width:190px">
+        <div class="ct" style="margin:0"><i class="ph-fill ph-target" style="color:var(--gold)"></i> Meta do clube — mesas perdidas</div>
+        <div class="cs" id="mdGoalReadout">Defina o teto de mesas perdidas que a operação aceita.</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--ink2);font-weight:700">máx.</span>
+        <input id="mdGoalInput" type="number" min="1" max="60" step="0.5" inputmode="decimal" aria-label="Meta de mesas perdidas em %"
+          style="width:74px;height:36px;border:1px solid var(--bdr);border-radius:9px;background:var(--surf);color:var(--ink);text-align:right;padding:0 9px;font-weight:800;font-size:14px">
+        <span style="font-size:12px;color:var(--ink2);font-weight:700">%</span>
+        <button class="btn-p" id="mdGoalSave" onclick="saveDeadGoal()"><i class="ph ph-check"></i> Salvar meta</button>
+      </div>
+    </div>
   </div>
 
   <!-- estado vazio / prévia -->
@@ -529,7 +554,22 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="ct"><i class="ph-fill ph-skull" style="color:var(--red)"></i> Mesas perdidas — a análise da semana</div>
     <div class="cs" id="mdLostSub">Mesa perdida = mesa aberta que não reteve jogadores (menos de 10 mãos). Cada uma é dealer parado, liquidez fragmentada e rake que não veio — o maior vazamento controlável sem gastar em aquisição.</div>
     <div class="kg" id="mdLostKpis" style="margin-top:12px"></div>
+    <div class="cs" id="mdLostNote" style="margin-top:8px"></div>
     <div id="mdLostChartWrap" style="margin-top:6px"></div>
+  </div>
+
+  <!-- DIA × NOITE (staffing) + PROJEÇÃO MENSAL (run-rate) -->
+  <div class="g2" style="margin-bottom:14px">
+    <div class="card">
+      <div class="ct"><i class="ph-fill ph-sun-horizon" style="color:var(--amber)"></i> Dia × Noite — qual turno vaza mais mesa</div>
+      <div class="cs">Onde o melhor supervisor de sala rende mais · dataset selecionado</div>
+      <div id="mdShift" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <div class="ct"><i class="ph-fill ph-calendar-check" style="color:var(--green)"></i> Projeção mensal (run-rate)</div>
+      <div class="cs">Média por dia × 30 · o que a semana vira no mês se o ritmo se mantiver</div>
+      <div class="kg" id="mdMonth" style="margin-top:8px"></div>
+    </div>
   </div>
 
   <!-- ONDE AS MESAS MORREM (estrutura do dataset selecionado) -->
@@ -543,6 +583,20 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="ct"><i class="ph-fill ph-hourglass-medium" style="color:var(--amber)"></i> Onde morrem — por duração e stake</div>
       <div class="cs">Faixa de vida da mesa e tiers com maior taxa de abandono</div>
       <div id="mdByStruct" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+  <!-- PADRÃO POR DIA DA SEMANA + CONSISTÊNCIA -->
+  <div class="g2" style="margin-bottom:14px">
+    <div class="card">
+      <div class="ct"><i class="ph-fill ph-calendar-dots" style="color:var(--gold)"></i> Padrão por dia da semana</div>
+      <div class="cs">Fee médio por dia da semana · onde ligar promoção e onde reforçar escala</div>
+      <div id="mdWeekday" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <div class="ct"><i class="ph-fill ph-pulse" style="color:var(--dia)"></i> Consistência da receita</div>
+      <div class="cs">O quanto o fee diário oscila em torno da média · previsível vs. montanha-russa</div>
+      <div id="mdConsist" style="margin-top:10px"></div>
     </div>
   </div>
 
@@ -562,6 +616,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <button class="btn-p" style="background:var(--surf2);color:var(--ink2);border:1px solid var(--bdr)" onclick="exportHistory()"><i class="ph ph-download-simple"></i> Exportar JSON</button>
   </div>
   <div class="intel-grid" id="histCompare" style="display:none;margin-bottom:12px"></div>
+  <div id="histDataWarn" class="cs" style="display:none;margin:0 0 10px;padding:9px 12px;border:1px solid var(--amber);border-radius:9px;background:rgba(251,191,36,.06)"></div>
   <div class="card" style="margin-bottom:12px">
     <div class="ct">Dias importados</div>
     <div class="cs">Dados salvos localmente no navegador · importe novos arquivos pelo botão no cabeçalho</div>
