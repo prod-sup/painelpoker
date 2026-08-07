@@ -678,6 +678,150 @@ async function buildHist(){
   },50);
 }
 
+// ══════════════════════════════ MÉDIAS DA SEMANA
+// Lente de gestor de clube: em vez de olhar um dia isolado, tira a MÉDIA por dia
+// dos relatórios importados e foca o maior vazamento controlável — as MESAS
+// PERDIDAS (abertas que não retêm ninguém, <10 mãos). Valores monetários dos
+// resumos já vêm em BRL (finalizeDataset × GU_TO_BRL). O `base` demo do histórico
+// está em GU, então fica FORA das médias — só dias reais entram. Sem dias reais,
+// mostra uma prévia com o dataset atual (KPI_DEMO, já em BRL) e um aviso.
+function medPseudoDay(){
+  const K=KPI_DEMO;
+  return {date:K.date||'atual',demo:true,sessions:K.sessions||0,fee:K.feeGross||0,
+    netFee:K.feeNet||0,buyin:K.buyinTotal||0,players:K.playersTotal||0,
+    feePerHand:K.feePerHand||0,deadPct:K.deadPct||0,takeRate:K.takeRate||0};
+}
+async function buildMedias(){
+  if(!document.getElementById('pg-medias'))return;
+  let days=[]; try{ days=await Store.list(); }catch(_){ days=[]; }
+  const real=(days||[]).filter(d=>d&&d.date&&!d.demo)
+    .sort((a,b)=>parseDateLabel(a.date)-parseDateLabel(b.date));
+  const preview = real.length===0;
+  const week = preview ? [medPseudoDay()] : real.slice(-7);
+  const prev = real.length>=8 ? real.slice(-14,-7) : [];
+
+  const set=(id,html)=>{const e=document.getElementById(id);if(e)e.innerHTML=html;};
+  const avgOf=(arr,k)=>arr.length?arr.reduce((a,d)=>a+(+d[k]||0),0)/arr.length:0;
+  const kcard=(cls,l,v,s)=>`<div class="kpi ${cls}"><div class="kl">${l}</div><div class="kv">${v}</div><div class="ks">${s}</div></div>`;
+  const rsLine=(dir,icon,tt,sb,vl)=>`<div class="rs-line"><div class="rs-ic ${dir}">${ic(icon,1)}</div><div class="rs-tx"><div class="rs-tt">${tt}</div><div class="rs-sb">${sb}</div></div><div class="rs-vl ${dir}">${vl}</div></div>`;
+
+  // médias por dia
+  const avgFee=avgOf(week,'fee'), avgNet=avgOf(week,'netFee'), avgSess=avgOf(week,'sessions'),
+        avgPlayers=avgOf(week,'players'), avgFph=avgOf(week,'feePerHand'),
+        avgTake=avgOf(week,'takeRate'), avgDead=avgOf(week,'deadPct');
+  const weekFee=week.reduce((a,d)=>a+(+d.fee||0),0);
+
+  // variação semana-a-semana (só com 8+ dias reais)
+  const wow=k=>{ if(!prev.length)return null; const cur=avgOf(week,k), pv=avgOf(prev,k); if(!pv)return null; return (cur-pv)/pv*100; };
+  const wowSub=(k,lowerBetter)=>{ const d=wow(k); if(d==null)return null; const good=lowerBetter?d<0:d>=0; return `<span style="color:${good?'var(--green)':'var(--red)'}">${d>=0?'+':''}${f(d,1)}% vs semana anterior</span>`; };
+
+  // MESAS PERDIDAS — mesa morta ≈ sessões × dead%. Rake perdido = mesas mortas ×
+  // fee médio de uma mesa VIVA (o que ela teria gerado se tivesse vingado).
+  let lostRakeSum=0, deadTablesSum=0;
+  week.forEach(d=>{
+    const sess=+d.sessions||0, dead=sess*(+d.deadPct||0)/100, live=Math.max(1,sess-dead);
+    const fpLive=(+d.fee||0)/live;
+    lostRakeSum+=dead*fpLive; deadTablesSum+=dead;
+  });
+  const avgDeadTables=deadTablesSum/week.length, avgLostRake=lostRakeSum/week.length;
+  const weekLostRake=lostRakeSum, recover20=avgLostRake*0.2;
+  const deadCls=avgDead<15?'c-green':avgDead<25?'c-amber':'c-red';
+  const deadWord=avgDead<15?'saudável':avgDead<25?'atenção':'crítico';
+  const deadTrend=week.length>=2?(week[week.length-1].deadPct-week[0].deadPct):0;
+  const byDead=[...week].sort((a,b)=>(+a.deadPct||0)-(+b.deadPct||0));
+  const bestDay=byDead[0], worstDay=byDead[byDead.length-1];
+
+  // sub + aviso de prévia
+  const sub=document.getElementById('mdSub');
+  if(sub)sub.innerHTML = preview
+    ? `Ainda não há semana importada — <b>prévia com o dataset atual (${esc(week[0].date)})</b>. Importe os relatórios em "Importar Semana" para médias reais e comparativo semana a semana.`
+    : `Média por dia de <b>${real.length} dia(s)</b> importados (janela da última semana: ${week.length}). O foco é mesas perdidas, o maior vazamento controlável sem gastar em aquisição.`;
+  const empty=document.getElementById('mdEmpty');
+  if(empty){ empty.style.display=preview?'':'none';
+    if(preview)empty.innerHTML=`<div class="card" style="border-color:var(--amber);margin-bottom:12px"><div class="ct"><i class="ph-fill ph-info" style="color:var(--amber)"></i> Prévia (1 dia)</div><div class="cs">As médias abaixo usam só o dataset carregado. Com a semana importada, esta aba vira o painel de gestão semanal com tendência e comparativo.</div></div>`;
+  }
+
+  // KPIs médios
+  set('mdKpis',[
+    kcard('hero','Fee bruto médio/dia','R$ '+f(avgFee,0), wowSub('fee')||('total R$ '+f(weekFee,0)+' · '+week.length+' dia(s)')),
+    kcard('c-green','Fee líquido médio/dia','R$ '+f(avgNet,0), wowSub('netFee')||'após jackpot'),
+    kcard('','Sessões médias/dia',f(avgSess), wowSub('sessions')||(f(avgPlayers)+' players/dia')),
+    kcard('c-gold','Fee/mão médio','R$ '+f(avgFph,2), wowSub('feePerHand')||'rake por mão jogada'),
+    kcard('c-green','Take rate médio',f(avgTake,2)+'%','fee ÷ buyin movimentado'),
+    kcard(deadCls,'Mesas perdidas (média)',f(avgDead,1)+'%', deadWord+' · ~'+f(avgDeadTables,0)+' mesas/dia'),
+  ].join(''));
+
+  // KPIs de mesas perdidas
+  set('mdLostKpis',[
+    kcard('c-red','Custo de oportunidade/dia','R$ '+f(avgLostRake,0),'rake que as mesas perdidas deixaram de gerar'),
+    kcard('c-amber','Custo na semana','R$ '+f(weekLostRake,0), week.length+' dia(s) · ~'+f(deadTablesSum,0)+' mesas perdidas'),
+    kcard('','Mesas perdidas/dia',f(avgDeadTables,0), f(avgDead,1)+'% de ~'+f(avgSess,0)+' aberturas'),
+    kcard('c-green','Retenção média',f(100-avgDead,1)+'%','mesas que vingaram'),
+    kcard(deadTrend<=0?'c-green':'c-red','Tendência na semana',(deadTrend>=0?'+':'')+f(deadTrend,1)+' pp', deadTrend<=0?'melhorando (menos mortas)':'piorando (mais mortas)'),
+    kcard('c-green','Recuperável (−20%)','+R$ '+f(recover20,0)+'/dia','se 1 em 5 mesas mortas virar ativa'),
+  ].join(''));
+
+  // gráfico de tendência de mesas perdidas (%) por dia — só com 2+ dias reais
+  const cw=document.getElementById('mdLostChartWrap');
+  if(cw){
+    if(preview||week.length<2){
+      cw.innerHTML=`<div style="text-align:center;padding:14px 0 4px;font-size:10.5px;color:var(--ink3)">${ic('chart-line')} Importe 2+ dias para ver a tendência de mesas perdidas ao longo da semana.</div>`;
+    }else{
+      cw.innerHTML='<div style="height:150px;position:relative;margin-top:8px"><canvas id="cMdDead" role="img" aria-label="Tendência de mesas perdidas"></canvas></div>';
+      try{ if(window._mdDeadChart)window._mdDeadChart.destroy(); }catch(_){}
+      setTimeout(()=>{
+        const ctx=document.getElementById('cMdDead'); if(!ctx||!window.Chart)return;
+        window._mdDeadChart=new Chart(ctx,{type:'line',
+          data:{labels:week.map(d=>d.date),datasets:[{label:'% mesas perdidas',data:week.map(d=>+d.deadPct||0),borderColor:'#f87171',borderWidth:2,fill:true,backgroundColor:'rgba(248,113,113,.1)',tension:.4,pointRadius:4,pointBackgroundColor:'#f87171'}]},
+          options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{...CTOP,callbacks:{label:c=>` ${f(c.parsed.y,1)}% mortas`}}},
+            scales:{x:{grid:{display:false},ticks:{font:{size:10},color:CTEXT},border:{display:false}},y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>v+'%'},border:{display:false}}}}
+        });
+      },50);
+    }
+  }
+
+  // ONDE MORREM — por horário (dataset selecionado)
+  const byH={};
+  D.slots30.forEach(s=>{const h=parseInt(s.slot,10); if(!byH[h])byH[h]={dead:0,tables:0}; byH[h].dead+=(+s.dead||0); byH[h].tables+=(+s.tables||0);});
+  const topH=Object.entries(byH).map(([h,o])=>({h:+h,dead:o.dead,tables:o.tables,pct:o.tables?o.dead/o.tables*100:0}))
+    .sort((a,b)=>b.dead-a.dead).slice(0,5);
+  set('mdByHour', topH.map(x=>rsLine('dn','clock',String(x.h).padStart(2,'0')+'h',
+    `${f(x.dead)} mortas de ${f(x.tables)} abertas`, f(x.pct,0)+'%')).join('') || '<div class="cs">Sem dados de horário.</div>');
+
+  // ONDE MORREM — por duração e stake
+  const durS=[...D.duration].map(x=>({...x,ab:x.tables?x.dead/x.tables*100:0})).sort((a,b)=>b.dead-a.dead);
+  const tierS=[...D.tiers].map(x=>({...x,ab:x.tables?x.dead/x.tables*100:0})).sort((a,b)=>b.dead-a.dead);
+  const hdr=t=>`<div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);margin:2px 0 6px">${t}</div>`;
+  set('mdByStruct',
+    hdr('Por duração da mesa')+
+    durS.slice(0,3).map(x=>rsLine('dn','hourglass-medium',esc(x.bucket),`${f(x.dead)} mortas de ${f(x.tables)} · retenção ${f(x.ret,0)}%`,f(x.ab,0)+'%')).join('')+
+    hdr('Por stake (tier)')+
+    tierS.slice(0,3).map(x=>rsLine('dn','stack',esc(x.tier),`${f(x.dead)} mortas de ${f(x.tables)} mesas`,f(x.ab,0)+'%')).join('')
+  );
+
+  // PLANO DE RECUPERAÇÃO — cards de ação (lente de CEO)
+  const cards=[
+    {type:avgDead>=25?'alert':'gold',icon:ic('broom',1),tag:'Prioridade 1 · Ociosidade',
+     title:`${f(avgDead,1)}% de mesas perdidas custam ~R$ ${f(avgLostRake,0)}/dia`,
+     body:`São ~${f(avgDeadTables,0)} mesas por dia abertas que não retêm ninguém. Fechar mesa ociosa mais rápido (timeout sem 2º jogador) e realocar o dealer devolve rake sem gastar 1 real em aquisição. Meta realista de curto prazo: −20% de mortas.`,
+     metric:{val:'+R$ '+f(recover20,0)+'/dia',cls:'g',label:'recuperável reduzindo mortas em 20%'},
+     action:{cls:'a',text:'Definir política de fechamento automático'}},
+    {type:'dia',icon:ic('stack',1),tag:'Liquidez',
+     title:'Consolidar mesas da mesma stake reduz mortes',
+     body:`Abrir mesa demais fragmenta a base: o jogador entra, não acha adversário e a mesa morre. Nos horários de pico, encher as mesas existentes antes de abrir novas melhora retenção e experiência ao mesmo tempo.`,
+     action:{cls:'a',text:'Revisar regra de abertura no pico'}},
+  ];
+  if(topH[0])cards.push({type:'noite',icon:ic('clock',1),tag:'Foco operacional',
+     title:`${String(topH[0].h).padStart(2,'0')}h concentra ${f(topH[0].dead)} mesas mortas`,
+     body:`É um dos horários com mais aberturas que não vingam (${f(topH[0].pct,0)}% de mortas no slot). Reforçar a supervisão de sala nesse turno e segurar aberturas até haver jogador é a intervenção de menor custo.`,
+     action:{cls:'a',text:'Escalar supervisão nesse horário'}});
+  if(!preview&&week.length>=2)cards.push({type:'both',icon:ic(deadTrend<=0?'trend-up':'trend-down',1),tag:'Ritmo da semana',
+     title:`Melhor dia ${esc(bestDay.date)} (${f(bestDay.deadPct,1)}%) · pior ${esc(worstDay.date)} (${f(worstDay.deadPct,1)}%)`,
+     body:`A distância entre o melhor e o pior dia é ${f((worstDay.deadPct-bestDay.deadPct),1)} pp de mesas mortas. Entender o que ${esc(bestDay.date)} fez diferente (escala, mix de stakes, horários de abertura) e replicar é ganho imediato, sem custo.`,
+     action:{cls:'a',text:'Comparar a escala dos dois dias'}});
+  renderIntelCards('mdIntel',cards);
+}
+
 // ══════════════════════════════ STORAGE ABSTRACTION
 // Firebase Realtime Database, mesmo projeto do Painel/Admin (design-1-53c00).
 // Node: mesasCashHistory/{yyyy-mm-dd} — chave sem "/" pois RTDB não aceita
@@ -1207,7 +1351,7 @@ function renderAll(){
    buildForecast,
    buildTierCharts,buildConc,buildHuMulti,buildJP,buildFPP,
    buildRooms,buildRR,buildBlindBars,buildBubble,
-   buildRet,buildDurFee,buildHM,buildHist,
+   buildRet,buildDurFee,buildHM,buildHist,buildMedias,
    buildResumo,buildEventos].forEach(safeBuild);
 }
 function applyDataset(ds){

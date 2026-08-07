@@ -764,7 +764,7 @@ body > *{position:relative;z-index:1}
   body.cn-sec-fs-lock{overflow:hidden}
   #secFsOverlay{
     position:fixed;inset:0;background:var(--bg);
-    display:none;z-index:150;padding:18px 22px;
+    display:none;z-index:150;padding:12px 18px;
   }
   #secFsOverlay.open{display:flex}
   /* entrada suave: só opacity + transform (compositor) — nunca blur (ver motion-fluidity) */
@@ -848,7 +848,7 @@ body > *{position:relative;z-index:1}
   }
   html.dark .ptable thead th{background:#161e18}
   .ptable thead th.key{color:var(--felt-bright)}
-  .ptable tbody td{padding:8px 10px;border-bottom:1px solid var(--hairline);font-size:12.5px;vertical-align:middle}
+  .ptable tbody td{padding:6px 10px;border-bottom:1px solid var(--hairline);font-size:12.5px;vertical-align:middle}
   .ptable tbody tr:hover td{background:var(--card-elevated)}
   .ptable tr.done-row td{opacity:.5}
   .ptable td.pname{white-space:normal;min-width:190px;max-width:280px}
@@ -1737,16 +1737,35 @@ html,body{overflow-x:hidden;max-width:100%}
 /* o .secwrap (herda flex:1 do card) vira o SCROLLER; o cartão de verdade é a
    .vtable, centrada com margin:auto — padrão robusto que centra nos 2 eixos e
    ainda rola direito quando a receita é longa (align-items:center clipava o topo). */
-#secFsOverlay .secwrap.focus{display:flex;overflow:auto}
+#secFsOverlay .secwrap.focus{display:flex;justify-content:center;align-items:flex-start;overflow:auto}
+/* renderVertical embrulha a tabela num .vwrap. No flex ele encolhe (shrink-wrap) e
+   prendia o cartão à ESQUERDA com meia tela vazia — era a causa do "faixa estreita
+   perdida". display:contents tira o wrapper do layout: a .vtable vira o filho direto
+   do scroller e centraliza de verdade. */
+#secFsOverlay .secwrap.focus > .vwrap{display:contents}
 #secFsOverlay .secwrap.focus .vtable{
-  display:block;margin:auto;width:min(760px,100%);border-collapse:separate;overflow:hidden;
+  display:block;margin:10px auto;width:min(1180px,100%);border-collapse:separate;overflow:hidden;
   background:var(--card);border:1px solid var(--hairline);border-radius:22px;box-shadow:var(--shadow-lg);
 }
-#secFsOverlay .secwrap.focus .vtable tbody{display:block;width:100%}
-#secFsOverlay .secwrap.focus .vtable tr{
-  display:grid;grid-template-columns:minmax(140px,30%) 1fr;align-items:center;gap:20px;
-  padding:14px 30px;border-bottom:1px solid color-mix(in srgb,var(--hairline) 60%,transparent);
+/* RECEITA EM VÁRIAS COLUNAS (auto-fit: 2–3 col no amplo, 1 no estreito): corta a
+   altura pra caber sem rolar e usa o espaço horizontal. Herói, Horário, "Criar em"
+   e o rodapé de ação atravessam a largura toda (grid-column:1/-1). */
+/* grade de hairlines: o tbody é o fundo (cor da linha) e cada célula tampa com a
+   cor do cartão; os gaps de 1px viram as divisórias — colunas E linhas de uma vez. */
+#secFsOverlay .secwrap.focus .vtable tbody{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));width:100%;
+  gap:1px;background:color-mix(in srgb,var(--hairline) 65%,transparent);
 }
+#secFsOverlay .secwrap.focus .vtable tr{
+  display:grid;grid-template-columns:minmax(120px,32%) 1fr;align-items:center;gap:16px;
+  padding:11px 26px;background:var(--card);
+}
+#secFsOverlay .secwrap.focus .vtable tr.trow-head,
+#secFsOverlay .secwrap.focus .vtable tr[data-field="hora"],
+#secFsOverlay .secwrap.focus .vtable tr[data-field="criar"],
+#secFsOverlay .secwrap.focus .vtable tr[data-field="op"],
+#secFsOverlay .secwrap.focus .vtable tr[data-field="id"],
+#secFsOverlay .secwrap.focus .vtable tr[data-field="done"]{grid-column:1/-1}
 #secFsOverlay .secwrap.focus .vtable tr:hover{background:color-mix(in srgb,var(--ink) 3%,transparent)}
 
 /* HERÓI — nome grande + faixa de acento da categoria à esquerda */
@@ -1816,6 +1835,10 @@ html,body{overflow-x:hidden;max-width:100%}
   white-space:normal;word-break:break-word;font-variant-numeric:tabular-nums;line-height:1.35;
 }
 
+/* trava: no Foco a coluna de valores NUNCA leva o realce verde de cursor
+   (sec-cursor-col) — o cartão inteiro já é o foco. Evita o "contorno verde". */
+#secFsOverlay .secwrap.focus .vtable td.sec-cursor-col{background:transparent;box-shadow:none}
+
 /* CRIAR EM — o gatilho da ação: valor maior, na cor do feltro (sem grifo de fundo) */
 #secFsOverlay .secwrap.focus .vtable tr[data-field="criar"] td{font-size:20px;font-weight:800;color:var(--felt-bright)}
 
@@ -1825,10 +1848,18 @@ html,body{overflow-x:hidden;max-width:100%}
 #secFsOverlay .secwrap.focus .vtable tr[data-field="done"]{
   background:color-mix(in srgb,var(--ink) 3%,transparent);border-bottom:none;
 }
-#secFsOverlay .secwrap.focus .vtable tr[data-field="op"]{margin-top:6px;padding-top:18px;border-top:1px solid var(--hairline)}
-#secFsOverlay .secwrap.focus .vtable tr[data-field="done"]{padding-bottom:22px;border-radius:0 0 22px 22px}
+#secFsOverlay .secwrap.focus .vtable tr[data-field="op"]{padding-top:20px}
+#secFsOverlay .secwrap.focus .vtable tr[data-field="done"]{padding-bottom:24px;border-radius:0 0 24px 24px}
 #secFsOverlay .secwrap.focus .vtable tr[data-field="done"] .chk{width:40px;height:40px}
-#secFsOverlay .secwrap.focus .vtable .id-inp{width:100%;max-width:280px;font-size:15px;height:38px}
+#secFsOverlay .secwrap.focus .vtable .id-inp{
+  width:100%;max-width:320px;font-size:15px;height:40px;border-radius:11px;
+  border:1px solid var(--hairline-strong);background:var(--bg);
+  transition:border-color .18s var(--ease),box-shadow .18s var(--ease);
+}
+#secFsOverlay .secwrap.focus .vtable .id-inp:focus{
+  border-color:var(--felt-bright);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--felt-bright) 18%,transparent);
+}
 #secFsOverlay .secwrap.focus .vtable .op-assign{font-size:14px}
 
 @media (max-width:640px){
@@ -1840,6 +1871,93 @@ html,body{overflow-x:hidden;max-width:100%}
   #secFsOverlay .secwrap.focus .vtable tr[data-field="criar"] td{font-size:17px}
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   MODO FOCO — passada visual: encenação (staging) + cartão premium
+   O Foco mostra UM torneio; então o resto da tela deve sumir e o olho pousar
+   no cartão. Três camadas: (1) uma AURA da cor do naipe atrás do cartão que
+   escurece a viewport ao redor, (2) o cartão ganha brilho de topo + halo mais
+   forte, (3) "Criar em" (o gatilho da ação) vira um chip aceso. Tudo em
+   transform/opacity/box-shadow — o kill-switch de reduced-motion zera as
+   animações; a aura/estático continuam (não é movimento).
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* (1) AURA DE ENCENAÇÃO — radial da cor do naipe, só quando o Foco está ativo.
+   Fica ATRÁS do cartão (z-index) e some suave nos outros modos. `:has()` deixa
+   o overlay reagir à categoria da .secwrap sem tocar no JS. */
+#secFsOverlay::before{
+  content:"";position:absolute;inset:0;z-index:0;pointer-events:none;opacity:0;
+  transition:opacity .55s var(--ease);
+  background:
+    radial-gradient(115% 78% at 50% 8%, var(--aura,transparent), transparent 58%),
+    radial-gradient(90% 120% at 50% 120%, color-mix(in srgb,var(--ink) 5%,transparent), transparent 55%);
+}
+#secFsOverlay:has(.secwrap.focus)::before{opacity:1}
+#secFsOverlay:has(.secwrap.focus.main){--aura:color-mix(in srgb,var(--main-bright) 14%,transparent)}
+#secFsOverlay:has(.secwrap.focus.side){--aura:color-mix(in srgb,var(--side-bright) 14%,transparent)}
+#secFsOverlay:has(.secwrap.focus.sat ){--aura:color-mix(in srgb,var(--sat-bright)  14%,transparent)}
+#secFsOverlay:has(.secwrap.focus.cust){--aura:color-mix(in srgb,var(--gold)        14%,transparent)}
+/* o cartão e a barra ficam ACIMA da aura */
+#secFsOverlay .sec-fs-card{position:relative;z-index:1}
+
+/* (2) CARTÃO PREMIUM — brilho de topo (a luz "bate" no cartão) + borda com tom
+   do naipe. O ::after é só a lâmina de luz; pointer-events:none pra não roubar
+   clique dos campos. */
+#secFsOverlay .secwrap.focus .vtable{position:relative;isolation:isolate}
+#secFsOverlay .secwrap.focus .vtable::after{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:2;border-radius:inherit;
+  background:linear-gradient(180deg,color-mix(in srgb,#fff 8%,transparent),transparent 34%);
+  mix-blend-mode:soft-light;
+}
+@media (prefers-color-scheme:dark){
+  #secFsOverlay .secwrap.focus .vtable::after{background:linear-gradient(180deg,color-mix(in srgb,#fff 6%,transparent),transparent 30%)}
+}
+#secFsOverlay .secwrap.focus.main .vtable{border-color:color-mix(in srgb,var(--main-bright) 26%,var(--hairline))}
+#secFsOverlay .secwrap.focus.side .vtable{border-color:color-mix(in srgb,var(--side-bright) 26%,var(--hairline))}
+#secFsOverlay .secwrap.focus.sat  .vtable{border-color:color-mix(in srgb,var(--sat-bright)  26%,var(--hairline))}
+
+/* HORÁRIO — o "quando" do torneio ganha respiro e peso logo abaixo do herói */
+#secFsOverlay .secwrap.focus .vtable tr[data-field="hora"] td{font-size:18px;font-weight:700}
+#secFsOverlay .secwrap.focus .vtable tr[data-field="hora"] td .thora{color:var(--ink)}
+
+/* (3) "CRIAR EM" — o gatilho da criação vira um chip aceso na cor do feltro,
+   com um relógio antes do horário. É o passo que o operador executa: precisa
+   saltar sem virar um paredão. */
+#secFsOverlay .secwrap.focus .vtable tr[data-field="criar"]{align-items:center}
+#secFsOverlay .secwrap.focus .vtable tr[data-field="criar"] td{
+  justify-self:start;display:inline-flex;align-items:center;gap:9px;
+  padding:8px 17px;border-radius:99px;font-size:20px;font-weight:800;letter-spacing:-.01em;
+  color:var(--felt-bright);
+  background:color-mix(in srgb,var(--felt-bright) 13%,transparent);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--felt-bright) 32%,transparent),
+             0 10px 26px -18px color-mix(in srgb,var(--felt-bright) 80%,transparent);
+}
+#secFsOverlay .secwrap.focus .vtable tr[data-field="criar"] td::before{
+  content:"◷";font-size:17px;line-height:1;opacity:.9;
+}
+/* respiração sutil do chip — chama a atenção sem piscar. Some com reduced-motion
+   pelo kill-switch global (@media reduce zera animation em *). */
+#secFsOverlay .secwrap.focus .vtable tr[data-field="criar"] td{
+  animation:cnCriarPulse 3.4s var(--ease) infinite;
+}
+@keyframes cnCriarPulse{
+  0%,100%{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--felt-bright) 32%,transparent),0 10px 26px -18px color-mix(in srgb,var(--felt-bright) 55%,transparent)}
+  50%    {box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--felt-bright) 45%,transparent),0 12px 30px -16px color-mix(in srgb,var(--felt-bright) 90%,transparent)}
+}
+
+/* herói mais protagonista no cartão largo (o nome é a âncora do torneio) */
+@media (min-width:900px){
+  #secFsOverlay .secwrap.focus .vtable tr.trow-head{padding:22px 34px 18px}
+  #secFsOverlay .secwrap.focus .vtable tr.trow-head td.vname{font-size:29px}
+  #secFsOverlay .secwrap.focus .vtable tr[data-field="hora"] td,
+  #secFsOverlay .secwrap.focus .vtable tr[data-field="criar"] td{font-size:20px}
+}
+
+/* progresso no cabeçalho, dentro do Foco: gradiente + brilho fino (era chapado) */
+#secFsOverlay .sec-fs-prog>i{
+  background:linear-gradient(90deg,color-mix(in srgb,var(--felt-bright) 78%,transparent),var(--felt-bright));
+  box-shadow:0 0 10px -2px color-mix(in srgb,var(--felt-bright) 70%,transparent);
+}
+
 /* ═══ VISÃO CARDS — deck de cartas na tela cheia (◎ Foco = 1 por vez; ▦ Cards = todos) ═══
    Grade responsiva de cartões; cada carta é auto-suficiente (nome, dados-chave,
    operador, ID, criar). Filete no topo na cor da categoria (Main/Side/Satélite). */
@@ -1847,8 +1965,8 @@ html,body{overflow-x:hidden;max-width:100%}
 /* cartas MAIS LARGAS: a receita cabe em 3 colunas → carta mais BAIXA (menos scroll)
    e ainda entram 3–4 por linha em tela grande (usa a largura toda). */
 .cards-wrap{
-  display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));
-  gap:12px;padding:2px 2px 6px;align-items:start;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+  gap:10px;padding:2px 2px 6px;align-items:start;
 }
 .cn-card{
   display:flex;flex-direction:column;gap:7px;position:relative;

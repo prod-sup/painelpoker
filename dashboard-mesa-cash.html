@@ -77,6 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <button class="nt" onclick="pg('salas',this)">Salas</button>
     <button class="nt" onclick="pg('eventos',this)">Eventos</button>
     <button class="nt" onclick="pg('player',this)">Comportamento</button>
+    <button class="nt" onclick="pg('medias',this)">Médias da Semana</button>
     <button class="nt" onclick="pg('hist',this)">Histórico</button>
     <button class="nt" onclick="pg('forecast',this)">Previsão</button>
     <button class="nt" onclick="pg('validar',this)">Importar Semana</button>
@@ -507,6 +508,47 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     </div>
   </div>
+</div>
+
+<!-- ═══════════════ MÉDIAS DA SEMANA ═══ -->
+<div id="pg-medias" class="pg">
+  <div class="pgh">
+    <div class="pgh-label"><i class="ph-fill ph-chart-bar"></i> Gestão do Clube · Médias da Semana</div>
+    <div class="pgh-title">A semana em médias</div>
+    <div class="pgh-sub" id="mdSub">Média por dia dos relatórios importados — o ritmo real da operação, sem o ruído de um dia isolado.</div>
+  </div>
+
+  <!-- estado vazio / prévia -->
+  <div id="mdEmpty" style="display:none"></div>
+
+  <!-- KPIs médios da semana -->
+  <div class="kg" id="mdKpis"></div>
+
+  <!-- MESAS PERDIDAS — o bloco central (lente de CEO) -->
+  <div class="card" style="margin:2px 0 14px;position:relative;overflow:hidden">
+    <div class="ct"><i class="ph-fill ph-skull" style="color:var(--red)"></i> Mesas perdidas — a análise da semana</div>
+    <div class="cs" id="mdLostSub">Mesa perdida = mesa aberta que não reteve jogadores (menos de 10 mãos). Cada uma é dealer parado, liquidez fragmentada e rake que não veio — o maior vazamento controlável sem gastar em aquisição.</div>
+    <div class="kg" id="mdLostKpis" style="margin-top:12px"></div>
+    <div id="mdLostChartWrap" style="margin-top:6px"></div>
+  </div>
+
+  <!-- ONDE AS MESAS MORREM (estrutura do dataset selecionado) -->
+  <div class="g2" style="margin-bottom:14px">
+    <div class="card">
+      <div class="ct"><i class="ph-fill ph-clock" style="color:var(--amber)"></i> Onde morrem — por horário</div>
+      <div class="cs">Dataset selecionado no header · os slots que mais abrem mesa que não vinga</div>
+      <div id="mdByHour" style="margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <div class="ct"><i class="ph-fill ph-hourglass-medium" style="color:var(--amber)"></i> Onde morrem — por duração e stake</div>
+      <div class="cs">Faixa de vida da mesa e tiers com maior taxa de abandono</div>
+      <div id="mdByStruct" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+  <!-- Plano de recuperação -->
+  <div style="font-size:11px;font-weight:800;color:var(--ink);margin-bottom:10px;letter-spacing:-.01em">Plano de recuperação — como um gestor de clube agiria</div>
+  <div class="intel-grid" id="mdIntel"></div>
 </div>
 
 <!-- ═══════════════ HISTÓRICO ═══ -->

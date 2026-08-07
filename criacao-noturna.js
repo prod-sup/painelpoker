@@ -3193,6 +3193,10 @@ function secFsHighlightCursor(){
       if (i >= 0) pos.innerHTML = `<b>${i + 1}</b> / ${keys.length}`;
     }
   }
+  // No Modo Foco só existe UM torneio na tela — o próprio cartão é o cursor.
+  // Pintar a coluna de valores de verde (sec-cursor-col) não faz sentido aqui e
+  // virava um "contorno verde" em cada campo. Atualiza só a posição e sai.
+  if (SEC_VIEW === 'focus') return;
   const esc = k => (window.CSS && CSS.escape) ? CSS.escape(k) : k;
   card.querySelectorAll('.sec-cursor, .sec-cursor-col, .cur-next, .cur-prev')
       .forEach(el => el.classList.remove('sec-cursor', 'sec-cursor-col', 'cur-next', 'cur-prev'));
