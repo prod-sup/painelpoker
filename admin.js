@@ -606,6 +606,12 @@ function rowKey(r){
 /* ── FLAT ROWS (para análise) ───────────────────────────────── */
 function flatRows(fromDate, toDate){
   const out=[];
+  // AUDITORIA DO GATE: premiação de snapshot descartada por não ter carimbo de coleta
+  // (premPor no snapshot nem premBy ao vivo). São os valores-fantasma da coluna "Premiação"
+  // da planilha em snapshots antigos — que ANTES inflavam o Arrecadado. Contamos pra nunca
+  // descartar em silêncio: se sobrar algum dia que o Brian reconheça como fechado de verdade,
+  // ele vê aqui em vez de o número simplesmente sumir.
+  const _flatExcl={count:0,value:0,dates:new Set()};
   Object.entries(_allData).forEach(([date,day])=>{
     if(fromDate&&date<fromDate)return;
     if(toDate&&date>toDate)return;
@@ -638,6 +644,10 @@ function flatRows(fromDate, toDate){
       // sempre existiu, toda premiação COLETADA real tem premPor → o histórico verdadeiro fica.
       const _snapHasPremPor = r.premPor != null && r.premPor !== false && r.premPor !== '';
       const prem = livePrem ?? ((r._snap && _snapHasPremPor) ? (r._snapPrem ?? null) : null);
+      // valor de snapshot que EXISTIA mas foi barrado por falta de carimbo — registra pra auditoria
+      if(prem==null && r._snap && r._snapPrem!=null && !_snapHasPremPor && !_hasPremBy){
+        _flatExcl.count++; _flatExcl.value += (+r._snapPrem||0); _flatExcl.dates.add(date);
+      }
       // Garantido: sobrescrito ou da planilha
       const gar  = pick(day.guar)??r.garantido??null;
       // ID
@@ -736,7 +746,10 @@ function flatRows(fromDate, toDate){
     const prev = byOcc.get(k);
     if (!prev || score(r) > score(prev)) byOcc.set(k, r);
   }
-  return [...byOcc.values()];
+  const result=[...byOcc.values()];
+  // expõe a auditoria do gate sem quebrar quem só itera o array
+  result.excludedNoStamp={ count:_flatExcl.count, value:_flatExcl.value, dates:[..._flatExcl.dates].sort() };
+  return result;
 }
 
 /* ── NAVIGATION ─────────────────────────────────────────────── */
@@ -1468,7 +1481,7 @@ function buildDash(){
     <div class="kpi p"><div class="kpi-label">NF no período</div><div class="kpi-val">${nfRows.length}</div><div class="kpi-sub">${rows.length?Math.round(nfRows.length/rows.length*100):0}% não formaram</div></div>
   `;
   // ── alerta proativo + quebra por categoria + settings (metas/taxas) ──
-  renderDashAlert(overlayPctGar, gOvl, totalOv, rakeDiaReal, gRakeDia);
+  renderDashAlert(overlayPctGar, gOvl, totalOv, rakeDiaReal, gRakeDia, rows.excludedNoStamp);
   renderDashCatBreakdown(catAgg);
   renderDashSettings();
 
@@ -1512,19 +1525,31 @@ function buildDash(){
 }
 
 // Alerta proativo: overlay acima do teto ou receita/dia abaixo da meta.
-function renderDashAlert(ovlPct, gOvl, totalOv, rakeDia, gRakeDia){
+function renderDashAlert(ovlPct, gOvl, totalOv, rakeDia, gRakeDia, excl){
   const el=document.getElementById('dashAlert'); if(!el)return;
   const a=[];
   if(gOvl>0 && ovlPct>gOvl) a.push({t:`Overlay em ${ovlPct.toFixed(1)}% do garantido — acima do teto de ${gOvl}%`,
     s:`R$ ${brl(Math.abs(totalOv),0)} pagos pela casa além do arrecadado. Revisar garantidos e fields dos eventos que mais estouram.`});
   if(gRakeDia>0 && rakeDia<gRakeDia) a.push({t:`Receita da casa em R$ ${brl(rakeDia,0)}/dia — abaixo da meta de ${brlk(gRakeDia)}`,
     s:`Faltam R$ ${brl(gRakeDia-rakeDia,0)}/dia. Puxar arrecadação (field) ou revisar a estrutura de rake.`});
+  // Transparência do gate: premiação de snapshot barrada por falta de carimbo de coleta.
+  // Espera-se >0 quando há dias antigos com fantasma da planilha (o que foi corrigido) — só é
+  // "erro" se o Brian reconhecer algum desses dias como fechado REAL. Nunca é descarte silencioso.
+  if(excl && excl.count>0){
+    const dd=excl.dates||[];
+    const per=dd.length?` em ${dd.length} dia${dd.length>1?'s':''} (${dd.slice(0,6).map(fmtDate).join(', ')}${dd.length>6?'…':''})`:'';
+    a.push({info:true, t:`${excl.count} premiaç${excl.count>1?'ões':'ão'} de snapshot sem carimbo foram excluídas — R$ ${brl(excl.value,0)}${per}`,
+      s:`São valores da coluna "Premiação" da planilha em snapshots antigos (nunca coletados). Se você reconhece algum desses dias como fechado de verdade, me avise para reprocessar.`});
+  }
   if(!a.length){ el.innerHTML=''; el.style.display='none'; return; }
   el.style.display='';
-  el.innerHTML=a.map(x=>`<div class="card" style="border:1px solid var(--red);background:color-mix(in srgb,var(--red) 8%,transparent);margin-bottom:12px;display:flex;gap:12px;align-items:center;padding:12px 14px">
-    <div style="font-size:22px;color:var(--red);line-height:1">⚠</div>
+  el.innerHTML=a.map(x=>{
+    const c = x.info ? 'var(--ink3)' : 'var(--red)';
+    const ic= x.info ? 'ℹ' : '⚠';
+    return `<div class="card" style="border:1px solid ${c};background:color-mix(in srgb,${c} 8%,transparent);margin-bottom:12px;display:flex;gap:12px;align-items:center;padding:12px 14px">
+    <div style="font-size:22px;color:${c};line-height:1">${ic}</div>
     <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:800;color:var(--ink)">${esc(x.t)}</div><div style="font-size:11px;color:var(--ink2);margin-top:1px">${esc(x.s)}</div></div>
-  </div>`).join('');
+  </div>`;}).join('');
 }
 
 // Receita por categoria (Main/Side/Satélite): onde o dinheiro entra e onde o overlay corrói.
@@ -3105,7 +3130,15 @@ function buildDaySheet(date){
       const key  = Object.keys(day.rows).find(k=>day.rows[k]===r)||'';
       // mesmo fallback de alias do flatRows: dados do card podem estar sob a chave ao vivo
       const pick = map => pickByKey(map, key, r);
-      const prem = pick(day.prem)??r.premiacao??null;
+      // MESMO gate do flatRows: premiação só conta com prova de coleta (premBy ao vivo ou
+      // premPor no snapshot). Sem isso, o export de histórico ressuscitava a premiação-fantasma
+      // da coluna "Premiação" da planilha nos snapshots antigos (inflava o Arrecadado ~5×).
+      const _pbGate = pick(day.premBy);
+      const _hasPremBy = _pbGate!=null && _pbGate!==false && _pbGate!=='';
+      const _snapHasPremPor = r.premPor!=null && r.premPor!==false && r.premPor!=='';
+      const prem = _hasPremBy ? (pick(day.prem) ?? null)
+                 : (r._snap && _snapHasPremPor) ? (r._snapPrem ?? null)
+                 : null;
       const gar  = pick(day.guar)??r.garantido??null;
       const field= pick(day.field)??r.field??null;
       const idRaw= pick(day.ids);

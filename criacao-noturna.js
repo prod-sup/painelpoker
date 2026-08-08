@@ -1441,6 +1441,15 @@ function renderAllNow(){
     const vw = sw.querySelector('.vwrap');
     if (vw) secScroll[sw.dataset.suit] = { t: vw.scrollTop, l: vw.scrollLeft };
   });
+  // ÂNCORA DE TOPO — quando o re-render vem da GU (auto-sync/upload), não há _lastTouchedKey e
+  // os banners de "X alterações" mudam a altura acima da lista, quebrando a restauração por pixel
+  // (winY) → a página "volta pro topo" e parece que o DIA VIROU. Guardar o 1º torneio visível e
+  // trazê-lo de volta à vista depois do rebuild segura a posição, independente de pixel/banner.
+  let _topAnchorKey = null;
+  if (!_lastTouchedKey){
+    const rows = document.querySelectorAll('#listArea [data-idkey], #listArea [data-done]');
+    for (const el of rows){ const r = el.getBoundingClientRect(); if (r.bottom > 90){ _topAnchorKey = el.getAttribute('data-idkey') || el.getAttribute('data-done'); break; } }
+  }
   renderOps();
   renderMySections();
   renderFilters();
@@ -1462,10 +1471,14 @@ function renderAllNow(){
     // não aponta mais pra mesma linha) — a coluna do torneio que você ACABOU de
     // mexer (ID digitado / criado marcado) é uma âncora que não depende de pixel
     // nenhum, então tem a palavra final por cima da restauração acima.
+    const esc = k => (window.CSS && CSS.escape) ? CSS.escape(k) : k;
     if (_lastTouchedKey){
-      const esc = k => (window.CSS && CSS.escape) ? CSS.escape(k) : k;
       const anchor = document.querySelector(`#listArea [data-idkey="${esc(_lastTouchedKey)}"], #listArea [data-done="${esc(_lastTouchedKey)}"]`);
       if (anchor) anchor.scrollIntoView({block: 'nearest', inline: 'nearest'});
+    } else if (_topAnchorKey){
+      // re-render da GU: recoloca o 1º torneio que estava visível no topo (segura a posição)
+      const anchor = document.querySelector(`#listArea [data-idkey="${esc(_topAnchorKey)}"], #listArea [data-done="${esc(_topAnchorKey)}"]`);
+      if (anchor) anchor.scrollIntoView({block: 'start', inline: 'nearest'});
     }
   };
   restoreScroll();
@@ -1936,15 +1949,22 @@ function renderAlerts(){
 }
 
 let ALLDONE_TOASTED = false;
-function renderAllDone(total, doneCount){
+/* Banner "trocar para o próximo dia" — REGRA DO BRIAN: só aparece quando o ÚLTIMO ID do
+   Pokerbyte foi preenchido (todos os torneios com ID), não quando marcam "criado". E é a
+   ÚNICA forma de virar o dia — atualizar a GU nunca troca o dia (o dia é sticky). */
+function renderAllDone(total, idsCount){
   const el = $('allDoneBanner');
-  const complete = total > 0 && doneCount >= total;
+  const complete = total > 0 && idsCount >= total;
   el.hidden = !complete;
   if (complete && !ALLDONE_TOASTED){
     ALLDONE_TOASTED = true;
-    showToast('🌙 Tudo criado! Toque em "Pular para o próximo dia" pra começar a próxima madrugada.');
+    showToast('🌙 Todos os IDs preenchidos! Toque em "Quero trocar para o próximo dia" pra começar a próxima madrugada.');
   }
   if (!complete) ALLDONE_TOASTED = false;
+}
+/* quantos torneios do dia já têm ID do Pokerbyte preenchido */
+function cnIdsFilledCount(items){
+  return items.filter(it => { const r = IDS[itemKey(it)]; return r && r.val != null && String(r.val).trim() !== ''; }).length;
 }
 /* GU é automática (planilha conectada em tempo real): "pular pro próximo dia" só
    re-aponta o caminho pro dia seguinte da grade (ACTIVE+1) e recarrega — o auto-sync
@@ -1990,7 +2010,9 @@ function renderStats(){
   const total = DATA.main.length + DATA.side.length + DATA.sat.length;
   const doneCount = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => DONE[itemKey(it)]).length;
   const pct = total ? Math.round(doneCount/total*100) : 0;
-  renderAllDone(total, doneCount);
+  // banner de troca de dia dispara pelos IDs preenchidos (regra do Brian), não pelos "criados"
+  const idsCount = cnIdsFilledCount([...DATA.main, ...DATA.side, ...DATA.sat]);
+  renderAllDone(total, idsCount);
   const side = sideSplit();
   const campCount = [...DATA.main, ...DATA.side, ...DATA.sat].filter(hasCampaign).length;
   $('stTotal').textContent = total;

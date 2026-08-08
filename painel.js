@@ -2527,6 +2527,7 @@ function initFirebaseSync(){
       FIXED_MAP = snap.val() || {};
       saveFixedMapLocal(FIXED_MAP);
       if(RAW_ROWS.length) scheduleUI('unfixed', 'stats', 'results', 'upcoming');
+      maybeAutoBackupSheets();   // fixar o último torneio pode completar o dia → dispara o auto-backup
     });
 
     // ── Flags (destaque manual que sobe ao topo) — compartilhado entre operadores ──
@@ -3121,11 +3122,23 @@ function sheetsRowsNow(){
   });
 }
 function sheetsDayComplete(){
-  // completo = todo torneio tem premiação OU está marcado NF (nada "aberto").
-  // Eventos de próximo cronograma (premiação cai no quadro do dia seguinte) NÃO contam
-  // como pendência — senão o dia nunca "fecharia" e o auto-backup jamais dispararia.
-  return RAW_ROWS.length > 0 &&
-    !RAW_ROWS.some(r => !r.proxCronograma && r.premiacao == null && (getId(r._key) || '').toUpperCase() !== 'NF');
+  // completo (regra do Brian) = OS DOIS:
+  //   (1) o ÚLTIMO ARRECADADO preenchido → todo torneio do dia tem premiação OU está NF;
+  //   (2) o ÚLTIMO TORNEIO do dia FIXADO → o torneio mais tarde na ordem da grade está fixado.
+  // Ordem da grade: a virada é 05:30, então horários de madrugada (<05:00) vão pro FIM do dia
+  // (+1440), igual ao sortByTime dos quadros. Eventos de próximo cronograma (premiação cai no
+  // quadro de amanhã) NÃO contam — senão o dia nunca fecharia. NF conta como "resolvido".
+  const DAY_START = 5*60;
+  const real = RAW_ROWS.filter(r => r && r.nome && !r.proxCronograma);
+  if(!real.length) return false;
+  const isNF = r => (getId(r._key) || '').toUpperCase() === 'NF';
+  // (1) nada "aberto": todo torneio tem arrecadado (premiação) ou é NF
+  if(real.some(r => r.premiacao == null && !isNF(r))) return false;
+  // (2) o último torneio do dia (maior posição na ordem da grade) está fixado (ou NF, já resolvido)
+  const gradeOrder = r => { const m = timeToMinutes(r.hora); const mm = (m==null?9999:m); return mm>=DAY_START ? mm : mm+1440; };
+  const last = real.reduce((a,b) => gradeOrder(b) >= gradeOrder(a) ? b : a);
+  if(!isFixed(last._key) && !isNF(last)) return false;
+  return true;
 }
 function maybeAutoBackupSheets(){
   try{
@@ -3153,6 +3166,32 @@ function maybeAutoBackupSheets(){
           else console.warn('[backup Sheets] falhou:', out && out.error || 'sem resposta');
         });
     }, 3500);   // deixa a rajada de listeners do Firebase assentar antes de mandar
+  }catch(_){}
+}
+
+/* Backup de FIM DE DIA — rede de segurança do auto-backup. Dispara na virada (resetDay),
+   ANTES de limpar o quadro. RESPEITA a mesma condição do envio normal (sheetsDayComplete:
+   último arrecadado preenchido + último torneio fixado) — não manda dia incompleto. Serve pra
+   pegar o caso em que o dia fechou mas o envio ao vivo não chegou a sair (evento perdido, rede).
+   Captura as rows AGORA (síncrono) porque o resetDay zera RAW_ROWS logo em seguida; o envio
+   async carrega a cópia já capturada. Degrada em silêncio se não estiver configurado. */
+function backupSheetsDayEnd(){
+  try{
+    if(typeof SupremaSheets === 'undefined') return;
+    if(!SHEETS_CFG || !SHEETS_CFG.url) return;             // backup não configurado
+    if(!sheetsDayComplete()) return;                        // regra do Brian: só após último arrecadado + último torneio fixado
+    const rows = sheetsRowsNow();
+    if(!rows.length) return;
+    const sig = SupremaSheets.signature(rows);
+    if(sig === _sheetsLastSig) return;                     // idêntico ao último envio (dia completo já mandou)
+    _sheetsLastSig = sig;
+    const dateIso = (FB_BASE_PATH || '').split('/').pop(); // dia da grade que está fechando
+    console.info('[backup Sheets] fim de dia — enviando backup (' + rows.length + ' torneios)…');
+    SupremaSheets.send({url:SHEETS_CFG.url, secret:SHEETS_CFG.secret||''}, dateIso, SupremaSheets.buildGrid(rows))
+      .then(out => {
+        if(out && out.ok){ try{ localStorage.setItem('suprema_last_sheets', Date.now()); }catch(_){} console.info('[backup Sheets] fim de dia ✓'); }
+        else console.warn('[backup Sheets] fim de dia falhou:', out && out.error || 'sem resposta');
+      }).catch(e => console.warn('[backup Sheets] fim de dia erro:', e && e.message || e));
   }catch(_){}
 }
 
@@ -8805,9 +8844,12 @@ function resetDay(forcedDate){
   const newPath = `painel/${forcedDate || todayPathSP()}`;
   const pathChanged = newPath !== FB_BASE_PATH;
 
-  // 0. Salvar snapshot do dia anterior antes de limpar
+  // 0. Salvar snapshot do dia anterior antes de limpar + backup de fim de dia pro Sheets.
+  //    O snapshot no Firebase é a fonte durável (nunca apagada); o Sheets é a cópia externa.
+  //    Os DOIS rodam ANTES de zerar RAW_ROWS, senão enviariam o quadro já em branco.
   if(RAW_ROWS.length && fbReady){
     saveSnapshotToFirebase('day_end').catch(()=>{});
+    backupSheetsDayEnd();   // rede de segurança: reenvia pro Sheets se o dia fechou mas o envio ao vivo falhou
   }
 
   // 1. Limpar todos os maps de estado do dia anterior
