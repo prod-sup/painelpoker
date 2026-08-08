@@ -1460,10 +1460,11 @@ function renderAllNow(){
   renderTV();
   renderSecFs();
   const restoreScroll = () => {
+    // Restaura scrollTop de cada tabela (será ajustado depois se houver scrollIntoView)
     document.querySelectorAll('#listArea .secwrap').forEach(sw => {
       const p = secScroll[sw.dataset.suit]; if (!p) return;
       const vw = sw.querySelector('.vwrap');
-      if (vw){ vw.scrollTop = p.t; vw.scrollLeft = p.l; }
+      if (vw){ vw.scrollTop = p.t; }
     });
     window.scrollTo(0, winY);
     // restauração por pixel quebra se um alerta/banner acima da lista mudou de
@@ -1480,6 +1481,12 @@ function renderAllNow(){
       const anchor = document.querySelector(`#listArea [data-idkey="${esc(_topAnchorKey)}"], #listArea [data-done="${esc(_topAnchorKey)}"]`);
       if (anchor) anchor.scrollIntoView({block: 'start', inline: 'nearest'});
     }
+    // Restaura scrollLeft DEPOIS de scrollIntoView (que pode sobrescrever a posição horizontal)
+    document.querySelectorAll('#listArea .secwrap').forEach(sw => {
+      const p = secScroll[sw.dataset.suit]; if (!p) return;
+      const vw = sw.querySelector('.vwrap');
+      if (vw){ vw.scrollLeft = p.l; }
+    });
   };
   restoreScroll();
   requestAnimationFrame(() => { restoreScroll(); _lastTouchedKey = null; });
