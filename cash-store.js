@@ -19,8 +19,15 @@ var INDEX='cashRosterIndex';           // nó pequeno no RTDB (metadados por sem
 var DIR='cash-roster/';                 // pasta no Storage
 var DBN='suprema-cash', STORE='roster', IDBV=1;
 
-function db(){ return (window.SupremaDB && SupremaDB.ready && SupremaDB.ready()) ? SupremaDB : null; }
-function available(){ var d=db(); return !!(d && d.storageOk && d.storageOk()); }
+function db(){ if(!window.SupremaDB) return null; try{ SupremaDB.init(); }catch(e){} return (SupremaDB.ready&&SupremaDB.ready())?SupremaDB:null; }
+function authUser(){ try{ return !!(window.firebase&&firebase.auth&&firebase.auth().currentUser); }catch(e){ return false; } }
+function available(){ var d=db(); return !!(d && d.storageOk && d.storageOk() && authUser()); }
+// explica POR QUE não dá pra compartilhar (mostrado no status)
+function reason(){ if(!window.SupremaDB)return 'módulo SupremaDB ausente'; try{SupremaDB.init();}catch(e){}
+  if(!(SupremaDB.ready&&SupremaDB.ready()))return 'Firebase não conectado';
+  if(!SupremaDB.storageOk())return 'SDK do Storage não carregado — republique o dashboard-mesa-cash.html';
+  if(!authUser())return 'sem login do Firebase (a sessão do hub não autenticou o Firebase Auth)';
+  return 'ok'; }
 function gzipOk(){ return typeof CompressionStream==='function' && typeof DecompressionStream==='function'; }
 function weekKey(meta){ var w=(meta&&meta.week)||''; var k=w.replace(/[^\d]/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,''); return k||('semana-'+(meta&&meta.generated||'').slice(0,10)); }
 
@@ -83,6 +90,6 @@ function restoreLast(){ return idbGet(LAST).then(function(key){ if(!key) return 
 function listLocal(){ return idb().then(function(d){ return new Promise(function(res){ var out=[]; var os=d.transaction(STORE,'readonly').objectStore(STORE);
   var cur=os.openKeyCursor?os.openKeyCursor():os.openCursor(); cur.onsuccess=function(e){ var c=e.target.result; if(c){ if(c.key!==LAST)out.push(String(c.key)); c.continue(); } else res(out); }; cur.onerror=function(){res(out);}; }); }).catch(function(){return [];}); }
 
-window.CashStore={ available:available, gzipOk:gzipOk, publish:publish, listWeeks:listWeeks, load:load, weekKey:weekKey,
+window.CashStore={ available:available, reason:reason, gzipOk:gzipOk, publish:publish, listWeeks:listWeeks, load:load, weekKey:weekKey,
   cacheLocal:cacheLocal, restoreLast:restoreLast, listLocal:listLocal, loadLocal:function(key){ return idbGet(key).then(function(b){ if(!b)throw new Error('não está no cache'); return gunzip(b).then(function(t){return JSON.parse(t);}); }); } };
 })();

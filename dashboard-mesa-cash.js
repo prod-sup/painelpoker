@@ -1705,9 +1705,12 @@ async function handleValidateUpload(input){
     const dias=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
     const keys=Object.keys(byDate).sort();
     const tbl=document.getElementById('validarPreviewTbl');
-    tbl.innerHTML=`<thead><tr><th>Data</th><th>Dia</th><th class="r">Sessões</th><th class="r">Fee Bruto</th><th class="r">Buyin</th><th class="r">Players</th><th></th></tr></thead><tbody>`+
+    tbl.innerHTML=`<thead><tr><th>Data</th><th>Dia</th><th class="r">Sessões</th><th class="r">Fee Bruto (cash)</th><th class="r">Buyin (cash)</th><th class="r">Players</th><th></th></tr></thead><tbody>`+
       keys.map(k=>{
-        const rs=byDate[k];const s=summarizeDay(rs);const d=rs[0].startTime;const lbl=dateLabel(d);
+        const rs=byDate[k];const d=rs[0].startTime;const lbl=dateLabel(d);
+        // preview CASH-ONLY (mesma conta do que é gravado: computeRaw filtra ring games)
+        const kpi=finalizeDataset(computeRaw(rs,lbl),lbl).kpi;
+        const s={sessions:kpi.sessions,fee:kpi.feeGross,buyin:kpi.buyinTotal,players:kpi.playersTotal};
         const dup=existing.find(x=>x.date===lbl);
         return`<tr><td class="b">${lbl}</td><td class="m">${dias[d.getDay()]}</td>
           <td class="r m">${f(s.sessions)}</td><td class="r b">R$ ${f(s.fee,0)}</td>

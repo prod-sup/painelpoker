@@ -161,7 +161,14 @@ window.cashRunIngest=runIngest;
 window.cashFeedRoster=function(roster){
   setRoster(roster);
   if(window.CashStore&&CashStore.cacheLocal)CashStore.cacheLocal(roster).catch(function(e){console.warn('cacheLocal',e);});
-  if(window.CashStore&&CashStore.available&&CashStore.available()) CashStore.publish(roster,{onProgress:function(){}}).then(function(k){ refreshWeeks(); }).catch(function(e){console.warn('publish',e);});
+  var note=function(msg){ [el('mxStatus'),el('validarStatus')].forEach(function(e){ if(e)e.innerHTML+=' <span style="color:var(--ink3)">· '+msg+'</span>'; }); };
+  if(window.CashStore&&CashStore.available&&CashStore.available()){
+    note('publicando pra todos…');
+    CashStore.publish(roster,{onProgress:function(){}}).then(function(k){ note('✓ publicado pra todos ('+k+')'); refreshWeeks(); })
+      .catch(function(e){ note('falha ao publicar: '+e.message); console.warn('publish',e); });
+  } else {
+    note('salvo neste navegador (não compartilhado: '+(window.CashStore&&CashStore.reason?CashStore.reason():'Storage indisponível')+')');
+  }
 };
 // wrapper com UI (aba Mesas — botão secundário)
 window.cashIngestFile=function(inp, onDone){
