@@ -132,42 +132,48 @@ function loadFromFile(file){
   rd.readAsText(file);
 }
 window.cashRosterLoadFile=function(inp){ if(inp&&inp.files&&inp.files[0])loadFromFile(inp.files[0]); };
-// entry-point ÚNICO: sobe o .xlsx completo (com Game Detail) → parse streaming → telas.
-// onDone(result) recebe { roster, gameStats } p/ quem quiser alimentar a pipeline de agregados.
+// runner reutilizável: parse do .xlsx em Web Worker (não trava a UI), fallback p/
+// thread principal. Retorna Promise<{roster, gameStats}>. Usado pelo "Importar
+// Semana" (alimenta TUDO) e pela aba Mesas.
+function runIngest(file, onProgress){
+  onProgress=onProgress||function(){};
+  return new Promise(function(resolve,reject){
+    if(!window.CashIngest||!CashIngest.supported()){ reject(new Error('Navegador sem suporte a leitura em streaming (use Chrome/Edge atualizado).')); return; }
+    var fellBack=false;
+    function mainThread(){ CashIngest.parse(file,{onProgress:onProgress}).then(resolve).catch(reject); }
+    if(typeof Worker==='function'){
+      try{
+        var w=new Worker('cash-ingest-worker.js');
+        w.onmessage=function(ev){ var d=ev.data||{};
+          if(d.type==='progress')onProgress(d.m,d.p);
+          else if(d.type==='done'){ w.terminate(); resolve(d.res); }
+          else if(d.type==='error'){ w.terminate(); reject(new Error(d.msg)); }
+        };
+        w.onerror=function(e){ if(fellBack)return; fellBack=true; w.terminate(); console.warn('worker falhou, thread principal',e); mainThread(); };
+        w.postMessage({file:file}); return;
+      }catch(e){ console.warn('sem worker, thread principal',e); }
+    }
+    mainThread();
+  });
+}
+window.cashRunIngest=runIngest;
+// alimenta as telas de jogador + salva local + compartilha (Importar Semana e aba Mesas usam)
+window.cashFeedRoster=function(roster){
+  setRoster(roster);
+  if(window.CashStore&&CashStore.cacheLocal)CashStore.cacheLocal(roster).catch(function(e){console.warn('cacheLocal',e);});
+  if(window.CashStore&&CashStore.available&&CashStore.available()) CashStore.publish(roster,{onProgress:function(){}}).then(function(k){ refreshWeeks(); }).catch(function(e){console.warn('publish',e);});
+};
+// wrapper com UI (aba Mesas — botão secundário)
 window.cashIngestFile=function(inp, onDone){
   var file=inp&&inp.files&&inp.files[0]; if(!file)return;
-  var st=el('mxStatus')||el('validarStatus');
-  var setSt=function(msg){ if(st)st.textContent=msg; };
-  if(!window.CashIngest||!CashIngest.supported()){ setSt('Navegador sem suporte a leitura em streaming (use Chrome/Edge atualizado).'); return; }
-  var bar=el('mxProgress'); var setBar=function(p){ if(bar)bar.style.width=(p||0)+'%'; };
+  var st=el('mxStatus'), bar=el('mxProgress');
+  var setSt=function(m){ if(st)st.textContent=m; }, setBar=function(p){ if(bar)bar.style.width=(p||0)+'%'; };
   setSt('Lendo '+(file.name||'planilha')+' ('+(file.size/1e6|0)+' MB)…'); setBar(2);
-  var onOk=function(res){
-    setRoster(res.roster); setBar(100);
-    setSt('Pronto: '+TABLES.length+' mesas, '+(ECO?ECO.players.toLocaleString('pt-BR'):'?')+' jogadores, '+(res.roster.meta.seats||0).toLocaleString('pt-BR')+' assentos.');
-    // rede de segurança: salva local SEMPRE (sobrevive ao F5, mesmo sem Firebase)
-    if(window.CashStore&&CashStore.cacheLocal){ CashStore.cacheLocal(res.roster).catch(function(e){console.warn('cacheLocal',e);}); }
-    if(typeof onDone==='function'){ try{ onDone(res); }catch(e){ console.error('onDone',e); } }
-  };
-  var onErr=function(err){ setBar(0); setSt('Erro: '+((err&&err.message)||err)); console.error('cashIngest',err); };
-  // Web Worker: parse em segundo plano → a interface NÃO congela. Fallback: thread principal.
-  var useWorker=(typeof Worker==='function');
-  if(useWorker){
-    try{
-      var w=new Worker('cash-ingest-worker.js');
-      w.onmessage=function(ev){ var d=ev.data||{};
-        if(d.type==='progress'){ setSt(d.m); setBar(d.p); }
-        else if(d.type==='done'){ w.terminate(); onOk(d.res); }
-        else if(d.type==='error'){ w.terminate(); onErr(new Error(d.msg)); }
-      };
-      w.onerror=function(e){ w.terminate(); console.warn('worker falhou, usando thread principal',e); mainThread(); };
-      w.postMessage({file:file});
-      return;
-    }catch(e){ console.warn('sem worker, thread principal',e); }
-  }
-  mainThread();
-  function mainThread(){
-    CashIngest.parse(file,{onProgress:function(msg,pct){ setSt(msg); setBar(pct); }}).then(onOk).catch(onErr);
-  }
+  runIngest(file,function(m,p){ setSt(m); setBar(p); }).then(function(res){
+    setBar(100); window.cashFeedRoster(res.roster);
+    setSt('Pronto: '+TABLES.length+' mesas, '+(ECO?ECO.players.toLocaleString('pt-BR'):'?')+' jogadores.');
+    if(typeof onDone==='function'){ try{ onDone(res); }catch(e){ console.error(e); } }
+  }).catch(function(err){ setBar(0); setSt('Erro: '+((err&&err.message)||err)); });
 };
 // permite carregar via fetch (dev harness / Storage já baixado)
 window.cashRosterLoadURL=function(url){ return fetch(url).then(function(r){return r.json();}).then(setRoster); };

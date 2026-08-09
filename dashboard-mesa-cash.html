@@ -722,18 +722,16 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="pgh-sub">Busque por Game ID, nome da mesa ou jogador · abra a mesa pra ver a lista exata de quem sentou (buy-in, resultado, fee, mãos).</div>
   </div>
   <div class="card" style="margin-bottom:12px">
-    <div class="ct">Carregar a semana</div>
-    <div class="cs">Suba a planilha completa (.xlsx com a aba Grand Union Game Detail) — o painel lê os jogadores direto no navegador, sem passo extra.</div>
+    <div class="ct">Semana</div>
+    <div class="cs">Escolha uma semana já publicada. Para carregar uma semana <b>nova</b>, suba a planilha uma vez na aba <b>Importar Semana</b> — ela alimenta estas telas e o dashboard de uma vez.</div>
     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px">
-      <label style="display:inline-block;background:var(--gold);color:#1a1205;font-weight:800;font-size:12px;border-radius:8px;padding:9px 16px;cursor:pointer">Subir planilha (.xlsx)
-        <input type="file" accept=".xlsx" style="display:none" onchange="cashIngestFile(this, window.cashOnIngest)"></label>
-      <span style="font-size:11px;color:var(--ink3)">ou abrir uma semana já publicada:</span>
-      <select id="mxWeekPicker" onchange="cashLoadWeek(this.value)" style="height:34px;border-radius:8px;border:1px solid var(--bdr);background:var(--surf);color:var(--ink);padding:0 8px;font-size:12px;min-width:220px">
+      <select id="mxWeekPicker" onchange="cashLoadWeek(this.value)" style="height:34px;border-radius:8px;border:1px solid var(--bdr);background:var(--surf);color:var(--ink);padding:0 8px;font-size:12px;min-width:260px">
         <option value="">— carregando semanas… —</option>
       </select>
+      <a onclick="pg('validar',document.querySelector('.nt:last-child'))" style="font-size:11px;color:var(--gold);cursor:pointer;font-weight:700">+ Importar semana nova</a>
     </div>
-    <div style="height:4px;border-radius:3px;background:var(--surf2);margin-top:10px;overflow:hidden"><div id="mxProgress" style="height:100%;width:0;background:var(--gold);transition:width .2s"></div></div>
-    <div id="mxStatus" style="font-size:11px;color:var(--ink3);margin-top:6px"></div>
+    <div id="mxStatus" style="font-size:11px;color:var(--ink3);margin-top:8px"></div>
+    <div id="mxProgress" style="display:none"></div>
   </div>
   <div id="mxControls"></div>
   <div id="mxList"></div>
@@ -785,27 +783,28 @@ document.addEventListener('DOMContentLoaded', () => {
 <div id="pg-validar" class="pg">
   <div class="pgh">
     <div class="pgh-label"><i class="ph ph-check-circle"></i> Validar Dados</div>
-    <div class="pgh-title">Importação Semanal com Validação</div>
-    <div class="pgh-sub">Envie uma planilha com uma semana inteira de sessões · revise o resumo por dia antes de confirmar a substituição no histórico</div>
+    <div class="pgh-title">Importar Semana — alimenta tudo</div>
+    <div class="pgh-sub">Suba <b>uma</b> planilha da semana. Ela alimenta o <b>dashboard diário</b> E as telas de jogador (<b>Mesas · Jogadores · Ecologia · Integridade · Rake</b>) de uma vez, e compartilha a semana pra todos. Lê em <b>streaming</b> — aguenta o relatório completo (com a aba Game Detail) sem travar.</div>
   </div>
   <div class="card" style="margin-bottom:12px">
-    <div class="ct">Selecionar planilha semanal</div>
-    <div class="cs">Aceita .xlsx com múltiplas datas nas colunas de Start Time · nenhum dado é salvo até você confirmar</div>
+    <div class="ct">Selecionar planilha semanal (.xlsx)</div>
+    <div class="cs">Relatório Suprema com as abas Grand Union Game Statistics e Game Detail · o histórico diário só grava depois que você confirmar</div>
     <label class="up-zone" style="display:block">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:28px;height:28px;color:var(--ink3);margin:0 auto"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
       <h3>Arraste ou clique para selecionar</h3>
-      <p>Planilha .xlsx com sessões de vários dias (mesmas colunas do relatório diário)</p>
+      <p>Planilha .xlsx da semana (o arquivo completo, mesmo grande)</p>
       <span class="btn-p">Escolher arquivo</span>
       <input type="file" accept=".xlsx" style="display:none" onchange="handleValidateUpload(this)">
     </label>
+    <div style="height:5px;border-radius:3px;background:var(--surf2);margin-top:12px;overflow:hidden"><div id="validarProgress" style="height:100%;width:0;background:var(--gold);transition:width .2s"></div></div>
+    <div id="validarStatus" style="font-size:11px;color:var(--ink3);margin-top:8px"></div>
   </div>
   <div class="card" id="validarPreviewCard" style="display:none;margin-bottom:12px">
-    <div class="ct">Pré-visualização por data</div>
-    <div class="cs">Confira sessões, fee bruto e buyin de cada dia encontrado no arquivo antes de gravar no histórico</div>
+    <div class="ct">Pré-visualização por data (histórico diário)</div>
+    <div class="cs">As telas de jogador já foram carregadas acima. Confira o resumo por dia e confirme p/ gravar no histórico diário.</div>
     <div class="tw"><table class="t" id="validarPreviewTbl"></table></div>
     <div style="margin-top:14px;display:flex;align-items:center;gap:10px">
-      <button class="btn-p" onclick="confirmarSemana()">Confirmar e substituir semana</button>
-      <span id="validarStatus" style="font-size:10px;color:var(--ink3)"></span>
+      <button class="btn-p" onclick="confirmarSemana()">Confirmar e gravar histórico diário</button>
     </div>
   </div>
 </div>

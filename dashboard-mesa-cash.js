@@ -1684,16 +1684,20 @@ let _weekRowsByDate=null;
 async function handleValidateUpload(input){
   const fl=input.files[0];if(!fl)return;
   const status=document.getElementById('validarStatus');
-  // GUARDA: o relatório COMPLETO (multi-aba, com Game Detail de 1,27GB) trava o
-  // SheetJS. Arquivos grandes vão pra aba "Mesas" (leitura em streaming).
-  if(fl.size > 70*1024*1024){
-    status.innerHTML=`${ic('warning',1)} Arquivo grande (${(fl.size/1e6|0)} MB). Este import é só do resumo diário e trava com o relatório completo. Use a aba <b>Mesas → "Subir planilha (.xlsx)"</b> — ela lê o arquivo inteiro (com jogadores) em streaming sem travar.`;
-    input.value=''; return;
-  }
-  status.innerHTML=`${ic('spinner',1)} Lendo arquivo…`;
+  const barEl=document.getElementById('validarProgress');
+  const setBar=p=>{ if(barEl)barEl.style.width=(p||0)+'%'; };
+  // Leitura em STREAMING (cash-ingest, sem SheetJS): aguenta o relatório completo
+  // (Game Detail de 1,27GB) SEM travar, e alimenta TUDO — dashboard diário + telas
+  // de jogador (Mesas/Jogadores/Ecologia/Integridade/Rake) + compartilha.
+  if(!window.cashRunIngest){ status.innerHTML=`${ic('x-circle',1)} Módulo de leitura não carregado. Dê um Ctrl+Shift+R e tente de novo.`; return; }
+  status.innerHTML=`${ic('spinner',1)} Lendo planilha (streaming, sem travar)…`; setBar(3);
   try{
-    const rows=await readRowsFromFile(fl);
-    if(!rows.length){status.innerHTML=`${ic('warning',1)} Nenhuma sessão com Start Time válido encontrada.`;return;}
+    const res=await window.cashRunIngest(fl,(m,p)=>{ status.innerHTML=`${ic('spinner',1)} ${esc(m)} (${p}%)`; setBar(p); });
+    // 1) telas de jogador (roster) + cache local + compartilhar
+    if(window.cashFeedRoster) window.cashFeedRoster(res.roster);
+    // 2) pipeline diário: normaliza as linhas da Game Statistics e monta o preview
+    const rows=(res.gameStats||[]).map(normalizeRow).filter(r=>r.startTime);
+    if(!rows.length){status.innerHTML=`${ic('warning',1)} Nenhuma sessão com Start Time válido encontrada.`;setBar(0);return;}
     const byDate={};
     rows.forEach(r=>{const k=dateKey(r.startTime);(byDate[k]=byDate[k]||[]).push(r);});
     _weekRowsByDate=byDate;
@@ -1711,9 +1715,11 @@ async function handleValidateUpload(input){
           <td class="r">${dup?`<span class="tag to">${ic('arrows-clockwise')} substitui</span>`:`<span class="tag tn">${ic('plus')} novo</span>`}</td></tr>`;
       }).join('')+'</tbody>';
     document.getElementById('validarPreviewCard').style.display='block';
-    status.innerHTML=`${ic('check-circle',1)} ${keys.length} dia(s) encontrados · confira antes de confirmar.`;
+    setBar(100);
+    const shared=(window.CashStore&&CashStore.available&&CashStore.available());
+    status.innerHTML=`${ic('check-circle',1)} ${keys.length} dia(s) lidos · <b>telas de jogador já carregadas</b>${shared?' e publicadas p/ todos':' (salvo neste navegador)'}. Confira e confirme p/ gravar o histórico diário.`;
   }catch(err){
-    status.innerHTML=`${ic('x-circle',1)} Erro: ${err.message}`;
+    status.innerHTML=`${ic('x-circle',1)} Erro: ${err.message}`; setBar(0);
   }
 }
 async function confirmarSemana(){
