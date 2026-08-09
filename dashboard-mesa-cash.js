@@ -1829,6 +1829,37 @@ async function exportWeekSummary(){
   // tabela diária
   const rows=week.map(d=>{const l=lostOf(d);return `<tr><td>${esc(d.date)}</td><td>${preview?'—':WD[parseDateLabel(d.date).getDay()]}</td><td class="r">${f(d.sessions)}</td><td class="r">${money(d.fee)}</td><td class="r">${money(d.netFee)}</td><td class="r">${f(d.players)}</td><td class="r">${(+d.feePerHand||0).toFixed(2)}</td><td class="r ${gDead&&(+d.deadPct||0)>gDead?'bad':''}">${f(d.deadPct,1)}%</td><td class="r">${f(d.takeRate,2)}%</td><td class="r">${money(l.cost)}</td></tr>`;}).join('');
 
+  // ── comparativo de roster (semana vs anterior) — do índice/digests do CashStore ──
+  let rosterCompareSec='';
+  try{
+    if(window.CashStore&&CashStore.available&&CashStore.available()){
+      const list=await CashStore.listWeeks();
+      const sorted=(list||[]).filter(w=>w&&w.key).sort((a,b)=>String(a.key).localeCompare(String(b.key)));
+      if(sorted.length>=2){
+        const last=sorted[sorted.length-1], prev=sorted[sorted.length-2];
+        if(last.rake!=null && prev.rake!=null){
+          const dpct=(c,p)=>{ if(!p) return '—'; const d=(c-p)/Math.abs(p)*100; return (d>=0?'+':'−')+Math.abs(d).toFixed(1)+'%'; };
+          const dpp=(c,p)=>{ const d=(+c||0)-(+p||0); return (d>=0?'+':'−')+Math.abs(d).toFixed(2)+' pp'; };
+          const rk=w=>money((+w.rake||0)*GU_TO_BRL);
+          let retTxt='';
+          try{
+            const [d1,d2]=await Promise.all([CashStore.loadDigest(prev.key),CashStore.loadDigest(last.key)]);
+            if(d1&&d2&&d1.ids&&d2.ids){ const cur={}; d2.ids.forEach(id=>cur[id]=1); let back=0; d1.ids.forEach(id=>{if(cur[id])back++;}); retTxt=(d1.ids.length?back/d1.ids.length*100:0).toFixed(1)+'%'; }
+          }catch(_){}
+          const tr=(l,cv,pv,dv)=>`<tr><td>${l}</td><td class="r">${cv}</td><td class="r">${pv}</td><td class="r">${dv}</td></tr>`;
+          const body=tr('Rake',rk(last),rk(prev),dpct(last.rake,prev.rake))
+            +tr('Jogadores únicos',f(last.players||0),f(prev.players||0),dpct(last.players||0,prev.players||0))
+            +tr('Take rate',f(last.takeRate||0,2)+'%',f(prev.takeRate||0,2)+'%',dpp(last.takeRate,prev.takeRate))
+            +tr('Assentos',f(last.seats||0),f(prev.seats||0),dpct(last.seats||0,prev.seats||0))
+            +(retTxt?tr('Retenção de jogadores',retTxt,'—',''):'');
+          rosterCompareSec=`<div class="sec">Roster — semana atual vs anterior</div>`
+            +`<div class="note">${esc(last.week||last.key)} comparada com ${esc(prev.week||prev.key)}.</div>`
+            +`<table><thead><tr><th>Métrica</th><th class="r">Atual</th><th class="r">Anterior</th><th class="r">Δ</th></tr></thead><tbody>${body}</tbody></table>`;
+        }
+      }
+    }
+  }catch(_){}
+
   const html=`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Resumo Semanal — Mesa Cash · ${esc(period)}</title>
 <style>
@@ -1888,6 +1919,7 @@ tr.sub td{border:none;padding:2px 10px 8px;font-size:10.5px;color:#8a857a}
     <div class="sec">Metas vs. real</div>
     ${(gDead||gFee||gTake)?`<table><thead><tr><th>Métrica</th><th>Meta</th><th>Real (média)</th><th>Status</th></tr></thead><tbody>${metasBody}</tbody></table>`:'<div class="note">Nenhuma meta definida no painel.</div>'}
     ${wdRows?`<div class="sec">Padrão por dia da semana</div><table><thead><tr><th>Dia</th><th class="r">Fee médio</th><th class="r">Mortas médias</th></tr></thead><tbody>${wdRows}</tbody></table>`:''}
+    ${rosterCompareSec}
     <div class="sec">Detalhe por dia</div>
     <table><thead><tr><th>Data</th><th>Dia</th><th class="r">Sessões</th><th class="r">Fee bruto</th><th class="r">Fee líq.</th><th class="r">Players</th><th class="r">Fee/mão</th><th class="r">Mortas</th><th class="r">Take</th><th class="r">Custo perdido</th></tr></thead><tbody>${rows}</tbody></table>
   </div>

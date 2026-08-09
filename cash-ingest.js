@@ -18,6 +18,20 @@
 var CASH_EXCLUDE=/^(SNG|MTT|TLT)/i;
 function isCash(t){ t=String(t||'').trim(); return t && !CASH_EXCLUDE.test(t) && t.toUpperCase()!=='RODEO'; }
 
+// Start/End Time no relatório vêm como SERIAL de data do Excel (número) — não como
+// texto. Converte pra ISO "AAAA-MM-DD HH:MM" (mesma matemática do toDate do
+// dashboard, hora LOCAL p/ bater com as datas do pipeline diário). Sem isso o
+// período da semana (min/max start) não era reconhecido e caía no fallback com a
+// data de geração ("semana-<hoje>"). Também conserta o start exibido no drawer/perfil.
+function pad2(n){ n=String(n); return n.length<2?('0'+n):n; }
+function toISO(v){
+  var d=null;
+  if(typeof v==='number'){ d=new Date(Math.round((v-25569)*86400*1000)); }
+  else { var s=String(v==null?'':v).trim(); if(!s)return ''; var t=new Date(s.replace(' ','T')); if(!isNaN(t)) d=t; else return s; }
+  if(!d||isNaN(d))return '';
+  return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())+' '+pad2(d.getHours())+':'+pad2(d.getMinutes());
+}
+
 // ── SCHEMA DAS COLUNAS (fonte única) ────────────────────────────────────────
 // Índices 0-based das abas do relatório Grand Union. Antes espalhados como c[4],
 // c[5]… em 3 lugares — se a Suprema mudar o layout, ajustar AQUI (e espelhar em
@@ -29,22 +43,30 @@ var GS={ id:4,name:5,creator:6,type:7,start:8,end:9,dur:10,feeRate:11,fee:12,
   bMin:20,bMax:21,sb:22,bb:23,ante:24,jpFee:31,jpPayout:32 };
 var GD={ club:3,name:4,id:5,agent:7,buyin:10,win:11,fee:12,hands:14,rank:29 };
 
-// Valida que cada coluna crítica está NA POSIÇÃO esperada, conferindo o cabeçalho
-// (linha 1) contra os nomes CONFIRMADOS (idênticos aos REQUIRED_COLUMNS do
-// dashboard). Se o relatório mudar o layout, avisa em vez de gerar número errado
-// silenciosamente — é a garantia de IDENTIFICAÇÃO dos dados.
-function validateHeader(h){
-  h=h||{};
-  var checks=[[GS.type,'Game Type'],[GS.start,'Start Time'],[GS.fee,'Fee'],
-    [GS.buyin,'Total Buyin'],[GS.players,'Players'],[GS.hands,'Hands']];
-  var issues=[];
-  for(var i=0;i<checks.length;i++){ var idx=checks[i][0], exp=checks[i][1];
-    var got=String(h[idx]==null?'':h[idx]).trim();
-    if(got.toLowerCase()!==exp.toLowerCase())
-      issues.push({sev:'error', msg:'Coluna "'+exp+'" deveria estar na posição '+(idx+1)+', mas o cabeçalho traz "'+(got||'(vazio)')+'". O layout do relatório mudou — os valores sairiam errados.'});
+// IMPORT AUTO-ADAPTÁVEL: em vez de confiar cegamente na POSIÇÃO, resolve cada
+// coluna pelo NOME no cabeçalho (linha 1) e cai na posição fixa só se o nome não
+// existir. Se o relatório reordenar colunas mantendo os nomes, o import se conserta
+// sozinho; se uma coluna CRÍTICA sumir pelo nome, vira erro (identificação garantida).
+var GS_NAMES={ id:'Game ID', name:'Game Name', creator:'Creator Name', type:'Game Type',
+  start:'Start Time', end:'End Time', dur:'Duration', feeRate:'Fee Rate', fee:'Fee',
+  adminFeeRate:'Admin Fee Rate', adminFee:'Admin Fee', buyin:'Total Buyin', players:'Players', hands:'Hands',
+  bMin:'Buy-in Min(GU)', bMax:'Buy-in Max(GU)', sb:'Small Blind(GU)', bb:'Big Blind(GU)', ante:'Ante(GU)',
+  jpFee:'Jackpot Fee(GU)', jpPayout:'Jackpot Payout(GU)' };
+var GS_CRITICAL={ type:1, start:1, fee:1, buyin:1, players:1, hands:1 }; // nomes 100% confirmados
+function resolveCols(header){
+  var byName={}; if(header) for(var k in header){ var nm=String(header[k]).trim().toLowerCase(); if(nm && byName[nm]==null) byName[nm]=+k; }
+  var cols={}, issues=[];
+  for(var f in GS){ var want=GS_NAMES[f];
+    var got = want!=null ? byName[String(want).toLowerCase()] : null;
+    if(got!=null){ cols[f]=got; }
+    else { cols[f]=GS[f];   // fallback: posição fixa
+      if(GS_CRITICAL[f] && header) issues.push({sev:'error', msg:'Coluna "'+want+'" não foi encontrada pelo nome no cabeçalho — usando a posição fixa '+(GS[f]+1)+'. O layout do relatório pode ter mudado; confira os valores.'});
+    }
   }
-  return issues;
+  return { cols:cols, issues:issues };
 }
+// mantido p/ teste isolado (retorna só as issues)
+function validateHeader(h){ return resolveCols(h).issues; }
 
 function supported(){ return typeof DecompressionStream==='function'; }
 
@@ -163,24 +185,24 @@ function parse(file, opts){
   }).then(function(gsXml){
     // ── Game Statistics: resumo por Game ID (só cash) + linhas cruas p/ pipeline ──
     var tables={}, cashIds={}, gameStats=[], header=null, re=/<row[^>]*r="(\d+)"[^>]*>([\s\S]*?)<\/row>/g, m;
+    var rr0=resolveCols(null), col=rr0.cols, headerIssues=rr0.issues;   // defaults = posição fixa
     while((m=re.exec(gsXml))){
-      if(m[1]==='1'){ header=parseCells(m[2],ss); continue; }
-      var c=parseCells(m[2],ss); var gt=c[GS.type]; if(gt===undefined)continue;
+      if(m[1]==='1'){ header=parseCells(m[2],ss); var rr=resolveCols(header); col=rr.cols; headerIssues=rr.issues; continue; }
+      var c=parseCells(m[2],ss); var gt=c[col.type]; if(gt===undefined)continue;
       // linha crua p/ a pipeline existente (nomes de coluna que ela espera)
       gameStats.push({
-        'Game ID':c[GS.id],'Game Name':c[GS.name],'Creator Name':c[GS.creator],'Game Type':c[GS.type],
-        'Start Time':c[GS.start],'End Time':c[GS.end],'Duration':c[GS.dur],'Fee Rate':c[GS.feeRate],'Fee':c[GS.fee],
-        'Admin Fee Rate':c[GS.adminFeeRate],'Admin Fee':c[GS.adminFee],'Total Buyin':c[GS.buyin],'Players':c[GS.players],'Hands':c[GS.hands],
-        'Buy-in Min(GU)':c[GS.bMin],'Buy-in Max(GU)':c[GS.bMax],'Small Blind(GU)':c[GS.sb],'Big Blind(GU)':c[GS.bb],'Ante(GU)':c[GS.ante],
-        'Jackpot Fee(GU)':c[GS.jpFee],'Jackpot Payout(GU)':c[GS.jpPayout]
+        'Game ID':c[col.id],'Game Name':c[col.name],'Creator Name':c[col.creator],'Game Type':c[col.type],
+        'Start Time':c[col.start],'End Time':c[col.end],'Duration':c[col.dur],'Fee Rate':c[col.feeRate],'Fee':c[col.fee],
+        'Admin Fee Rate':c[col.adminFeeRate],'Admin Fee':c[col.adminFee],'Total Buyin':c[col.buyin],'Players':c[col.players],'Hands':c[col.hands],
+        'Buy-in Min(GU)':c[col.bMin],'Buy-in Max(GU)':c[col.bMax],'Small Blind(GU)':c[col.sb],'Big Blind(GU)':c[col.bb],'Ante(GU)':c[col.ante],
+        'Jackpot Fee(GU)':c[col.jpFee],'Jackpot Payout(GU)':c[col.jpPayout]
       });
       if(!isCash(gt))continue;
-      var id=String(c[GS.id]); cashIds[id]=1;
-      tables[id]={id:+id,name:c[GS.name]||'',creator:c[GS.creator]||'',type:gt,start:c[GS.start]||'',end:c[GS.end]||'',dur:c[GS.dur]||'',
-        feeRate:+c[GS.feeRate]||0,fee:+c[GS.fee]||0,buyin:+c[GS.buyin]||0,players:+c[GS.players]||0,hands:+c[GS.hands]||0,
-        bMin:+c[GS.bMin]||0,bMax:+c[GS.bMax]||0,sb:+c[GS.sb]||0,bb:+c[GS.bb]||0,ante:+c[GS.ante]||0,jp:+c[GS.jpFee]||0,roster:[]};
+      var id=String(c[col.id]); cashIds[id]=1;
+      tables[id]={id:+id,name:c[col.name]||'',creator:c[col.creator]||'',type:gt,start:toISO(c[col.start]),end:toISO(c[col.end]),dur:c[col.dur]||'',
+        feeRate:+c[col.feeRate]||0,fee:+c[col.fee]||0,buyin:+c[col.buyin]||0,players:+c[col.players]||0,hands:+c[col.hands]||0,
+        bMin:+c[col.bMin]||0,bMax:+c[col.bMax]||0,sb:+c[col.sb]||0,bb:+c[col.bb]||0,ante:+c[col.ante]||0,jp:+c[col.jpFee]||0,roster:[]};
     }
-    var headerIssues=validateHeader(header);
     onP('Lendo jogadores (Game Detail — arquivo grande)…',20);
     // ── Game Detail em streaming: roster por mesa cash ──
     var detName=sf.of(GAMEDET);
@@ -258,5 +280,5 @@ var G=(typeof self!=='undefined')?self:window;
 G.CashIngest={ supported:supported, parse:parse,
   // exposto p/ teste isolado
   _readCentralDir:readCentralDir, _inflateToString:inflateToString, _sheetFiles:sheetFiles, _loadSS:loadSharedStrings,
-  _finalize:finalize, _validateHeader:validateHeader };
+  _finalize:finalize, _validateHeader:validateHeader, _resolveCols:resolveCols, _toISO:toISO };
 })();

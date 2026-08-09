@@ -37,6 +37,14 @@ function pid(x){ var n=+x; return Number.isFinite(n)&&String(x).trim()!==''?n:St
 // diferentes; agora fundem pela chave e mostram o 1º nome visto.
 function nname(x){ return String(x==null?'':x).trim().replace(/\s+/g,' '); }
 function nkey(x){ return nname(x).toUpperCase(); }
+// OVERRIDES de fusão manual (agente/clube não têm ID na planilha). Mapa
+// chave(upper) → nome canônico. Persistido no navegador (localStorage). Brian
+// funde "Golden HU"/"GoldenHU" numa entrada só. resolveName aplica na agregação.
+var OVERRIDES={agents:{},clubs:{}};
+function loadOverrides(){ try{ var o=JSON.parse(localStorage.getItem('cashOverrides')||'{}'); OVERRIDES={agents:o.agents||{},clubs:o.clubs||{}}; }catch(e){ OVERRIDES={agents:{},clubs:{}}; } }
+function saveOverrides(){ try{ localStorage.setItem('cashOverrides',JSON.stringify(OVERRIDES)); }catch(e){} }
+function resolveName(kind, raw){ var d=nname(raw)||'—'; var canon=OVERRIDES[kind] && OVERRIDES[kind][nkey(d)]; return canon?nname(canon):d; }
+loadOverrides();
 function stakeLabel(t){ if(t.sb&&t.bb) return brl(t.sb,t.sb<1?2:0)+'/'+brl(t.bb,t.bb<1?2:0); if(t.bb) return brl(t.bb,t.bb<1?2:0)+' BB'; return '—'; }
 function typeClean(t){ return String(t||'').trim(); }
 function durMin(t){ var raw=String(t.dur||'').trim(); if(!raw) return 0;
@@ -58,11 +66,11 @@ function buildAggregates(){
       if((s.w||0)>0)p.win++; else if((s.w||0)<0)p.loss++;
       if((s.w||0)>p.best)p.best=s.w||0; if((s.w||0)<p.worst)p.worst=s.w||0;
       if(!p.name&&s.n)p.name=s.n; if(!p.club&&s.club)p.club=s.club;
-      // agente (chave estável case-insensitive; nome = 1º visto)
-      var ad=nname(s.ag)||'—', ak=nkey(ad)||'—', a=AGENTS.get(ak); if(!a){ a={name:ad,players:new Set(),seats:0,fee:0,net:0,buyin:0}; AGENTS.set(ak,a); }
+      // agente (chave estável case-insensitive + overrides de fusão; nome = canônico/1º visto)
+      var ad=resolveName('agents', s.ag), ak=nkey(ad)||'—', a=AGENTS.get(ak); if(!a){ a={name:ad,players:new Set(),seats:0,fee:0,net:0,buyin:0}; AGENTS.set(ak,a); }
       a.players.add(s.id); a.seats++; a.fee+=s.fee||0; a.net+=s.w||0; a.buyin+=s.bi||0;
       // clube (idem)
-      var cd=nname(s.club)||'—', ck=nkey(cd)||'—', c=CLUBS.get(ck); if(!c){ c={name:cd,players:new Set(),seats:0,fee:0,net:0,buyin:0}; CLUBS.set(ck,c); }
+      var cd=resolveName('clubs', s.club), ck=nkey(cd)||'—', c=CLUBS.get(ck); if(!c){ c={name:cd,players:new Set(),seats:0,fee:0,net:0,buyin:0}; CLUBS.set(ck,c); }
       c.players.add(s.id); c.seats++; c.fee+=s.fee||0; c.net+=s.w||0; c.buyin+=s.bi||0;
       totalFee+=s.fee||0; totalBuyin+=s.bi||0;
     }
@@ -324,6 +332,29 @@ window.cashMxOpen=function(id){
 };
 window.cashMxClose=function(){ var d=el('mxDrawer'); if(d){d.classList.remove('open');d.innerHTML='';} document.body.style.overflow=''; };
 
+// ── modal de fusão de agentes/clubes (overrides) ────────────────────────────
+window.cashOpenOverrides=function(){
+  var ta='width:100%;height:120px;border-radius:8px;border:1px solid var(--bdr);background:var(--surf);color:var(--ink);padding:8px;font-size:12px;font-family:inherit';
+  var toLines=function(kind){ var o=OVERRIDES[kind]||{}; return Object.keys(o).map(function(k){return k+' => '+o[k];}).join('\n'); };
+  var d=el('mxDrawer'); if(!d)return;
+  d.innerHTML='<div class="mx-drawer-inner">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:14px;font-weight:800">Fundir agentes / clubes</div>'
+    +'<button onclick="cashMxClose()" style="background:none;border:1px solid var(--bdr);border-radius:8px;color:var(--ink);height:30px;padding:0 12px;cursor:pointer;font-size:12px">Fechar ✕</button></div>'
+    +'<div style="font-size:11px;color:var(--ink3);margin-bottom:10px">Uma linha por fusão: <b>VARIANTE =&gt; NOME CANÔNICO</b>. Ex.: <code>GOLDENHU =&gt; Golden HU</code>. A variante é comparada sem diferenciar maiúsculas. (Salvo neste navegador.)</div>'
+    +'<div style="font-size:12px;font-weight:700;margin:6px 0 2px">Agentes</div><textarea id="ovAgents" style="'+ta+'">'+esc(toLines('agents'))+'</textarea>'
+    +'<div style="font-size:12px;font-weight:700;margin:10px 0 2px">Clubes</div><textarea id="ovClubs" style="'+ta+'">'+esc(toLines('clubs'))+'</textarea>'
+    +'<div style="margin-top:10px"><button onclick="cashSaveOverrides()" style="background:var(--gold);border:none;border-radius:8px;color:#000;height:34px;padding:0 16px;cursor:pointer;font-size:13px;font-weight:700">Salvar e recalcular</button></div>'
+    +'</div>';
+  d.classList.add('open'); document.body.style.overflow='hidden';
+};
+window.cashSaveOverrides=function(){
+  var parse=function(txt){ var o={}; (txt||'').split('\n').forEach(function(ln){ var i=ln.indexOf('=>'); if(i<0)return; var k=nkey(ln.slice(0,i)); var v=nname(ln.slice(i+2)); if(k&&v)o[k]=v; }); return o; };
+  OVERRIDES={agents:parse((el('ovAgents')||{}).value), clubs:parse((el('ovClubs')||{}).value)};
+  saveOverrides();
+  PLAYERS=null; AGENTS=null; CLUBS=null; ECO=null;   // força re-agregação com as fusões
+  cashMxClose(); renderEco();
+};
+
 // ══════════════════════════════ PERFIL DE JOGADOR ══════════════════════════
 function playerPrompt(){ return '<div style="text-align:center;padding:40px 16px;color:var(--ink3);font-size:12px">Busque um jogador por nome ou ID para ver todas as mesas dele na semana.</div>'; }
 window.cashMpSearch=function(v){
@@ -367,9 +398,71 @@ window.cashMpOpen=function(id){
       +'<td class="r m">R$ '+brl(s.fee,2)+'</td><td class="r m">'+br(s.h)+'</td></tr>';
   }).join('');
   host.innerHTML=head+kpis
+    +'<div id="mpTraj"></div>'
     +'<div class="card" style="margin-top:12px"><div class="ct">Mesas jogadas ('+mine.length+')</div>'
     +'<div class="tw"><table class="t"><thead><tr><th>Início</th><th>Mesa</th><th>Tipo</th><th>Stake</th><th class="r">Buy-in</th><th class="r">Resultado</th><th class="r">Fee</th><th class="r">Mãos</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+  renderPlayerTrajectory(p.id);
 };
+
+// ── TRAJETÓRIA CROSS-SEMANA (identificação = seguir a pessoa no tempo) ───────
+// Usa os digests de TODAS as semanas (ids/net/fee) — sem reabrir rosters. Some
+// rake/resultado vitalício, semanas ativas, e desenha a evolução do resultado.
+var _allDigests=null, _allDigestsPromise=null;
+function ensureAllDigests(){
+  if(_allDigests) return Promise.resolve(_allDigests);
+  if(_allDigestsPromise) return _allDigestsPromise;
+  var online=!!(window.CashStore&&CashStore.available&&CashStore.available());
+  var getList = online ? CashStore.listWeeks().then(function(l){return (l||[]).map(function(w){return w.key;});})
+                       : (window.CashStore&&CashStore.listLocal?CashStore.listLocal():Promise.resolve([]));
+  _allDigestsPromise = getList.then(function(keys){
+    keys=(keys||[]).filter(Boolean);
+    var loadOne=function(k){ return online
+      ? CashStore.loadDigest(k).catch(function(){return null;})
+      : CashStore.loadLocal(k).then(function(r){return CashStore.buildDigest(r);}).catch(function(){return null;}); };
+    return Promise.all(keys.map(loadOne)).then(function(ds){
+      _allDigests=ds.filter(Boolean).sort(function(a,b){return String(a.key).localeCompare(String(b.key));});
+      return _allDigests;
+    });
+  }).catch(function(){ _allDigests=[]; return _allDigests; });
+  return _allDigestsPromise;
+}
+window.cashInvalidateDigests=function(){ _allDigests=null; _allDigestsPromise=null; };
+function renderPlayerTrajectory(playerId){
+  var host=el('mpTraj'); if(!host)return;
+  var pidN=pid(playerId);
+  host.innerHTML='<div class="card" style="margin-top:12px;color:var(--ink3);font-size:11px;padding:16px">Carregando trajetória multi-semana…</div>';
+  ensureAllDigests().then(function(ds){
+    if(!ds||ds.length<2){ host.innerHTML=''; return; }   // só faz sentido com 2+ semanas
+    var lifeNet=0, lifeFee=0, weeksActive=0, firstW=null, lastW=null, rows=[];
+    ds.forEach(function(d){
+      var idx=(d.ids||[]).indexOf(pidN);
+      if(idx<0){ rows.push({week:d.week,active:false}); return; }
+      var net=(d.net&&d.net[idx])||0, fee=(d.fee&&d.fee[idx])||0;
+      lifeNet+=net; lifeFee+=fee; weeksActive++; if(!firstW)firstW=d.week; lastW=d.week;
+      rows.push({week:d.week,active:true,net:net,fee:fee});
+    });
+    if(!weeksActive){ host.innerHTML=''; return; }
+    var pts=rows.filter(function(r){return r.active;}).map(function(r){return {x:r.week,y:Math.round(r.net*GU_TO_BRL)};});
+    var spark = pts.length>=2 ? svgLine(pts,{color:'var(--gold)',zero:true,fmt:function(v){return 'R$ '+fmtK(v);}}) : '';
+    var kc=function(l,v,s,c){ return '<div class="kpi'+(c?' '+c:'')+'"><div class="kl">'+l+'</div><div class="kv">'+v+'</div><div class="ks">'+(s||'')+'</div></div>'; };
+    var netCls=lifeNet>0?'c-green':(lifeNet<0?'c-amber':'');
+    var kpis='<div class="kg" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">'
+      +kc('Semanas ativo',br(weeksActive),'de '+ds.length+' publicadas')
+      +kc('Rake vitalício','R$ '+brl(lifeFee),'somando todas as semanas','hero')
+      +kc('Resultado vitalício',(lifeNet>=0?'+':'')+'R$ '+brl(lifeNet),'acumulado',netCls)
+      +kc('Primeira semana',esc(String(firstW||'—').slice(0,10)),'')
+      +kc('Última semana',esc(String(lastW||'—').slice(0,10)),'')
+      +'</div>';
+    var trows=rows.map(function(r){ if(!r.active) return '<tr style="opacity:.5"><td class="m">'+esc(String(r.week).slice(0,10))+'</td><td colspan="2" style="color:var(--ink3)">não jogou</td></tr>';
+      var wc=r.net>0?'style="color:#22c55e;font-weight:800"':(r.net<0?'style="color:#ef4444;font-weight:800"':'');
+      return '<tr><td class="m">'+esc(String(r.week).slice(0,10))+'</td><td class="r" '+wc+'>'+(r.net>=0?'+':'')+'R$ '+brl(r.net)+'</td><td class="r m">R$ '+brl(r.fee)+'</td></tr>'; }).join('');
+    host.innerHTML='<div class="card" style="margin-top:12px"><div class="ct">Trajetória — todas as semanas</div>'
+      +'<div class="cs">Segue este jogador ao longo do tempo (dos resumos, sem reabrir rosters)</div>'
+      +kpis
+      +(spark?'<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;margin-bottom:4px">Resultado por semana (R$)</div>'+spark+'</div>':'')
+      +'<div class="tw" style="margin-top:10px"><table class="t"><thead><tr><th>Semana</th><th class="r">Resultado</th><th class="r">Rake</th></tr></thead><tbody>'+trows+'</tbody></table></div></div>';
+  }).catch(function(){ host.innerHTML=''; });
+}
 
 // ══════════════════════════════ ECOLOGIA ═══════════════════════════════════
 function barRow(label, val, max, sub, color){
@@ -424,7 +517,10 @@ function renderEco(){
     +'<div class="card" style="margin-top:12px"><div class="ct">Saúde do ecossistema</div><div class="cs" style="margin-top:8px;line-height:1.6">'
       +'<b>'+lr.toFixed(0)+'%</b> perderam e <b>'+wr.toFixed(0)+'%</b> ganharam. Saudável = maioria perdendo pouco (recreativos) e poucos ganhando. '
       +'Veja a aba <b>Integridade</b> pra pares suspeitos de chip-dumping. '
-      +'<button onclick="cashExportEco()" style="margin-top:8px;background:none;border:1px solid var(--bdr);border-radius:8px;color:var(--ink);height:30px;padding:0 12px;cursor:pointer;font-size:12px">⬇ Exportar ecologia (XLSX)</button></div></div>';
+      +'<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'
+      +'<button onclick="cashExportEco()" style="background:none;border:1px solid var(--bdr);border-radius:8px;color:var(--ink);height:30px;padding:0 12px;cursor:pointer;font-size:12px">⬇ Exportar ecologia (XLSX)</button>'
+      +'<button onclick="cashOpenOverrides()" style="background:none;border:1px solid var(--bdr);border-radius:8px;color:var(--ink);height:30px;padding:0 12px;cursor:pointer;font-size:12px">⚙ Fundir agentes/clubes</button>'
+      +'</div></div></div>';
 }
 
 // ══════════════════════════════ INTEGRIDADE (conluio / chip-dumping) ═══════
@@ -511,16 +607,21 @@ function renderRake(){
 // só se o CashStore não tiver carregado.
 function weekDigest(roster){
   if(window.CashStore && CashStore.buildDigest) return CashStore.buildDigest(roster);
-  var T=Object.values(roster.tables||{}); var fee=0,buyin=0,seats=0,hands=0, net={};
+  var T=Object.values(roster.tables||{}); var fee=0,buyin=0,seats=0,hands=0, net={}, pf={};
   for(var i=0;i<T.length;i++){ var t=T[i]; fee+=t.fee||0; buyin+=t.buyin||0; hands+=t.hands||0;
-    var ro=t.roster||[]; for(var j=0;j<ro.length;j++){ var s=ro[j]; seats++; var id=+s.id; net[id]=(net[id]||0)+(s.w||0); } }
-  var ids=Object.keys(net).map(Number); var winners=0,losers=0,netTot=0, fish=[];
-  for(var k=0;k<ids.length;k++){ var v=net[ids[k]]; netTot+=v; if(v>0.001)winners++; else if(v<-0.001){losers++;fish.push(ids[k]);} }
+    var ro=t.roster||[]; for(var j=0;j<ro.length;j++){ var s=ro[j]; seats++; var id=+s.id; net[id]=(net[id]||0)+(s.w||0); pf[id]=(pf[id]||0)+(s.fee||0); } }
+  var ids=Object.keys(net).map(Number); var winners=0,losers=0,netTot=0, netArr=[], feeArr=[];
+  for(var k=0;k<ids.length;k++){ var v=net[ids[k]]; netTot+=v; if(v>0.001)winners++; else if(v<-0.001)losers++; netArr.push(Math.round(v)); feeArr.push(Math.round(pf[ids[k]]||0)); }
   return { key:weekKeyOf(roster), week:(roster.meta&&roster.meta.week)||weekKeyOf(roster),
     rake:fee, buyin:buyin, seats:seats, hands:hands, tables:T.length, players:ids.length,
-    winners:winners, losers:losers, netTot:netTot, takeRate:buyin?fee/buyin*100:0, ids:ids, fish:fish };
+    winners:winners, losers:losers, netTot:netTot, takeRate:buyin?fee/buyin*100:0, ids:ids, net:netArr, fee:feeArr };
 }
 function weekKeyOf(roster){ return (window.CashStore&&CashStore.weekKey)?CashStore.weekKey(roster.meta):((roster.meta&&roster.meta.week)||'semana'); }
+// fração (%) do rake vinda do top-`frac` dos jogadores (feeArr = fees por jogador do digest)
+function topShare(feeArr, frac){ if(!feeArr||!feeArr.length)return 0;
+  var arr=feeArr.slice().sort(function(a,b){return b-a;}); var tot=0; for(var i=0;i<arr.length;i++)tot+=arr[i];
+  if(tot<=0)return 0; var k=Math.max(1,Math.ceil(arr.length*frac)); var s=0; for(var j=0;j<k;j++)s+=arr[j];
+  return s/tot*100; }
 
 // gráfico de linha SVG (uma série, uma escala — regra dataviz). pts=[{x:label,y:num}]
 function svgLine(pts, opts){
@@ -532,14 +633,16 @@ function svgLine(pts, opts){
   var Y=function(v){ return h-pad - (v-mn)/(mx-mn)*(h-2*pad); };
   var d=pts.map(function(p,i){return (i?'L':'M')+X(i).toFixed(1)+' '+Y(p.y).toFixed(1);}).join(' ');
   var area='M'+X(0)+' '+(h-pad)+' '+pts.map(function(p,i){return 'L'+X(i).toFixed(1)+' '+Y(p.y).toFixed(1);}).join(' ')+' L'+X(pts.length-1)+' '+(h-pad)+' Z';
-  var dots=pts.map(function(p,i){return '<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(p.y).toFixed(1)+'" r="3.5" fill="'+color+'"><title>'+esc(p.x)+': '+esc(opts.fmt?opts.fmt(p.y):p.y)+'</title></circle>';}).join('');
+  var dots=pts.map(function(p,i){return '<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(p.y).toFixed(1)+'" r="4" fill="'+color+'"></circle>';}).join('');
+  // alvo de hover invisível bem maior que o marcador (regra dataviz) — segura o tooltip
+  var hit=pts.map(function(p,i){return '<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(p.y).toFixed(1)+'" r="12" fill="transparent" style="cursor:pointer"><title>'+esc(String(p.x).slice(0,10))+': '+esc(opts.fmt?opts.fmt(p.y):p.y)+'</title></circle>';}).join('');
   var labels=pts.map(function(p,i){return '<text x="'+X(i).toFixed(1)+'" y="'+(h-8)+'" text-anchor="middle" font-size="9" fill="var(--ink3)">'+esc(String(p.x).slice(5))+'</text>';}).join('');
   var yTop='<text x="4" y="'+(pad-6)+'" font-size="9" fill="var(--ink3)">'+esc(opts.fmt?opts.fmt(mx):mx)+'</text>';
   var yBot='<text x="4" y="'+(h-pad+3)+'" font-size="9" fill="var(--ink3)">'+esc(opts.fmt?opts.fmt(mn):mn)+'</text>';
   return '<svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:auto;overflow:visible">'
     +'<path d="'+area+'" fill="'+color+'" opacity="0.10"/>'
     +'<path d="'+d+'" fill="none" stroke="'+color+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
-    +dots+labels+yTop+yBot+'</svg>';
+    +dots+hit+labels+yTop+yBot+'</svg>';
 }
 
 var _digests=null;
@@ -559,12 +662,12 @@ function renderTendencias(){
       _digests = list.map(function(w){ return {
         key:w.key, week:w.week||w.key, rake:+w.rake||0, buyin:+w.buyin||0, seats:+w.seats||0,
         hands:+w.hands||0, tables:+w.tables||0, players:+w.players||0, winners:+w.winners||0,
-        losers:+w.losers||0, netTot:+w.netTot||0, takeRate:+w.takeRate||0, ids:null, fish:null };
+        losers:+w.losers||0, netTot:+w.netTot||0, takeRate:+w.takeRate||0, ids:null, net:null, fee:null };
       }).sort(function(a,b){return String(a.key).localeCompare(String(b.key));});
       drawTendencias();
-      // 2) retenção: busca só os digests (ids/fish), cache-first, e redesenha
+      // 2) retenção/concentração: busca só os digests (ids/net/fee), cache-first, e redesenha
       Promise.all(_digests.map(function(d){
-        return CashStore.loadDigest(d.key).then(function(g){ d.ids=g.ids||[]; d.fish=g.fish||[]; }).catch(function(){ /* sem digest p/ essa semana */ });
+        return CashStore.loadDigest(d.key).then(function(g){ d.ids=g.ids||[]; d.net=g.net||[]; d.fee=g.fee||[]; }).catch(function(){ /* sem digest p/ essa semana */ });
       })).then(function(){ drawTendencias(); });
     }).catch(function(e){ host.innerHTML='<div class="card" style="padding:24px;color:var(--ink3)">Erro ao carregar semanas: '+esc(e.message)+'</div>'; });
     return;
@@ -577,6 +680,34 @@ function renderTendencias(){
     return Promise.all(keys.map(function(k){ return CashStore.loadLocal(k).then(function(r){return weekDigest(r);}).catch(function(){return null;}); }))
       .then(function(ds){ _digests=ds.filter(Boolean).sort(function(a,b){return String(a.key).localeCompare(String(b.key));}); drawTendencias(); });
   }).catch(function(e){ host.innerHTML='<div class="card" style="padding:24px;color:var(--ink3)">Erro ao carregar semanas: '+esc(e.message)+'</div>'; });
+}
+// ── delta chip (variação vs semana anterior) — dataviz: mudança-no-tempo como
+// headline (stat tile), SEMPRE com seta (não cor sozinha). goodUp=true p/ todas
+// as métricas aqui (rake/jogadores/take/assentos: subir é bom pra operação).
+function deltaChip(cur, prev, mode){
+  var up, txt;
+  if(mode==='pp'){ var d=cur-prev; up=d>0.005?1:(d<-0.005?-1:0); txt=(d>=0?'+':'−')+Math.abs(d).toFixed(2)+' pp'; }
+  else { if(!prev){ return '<span style="font-size:10.5px;color:var(--ink3)">novo</span>'; }
+    var p=(cur-prev)/Math.abs(prev)*100; up=p>0.05?1:(p<-0.05?-1:0); txt=(p>=0?'+':'−')+Math.abs(p).toFixed(1)+'%'; }
+  var col=up>0?'#22c55e':(up<0?'#ef4444':'var(--ink3)');
+  var arrow=up>0?'▲':(up<0?'▼':'▬');
+  return '<span style="font-size:11px;font-weight:800;color:'+col+'">'+arrow+' '+txt+'</span>';
+}
+// card "semana atual vs anterior" — stat tiles com delta (forma certa p/ comparar 2 pontos)
+function weekDeltaCard(prev, last, ret){
+  var tile=function(l, val, chip, sub){ return '<div class="kpi"><div class="kl">'+l+'</div><div class="kv">'+val+'</div><div class="ks">'+chip+(sub?' · '+sub:'')+'</div></div>'; };
+  var tiles=''
+    + tile('Rake', 'R$ '+brl(last.rake), deltaChip(last.rake, prev.rake, 'pct'), 'antes R$ '+brl(prev.rake))
+    + tile('Jogadores únicos', br(last.players), deltaChip(last.players, prev.players, 'pct'), 'antes '+br(prev.players))
+    + tile('Take rate', last.takeRate.toFixed(2)+'%', deltaChip(last.takeRate, prev.takeRate, 'pp'), 'antes '+prev.takeRate.toFixed(2)+'%')
+    + tile('Assentos', br(last.seats), deltaChip(last.seats, prev.seats, 'pct'), 'antes '+br(prev.seats));
+  if(ret){
+    tiles += tile('Retenção', ret.retPct.toFixed(1)+'%', '<span style="font-size:10.5px;color:var(--ink3)">'+br(ret.returning)+' voltaram · '+br(ret.churn)+' saíram</span>', br(ret.newP)+' novos');
+    tiles += tile('Retenção de fish', ret.fishRetPct.toFixed(1)+'%', '<span style="font-size:10.5px;color:#22c55e">recreativos que voltaram</span>', 'liquidez sustentável');
+  }
+  return '<div class="card" style="margin-bottom:12px"><div class="ct">Semana atual vs anterior</div>'
+    +'<div class="cs">'+esc(String(last.week))+' comparada com '+esc(String(prev.week))+'</div>'
+    +'<div class="kg" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));margin-top:8px">'+tiles+'</div></div>';
 }
 function drawTendencias(){
   var host=el('mtrendBody'); var D=_digests||[];
@@ -591,12 +722,23 @@ function drawTendencias(){
   var pR=D.map(function(d){return {x:d.key,y:Math.round(d.rake*GU_TO_BRL)};});
   var pP=D.map(function(d){return {x:d.key,y:d.players};});
   var pT=D.map(function(d){return {x:d.key,y:+d.takeRate.toFixed(2)};});
+  // saúde do ecossistema: % que perde (fish) — dos escalares, sempre disponível
+  var pF=D.map(function(d){return {x:d.key,y:d.players?+(d.losers/d.players*100).toFixed(1):0};});
+  // concentração: fração do rake vinda do top-1% dos jogadores — precisa dos fees do digest
+  var haveFee=D.every(function(d){return d.fee&&d.fee.length;});
+  var pC=haveFee?D.map(function(d){return {x:d.key,y:+topShare(d.fee,0.01).toFixed(1)};}):null;
   var trends='<div class="card"><div class="ct">Tendências por semana</div><div class="cs">Cada gráfico tem UMA escala (comparável de verdade)</div>'
     +'<div class="g2" style="margin-top:10px">'
     +'<div><div style="font-size:11px;font-weight:700;margin-bottom:4px">Rake (R$)</div>'+svgLine(pR,{color:'var(--gold)',zero:true,fmt:function(v){return 'R$ '+fmtK(v);}})+'</div>'
     +'<div><div style="font-size:11px;font-weight:700;margin-bottom:4px">Jogadores únicos</div>'+svgLine(pP,{color:'#4e79a7',zero:true,fmt:function(v){return br(v);}})+'</div>'
     +'</div>'
-    +'<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;margin-bottom:4px">Take rate (%)</div>'+svgLine(pT,{color:'#59a14f',fmt:function(v){return v+'%';}})+'</div>'
+    +'<div class="g2" style="margin-top:10px">'
+    +'<div><div style="font-size:11px;font-weight:700;margin-bottom:4px">Take rate (%)</div>'+svgLine(pT,{color:'#59a14f',fmt:function(v){return v+'%';}})+'</div>'
+    +'<div><div style="font-size:11px;font-weight:700;margin-bottom:4px">Perdedores / recreativos (%)</div>'+svgLine(pF,{color:'#f28e2b',zero:true,fmt:function(v){return v+'%';}})+'</div>'
+    +'</div>'
+    +(pC?'<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;margin-bottom:4px">Concentração de rake — top 1% dos jogadores (%)</div>'
+       +'<div style="font-size:10px;color:var(--ink3);margin-bottom:2px">Subindo = receita mais dependente de poucos = mais frágil</div>'
+       +svgLine(pC,{color:'#b07aa1',zero:true,fmt:function(v){return v+'%';}})+'</div>':'')
     +'</div>';
   // retenção semana a semana — só pares onde os IDs (digest) já chegaram
   var ret=[]; for(var i=1;i<D.length;i++){ if(D[i-1].ids&&D[i].ids) ret.push(retentionBetween(D[i-1],D[i])); }
@@ -616,19 +758,68 @@ function drawTendencias(){
       +'<div class="tw"><table class="t"><thead><tr><th>Semana</th><th class="r">Voltaram</th><th class="r">Retenção</th><th class="r">Retenção fish</th><th class="r">Novos</th><th class="r">Saíram</th></tr></thead><tbody>'+rowsRet+'</tbody></table></div>'
       +'<div style="font-size:10.5px;color:var(--ink3);margin-top:8px">Fish = jogador com resultado líquido negativo na semana anterior. "Retenção fish" é a fração deles que jogou de novo.</div></div>';
   }
-  host.innerHTML=trends+'<div style="margin-top:12px">'+retCard+'</div>';
+  // headline: semana atual vs anterior (usa a retenção prev→last se os IDs chegaram)
+  var prev=D[D.length-2];
+  var lastRet=(prev.ids&&last.ids)?retentionBetween(prev,last):null;
+  var deltaCard=weekDeltaCard(prev,last,lastRet);
+  var online=!!(window.CashStore&&CashStore.available&&CashStore.available());
+  var toolbar=online?'<div style="display:flex;gap:6px;justify-content:flex-end;margin-bottom:8px">'
+    +'<button onclick="cashManageWeeks()" style="background:none;border:1px solid var(--bdr);border-radius:8px;color:var(--ink);height:30px;padding:0 12px;cursor:pointer;font-size:12px" title="Ver/remover semanas publicadas (limpar órfãos)">☰ Semanas</button>'
+    +'<button id="cashBackfillBtn" onclick="cashBackfill()" style="background:none;border:1px solid var(--bdr);border-radius:8px;color:var(--ink);height:30px;padding:0 12px;cursor:pointer;font-size:12px" title="Regera os resumos (digest) de semanas antigas p/ retenção/perfil funcionarem retroativo">⟳ Regerar resumos das semanas</button></div>':'';
+  host.innerHTML=toolbar+deltaCard+trends+'<div style="margin-top:12px">'+retCard+'</div>';
 }
+// gerenciar semanas publicadas (remover órfãos/rótulos errados)
+window.cashManageWeeks=function(){
+  var d=el('mxDrawer'); if(!d)return;
+  d.innerHTML='<div class="mx-drawer-inner">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:14px;font-weight:800">Semanas publicadas</div>'
+    +'<button onclick="cashMxClose()" style="background:none;border:1px solid var(--bdr);border-radius:8px;color:var(--ink);height:30px;padding:0 12px;cursor:pointer;font-size:12px">Fechar ✕</button></div>'
+    +'<div style="font-size:11px;color:var(--ink3);margin-bottom:10px">Remover uma semana apaga o índice, o arquivo do Storage e o cache. Use p/ limpar órfãos (ex.: rótulo de data errado antes da correção).</div>'
+    +'<div id="mwList">Carregando…</div></div>';
+  d.classList.add('open'); document.body.style.overflow='hidden';
+  cashRenderWeeksList();
+};
+function cashRenderWeeksList(){
+  var host=el('mwList'); if(!host)return;
+  var src=(window.CashStore&&CashStore.available&&CashStore.available())?CashStore.listWeeks():Promise.resolve([]);
+  src.then(function(list){
+    list=list||[];
+    if(!list.length){ host.innerHTML='<div style="color:var(--ink3);padding:16px">Nenhuma semana publicada.</div>'; return; }
+    host.innerHTML=list.map(function(w){ return '<div style="display:flex;justify-content:space-between;align-items:center;border:1px solid var(--bdr);border-radius:8px;padding:8px 12px;margin-bottom:6px">'
+      +'<div style="min-width:0"><b>'+esc(w.week||w.key)+'</b><div style="font-size:10.5px;color:var(--ink3)">chave '+esc(w.key)+' · '+(w.seats||0).toLocaleString('pt-BR')+' assentos'+(w.by?' · '+esc(w.by):'')+'</div></div>'
+      +'<button onclick="cashRemoveWeek(\''+esc(w.key)+'\')" style="background:none;border:1px solid #ef4444;border-radius:8px;color:#ef4444;height:30px;padding:0 12px;cursor:pointer;font-size:12px;white-space:nowrap">✕ Remover</button></div>'; }).join('');
+  }).catch(function(e){ host.innerHTML='<div style="color:#ef4444;padding:16px">Erro: '+esc(e.message)+'</div>'; });
+}
+window.cashRemoveWeek=function(key){
+  if(!(window.CashStore&&CashStore.removeWeek)){ alert('Indisponível.'); return; }
+  if(!confirm('Remover a semana "'+key+'"?\nApaga índice, arquivo do Storage e cache. Não dá pra desfazer.'))return;
+  CashStore.removeWeek(key).then(function(){
+    if(window.cashInvalidateDigests)cashInvalidateDigests();
+    cashRenderWeeksList(); refreshWeeks(); if(el('mtrendBody'))renderTendencias();
+  }).catch(function(e){ alert('Falha ao remover: '+((e&&e.message)||e)); });
+};
+// backfill: regera os digests de semanas publicadas antes da camada de digest
+window.cashBackfill=function(){
+  if(!(window.CashStore&&CashStore.backfillDigests&&CashStore.available&&CashStore.available())){ alert('Regerar resumos precisa do Firebase conectado.'); return; }
+  var btn=el('cashBackfillBtn'); if(btn){ btn.disabled=true; btn.textContent='Regerando…'; }
+  CashStore.backfillDigests(function(m){ if(btn)btn.textContent=m; }).then(function(r){
+    if(window.cashInvalidateDigests)cashInvalidateDigests();
+    renderTendencias();
+    alert('Resumos regenerados: '+(r.done||0)+'/'+(r.total||0)+' semana(s).');
+  }).catch(function(e){ if(btn){btn.disabled=false;btn.textContent='⟳ Regerar resumos das semanas';} alert('Falha ao regerar: '+((e&&e.message)||e)); });
+};
 // retenção via CONJUNTOS de IDs (leve): a=semana anterior, b=atual. fish = IDs
-// que perderam na semana anterior (a.fish).
+// que perderam na semana anterior (a.net[i]<0, paralelo a a.ids).
 function retentionBetween(a,b){
-  var prev=a.ids||[], curSet={}; var cur=b.ids||[];
+  var prev=a.ids||[], aNet=a.net||[], curSet={}; var cur=b.ids||[];
   for(var c=0;c<cur.length;c++)curSet[cur[c]]=1;
   var prevSet={}; for(var p=0;p<prev.length;p++)prevSet[prev[p]]=1;
-  var returning=0; for(var i=0;i<prev.length;i++){ if(curSet[prev[i]])returning++; }
-  var fishPrev=(a.fish||[]), fishBack=0; for(var k=0;k<fishPrev.length;k++){ if(curSet[fishPrev[k]])fishBack++; }
+  var returning=0, fishPrev=0, fishBack=0;
+  for(var i=0;i<prev.length;i++){ var back=curSet[prev[i]]; if(back)returning++;
+    if((aNet[i]||0)<0){ fishPrev++; if(back)fishBack++; } }
   var newP=0; for(var j=0;j<cur.length;j++){ if(!prevSet[cur[j]])newP++; }
   return { to:b.key, returning:returning, retPct:prev.length?returning/prev.length*100:0,
-    fishRetPct:fishPrev.length?fishBack/fishPrev.length*100:0, newP:newP, churn:prev.length-returning };
+    fishRetPct:fishPrev?fishBack/fishPrev*100:0, newP:newP, churn:prev.length-returning };
 }
 function snapshotCard(d){
   var kc=function(l,v,s,c){ return '<div class="kpi'+(c?' '+c:'')+'"><div class="kl">'+l+'</div><div class="kv">'+v+'</div><div class="ks">'+(s||'')+'</div></div>'; };

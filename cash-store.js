@@ -47,21 +47,23 @@ function weekKey(meta){ var w=(meta&&meta.week)||''; var k=w.replace(/[^\d]/g,'-
 
 // ── DIGEST por semana (o que resolve a escala) ──────────────────────────────
 // O roster completo (nomes + todas as mesas) é pesado e cresce sem parar. As
-// Tendências/Retenção NÃO precisam dele: precisam só de métricas escalares + o
-// conjunto de IDs que jogaram (e quais perderam = "fish"). Esse digest é ~100×
-// menor que o roster e não carrega PII de nome. Fica: escalares no índice RTDB
-// (baixados de graça no listWeeks) e IDs num arquivo .digest.json.gz pequeno.
+// Tendências/Retenção/Perfil-cross-semana NÃO precisam dele: precisam de métricas
+// escalares + por jogador o ID, o resultado (net) e o rake (fee). Guardamos 3
+// arrays PARALELOS (ids/net/fee) — sem PII de nome — ~40× menor que o roster e
+// suficiente pra retenção, concentração e trajetória do jogador. Escalares vão no
+// índice RTDB (grátis no listWeeks); ids/net/fee num .digest.json.gz pequeno.
+// "fish" = ids com net<0 (derivado, não guardado).
 function vals(o){ o=o||{}; return Object.keys(o).map(function(k){return o[k];}); }
 function buildDigest(roster){
-  var T=vals(roster&&roster.tables), fee=0,buyin=0,seats=0,hands=0, net={};
+  var T=vals(roster&&roster.tables), fee=0,buyin=0,seats=0,hands=0, net={}, pf={};
   for(var i=0;i<T.length;i++){ var t=T[i]; fee+=t.fee||0; buyin+=t.buyin||0; hands+=t.hands||0;
-    var ro=t.roster||[]; for(var j=0;j<ro.length;j++){ var s=ro[j]; seats++; var id=+s.id; net[id]=(net[id]||0)+(s.w||0); } }
-  var ids=Object.keys(net).map(Number), winners=0,losers=0,netTot=0, fish=[];
-  for(var k=0;k<ids.length;k++){ var v=net[ids[k]]; netTot+=v; if(v>0.001)winners++; else if(v<-0.001){losers++; fish.push(ids[k]);} }
+    var ro=t.roster||[]; for(var j=0;j<ro.length;j++){ var s=ro[j]; seats++; var id=+s.id; net[id]=(net[id]||0)+(s.w||0); pf[id]=(pf[id]||0)+(s.fee||0); } }
+  var ids=Object.keys(net).map(Number), winners=0,losers=0,netTot=0, netArr=[], feeArr=[];
+  for(var k=0;k<ids.length;k++){ var v=net[ids[k]]; netTot+=v; if(v>0.001)winners++; else if(v<-0.001)losers++; netArr.push(Math.round(v)); feeArr.push(Math.round(pf[ids[k]]||0)); }
   var meta=(roster&&roster.meta)||{};
   return { key:weekKey(meta), week:meta.week||weekKey(meta), rake:fee, buyin:buyin, seats:seats, hands:hands,
     tables:T.length, players:ids.length, winners:winners, losers:losers, netTot:netTot,
-    takeRate:buyin?fee/buyin*100:0, ids:ids, fish:fish };
+    takeRate:buyin?fee/buyin*100:0, ids:ids, net:netArr, fee:feeArr };
 }
 // registro do índice RTDB: SÓ escalares (sem ids/fish — esses vão pro arquivo digest)
 function indexRecord(key, roster, digest, by){
@@ -78,6 +80,7 @@ function idb(){ return new Promise(function(res,rej){ var r=indexedDB.open(DBN,I
   r.onsuccess=function(){res(r.result);}; r.onerror=function(){rej(r.error);}; }); }
 function idbGet(key){ return idb().then(function(d){ return new Promise(function(res,rej){ var t=d.transaction(STORE,'readonly').objectStore(STORE).get(key); t.onsuccess=function(){res(t.result);}; t.onerror=function(){rej(t.error);}; }); }); }
 function idbSet(key,val){ return idb().then(function(d){ return new Promise(function(res,rej){ var t=d.transaction(STORE,'readwrite').objectStore(STORE).put(val,key); t.onsuccess=function(){res();}; t.onerror=function(){rej(t.error);}; }); }); }
+function idbDel(key){ return idb().then(function(d){ return new Promise(function(res,rej){ var t=d.transaction(STORE,'readwrite').objectStore(STORE).delete(key); t.onsuccess=function(){res();}; t.onerror=function(){rej(t.error);}; }); }); }
 
 // ── gzip / gunzip via streams (sem libs) ────────────────────────────────────
 function gzip(str){ var blob=new Blob([str]); var s=blob.stream().pipeThrough(new CompressionStream('gzip')); return new Response(s).blob(); }
@@ -143,13 +146,66 @@ function loadDigest(key){
   }).then(function(blob){ return gunzip(blob); }).then(function(txt){ return JSON.parse(txt); });
 }
 
+// ── EVICTION do cache (escala): guarda o digest de TODAS as semanas (é minúsculo),
+// mas só os blobs de roster das últimas KEEP semanas — senão o IndexedDB cresce
+// sem fim por dispositivo. O digest de uma semana antiga continua servindo p/
+// Tendências/Retenção/Perfil; o roster completo dela recarrega do Storage sob demanda.
+var KEEP_ROSTERS=8;
+function pruneRosterCache(keepN){ keepN=keepN||KEEP_ROSTERS;
+  return idbGet(LAST).then(function(lastKey){
+    return listLocal().then(function(keys){
+      var rosterKeys=keys.filter(function(k){ return k.indexOf(DIGEST_PREFIX)!==0; }).sort(); // cronológico
+      var drop=rosterKeys.slice(0, Math.max(0, rosterKeys.length-keepN))
+        .filter(function(k){ return k!==lastKey; }); // nunca apaga a última (restoreLast)
+      return Promise.all(drop.map(function(k){ return idbDel(k).catch(function(){}); })).then(function(){ return drop.length; });
+    });
+  }).catch(function(){ return 0; });
+}
+
+// ── BACKFILL de digest: semanas publicadas ANTES da camada de digest não têm o
+// arquivo .digest nem os escalares no índice → geram buracos em Tendências/Retenção.
+// Isto reabre o roster completo dessas semanas, recria o digest e atualiza o índice.
+function backfillDigests(onProgress){ onProgress=onProgress||function(){};
+  var d=db(); if(!d||!available()) return Promise.reject(new Error('Firebase indisponível'));
+  return listWeeks().then(function(list){
+    var todo=(list||[]).filter(function(w){ return w && w.key && (w.rake==null || w.ids===undefined && w.players==null); });
+    if(!todo.length){ onProgress('Nada a regerar — todas as semanas já têm resumo.',100); return {done:0,total:0}; }
+    var done=0;
+    return todo.reduce(function(chain,w){ return chain.then(function(){
+      onProgress('Regerando '+(w.week||w.key)+'…', Math.round(done/todo.length*100));
+      return load(w.key).then(function(roster){
+        var digest=buildDigest(roster);
+        return gzip(JSON.stringify(digest)).then(function(dblob){
+          return idbSet(DIGEST_PREFIX+w.key,dblob).then(function(){ return d.storagePut(DIR+w.key+'.digest.json.gz', dblob, {contentType:'application/gzip'}); });
+        }).then(function(){ return d.set(INDEX+'/'+w.key, indexRecord(w.key, roster, digest, w.by||'')); })
+          .then(function(){ done++; });
+      }).catch(function(e){ console.warn('backfill',w.key,e); });
+    }); }, Promise.resolve()).then(function(){ onProgress('Pronto: '+done+'/'+todo.length+' semana(s) regenerada(s).',100); return {done:done,total:todo.length}; });
+  });
+}
+
+// ── remover uma semana (índice + Storage + digest + cache local) ────────────
+// Usado p/ limpar órfãos (ex.: semana rotulada errado antes da correção de data).
+function removeWeek(key){
+  var d=db();
+  var ps=[ idbDel(key).catch(function(){}), idbDel(DIGEST_PREFIX+key).catch(function(){}) ];
+  if(d){
+    ps.push(d.remove(INDEX+'/'+key).catch(function(){}));
+    if(d.storageDelete){ ps.push(d.storageDelete(DIR+key+'.json.gz').catch(function(){}));
+      ps.push(d.storageDelete(DIR+key+'.digest.json.gz').catch(function(){})); }
+  }
+  return Promise.all(ps).then(function(){ return key; });
+}
+
 // ── cache LOCAL sempre (rede de segurança: sobrevive ao F5 mesmo sem Firebase) ──
 var LAST='__last__';
 function cacheLocal(roster){ if(!gzipOk()) return Promise.resolve(null); var key=weekKey(roster.meta);
   // guarda o roster completo E o digest leve (retenção offline sem reabrir o blob)
   return gzip(JSON.stringify(roster)).then(function(blob){ return idbSet(key,blob); })
     .then(function(){ return gzip(JSON.stringify(buildDigest(roster))).then(function(db){ return idbSet(DIGEST_PREFIX+key,db); }).catch(function(){}); })
-    .then(function(){ return idbSet(LAST,key).then(function(){ return key; }); }); }
+    .then(function(){ return idbSet(LAST,key); })
+    .then(function(){ return pruneRosterCache().catch(function(){}); })
+    .then(function(){ return key; }); }
 function restoreLast(){ return idbGet(LAST).then(function(key){ if(!key) return null;
   return idbGet(key).then(function(blob){ if(!blob) return null; return gunzip(blob).then(function(t){ return JSON.parse(t); }); }); })
   .catch(function(){ return null; }); }
@@ -157,6 +213,6 @@ function listLocal(){ return idb().then(function(d){ return new Promise(function
   var cur=os.openKeyCursor?os.openKeyCursor():os.openCursor(); cur.onsuccess=function(e){ var c=e.target.result; if(c){ if(c.key!==LAST)out.push(String(c.key)); c.continue(); } else res(out); }; cur.onerror=function(){res(out);}; }); }).catch(function(){return [];}); }
 
 window.CashStore={ available:available, reason:reason, gzipOk:gzipOk, publish:publish, listWeeks:listWeeks, load:load, weekKey:weekKey,
-  buildDigest:buildDigest, loadDigest:loadDigest,
+  buildDigest:buildDigest, loadDigest:loadDigest, backfillDigests:backfillDigests, pruneRosterCache:pruneRosterCache, removeWeek:removeWeek,
   cacheLocal:cacheLocal, restoreLast:restoreLast, listLocal:listLocal, loadLocal:function(key){ return idbGet(key).then(function(b){ if(!b)throw new Error('não está no cache'); return gunzip(b).then(function(t){return JSON.parse(t);}); }); } };
 })();
