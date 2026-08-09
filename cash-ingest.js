@@ -187,7 +187,9 @@ function finalize(tables, gameStats, wb, seats){
   return { roster:{meta:meta, tables:tables}, gameStats:gameStats };
 }
 
-window.CashIngest={ supported:supported, parse:parse,
+// funciona tanto na thread principal (window) quanto dentro de um Web Worker (self)
+var G=(typeof self!=='undefined')?self:window;
+G.CashIngest={ supported:supported, parse:parse,
   // exposto p/ teste isolado
   _readCentralDir:readCentralDir, _inflateToString:inflateToString, _sheetFiles:sheetFiles, _loadSS:loadSharedStrings };
 })();

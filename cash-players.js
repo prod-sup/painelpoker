@@ -96,11 +96,31 @@ window.cashIngestFile=function(inp, onDone){
   if(!window.CashIngest||!CashIngest.supported()){ setSt('Navegador sem suporte a leitura em streaming (use Chrome/Edge atualizado).'); return; }
   var bar=el('mxProgress'); var setBar=function(p){ if(bar)bar.style.width=(p||0)+'%'; };
   setSt('Lendo '+(file.name||'planilha')+' ('+(file.size/1e6|0)+' MB)…'); setBar(2);
-  CashIngest.parse(file,{onProgress:function(msg,pct){ setSt(msg); setBar(pct); }}).then(function(res){
+  var onOk=function(res){
     setRoster(res.roster); setBar(100);
     setSt('Pronto: '+TABLES.length+' mesas, '+(ECO?ECO.players.toLocaleString('pt-BR'):'?')+' jogadores, '+(res.roster.meta.seats||0).toLocaleString('pt-BR')+' assentos.');
     if(typeof onDone==='function'){ try{ onDone(res); }catch(e){ console.error('onDone',e); } }
-  }).catch(function(err){ setBar(0); setSt('Erro: '+err.message); console.error('cashIngest',err); });
+  };
+  var onErr=function(err){ setBar(0); setSt('Erro: '+((err&&err.message)||err)); console.error('cashIngest',err); };
+  // Web Worker: parse em segundo plano → a interface NÃO congela. Fallback: thread principal.
+  var useWorker=(typeof Worker==='function');
+  if(useWorker){
+    try{
+      var w=new Worker('cash-ingest-worker.js');
+      w.onmessage=function(ev){ var d=ev.data||{};
+        if(d.type==='progress'){ setSt(d.m); setBar(d.p); }
+        else if(d.type==='done'){ w.terminate(); onOk(d.res); }
+        else if(d.type==='error'){ w.terminate(); onErr(new Error(d.msg)); }
+      };
+      w.onerror=function(e){ w.terminate(); console.warn('worker falhou, usando thread principal',e); mainThread(); };
+      w.postMessage({file:file});
+      return;
+    }catch(e){ console.warn('sem worker, thread principal',e); }
+  }
+  mainThread();
+  function mainThread(){
+    CashIngest.parse(file,{onProgress:function(msg,pct){ setSt(msg); setBar(pct); }}).then(onOk).catch(onErr);
+  }
 };
 // permite carregar via fetch (dev harness / Storage já baixado)
 window.cashRosterLoadURL=function(url){ return fetch(url).then(function(r){return r.json();}).then(setRoster); };

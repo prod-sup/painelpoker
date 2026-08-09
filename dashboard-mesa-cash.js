@@ -1684,6 +1684,12 @@ let _weekRowsByDate=null;
 async function handleValidateUpload(input){
   const fl=input.files[0];if(!fl)return;
   const status=document.getElementById('validarStatus');
+  // GUARDA: o relatório COMPLETO (multi-aba, com Game Detail de 1,27GB) trava o
+  // SheetJS. Arquivos grandes vão pra aba "Mesas" (leitura em streaming).
+  if(fl.size > 70*1024*1024){
+    status.innerHTML=`${ic('warning',1)} Arquivo grande (${(fl.size/1e6|0)} MB). Este import é só do resumo diário e trava com o relatório completo. Use a aba <b>Mesas → "Subir planilha (.xlsx)"</b> — ela lê o arquivo inteiro (com jogadores) em streaming sem travar.`;
+    input.value=''; return;
+  }
   status.innerHTML=`${ic('spinner',1)} Lendo arquivo…`;
   try{
     const rows=await readRowsFromFile(fl);
