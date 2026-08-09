@@ -249,7 +249,7 @@ function finalize(tables, gameStats, wb, seats, headerIssues){
   // ── VALIDAÇÃO (precisão + consistência) — o que garante que as visões formam certo ──
   // Header issues são de IDENTIFICAÇÃO (coluna certa). As checagens abaixo são
   // OBJETIVAS (não dependem de nome): usam invariantes que o próprio dashboard
-  // assume — Σfee(roster)=fee(mesa) e Σresultado ≈ −(rake+jackpot).
+  // assume — Σfee(roster)=fee(mesa) e Σresultado ≈ −rake (jackpot líquido é pequeno).
   var issues=(headerIssues||[]).slice();
   if(n>0 && withR===0) issues.push({sev:'error', msg:n+' mesas cash lidas, mas 0 com jogadores — o parse do Game Detail quebrou. Telas de jogador/ecologia ficam vazias.'});
   if(!week) issues.push({sev:'error', msg:'Nenhuma data de início válida — as visões diárias não podem ser formadas.'});
@@ -257,8 +257,13 @@ function finalize(tables, gameStats, wb, seats, headerIssues){
   if(withR>0){
     var feeDev=aggFeeT>0?Math.abs(aggFeeR-aggFeeT)/aggFeeT:0;
     if(feeDev>0.01) issues.push({sev:'warn', msg:'Soma do fee por jogador diverge '+(feeDev*100).toFixed(1)+'% do fee das mesas — a coluna Fee do Game Detail pode estar deslocada.'});
-    var winExp=-(aggFeeT+aggJp), winDev=Math.abs(aggWin-winExp)/Math.max(Math.abs(winExp),1);
-    if(winDev>0.03) issues.push({sev:'warn', msg:'Soma dos resultados dos jogadores não bate com −(rake+jackpot) — desvio '+(winDev*100).toFixed(1)+'%. Resultados/ecologia podem sair inconsistentes.'});
+    // Invariante ROBUSTA: num jogo saudável os jogadores perdem ≈ o RAKE. O jackpot
+    // LÍQUIDO (fee − payout) é uma fração pequena e o mapeamento dessas colunas é
+    // instável, então NÃO dependemos delas (antes o termo de jackpot dava falso
+    // positivo). Tolerância folgada (15%) acomoda jackpot/insurance/arredondamento;
+    // ainda pega erro grosseiro (coluna de resultado trocada afasta −Σresultado do rake).
+    var winExp=-aggFeeT, winDev=aggFeeT>0?Math.abs(aggWin-winExp)/aggFeeT:0;
+    if(winDev>0.15) issues.push({sev:'warn', msg:'Soma dos resultados dos jogadores está '+(winDev*100).toFixed(1)+'% distante do rake — verifique a coluna de resultado (Winnings) do Game Detail.'});
     var plDev=aggPlayersT>0?Math.abs(aggSeats-aggPlayersT)/aggPlayersT:0;
     if(plDev>0.03) issues.push({sev:'warn', msg:'Contagem de jogadores do roster diverge '+(plDev*100).toFixed(1)+'% do resumo das mesas.'});
     if(badFeeTables>0) issues.push({sev:'warn', msg:badFeeTables+' mesa(s) com fee do roster ≠ fee do resumo (>2%).'});
@@ -266,7 +271,7 @@ function finalize(tables, gameStats, wb, seats, headerIssues){
   var hasErr=issues.some(function(x){return x.sev==='error';});
   var validation={ level: hasErr?'error':(issues.length?'warn':'ok'), issues:issues,
     stats:{ cashTables:n, tablesWithRoster:withR, feeSummary:Math.round(aggFeeT), feeRoster:Math.round(aggFeeR),
-      winSum:Math.round(aggWin), winExpected:Math.round(-(aggFeeT+aggJp)), seats:aggSeats, playersSummary:aggPlayersT } };
+      winSum:Math.round(aggWin), winExpected:Math.round(-aggFeeT), seats:aggSeats, playersSummary:aggPlayersT } };
 
   // rosterEmpty = achou mesas cash mas NENHUMA casou com o Game Detail (formato
   // do título mudou) — mantido como flag separada p/ o gate de publicação.

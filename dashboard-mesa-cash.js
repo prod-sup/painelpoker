@@ -1695,7 +1695,7 @@ function renderValidationReport(v){
     +`<span>Com jogadores: <b>${f(st.tablesWithRoster||0)}</b></span>`
     +`<span>Fee resumo: <b>${money(st.feeSummary)}</b></span>`
     +`<span>Fee roster: <b>${money(st.feeRoster)}</b></span>`
-    +`<span>Σ resultados: <b>${money(st.winSum)}</b> (esperado ${money(st.winExpected)})</span>`
+    +`<span>Σ resultados: <b>${money(st.winSum)}</b> (≈ −rake ${money(st.winExpected)})</span>`
     +`<span>Assentos: <b>${f(st.seats||0)}</b></span></div>`;
   if(v.level==='ok'){
     return `<div style="margin-top:8px;padding:8px 12px;border-radius:8px;border:1px solid rgba(52,211,153,.4);background:rgba(52,211,153,.08)">`
