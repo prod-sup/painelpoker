@@ -180,9 +180,13 @@ function parse(file, opts){
   });
 }
 function finalize(tables, gameStats, wb, seats){
-  var withR=0, n=0; for(var id in tables){ n++; if(tables[id].roster.length){ withR++; tables[id].roster.sort(function(a,b){return (b.w||0)-(a.w||0);}); } }
-  var wkm=(wb.match(/Range: ([\d-]+ [\d:]+) to ([\d-]+ [\d:]+)/)||[]);
-  var week = wkm.length ? (wkm[1].slice(0,10)+'…'+wkm[2].slice(0,10)) : '';
+  var withR=0, n=0, minD=null, maxD=null;
+  for(var id in tables){ n++; var t=tables[id];
+    if(t.roster.length){ withR++; t.roster.sort(function(a,b){return (b.w||0)-(a.w||0);}); }
+    var s=String(t.start||'').trim().slice(0,10); if(/^\d{4}-\d{2}-\d{2}$/.test(s)){ if(!minD||s<minD)minD=s; if(!maxD||s>maxD)maxD=s; }
+  }
+  // período REAL dos dados (menor/maior data de início das mesas) — exato, sem depender do cabeçalho
+  var week = (minD&&maxD) ? (minD+'…'+maxD) : '';
   var meta={ week:week, generated:new Date().toISOString(), cashTables:n, tablesWithRoster:withR, seats:seats };
   return { roster:{meta:meta, tables:tables}, gameStats:gameStats };
 }

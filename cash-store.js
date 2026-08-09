@@ -66,18 +66,16 @@ function publish(roster, opts){
   var json=JSON.stringify(roster);
   return ensureAuth().then(function(){ onP('Compactando roster…',10); return gzip(json); }).then(function(blob){
     onP('Enviando '+(blob.size/1e6).toFixed(1)+' MB pro Storage…',35);
-    return idbSet(key,blob).then(function(){ return d.storagePut(path, blob, {contentType:'application/gzip'}); });
+    return idbSet(key,blob).then(function(){ return d.storagePut(path, blob, {contentType:'application/gzip'}); })
+      .catch(function(e){ throw new Error('Storage negou o upload ('+((e&&e.code)||(e&&e.message)||e)+') — verifique as regras do Storage'); });
   }).then(function(){
     onP('Registrando a semana…',85);
     var by=''; try{ by=(window.SupremaAuth&&SupremaAuth.getSession&&(SupremaAuth.getSession()||{}).email)||''; }catch(e){}
     return d.set(INDEX+'/'+key, { key:key, week:roster.meta.week||key, seats:roster.meta.seats||0,
-      tables:roster.meta.cashTables||0, updatedAt:Date.now(), by:by });
+      tables:roster.meta.cashTables||0, updatedAt:Date.now(), by:by })
+      .catch(function(e){ throw new Error('índice RTDB negou ('+((e&&e.message)||e)+') — publique a regra cashRosterIndex no RTDB'); });
   }).then(function(){ onP('Publicado.',100); return key; })
-  .catch(function(err){
-    var msg=(err&&err.message)||String(err), u=authEmail();
-    if(/permission|denied/i.test(msg)) msg='PERMISSION_DENIED '+(u?('(logado como '+u+' → REGRA do Storage não publicada como auth!=null)'):'(SEM usuário Firebase → faça login pelo hub)');
-    throw new Error(msg);
-  });
+  .catch(function(err){ var u=authEmail(); throw new Error(((err&&err.message)||String(err))+(u?' [logado: '+u+']':' [SEM login Firebase]')); });
 }
 
 // ── listar semanas disponíveis ──────────────────────────────────────────────
