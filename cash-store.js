@@ -21,17 +21,20 @@ var DBN='suprema-cash', STORE='roster', IDBV=1;
 
 function db(){ if(!window.SupremaDB) return null; try{ SupremaDB.init(); }catch(e){} return (SupremaDB.ready&&SupremaDB.ready())?SupremaDB:null; }
 function authUser(){ try{ return !!(window.firebase&&firebase.auth&&firebase.auth().currentUser); }catch(e){ return false; } }
-// garante um usuário do Firebase Auth (necessário p/ a regra do Storage). Se não há
-// usuário, tenta login ANÔNIMO (precisa do provedor Anonymous ligado no Console).
+// exige o usuário REAL do Firebase (o mesmo que já autoriza o RTDB). NÃO faz login
+// anônimo de propósito — isso enfraqueceria a regra `auth != null` do Storage (PII).
+// Espera o auth RESTAURAR (é assíncrono) antes de desistir.
 function ensureAuth(){
   return new Promise(function(resolve,reject){
     if(!(window.firebase&&firebase.auth)){ reject(new Error('SDK de auth ausente')); return; }
     var a=firebase.auth(); if(a.currentUser){ resolve(a.currentUser); return; }
-    if(a.signInAnonymously){ a.signInAnonymously().then(function(c){ resolve(c.user||a.currentUser); })
-      .catch(function(e){ reject(new Error('login anônimo falhou ('+(e.code||e.message)+') — ligue o provedor Anonymous no Console')); }); }
-    else reject(new Error('sem usuário do Firebase e sem login anônimo disponível'));
+    var done=false, off=null;
+    var to=setTimeout(function(){ if(done)return; done=true; if(off)off(); reject(new Error('sem usuário do Firebase — faça login pelo hub e recarregue')); }, 8000);
+    try{ off=a.onAuthStateChanged(function(u){ if(done)return; if(u){ done=true; clearTimeout(to); if(off)off(); resolve(u); } }); }
+    catch(e){ clearTimeout(to); reject(e); }
   });
 }
+function authEmail(){ try{ var u=firebase.auth().currentUser; return u?(u.email||u.uid):null; }catch(e){ return null; } }
 function available(){ var d=db(); return !!(d && d.storageOk && d.storageOk()); }
 // explica POR QUE não dá pra compartilhar (mostrado no status)
 function reason(){ if(!window.SupremaDB)return 'módulo SupremaDB ausente'; try{SupremaDB.init();}catch(e){}
@@ -69,7 +72,12 @@ function publish(roster, opts){
     var by=''; try{ by=(window.SupremaAuth&&SupremaAuth.getSession&&(SupremaAuth.getSession()||{}).email)||''; }catch(e){}
     return d.set(INDEX+'/'+key, { key:key, week:roster.meta.week||key, seats:roster.meta.seats||0,
       tables:roster.meta.cashTables||0, updatedAt:Date.now(), by:by });
-  }).then(function(){ onP('Publicado.',100); return key; });
+  }).then(function(){ onP('Publicado.',100); return key; })
+  .catch(function(err){
+    var msg=(err&&err.message)||String(err), u=authEmail();
+    if(/permission|denied/i.test(msg)) msg='PERMISSION_DENIED '+(u?('(logado como '+u+' → REGRA do Storage não publicada como auth!=null)'):'(SEM usuário Firebase → faça login pelo hub)');
+    throw new Error(msg);
+  });
 }
 
 // ── listar semanas disponíveis ──────────────────────────────────────────────
