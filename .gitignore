@@ -34,6 +34,12 @@ firebase_test.html
 sync_test.html
 firebase_import.json
 
+# Roster de jogadores / arquivos de dev — contêm PII (nomes/IDs de jogador).
+# NUNCA versionar (o repo é PÚBLICO). São gerados/baixados localmente.
+cash-roster*.json
+*roster*.json
+_dev-*
+
 # Credenciais / contas — NUNCA versionar (o repo é PÚBLICO)
 # Obs: brian_account.json já vazou no HISTÓRICO — ignorar aqui NÃO o remove do passado.
 brian_account.json

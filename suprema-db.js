@@ -132,7 +132,26 @@
     },
     // escape hatch p/ consultas avançadas (orderBy/limitTo/startAt) enquanto a
     // API neutra não cobre queries. Poucos usos (~11). Migrar por último.
-    rawRef: function (path) { return _ready ? _db.ref(path) : null; }
+    rawRef: function (path) { return _ready ? _db.ref(path) : null; },
+
+    /* ── STORAGE (blobs grandes: roster de jogadores etc.) ────────────────
+       RTDB é caro/limitado p/ blobs; arquivos grandes vão pro Storage. Ao
+       migrar, troca só aqui (ex.: S3/servidor interno). Requer o SDK
+       firebase-storage-compat carregado. */
+    storageOk: function () { return !!(global.firebase && global.firebase.storage); },
+    storagePut: function (path, blob, meta) {
+      if (!this.storageOk()) return Promise.reject(new Error('Storage indisponível'));
+      var ref = global.firebase.storage().ref(path);
+      return ref.put(blob, meta || {}).then(function () { return path; });
+    },
+    storageUrl: function (path) {
+      if (!this.storageOk()) return Promise.reject(new Error('Storage indisponível'));
+      return global.firebase.storage().ref(path).getDownloadURL();
+    },
+    storageDelete: function (path) {
+      if (!this.storageOk()) return Promise.resolve();
+      return global.firebase.storage().ref(path).delete();
+    }
   };
 
   /* ═══════════════════════════════════════════════════════════════════════
@@ -163,6 +182,15 @@
     onConnection: function (cb) { return Adapter.onConnection(cb); },
 
     rawRef: function (path) { return Adapter.rawRef(path); },
+
+    /* ── STORAGE (blobs grandes) ─────────────────────────────────────────── */
+    storageOk: function () { return Adapter.storageOk(); },
+    /* sobe um Blob. Retorna Promise<path>. */
+    storagePut: function (path, blob, meta) { return Adapter.storagePut(path, blob, meta); },
+    /* baixa como Blob (resolve a URL autenticada e faz fetch). */
+    storageDownload: function (path) { return Adapter.storageUrl(path).then(function (u) { return fetch(u).then(function (r) { if (!r.ok) throw new Error('download falhou '+r.status); return r.blob(); }); }); },
+    storageUrl: function (path) { return Adapter.storageUrl(path); },
+    storageDelete: function (path) { return Adapter.storageDelete(path); },
 
     /* ── CONTROLE DE ACESSO (segurança) ──────────────────────────────────
        Ponto único onde o app decide "quem pode usar". Delega identidade ao

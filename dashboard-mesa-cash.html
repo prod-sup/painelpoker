@@ -37,6 +37,7 @@
      persistida por origem carimba o token nas leituras/escritas daqui. -->
 <script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-storage-compat.js"></script>
 <script src="suprema-auth.js"></script>
 <script>/* portão: login mora no hub; exige acesso liberado a ESTE painel */ SupremaAuth.guard({ panel:'cash' }); SupremaAuth.revalidateAccess('cash');</script>
 <script src="suprema-motion.js"></script>
@@ -76,6 +77,10 @@ document.addEventListener('DOMContentLoaded', () => {
     <button class="nt" onclick="pg('stakes',this)">Stakes</button>
     <button class="nt" onclick="pg('salas',this)">Salas</button>
     <button class="nt" onclick="pg('eventos',this)">Eventos</button>
+    <button class="nt" onclick="pg('mesas',this)">Mesas</button>
+    <button class="nt" onclick="pg('jogador',this)">Jogadores</button>
+    <button class="nt" onclick="pg('ecologia',this)">Ecologia</button>
+    <button class="nt" onclick="pg('rake',this)">Rake &amp; Stakes</button>
     <button class="nt" onclick="pg('player',this)">Comportamento</button>
     <button class="nt" onclick="pg('medias',this)">Médias da Semana</button>
     <button class="nt" onclick="pg('hist',this)">Histórico</button>
@@ -708,6 +713,64 @@ document.addEventListener('DOMContentLoaded', () => {
 </div>
 
 <!-- ═══════════════ VALIDAR DADOS ═══ -->
+<!-- ═══════════════ EXPLORADOR DE MESAS ═══ -->
+<div id="pg-mesas" class="pg">
+  <div class="pgh">
+    <div class="pgh-label"><i class="ph-fill ph-table"></i> Explorador de Mesas · <span class="mx-week">—</span></div>
+    <div class="pgh-title">Quem jogou cada mesa</div>
+    <div class="pgh-sub">Busque por Game ID, nome da mesa ou jogador · abra a mesa pra ver a lista exata de quem sentou (buy-in, resultado, fee, mãos).</div>
+  </div>
+  <div class="card" style="margin-bottom:12px">
+    <div class="ct">Carregar a semana</div>
+    <div class="cs">Suba a planilha completa (.xlsx com a aba Grand Union Game Detail) — o painel lê os jogadores direto no navegador, sem passo extra.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px">
+      <label style="display:inline-block;background:var(--gold);color:#1a1205;font-weight:800;font-size:12px;border-radius:8px;padding:9px 16px;cursor:pointer">Subir planilha (.xlsx)
+        <input type="file" accept=".xlsx" style="display:none" onchange="cashIngestFile(this, window.cashOnIngest)"></label>
+      <span style="font-size:11px;color:var(--ink3)">ou abrir uma semana já publicada:</span>
+      <select id="mxWeekPicker" onchange="cashLoadWeek(this.value)" style="height:34px;border-radius:8px;border:1px solid var(--bdr);background:var(--surf);color:var(--ink);padding:0 8px;font-size:12px;min-width:220px">
+        <option value="">— carregando semanas… —</option>
+      </select>
+    </div>
+    <div style="height:4px;border-radius:3px;background:var(--surf2);margin-top:10px;overflow:hidden"><div id="mxProgress" style="height:100%;width:0;background:var(--gold);transition:width .2s"></div></div>
+    <div id="mxStatus" style="font-size:11px;color:var(--ink3);margin-top:6px"></div>
+  </div>
+  <div id="mxControls"></div>
+  <div id="mxList"></div>
+</div>
+
+<!-- ═══════════════ PERFIL DE JOGADOR ═══ -->
+<div id="pg-jogador" class="pg">
+  <div class="pgh">
+    <div class="pgh-label"><i class="ph-fill ph-user-focus"></i> Perfil de Jogador · <span class="mx-week">—</span></div>
+    <div class="pgh-title">A semana de um jogador</div>
+    <div class="pgh-sub">Todas as mesas que ele jogou, resultado líquido e o rake que ele gerou pra casa.</div>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:10px">
+    <input id="mpSearch" placeholder="Buscar jogador por nome ou ID…" oninput="cashMpSearch(this.value)" style="flex:1;height:34px;border-radius:8px;border:1px solid var(--bdr);background:var(--surf);color:var(--ink);padding:0 12px;font-size:12px">
+  </div>
+  <div id="mpBody"></div>
+</div>
+
+<!-- ═══════════════ ECOLOGIA ═══ -->
+<div id="pg-ecologia" class="pg">
+  <div class="pgh">
+    <div class="pgh-label"><i class="ph-fill ph-tree-structure"></i> Ecologia da Operação · <span class="mx-week">—</span></div>
+    <div class="pgh-title">Ganhadores × perdedores</div>
+    <div class="pgh-sub">Saúde do ecossistema: quem sustenta o jogo, quem drena, e de onde vem o rake (jogador, agente, clube).</div>
+  </div>
+  <div id="mecoBody"></div>
+</div>
+
+<!-- ═══════════════ RAKE REAL + STAKES ═══ -->
+<div id="pg-rake" class="pg">
+  <div class="pgh">
+    <div class="pgh-label"><i class="ph-fill ph-percent"></i> Rake &amp; Stakes · <span class="mx-week">—</span></div>
+    <div class="pgh-title">De onde vem o rake, com precisão</div>
+    <div class="pgh-sub">Rake por stake exato (SB/BB), fee rate configurado (detecta vazamento), tipo de jogo e profundidade de stack.</div>
+  </div>
+  <div id="mrakeBody"></div>
+</div>
+
 <div id="pg-validar" class="pg">
   <div class="pgh">
     <div class="pgh-label"><i class="ph ph-check-circle"></i> Validar Dados</div>
@@ -739,11 +802,19 @@ document.addEventListener('DOMContentLoaded', () => {
 </div><!-- /wrap -->
 </div><!-- /app -->
 
+<!-- Drawer do Explorador de Mesas (overlay com o roster da mesa) -->
+<div id="mxDrawer" onclick="if(event.target===this)cashMxClose()"></div>
+
 <script src="suprema-db.js"></script>
 <!-- O Feltro: fundo WebGL da Suprema TV, reaproveitado no modo TV daqui.
      defer porque só sobe quando o telão abre — não atrasa o caminho crítico. -->
 <script defer src="suprema-feltro.js"></script>
 <script src="dashboard-mesa-cash.js"></script>
+<!-- Explorador de Mesas / Jogadores / Ecologia: ingest streaming do xlsx (sem SheetJS) + telas.
+     PII (roster) fica local/IndexedDB + Firebase Storage autenticado — nunca no repo público. -->
+<script defer src="cash-ingest.js"></script>
+<script defer src="cash-store.js"></script>
+<script defer src="cash-players.js"></script>
 <!-- ⌘K command palette (navegação + ações; o cash pluga a busca de seções) -->
 <script defer src="suprema-palette.js"></script>
 <script src="suprema-presence.js"></script>
