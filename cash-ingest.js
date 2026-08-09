@@ -156,7 +156,7 @@ function parse(file, opts){
     // ── Game Detail em streaming: roster por mesa cash ──
     var detName=sf.of(GAMEDET);
     if(!detName){ // sem Game Detail → só resumo (sem roster)
-      return finalize(tables, gameStats, sf.wb, 0);
+      return finalize(tables, gameStats, sf.wb, 0, ss);
     }
     var det=zip.map[detName], totalComp=det?det.compSize:0;
     var curId=null, skip=true, seats=0, lastPct=20;
@@ -176,7 +176,7 @@ function parse(file, opts){
       seats++;
     }, function(bytes){
       if(totalComp){ var p=20+Math.min(74, Math.round(bytes/totalComp*74)); if(p>lastPct){lastPct=p; onP('Lendo jogadores… '+(bytes/1e6|0)+' MB',p);} }
-    }).then(function(){ return finalize(tables, gameStats, sf.wb, seats); });
+    }).then(function(){ return finalize(tables, gameStats, sf.wb, seats, ss); });
   });
 }
 function finalize(tables, gameStats, wb, seats){

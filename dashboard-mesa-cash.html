@@ -81,6 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <button class="nt" onclick="pg('jogador',this)">Jogadores</button>
     <button class="nt" onclick="pg('ecologia',this)">Ecologia</button>
     <button class="nt" onclick="pg('integridade',this)">Integridade</button>
+    <button class="nt" onclick="pg('tendencias',this)">Tendências</button>
     <button class="nt" onclick="pg('rake',this)">Rake &amp; Stakes</button>
     <button class="nt" onclick="pg('player',this)">Comportamento</button>
     <button class="nt" onclick="pg('medias',this)">Médias da Semana</button>
@@ -768,6 +769,16 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="pgh-sub">Pares heads-up com transferência unidirecional — um jogador quase sempre perde pro mesmo adversário. Sinal de investigação, não prova.</div>
   </div>
   <div id="mintBody"></div>
+</div>
+
+<!-- ═══════════════ TENDÊNCIAS MULTI-SEMANA ═══ -->
+<div id="pg-tendencias" class="pg">
+  <div class="pgh">
+    <div class="pgh-label"><i class="ph-fill ph-chart-line-up"></i> Tendências · multi-semana</div>
+    <div class="pgh-title">Para onde a operação está indo</div>
+    <div class="pgh-sub">Rake, jogadores e take rate semana a semana + <b>retenção de fish</b> (recreativos que voltam = liquidez sustentável). Ativa com 2+ semanas publicadas.</div>
+  </div>
+  <div id="mtrendBody"></div>
 </div>
 
 <!-- ═══════════════ RAKE REAL + STAKES ═══ -->

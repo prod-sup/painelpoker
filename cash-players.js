@@ -160,11 +160,11 @@ window.cashRunIngest=runIngest;
 // alimenta as telas de jogador + salva local + compartilha (Importar Semana e aba Mesas usam)
 window.cashFeedRoster=function(roster){
   setRoster(roster);
-  if(window.CashStore&&CashStore.cacheLocal)CashStore.cacheLocal(roster).catch(function(e){console.warn('cacheLocal',e);});
+  if(window.CashStore&&CashStore.cacheLocal)CashStore.cacheLocal(roster).then(function(){ if(el('mtrendBody'))renderTendencias(); }).catch(function(e){console.warn('cacheLocal',e);});
   var note=function(msg){ [el('mxStatus'),el('validarStatus')].forEach(function(e){ if(e)e.innerHTML+=' <span style="color:var(--ink3)">· '+msg+'</span>'; }); };
   if(window.CashStore&&CashStore.available&&CashStore.available()){
     note('publicando pra todos…');
-    CashStore.publish(roster,{onProgress:function(){}}).then(function(k){ note('✓ publicado pra todos ('+k+')'); refreshWeeks(); })
+    CashStore.publish(roster,{onProgress:function(){}}).then(function(k){ note('✓ publicado pra todos ('+k+')'); refreshWeeks(); if(el('mtrendBody'))renderTendencias(); })
       .catch(function(e){ note('falha ao publicar: '+e.message); console.warn('publish',e); });
   } else {
     note('salvo neste navegador (não compartilhado: '+(window.CashStore&&CashStore.reason?CashStore.reason():'Storage indisponível')+')');
@@ -482,6 +482,111 @@ function renderRake(){
   host.innerHTML=kpis+stakeTbl+'<div class="g2" style="margin-top:12px">'+rateCard+typeCard+'</div>'+'<div style="margin-top:12px">'+depthCard+'</div>';
 }
 
+// ══════════════════════════════ TENDÊNCIAS MULTI-SEMANA + RETENÇÃO ═════════
+// Digest compacto de uma semana (métricas + resultado por jogador). Sem nomes.
+function weekDigest(roster){
+  var T=Object.values(roster.tables||{}); var fee=0,buyin=0,seats=0,hands=0;
+  var net={}, pfee={};
+  for(var i=0;i<T.length;i++){ var t=T[i]; fee+=t.fee||0; buyin+=t.buyin||0; hands+=t.hands||0;
+    var ro=t.roster||[]; for(var j=0;j<ro.length;j++){ var s=ro[j]; seats++; net[s.id]=(net[s.id]||0)+(s.w||0); pfee[s.id]=(pfee[s.id]||0)+(s.fee||0); } }
+  var players=Object.keys(net); var winners=0,losers=0,netTot=0;
+  for(var k=0;k<players.length;k++){ var v=net[players[k]]; netTot+=v; if(v>0.001)winners++; else if(v<-0.001)losers++; }
+  return { key:weekKeyOf(roster), week:(roster.meta&&roster.meta.week)||weekKeyOf(roster),
+    rake:fee, buyin:buyin, seats:seats, hands:hands, tables:T.length, players:players.length,
+    winners:winners, losers:losers, netTot:netTot, takeRate:buyin?fee/buyin*100:0, net:net, pfee:pfee };
+}
+function weekKeyOf(roster){ return (window.CashStore&&CashStore.weekKey)?CashStore.weekKey(roster.meta):((roster.meta&&roster.meta.week)||'semana'); }
+
+// gráfico de linha SVG (uma série, uma escala — regra dataviz). pts=[{x:label,y:num}]
+function svgLine(pts, opts){
+  opts=opts||{}; var w=opts.w||520, h=opts.h||150, pad=28, color=opts.color||'var(--gold)';
+  if(!pts.length) return '<div style="color:var(--ink3);font-size:11px;padding:16px">sem dados</div>';
+  var ys=pts.map(function(p){return p.y;}); var mn=Math.min.apply(null,ys), mx=Math.max.apply(null,ys);
+  if(opts.zero)mn=Math.min(0,mn); if(mx===mn)mx=mn+1;
+  var X=function(i){ return pad + (pts.length<=1? (w-2*pad)/2 : i*(w-2*pad)/(pts.length-1)); };
+  var Y=function(v){ return h-pad - (v-mn)/(mx-mn)*(h-2*pad); };
+  var d=pts.map(function(p,i){return (i?'L':'M')+X(i).toFixed(1)+' '+Y(p.y).toFixed(1);}).join(' ');
+  var area='M'+X(0)+' '+(h-pad)+' '+pts.map(function(p,i){return 'L'+X(i).toFixed(1)+' '+Y(p.y).toFixed(1);}).join(' ')+' L'+X(pts.length-1)+' '+(h-pad)+' Z';
+  var dots=pts.map(function(p,i){return '<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(p.y).toFixed(1)+'" r="3.5" fill="'+color+'"><title>'+esc(p.x)+': '+esc(opts.fmt?opts.fmt(p.y):p.y)+'</title></circle>';}).join('');
+  var labels=pts.map(function(p,i){return '<text x="'+X(i).toFixed(1)+'" y="'+(h-8)+'" text-anchor="middle" font-size="9" fill="var(--ink3)">'+esc(String(p.x).slice(5))+'</text>';}).join('');
+  var yTop='<text x="4" y="'+(pad-6)+'" font-size="9" fill="var(--ink3)">'+esc(opts.fmt?opts.fmt(mx):mx)+'</text>';
+  var yBot='<text x="4" y="'+(h-pad+3)+'" font-size="9" fill="var(--ink3)">'+esc(opts.fmt?opts.fmt(mn):mn)+'</text>';
+  return '<svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:auto;overflow:visible">'
+    +'<path d="'+area+'" fill="'+color+'" opacity="0.10"/>'
+    +'<path d="'+d+'" fill="none" stroke="'+color+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
+    +dots+labels+yTop+yBot+'</svg>';
+}
+
+var _digests=null;
+function renderTendencias(){
+  var host=el('mtrendBody'); if(!host)return;
+  host.innerHTML='<div class="card" style="text-align:center;padding:32px;color:var(--ink3)">Carregando semanas publicadas…</div>';
+  // fonte das semanas: índice publicado (se disponível) senão o cache local
+  var getKeys = (window.CashStore&&CashStore.available&&CashStore.available())
+    ? CashStore.listWeeks().then(function(l){return l.map(function(w){return w.key;});})
+    : (window.CashStore?CashStore.listLocal():Promise.resolve([]));
+  getKeys.then(function(keys){
+    keys=(keys||[]).filter(Boolean);
+    if(!keys.length){ host.innerHTML=emptyRoster(); return; }
+    // carrega cada semana (cache-first) e monta o digest
+    var loader = function(k){ return (window.CashStore&&CashStore.available&&CashStore.available())?CashStore.load(k):CashStore.loadLocal(k); };
+    return Promise.all(keys.map(function(k){ return loader(k).then(function(r){return weekDigest(r);}).catch(function(){return null;}); }))
+      .then(function(ds){ _digests=ds.filter(Boolean).sort(function(a,b){return String(a.key).localeCompare(String(b.key));}); drawTendencias(); });
+  }).catch(function(e){ host.innerHTML='<div class="card" style="padding:24px;color:var(--ink3)">Erro ao carregar semanas: '+esc(e.message)+'</div>'; });
+}
+function drawTendencias(){
+  var host=el('mtrendBody'); var D=_digests||[];
+  if(!D.length){ host.innerHTML=emptyRoster(); return; }
+  var last=D[D.length-1];
+  if(D.length<2){
+    host.innerHTML='<div class="card" style="margin-bottom:12px"><div class="ct">1 semana publicada</div><div class="cs">Tendências e retenção comparam semana a semana. Publique <b>pelo menos 2 semanas</b> pra ativar. Abaixo, o retrato da semana atual.</div></div>'
+      + snapshotCard(last);
+    return;
+  }
+  // tendências (small multiples, uma escala cada — regra dataviz)
+  var pR=D.map(function(d){return {x:d.key,y:Math.round(d.rake*GU_TO_BRL)};});
+  var pP=D.map(function(d){return {x:d.key,y:d.players};});
+  var pT=D.map(function(d){return {x:d.key,y:+d.takeRate.toFixed(2)};});
+  var trends='<div class="card"><div class="ct">Tendências por semana</div><div class="cs">Cada gráfico tem UMA escala (comparável de verdade)</div>'
+    +'<div class="g2" style="margin-top:10px">'
+    +'<div><div style="font-size:11px;font-weight:700;margin-bottom:4px">Rake (R$)</div>'+svgLine(pR,{color:'var(--gold)',zero:true,fmt:function(v){return 'R$ '+fmtK(v);}})+'</div>'
+    +'<div><div style="font-size:11px;font-weight:700;margin-bottom:4px">Jogadores únicos</div>'+svgLine(pP,{color:'#4e79a7',zero:true,fmt:function(v){return br(v);}})+'</div>'
+    +'</div>'
+    +'<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;margin-bottom:4px">Take rate (%)</div>'+svgLine(pT,{color:'#59a14f',fmt:function(v){return v+'%';}})+'</div>'
+    +'</div>';
+  // retenção semana a semana
+  var ret=[]; for(var i=1;i<D.length;i++){ ret.push(retentionBetween(D[i-1],D[i])); }
+  var rowsRet=ret.map(function(r){ return '<tr><td class="b m">'+esc(r.to.slice(5))+'</td>'
+    +'<td class="r m">'+br(r.returning)+'</td><td class="r m">'+r.retPct.toFixed(1)+'%</td>'
+    +'<td class="r m" style="color:#22c55e">'+r.fishRetPct.toFixed(1)+'%</td>'
+    +'<td class="r m" style="color:#4e79a7">'+br(r.newP)+'</td>'
+    +'<td class="r m" style="color:#ef4444">'+br(r.churn)+'</td></tr>'; }).join('');
+  var retCard='<div class="card"><div class="ct">Retenção semana a semana</div><div class="cs">Recreativo (fish) que volta = liquidez sustentável. Churn alto de fish = alerta.</div>'
+    +'<div class="tw"><table class="t"><thead><tr><th>Semana</th><th class="r">Voltaram</th><th class="r">Retenção</th><th class="r">Retenção fish</th><th class="r">Novos</th><th class="r">Saíram</th></tr></thead><tbody>'+rowsRet+'</tbody></table></div>'
+    +'<div style="font-size:10.5px;color:var(--ink3);margin-top:8px">Fish = jogador com resultado líquido negativo na semana anterior. "Retenção fish" é a fração deles que jogou de novo.</div></div>';
+  host.innerHTML=trends+'<div style="margin-top:12px">'+retCard+'</div>';
+}
+function retentionBetween(a,b){
+  var prev=a.net, cur=b.net, prevIds=Object.keys(prev);
+  var returning=0, fishPrev=0, fishBack=0;
+  for(var i=0;i<prevIds.length;i++){ var id=prevIds[i]; var back=(id in cur);
+    if(back)returning++; if(prev[id]<-0.001){ fishPrev++; if(back)fishBack++; } }
+  var newP=0, curIds=Object.keys(cur); for(var j=0;j<curIds.length;j++){ if(!(curIds[j] in prev))newP++; }
+  return { to:b.key, returning:returning, retPct:prevIds.length?returning/prevIds.length*100:0,
+    fishRetPct:fishPrev?fishBack/fishPrev*100:0, newP:newP, churn:prevIds.length-returning };
+}
+function snapshotCard(d){
+  var kc=function(l,v,s,c){ return '<div class="kpi'+(c?' '+c:'')+'"><div class="kl">'+l+'</div><div class="kv">'+v+'</div><div class="ks">'+(s||'')+'</div></div>'; };
+  return '<div class="kg" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">'
+    +kc('Semana',esc(String(d.week)),d.tables+' mesas','hero')
+    +kc('Rake','R$ '+brl(d.rake),'take '+d.takeRate.toFixed(2)+'%')
+    +kc('Jogadores',br(d.players),d.seats.toLocaleString('pt-BR')+' assentos')
+    +kc('Perderam',br(d.losers),(d.players?d.losers/d.players*100:0).toFixed(0)+'%','c-green')
+    +kc('Ganharam',br(d.winners),(d.players?d.winners/d.players*100:0).toFixed(0)+'%','c-amber')
+    +'</div>';
+}
+function fmtK(v){ return Math.abs(v)>=1e6?(v/1e6).toFixed(2)+'M':Math.abs(v)>=1e3?(v/1e3).toFixed(0)+'k':Math.round(v); }
+
 // ══════════════════════════════ EXPORT XLSX ════════════════════════════════
 function saveSheets(sheets, filename){
   var fn=window.ensureXLSX?window.ensureXLSX():Promise.reject(new Error('XLSX indisponível'));
@@ -555,6 +660,7 @@ window.cashLoadWeek=function(key){
 
 // estados vazios ao abrir (antes de qualquer upload)
 function init(){ if(el('mxList')&&!R){ renderMesasControls(); el('mxList').innerHTML=emptyRoster(); } if(el('mecoBody')&&!R)el('mecoBody').innerHTML=emptyRoster(); if(el('mrakeBody')&&!R)el('mrakeBody').innerHTML=emptyRoster(); if(el('mintBody')&&!R)el('mintBody').innerHTML=emptyRoster(); if(el('mpBody')&&!R)el('mpBody').innerHTML=playerPrompt();
+  if(el('mtrendBody'))renderTendencias();
   // F5: restaura a última semana do cache local na hora (independe do Firebase)
   if(!R && window.CashStore && CashStore.restoreLast){
     CashStore.restoreLast().then(function(roster){ if(roster && !R){ setRoster(roster); var st=el('mxStatus'); if(st)st.textContent='Restaurado do cache local ('+TABLES.length+' mesas). Semanas publicadas aparecem no seletor.'; } }).catch(function(){});
@@ -568,5 +674,6 @@ function init(){ if(el('mxList')&&!R){ renderMesasControls(); el('mxList').inner
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init); else init();
 
 // expõe pra debug/dev
-window.CashPlayers={ setRoster:setRoster, loadURL:window.cashRosterLoadURL, get:function(){return {R:R,ECO:ECO,PLAYERS:PLAYERS};} };
+window.cashRefreshTrends=renderTendencias;
+window.CashPlayers={ setRoster:setRoster, loadURL:window.cashRosterLoadURL, refreshTrends:renderTendencias, get:function(){return {R:R,ECO:ECO,PLAYERS:PLAYERS};} };
 })();
