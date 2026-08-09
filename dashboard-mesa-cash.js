@@ -320,6 +320,7 @@ function pg(id,btn){
   }));
   page.scrollTop=0;
   try{window.scrollTo({top:0,behavior:'instant'});}catch(e){window.scrollTo(0,0);}
+  try{refreshNoData();}catch(e){}   // mostra/esconde o estado-vazio conforme a aba
 }
 
 // ══════════════════════════════ TIMELINE
@@ -690,20 +691,20 @@ function parseDateLabel(s){const[dd,mm,yy]=s.split('/').map(Number);return new D
 async function buildHist(){
   const body=document.getElementById('histBody');if(!body)return;
   const days=await Store.list();
-  // MOEDA COERENTE: os valores da planilha entram em GU e são convertidos p/ BRL
-  // (× GU_TO_BRL) no import. O dia-demo estava cru (GU) e aparecia ~5× menor que
-  // os dias reais, criando um "abismo" falso na tendência. Convertido aqui p/ BRL.
-  const base={date:'22/06/2026',shift:'Dia + Noite',sessions:2965,fee:220888*GU_TO_BRL,netFee:202645*GU_TO_BRL,buyin:2683388*GU_TO_BRL,players:37777,feePerHand:0.76*GU_TO_BRL,deadPct:24.5,takeRate:8.23,demo:true};
-  const all=[base,...days.filter(d=>d.date!==base.date)].sort((a,b)=>parseDateLabel(a.date)-parseDateLabel(b.date));
+  // O Histórico é o LEDGER de dias REAIS importados — o dia demo NUNCA entra aqui
+  // (não é um dia importado; ele é só o fallback visual do dashboard quando não há
+  // dados). Antes o demo era injetado à força e aparecia como se fosse importado,
+  // contaminando a lista. Agora: só dias reais; sem nenhum, estado vazio honesto.
+  const all=(days||[]).filter(d=>d && d.date && !d.demo).sort((a,b)=>parseDateLabel(a.date)-parseDateLabel(b.date));
   // CONFIABILIDADE: mediana do fee dos dias reais p/ flagar anomalias de escala.
-  const realFees=all.filter(d=>!d.demo).map(d=>+d.fee||0).sort((a,b)=>a-b);
+  const realFees=all.map(d=>+d.fee||0).sort((a,b)=>a-b);
   const medFee=realFees.length?realFees[Math.floor(realFees.length/2)]:0;
   let flagged=0;
 
   // day-over-day comparison card
   const cmpEl=document.getElementById('histCompare');
   if(cmpEl){
-    const real=all.filter(d=>!d.demo);
+    const real=all;
     if(real.length>=2){
       const [prev,last]=real.slice(-2);
       const feeDelta=(last.fee-prev.fee)/(prev.fee||1)*100;
@@ -721,7 +722,8 @@ async function buildHist(){
     }else{cmpEl.style.display='none';}
   }
 
-  body.innerHTML=all.map(d=>{
+  if(!all.length){ body.innerHTML=`<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--ink3)">Nenhum dia importado ainda — importe uma semana pelo botão no cabeçalho. <b>O dia demo é só demonstração e não é contabilizado.</b></td></tr>`; }
+  else body.innerHTML=all.map(d=>{
     const anom=d.demo?'':dataAnomaly(d,medFee,realFees.length); if(anom)flagged++;
     const warn=anom?` <span class="tag" style="color:var(--amber);border-color:var(--amber)" title="${esc(anom)}">${ic('warning')} suspeito</span>`:'';
     return `<tr${anom?' style="background:rgba(251,191,36,.06)"':''}>
@@ -1557,7 +1559,34 @@ function applyDataset(ds){
   Object.keys(D).forEach(k=>delete D[k]); Object.assign(D, JSON.parse(JSON.stringify(ds.d)));
   renderAll();
   detectShift();
+  _hasRealData=true; refreshNoData();   // dataset real aplicado → esconde o estado-vazio
 }
+
+// ── ESTADO VAZIO (sem dados reais) — substitui o antigo fallback pro dia demo ──
+// As abas diárias analíticas viviam da demo quando não havia import; agora mostram
+// "Importe uma semana". Importar e as abas de roster (dados próprios) NÃO são
+// cobertas — ficam acessíveis. O demo deixou de contabilizar em qualquer lugar.
+let _hasRealData=false;
+var NODATA_TABS=['resumo','dash','stakes','salas','eventos','player','medias','forecast'];
+function activeTabId(){ var on=document.querySelector('.pg.on'); return on?on.id.replace(/^pg-/,''):''; }
+function refreshNoData(){ try{ setNoData(!_hasRealData && NODATA_TABS.indexOf(activeTabId())>=0); }catch(e){} }
+function setNoData(on){
+  var el=document.getElementById('noDataScreen');
+  if(!on){ if(el)el.style.display='none'; return; }
+  if(!el){ el=document.createElement('div'); el.id='noDataScreen'; document.body.appendChild(el);
+    el.innerHTML='<div style="max-width:460px;text-align:center;color:var(--ink3)">'
+      +'<div style="font-size:40px;margin-bottom:12px;color:var(--gold)">♠</div>'
+      +'<div style="font-size:17px;font-weight:800;color:var(--ink);margin-bottom:6px">Sem dados reais ainda</div>'
+      +'<div style="font-size:12.5px;line-height:1.6;margin-bottom:16px">O dia de demonstração não é contabilizado. Importe uma semana — ou marque dias no seletor do cabeçalho — para ver o dashboard com os seus números.</div>'
+      +'<button onclick="cashGoImport()" style="background:var(--gold);border:none;border-radius:9px;color:#000;height:38px;padding:0 18px;font-weight:700;cursor:pointer">Importar Semana</button>'
+      +'</div>';
+  }
+  var hdr=document.querySelector('header'); var top=hdr?Math.round(hdr.getBoundingClientRect().bottom):72;
+  el.style.cssText='position:fixed;left:0;right:0;bottom:0;top:'+top+'px;z-index:35;display:flex;align-items:center;justify-content:center;padding:24px;overflow:auto';
+  el.style.background=getComputedStyle(document.body).backgroundColor||'#0e100e';
+  el.style.display='flex';
+}
+window.cashGoImport=function(){ var bs=document.querySelectorAll('.nav .nt'), b=null; bs.forEach(function(x){ if(/Importar/i.test(x.textContent))b=x; }); if(b)b.click(); else try{pg('validar');}catch(e){} };
 // ══════════════════════════════ SELEÇÃO DE DIAS (checklist)
 // Substitui o antigo <select> single. O recorte da operação agora é POR DIAS: o
 // usuário marca quais dias importados alimentam TODAS as visualizações. Recombina
@@ -1627,7 +1656,7 @@ function updateDaysBtnLabel(){
 // Recombina o dashboard a partir dos dias marcados (nenhum → demo).
 function applySelectedDays(){
   const chosen=_selDays.map(k=>_rawsCache[k]).filter(Boolean);
-  if(!chosen.length){ applyDataset(DEMO_DS); return; }
+  if(!chosen.length){ _hasRealData=false; refreshNoData(); return; }   // sem dias → estado-vazio (nada de demo)
   const label = chosen.length===1 ? ((chosen[0].dates&&chosen[0].dates[0])||_selDays[0]) : `${chosen.length} dias`;
   applyDataset(finalizeDataset(mergeRaws(chosen), label));
 }
@@ -1636,6 +1665,7 @@ async function initDayView(){
   try{
     await refreshDays(true);
     if(Object.keys(_rawsCache).length) applySelectedDays();
+    else { _hasRealData=false; refreshNoData(); }   // nenhum dia real → estado-vazio
   }catch(e){console.error('initDayView',e);}
 }
 
@@ -2269,6 +2299,9 @@ function startApp(){
   // metas vêm do Firebase (assíncrono) — re-renderiza o que depende delas ao chegar
   loadGoals().then(()=>{ try{buildMedias();}catch(_){} try{buildResumo();}catch(_){} });
   initDayView(); // se há dias importados, troca a demo pelo dia mais recente
+  // Mostra o estado-vazio JÁ (sem piscar números do demo); initDayView revela os
+  // dados reais se existirem (applyDataset → _hasRealData=true → esconde).
+  try{refreshNoData();}catch(e){}
 }
 /* mesmo motivo do initFb: startApp() usa `db`, que só existe depois do Firebase (deferido)
    carregar. Roda no DOMContentLoaded, após o initFb registrado acima (ordem preservada). */
