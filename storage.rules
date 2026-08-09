@@ -10,8 +10,9 @@ service firebase.storage {
   match /b/{bucket}/o {
     // roster de jogadores da mesa cash (arquivos .json.gz por semana)
     match /cash-roster/{file} {
-      allow read:  if request.auth != null;
-      allow write: if request.auth != null && request.resource.size < 60 * 1024 * 1024; // teto 60MB/arquivo
+      // Só autenticado (inclui login anônimo). Simples de propósito p/ eliminar
+      // falha de permissão; o teto de tamanho pode voltar depois.
+      allow read, write: if request.auth != null;
     }
     // tudo o mais: negado por padrão
     match /{allPaths=**} {

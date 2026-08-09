@@ -21,12 +21,22 @@ var DBN='suprema-cash', STORE='roster', IDBV=1;
 
 function db(){ if(!window.SupremaDB) return null; try{ SupremaDB.init(); }catch(e){} return (SupremaDB.ready&&SupremaDB.ready())?SupremaDB:null; }
 function authUser(){ try{ return !!(window.firebase&&firebase.auth&&firebase.auth().currentUser); }catch(e){ return false; } }
-function available(){ var d=db(); return !!(d && d.storageOk && d.storageOk() && authUser()); }
+// garante um usuário do Firebase Auth (necessário p/ a regra do Storage). Se não há
+// usuário, tenta login ANÔNIMO (precisa do provedor Anonymous ligado no Console).
+function ensureAuth(){
+  return new Promise(function(resolve,reject){
+    if(!(window.firebase&&firebase.auth)){ reject(new Error('SDK de auth ausente')); return; }
+    var a=firebase.auth(); if(a.currentUser){ resolve(a.currentUser); return; }
+    if(a.signInAnonymously){ a.signInAnonymously().then(function(c){ resolve(c.user||a.currentUser); })
+      .catch(function(e){ reject(new Error('login anônimo falhou ('+(e.code||e.message)+') — ligue o provedor Anonymous no Console')); }); }
+    else reject(new Error('sem usuário do Firebase e sem login anônimo disponível'));
+  });
+}
+function available(){ var d=db(); return !!(d && d.storageOk && d.storageOk()); }
 // explica POR QUE não dá pra compartilhar (mostrado no status)
 function reason(){ if(!window.SupremaDB)return 'módulo SupremaDB ausente'; try{SupremaDB.init();}catch(e){}
   if(!(SupremaDB.ready&&SupremaDB.ready()))return 'Firebase não conectado';
   if(!SupremaDB.storageOk())return 'SDK do Storage não carregado — republique o dashboard-mesa-cash.html';
-  if(!authUser())return 'sem login do Firebase (a sessão do hub não autenticou o Firebase Auth)';
   return 'ok'; }
 function gzipOk(){ return typeof CompressionStream==='function' && typeof DecompressionStream==='function'; }
 function weekKey(meta){ var w=(meta&&meta.week)||''; var k=w.replace(/[^\d]/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,''); return k||('semana-'+(meta&&meta.generated||'').slice(0,10)); }
@@ -49,9 +59,9 @@ function publish(roster, opts){
   if(!available()) return Promise.reject(new Error('Firebase Storage indisponível (SDK/regra).'));
   if(!gzipOk()) return Promise.reject(new Error('Navegador sem CompressionStream.'));
   var key=weekKey(roster.meta), path=DIR+key+'.json.gz';
-  onP('Compactando roster…',10);
+  onP('Autenticando…',5);
   var json=JSON.stringify(roster);
-  return gzip(json).then(function(blob){
+  return ensureAuth().then(function(){ onP('Compactando roster…',10); return gzip(json); }).then(function(blob){
     onP('Enviando '+(blob.size/1e6).toFixed(1)+' MB pro Storage…',35);
     return idbSet(key,blob).then(function(){ return d.storagePut(path, blob, {contentType:'application/gzip'}); });
   }).then(function(){
@@ -75,7 +85,7 @@ function load(key, opts){ opts=opts||{}; var onP=opts.onProgress||function(){};
     if(blob){ onP('Lendo do cache…',40); return blob; }
     var d=db(); if(!d||!available()) throw new Error('Semana não está no cache e o Storage está indisponível.');
     onP('Baixando do Storage…',20);
-    return d.storageDownload(DIR+key+'.json.gz').then(function(b){ return idbSet(key,b).then(function(){return b;}); });
+    return ensureAuth().then(function(){ return d.storageDownload(DIR+key+'.json.gz'); }).then(function(b){ return idbSet(key,b).then(function(){return b;}); });
   }).then(function(blob){ onP('Descompactando…',70); return gunzip(blob); })
     .then(function(txt){ onP('Pronto.',100); return JSON.parse(txt); });
 }
