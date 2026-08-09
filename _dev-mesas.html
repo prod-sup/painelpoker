@@ -24,6 +24,7 @@
   <button class="on" onclick="dv('mesas',this)">Explorador de Mesas</button>
   <button onclick="dv('player',this)">Perfil de Jogador</button>
   <button onclick="dv('eco',this)">Ecologia</button>
+  <button onclick="dv('int',this)">Integridade</button>
   <button onclick="dv('rake',this)">Rake &amp; Stakes</button>
   <span class="mx-week" style="margin-left:auto;font-size:11px;color:var(--ink3)"></span>
   <label style="background:var(--gold);color:#1a1205;font-weight:800;font-size:11px;border-radius:8px;padding:7px 12px;cursor:pointer">Subir .xlsx completo<input type="file" accept=".xlsx" style="display:none" onchange="cashIngestFile(this)"></label>
@@ -43,6 +44,7 @@
     <div id="mpBody"></div>
   </div>
   <div id="pg-eco" class="pg"><div id="mecoBody"></div></div>
+  <div id="pg-int" class="pg"><div id="mintBody"></div></div>
   <div id="pg-rake" class="pg"><div id="mrakeBody"></div></div>
 </div>
 <div id="mxDrawer" onclick="if(event.target===this)cashMxClose()"></div>
@@ -52,6 +54,7 @@ function dv(id,btn){document.querySelectorAll('.pg').forEach(p=>p.classList.remo
 function toggleTheme(){var r=document.documentElement;r.setAttribute('data-theme',r.getAttribute('data-theme')==='dark'?'light':'dark');}
 </script>
 <script src="cash-ingest.js"></script>
+<script src="cash-store.js"></script>
 <script src="cash-players.js"></script>
 <script>cashRosterLoadURL('_dev-roster-sample.json').catch(e=>{document.getElementById('mxStatus').textContent='erro: '+e.message;});</script>
 </body>

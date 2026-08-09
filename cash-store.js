@@ -73,5 +73,16 @@ function load(key, opts){ opts=opts||{}; var onP=opts.onProgress||function(){};
     .then(function(txt){ onP('Pronto.',100); return JSON.parse(txt); });
 }
 
-window.CashStore={ available:available, gzipOk:gzipOk, publish:publish, listWeeks:listWeeks, load:load, weekKey:weekKey };
+// ── cache LOCAL sempre (rede de segurança: sobrevive ao F5 mesmo sem Firebase) ──
+var LAST='__last__';
+function cacheLocal(roster){ if(!gzipOk()) return Promise.resolve(null); var key=weekKey(roster.meta);
+  return gzip(JSON.stringify(roster)).then(function(blob){ return idbSet(key,blob).then(function(){ return idbSet(LAST,key).then(function(){ return key; }); }); }); }
+function restoreLast(){ return idbGet(LAST).then(function(key){ if(!key) return null;
+  return idbGet(key).then(function(blob){ if(!blob) return null; return gunzip(blob).then(function(t){ return JSON.parse(t); }); }); })
+  .catch(function(){ return null; }); }
+function listLocal(){ return idb().then(function(d){ return new Promise(function(res){ var out=[]; var os=d.transaction(STORE,'readonly').objectStore(STORE);
+  var cur=os.openKeyCursor?os.openKeyCursor():os.openCursor(); cur.onsuccess=function(e){ var c=e.target.result; if(c){ if(c.key!==LAST)out.push(String(c.key)); c.continue(); } else res(out); }; cur.onerror=function(){res(out);}; }); }).catch(function(){return [];}); }
+
+window.CashStore={ available:available, gzipOk:gzipOk, publish:publish, listWeeks:listWeeks, load:load, weekKey:weekKey,
+  cacheLocal:cacheLocal, restoreLast:restoreLast, listLocal:listLocal, loadLocal:function(key){ return idbGet(key).then(function(b){ if(!b)throw new Error('não está no cache'); return gunzip(b).then(function(t){return JSON.parse(t);}); }); } };
 })();
