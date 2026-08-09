@@ -92,7 +92,10 @@ function doLogout(){
    do DOMContentLoaded, então esperar esse evento garante que `firebase` já existe. */
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', initFb); else initFb();
 
-const GU_TO_BRL=5;
+// Régua GU→BRL: fonte ÚNICA. window.GU_TO_BRL permite sobrescrever por config
+// (SupremaDB) sem tocar em dois arquivos; cash-players.js LÊ deste window.
+const GU_TO_BRL=(typeof window!=='undefined'&&+window.GU_TO_BRL)||5;
+try{ window.GU_TO_BRL=GU_TO_BRL; }catch(_){}
 // ══════════════════════════════ DATA
 const D = {
   slots30:[{"slot":"00:00","turno":"noite","tables":34,"fee":2006.36,"players":413,"hands":3238,"dead":7},{"slot":"00:30","turno":"noite","tables":19,"fee":866.64,"players":114,"hands":973,"dead":7},{"slot":"01:00","turno":"noite","tables":39,"fee":774.5,"players":278,"hands":2394,"dead":11},{"slot":"01:30","turno":"noite","tables":23,"fee":1840.93,"players":251,"hands":1994,"dead":3},{"slot":"02:00","turno":"noite","tables":26,"fee":317.38,"players":153,"hands":1223,"dead":15},{"slot":"02:30","turno":"noite","tables":26,"fee":227.18,"players":192,"hands":1385,"dead":10},{"slot":"03:00","turno":"noite","tables":22,"fee":1221.79,"players":118,"hands":1338,"dead":11},{"slot":"03:30","turno":"noite","tables":24,"fee":5153.18,"players":335,"hands":2785,"dead":6},{"slot":"04:00","turno":"noite","tables":16,"fee":232.59,"players":129,"hands":1034,"dead":7},{"slot":"04:30","turno":"noite","tables":12,"fee":165.36,"players":97,"hands":737,"dead":3},{"slot":"05:00","turno":"noite","tables":63,"fee":3079.97,"players":1016,"hands":8464,"dead":20},{"slot":"05:30","turno":"noite","tables":11,"fee":758.77,"players":254,"hands":1528,"dead":5},{"slot":"06:00","turno":"noite","tables":6,"fee":678.38,"players":72,"hands":646,"dead":1},{"slot":"06:30","turno":"noite","tables":16,"fee":847.22,"players":149,"hands":1516,"dead":4},{"slot":"07:00","turno":"noite","tables":78,"fee":10787.66,"players":1374,"hands":12103,"dead":12},{"slot":"07:30","turno":"noite","tables":23,"fee":1806.41,"players":360,"hands":3092,"dead":8},{"slot":"08:00","turno":"dia","tables":27,"fee":1543.53,"players":667,"hands":5573,"dead":8},{"slot":"08:30","turno":"dia","tables":38,"fee":832.71,"players":189,"hands":1305,"dead":17},{"slot":"09:00","turno":"dia","tables":118,"fee":16734.66,"players":1523,"hands":12066,"dead":33},{"slot":"09:30","turno":"dia","tables":44,"fee":2465.83,"players":858,"hands":6656,"dead":9},{"slot":"10:00","turno":"dia","tables":55,"fee":3458.72,"players":680,"hands":4955,"dead":20},{"slot":"10:30","turno":"dia","tables":42,"fee":3198.32,"players":421,"hands":3509,"dead":6},{"slot":"11:00","turno":"dia","tables":122,"fee":6966.21,"players":1830,"hands":13955,"dead":31},{"slot":"11:30","turno":"dia","tables":56,"fee":6807.86,"players":653,"hands":6030,"dead":10},{"slot":"12:00","turno":"dia","tables":58,"fee":1401.36,"players":828,"hands":5805,"dead":18},{"slot":"12:30","turno":"dia","tables":73,"fee":3742.18,"players":993,"hands":7943,"dead":18},{"slot":"13:00","turno":"dia","tables":132,"fee":10158.95,"players":1803,"hands":15205,"dead":26},{"slot":"13:30","turno":"dia","tables":60,"fee":1665.91,"players":515,"hands":3776,"dead":20},{"slot":"14:00","turno":"dia","tables":65,"fee":2023.39,"players":653,"hands":4516,"dead":21},{"slot":"14:30","turno":"dia","tables":64,"fee":5289.42,"players":749,"hands":6520,"dead":14},{"slot":"15:00","turno":"dia","tables":122,"fee":6035.11,"players":1092,"hands":7460,"dead":28},{"slot":"15:30","turno":"dia","tables":54,"fee":3637.27,"players":550,"hands":4117,"dead":13},{"slot":"16:00","turno":"dia","tables":89,"fee":4352.6,"players":978,"hands":8154,"dead":23},{"slot":"16:30","turno":"dia","tables":86,"fee":8430.7,"players":1159,"hands":9606,"dead":15},{"slot":"17:00","turno":"dia","tables":122,"fee":10808.45,"players":1681,"hands":12119,"dead":26},{"slot":"17:30","turno":"dia","tables":78,"fee":4565.63,"players":1030,"hands":7789,"dead":18},{"slot":"18:00","turno":"dia","tables":94,"fee":7830.08,"players":1142,"hands":8802,"dead":20},{"slot":"18:30","turno":"dia","tables":79,"fee":3246.5,"players":1377,"hands":10166,"dead":12},{"slot":"19:00","turno":"dia","tables":120,"fee":8433.82,"players":1436,"hands":10244,"dead":35},{"slot":"19:30","turno":"dia","tables":101,"fee":4652.64,"players":1600,"hands":11474,"dead":22},{"slot":"20:00","turno":"noite","tables":73,"fee":4051.8,"players":1175,"hands":7601,"dead":13},{"slot":"20:30","turno":"noite","tables":84,"fee":3903.2,"players":1297,"hands":8870,"dead":13},{"slot":"21:00","turno":"noite","tables":89,"fee":16764.81,"players":1242,"hands":9023,"dead":19},{"slot":"21:30","turno":"noite","tables":83,"fee":5921.28,"players":1090,"hands":7989,"dead":16},{"slot":"22:00","turno":"noite","tables":69,"fee":6726.92,"players":817,"hands":6255,"dead":15},{"slot":"22:30","turno":"noite","tables":75,"fee":2650.23,"players":843,"hands":5737,"dead":15},{"slot":"23:00","turno":"noite","tables":96,"fee":20500.95,"players":1026,"hands":8440,"dead":22},{"slot":"23:30","turno":"noite","tables":59,"fee":1322.23,"players":575,"hands":3944,"dead":20}],
@@ -1680,6 +1683,32 @@ function summaryFromKpi(kpi){
 }
 
 // ══════════════════════════════ WEEKLY VALIDATION
+// Relatório de validação (precisão + consistência) mostrado na aba Importar Semana.
+// verde = tudo bate; amarelo = avisos (dados formam, mas confira); vermelho = erro
+// que impede as visões de formarem certo. Vem de cash-ingest (meta.validation).
+function renderValidationReport(v){
+  if(!v) return '';
+  const st=v.stats||{};
+  const money=n=>'R$ '+f((+n||0)*GU_TO_BRL,0);
+  const chips=`<div style="font-size:10.5px;color:var(--ink3);margin-top:6px;display:flex;flex-wrap:wrap;gap:10px">`
+    +`<span>Mesas cash: <b>${f(st.cashTables||0)}</b></span>`
+    +`<span>Com jogadores: <b>${f(st.tablesWithRoster||0)}</b></span>`
+    +`<span>Fee resumo: <b>${money(st.feeSummary)}</b></span>`
+    +`<span>Fee roster: <b>${money(st.feeRoster)}</b></span>`
+    +`<span>Σ resultados: <b>${money(st.winSum)}</b> (esperado ${money(st.winExpected)})</span>`
+    +`<span>Assentos: <b>${f(st.seats||0)}</b></span></div>`;
+  if(v.level==='ok'){
+    return `<div style="margin-top:8px;padding:8px 12px;border-radius:8px;border:1px solid rgba(52,211,153,.4);background:rgba(52,211,153,.08)">`
+      +`<div style="color:var(--green);font-weight:700">${ic('check-circle',1)} Dados validados — precisos e consistentes.</div>${chips}</div>`;
+  }
+  const color=v.level==='error'?'#ef4444':'#f59e0b';
+  const bg=v.level==='error'?'rgba(239,68,68,.08)':'rgba(245,158,11,.08)';
+  const title=v.level==='error'?'Erros de validação — corrigir o relatório antes de usar':'Avisos de consistência — confira antes de confiar nos números';
+  const items=(v.issues||[]).map(x=>`<li style="margin:3px 0;color:${x.sev==='error'?'#ef4444':'var(--ink2,#cbd5e1)'}"><b>${x.sev==='error'?'ERRO':'aviso'}:</b> ${esc(x.msg)}</li>`).join('');
+  return `<div style="margin-top:8px;padding:8px 12px;border-radius:8px;border:1px solid ${color}66;background:${bg}">`
+    +`<div style="color:${color};font-weight:700">${ic('warning',1)} ${title}</div>`
+    +`<ul style="margin:6px 0 0;padding-left:18px;font-size:11.5px;line-height:1.5">${items}</ul>${chips}</div>`;
+}
 let _weekRowsByDate=null;
 async function handleValidateUpload(input){
   const fl=input.files[0];if(!fl)return;
@@ -1720,7 +1749,13 @@ async function handleValidateUpload(input){
     document.getElementById('validarPreviewCard').style.display='block';
     setBar(100);
     const shared=(window.CashStore&&CashStore.available&&CashStore.available());
-    status.innerHTML=`${ic('check-circle',1)} ${keys.length} dia(s) lidos · <b>telas de jogador já carregadas</b>${shared?' e publicadas p/ todos':' (salvo neste navegador)'}. Confira e confirme p/ gravar o histórico diário.`;
+    const meta=(res.roster&&res.roster.meta)||{};
+    const report=renderValidationReport(meta.validation);
+    const hasErr=meta.validation&&meta.validation.level==='error';
+    const headLine = hasErr
+      ? `${ic('x-circle',1)} ${keys.length} dia(s) lidos, mas a <b>validação encontrou erros</b> — confira abaixo. A semana NÃO foi publicada p/ todos.`
+      : `${ic('check-circle',1)} ${keys.length} dia(s) lidos · <b>telas de jogador já carregadas</b>${shared?' e publicadas p/ todos':' (salvo neste navegador)'}. Confira e confirme p/ gravar o histórico diário.`;
+    status.innerHTML=`${headLine}${report}`;
   }catch(err){
     status.innerHTML=`${ic('x-circle',1)} Erro: ${err.message}`; setBar(0);
   }

@@ -11,7 +11,7 @@
 (function(){
 'use strict';
 
-var GU_TO_BRL = 5;               // mesma régua do dashboard-mesa-cash.js
+var GU_TO_BRL = (window.GU_TO_BRL!=null?+window.GU_TO_BRL:5);   // régua única (definida no dashboard-mesa-cash.js)
 var CASH_EXCLUDE = /^(SNG|MTT|TLT)/i;
 
 // ── estado ────────────────────────────────────────────────────────────────
@@ -28,6 +28,15 @@ function fk(v){ v=(+v||0)*GU_TO_BRL; return Math.abs(v)>=1e6?(v/1e6).toFixed(2)+
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 function el(id){ return document.getElementById(id); }
 function pct(a,b){ return b?(a/b*100):0; }
+// ── IDENTIDADE (chave única e estável) ──────────────────────────────────────
+// pid: ID do jogador SEMPRE no mesmo tipo (número quando numérico). Antes o mesmo
+// jogador podia rachar em dois agregados (string x number) e o perfil não abria.
+function pid(x){ var n=+x; return Number.isFinite(n)&&String(x).trim()!==''?n:String(x==null?'':x).trim(); }
+// nome de exibição normalizado (trim + espaços colapsados) e chave case-insensitive.
+// Agente/clube não têm ID na planilha → "Golden " e "golden" viravam entradas
+// diferentes; agora fundem pela chave e mostram o 1º nome visto.
+function nname(x){ return String(x==null?'':x).trim().replace(/\s+/g,' '); }
+function nkey(x){ return nname(x).toUpperCase(); }
 function stakeLabel(t){ if(t.sb&&t.bb) return brl(t.sb,t.sb<1?2:0)+'/'+brl(t.bb,t.bb<1?2:0); if(t.bb) return brl(t.bb,t.bb<1?2:0)+' BB'; return '—'; }
 function typeClean(t){ return String(t||'').trim(); }
 function durMin(t){ var raw=String(t.dur||'').trim(); if(!raw) return 0;
@@ -49,11 +58,11 @@ function buildAggregates(){
       if((s.w||0)>0)p.win++; else if((s.w||0)<0)p.loss++;
       if((s.w||0)>p.best)p.best=s.w||0; if((s.w||0)<p.worst)p.worst=s.w||0;
       if(!p.name&&s.n)p.name=s.n; if(!p.club&&s.club)p.club=s.club;
-      // agente
-      var ak=s.ag||'—', a=AGENTS.get(ak); if(!a){ a={name:ak,players:new Set(),seats:0,fee:0,net:0,buyin:0}; AGENTS.set(ak,a); }
+      // agente (chave estável case-insensitive; nome = 1º visto)
+      var ad=nname(s.ag)||'—', ak=nkey(ad)||'—', a=AGENTS.get(ak); if(!a){ a={name:ad,players:new Set(),seats:0,fee:0,net:0,buyin:0}; AGENTS.set(ak,a); }
       a.players.add(s.id); a.seats++; a.fee+=s.fee||0; a.net+=s.w||0; a.buyin+=s.bi||0;
-      // clube
-      var ck=s.club||'—', c=CLUBS.get(ck); if(!c){ c={name:ck,players:new Set(),seats:0,fee:0,net:0,buyin:0}; CLUBS.set(ck,c); }
+      // clube (idem)
+      var cd=nname(s.club)||'—', ck=nkey(cd)||'—', c=CLUBS.get(ck); if(!c){ c={name:cd,players:new Set(),seats:0,fee:0,net:0,buyin:0}; CLUBS.set(ck,c); }
       c.players.add(s.id); c.seats++; c.fee+=s.fee||0; c.net+=s.w||0; c.buyin+=s.bi||0;
       totalFee+=s.fee||0; totalBuyin+=s.bi||0;
     }
@@ -116,7 +125,7 @@ function setRoster(obj){
   // pré-computa uns campos de mesa p/ ordenação/exibição
   TABLES.forEach(function(t){
     var ro=t.roster||[]; var big=null, small=null, net=0;
-    for(var k=0;k<ro.length;k++){ net+=ro[k].w||0; if(!big||ro[k].w>big.w)big=ro[k]; if(!small||ro[k].w<small.w)small=ro[k]; }
+    for(var k=0;k<ro.length;k++){ ro[k].id=pid(ro[k].id); net+=ro[k].w||0; if(!big||ro[k].w>big.w)big=ro[k]; if(!small||ro[k].w<small.w)small=ro[k]; }
     t._net=net; t._big=big; t._small=small; t._rc=ro.length; t._durm=durMin(t); t._stake=stakeLabel(t);
   });
   renderMesas(); renderEco(); renderRake(); renderIntegridade(); var mp=el('mpBody'); if(mp)mp.innerHTML=playerPrompt();
@@ -160,8 +169,22 @@ window.cashRunIngest=runIngest;
 // alimenta as telas de jogador + salva local + compartilha (Importar Semana e aba Mesas usam)
 window.cashFeedRoster=function(roster){
   setRoster(roster);
-  if(window.CashStore&&CashStore.cacheLocal)CashStore.cacheLocal(roster).then(function(){ if(el('mtrendBody'))renderTendencias(); }).catch(function(e){console.warn('cacheLocal',e);});
+  var meta=(roster&&roster.meta)||{};
   var note=function(msg){ [el('mxStatus'),el('validarStatus')].forEach(function(e){ if(e)e.innerHTML+=' <span style="color:var(--ink3)">· '+msg+'</span>'; }); };
+  // GUARDA: qualquer ERRO de validação (roster vazio, coluna deslocada, sem data
+  // válida…) NÃO publica pra todos — não sobrescreve uma semana boa com dado ruim.
+  // Ainda cacheia local p/ inspeção. Os detalhes já aparecem no relatório de
+  // validação da aba Importar Semana (renderValidationReport).
+  var val=meta.validation||{};
+  if(meta.rosterEmpty || val.level==='error'){
+    var why = meta.rosterEmpty
+      ? (meta.cashTables||0)+' mesas cash, mas 0 com jogadores — formato do Game Detail pode ter mudado'
+      : 'a validação encontrou erros (veja a aba Importar Semana)';
+    [el('mxStatus'),el('validarStatus')].forEach(function(e){ if(e)e.innerHTML+=' <span style="color:#ef4444;font-weight:700">· ⚠ '+why+'. NÃO publicado pra todos.</span>'; });
+    if(window.CashStore&&CashStore.cacheLocal)CashStore.cacheLocal(roster).catch(function(e){console.warn('cacheLocal',e);});
+    return;
+  }
+  if(window.CashStore&&CashStore.cacheLocal)CashStore.cacheLocal(roster).then(function(){ if(el('mtrendBody'))renderTendencias(); }).catch(function(e){console.warn('cacheLocal',e);});
   if(window.CashStore&&CashStore.available&&CashStore.available()){
     note('publicando pra todos…');
     CashStore.publish(roster,{onProgress:function(){}}).then(function(k){ note('✓ publicado pra todos ('+k+')'); refreshWeeks(); if(el('mtrendBody'))renderTendencias(); })
@@ -317,7 +340,7 @@ window.cashMpSearch=function(v){
   cashMpOpen(hits[0].id);
 };
 window.cashMpOpen=function(id){
-  ensureAgg(); var p=PLAYERS.get(+id)||PLAYERS.get(id); var host=el('mpBody'); if(!p){host.innerHTML='<div style="padding:24px;color:var(--ink3)">Jogador não encontrado.</div>';return;}
+  ensureAgg(); var p=PLAYERS.get(pid(id)); var host=el('mpBody'); if(!p){host.innerHTML='<div style="padding:24px;color:var(--ink3)">Jogador não encontrado.</div>';return;}
   // mesas do jogador
   var mine=[]; for(var i=0;i<TABLES.length;i++){ var ro=TABLES[i].roster||[]; for(var j=0;j<ro.length;j++){ if(ro[j].id===p.id){ mine.push({t:TABLES[i],s:ro[j]}); break; } } }
   mine.sort(function(a,b){return String(b.t.start).localeCompare(String(a.t.start));});
@@ -483,17 +506,19 @@ function renderRake(){
 }
 
 // ══════════════════════════════ TENDÊNCIAS MULTI-SEMANA + RETENÇÃO ═════════
-// Digest compacto de uma semana (métricas + resultado por jogador). Sem nomes.
+// Digest compacto de uma semana (métricas + conjunto de IDs p/ retenção). Sem nomes.
+// Fonte única: CashStore.buildDigest (a mesma forma que é publicada). Fallback inline
+// só se o CashStore não tiver carregado.
 function weekDigest(roster){
-  var T=Object.values(roster.tables||{}); var fee=0,buyin=0,seats=0,hands=0;
-  var net={}, pfee={};
+  if(window.CashStore && CashStore.buildDigest) return CashStore.buildDigest(roster);
+  var T=Object.values(roster.tables||{}); var fee=0,buyin=0,seats=0,hands=0, net={};
   for(var i=0;i<T.length;i++){ var t=T[i]; fee+=t.fee||0; buyin+=t.buyin||0; hands+=t.hands||0;
-    var ro=t.roster||[]; for(var j=0;j<ro.length;j++){ var s=ro[j]; seats++; net[s.id]=(net[s.id]||0)+(s.w||0); pfee[s.id]=(pfee[s.id]||0)+(s.fee||0); } }
-  var players=Object.keys(net); var winners=0,losers=0,netTot=0;
-  for(var k=0;k<players.length;k++){ var v=net[players[k]]; netTot+=v; if(v>0.001)winners++; else if(v<-0.001)losers++; }
+    var ro=t.roster||[]; for(var j=0;j<ro.length;j++){ var s=ro[j]; seats++; var id=+s.id; net[id]=(net[id]||0)+(s.w||0); } }
+  var ids=Object.keys(net).map(Number); var winners=0,losers=0,netTot=0, fish=[];
+  for(var k=0;k<ids.length;k++){ var v=net[ids[k]]; netTot+=v; if(v>0.001)winners++; else if(v<-0.001){losers++;fish.push(ids[k]);} }
   return { key:weekKeyOf(roster), week:(roster.meta&&roster.meta.week)||weekKeyOf(roster),
-    rake:fee, buyin:buyin, seats:seats, hands:hands, tables:T.length, players:players.length,
-    winners:winners, losers:losers, netTot:netTot, takeRate:buyin?fee/buyin*100:0, net:net, pfee:pfee };
+    rake:fee, buyin:buyin, seats:seats, hands:hands, tables:T.length, players:ids.length,
+    winners:winners, losers:losers, netTot:netTot, takeRate:buyin?fee/buyin*100:0, ids:ids, fish:fish };
 }
 function weekKeyOf(roster){ return (window.CashStore&&CashStore.weekKey)?CashStore.weekKey(roster.meta):((roster.meta&&roster.meta.week)||'semana'); }
 
@@ -518,19 +543,38 @@ function svgLine(pts, opts){
 }
 
 var _digests=null;
+// ESCALA: online, os gráficos saem só do índice RTDB (escalares já baixados no
+// listWeeks — download ZERO de roster). A retenção precisa dos IDs por semana →
+// baixa só os arquivos digest (leves, cache-first), NUNCA o roster inteiro. Isso
+// deixa o custo O(nº de semanas × poucos KB) em vez de O(semanas × roster cheio).
 function renderTendencias(){
   var host=el('mtrendBody'); if(!host)return;
   host.innerHTML='<div class="card" style="text-align:center;padding:32px;color:var(--ink3)">Carregando semanas publicadas…</div>';
-  // fonte das semanas: índice publicado (se disponível) senão o cache local
-  var getKeys = (window.CashStore&&CashStore.available&&CashStore.available())
-    ? CashStore.listWeeks().then(function(l){return l.map(function(w){return w.key;});})
-    : (window.CashStore?CashStore.listLocal():Promise.resolve([]));
+  var online = !!(window.CashStore&&CashStore.available&&CashStore.available());
+  if(online){
+    // 1) índice → escalares → desenha os gráficos JÁ (sem baixar nenhum roster)
+    CashStore.listWeeks().then(function(list){
+      list=(list||[]).filter(function(w){return w&&w.key;});
+      if(!list.length){ host.innerHTML=emptyRoster(); return; }
+      _digests = list.map(function(w){ return {
+        key:w.key, week:w.week||w.key, rake:+w.rake||0, buyin:+w.buyin||0, seats:+w.seats||0,
+        hands:+w.hands||0, tables:+w.tables||0, players:+w.players||0, winners:+w.winners||0,
+        losers:+w.losers||0, netTot:+w.netTot||0, takeRate:+w.takeRate||0, ids:null, fish:null };
+      }).sort(function(a,b){return String(a.key).localeCompare(String(b.key));});
+      drawTendencias();
+      // 2) retenção: busca só os digests (ids/fish), cache-first, e redesenha
+      Promise.all(_digests.map(function(d){
+        return CashStore.loadDigest(d.key).then(function(g){ d.ids=g.ids||[]; d.fish=g.fish||[]; }).catch(function(){ /* sem digest p/ essa semana */ });
+      })).then(function(){ drawTendencias(); });
+    }).catch(function(e){ host.innerHTML='<div class="card" style="padding:24px;color:var(--ink3)">Erro ao carregar semanas: '+esc(e.message)+'</div>'; });
+    return;
+  }
+  // offline (1 dispositivo, poucas semanas): cai no cache local — carrega os blobs
+  var getKeys = window.CashStore?CashStore.listLocal():Promise.resolve([]);
   getKeys.then(function(keys){
     keys=(keys||[]).filter(Boolean);
     if(!keys.length){ host.innerHTML=emptyRoster(); return; }
-    // carrega cada semana (cache-first) e monta o digest
-    var loader = function(k){ return (window.CashStore&&CashStore.available&&CashStore.available())?CashStore.load(k):CashStore.loadLocal(k); };
-    return Promise.all(keys.map(function(k){ return loader(k).then(function(r){return weekDigest(r);}).catch(function(){return null;}); }))
+    return Promise.all(keys.map(function(k){ return CashStore.loadLocal(k).then(function(r){return weekDigest(r);}).catch(function(){return null;}); }))
       .then(function(ds){ _digests=ds.filter(Boolean).sort(function(a,b){return String(a.key).localeCompare(String(b.key));}); drawTendencias(); });
   }).catch(function(e){ host.innerHTML='<div class="card" style="padding:24px;color:var(--ink3)">Erro ao carregar semanas: '+esc(e.message)+'</div>'; });
 }
@@ -554,26 +598,37 @@ function drawTendencias(){
     +'</div>'
     +'<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;margin-bottom:4px">Take rate (%)</div>'+svgLine(pT,{color:'#59a14f',fmt:function(v){return v+'%';}})+'</div>'
     +'</div>';
-  // retenção semana a semana
-  var ret=[]; for(var i=1;i<D.length;i++){ ret.push(retentionBetween(D[i-1],D[i])); }
-  var rowsRet=ret.map(function(r){ return '<tr><td class="b m">'+esc(r.to.slice(5))+'</td>'
-    +'<td class="r m">'+br(r.returning)+'</td><td class="r m">'+r.retPct.toFixed(1)+'%</td>'
-    +'<td class="r m" style="color:#22c55e">'+r.fishRetPct.toFixed(1)+'%</td>'
-    +'<td class="r m" style="color:#4e79a7">'+br(r.newP)+'</td>'
-    +'<td class="r m" style="color:#ef4444">'+br(r.churn)+'</td></tr>'; }).join('');
-  var retCard='<div class="card"><div class="ct">Retenção semana a semana</div><div class="cs">Recreativo (fish) que volta = liquidez sustentável. Churn alto de fish = alerta.</div>'
-    +'<div class="tw"><table class="t"><thead><tr><th>Semana</th><th class="r">Voltaram</th><th class="r">Retenção</th><th class="r">Retenção fish</th><th class="r">Novos</th><th class="r">Saíram</th></tr></thead><tbody>'+rowsRet+'</tbody></table></div>'
-    +'<div style="font-size:10.5px;color:var(--ink3);margin-top:8px">Fish = jogador com resultado líquido negativo na semana anterior. "Retenção fish" é a fração deles que jogou de novo.</div></div>';
+  // retenção semana a semana — só pares onde os IDs (digest) já chegaram
+  var ret=[]; for(var i=1;i<D.length;i++){ if(D[i-1].ids&&D[i].ids) ret.push(retentionBetween(D[i-1],D[i])); }
+  var pending=D.some(function(d){return d.ids==null;});
+  var retCard;
+  if(!ret.length){
+    retCard='<div class="card"><div class="ct">Retenção semana a semana</div><div class="cs">'
+      +(pending?'Carregando os resumos das semanas…':'Sem resumo (digest) publicado ainda p/ calcular retenção — republique as semanas pra ativar.')+'</div></div>';
+  } else {
+    var rowsRet=ret.map(function(r){ return '<tr><td class="b m">'+esc(r.to.slice(5))+'</td>'
+      +'<td class="r m">'+br(r.returning)+'</td><td class="r m">'+r.retPct.toFixed(1)+'%</td>'
+      +'<td class="r m" style="color:#22c55e">'+r.fishRetPct.toFixed(1)+'%</td>'
+      +'<td class="r m" style="color:#4e79a7">'+br(r.newP)+'</td>'
+      +'<td class="r m" style="color:#ef4444">'+br(r.churn)+'</td></tr>'; }).join('');
+    retCard='<div class="card"><div class="ct">Retenção semana a semana</div><div class="cs">Recreativo (fish) que volta = liquidez sustentável. Churn alto de fish = alerta.'
+      +(pending?' <span style="color:var(--ink3)">(carregando semanas restantes…)</span>':'')+'</div>'
+      +'<div class="tw"><table class="t"><thead><tr><th>Semana</th><th class="r">Voltaram</th><th class="r">Retenção</th><th class="r">Retenção fish</th><th class="r">Novos</th><th class="r">Saíram</th></tr></thead><tbody>'+rowsRet+'</tbody></table></div>'
+      +'<div style="font-size:10.5px;color:var(--ink3);margin-top:8px">Fish = jogador com resultado líquido negativo na semana anterior. "Retenção fish" é a fração deles que jogou de novo.</div></div>';
+  }
   host.innerHTML=trends+'<div style="margin-top:12px">'+retCard+'</div>';
 }
+// retenção via CONJUNTOS de IDs (leve): a=semana anterior, b=atual. fish = IDs
+// que perderam na semana anterior (a.fish).
 function retentionBetween(a,b){
-  var prev=a.net, cur=b.net, prevIds=Object.keys(prev);
-  var returning=0, fishPrev=0, fishBack=0;
-  for(var i=0;i<prevIds.length;i++){ var id=prevIds[i]; var back=(id in cur);
-    if(back)returning++; if(prev[id]<-0.001){ fishPrev++; if(back)fishBack++; } }
-  var newP=0, curIds=Object.keys(cur); for(var j=0;j<curIds.length;j++){ if(!(curIds[j] in prev))newP++; }
-  return { to:b.key, returning:returning, retPct:prevIds.length?returning/prevIds.length*100:0,
-    fishRetPct:fishPrev?fishBack/fishPrev*100:0, newP:newP, churn:prevIds.length-returning };
+  var prev=a.ids||[], curSet={}; var cur=b.ids||[];
+  for(var c=0;c<cur.length;c++)curSet[cur[c]]=1;
+  var prevSet={}; for(var p=0;p<prev.length;p++)prevSet[prev[p]]=1;
+  var returning=0; for(var i=0;i<prev.length;i++){ if(curSet[prev[i]])returning++; }
+  var fishPrev=(a.fish||[]), fishBack=0; for(var k=0;k<fishPrev.length;k++){ if(curSet[fishPrev[k]])fishBack++; }
+  var newP=0; for(var j=0;j<cur.length;j++){ if(!prevSet[cur[j]])newP++; }
+  return { to:b.key, returning:returning, retPct:prev.length?returning/prev.length*100:0,
+    fishRetPct:fishPrev.length?fishBack/fishPrev.length*100:0, newP:newP, churn:prev.length-returning };
 }
 function snapshotCard(d){
   var kc=function(l,v,s,c){ return '<div class="kpi'+(c?' '+c:'')+'"><div class="kl">'+l+'</div><div class="kv">'+v+'</div><div class="ks">'+(s||'')+'</div></div>'; };
@@ -601,7 +656,7 @@ window.cashExportTable=function(id){ var t=R&&R.tables[id]; if(!t)return;
   (t.roster||[]).slice().sort(function(a,b){return (b.w||0)-(a.w||0);}).forEach(function(s){ rows.push([s.n,s.id,s.club,s.ag,+(s.bi*GU_TO_BRL).toFixed(2),+(s.w*GU_TO_BRL).toFixed(2),+(s.fee*GU_TO_BRL).toFixed(2),s.h,s.rk]); });
   saveSheets([{name:'Mesa '+id,rows:rows}], 'mesa-'+id+'.xlsx');
 };
-window.cashExportPlayer=function(id){ ensureAgg(); var p=PLAYERS.get(+id)||PLAYERS.get(id); if(!p)return;
+window.cashExportPlayer=function(id){ ensureAgg(); var p=PLAYERS.get(pid(id)); if(!p)return;
   var rows=[['Início','Mesa','ID Mesa','Tipo','Stake','Buy-in (R$)','Resultado (R$)','Fee (R$)','Mãos']];
   TABLES.forEach(function(t){ var ro=t.roster||[]; for(var i=0;i<ro.length;i++){ if(ro[i].id===p.id){ var s=ro[i]; rows.push([String(t.start||'').trim(),t.name,t.id,typeClean(t.type),stakeLabel(t),+(s.bi*GU_TO_BRL).toFixed(2),+(s.w*GU_TO_BRL).toFixed(2),+(s.fee*GU_TO_BRL).toFixed(2),s.h]); break; } } });
   saveSheets([{name:esc(p.name).slice(0,20)||('jogador '+p.id),rows:rows}], 'jogador-'+p.id+'.xlsx');

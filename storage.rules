@@ -2,17 +2,31 @@ rules_version = '2';
 // Regras do Firebase Storage — COLAR no Console: Firebase → Storage → Regras.
 // (O Storage é separado do RTDB, que usa database.rules.json.)
 //
-// O roster de jogadores (cash-roster/) tem PII → só usuário AUTENTICADO lê/escreve.
-// Isso mantém a PII fora do repo público e exige login do Suprema pra ver.
-// Endurecer depois: checar acesso ao painel cash via custom claims quando o RBAC
-// da Etapa 2 estiver ligado. Ver database.rules.target.json.
+// O roster de jogadores (cash-roster/) tem PII → acesso restrito. Isso mantém a
+// PII fora do repo público E fora do alcance de contas que não são do painel cash.
+// Endurecer na Etapa 2 (RBAC): trocar realUser() por hasCashAccess() (ver abaixo).
 service firebase.storage {
   match /b/{bucket}/o {
-    // roster de jogadores da mesa cash (arquivos .json.gz por semana)
+    // roster de jogadores da mesa cash (.json.gz por semana + .digest.json.gz)
     match /cash-roster/{file} {
-      // Só autenticado (inclui login anônimo). Simples de propósito p/ eliminar
-      // falha de permissão; o teto de tamanho pode voltar depois.
-      allow read, write: if request.auth != null;
+      // Login REAL (nunca anônimo — anônimo enfraqueceria a barreira da PII).
+      // NÃO usa mais "if request.auth != null" aberto: aquilo deixava QUALQUER
+      // conta autenticada (inclusive anônima) ler/escrever/sobrescrever a PII.
+      function realUser() {
+        return request.auth != null
+          && request.auth.token.firebase.sign_in_provider != 'anonymous';
+      }
+      // Etapa 2 (RBAC): descomentar e trocar realUser() por hasCashAccess() nas
+      // regras abaixo — exige o custom claim `access_cash` no token (setado pelo
+      // backend quando o RBAC estiver ligado). Ver database.rules.target.json.
+      //   function hasCashAccess() { return realUser() && request.auth.token.access_cash == true; }
+      allow read: if realUser();
+      // Escrita: só usuário real, só gzip, com teto de tamanho (evita bucket cheio
+      // e upload de blob arbitrário por conta comprometida). O roster de uma semana
+      // grande fica na casa de dezenas de MB gzip; 300 MB dá folga sã.
+      allow write: if realUser()
+        && request.resource.size < 300 * 1024 * 1024
+        && request.resource.contentType == 'application/gzip';
     }
     // tudo o mais: negado por padrão
     match /{allPaths=**} {
