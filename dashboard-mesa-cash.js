@@ -144,7 +144,7 @@ D.fpp.forEach(x=>x.fpp*=GU_TO_BRL);
 // ══════════════════════════════ HELPERS
 // (shiftOf definido logo abaixo; a normalização de turnos roda após ele)
 const f=(n,d=0)=>n==null?'—':Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
-const fK=n=>n>=1e6?f(n/1e6,1)+'M':n>=1e3?f(n/1e3,1)+'k':f(n,0);
+const fK=n=>n>=1e6?f(n/1e6,1)+' mi':n>=1e3?f(n/1e3,1)+' mil':f(n,0);
 const fKR=n=>'R$ '+fK(n);
 /* TURNOS operacionais: Dia 07h–19h · Noite 19h–07h. Tudo deriva desta função —
    os slots de 30min têm o turno recalculado abaixo e os totais de turno são

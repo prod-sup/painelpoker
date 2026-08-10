@@ -24,7 +24,7 @@ var ECO = null;                  // sumário da ecologia
 // ── helpers ─────────────────────────────────────────────────────────────────
 function brl(v, d){ v=(+v||0)*GU_TO_BRL; return v.toLocaleString('pt-BR',{minimumFractionDigits:d||0,maximumFractionDigits:d||0}); }
 function br(v, d){ d=d==null?0:d; return (+v||0).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d}); }
-function fk(v){ v=(+v||0)*GU_TO_BRL; return Math.abs(v)>=1e6?(v/1e6).toFixed(2)+'M':Math.abs(v)>=1e3?(v/1e3).toFixed(1)+'k':Math.round(v); }
+function fk(v){ v=(+v||0)*GU_TO_BRL; return Math.abs(v)>=1e6?br(v/1e6,1)+' mi':Math.abs(v)>=1e3?br(v/1e3,1)+' mil':br(Math.round(v)); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 function el(id){ return document.getElementById(id); }
 function pct(a,b){ return b?(a/b*100):0; }
@@ -831,7 +831,7 @@ function snapshotCard(d){
     +kc('Ganharam',br(d.winners),(d.players?d.winners/d.players*100:0).toFixed(0)+'%','c-amber')
     +'</div>';
 }
-function fmtK(v){ return Math.abs(v)>=1e6?(v/1e6).toFixed(2)+'M':Math.abs(v)>=1e3?(v/1e3).toFixed(0)+'k':Math.round(v); }
+function fmtK(v){ return Math.abs(v)>=1e6?br(v/1e6,1)+' mi':Math.abs(v)>=1e3?br(v/1e3,0)+' mil':br(Math.round(v)); }
 
 // ══════════════════════════════ EXPORT XLSX ════════════════════════════════
 function saveSheets(sheets, filename){
