@@ -94,7 +94,7 @@ a,button{font-family:inherit;cursor:pointer;text-decoration:none;color:inherit;b
   background:var(--dia); border-radius:7px; z-index:0;
   transition:transform .35s cubic-bezier(.4,0,.2,1), width .35s cubic-bezier(.4,0,.2,1);
 }
-.nt{padding:5px 12px;border-radius:7px;font-size:11px;font-weight:700;color:var(--ink3);letter-spacing:.01em;transition:color .15s;position:relative;z-index:1;white-space:nowrap;flex-shrink:0}
+.nt{padding:5px 8px;border-radius:7px;font-size:11px;font-weight:700;color:var(--ink3);letter-spacing:.01em;transition:color .15s;position:relative;z-index:1;white-space:nowrap;flex-shrink:0}
 .nt:hover{color:var(--ink2)}
 .nt.on{color:#fff}
 @media (prefers-reduced-motion: reduce){ .nav-indicator{transition:none} }
