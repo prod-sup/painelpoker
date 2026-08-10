@@ -624,25 +624,38 @@ function topShare(feeArr, frac){ if(!feeArr||!feeArr.length)return 0;
   return s/tot*100; }
 
 // gráfico de linha SVG (uma série, uma escala — regra dataviz). pts=[{x:label,y:num}]
+// rótulo curto de semana: "2026-07-20-2026-07-26" -> "26/07" (data-fim)
+function shortWk(x){ var m=String(x).match(/(\d{2})-(\d{2})$/); return m?m[2]+'/'+m[1]:String(x).slice(-5); }
 function svgLine(pts, opts){
-  opts=opts||{}; var w=opts.w||520, h=opts.h||150, pad=28, color=opts.color||'var(--gold)';
+  opts=opts||{}; var w=opts.w||480, h=opts.h||140;
+  var padL=50, padR=16, padT=18, padB=20, color=opts.color||'var(--gold)';
   if(!pts.length) return '<div style="color:var(--ink3);font-size:11px;padding:16px">sem dados</div>';
   var ys=pts.map(function(p){return p.y;}); var mn=Math.min.apply(null,ys), mx=Math.max.apply(null,ys);
-  if(opts.zero)mn=Math.min(0,mn); if(mx===mn)mx=mn+1;
-  var X=function(i){ return pad + (pts.length<=1? (w-2*pad)/2 : i*(w-2*pad)/(pts.length-1)); };
-  var Y=function(v){ return h-pad - (v-mn)/(mx-mn)*(h-2*pad); };
+  if(opts.zero)mn=Math.min(0,mn); if(mx===mn)mx=mn+(mn===0?1:Math.abs(mn)*0.1);
+  var X=function(i){ return padL + (pts.length<=1? (w-padL-padR)/2 : i*(w-padL-padR)/(pts.length-1)); };
+  var Y=function(v){ return h-padB - (v-mn)/(mx-mn)*(h-padT-padB); };
   var d=pts.map(function(p,i){return (i?'L':'M')+X(i).toFixed(1)+' '+Y(p.y).toFixed(1);}).join(' ');
-  var area='M'+X(0)+' '+(h-pad)+' '+pts.map(function(p,i){return 'L'+X(i).toFixed(1)+' '+Y(p.y).toFixed(1);}).join(' ')+' L'+X(pts.length-1)+' '+(h-pad)+' Z';
-  var dots=pts.map(function(p,i){return '<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(p.y).toFixed(1)+'" r="4" fill="'+color+'"></circle>';}).join('');
+  var area='M'+X(0).toFixed(1)+' '+(h-padB)+' '+pts.map(function(p,i){return 'L'+X(i).toFixed(1)+' '+Y(p.y).toFixed(1);}).join(' ')+' L'+X(pts.length-1).toFixed(1)+' '+(h-padB)+' Z';
+  var baseY=Y(opts.zero?0:mn);
+  // só o marcador da semana atual (evita poluir; os demais viram alvos de hover)
+  var lp=pts[pts.length-1];
+  var dot='<circle cx="'+X(pts.length-1).toFixed(1)+'" cy="'+Y(lp.y).toFixed(1)+'" r="3.6" fill="'+color+'" stroke="var(--surf,#fff)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>';
   // alvo de hover invisível bem maior que o marcador (regra dataviz) — segura o tooltip
-  var hit=pts.map(function(p,i){return '<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(p.y).toFixed(1)+'" r="12" fill="transparent" style="cursor:pointer"><title>'+esc(String(p.x).slice(0,10))+': '+esc(opts.fmt?opts.fmt(p.y):p.y)+'</title></circle>';}).join('');
-  var labels=pts.map(function(p,i){return '<text x="'+X(i).toFixed(1)+'" y="'+(h-8)+'" text-anchor="middle" font-size="9" fill="var(--ink3)">'+esc(String(p.x).slice(5))+'</text>';}).join('');
-  var yTop='<text x="4" y="'+(pad-6)+'" font-size="9" fill="var(--ink3)">'+esc(opts.fmt?opts.fmt(mx):mx)+'</text>';
-  var yBot='<text x="4" y="'+(h-pad+3)+'" font-size="9" fill="var(--ink3)">'+esc(opts.fmt?opts.fmt(mn):mn)+'</text>';
-  return '<svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:auto;overflow:visible">'
-    +'<path d="'+area+'" fill="'+color+'" opacity="0.10"/>'
-    +'<path d="'+d+'" fill="none" stroke="'+color+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
-    +dots+hit+labels+yTop+yBot+'</svg>';
+  var hit=pts.map(function(p,i){return '<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(p.y).toFixed(1)+'" r="14" fill="transparent" style="cursor:pointer"><title>'+esc(shortWk(p.x))+': '+esc(opts.fmt?opts.fmt(p.y):p.y)+'</title></circle>';}).join('');
+  // eixo X: só as duas pontas, ancoradas pra dentro (sem colisão entre gráficos)
+  var xl='<text x="'+padL+'" y="'+(h-6)+'" text-anchor="start" font-size="10" fill="var(--ink3)">'+esc(shortWk(pts[0].x))+'</text>';
+  if(pts.length>1) xl+='<text x="'+(w-padR)+'" y="'+(h-6)+'" text-anchor="end" font-size="10" fill="var(--ink3)">'+esc(shortWk(lp.x))+'</text>';
+  // eixo Y: máx/mín na canaleta esquerda (fora da área do gráfico)
+  var yTop='<text x="'+(padL-8)+'" y="'+(padT+3)+'" text-anchor="end" font-size="10" fill="var(--ink3)">'+esc(opts.fmt?opts.fmt(mx):mx)+'</text>';
+  var yBot='<text x="'+(padL-8)+'" y="'+(h-padB+3)+'" text-anchor="end" font-size="10" fill="var(--ink3)">'+esc(opts.fmt?opts.fmt(mn):mn)+'</text>';
+  // valor da SEMANA ATUAL em destaque, junto à ponta direita
+  var cyv=Y(lp.y), ly=cyv<padT+16?cyv+15:cyv-9;
+  var cur='<text x="'+(w-padR)+'" y="'+ly.toFixed(1)+'" text-anchor="end" font-size="13" font-weight="800" fill="'+color+'">'+esc(opts.fmt?opts.fmt(lp.y):lp.y)+'</text>';
+  return '<svg viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;max-height:170px;overflow:visible">'
+    +'<line x1="'+padL+'" y1="'+baseY.toFixed(1)+'" x2="'+(w-padR)+'" y2="'+baseY.toFixed(1)+'" stroke="var(--bdr)" stroke-dasharray="2 3" stroke-width="1" vector-effect="non-scaling-stroke" opacity="0.7"/>'
+    +'<path d="'+area+'" fill="'+color+'" opacity="0.08"/>'
+    +'<path d="'+d+'" fill="none" stroke="'+color+'" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>'
+    +dot+hit+xl+yTop+yBot+cur+'</svg>';
 }
 
 var _digests=null;
@@ -727,19 +740,19 @@ function drawTendencias(){
   // concentração: fração do rake vinda do top-1% dos jogadores — precisa dos fees do digest
   var haveFee=D.every(function(d){return d.fee&&d.fee.length;});
   var pC=haveFee?D.map(function(d){return {x:d.key,y:+topShare(d.fee,0.01).toFixed(1)};}):null;
-  var trends='<div class="card"><div class="ct">Tendências por semana</div><div class="cs">Cada gráfico tem UMA escala (comparável de verdade)</div>'
-    +'<div class="g2" style="margin-top:10px">'
-    +'<div><div style="font-size:11px;font-weight:700;margin-bottom:4px">Rake (R$)</div>'+svgLine(pR,{color:'var(--gold)',zero:true,fmt:function(v){return 'R$ '+fmtK(v);}})+'</div>'
-    +'<div><div style="font-size:11px;font-weight:700;margin-bottom:4px">Jogadores únicos</div>'+svgLine(pP,{color:'#4e79a7',zero:true,fmt:function(v){return br(v);}})+'</div>'
-    +'</div>'
-    +'<div class="g2" style="margin-top:10px">'
-    +'<div><div style="font-size:11px;font-weight:700;margin-bottom:4px">Take rate (%)</div>'+svgLine(pT,{color:'#59a14f',fmt:function(v){return v+'%';}})+'</div>'
-    +'<div><div style="font-size:11px;font-weight:700;margin-bottom:4px">Perdedores / recreativos (%)</div>'+svgLine(pF,{color:'#f28e2b',zero:true,fmt:function(v){return v+'%';}})+'</div>'
-    +'</div>'
-    +(pC?'<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;margin-bottom:4px">Concentração de rake — top 1% dos jogadores (%)</div>'
-       +'<div style="font-size:10px;color:var(--ink3);margin-bottom:2px">Subindo = receita mais dependente de poucos = mais frágil</div>'
-       +svgLine(pC,{color:'#b07aa1',zero:true,fmt:function(v){return v+'%';}})+'</div>':'')
-    +'</div>';
+  // célula uniforme (título + subtítulo opcional + gráfico) — todas do mesmo tamanho
+  var cell=function(title,sub,svg){ return '<div style="min-width:0">'
+    +'<div style="font-size:11.5px;font-weight:700;color:var(--ink);margin-bottom:'+(sub?'1px':'6px')+'">'+title+'</div>'
+    +(sub?'<div style="font-size:9.5px;color:var(--ink3);margin-bottom:6px;line-height:1.35">'+sub+'</div>':'')
+    +svg+'</div>'; };
+  var trends='<div class="card"><div class="ct">Tendências por semana</div><div class="cs">Cada gráfico tem UMA escala — comparável de verdade. Número colorido = semana atual.</div>'
+    +'<div class="g2" style="margin-top:14px;gap:22px 16px">'
+    +cell('Rake (R$)','',svgLine(pR,{color:'var(--gold)',zero:true,fmt:function(v){return 'R$ '+fmtK(v);}}))
+    +cell('Jogadores únicos','',svgLine(pP,{color:'#4e79a7',zero:true,fmt:function(v){return br(v);}}))
+    +cell('Take rate (%)','',svgLine(pT,{color:'#59a14f',fmt:function(v){return v+'%';}}))
+    +cell('Perdedores / recreativos (%)','',svgLine(pF,{color:'#f28e2b',zero:true,fmt:function(v){return v+'%';}}))
+    +(pC?cell('Concentração de rake — top 1%','Subindo = receita mais dependente de poucos = mais frágil',svgLine(pC,{color:'#b07aa1',zero:true,fmt:function(v){return v+'%';}})):'')
+    +'</div></div>';
   // retenção semana a semana — só pares onde os IDs (digest) já chegaram
   var ret=[]; for(var i=1;i<D.length;i++){ if(D[i-1].ids&&D[i].ids) ret.push(retentionBetween(D[i-1],D[i])); }
   var pending=D.some(function(d){return d.ids==null;});
