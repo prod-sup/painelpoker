@@ -87,7 +87,7 @@ a,button{font-family:inherit;cursor:pointer;text-decoration:none;color:inherit;b
    sem trilho externo (a barra tem 10 abas e rola horizontal; um pill envolvendo
    tudo não caberia) — cada aba ativa vira uma pill azul (--dia, cor do Cash)
    que desliza pra trás da aba certa. cashNavIndicator movido por moveNavIndicator() em .js */
-.nav{position:relative; display:flex;gap:1px;flex:1;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.nav{position:relative; display:flex;gap:1px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .nav::-webkit-scrollbar{display:none}
 .nav-indicator{
   position:absolute; top:0; left:0; height:100%; width:0;
