@@ -430,7 +430,7 @@ function nhKey(nome, hora){
 function mergeDayInto(date, snap, day){
   // 1. snapshot (rows prontas) — só cria o dia se houver rows válidas (como no original)
   if(snap && snap.rows && typeof snap.rows==='object'){
-    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},premBy:{}};
+    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},buy:{},premBy:{}};
     Object.entries(snap.rows).forEach(([k,r])=>{
       if(!r||typeof r!=='object')return;
       // _snap: veio de um snapshot já finalizado. Nesse ponto o painel JÁ removeu toda premiação
@@ -448,7 +448,7 @@ function mergeDayInto(date, snap, day){
 
   // 2. painel ao vivo — complementa/sobrepõe o snapshot
   if(day && typeof day==='object'){
-    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},premBy:{}};
+    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},buy:{},premBy:{}};
     // sheet.rows é ARRAY — converter para objeto com rk_ keys
     // Merge por nome+hora (não recalcula hash) para evitar duplicar o mesmo torneio
     // quando o garantido muda entre o snapshot e o painel ao vivo (hash diferente)
@@ -508,6 +508,10 @@ function mergeDayInto(date, snap, day){
     Object.entries(day.garantido||{}).forEach(([k,v])=>{
       if(v!=null) _allData[date].guar[k]=v;
     });
+    // Buy-in corrigido na auditoria (painel/<data>/buyin) — sobrepõe o buy-in da planilha
+    Object.entries(day.buyin||{}).forEach(([k,v])=>{
+      if(v!=null) _allData[date].buy[k]=v;
+    });
 
     // Torneios ADICIONADOS na auditoria (painel/<date>/manualRows) — só admin lê. Entram como
     // linhas normais, iguais ao snapshot; premiação/field/garantido vêm dos nós overlay já
@@ -564,7 +568,7 @@ function watchLiveGrade(){
         .then(ss => { day.sheet = ss.val(); refreshDayLive(date); })
         .catch(() => { lastSheetAt = null; });
     });
-    ['premiacao','fixed','premBy','ids','field','garantido','manualRows'].forEach(node => {
+    ['premiacao','fixed','premBy','ids','field','garantido','buyin','manualRows'].forEach(node => {
       db.ref(`painel/${date}/${node}`).on('value', s => { day[node] = s.val(); refreshDayLive(date); });
     });
   });
@@ -712,7 +716,7 @@ function flatRows(fromDate, toDate){
       //   com campanha 0,88 · sem campanha 0,90 · satélite 0,95
       // "+"/série no Main NÃO é campanha — só o prefixo SPS/SPT conta.
       // Ex.: 750 Plus (side sem campanha) prem R$1.068,30 ÷ (R$1 × 0,90) = 1.187 ações.
-      const buyin = r.buyin ?? null;
+      const buyin = pick(day.buy) ?? r.buyin ?? null;   // buy-in corrigido na auditoria vence a planilha
       const isCampanha = /^\s*(SPS|SPT)\b/i.test(r.nome||'');
       const netFactor = netFactorOf(cat, isCampanha);
       const acoes = prem!=null && buyin ? Math.round(prem/(buyin*netFactor)) : null;
@@ -2543,7 +2547,8 @@ function openAuditEditByEl(btn){
   openAuditEdit({key:r.key,date:r.date,nome:r.nome,hora:r.hora,
     premiacao: e && e.premiacaoOriginal!=null ? e.premiacaoOriginal : r.premiacao,
     field:     e && e.fieldOriginal!=null     ? e.fieldOriginal     : r.field,
-    garantido: e && e.garantidoOriginal!=null ? e.garantidoOriginal : r.garantido});
+    garantido: e && e.garantidoOriginal!=null ? e.garantidoOriginal : r.garantido,
+    buyin:     e && e.buyinOriginal!=null      ? e.buyinOriginal     : r.buyin});
 }
 
 function openNotifByEl(btn){
@@ -2615,16 +2620,21 @@ function openAuditEdit(ctx){
     _auditContext.field != null ? _auditContext.field+' jog.' : '—';
   document.getElementById('auditOrigGar').textContent =
     _auditContext.garantido != null ? 'R$ '+brl(_auditContext.garantido) : '—';
+  document.getElementById('auditOrigBuyin').textContent =
+    _auditContext.buyin != null ? 'R$ '+brl(_auditContext.buyin) : '—';
 
   // Preencher com valor já auditado (se existir) ou original
-  const premVal = audit?.premiacaoAuditada ?? _auditContext.premiacao;
-  const garVal  = audit?.garantidoAuditado ?? _auditContext.garantido;
+  const premVal  = audit?.premiacaoAuditada ?? _auditContext.premiacao;
+  const garVal   = audit?.garantidoAuditado ?? _auditContext.garantido;
+  const buyinVal = audit?.buyinAuditada ?? _auditContext.buyin;
   document.getElementById('auditPremInput').value =
     premVal != null ? brl(premVal,2) : '';
   document.getElementById('auditFieldInput').value =
     audit?.fieldAuditado ?? _auditContext.field ?? '';
   document.getElementById('auditGarInput').value =
     garVal != null ? brl(garVal,2) : '';
+  document.getElementById('auditBuyinInput').value =
+    buyinVal != null ? brl(buyinVal,2) : '';
   document.getElementById('auditObs').value = audit?.obs || '';
   document.getElementById('auditApproved').checked = audit?.status === 'aprovado';
 
@@ -2642,11 +2652,12 @@ async function saveAudit(){
   const premRaw  = document.getElementById('auditPremInput').value.trim();
   const fieldRaw = document.getElementById('auditFieldInput').value.trim();
   const garRaw   = document.getElementById('auditGarInput').value.trim();
+  const buyinRaw = document.getElementById('auditBuyinInput').value.trim();
   const obs      = document.getElementById('auditObs').value.trim();
   const approved = document.getElementById('auditApproved').checked;
 
   errEl.style.display = 'none';
-  if(!premRaw && !fieldRaw && !garRaw && !approved){
+  if(!premRaw && !fieldRaw && !garRaw && !buyinRaw && !approved){
     errEl.textContent = 'Preencha ao menos um valor ou marque como aprovado.';
     errEl.style.display = 'block'; return;
   }
@@ -2654,12 +2665,16 @@ async function saveAudit(){
   const prem  = premRaw  ? parseBRL(premRaw)  : null;
   const field = fieldRaw ? parseInt(fieldRaw,10) : null;
   const gar   = garRaw   ? parseBRL(garRaw)   : null;
+  const buyin = buyinRaw ? parseBRL(buyinRaw) : null;
 
   if(premRaw && isNaN(prem)){
     errEl.textContent = 'Premiação inválida.'; errEl.style.display='block'; return;
   }
   if(garRaw && isNaN(gar)){
     errEl.textContent = 'Garantido inválido.'; errEl.style.display='block'; return;
+  }
+  if(buyinRaw && isNaN(buyin)){
+    errEl.textContent = 'Buy-in inválido.'; errEl.style.display='block'; return;
   }
 
   btn.textContent = 'Salvando...';
@@ -2668,9 +2683,11 @@ async function saveAudit(){
     premiacaoOriginal: _auditContext.premiacao ?? null,
     fieldOriginal:     _auditContext.field ?? null,
     garantidoOriginal: _auditContext.garantido ?? null,
+    buyinOriginal:     _auditContext.buyin ?? null,
     premiacaoAuditada: approved ? (_auditContext.premiacao ?? null) : (prem ?? null),
     fieldAuditado:     approved ? (_auditContext.field ?? null) : (field ?? null),
     garantidoAuditado: approved ? (_auditContext.garantido ?? null) : (gar ?? null),
+    buyinAuditada:     approved ? (_auditContext.buyin ?? null) : (buyin ?? null),
     status:    approved ? 'aprovado' : 'corrigido',
     obs:       obs || null,
     auditadoEm:   Date.now(),
@@ -2697,6 +2714,9 @@ async function saveAudit(){
       }
       if(field != null) await db.ref(`${basePath}/field/${_auditContext.key}`).set(field);
       if(gar != null)   await db.ref(`${basePath}/garantido/${_auditContext.key}`).set(gar);
+      // Buy-in corrigido: overlay próprio (painel/<data>/buyin) que o painel lê e sobrepõe à
+      // planilha, recalculando as "ações". Não muda a rowKey (ela usa o buy-in da planilha).
+      if(buyin != null) await db.ref(`${basePath}/buyin/${_auditContext.key}`).set(buyin);
     }
 
     // Atualizar cache local
@@ -2711,11 +2731,15 @@ async function saveAudit(){
           if(prem != null)  r.premiacao = prem;
           if(field != null) r.field = field;
           if(gar != null)   r.garantido = gar;
+          if(buyin != null) r.buyin = buyin;
           // Recalcular overlay/perf
           if(r.premiacao != null && r.garantido != null){
             r.overlay = r.premiacao - r.garantido < 0 ? r.premiacao - r.garantido : null;
             r.perf    = r.garantido > 0 ? Math.round(((r.premiacao-r.garantido)/r.garantido)*1000)/10 : null;
           }
+          // Recalcular ações (prem ÷ buy-in líquido) — buy-in ou premiação podem ter mudado
+          r.acoes = (r.premiacao != null && r.buyin && r.netFactor)
+            ? Math.round(r.premiacao/(r.buyin*r.netFactor)) : null;
         }
       }
     });
@@ -2728,6 +2752,7 @@ async function saveAudit(){
       premOriginal: _auditContext.premiacao, premNova: approved?null:prem,
       fieldOriginal: _auditContext.field, fieldNovo: approved?null:field,
       garOriginal: _auditContext.garantido, garNovo: approved?null:gar,
+      buyinOriginal: _auditContext.buyin, buyinNovo: approved?null:buyin,
       obs,
     });
     // Re-renderizar a auditoria para mostrar badge
@@ -2790,14 +2815,23 @@ async function saveAddTorneio(){
   if(garRaw   && isNaN(gar))   return fail('Garantido inválido.');
   if(premRaw  && isNaN(prem))  return fail('Arrecadado inválido.');
 
+  // MESMA forma da linha manual do PAINEL (buildManualRow) — é isto que faz o painel fundir
+  // este torneio na grade AO VIVO exatamente como a ferramenta "Adicionar torneio" dele:
+  // `_manual:true` faz o ingest do painel tratá-lo como manual (separa da planilha, não
+  // duplica, sobrevive a re-upload da Global). Quando a data for a de hoje, o operador vê o
+  // card na hora; para datas passadas, entra só na auditoria (o painel só funde o dia atual).
   // `tipo` = categoria escolhida; classify() já mapeia 'main'/'side'/'sat' de volta pra cat.
   const row = {
-    nome, hora, tipo:cat,
-    buyin: buyin!=null?buyin:null,
+    nome, hora, late:null,
     garantido: gar!=null?gar:null,
-    field: field!=null?field:null,
-    late:'', obs: obs||null,
-    manual:true, by:(_email||'admin'), at:Date.now(),
+    buyin: buyin!=null?buyin:null,
+    premiacao:null, premFromSheet:false, explicitNF:false, overlay:null,
+    field: field!=null?field:null, acoes:null, perf:null, check:null,
+    tipo:cat, highlighted:false,
+    _manual:true,                       // ← painel: trata como torneio manual (grade ao vivo)
+    manual:true,                        // compat: o merge da auditoria (mergeDayInto) usa este flag
+    obs: obs||null,
+    _by:(_email||'admin'), by:(_email||'admin'), _at:Date.now(), at:Date.now(),
   };
   const key = rowKey(row);              // hash de nome|hora|buyin|garantido (mesmo do painel)
   const stamp = { by:(_email||'Admin')+' (add)', at:Date.now() };
@@ -2816,7 +2850,7 @@ async function saveAddTorneio(){
     }
 
     // Reflete em memória já (sem esperar o refresh ao vivo)
-    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},premBy:{}};
+    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},buy:{},premBy:{}};
     _allData[date].rows[key]={...row,_key:key,manual:true};
     if(idVal)      _allData[date].ids[key]={val:idVal,by:stamp.by};
     if(gar != null)   _allData[date].guar[key]=gar;
@@ -2824,7 +2858,9 @@ async function saveAddTorneio(){
     if(prem != null){ _allData[date].prem[key]=prem; _allData[date].premBy[key]={by:stamp.by,at:stamp.at}; }
 
     closeMo('moAddTorneio');
-    toast('✓ Torneio adicionado à auditoria','ok');
+    toast(date === nowSP()
+      ? '✓ Torneio adicionado — já está na grade ao vivo de hoje'
+      : '✓ Torneio adicionado à auditoria','ok');
     writeAdminLog('adicionar', { torneio:nome, date, hora, cat, buyin, garantido:gar, premiacao:prem, field, id:idVal, obs });
 
     // Garante que o período visível cobre a data lançada, senão a linha não apareceria
@@ -2853,10 +2889,13 @@ function enrichWithAudit(rows){
     const prem = useAudited(a.premiacaoAuditada, a.premiacaoOriginal) ? a.premiacaoAuditada : r.premiacao;
     const gar  = useAudited(a.garantidoAuditado, a.garantidoOriginal) ? a.garantidoAuditado : r.garantido;
     const field= useAudited(a.fieldAuditado,     a.fieldOriginal)     ? a.fieldAuditado     : r.field;
+    const buyin= useAudited(a.buyinAuditada,     a.buyinOriginal)     ? a.buyinAuditada     : r.buyin;
     // Recalcular overlay/perf com base nos valores corrigidos
     const diff = prem!=null&&gar!=null ? prem-gar : null;
     const overlay = diff!=null&&diff<0 ? diff : null;
     const perf = prem!=null&&gar!=null&&gar>0 ? Math.round(((prem-gar)/gar)*10000)/100 : null;
+    // Ações recalculadas — buy-in ou premiação corrigidos mudam o número de entradas
+    const acoes = (prem!=null && buyin && r.netFactor) ? Math.round(prem/(buyin*r.netFactor)) : r.acoes;
     return {
       ...r,
       _audited: true,
@@ -2864,8 +2903,10 @@ function enrichWithAudit(rows){
       premiacao: prem,
       garantido: gar,
       field,
+      buyin,
       overlay,
       perf,
+      acoes,
     };
   });
 }

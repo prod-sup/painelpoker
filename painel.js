@@ -169,6 +169,7 @@ let PREM_BY_MAP                  = {}; // quem preencheu premiação/field de ca
 let ID_MAP                       = {};
 let FIELD_MAP                    = {};
 let GARANTIDO_MAP                = {};
+let BUYIN_MAP                    = {}; // buy-in CORRIGIDO na auditoria (admin) — overlay painel/<data>/buyin, mesma família do GARANTIDO_MAP mas só-leitura aqui; recalcula as "ações". Não persiste em localStorage: o listener re-aplica ao conectar.
 let FLAG_MAP                     = {}; // torneios destacados (flag) que sobem ao topo — { key: {by,at} } — compartilhado em painel/<data>/flags, igual ao FIXED_MAP
 // Chaves de premiação que JÁ apareceram no nó `premiacao` do Firebase nesta sessão.
 // A reconciliação só pode anular uma premiação cuja chave FOI vista e depois SUMIU
@@ -2618,6 +2619,19 @@ function initFirebaseSync(){
       maybeAutoBackupSheets();   // garantido mudou → reescreve o backup se o dia já fechou
     });
 
+    // ── Buy-in corrigido na auditoria (admin) ─────────────────────────────
+    // Overlay só-escrito pelo admin (painel/<data>/buyin/<key>). Aqui é só-leitura:
+    // sobrescreve o buy-in da planilha na row → as "ações" (prem ÷ buy-in) recalculam
+    // no render. Chave = rowKey da planilha (nome|hora|buyin|garantido), estável.
+    fbDb.ref(`${FB_BASE_PATH}/buyin`).on('value', snap => {
+      BUYIN_MAP = snap.val() || {};
+      Object.entries(BUYIN_MAP).forEach(([key, val]) => {
+        const row = rowByKey(key);
+        if(row && val != null) row.buyin = val;
+      });
+      if(RAW_ROWS.length) scheduleUI('results', 'upcoming', 'stats');
+    });
+
     // ── Checklist e Conf. hoje ────────────────────────────────────────────
     fbDb.ref(`${FB_BASE_PATH}/checklist`).on('value', snap => {
       CHECKLIST_MAP = snap.val() || {};
@@ -3763,9 +3777,9 @@ function migrateOrphanedWork(newRows){
     if (newKey === oldKey) return;
     const oldPremOp = oldRow.premiacao != null && !oldRow.premFromSheet; // só premiação DIGITADA pelo operador migra
     const hadWork = FIXED_MAP[oldKey] != null || ID_MAP[oldKey] != null || FIELD_MAP[oldKey] != null ||
-                    GARANTIDO_MAP[oldKey] != null || oldPremOp;
+                    GARANTIDO_MAP[oldKey] != null || BUYIN_MAP[oldKey] != null || oldPremOp;
     if (!hadWork) return;
-    [[FIXED_MAP,'fixed'], [ID_MAP,'ids'], [FIELD_MAP,'field'], [GARANTIDO_MAP,'garantido'], [PREM_BY_MAP,'premBy']].forEach(([map, node]) => {
+    [[FIXED_MAP,'fixed'], [ID_MAP,'ids'], [FIELD_MAP,'field'], [GARANTIDO_MAP,'garantido'], [BUYIN_MAP,'buyin'], [PREM_BY_MAP,'premBy']].forEach(([map, node]) => {
       if (map[oldKey] == null || map[newKey] != null) return;
       map[newKey] = map[oldKey]; delete map[oldKey];
       if (fbReady && fbDb){
@@ -4123,6 +4137,10 @@ function ingest(rows, filename, fromRemote=false){
   // operador digitou vive no nó premiacao do FB e volta pelo resyncPremiacaoFromFirebase() abaixo.
   RAW_ROWS = rows.map(r => ({...r, _key: rowKey(r), ...(r.premFromSheet ? {premiacao:null, premFromSheet:false} : {})}));
   reindexRows();
+  // Buy-in corrigido na auditoria: re-aplica o overlay por cima da row recém-montada da
+  // planilha (o _key é o rowKey da planilha, então a chave do overlay bate). As "ações"
+  // recalculam no render a partir de row.buyin.
+  RAW_ROWS.forEach(r => { if(BUYIN_MAP[r._key] != null) r.buyin = BUYIN_MAP[r._key]; });
   // planilha carregada → re-puxa a premiação salva no Firebase (corrige a corrida de ordem)
   resyncPremiacaoFromFirebase();
   // Persistir sheet + dados dos cards no localStorage (restauração imediata ao recarregar)
@@ -8858,6 +8876,7 @@ function resetDay(forcedDate){
   ID_MAP        = {};  saveIdMapLocal({});
   FIELD_MAP     = {};  saveFieldMapLocal({});
   GARANTIDO_MAP = {};  saveGarantidoMapLocal({});
+  BUYIN_MAP     = {};  // overlay de buy-in corrigido (não persiste em localStorage)
   CHECKLIST_MAP = {};  saveChecklistMapLocal({});
   FLAG_MAP      = {};  saveFlagMapLocal({});
 
@@ -9148,7 +9167,7 @@ function reinitDayListeners(){
 
   // Remover listeners antigos do dia anterior antes de re-registrar
   // (evita duplicação de listeners ao virar o dia)
-  ['premiacao','fixed','flags','premBy','ids','field','garantido','checklist','confhoje','rolledTo','manualRows'].forEach(node => {
+  ['premiacao','fixed','flags','premBy','ids','field','garantido','buyin','checklist','confhoje','rolledTo','manualRows'].forEach(node => {
     fbDb.ref(`${FB_BASE_PATH}/${node}`).off();
   });
 
@@ -9251,6 +9270,16 @@ function reinitDayListeners(){
     saveGarantidoMapLocal(GARANTIDO_MAP);
     if(RAW_ROWS.length) scheduleUI('stats', 'results');
     else computeStats();
+  });
+
+  // Buy-in corrigido na auditoria (admin) — só-leitura aqui; recalcula as "ações"
+  fbDb.ref(`${FB_BASE_PATH}/buyin`).on('value', snap => {
+    BUYIN_MAP = snap.val() || {};
+    Object.entries(BUYIN_MAP).forEach(([key, val]) => {
+      const row = rowByKey(key);
+      if(row && val != null) row.buyin = val;
+    });
+    if(RAW_ROWS.length) scheduleUI('results', 'upcoming', 'stats');
   });
 
   // Checklist

@@ -912,6 +912,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="audit-val-orig"><span>Premiação original</span><strong id="auditOrigPrem">—</strong></div>
       <div class="audit-val-orig"><span>Field original</span><strong id="auditOrigField">—</strong></div>
       <div class="audit-val-orig"><span>Garantido original</span><strong id="auditOrigGar">—</strong></div>
+      <div class="audit-val-orig"><span>Buy-in original</span><strong id="auditOrigBuyin">—</strong></div>
       <div class="audit-val-orig"><span>ID original</span><strong id="auditOrigId">—</strong></div>
     </div>
 
@@ -926,6 +927,10 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="mf">
       <label>Garantido corrigido (R$)</label>
       <input type="text" inputmode="decimal" id="auditGarInput" placeholder="—" data-act="maskBRL" data-act-self data-act-on="input" onblur="fmtBRLInput(this)">
+    </div>
+    <div class="mf">
+      <label>Buy-in corrigido (R$)</label>
+      <input type="text" inputmode="decimal" id="auditBuyinInput" placeholder="—" data-act="maskBRL" data-act-self data-act-on="input" onblur="fmtBRLInput(this)">
     </div>
     <div class="mf">
       <label>ID Pokerbyte corrigido</label>
@@ -956,7 +961,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <div class="modal-bg" id="moAddTorneio" role="dialog" aria-modal="true" aria-hidden="true">
   <div class="modal" style="max-width:520px;max-height:90vh;overflow-y:auto">
     <h2>➕ Adicionar torneio</h2>
-    <div class="msub">Lança um torneio que faltou na planilha. Aparece só na auditoria e nos relatórios — não vai pra grade ao vivo dos operadores.</div>
+    <div class="msub">Lança um torneio que faltou na planilha. Se a data for a de <b>hoje</b>, entra na grade ao vivo (o operador vê o card na hora e sobrevive a um re-upload da Global) — igual à ferramenta "Adicionar torneio" do painel. Sempre aparece na auditoria e nos relatórios.</div>
     <div class="merr" id="addErr"></div>
 
     <div style="display:flex;gap:10px;flex-wrap:wrap">
