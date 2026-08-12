@@ -133,6 +133,9 @@ body:hover .tv-btn{opacity:.9} body:hover .tv-btn:hover{opacity:1}
 .tday-list,.coming-list,.team-list,.tier-list,.avisos-list{
   -webkit-mask-image:linear-gradient(180deg, transparent 0, #000 30px, #000 calc(100% - 30px), transparent 100%);
   mask-image:linear-gradient(180deg, transparent 0, #000 30px, #000 calc(100% - 30px), transparent 100%)}
+/* cards não podem ENCOLHER dentro da coluna flex (senão o subtítulo é cortado) —
+   mantêm a altura natural e a lista desce sozinha (auto-scroll) quando há mais do que cabe */
+.coming-card,.tier-row,.team-card,.aviso-card{flex:0 0 auto}
 
 /* cabeçalho de cena */
 .scene-head{text-align:center; max-width:78vw}
@@ -851,42 +854,44 @@ html.lite .hero-big{animation:none; color:var(--gold-hi)}
 @media (prefers-reduced-motion:reduce){ .tv-boom{transition:none} .tv-boom.run .boom-stage{animation:none; transform:none; opacity:1} }
 
 /* ── TELA — A Semana Inteira (grid de dias) ── */
-/* A Semana SPS — TUDO cabe numa tela de TV (título + resumo + 7 dias em UMA linha, sem scroll) */
-.scene-week{justify-content:flex-start; padding:calc(clamp(16px,2vh,26px) + 44px) clamp(24px,2.4vw,52px) clamp(12px,1.6vh,22px); gap:clamp(14px,2vh,24px)}
-.week-grid{width:min(1760px,97vw); display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:clamp(7px,.7vw,13px); align-content:start; overflow:visible}
-.wk-card{position:relative; padding:clamp(10px,.85vw,16px); border-radius:14px; border:1px solid rgba(255,255,255,.08);
+/* A Semana SPS — TUDO cabe numa tela de TV (7 dias em UMA linha) e OCUPA a tela toda:
+   o bloco (resumo + grade) é centralizado na vertical e os cards são altos (~54vh). */
+.scene-week{justify-content:center; padding:calc(clamp(16px,2vh,26px) + 44px) clamp(24px,2.4vw,52px) clamp(16px,2.2vh,30px); gap:clamp(18px,2.6vh,32px)}
+.week-grid{width:min(1780px,97vw); display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:clamp(9px,.85vw,16px); align-content:stretch; overflow:visible}
+.wk-card{position:relative; min-height:clamp(320px,52vh,520px); padding:clamp(16px,1.4vw,26px); border-radius:18px; border:1px solid rgba(255,255,255,.08);
   background:linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.02) 62%); -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px);
-  display:flex; flex-direction:column; gap:clamp(7px,.8vh,11px); min-width:0; opacity:0; animation:tier-in .6s var(--ease-in) both; animation-delay:calc(var(--i,0)*.06s)}
+  display:flex; flex-direction:column; gap:clamp(12px,1.6vh,22px); min-width:0; opacity:0; animation:tier-in .6s var(--ease-in) both; animation-delay:calc(var(--i,0)*.06s)}
 .wk-card.is-now{border-color:var(--line-gold); background:linear-gradient(160deg, rgba(201,168,76,.13), rgba(255,255,255,.02) 62%)}
-.wk-day{font-size:clamp(12px,.95vw,15px); font-weight:600; color:var(--ink); text-transform:capitalize; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.wk-day small{display:block; font-family:var(--mono); font-size:9.5px; color:var(--ink4); margin-top:2px; text-transform:none}
+.wk-day{font-size:clamp(14px,1.15vw,20px); font-weight:700; color:var(--ink); text-transform:capitalize; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.wk-day small{display:block; font-family:var(--mono); font-size:clamp(10px,.75vw,12.5px); color:var(--ink4); margin-top:4px; text-transform:none}
 .wk-card.is-now .wk-day small{color:var(--gold)}
-.wk-stats{display:flex; gap:clamp(8px,.9vw,16px); padding:clamp(8px,.9vh,12px) 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line)}
-.wk-n{display:flex; flex-direction:column; gap:2px; min-width:0}
-.wk-n b{font-size:clamp(.95rem,1.12vw,1.3rem); font-weight:700; color:var(--gold-hi); font-variant-numeric:tabular-nums; white-space:nowrap}
-.wk-n span{font-size:8.5px; letter-spacing:.04em; text-transform:uppercase; color:var(--ink4); white-space:nowrap}
-.wk-top{font-size:10px; color:var(--ink3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.wk-top span{color:var(--gold); font-weight:700; text-transform:uppercase; letter-spacing:.04em; font-size:8.5px; margin-right:4px}
+/* os números ficam grandes e centrados no corpo do card (aproveita a altura) */
+.wk-stats{display:flex; flex-direction:column; gap:clamp(12px,2vh,26px); padding:clamp(14px,2vh,26px) 0; margin:auto 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line)}
+.wk-n{display:flex; flex-direction:column; gap:3px; min-width:0}
+.wk-n b{font-size:clamp(1.4rem,2vw,2.6rem); font-weight:800; color:var(--gold-hi); font-variant-numeric:tabular-nums; white-space:nowrap; line-height:1; letter-spacing:-.02em}
+.wk-n span{font-size:clamp(8.5px,.65vw,10.5px); letter-spacing:.06em; text-transform:uppercase; color:var(--ink4); white-space:nowrap; margin-top:1px}
+.wk-top{font-size:clamp(10px,.72vw,12.5px); color:var(--ink3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.wk-top span{color:var(--gold); font-weight:700; text-transform:uppercase; letter-spacing:.04em; font-size:clamp(8.5px,.6vw,10px); margin-right:5px}
 
-/* resumo da semana (faixa compacta acima da grade) */
-.wk-summary{width:min(1760px,97vw); display:grid; grid-template-columns:repeat(4,1fr); gap:clamp(8px,1vw,16px)}
-.wk-sum-i{padding:clamp(9px,1vw,15px) clamp(12px,1.2vw,18px); border-radius:13px; border:1px solid rgba(255,255,255,.08);
+/* resumo da semana (faixa acima da grade) */
+.wk-summary{width:min(1780px,97vw); display:grid; grid-template-columns:repeat(4,1fr); gap:clamp(10px,1.1vw,18px)}
+.wk-sum-i{padding:clamp(11px,1.2vw,18px) clamp(14px,1.4vw,22px); border-radius:14px; border:1px solid rgba(255,255,255,.08);
   background:linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,.015) 66%); -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px)}
-.wk-sum-i span{display:block; font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink4)}
-.wk-sum-i b{display:block; margin-top:4px; font-size:clamp(1rem,1.35vw,1.45rem); font-weight:800; color:var(--gold-hi); font-variant-numeric:tabular-nums; letter-spacing:-.01em; white-space:nowrap}
-.wk-sum-i b i{font-style:normal; font-size:.6em; font-weight:600; color:var(--ink3)}
+.wk-sum-i span{display:block; font-size:9.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink4)}
+.wk-sum-i b{display:block; margin-top:5px; font-size:clamp(1.15rem,1.6vw,1.8rem); font-weight:800; color:var(--gold-hi); font-variant-numeric:tabular-nums; letter-spacing:-.01em; white-space:nowrap}
+.wk-sum-i b i{font-style:normal; font-size:.58em; font-weight:600; color:var(--ink3)}
 .wk-sum-best{border-color:var(--line-gold); background:linear-gradient(160deg, rgba(201,168,76,.12), rgba(255,255,255,.015) 66%)}
 .wk-sum-best b{color:var(--gold)}
 
 /* barra relativa de garantido dentro do card do dia + destaque do melhor dia */
-.wk-bar{height:5px; border-radius:999px; background:rgba(255,255,255,.06); overflow:hidden}
+.wk-bar{height:7px; border-radius:999px; background:rgba(255,255,255,.06); overflow:hidden}
 .wk-bar i{display:block; height:100%; width:var(--p,0%); border-radius:999px;
   background:linear-gradient(90deg,var(--gold-deep),var(--gold-hi)); box-shadow:0 0 10px -2px var(--gold-glow);
   animation:wk-bar-in 1s var(--ease-in) both; animation-delay:calc(var(--i,0)*.06s + .18s)}
 @keyframes wk-bar-in{from{width:0}}
 .wk-card.is-best{border-color:var(--line-gold); background:linear-gradient(160deg, rgba(201,168,76,.16), rgba(255,255,255,.02) 62%)}
-.wk-flag{position:absolute; top:9px; right:9px; font-size:8px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
-  color:#1a1206; background:linear-gradient(90deg,var(--gold),var(--gold-hi)); padding:2px 7px; border-radius:999px}
+.wk-flag{position:absolute; top:12px; right:12px; font-size:9px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+  color:#1a1206; background:linear-gradient(90deg,var(--gold),var(--gold-hi)); padding:3px 9px; border-radius:999px}
 html.lite .wk-bar i{animation:none}
 
 /* ── TELA — Avisos da Casa ── */

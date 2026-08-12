@@ -497,49 +497,49 @@ function setTrend(id, up, invert, pct) {
 
 /* eventos SPS ROLANDO AGORA — os que já começaram (hora ≤ agora) e ainda não fecharam.
    Fallbacks p/ nunca ficar vazio: próximos a começar hoje → maiores já fechados hoje. */
+/* "late continua aberto" = o horário de fim do late reg (campo `late`, HH:MM) ainda não passou.
+   Trata late que cruza a meia-noite (ex.: começa 23:00, late até 01:00). */
+function lateStillOpen(r, nowM) {
+  var s = horaMin(r.hora), l = horaMin(r.late);
+  if (l == null || nowM == null) return false;         // sem hora de late definida → não é "rolando agora"
+  if (s != null && l < s) l += 1440;                   // late passou da meia-noite
+  var now = nowM; if (s != null && now < s) now += 1440;
+  return now >= (s == null ? now : s) && now < l;      // já começou e late ainda aberto
+}
 function runningNow() {
   var isDemo = /[?&]demo=1/.test(location.search), t = nowSPDate(), nowM = nowSPMin();
-  // grade de HOJE mesclada com o ao vivo do painel (igual ao renderToday)
+  // grade de HOJE mesclada com o ao vivo do painel (traz `late` da grade e do painel)
   var pool, grToday = GRADE.filter(function (e) { return e.dateISO === t; });
   if (grToday.length && !isDemo) {
     var live = {}; ROWS.forEach(function (r) { if (r.date === t) live[nhk(r.nome, r.hora)] = r; });
     pool = grToday.map(function (e) {
       var r = live[nhk(e.nome, e.hora)] || {};
-      return { nome: e.nome, hora: e.hora, cat: e.cat, date: t,
+      return { nome: e.nome, hora: e.hora, late: (r.late != null && r.late !== '' ? r.late : e.late), cat: e.cat, date: t,
         garantido: (r.garantido != null ? r.garantido : e.garantido),
         premiacao: (r.premiacao != null ? r.premiacao : null), field: r.field, status: r.status };
     });
   } else {
     pool = ROWS.filter(function (r) { return isDemo || r.date === t; });
   }
-  var started = function (r) { var hm = horaMin(r.hora); return hm != null && nowM != null && hm <= nowM; };
-  // rolando agora = já começou e ainda não fechou (no demo, mostra os "abertos")
-  var live2 = pool.filter(function (r) { return r.premiacao == null && (isDemo ? true : started(r)); });
-  if (live2.length) { live2.sort(function (a, b) { return (horaMin(b.hora) || 0) - (horaMin(a.hora) || 0); }); return { mode: 'live', list: live2.slice(0, 3) }; }
-  // ninguém rolando → próximos a começar hoje
-  var next = pool.filter(function (r) { return r.premiacao == null && horaMin(r.hora) != null && nowM != null && horaMin(r.hora) > nowM; });
-  if (next.length) { next.sort(function (a, b) { return horaMin(a.hora) - horaMin(b.hora); }); return { mode: 'next', list: next.slice(0, 3) }; }
-  // nada aberto → maiores já fechados hoje
-  var done = pool.filter(function (r) { return r.premiacao != null; }).sort(function (a, b) { return (b.premiacao || 0) - (a.premiacao || 0); });
-  return { mode: 'done', list: done.slice(0, 3) };
+  // ROLANDO AGORA = arrecadado NÃO preenchido (premiacao == null) E late ainda aberto (agora < fim do late).
+  // Somente esses — nada de fallback (se ninguém está rolando, a tela mostra o estado vazio).
+  var live2 = pool.filter(function (r) { return r.premiacao == null && (isDemo ? true : lateStillOpen(r, nowM)); });
+  live2.sort(function (a, b) { return (horaMin(b.hora) || 0) - (horaMin(a.hora) || 0); });
+  return { mode: 'live', list: live2.slice(0, 3) };
 }
 function renderTodayTop3() {
   var el = $('today-top3'); if (!el) return;
   var res = runningNow(), top = res.list;
   var head = $('ct-live-badge');
-  if (head) head.innerHTML = '<i></i>' + (res.mode === 'live' ? 'ROLANDO AGORA' : res.mode === 'next' ? 'A COMEÇAR' : 'AO VIVO');
-  if (!top.length) { el.innerHTML = '<div class="ct-empty"><span class="ct-empty-dot"></span>Nenhum SPS rolando agora — em breve entram na grade de hoje…</div>'; return; }
+  if (head) head.innerHTML = '<i></i>ROLANDO AGORA';
+  if (!top.length) { el.innerHTML = '<div class="ct-empty"><span class="ct-empty-dot"></span>Nenhum SPS rolando agora — late reg aberto aparece aqui ao vivo…</div>'; return; }
   el.innerHTML = top.map(function (r, i) {
-    var closed = r.premiacao != null;
-    var val = closed ? fmtMoneyK(r.premiacao) : (r.garantido ? fmtMoneyK(r.garantido) : '—');
-    var meta = (r.hora ? esc(String(r.hora)) + ' · ' : '') +
-      (res.mode === 'live' ? (r.field ? intNum(r.field) + ' jogadores' : 'rolando agora')
-        : res.mode === 'next' ? 'a começar'
-        : (r.field ? intNum(r.field) + ' jogadores' : 'fechado'));
-    return '<div class="ct-card" data-r="' + (i + 1) + '" data-live="' + (res.mode === 'live' ? '1' : '0') + '"><div class="ct-rank">' + (i + 1) + '</div>' +
+    var val = r.garantido ? fmtMoneyK(r.garantido) : '—';
+    var meta = (r.hora ? esc(String(r.hora)) + ' · ' : '') + (r.field ? intNum(r.field) + ' jogadores · late aberto' : 'late aberto');
+    return '<div class="ct-card" data-r="' + (i + 1) + '" data-live="1"><div class="ct-rank">' + (i + 1) + '</div>' +
       '<div class="ct-body"><div class="ct-name">' + esc(shortName(r.nome)) + '</div>' +
       '<div class="ct-meta">' + meta + '</div></div>' +
-      '<div class="ct-prem' + (closed ? '' : ' ct-gar') + '">' + val + '</div></div>';
+      '<div class="ct-prem ct-gar">' + val + '</div></div>';
   }).join('');
 }
 
@@ -594,15 +594,19 @@ function fillControl(t) {
   setTxt('cf-cobpct', pctPlain(t.cobertura));
   var cob = $('cf-cob'); if (cob) cob.style.width = clamp(t.cobertura, 0, 100).toFixed(1) + '%';
 
-  var topG = ROWS.filter(function (r) { return r.garantido; }).sort(function (a, b) { return (b.garantido || 0) - (a.garantido || 0); });
+  // Maiores eventos — SÓ os com garantido de R$ 1 milhão ou mais (dedup por nome+hora)
+  var seenG = {}, topG = ROWS.filter(function (r) {
+    if (!r.garantido || r.garantido < 1000000) return false;
+    var k = nhk(r.nome, r.hora); if (seenG[k]) return false; seenG[k] = 1; return true;
+  }).sort(function (a, b) { return (b.garantido || 0) - (a.garantido || 0); });
   var st = $('cst-table');
   if (st) st.innerHTML = '<div class="cst-row h"><span class="r">#</span><span class="nm">Evento</span><span class="pr">garantido</span></div>' +
-    topG.slice(0, 5).map(function (r, i) {
+    (topG.length ? topG.slice(0, 5).map(function (r, i) {
       return '<div class="cst-row' + (i < 3 ? ' top' : '') + '"><span class="r">' + (i + 1) + '</span>' +
         '<div class="cst-ev"><div class="cst-nm">' + evTag(r) + esc(fullName(r.nome)) + '</div>' +
         '<div class="cst-sub">' + evMeta(r, r.field ? intNum(r.field) + ' jog.' : null) + '</div></div>' +
         '<span class="pr">' + fmtMoneyK(r.garantido) + '</span></div>';
-    }).join('');
+    }).join('') : '<div class="ct-empty"><span class="ct-empty-dot"></span>Sem eventos de R$ 1 mi+ nesta série ainda…</div>');
 
   renderCharts();
 }
