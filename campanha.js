@@ -1097,12 +1097,10 @@ function mountBackground() {
   setTimeout(markBg, 7000);                              // fallback: nunca trava o loader por causa do vídeo
   var a = $('heroVidA'), b = $('heroVidB');
   if (!a || !b) { markBg(); return; }
-  // TVs/smart-TVs (Tizen/Samsung etc.): confirmado na TV que o plano de vídeo EXIBE AZUL — a TV "toca"
-  // o clipe mas o decoder não aceita o codec (H.264 high do Higgsfield) e joga azul na tela toda.
-  // Então NESSES browsers não usamos vídeo → fundo = PNG animado (.tv-hero-img), preto/dourado correto.
-  // Pra ter o vídeo NA TV, re-encodar o mp4 p/ H.264 baseline/main yuv420p (ver instrução ao Brian).
-  var isTV = /Tizen|SMART-?TV|SmartTV|Web[O0]S|NetCast|HbbTV|VIDAA|BRAVIA|Maple|CrKey|AFT|GoogleTV/i.test(navigator.userAgent || '');
-  if (isTV || reduced()) { try { a.pause(); b.pause(); } catch (e) {} markBg(); return; }   // PNG é o fundo
+  if (reduced()) { try { a.pause(); b.pause(); } catch (e) {} markBg(); return; }   // PNG (.tv-hero-img) é o fundo
+  // Vídeo re-encodado p/ H.264 BASELINE yuv420p → a TV (Tizen/Samsung) agora decodifica e roda o loop.
+  // Rede de segurança mantida: `.tv-hero-vid{display:none}` e só vira `.vid-live` com playback REAL
+  // confirmado (currentTime>0.12) — se algum browser não tocar, fica o PNG, NUNCA a tela azul.
   [a, b].forEach(function (v) { v.muted = true; v.playsInline = true; v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); });
   var FADE = 1.6;                                        // s de crossfade — casa com a transição CSS (ease-in-out, dissolve suave)
   var front = a, back = b, raf = 0, shown = false;
