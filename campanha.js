@@ -23,6 +23,7 @@ var PAINEL_BY = {};   // date -> painel/<date>
 var AUDIT = {};       // admin-only; board (usuário 'tv') não lê auditoria
 var ROWS = [];        // linhas SPS da última agregação
 var GRADE = [];       // grade da GU (Global MTTS) — TODOS os SPS da semana (fonte da TV)
+var AVISOS = [];      // avisos da casa (hub/avisos), igual à TV
 var T = null;         // últimos totais agregados
 var _liveWired = false, _recT = null, _revealed = false;
 var OV_ALERT_PCT = 8;          // overlay acima de 8% do garantido → alerta pulsante
@@ -94,6 +95,11 @@ function initData() {
     loadGrade();
     var lastGlobalAt = null;
     SupremaDB.watch('painel/globalMtt/at', function (snap) { var at = snap.val(); if (at == null || ('' + at) === ('' + lastGlobalAt)) return; lastGlobalAt = '' + at; loadGrade(); });
+    SupremaDB.watch('hub/avisos', function (snap) {
+      var v = snap.val() || {};
+      AVISOS = Object.keys(v).map(function (k) { return v[k]; }).filter(function (a) { return a && a.titulo && !a.off && !a.hidden; }).slice(-6);
+      if (_revealed) applyStatic();
+    });
     SupremaDB.watch('campanhas/sps', function (snap) {
       var c = snap.val(); if (!c || typeof c !== 'object') return;
       var prevInicio = CAMP.inicio;
@@ -102,6 +108,12 @@ function initData() {
     });
   });
   startClock(); wireFs(); mountBackground();
+  // watchdog: nunca ficar preso pra sempre no "montando" — se em 14s não revelou, avisa
+  setTimeout(function () {
+    if (_revealed) return;
+    if (!window.SupremaDB || !SupremaDB.ready || !SupremaDB.ready()) showOff('Sintonizando…', 'Sem conexão com o servidor. Confira a internet e o login — o canal tenta de novo sozinho.');
+    else showOff('Aguardando dados da série', 'Conectado, mas ainda sem eventos SPS no período. Assim que entrar dado, o board sobe sozinho.');
+  }, 14000);
 }
 function loadConfig() {
   return SupremaDB.getValue('campanhas/sps').then(function (c) {
@@ -200,15 +212,37 @@ function reveal() {
 /* ═══════════ DIRETOR (rotação entre as telas) ═══════════ */
 var SCENES = [
   { id: 'control', dwell: 15000, enter: enterControl },
-  { id: 'today', dwell: 12000, enter: enterToday },
-  { id: 'coming', dwell: 11000, enter: enterComing },
-  { id: 'journey', dwell: 13000, enter: enterJourney },
-  { id: 'ranking', dwell: 12000, enter: enterRanking },
-  { id: 'giants', dwell: 12000, enter: enterGiants },
-  { id: 'records', dwell: 12000, enter: enterRecords },
-  { id: 'team', dwell: 11000, enter: enterTeam },
+  { id: 'today', dwell: 22000, enter: enterToday },       // rola (grade cheia)
+  { id: 'coming', dwell: 16000, enter: enterComing },     // rola
+  { id: 'journey', dwell: 18000, enter: enterJourney },   // rola
+  { id: 'week', dwell: 16000, enter: enterWeek },         // A Semana Inteira — rola
+  { id: 'ranking', dwell: 14000, enter: enterRanking },   // Tier — rola se precisar
+  { id: 'records', dwell: 10000, enter: enterRecords },   // hero: 1 tela por recorde (cicla)
+  { id: 'giants', dwell: 20000, enter: enterGiants },     // hero: 1 tela por gigante (cicla)
+  { id: 'team', dwell: 12000, enter: enterTeam },         // rola
+  { id: 'avisos', dwell: 14000, enter: enterAvisos, skip: function () { return !AVISOS.length; } },
 ];
 var _si = 0, _dirT = null, _dirStarted = false;
+/* loops por cena (auto-scroll / hero cíclico) — limpos a cada troca de cena */
+var _sceneTimers = [], _scrollRAF = null;
+function stopSceneLoops() { _sceneTimers.forEach(function (t) { clearInterval(t); }); _sceneTimers = []; if (_scrollRAF) { cancelAnimationFrame(_scrollRAF); _scrollRAF = null; } }
+/* telas com mais conteúdo descem sozinhas (estilo "s-roll" da TV) */
+function autoScrollList(el, dwellMs) {
+  if (_scrollRAF) { cancelAnimationFrame(_scrollRAF); _scrollRAF = null; }
+  if (!el || reduced()) return;
+  el.scrollTop = 0;
+  requestAnimationFrame(function () {
+    var max = el.scrollHeight - el.clientHeight;
+    if (max <= 6) return;
+    var d = dwellMs || 16000, HOLD = 2600, travel = Math.max(2400, d - HOLD * 2), t0 = null;
+    (function step(ts) {
+      if (t0 == null) t0 = ts;
+      var e = ts - t0, p = e < HOLD ? 0 : e < HOLD + travel ? (e - HOLD) / travel : 1;
+      el.scrollTop = max * Math.min(1, p);
+      if (e < d) _scrollRAF = requestAnimationFrame(step);
+    })();
+  });
+}
 function startDirector() {
   if (_dirStarted) return; _dirStarted = true;
   var r = $('tvRot'); if (r) { r.hidden = false; r.innerHTML = SCENES.map(function (_, i) { return '<i data-i="' + i + '"></i>'; }).join(''); }
@@ -228,7 +262,10 @@ function triggerWipe() {
   setTimeout(function () { w.classList.remove('run'); }, 1060);
 }
 function gotoScene(i) {
+  stopSceneLoops();
   i = ((i % SCENES.length) + SCENES.length) % SCENES.length;
+  var guard = 0;
+  while (SCENES[i].skip && SCENES[i].skip() && guard++ < SCENES.length) { i = (i + 1) % SCENES.length; }   // pula cenas sem conteúdo (ex.: avisos vazios)
   var cur = document.querySelector('.scene.is-active');
   var next = document.querySelector('.scene[data-scene="' + SCENES[i].id + '"]');
   if (!next) { _si = i; scheduleScene(i); return; }
@@ -273,6 +310,8 @@ function applyStatic() {
   renderGiants();
   renderRecords();
   renderTeam();
+  renderWeek();
+  renderAvisos();
 }
 
 /* #9 toast "acabou de fechar" — detecta SPS de HOJE que fecharam desde o último recompute */
@@ -283,18 +322,37 @@ function detectClosures() {
   if (_closedKeys == null) { _closedKeys = {}; closed.forEach(function (r) { _closedKeys[keyOf(r)] = true; }); return; }  // 1ª carga: só semeia
   closed.forEach(function (r) {
     var k = keyOf(r);
-    if (!_closedKeys[k]) { _closedKeys[k] = true; toast(r); }
+    if (!_closedKeys[k]) { _closedKeys[k] = true; showBoom(r); }
   });
 }
-function toast(r) {
-  var wrap = $('tvToasts'); if (!wrap || reduced()) return;
-  var el = document.createElement('div');
-  el.className = 'tv-toast';
-  el.innerHTML = '<span class="tt-dot"></span><div class="tt-body"><div class="tt-h">Evento fechou</div>' +
-    '<div class="tt-n">' + esc(shortName(r.nome)) + '</div></div><span class="tt-v">' + fmtMoneyK(r.premiacao) + '</span>';
-  wrap.appendChild(el);
-  setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 7000);
-  while (wrap.children.length > 3) wrap.removeChild(wrap.firstChild);
+/* #boom full-screen — quando um SPS fecha, comemora em tela cheia (pausa a rotação) — estilo TV */
+function boomHTML(r) {
+  var op = operatorOf(r), perf = r.perf != null ? pctSigned(r.perf) : null;
+  return '<div class="boom-stage">' +
+    '<div class="boom-tag"><span class="boom-spark">♠</span> Acabou de fechar</div>' +
+    '<div class="boom-name">' + evBadge(r) + esc(fullName(r.nome)) + '</div>' +
+    '<div class="boom-big"><span class="pre">R$</span>' + moneyNum(r.premiacao) + '</div>' +
+    '<div class="boom-lbl">em premiação' + (r.field ? ' · ' + intNum(r.field) + ' jogadores' : '') + (perf ? ' · ' + perf + ' vs garantido' : '') + '</div>' +
+    (op ? '<div class="boom-by">' + avatarLetter(op) + '<span><b>' + esc(op) + '</b> lançou</span></div>' : '') +
+    '</div>';
+}
+var _boomQ = [], _boomActive = false;
+function showBoom(r) { if (r && r.premiacao != null) { _boomQ.push(r); if (!_boomActive) nextBoom(); } }
+function nextBoom() {
+  var el = $('boom'); if (!el || !_boomQ.length) { _boomActive = false; return; }
+  _boomActive = true;
+  var r = _boomQ.shift();
+  clearTimeout(_dirT);                                 // pausa a rotação enquanto o boom toca
+  el.innerHTML = boomHTML(r);
+  el.hidden = false; void el.offsetWidth; el.classList.add('run');
+  setTimeout(function () {
+    el.classList.remove('run');
+    setTimeout(function () {
+      el.hidden = true;
+      if (_boomQ.length) nextBoom();
+      else { _boomActive = false; if (_dirStarted) scheduleScene(_si); }   // retoma a rotação
+    }, 700);
+  }, 7000);
 }
 
 /* progresso da campanha (dia atual / total) */
@@ -601,7 +659,7 @@ function renderRanking() {
       '<div class="tier-val"><span class="tier-val-lbl">garantido</span><b>' + fmtMoneyK(r.garantido) + '</b></div></div>';
   }).join('');
 }
-function enterRanking() { renderRanking(); }   // rebuild p/ reiniciar a entrada encenada (CSS tv-rise)
+function enterRanking() { renderRanking(); autoScrollList($('tier-list'), SCENES[_si].dwell); }
 
 /* ── TELA — Eventos SPS de HOJE (arrecadado preenchido) + operador que lançou ── */
 function avatarLetter(name) { var l = String(name || '?').trim().charAt(0).toUpperCase() || '?'; return '<i class="tday-av">' + l + '</i>'; }
@@ -652,7 +710,7 @@ function renderToday() {
       '</div>';
   }).join('');
 }
-function enterToday() { renderToday(); }
+function enterToday() { renderToday(); autoScrollList($('today-events'), SCENES[_si].dwell); }
 
 /* ── TELA — VEM AÍ: eventos SPS do dia seguinte (grade de amanhã) ── */
 function isoAddDays(iso, n) { var d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
@@ -685,27 +743,43 @@ function renderComing() {
       '</div>';
   }).join('');
 }
-function enterComing() { renderComing(); }
+function enterComing() { renderComing(); autoScrollList($('coming-events'), SCENES[_si].dwell); }
 
 /* ── TELA — Gigantes da Semana: maiores PREMIAÇÕES SPS da semana (estilo TV) ── */
-function renderGiants() {
-  var el = $('giants-list'); if (!el) return;
+/* ── HERO cíclico (1 tela por item): Gigantes e Recordes ── */
+function heroHTML(item) {
+  return '<div class="hero-stage">' +
+    (item.rank ? '<div class="hero-rank">' + item.rank + '</div>' : '') +
+    '<div class="hero-kicker">' + item.kicker + '</div>' +
+    '<div class="hero-name">' + evBadge({ cat: item.cat }) + esc(fullName(item.nome)) + '</div>' +
+    '<div class="hero-big">' + item.big + '</div><div class="hero-biglbl">' + item.bigLbl + '</div>' +
+    '<div class="hero-meta">' + item.meta + '</div>' +
+    (item.by ? '<div class="hero-by">' + avatarLetter(item.by) + '<span><b>' + esc(item.by) + '</b> lançou</span></div>' : '') +
+    '</div>';
+}
+function renderHeroInto(id, item) {
+  var el = $(id); if (!el) return;
+  el.innerHTML = item ? heroHTML(item) : '<div class="tier-empty"><span class="ct-empty-dot"></span>Sem dados nesta semana ainda…</div>';
+}
+function cycleHero(id, items) {
+  if (!items.length) { renderHeroInto(id, null); return; }
+  var i = 0; renderHeroInto(id, items[0]);
+  if (items.length < 2) return;
+  var per = Math.max(3500, Math.floor((SCENES[_si].dwell || 12000) / items.length));
+  _sceneTimers.push(setInterval(function () { i = (i + 1) % items.length; renderHeroInto(id, items[i]); }, per));
+}
+function giantItems() {
   var wk = ROWS.filter(function (r) { return r.premiacao != null && inWeek(r); }).sort(function (a, b) { return (b.premiacao || 0) - (a.premiacao || 0); });
   var seen = {}, top = [];
   wk.forEach(function (r) { var k = r.nome + '|' + r.hora; if (seen[k]) return; seen[k] = 1; if (top.length < 5) top.push(r); });
-  if (!top.length) { el.innerHTML = '<div class="tier-empty"><span class="ct-empty-dot"></span>Sem gigantes SPS nesta semana ainda…</div>'; return; }
-  var max = top[0].premiacao || 1;
-  el.innerHTML = top.map(function (r, i) {
-    var w = clamp((r.premiacao / max) * 100, 8, 100).toFixed(1);
-    var meta = evMeta(r, 'gar. ' + fmtMoneyK(r.garantido));
-    return '<div class="tier-row giant-row" data-r="' + (i + 1) + '" style="--i:' + i + '">' +
-      '<div class="tier-rank">' + (i + 1) + '</div>' +
-      '<div class="tier-body"><div class="tier-name">' + esc(fullName(r.nome)) + evBadge(r) + '</div>' +
-      '<div class="tier-meta">' + meta + '</div><div class="tier-bar"><i style="width:' + w + '%"></i></div></div>' +
-      '<div class="tier-val"><span class="tier-val-lbl">premiação</span><b>' + fmtMoneyK(r.premiacao) + '</b></div></div>';
-  }).join('');
+  return top.map(function (r, i) {
+    return { rank: i + 1, kicker: 'Gigante da semana · #' + (i + 1), nome: r.nome, cat: r.cat,
+      big: fmtMoney(r.premiacao), bigLbl: 'em premiação',
+      meta: evMeta(r, 'gar. ' + fmtMoneyK(r.garantido) + ' · ' + fmtDMY(r.date).slice(0, 5)), by: operatorOf(r) };
+  });
 }
-function enterGiants() { renderGiants(); }
+function renderGiants() { var it = giantItems(); renderHeroInto('giants-hero', it[0] || null); }
+function enterGiants() { cycleHero('giants-hero', giantItems()); }
 
 /* ── TICKER (barrinha do rodapé) — resumo de hoje + eventos que vão ocorrer, idêntico à TV ── */
 function renderTicker() {
@@ -730,25 +804,18 @@ function renderTicker() {
   requestAnimationFrame(function () { track.style.animationDuration = Math.max(30, Math.round(track.scrollWidth / 2 / 90)) + 's'; });
 }
 
-/* ── TELA — Recordes da Semana (maior premiação + maior público SPS), estilo TV ── */
-function renderRecords() {
-  var el = $('records-grid'); if (!el) return;
+/* ── TELA — Recordes da Semana: 1 tela por recorde (maior premiação / maior público) ── */
+function recordItems() {
   var wk = ROWS.filter(inWeek);
-  var topPrem = wk.filter(function (r) { return r.premiacao != null; }).sort(function (a, b) { return (b.premiacao || 0) - (a.premiacao || 0); })[0];
-  var topField = wk.filter(function (r) { return r.field != null; }).sort(function (a, b) { return (b.field || 0) - (a.field || 0); })[0];
-  var card = function (label, r, big, bigLbl) {
-    if (!r) return '<div class="rec-card" style="--i:0"><div class="rec-lbl">' + label + '</div><div class="rec-empty">Sem recorde ainda</div></div>';
-    var op = operatorOf(r);
-    return '<div class="rec-card" data-cat="' + catKey(r) + '" style="--i:0"><div class="rec-lbl">' + label + '</div>' +
-      '<div class="rec-big">' + big + '</div><div class="rec-biglbl">' + bigLbl + '</div>' +
-      '<div class="rec-name">' + evBadge(r) + esc(fullName(r.nome)) + '</div>' +
-      '<div class="rec-meta">' + evMeta(r, 'gar. ' + fmtMoneyK(r.garantido)) + '</div>' +
-      (op ? '<div class="rec-by">' + avatarLetter(op) + '<span><b>' + esc(op) + '</b> lançou</span></div>' : '') + '</div>';
-  };
-  el.innerHTML = card('Maior premiação da semana', topPrem, topPrem ? fmtMoney(topPrem.premiacao) : '—', 'em prêmios') +
-                 card('Maior público da semana', topField, topField ? intNum(topField.field) : '—', 'jogadores');
+  var tp = wk.filter(function (r) { return r.premiacao != null; }).sort(function (a, b) { return (b.premiacao || 0) - (a.premiacao || 0); })[0];
+  var tf = wk.filter(function (r) { return r.field != null; }).sort(function (a, b) { return (b.field || 0) - (a.field || 0); })[0];
+  var out = [];
+  if (tp) out.push({ kicker: 'Maior premiação da semana', nome: tp.nome, cat: tp.cat, big: fmtMoney(tp.premiacao), bigLbl: 'em prêmios', meta: evMeta(tp, 'gar. ' + fmtMoneyK(tp.garantido)), by: operatorOf(tp) });
+  if (tf) out.push({ kicker: 'Maior público da semana', nome: tf.nome, cat: tf.cat, big: intNum(tf.field), bigLbl: 'jogadores', meta: evMeta(tf, tf.premiacao != null ? 'prêmio ' + fmtMoneyK(tf.premiacao) : 'gar. ' + fmtMoneyK(tf.garantido)), by: operatorOf(tf) });
+  return out;
 }
-function enterRecords() { renderRecords(); }
+function renderRecords() { var it = recordItems(); renderHeroInto('records-hero', it[0] || null); }
+function enterRecords() { cycleHero('records-hero', recordItems()); }
 
 /* ── TELA — Quem Construiu a Série (créditos dos operadores que lançaram SPS) ── */
 function renderTeam() {
@@ -766,8 +833,42 @@ function renderTeam() {
       '<div class="team-n"><b>' + o.n + '</b><span>evento' + (o.n > 1 ? 's' : '') + '</span></div></div>';
   }).join('');
 }
-function enterTeam() { renderTeam(); }
-function enterJourney() { renderJourney(); }
+function enterTeam() { renderTeam(); autoScrollList($('team-list'), SCENES[_si].dwell); }
+
+/* ── TELA — A Semana Inteira: todos os SPS da semana agrupados por dia (grade da GU) ── */
+function renderWeek() {
+  var el = $('week-grid'); if (!el) return;
+  var byDay = {}, src = GRADE.length ? GRADE : ROWS;
+  src.forEach(function (e) { var d = e.dateISO || e.date; if (!d) return; (byDay[d] = byDay[d] || []).push(e); });
+  var days = Object.keys(byDay).sort();
+  if (!days.length) { el.innerHTML = '<div class="tier-empty"><span class="ct-empty-dot"></span>Grade SPS da semana chegando…</div>'; return; }
+  el.innerHTML = days.map(function (d, i) {
+    var evs = byDay[d];
+    var totGar = evs.reduce(function (s, e) { return s + (e.garantido || 0); }, 0);
+    var biggest = evs.slice().sort(function (a, b) { return (b.garantido || 0) - (a.garantido || 0); })[0];
+    var isNow = d === nowSPDate();
+    var wd = WEEKDAY_FULL[new Date(d + 'T12:00:00Z').getUTCDay()];
+    return '<div class="wk-card' + (isNow ? ' is-now' : '') + '" style="--i:' + i + '">' +
+      '<div class="wk-day">' + wd + '<small>' + d.slice(8, 10) + '/' + d.slice(5, 7) + (isNow ? ' · hoje' : '') + '</small></div>' +
+      '<div class="wk-stats"><div class="wk-n"><b>' + evs.length + '</b><span>eventos SPS</span></div>' +
+      '<div class="wk-n"><b>' + fmtMoneyK(totGar) + '</b><span>garantido total</span></div></div>' +
+      (biggest ? '<div class="wk-top"><span>Maior</span> ' + esc(fullName(biggest.nome)) + ' · ' + fmtMoneyK(biggest.garantido) + '</div>' : '') +
+      '</div>';
+  }).join('');
+}
+function enterWeek() { renderWeek(); autoScrollList($('week-grid'), SCENES[_si].dwell); }
+
+/* ── TELA — Avisos da Casa (hub/avisos), igual à TV ── */
+function renderAvisos() {
+  var el = $('avisos-list'); if (!el) return;
+  if (!AVISOS.length) { el.innerHTML = '<div class="tier-empty"><span class="ct-empty-dot"></span>Sem avisos da casa no momento…</div>'; return; }
+  el.innerHTML = AVISOS.map(function (a, i) {
+    return '<div class="aviso-card" style="--i:' + i + '"><div class="aviso-h">' + esc(a.titulo || '') + '</div>' +
+      (a.texto || a.msg ? '<div class="aviso-t">' + esc(a.texto || a.msg) + '</div>' : '') + '</div>';
+  }).join('');
+}
+function enterAvisos() { renderAvisos(); autoScrollList($('avisos-list'), SCENES[_si].dwell); }
+function enterJourney() { renderJourney(); autoScrollList($('jn-list'), SCENES[_si].dwell); }
 
 /* ── chrome ──────────────────────────────────────────────────── */
 function setLive(on) { var b = $('liveBadge'); if (b) b.hidden = !on; }

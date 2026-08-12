@@ -32,7 +32,7 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
 <!-- chrome de transmissão (sempre visível) -->
 <header class="tv-top" id="chrome">
   <div class="tv-brand">
-    <img class="tv-logo" src="assets/logo-suprema.png" alt="Suprema Poker" width="290" height="62">
+    <img class="tv-logo" src="assets/logo-suprema.png" alt="Suprema Poker" width="290" height="62" onerror="this.outerHTML='&lt;span class=&quot;tv-word-fallback&quot;&gt;SUPREMA &lt;b&gt;POKER&lt;/b&gt;&lt;/span&gt;'">
   </div>
   <div class="tv-top-right">
     <span class="tv-live" id="liveBadge" hidden><i></i><span>AO VIVO</span></span>
@@ -66,7 +66,7 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
       <div class="cglass ctrl-header">
         <img class="card-accent" src="assets/sps-el/1-spade.png" alt="" aria-hidden="true" onerror="this.remove()">
         <div class="ch-top">
-          <img class="ch-logo-img" src="assets/logo-suprema.png" alt="Suprema Poker">
+          <img class="ch-logo-img" src="assets/logo-suprema.png" alt="Suprema Poker" onerror="this.style.display='none'">
           <span class="ch-kicker" id="c_kicker">CAMPANHA SPS · 2026</span>
         </div>
         <h3 class="ch-title">Painel de Performance <span>da Série</span></h3>
@@ -209,12 +209,12 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
   </section>
 
   <!-- ░░ TELA — GIGANTES DA SEMANA (maiores premiações SPS) ░░ -->
-  <section class="scene scene-ranking scene-tier scene-giants" data-scene="giants" hidden>
+  <section class="scene scene-giants" data-scene="giants" hidden>
     <div class="rk-top">
       <span class="eyebrow center">As maiores premiações da semana</span>
       <h2>Gigantes da Semana <span>· SPS</span></h2>
     </div>
-    <div class="tier-list" id="giants-list"></div>
+    <div class="hero-wrap" id="giants-hero"></div>
   </section>
 
   <!-- ░░ TELA — RECORDES DA SEMANA (maior premiação + maior público SPS) ░░ -->
@@ -223,7 +223,7 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
       <span class="eyebrow center">Os recordes da semana</span>
       <h2>Recordes SPS <span>· da semana</span></h2>
     </div>
-    <div class="records-grid" id="records-grid"></div>
+    <div class="hero-wrap" id="records-hero"></div>
   </section>
 
   <!-- ░░ TELA — QUEM CONSTRUIU A SÉRIE (créditos dos operadores) ░░ -->
@@ -233,6 +233,24 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
       <h2>Quem Construiu a Série</h2>
     </div>
     <div class="team-list" id="team-list"></div>
+  </section>
+
+  <!-- ░░ TELA — A SEMANA INTEIRA (todos os SPS da semana por dia) ░░ -->
+  <section class="scene scene-week" data-scene="week" hidden>
+    <div class="rk-top">
+      <span class="eyebrow center">A semana inteira</span>
+      <h2>A Semana SPS <span>· dia a dia</span></h2>
+    </div>
+    <div class="week-grid" id="week-grid"></div>
+  </section>
+
+  <!-- ░░ TELA — AVISOS DA CASA (hub/avisos) ░░ -->
+  <section class="scene scene-avisos" data-scene="avisos" hidden>
+    <div class="rk-top">
+      <span class="eyebrow center">Recados da operação</span>
+      <h2>Avisos da Casa</h2>
+    </div>
+    <div class="avisos-list" id="avisos-list"></div>
   </section>
 
   <!-- estado inicial / sem dados (loader) -->
@@ -252,7 +270,10 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
   <div class="ticker-mask"><div class="ticker-track" id="tickerTrack"></div></div>
 </footer>
 
-<!-- toasts ao vivo (evento fechou) -->
+<!-- boom full-screen: comemoração quando um SPS fecha (estilo TV) -->
+<div class="tv-boom" id="boom" hidden aria-hidden="true"></div>
+
+<!-- toasts ao vivo (evento fechou) — fallback -->
 <div class="tv-toasts" id="tvToasts" aria-hidden="true"></div>
 
 <script>window.SUPREMA_KEEPALIVE = true;</script>
