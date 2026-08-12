@@ -81,22 +81,6 @@ body{
 @keyframes tv-fog-c{0%,100%{transform:translate3d(0,3%,0) scale(1.08)}50%{transform:translate3d(0,-4%,0) scale(1.16)}}
 html.lite .tv-fog{display:none}
 
-/* FICHA SPS OFICIAL girando em 3D — moeda dupla-face (front + back espelhado), giro em Y com tilt.
-   Fica ENTRE o fundo e o conteúdo, em evidência no centro, com brilho dourado atrás. Só transform (GPU). */
-.tv-chip3d{position:fixed; inset:0; z-index:1; pointer-events:none; display:grid; place-items:center; perspective:1500px; opacity:.82}
-.tv-chip3d::before{content:""; position:absolute; width:70vh; height:70vh; border-radius:50%;
-  background:radial-gradient(circle, rgba(201,168,76,.3) 0%, rgba(201,168,76,.12) 40%, transparent 66%); filter:blur(16px); animation:chip-glow 6s ease-in-out infinite}
-@keyframes chip-glow{0%,100%{opacity:.85; transform:scale(1)}50%{opacity:1; transform:scale(1.06)}}
-.chip-spin{position:relative; width:clamp(280px,46vh,560px); height:clamp(280px,46vh,560px);
-  transform-style:preserve-3d; animation:chip-spin 16s linear infinite; will-change:transform;
-  filter:drop-shadow(0 34px 60px rgba(0,0,0,.5))}
-.chip-face{position:absolute; inset:0; width:100%; height:100%; object-fit:contain;
-  -webkit-backface-visibility:hidden; backface-visibility:hidden}
-.chip-back{transform:rotateY(180deg)}
-@keyframes chip-spin{from{transform:rotateX(14deg) rotateY(0)}to{transform:rotateX(14deg) rotateY(360deg)}}
-html.lite .chip-spin{animation-duration:60s}
-@media (prefers-reduced-motion:reduce){ .chip-spin{animation:none; transform:rotateX(14deg) rotateY(-20deg)} }
-
 .tv-grain{position:fixed; inset:0; z-index:1; pointer-events:none; opacity:.045; mix-blend-mode:overlay;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   animation:tv-grain 1.2s steps(3) infinite}
@@ -475,11 +459,13 @@ html.lite .card-accent{display:none}
 .cf-head{display:flex; justify-content:space-between; font-size:12.5px; color:var(--ink2); font-weight:500}
 .cf-live{font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:#8ff3c0}
 .cf-stage{text-align:center; font-size:12px; color:var(--ink3); letter-spacing:.02em}
-.cf-score{display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:12px; padding:6px 0}
-.cf-side{display:flex; flex-direction:column; align-items:center; gap:5px}
-.cf-side b{font-size:clamp(1.25rem,1.85vw,1.95rem); font-weight:700; letter-spacing:-.02em; color:var(--ink); font-variant-numeric:tabular-nums; white-space:nowrap}
-.cf-side span{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink4); text-align:center}
-.cf-perf{font-size:13px; font-weight:700; color:var(--gen); padding:6px 10px; border-radius:10px; border:1px solid var(--line); background:rgba(56,231,154,.08)}
+/* card "Destaque da série" — 2 linhas limpas: rótulo à esquerda, valor grande à direita (alinhados) */
+.cf-score{display:grid; grid-template-columns:auto 1fr; align-items:center; gap:clamp(9px,1.4vh,16px) 16px; padding:clamp(4px,1vh,10px) 0}
+.cf-row-lbl{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink4); font-weight:600}
+.cf-valwrap{display:flex; align-items:baseline; justify-content:flex-end; gap:10px; min-width:0}
+.cf-row-val{font-size:clamp(1.45rem,1.95vw,2.05rem); font-weight:800; letter-spacing:-.02em; color:var(--ink); font-variant-numeric:tabular-nums; white-space:nowrap; line-height:1}
+.cf-row-gold{color:var(--gold-hi)}
+.cf-perf{font-size:12px; font-weight:800; color:var(--gen); padding:4px 9px; border-radius:999px; border:1px solid rgba(56,231,154,.28); background:rgba(56,231,154,.1); flex:none; letter-spacing:.02em}
 .cf-lines{display:grid; grid-template-columns:1fr 1fr; gap:9px 16px; padding:12px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line)}
 .cf-line{display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--ink3)} .cf-line b{margin-left:auto; color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums}
 .cf-line .d{width:8px; height:8px; border-radius:2px} .d.g{background:var(--rake)} .d.b{background:var(--admin)} .d.r{background:var(--loss)} .d.y{background:var(--gold)}

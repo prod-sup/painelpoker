@@ -276,6 +276,11 @@ function startDirector() {
   if (SCENES[start].enter) requestAnimationFrame(function () { requestAnimationFrame(SCENES[start].enter); });
   scheduleScene(start);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) scheduleScene(_si); });
+  // navegação manual pelas setas do teclado (← anterior / → próxima) — reinicia o timer da cena
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); clearTimeout(_dirT); gotoScene(_si + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); clearTimeout(_dirT); gotoScene(_si - 1); }
+  });
 }
 function updateRot(i) {
   document.querySelectorAll('#tvRot i').forEach(function (d, k) { d.classList.toggle('on', k === i); if (k === i) d.style.setProperty('--dwell', (SCENES[i].dwell / 1000) + 's'); });
