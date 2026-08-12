@@ -27,6 +27,8 @@
 
 *{box-sizing:border-box}
 html,body{height:100%}
+/* kiosk/telão: sem seleção de texto (evita as caixas azuis de seleção na TV) */
+body,body *{-webkit-user-select:none; -moz-user-select:none; user-select:none}
 body{
   margin:0; overflow:hidden; color:var(--ink); font-family:var(--display); font-weight:400; cursor:default;
   background:
@@ -37,8 +39,15 @@ body{
 }
 
 /* fundo -------------------------------------------------------------------- */
-/* fundo em VÍDEO — dois <video> sobrepostos p/ crossfade no loop (o JS alterna .is-front) */
-.tv-video{position:fixed; inset:0; z-index:0; pointer-events:none; background:#05070a; overflow:hidden}
+/* fundo em VÍDEO — dois <video> sobrepostos p/ crossfade no loop (o JS alterna .is-front).
+   O gradiente abaixo é o FALLBACK premium: se o mp4 não carregar (ex.: ainda não publicado),
+   o fundo continua sendo um feltro escuro com brilho dourado — nunca preto chapado. */
+.tv-video{position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden;
+  background:
+    radial-gradient(120% 78% at 50% -12%, rgba(201,168,76,.12), transparent 58%),
+    radial-gradient(100% 90% at 84% 116%, rgba(44,199,158,.06), transparent 60%),
+    radial-gradient(90% 80% at 12% 108%, rgba(150,190,255,.05), transparent 60%),
+    linear-gradient(180deg, #0a0d12 0%, #070a0e 52%, #05070a 100%)}
 .tv-vid{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0;
   transition:opacity 1.1s ease; will-change:opacity; transform:translateZ(0)}
 .tv-vid.is-front{opacity:1}
@@ -119,6 +128,11 @@ body:hover .tv-btn{opacity:.9} body:hover .tv-btn:hover{opacity:1}
 /* listas que descem sozinhas quando há mais conteúdo (scrollbar escondida) */
 .tday-list,.coming-list,.team-list,.tier-list,.jn-list,.week-grid,.avisos-list{flex:1 1 auto; min-height:0; overflow-y:auto; scroll-behavior:auto; scrollbar-width:none; -ms-overflow-style:none}
 .tday-list::-webkit-scrollbar,.coming-list::-webkit-scrollbar,.team-list::-webkit-scrollbar,.tier-list::-webkit-scrollbar,.jn-list::-webkit-scrollbar,.week-grid::-webkit-scrollbar,.avisos-list::-webkit-scrollbar{display:none}
+/* numa TV ninguém rola: quando a lista tem mais do que cabe, ela desce sozinha (auto-scroll) e
+   as bordas topo/base ganham um FADE — linhas parciais somem suave em vez de aparecerem cortadas */
+.tday-list,.coming-list,.team-list,.tier-list,.avisos-list{
+  -webkit-mask-image:linear-gradient(180deg, transparent 0, #000 30px, #000 calc(100% - 30px), transparent 100%);
+  mask-image:linear-gradient(180deg, transparent 0, #000 30px, #000 calc(100% - 30px), transparent 100%)}
 
 /* cabeçalho de cena */
 .scene-head{text-align:center; max-width:78vw}
@@ -508,7 +522,12 @@ html.lite .card-accent{display:none}
 .ct-body{min-width:0}
 .ct-name{font-size:clamp(13px,1vw,15.5px); font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .ct-meta{font-size:10.5px; color:var(--ink3); margin-top:3px}
-.ct-prem{font-size:clamp(13px,1.05vw,15.5px); font-weight:700; color:var(--gold-hi); font-variant-numeric:tabular-nums}
+.ct-prem{font-size:clamp(13px,1.05vw,15.5px); font-weight:700; color:var(--gold-hi); font-variant-numeric:tabular-nums; text-align:right}
+/* valor "garantido" (evento ainda rolando, sem premiação fechada) — mais discreto que a premiação */
+.ct-prem.ct-gar{color:var(--ink2); font-weight:600}
+.ct-prem.ct-gar::after{content:" gtd"; font-size:.62em; font-weight:600; color:var(--ink4); letter-spacing:.04em}
+/* card com evento AO VIVO ganha um respiro pulsante na barra lateral */
+.ct-card[data-live="1"]::before{background:linear-gradient(180deg,var(--gen),var(--rake)); animation:tv-pulse 2.2s var(--ease) infinite}
 .ct-empty{display:flex; align-items:center; gap:10px; font-size:12.5px; color:var(--ink3); padding:22px 4px; justify-content:center; text-align:center}
 .ct-empty-dot{width:8px; height:8px; border-radius:50%; background:var(--gold); box-shadow:0 0 10px var(--gold-glow); animation:tv-pulse 1.8s var(--ease) infinite; flex:none}
 
@@ -553,9 +572,12 @@ html.lite .sp-line,html.lite .sp-dot{animation:none}
 @keyframes sp-halo{0%{transform:scale(.5); opacity:.75}100%{transform:scale(3); opacity:0}}
 html.lite .ch-area,html.lite .cf-area,html.lite .sp-area,html.lite .che-peak span::after,html.lite .cf-peak span::after{animation:none}
 
-/* totais DETALHADOS (valor cheio + linha de contexto) */
-.cttl-grid .mtile-num{font-size:clamp(.95rem,1.25vw,1.4rem); white-space:nowrap}
-.mtile-sub{font-size:10px; color:var(--ink4); font-variant-numeric:tabular-nums; line-height:1.32; letter-spacing:.01em}
+/* totais DETALHADOS (valor cheio + linha de contexto) — 6 tiles precisam caber sem cortar */
+.cttl-grid{gap:clamp(7px,.7vw,12px)}
+.cttl-grid .mtile{padding:clamp(11px,1vw,15px)}
+.cttl-grid .mtile-num{font-size:clamp(.82rem,1.02vw,1.2rem); white-space:nowrap; letter-spacing:-.02em}
+.cttl-grid .mtile-num .pre{font-size:.62em; margin-right:2px; opacity:.85}
+.mtile-sub{font-size:9.5px; color:var(--ink4); font-variant-numeric:tabular-nums; line-height:1.3; letter-spacing:.01em}
 
 /* ── TELA 2 — Jornada por dia (onda estilo WeatherWise) ── */
 .scene-journey{padding:calc(clamp(18px,2.4vh,30px) + 48px) clamp(30px,4vw,80px) clamp(14px,2vh,26px); gap:clamp(18px,3vh,34px); justify-content:flex-start}
@@ -829,42 +851,42 @@ html.lite .hero-big{animation:none; color:var(--gold-hi)}
 @media (prefers-reduced-motion:reduce){ .tv-boom{transition:none} .tv-boom.run .boom-stage{animation:none; transform:none; opacity:1} }
 
 /* ── TELA — A Semana Inteira (grid de dias) ── */
-.scene-week{justify-content:flex-start; padding:calc(clamp(18px,2.4vh,30px) + 48px) clamp(30px,4vw,90px) clamp(14px,2vh,26px); gap:clamp(22px,3.5vh,40px)}
-.week-grid{width:min(1500px,94vw); display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:clamp(12px,1.3vw,20px); align-content:start}
-.wk-card{padding:clamp(16px,1.5vw,24px); border-radius:16px; border:1px solid rgba(255,255,255,.08);
-  background:linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.02) 62%); -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px);
-  display:flex; flex-direction:column; gap:12px; opacity:0; animation:tier-in .6s var(--ease-in) both; animation-delay:calc(var(--i,0)*.07s)}
+/* A Semana SPS — TUDO cabe numa tela de TV (título + resumo + 7 dias em UMA linha, sem scroll) */
+.scene-week{justify-content:flex-start; padding:calc(clamp(16px,2vh,26px) + 44px) clamp(24px,2.4vw,52px) clamp(12px,1.6vh,22px); gap:clamp(14px,2vh,24px)}
+.week-grid{width:min(1760px,97vw); display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:clamp(7px,.7vw,13px); align-content:start; overflow:visible}
+.wk-card{position:relative; padding:clamp(10px,.85vw,16px); border-radius:14px; border:1px solid rgba(255,255,255,.08);
+  background:linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.02) 62%); -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px);
+  display:flex; flex-direction:column; gap:clamp(7px,.8vh,11px); min-width:0; opacity:0; animation:tier-in .6s var(--ease-in) both; animation-delay:calc(var(--i,0)*.06s)}
 .wk-card.is-now{border-color:var(--line-gold); background:linear-gradient(160deg, rgba(201,168,76,.13), rgba(255,255,255,.02) 62%)}
-.wk-day{font-size:clamp(14px,1.3vw,18px); font-weight:600; color:var(--ink); text-transform:capitalize}
-.wk-day small{display:block; font-family:var(--mono); font-size:10.5px; color:var(--ink4); margin-top:3px; text-transform:none}
+.wk-day{font-size:clamp(12px,.95vw,15px); font-weight:600; color:var(--ink); text-transform:capitalize; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.wk-day small{display:block; font-family:var(--mono); font-size:9.5px; color:var(--ink4); margin-top:2px; text-transform:none}
 .wk-card.is-now .wk-day small{color:var(--gold)}
-.wk-stats{display:flex; gap:clamp(16px,2vw,30px); padding:12px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line)}
-.wk-n{display:flex; flex-direction:column; gap:2px}
-.wk-n b{font-size:clamp(1.1rem,1.5vw,1.5rem); font-weight:700; color:var(--gold-hi); font-variant-numeric:tabular-nums}
-.wk-n span{font-size:9.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--ink4)}
-.wk-top{font-size:11px; color:var(--ink3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.wk-top span{color:var(--gold); font-weight:700; text-transform:uppercase; letter-spacing:.04em; font-size:9.5px; margin-right:5px}
+.wk-stats{display:flex; gap:clamp(8px,.9vw,16px); padding:clamp(8px,.9vh,12px) 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line)}
+.wk-n{display:flex; flex-direction:column; gap:2px; min-width:0}
+.wk-n b{font-size:clamp(.95rem,1.12vw,1.3rem); font-weight:700; color:var(--gold-hi); font-variant-numeric:tabular-nums; white-space:nowrap}
+.wk-n span{font-size:8.5px; letter-spacing:.04em; text-transform:uppercase; color:var(--ink4); white-space:nowrap}
+.wk-top{font-size:10px; color:var(--ink3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.wk-top span{color:var(--gold); font-weight:700; text-transform:uppercase; letter-spacing:.04em; font-size:8.5px; margin-right:4px}
 
-/* resumo da semana (faixa acima da grade) */
-.wk-summary{width:min(1500px,94vw); display:grid; grid-template-columns:repeat(4,1fr); gap:clamp(10px,1.2vw,18px)}
-.wk-sum-i{padding:clamp(12px,1.3vw,18px) clamp(14px,1.4vw,20px); border-radius:14px; border:1px solid rgba(255,255,255,.08);
+/* resumo da semana (faixa compacta acima da grade) */
+.wk-summary{width:min(1760px,97vw); display:grid; grid-template-columns:repeat(4,1fr); gap:clamp(8px,1vw,16px)}
+.wk-sum-i{padding:clamp(9px,1vw,15px) clamp(12px,1.2vw,18px); border-radius:13px; border:1px solid rgba(255,255,255,.08);
   background:linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,.015) 66%); -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px)}
-.wk-sum-i span{display:block; font-size:9.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink4)}
-.wk-sum-i b{display:block; margin-top:5px; font-size:clamp(1.05rem,1.5vw,1.55rem); font-weight:800; color:var(--gold-hi); font-variant-numeric:tabular-nums; letter-spacing:-.01em}
-.wk-sum-i b i{font-style:normal; font-size:.62em; font-weight:600; color:var(--ink3)}
+.wk-sum-i span{display:block; font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink4)}
+.wk-sum-i b{display:block; margin-top:4px; font-size:clamp(1rem,1.35vw,1.45rem); font-weight:800; color:var(--gold-hi); font-variant-numeric:tabular-nums; letter-spacing:-.01em; white-space:nowrap}
+.wk-sum-i b i{font-style:normal; font-size:.6em; font-weight:600; color:var(--ink3)}
 .wk-sum-best{border-color:var(--line-gold); background:linear-gradient(160deg, rgba(201,168,76,.12), rgba(255,255,255,.015) 66%)}
 .wk-sum-best b{color:var(--gold)}
 
 /* barra relativa de garantido dentro do card do dia + destaque do melhor dia */
-.wk-card{position:relative}
-.wk-bar{height:6px; border-radius:999px; background:rgba(255,255,255,.06); overflow:hidden}
+.wk-bar{height:5px; border-radius:999px; background:rgba(255,255,255,.06); overflow:hidden}
 .wk-bar i{display:block; height:100%; width:var(--p,0%); border-radius:999px;
   background:linear-gradient(90deg,var(--gold-deep),var(--gold-hi)); box-shadow:0 0 10px -2px var(--gold-glow);
-  animation:wk-bar-in 1s var(--ease-in) both; animation-delay:calc(var(--i,0)*.07s + .18s)}
+  animation:wk-bar-in 1s var(--ease-in) both; animation-delay:calc(var(--i,0)*.06s + .18s)}
 @keyframes wk-bar-in{from{width:0}}
 .wk-card.is-best{border-color:var(--line-gold); background:linear-gradient(160deg, rgba(201,168,76,.16), rgba(255,255,255,.02) 62%)}
-.wk-flag{position:absolute; top:10px; right:10px; font-size:8.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
-  color:#1a1206; background:linear-gradient(90deg,var(--gold),var(--gold-hi)); padding:3px 8px; border-radius:999px}
+.wk-flag{position:absolute; top:9px; right:9px; font-size:8px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+  color:#1a1206; background:linear-gradient(90deg,var(--gold),var(--gold-hi)); padding:2px 7px; border-radius:999px}
 html.lite .wk-bar i{animation:none}
 
 /* ── TELA — Avisos da Casa ── */

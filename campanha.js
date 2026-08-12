@@ -34,6 +34,8 @@ var _closedKeys = null;        // rastro de eventos SPS já fechados (p/ toast "
 function $(id) { return document.getElementById(id); }
 function isDate(d) { return /^\d{4}-\d{2}-\d{2}$/.test(d); }
 function nowSPDate() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
+function nowSPMin() { var s = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date()); var m = s.match(/(\d{1,2}):(\d{2})/); return m ? (+m[1]) * 60 + (+m[2]) : null; }
+function horaMin(h) { var m = String(h || '').match(/^(\d{1,2}):(\d{2})/); return m ? (+m[1]) * 60 + (+m[2]) : null; }
 function clampTo() { var t = nowSPDate(); return t < CAMP.fim ? t : CAMP.fim; }
 function daysBetween(a, b) { return Math.round((Date.parse(b + 'T12:00:00Z') - Date.parse(a + 'T12:00:00Z')) / 86400000); }
 function fmtDMY(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? m[3] + '/' + m[2] + '/' + m[1] : (iso || ''); }
@@ -87,6 +89,22 @@ function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
    No modelo do core, arrecadado líquido por evento == premiacao (gross·netFactor), então
    o perf por linha já é (premiacao/garantido−1); aqui só tiramos a média simples (perfMedia). */
 function seriePerf(t) { return t && t.perfMedia != null ? t.perfMedia : 0; }
+
+/* Total GARANTIDO da SÉRIE = soma do garantido de TODOS os eventos SPS conhecidos,
+   inclusive os que ainda NÃO aconteceram. Une os já jogados (ROWS, do início até hoje)
+   com os agendados na grade da GU (GRADE, dias futuros da série), deduplicando por
+   data|nome|hora — assim o número reflete o garantido planejado da série inteira, não só
+   o que já rolou. Cobertura/forecast continuam usando o garantido já jogado (t.totalGarantido). */
+function serieGarantido() {
+  var seen = {}, total = 0, n = 0;
+  var add = function (d, nome, hora, gar) {
+    var k = (d || '') + '|' + nhk(nome, hora);
+    if (seen[k]) return; seen[k] = 1; n++; total += (gar || 0);
+  };
+  ROWS.forEach(function (r) { add(r.date, r.nome, r.hora, r.garantido); });
+  GRADE.forEach(function (e) { var d = e.dateISO || e.date; if (d && d >= CAMP.inicio && d <= CAMP.fim) add(d, e.nome, e.hora, e.garantido); });
+  return { total: total, n: n };
+}
 
 /* ── boot / dados ────────────────────────────────────────────── */
 function initData() {
@@ -247,9 +265,14 @@ function autoScrollList(el, dwellMs) {
 function startDirector() {
   if (_dirStarted) return; _dirStarted = true;
   var r = $('tvRot'); if (r) { r.hidden = false; r.innerHTML = SCENES.map(function (_, i) { return '<i data-i="' + i + '"></i>'; }).join(''); }
-  _si = 0; updateRot(0);
-  if (SCENES[0].enter) requestAnimationFrame(function () { requestAnimationFrame(SCENES[0].enter); });
-  scheduleScene(0);
+  // deep-link opcional: ?scene=<id> abre direto naquela cena (útil p/ QA e p/ fixar uma tela na TV)
+  var want = (location.search.match(/[?&]scene=([a-z]+)/i) || [])[1];
+  var start = 0; if (want) { SCENES.forEach(function (s, i) { if (s.id === want) start = i; }); }
+  _si = start; updateRot(start);
+  var first = document.querySelector('.scene[data-scene="' + SCENES[start].id + '"]');
+  if (first) { var off = document.querySelector('.scene.is-active'); if (off && off !== first) { off.classList.remove('is-active'); off.hidden = true; } first.hidden = false; first.classList.add('is-active'); }
+  if (SCENES[start].enter) requestAnimationFrame(function () { requestAnimationFrame(SCENES[start].enter); });
+  scheduleScene(start);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) scheduleScene(_si); });
 }
 function updateRot(i) {
@@ -291,7 +314,7 @@ var VNUM = {
   c_arr: [function (t) { return t.arrecadadoBruto; }, moneyNum],
   c_arrM: [function (t) { return t.arrecadadoBruto; }, fmtMoneyK],
   c_garM: [function (t) { return t.totalGarantido; }, fmtMoneyK],
-  c_garT: [function (t) { return t.totalGarantido; }, moneyNum],
+  c_garT: [function (t) { return serieGarantido().total; }, moneyNum],
   c_arrT: [function (t) { return t.arrecadadoBruto; }, moneyNum],
   c_rakeT: [function (t) { return t.rake; }, moneyNum],
   c_adminT: [function (t) { return t.adminFee; }, moneyNum],
@@ -472,22 +495,51 @@ function setTrend(id, up, invert, pct) {
   el.classList.toggle('good', good); el.classList.toggle('bad', !good);
 }
 
-/* eventos SPS de HOJE (aparecem conforme o operador preenche no painel do dia) */
-function todayTop3() {
-  var pool = ROWS.filter(function (r) { return r.premiacao != null; });
-  var day = /[?&]demo=1/.test(location.search) ? pool.slice()   // demo: mostra 3 (sem data real)
-    : pool.filter(function (r) { return r.date === nowSPDate(); });
-  return day.sort(function (a, b) { return (b.premiacao || 0) - (a.premiacao || 0); }).slice(0, 3);
+/* eventos SPS ROLANDO AGORA — os que já começaram (hora ≤ agora) e ainda não fecharam.
+   Fallbacks p/ nunca ficar vazio: próximos a começar hoje → maiores já fechados hoje. */
+function runningNow() {
+  var isDemo = /[?&]demo=1/.test(location.search), t = nowSPDate(), nowM = nowSPMin();
+  // grade de HOJE mesclada com o ao vivo do painel (igual ao renderToday)
+  var pool, grToday = GRADE.filter(function (e) { return e.dateISO === t; });
+  if (grToday.length && !isDemo) {
+    var live = {}; ROWS.forEach(function (r) { if (r.date === t) live[nhk(r.nome, r.hora)] = r; });
+    pool = grToday.map(function (e) {
+      var r = live[nhk(e.nome, e.hora)] || {};
+      return { nome: e.nome, hora: e.hora, cat: e.cat, date: t,
+        garantido: (r.garantido != null ? r.garantido : e.garantido),
+        premiacao: (r.premiacao != null ? r.premiacao : null), field: r.field, status: r.status };
+    });
+  } else {
+    pool = ROWS.filter(function (r) { return isDemo || r.date === t; });
+  }
+  var started = function (r) { var hm = horaMin(r.hora); return hm != null && nowM != null && hm <= nowM; };
+  // rolando agora = já começou e ainda não fechou (no demo, mostra os "abertos")
+  var live2 = pool.filter(function (r) { return r.premiacao == null && (isDemo ? true : started(r)); });
+  if (live2.length) { live2.sort(function (a, b) { return (horaMin(b.hora) || 0) - (horaMin(a.hora) || 0); }); return { mode: 'live', list: live2.slice(0, 3) }; }
+  // ninguém rolando → próximos a começar hoje
+  var next = pool.filter(function (r) { return r.premiacao == null && horaMin(r.hora) != null && nowM != null && horaMin(r.hora) > nowM; });
+  if (next.length) { next.sort(function (a, b) { return horaMin(a.hora) - horaMin(b.hora); }); return { mode: 'next', list: next.slice(0, 3) }; }
+  // nada aberto → maiores já fechados hoje
+  var done = pool.filter(function (r) { return r.premiacao != null; }).sort(function (a, b) { return (b.premiacao || 0) - (a.premiacao || 0); });
+  return { mode: 'done', list: done.slice(0, 3) };
 }
 function renderTodayTop3() {
   var el = $('today-top3'); if (!el) return;
-  var top = todayTop3();
-  if (!top.length) { el.innerHTML = '<div class="ct-empty"><span class="ct-empty-dot"></span>Aguardando o primeiro SPS de hoje no painel…</div>'; return; }
+  var res = runningNow(), top = res.list;
+  var head = $('ct-live-badge');
+  if (head) head.innerHTML = '<i></i>' + (res.mode === 'live' ? 'ROLANDO AGORA' : res.mode === 'next' ? 'A COMEÇAR' : 'AO VIVO');
+  if (!top.length) { el.innerHTML = '<div class="ct-empty"><span class="ct-empty-dot"></span>Nenhum SPS rolando agora — em breve entram na grade de hoje…</div>'; return; }
   el.innerHTML = top.map(function (r, i) {
-    return '<div class="ct-card" data-r="' + (i + 1) + '"><div class="ct-rank">' + (i + 1) + '</div>' +
+    var closed = r.premiacao != null;
+    var val = closed ? fmtMoneyK(r.premiacao) : (r.garantido ? fmtMoneyK(r.garantido) : '—');
+    var meta = (r.hora ? esc(String(r.hora)) + ' · ' : '') +
+      (res.mode === 'live' ? (r.field ? intNum(r.field) + ' jogadores' : 'rolando agora')
+        : res.mode === 'next' ? 'a começar'
+        : (r.field ? intNum(r.field) + ' jogadores' : 'fechado'));
+    return '<div class="ct-card" data-r="' + (i + 1) + '" data-live="' + (res.mode === 'live' ? '1' : '0') + '"><div class="ct-rank">' + (i + 1) + '</div>' +
       '<div class="ct-body"><div class="ct-name">' + esc(shortName(r.nome)) + '</div>' +
-      '<div class="ct-meta">' + (r.hora ? esc(String(r.hora)) + ' · ' : '') + (r.field ? intNum(r.field) + ' entradas' : (r.status === 'aberto' ? 'em andamento' : '—')) + '</div></div>' +
-      '<div class="ct-prem">' + fmtMoneyK(r.premiacao) + '</div></div>';
+      '<div class="ct-meta">' + meta + '</div></div>' +
+      '<div class="ct-prem' + (closed ? '' : ' ct-gar') + '">' + val + '</div></div>';
   }).join('');
 }
 
@@ -529,8 +581,9 @@ function fillControl(t) {
   setTxt('cttl-day', 'Dia ' + pr.elapsed + ' / ' + pr.total);
 
   // totais DETALHADOS — contexto por métrica (curto, quebra em 2 linhas)
-  setTxt('sb_gar', fmtMoneyK(t.dias ? t.totalGarantido / t.dias : 0) + '/dia · ' + intNum(t.torneios) + ' eventos');
-  setTxt('sb_arr', fmtMoneyK(t.dias ? t.arrecadadoBruto / t.dias : 0) + '/dia · ' + intNum(t.entradas) + ' entr.');
+  var sg = serieGarantido();
+  setTxt('sb_gar', intNum(sg.n) + ' eventos na série · ' + intNum(t.fechados) + ' já fechados');
+  setTxt('sb_arr', fmtMoneyK(t.dias ? t.arrecadadoBruto / t.dias : 0) + '/dia · ' + intNum(t.entradas) + ' jog.');
   setTxt('sb_rake', pctPlain(t.rakePct) + ' do arrec. · ' + fmtMoneyK(t.dias ? t.rake / t.dias : 0) + '/dia');
   setTxt('sb_admin', t.adminEvents + ' eventos · 2% buy-in');
   setTxt('sb_ov', pctPlain(t.overlayPctGar) + ' do garantido · ' + intNum(t.fechados) + ' fech.');
@@ -889,7 +942,8 @@ function renderWeek() {
       '</div>';
   }).join('');
 }
-function enterWeek() { renderWeek(); autoScrollList($('week-grid'), SCENES[_si].dwell); }
+/* A semana cabe inteira na tela (7 dias em 1 linha) — sem auto-scroll (é uma TV, nada rola) */
+function enterWeek() { renderWeek(); }
 
 /* ── TELA — Avisos da Casa (hub/avisos), igual à TV ── */
 function renderAvisos() {
