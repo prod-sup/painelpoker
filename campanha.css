@@ -37,14 +37,45 @@ body{
 }
 
 /* fundo -------------------------------------------------------------------- */
-/* O Feltro da Suprema TV (WebGL — névoa + partículas) monta seu canvas .sp-feltro DENTRO deste host */
-.tv-bg{position:fixed; inset:0; z-index:0; pointer-events:none; background:#0b0c10}
+/* fundo em VÍDEO — dois <video> sobrepostos p/ crossfade no loop (o JS alterna .is-front) */
+.tv-video{position:fixed; inset:0; z-index:0; pointer-events:none; background:#05070a; overflow:hidden}
+.tv-vid{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0;
+  transition:opacity 1.1s ease; will-change:opacity; transform:translateZ(0)}
+.tv-vid.is-front{opacity:1}
+/* leve dessaturação + escurecida p/ o conteúdo respirar por cima (premium, não "papel de parede") */
+.tv-video::after{content:""; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(180deg, rgba(5,7,10,.42) 0%, rgba(5,7,10,.20) 34%, rgba(5,7,10,.30) 66%, rgba(5,7,10,.66) 100%)}
+
+/* (legado) host do Feltro — mantido só por compat.; sem elemento no DOM agora */
+.tv-bg{position:fixed; inset:0; z-index:0; pointer-events:none}
+
+/* névoa PREMIUM (fog volumétrico) — 3 camadas de fumaça que derivam devagar, screen-blend */
+.tv-fog{position:fixed; inset:0; z-index:1; pointer-events:none; mix-blend-mode:screen; opacity:.9}
+.tv-fog i{position:absolute; inset:-25%; display:block; opacity:.5; will-change:transform;
+  background-repeat:no-repeat}
+.tv-fog i:nth-child(1){
+  background:radial-gradient(42% 38% at 22% 30%, rgba(201,168,76,.16), transparent 70%),
+             radial-gradient(50% 42% at 74% 66%, rgba(150,190,255,.07), transparent 72%);
+  animation:tv-fog-a 34s ease-in-out infinite}
+.tv-fog i:nth-child(2){
+  background:radial-gradient(46% 40% at 68% 26%, rgba(230,195,79,.12), transparent 72%),
+             radial-gradient(40% 36% at 30% 74%, rgba(44,199,158,.06), transparent 74%);
+  animation:tv-fog-b 46s ease-in-out infinite; opacity:.42}
+.tv-fog i:nth-child(3){
+  background:radial-gradient(60% 50% at 50% 44%, rgba(255,255,255,.05), transparent 76%);
+  animation:tv-fog-c 60s ease-in-out infinite; opacity:.3}
+@keyframes tv-fog-a{0%,100%{transform:translate3d(-4%,-2%,0) scale(1.05)}50%{transform:translate3d(5%,3%,0) scale(1.14)}}
+@keyframes tv-fog-b{0%,100%{transform:translate3d(4%,2%,0) scale(1.1)}50%{transform:translate3d(-6%,-3%,0) scale(1.02)}}
+@keyframes tv-fog-c{0%,100%{transform:translate3d(0,3%,0) scale(1.08)}50%{transform:translate3d(0,-4%,0) scale(1.16)}}
+html.lite .tv-fog{display:none}
+
 .tv-grain{position:fixed; inset:0; z-index:1; pointer-events:none; opacity:.045; mix-blend-mode:overlay;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   animation:tv-grain 1.2s steps(3) infinite}
 @keyframes tv-grain{0%{transform:translate(0,0)}50%{transform:translate(-2%,1%)}100%{transform:translate(1%,-2%)}}
-.tv-vignette{position:fixed; inset:0; z-index:1; pointer-events:none;
-  background:radial-gradient(150% 100% at 50% 40%, transparent 52%, rgba(0,0,0,.62) 100%)}
+/* vinheta mais funda p/ dar profundidade cinematográfica (premium) */
+.tv-vignette{position:fixed; inset:0; z-index:2; pointer-events:none;
+  background:radial-gradient(140% 95% at 50% 38%, transparent 44%, rgba(0,0,0,.52) 82%, rgba(0,0,0,.78) 100%)}
 .tv-sweep{position:fixed; inset:0; z-index:1; pointer-events:none; opacity:.5;
   background:linear-gradient(74deg, transparent 38%, rgba(201,168,76,.05) 48%, rgba(255,255,255,.03) 50%, transparent 62%);
   background-size:240% 100%; animation:tv-sweep 14s ease-in-out infinite}
@@ -63,9 +94,17 @@ html.lite .tv-grain,html.lite .tv-sweep{display:none}
 .tv-live i{width:6px; height:6px; border-radius:50%; background:#38e79a; box-shadow:0 0 10px #38e79a; animation:tv-pulse 2s var(--ease) infinite}
 @keyframes tv-pulse{0%,100%{opacity:1}50%{opacity:.25}}
 .tv-clock{font-family:var(--mono); font-size:13px; color:var(--ink3); letter-spacing:.05em; font-variant-numeric:tabular-nums}
-.tv-fs{width:36px; height:36px; border-radius:10px; cursor:pointer; font-size:15px; color:var(--ink2);
-  border:1px solid var(--line); background:rgba(9,13,18,.6); backdrop-filter:blur(10px); opacity:0; transition:opacity .3s}
-body:hover .tv-fs{opacity:.8} .tv-fs:hover{color:var(--gold-hi); border-color:var(--line-gold)}
+/* botões de chrome: Voltar ao OS + Tela cheia — sempre visíveis (discretos), realçam no hover */
+.tv-btn{display:inline-flex; align-items:center; justify-content:center; gap:7px; height:36px; padding:0 10px;
+  border-radius:10px; cursor:pointer; font-size:14px; font-weight:600; line-height:1; text-decoration:none;
+  color:var(--ink2); border:1px solid var(--line); background:rgba(9,13,18,.6); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+  opacity:.62; transition:opacity .25s var(--ease), color .25s var(--ease), border-color .25s var(--ease), background .25s var(--ease)}
+.tv-btn:hover{opacity:1; color:var(--gold-hi); border-color:var(--line-gold); background:rgba(201,168,76,.08)}
+.tv-fs{width:36px; padding:0; font-size:15px}
+.tv-home .tv-btn-ico{font-size:15px; line-height:1; transform:translateY(.5px)}
+.tv-home .tv-btn-lbl{font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase}
+body:hover .tv-btn{opacity:.9} body:hover .tv-btn:hover{opacity:1}
+@media (max-width:720px){ .tv-home .tv-btn-lbl{display:none} .tv-home{width:36px; padding:0} }
 
 /* palco + cenas ----------------------------------------------------------- */
 .tv-stage{position:fixed; inset:0 0 58px 0; z-index:3; display:grid; place-items:center}
@@ -479,18 +518,18 @@ html.lite .card-accent{display:none}
 .cttl-live{display:inline-flex; align-items:center; gap:6px; font-size:9px; font-weight:800; letter-spacing:.12em; color:#8ff3c0; text-transform:uppercase}
 .cttl-live i{width:6px; height:6px; border-radius:50%; background:#38e79a; box-shadow:0 0 8px #38e79a; animation:tv-pulse 2s var(--ease) infinite}
 .cttl-day{margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--ink3)}
-.cttl-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:clamp(10px,1vw,16px); flex:1; min-height:0}
+.cttl-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:clamp(9px,.85vw,15px); flex:1; min-height:0}
 .mtile{position:relative; padding:clamp(13px,1.2vw,18px); border-radius:16px; border:1px solid var(--line);
   background:linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,.018) 60%); display:flex; flex-direction:column; gap:8px; overflow:hidden}
 .mtile::after{content:""; position:absolute; inset:0 0 auto 0; height:2px; background:var(--_c,var(--gold)); opacity:.8}
-.mtile[data-tone=arr]{--_c:var(--gold-hi)} .mtile[data-tone=rake]{--_c:var(--rake)} .mtile[data-tone=admin]{--_c:var(--admin)}
+.mtile[data-tone=gar]{--_c:var(--gold-deep)} .mtile[data-tone=arr]{--_c:var(--gold-hi)} .mtile[data-tone=rake]{--_c:var(--rake)} .mtile[data-tone=admin]{--_c:var(--admin)}
 .mtile[data-tone=ov]{--_c:var(--loss)} .mtile[data-tone=perf]{--_c:var(--gold)}
 .mtile-top{display:flex; align-items:center; justify-content:space-between; gap:6px}
 .mtile-lbl{font-size:9.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink3)}
 .mtile-trend{font-size:10px; line-height:1}
 .mtile-trend.up{color:var(--gen)} .mtile-trend.down{color:var(--loss)}
 .mtile-num{font-size:clamp(1.15rem,1.7vw,1.8rem); font-weight:700; letter-spacing:-.02em; line-height:1; color:var(--ink); font-variant-numeric:tabular-nums}
-.mtile[data-tone=arr] .mtile-num{color:var(--gold-hi)} .mtile[data-tone=rake] .mtile-num{color:#6fe0be}
+.mtile[data-tone=gar] .mtile-num{color:var(--gold)} .mtile[data-tone=arr] .mtile-num{color:var(--gold-hi)} .mtile[data-tone=rake] .mtile-num{color:#6fe0be}
 .mtile[data-tone=admin] .mtile-num{color:#9cc0ff} .mtile[data-tone=ov] .mtile-num{color:#f4938a} .mtile[data-tone=perf] .mtile-num{color:var(--gold-hi)}
 .mtile-spark{width:100%; height:clamp(28px,3.4vh,44px); margin-top:auto; display:block}
 
@@ -805,6 +844,28 @@ html.lite .hero-big{animation:none; color:var(--gold-hi)}
 .wk-n span{font-size:9.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--ink4)}
 .wk-top{font-size:11px; color:var(--ink3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .wk-top span{color:var(--gold); font-weight:700; text-transform:uppercase; letter-spacing:.04em; font-size:9.5px; margin-right:5px}
+
+/* resumo da semana (faixa acima da grade) */
+.wk-summary{width:min(1500px,94vw); display:grid; grid-template-columns:repeat(4,1fr); gap:clamp(10px,1.2vw,18px)}
+.wk-sum-i{padding:clamp(12px,1.3vw,18px) clamp(14px,1.4vw,20px); border-radius:14px; border:1px solid rgba(255,255,255,.08);
+  background:linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,.015) 66%); -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px)}
+.wk-sum-i span{display:block; font-size:9.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink4)}
+.wk-sum-i b{display:block; margin-top:5px; font-size:clamp(1.05rem,1.5vw,1.55rem); font-weight:800; color:var(--gold-hi); font-variant-numeric:tabular-nums; letter-spacing:-.01em}
+.wk-sum-i b i{font-style:normal; font-size:.62em; font-weight:600; color:var(--ink3)}
+.wk-sum-best{border-color:var(--line-gold); background:linear-gradient(160deg, rgba(201,168,76,.12), rgba(255,255,255,.015) 66%)}
+.wk-sum-best b{color:var(--gold)}
+
+/* barra relativa de garantido dentro do card do dia + destaque do melhor dia */
+.wk-card{position:relative}
+.wk-bar{height:6px; border-radius:999px; background:rgba(255,255,255,.06); overflow:hidden}
+.wk-bar i{display:block; height:100%; width:var(--p,0%); border-radius:999px;
+  background:linear-gradient(90deg,var(--gold-deep),var(--gold-hi)); box-shadow:0 0 10px -2px var(--gold-glow);
+  animation:wk-bar-in 1s var(--ease-in) both; animation-delay:calc(var(--i,0)*.07s + .18s)}
+@keyframes wk-bar-in{from{width:0}}
+.wk-card.is-best{border-color:var(--line-gold); background:linear-gradient(160deg, rgba(201,168,76,.16), rgba(255,255,255,.02) 62%)}
+.wk-flag{position:absolute; top:10px; right:10px; font-size:8.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+  color:#1a1206; background:linear-gradient(90deg,var(--gold),var(--gold-hi)); padding:3px 8px; border-radius:999px}
+html.lite .wk-bar i{animation:none}
 
 /* ── TELA — Avisos da Casa ── */
 .scene-avisos{justify-content:flex-start; padding:calc(clamp(18px,2.4vh,30px) + 48px) clamp(40px,6vw,120px) clamp(14px,2vh,26px); gap:clamp(22px,3.5vh,40px)}

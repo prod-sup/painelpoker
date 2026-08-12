@@ -22,10 +22,16 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
 </head>
 <body>
 
-<!-- fundo: O Feltro da Suprema TV (WebGL — névoa + partículas de poeira), idêntico ao canal -->
-<div class="tv-bg" aria-hidden="true"></div>
+<!-- fundo: vídeo cinematográfico premium (loop SUAVE via crossfade de 2 <video>, sem corte no fim) -->
+<div class="tv-video" aria-hidden="true">
+  <video class="tv-vid is-front" id="bgVidA" muted playsinline preload="auto"></video>
+  <video class="tv-vid" id="bgVidB" muted playsinline preload="auto"></video>
+</div>
 
-<!-- grão + vinheta cinematográfica por cima do feltro -->
+<!-- névoa PREMIUM (fog volumétrico em camadas) por cima do vídeo -->
+<div class="tv-fog" aria-hidden="true"><i></i><i></i><i></i></div>
+
+<!-- grão + vinheta cinematográfica por cima do fog -->
 <div class="tv-grain" aria-hidden="true"></div>
 <div class="tv-vignette" aria-hidden="true"></div>
 
@@ -37,7 +43,8 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
   <div class="tv-top-right">
     <span class="tv-live" id="liveBadge" hidden><i></i><span>AO VIVO</span></span>
     <span class="tv-clock" id="clock">--:--:--</span>
-    <button class="tv-fs" id="fsBtn" title="Tela cheia" aria-label="Tela cheia">⛶</button>
+    <a class="tv-btn tv-home" id="homeBtn" href="hub.html" title="Voltar ao Suprema OS" aria-label="Voltar ao OS"><span class="tv-btn-ico">⟵</span><span class="tv-btn-lbl">OS</span></a>
+    <button class="tv-btn tv-fs" id="fsBtn" title="Tela cheia" aria-label="Tela cheia">⛶</button>
   </div>
 </header>
 
@@ -93,6 +100,12 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
         <img class="card-accent" src="assets/sps-el/2-chips.png" alt="" aria-hidden="true" onerror="this.remove()">
         <div class="cttl-head"><span>Totais da série</span><b class="cttl-live"><i></i>ao vivo</b><span class="cttl-day" id="cttl-day">—</span></div>
         <div class="cttl-grid">
+          <div class="mtile" data-tone="gar">
+            <div class="mtile-top"><span class="mtile-lbl">Total garantido</span><span class="mtile-trend" id="tr_gar">▲</span></div>
+            <div class="mtile-num"><span class="pre">R$</span><span data-num="c_garT">0</span></div>
+            <div class="mtile-sub" id="sb_gar">—</div>
+            <svg class="mtile-spark" data-spark="gar" viewBox="0 0 120 38" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </div>
           <div class="mtile" data-tone="arr">
             <div class="mtile-top"><span class="mtile-lbl">Total arrecadado</span><span class="mtile-trend" id="tr_arr">▲</span></div>
             <div class="mtile-num"><span class="pre">R$</span><span data-num="c_arrT">0</span></div>
@@ -208,30 +221,13 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
     <div class="coming-list" id="coming-events"></div>
   </section>
 
-  <!-- ░░ TELA — GIGANTES DA SEMANA (maiores premiações SPS) ░░ -->
-  <section class="scene scene-giants" data-scene="giants" hidden>
-    <div class="rk-top">
-      <span class="eyebrow center">As maiores premiações da semana</span>
-      <h2>Gigantes da Semana <span>· SPS</span></h2>
-    </div>
-    <div class="hero-wrap" id="giants-hero"></div>
-  </section>
-
-  <!-- ░░ TELA — RECORDES DA SEMANA (maior premiação + maior público SPS) ░░ -->
-  <section class="scene scene-records" data-scene="records" hidden>
-    <div class="rk-top">
-      <span class="eyebrow center">Os recordes da semana</span>
-      <h2>Recordes SPS <span>· da semana</span></h2>
-    </div>
-    <div class="hero-wrap" id="records-hero"></div>
-  </section>
-
   <!-- ░░ TELA — A SEMANA INTEIRA (todos os SPS da semana por dia) ░░ -->
   <section class="scene scene-week" data-scene="week" hidden>
     <div class="rk-top">
       <span class="eyebrow center">A semana inteira</span>
       <h2>A Semana SPS <span>· dia a dia</span></h2>
     </div>
+    <div class="wk-summary" id="week-summary" hidden></div>
     <div class="week-grid" id="week-grid"></div>
   </section>
 

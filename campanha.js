@@ -82,7 +82,11 @@ function operatorOf(r) {
 }
 function reduced() { return window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches; }
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-function seriePerf(t) { return t && t.totalGarantido > 0 ? (t.totalPremiacao / t.totalGarantido - 1) * 100 : 0; }
+/* Performance da série = MÉDIA por evento de (arrecadado líquido / garantido − 1),
+   igual à planilha =MÉDIA(M…) onde cada M = SE(Ações=0;"";Arrecadado líquido/Garantido−1).
+   No modelo do core, arrecadado líquido por evento == premiacao (gross·netFactor), então
+   o perf por linha já é (premiacao/garantido−1); aqui só tiramos a média simples (perfMedia). */
+function seriePerf(t) { return t && t.perfMedia != null ? t.perfMedia : 0; }
 
 /* ── boot / dados ────────────────────────────────────────────── */
 function initData() {
@@ -216,10 +220,8 @@ var SCENES = [
   { id: 'today', dwell: 22000, enter: enterToday },       // rola (grade cheia)
   { id: 'coming', dwell: 16000, enter: enterComing },     // rola
   { id: 'journey', dwell: 18000, enter: enterJourney },   // rola
-  { id: 'week', dwell: 16000, enter: enterWeek },         // A Semana Inteira — rola
+  { id: 'week', dwell: 18000, enter: enterWeek },         // A Semana Inteira — rola
   { id: 'ranking', dwell: 14000, enter: enterRanking },   // Tier — rola se precisar
-  { id: 'records', dwell: 10000, enter: enterRecords },   // hero: 1 tela por recorde (cicla)
-  { id: 'giants', dwell: 20000, enter: enterGiants },     // hero: 1 tela por gigante (cicla)
 ];
 var _si = 0, _dirT = null, _dirStarted = false;
 /* loops por cena (auto-scroll / hero cíclico) — limpos a cada troca de cena */
@@ -289,6 +291,7 @@ var VNUM = {
   c_arr: [function (t) { return t.arrecadadoBruto; }, moneyNum],
   c_arrM: [function (t) { return t.arrecadadoBruto; }, fmtMoneyK],
   c_garM: [function (t) { return t.totalGarantido; }, fmtMoneyK],
+  c_garT: [function (t) { return t.totalGarantido; }, moneyNum],
   c_arrT: [function (t) { return t.arrecadadoBruto; }, moneyNum],
   c_rakeT: [function (t) { return t.rake; }, moneyNum],
   c_adminT: [function (t) { return t.adminFee; }, moneyNum],
@@ -307,8 +310,6 @@ function applyStatic() {
   renderRanking();
   renderToday();
   renderComing();
-  renderGiants();
-  renderRecords();
   renderWeek();
 }
 
@@ -439,6 +440,7 @@ function renderCharts() {
   setTxt('cf-sparklast', fmtMoneyK(house.length ? house[house.length - 1] : 0));
 
   // faixa de totais — uma sparkline por métrica (cores dark-safe)
+  renderSpark('gar', cumulative(days, 'gar'), '#c9a84c', 'spg_gar');
   renderSpark('arr', cumulative(days, 'arr'), '#e4c47c', 'spg_arr');
   renderSpark('rake', cumulative(days, 'rake'), '#2cc79e', 'spg_rake');
   renderSpark('admin', cumulative(days, 'admin'), '#6ea6ff', 'spg_admin');
@@ -453,7 +455,8 @@ function renderCharts() {
     var last = vals[vals.length - 1];
     return { up: last >= avg ? 1 : -1, pct: avg > 0 ? (last - avg) / avg * 100 : 0 };
   };
-  var ta = lastVsAvg('arr'), tr = lastVsAvg('rake'), tad = lastVsAvg('admin'), to = lastVsAvg('ov');
+  var tg = lastVsAvg('gar'), ta = lastVsAvg('arr'), tr = lastVsAvg('rake'), tad = lastVsAvg('admin'), to = lastVsAvg('ov');
+  setTrend('tr_gar', tg.up, false, tg.pct);
   setTrend('tr_arr', ta.up, false, ta.pct);
   setTrend('tr_rake', tr.up, false, tr.pct);
   setTrend('tr_admin', tad.up, false, tad.pct);
@@ -526,11 +529,13 @@ function fillControl(t) {
   setTxt('cttl-day', 'Dia ' + pr.elapsed + ' / ' + pr.total);
 
   // totais DETALHADOS — contexto por métrica (curto, quebra em 2 linhas)
+  setTxt('sb_gar', fmtMoneyK(t.dias ? t.totalGarantido / t.dias : 0) + '/dia · ' + intNum(t.torneios) + ' eventos');
   setTxt('sb_arr', fmtMoneyK(t.dias ? t.arrecadadoBruto / t.dias : 0) + '/dia · ' + intNum(t.entradas) + ' entr.');
   setTxt('sb_rake', pctPlain(t.rakePct) + ' do arrec. · ' + fmtMoneyK(t.dias ? t.rake / t.dias : 0) + '/dia');
   setTxt('sb_admin', t.adminEvents + ' eventos · 2% buy-in');
   setTxt('sb_ov', pctPlain(t.overlayPctGar) + ' do garantido · ' + intNum(t.fechados) + ' fech.');
-  setTxt('sb_perf', 'cob. ' + pctPlain(t.cobertura) + ' · méd. ' + pctSigned(t.perfMedia == null ? 0 : t.perfMedia));
+  // Performance = média por evento (arrec. líq./gar.−1); o sub dá o contexto (cobertura + nº de eventos fechados)
+  setTxt('sb_perf', 'méd. de ' + intNum(t.fechados) + ' fech. · cob. ' + pctPlain(t.cobertura));
 
   setTxt('cf-perf', pctSigned(seriePerf(t)));
   setTxt('cf-cobpct', pctPlain(t.cobertura));
@@ -840,17 +845,46 @@ function renderWeek() {
   var byDay = {}, src = GRADE.length ? GRADE : ROWS;
   src.forEach(function (e) { var d = e.dateISO || e.date; if (!d) return; (byDay[d] = byDay[d] || []).push(e); });
   var days = Object.keys(byDay).sort();
-  if (!days.length) { el.innerHTML = '<div class="tier-empty"><span class="ct-empty-dot"></span>Grade SPS da semana chegando…</div>'; return; }
-  el.innerHTML = days.map(function (d, i) {
+  var sum = $('week-summary');
+  if (!days.length) {
+    if (sum) sum.hidden = true;
+    el.innerHTML = '<div class="tier-empty"><span class="ct-empty-dot"></span>Grade SPS da semana chegando…</div>';
+    return;
+  }
+  // agregados da semana p/ o resumo + escala das barras
+  var perDay = days.map(function (d) {
     var evs = byDay[d];
-    var totGar = evs.reduce(function (s, e) { return s + (e.garantido || 0); }, 0);
+    return { d: d, evs: evs, gar: evs.reduce(function (s, e) { return s + (e.garantido || 0); }, 0) };
+  });
+  var totGarWeek = perDay.reduce(function (s, x) { return s + x.gar; }, 0);
+  var totEvWeek = perDay.reduce(function (s, x) { return s + x.evs.length; }, 0);
+  var maxGar = perDay.reduce(function (m, x) { return Math.max(m, x.gar); }, 0) || 1;
+  var best = perDay.slice().sort(function (a, b) { return b.gar - a.gar; })[0];
+  var avgGar = totGarWeek / perDay.length;
+
+  if (sum) {
+    sum.hidden = false;
+    var bestWd = WEEKDAY_FULL[new Date(best.d + 'T12:00:00Z').getUTCDay()];
+    sum.innerHTML =
+      '<div class="wk-sum-i"><span>Garantido da semana</span><b>' + fmtMoneyK(totGarWeek) + '</b></div>' +
+      '<div class="wk-sum-i"><span>Eventos SPS</span><b>' + intNum(totEvWeek) + ' <i>· ' + perDay.length + ' dias</i></b></div>' +
+      '<div class="wk-sum-i"><span>Média por dia</span><b>' + fmtMoneyK(avgGar) + '</b></div>' +
+      '<div class="wk-sum-i wk-sum-best"><span>Melhor dia</span><b>' + bestWd + ' <i>· ' + fmtMoneyK(best.gar) + '</i></b></div>';
+  }
+
+  el.innerHTML = perDay.map(function (x, i) {
+    var d = x.d, evs = x.evs, totGar = x.gar;
     var biggest = evs.slice().sort(function (a, b) { return (b.garantido || 0) - (a.garantido || 0); })[0];
     var isNow = d === nowSPDate();
+    var isBest = d === best.d && totGar > 0;
     var wd = WEEKDAY_FULL[new Date(d + 'T12:00:00Z').getUTCDay()];
-    return '<div class="wk-card' + (isNow ? ' is-now' : '') + '" style="--i:' + i + '">' +
+    var barPct = Math.max(4, Math.round(totGar / maxGar * 100));
+    return '<div class="wk-card' + (isNow ? ' is-now' : '') + (isBest ? ' is-best' : '') + '" style="--i:' + i + '">' +
+      (isBest ? '<span class="wk-flag">Melhor dia</span>' : '') +
       '<div class="wk-day">' + wd + '<small>' + d.slice(8, 10) + '/' + d.slice(5, 7) + (isNow ? ' · hoje' : '') + '</small></div>' +
       '<div class="wk-stats"><div class="wk-n"><b>' + evs.length + '</b><span>eventos SPS</span></div>' +
       '<div class="wk-n"><b>' + fmtMoneyK(totGar) + '</b><span>garantido total</span></div></div>' +
+      '<div class="wk-bar" style="--p:' + barPct + '%"><i></i></div>' +
       (biggest ? '<div class="wk-top"><span>Maior</span> ' + esc(fullName(biggest.nome)) + ' · ' + fmtMoneyK(biggest.garantido) + '</div>' : '') +
       '</div>';
   }).join('');
@@ -884,16 +918,40 @@ function wireFs() {
   });
 }
 
-/* ── fundo: O FELTRO da Suprema TV (WebGL névoa + partículas) — config idêntica ao canal (tv.js) ── */
+/* ── fundo: VÍDEO cinematográfico com LOOP SUAVE ──────────────────────────────
+   Dois <video> sobrepostos: quando o da frente chega perto do fim, o de trás
+   reinicia do 0 e entra em CROSSFADE (opacity via CSS). Assim o "pulo" do loop
+   fica invisível — o fim de um clipe funde com o começo do outro. O fog premium
+   (.tv-fog) fica por cima em CSS, então dá pra reforçar a névoa sem tocar no Feltro. */
 function mountBackground() {
-  var GOLD = '#e6c34f';
-  var toCanvas2D = function () {
-    if (window.SupremaMotion && SupremaMotion.network)
-      SupremaMotion.network('.tv-bg', { c1: GOLD, c2: '#22d47e', maxNodes: 64, linkDist: 150, isDark: function () { return true; } });
-  };
-  if (typeof SupremaFeltro === 'undefined') { toCanvas2D(); return; }
-  FELTRO = SupremaFeltro.mount('.tv-bg', { bg: '#0b0c10', gold: GOLD, felt: '#22d47e', onFallback: function () { FELTRO = null; toCanvas2D(); } });
-  if (FELTRO) console.info('[SUPREMA TV · SPS] fundo O Feltro no ar — tier "' + (FELTRO.tier && FELTRO.tier()) + '"');
+  var VID = 'assets/campanha-bg.mp4';
+  var a = $('bgVidA'), b = $('bgVidB');
+  if (!a || !b) return;
+  [a, b].forEach(function (v) { v.src = VID; v.muted = true; v.loop = false; v.playsInline = true; v.preload = 'auto'; });
+  var playSafe = function (v) { var p = v.play && v.play(); if (p && p.catch) p.catch(function () {}); };
+
+  // reduced-motion / telas fracas: um loop simples, sem crossfade
+  if (reduced()) { a.loop = true; a.classList.add('is-front'); playSafe(a); return; }
+
+  var FADE = 1.1;                               // s de sobreposição no fim (suaviza o corte)
+  var front = a, back = b, swapping = false;
+  a.classList.add('is-front'); playSafe(a);
+
+  var nearEnd = function (v) { var d = v.duration; return d && isFinite(d) && (d - v.currentTime) <= FADE; };
+  function crossfade() {
+    if (swapping) return; swapping = true;
+    var out = front, incoming = back;
+    try { incoming.currentTime = 0; } catch (e) {}
+    playSafe(incoming);
+    incoming.classList.add('is-front');         // fade-in
+    out.classList.remove('is-front');           // fade-out
+    front = incoming; back = out;
+    setTimeout(function () { try { out.pause(); } catch (e) {} swapping = false; }, FADE * 1000 + 80);
+  }
+  a.addEventListener('timeupdate', function () { if (front === a && nearEnd(a)) crossfade(); });
+  b.addEventListener('timeupdate', function () { if (front === b && nearEnd(b)) crossfade(); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) playSafe(front); });
+  console.info('[SUPREMA TV · SPS] fundo em vídeo (loop suave por crossfade) no ar');
 }
 
 /* ── (legado) aura 2D — substituída pelo Feltro; mantida como no-op se o #ambient sumiu ── */
