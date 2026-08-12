@@ -46,10 +46,14 @@ body{
 .tv-hero-img{position:absolute; inset:-6%; background:url("assets/sps-bg.png") center 34%/cover no-repeat;
   transform:scale(1.06); will-change:transform; animation:hero-zoom 34s ease-in-out infinite}
 /* vídeo animado por cima do PNG (mesma moldura cover); PNG fica de fallback se o vídeo não tocar */
+/* display:none por PADRÃO — em TVs (Tizen/Samsung) o vídeo vive num plano de hardware que
+   IGNORA opacity/z-index; só `display` o tira da tela. O JS liga `.vid-live` no .tv-hero
+   SÓ quando o vídeo confirma que está tocando. Sem isso, fica o PNG (.tv-hero-img) e nada de azul. */
 .tv-hero-vid{position:absolute; inset:-2%; width:104%; height:104%; object-fit:cover; object-position:center 34%;
-  transform:scale(1.02); opacity:0; will-change:opacity; transition:opacity 1.6s cubic-bezier(.45,0,.55,1); backface-visibility:hidden}
+  transform:scale(1.02); opacity:0; display:none; will-change:opacity; transition:opacity 1.6s cubic-bezier(.45,0,.55,1); backface-visibility:hidden}
+.tv-hero.vid-live .tv-hero-vid{display:block}
 .tv-hero-vid.is-front{opacity:1}
-@media (prefers-reduced-motion: reduce){ .tv-hero-vid{display:none} }
+@media (prefers-reduced-motion: reduce){ .tv-hero.vid-live .tv-hero-vid{display:none} }
 @keyframes hero-zoom{
   0%   {transform:scale(1.05) translate(-.6%, .4%)}
   50%  {transform:scale(1.14) translate(.8%, -1.4%)}
@@ -1123,9 +1127,11 @@ html.lite .wk-bar i{animation:none}
   background:linear-gradient(90deg, transparent, rgba(201,168,76,.12) 34%, rgba(201,168,76,.85) 50%, rgba(201,168,76,.12) 66%, transparent)}
 .tv-wipe.run::before{animation:tv-wipe 1s var(--ease) forwards}
 @keyframes tv-wipe{from{transform:skewX(-12deg) translateX(-220%)}to{transform:skewX(-12deg) translateX(360%)}}
-.tv-wipe-spade{position:absolute; top:50%; left:50%; font-size:11vh; color:#05070a; opacity:0; transform:translate(-50%,-50%)}
-.tv-wipe.run .tv-wipe-spade{animation:tv-wipe-spade 1s var(--ease) forwards}
-@keyframes tv-wipe-spade{0%{opacity:0; transform:translate(-260%,-50%)}45%{opacity:.9}100%{opacity:0; transform:translate(160%,-50%)}}
+/* flash da transição = LOGO da Suprema Poker (silhueta escura) cavalgando a faixa dourada */
+.tv-wipe-logo{position:absolute; top:50%; left:50%; width:clamp(300px,44vw,1100px); height:auto; opacity:0;
+  transform:translate(-50%,-50%); filter:brightness(0) drop-shadow(0 2px 12px rgba(0,0,0,.35))}
+.tv-wipe.run .tv-wipe-logo{animation:tv-wipe-spade 1s var(--ease) forwards}
+@keyframes tv-wipe-spade{0%{opacity:0; transform:translate(-160%,-50%)}45%{opacity:.95; transform:translate(-50%,-50%)}100%{opacity:0; transform:translate(70%,-50%)}}
 
 /* #9 toasts ao vivo (evento fechou) */
 .tv-toasts{position:fixed; right:clamp(20px,2.4vw,44px); bottom:clamp(52px,7vh,80px); z-index:18; display:flex; flex-direction:column; gap:10px; align-items:flex-end}

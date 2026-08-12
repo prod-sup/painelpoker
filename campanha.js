@@ -1097,7 +1097,10 @@ function mountBackground() {
   setTimeout(markBg, 7000);                              // fallback: nunca trava o loader por causa do vídeo
   var a = $('heroVidA'), b = $('heroVidB');
   if (!a || !b) { markBg(); return; }
-  if (reduced()) { try { a.pause(); b.pause(); } catch (e) {} markBg(); return; }   // PNG poster já é o fundo
+  if (reduced()) { try { a.pause(); b.pause(); } catch (e) {} markBg(); return; }   // PNG (.tv-hero-img) é o fundo
+  // NB: TVs (Tizen/Samsung) TENTAM o vídeo normalmente. O `display:none` garante que, se a TV NÃO
+  // decodificar, o plano de vídeo nem aparece (nada de tela azul) — fica o PNG. Se decodificar, roda
+  // o loop em crossfade igual no PC. Só liberamos o vídeo (`.vid-live`) com playback REAL confirmado.
   [a, b].forEach(function (v) { v.muted = true; v.playsInline = true; v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); });
   var FADE = 1.6;                                        // s de crossfade — casa com a transição CSS (ease-in-out, dissolve suave)
   var front = a, back = b, raf = 0, shown = false;
@@ -1105,9 +1108,13 @@ function mountBackground() {
   // o vídeo só APARECE (fade sobre o PNG) quando CONFIRMA que está exibindo frames. Se a TV
   // (ex.: browser Samsung/Tizen) não decodificar/autoplay, ele fica invisível e o PNG (.tv-hero-img)
   // continua sendo o fundo — nunca tela preta.
-  var showVideo = function () { if (!shown) { shown = true; front.classList.add('is-front'); } markBg(); };
+  var hero = document.querySelector('.tv-hero');
+  var showVideo = function () {                           // só mostra o vídeo (display:block via .vid-live) quando ELE confirma que toca
+    if (!shown) { shown = true; if (hero) hero.classList.add('vid-live'); requestAnimationFrame(function () { front.classList.add('is-front'); }); }
+    markBg();
+  };
   a.addEventListener('playing', showVideo);
-  a.addEventListener('timeupdate', function () { if (a.currentTime > 0.05) showVideo(); });   // Tizen: 'playing' às vezes não dispara
+  a.addEventListener('timeupdate', function () { if (a.currentTime > 0.12) showVideo(); });   // playback REAL confirmado (não só 'playing')
   a.addEventListener('canplay', markBg);
   // falha de mídia (codec não suportado / rede) → mantém o PNG de fundo, sem tela preta
   var toPoster = function () { markBg(); };
