@@ -71,7 +71,7 @@ body:hover .tv-fs{opacity:.8} .tv-fs:hover{color:var(--gold-hi); border-color:va
 .tv-stage{position:fixed; inset:0 0 58px 0; z-index:3; display:grid; place-items:center}
 /* transição IDÊNTICA à Suprema TV: crossfade + scale 1.02→1 (entra) / 1→.985 (sai), só opacity/transform */
 .scene{position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center;
-  padding:clamp(70px,10vh,120px) clamp(40px,6vw,120px); gap:clamp(20px,3vh,40px);
+  padding:clamp(54px,7vh,86px) clamp(40px,6vw,120px); gap:clamp(20px,3vh,40px);
   opacity:0; transform:scale(1.02); pointer-events:none;
   transition:opacity 1.1s var(--ease), transform 1.3s var(--ease)}
 .scene[hidden]{display:none}
@@ -251,7 +251,7 @@ body:hover .tv-fs{opacity:.8} .tv-fs:hover{color:var(--gold-hi); border-color:va
 html.lite .ticker-track{animation:none}
 
 /* ── CENA CONTROL ROOM (composição cinematográfica multi-painel) ──────── */
-.scene-control{padding:calc(clamp(16px,2vh,26px) + 54px) clamp(20px,2.4vw,44px) calc(30px + clamp(16px,2vh,24px)); align-items:stretch; justify-content:flex-start; gap:clamp(12px,1.8vh,24px)}
+.scene-control{padding:calc(clamp(16px,2vh,26px) + 54px) clamp(20px,2.4vw,44px) calc(12px + clamp(10px,1.4vh,18px)); align-items:stretch; justify-content:flex-start; gap:clamp(12px,1.8vh,24px)}
 
 /* manchete do arrecadado — centralizada no topo, sem card (ref. Accounting) */
 .ctrl-headline{grid-column:2; grid-row:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
@@ -519,7 +519,7 @@ html.lite .ch-area,html.lite .cf-area,html.lite .sp-area,html.lite .che-peak spa
 .mtile-sub{font-size:10px; color:var(--ink4); font-variant-numeric:tabular-nums; line-height:1.32; letter-spacing:.01em}
 
 /* ── TELA 2 — Jornada por dia (onda estilo WeatherWise) ── */
-.scene-journey{padding:calc(clamp(18px,2.4vh,30px) + 62px) clamp(30px,4vw,80px) clamp(38px,5vh,60px); gap:clamp(18px,3vh,34px); justify-content:flex-start}
+.scene-journey{padding:calc(clamp(18px,2.4vh,30px) + 48px) clamp(30px,4vw,80px) clamp(14px,2vh,26px); gap:clamp(18px,3vh,34px); justify-content:flex-start}
 .jn-top{width:100%; display:flex; align-items:flex-end; justify-content:space-between; gap:20px}
 .jn-title h2{margin:14px 0 0; font-size:clamp(1.5rem,2.6vw,2.4rem); font-weight:600; letter-spacing:-.02em}
 .jn-title h2 span{color:var(--ink3); font-weight:400; font-size:.58em}
@@ -636,7 +636,7 @@ body.win-blurred .che-big,html.lite .che-big{animation:none}
 .jn-foot-meta[hidden]{display:none} .jn-foot-meta b{color:var(--ink)}
 
 /* #5 TELA 3 — ranking / pódio */
-.scene-ranking{justify-content:flex-start; padding:calc(clamp(18px,2.4vh,30px) + 62px) clamp(40px,6vw,120px) clamp(44px,5vh,66px); gap:clamp(26px,4vh,52px)}
+.scene-ranking{justify-content:flex-start; padding:calc(clamp(18px,2.4vh,30px) + 48px) clamp(40px,6vw,120px) clamp(14px,2vh,26px); gap:clamp(26px,4vh,52px)}
 .rk-top{text-align:center}
 .rk-top h2{margin:14px 0 0; font-size:clamp(1.5rem,2.6vw,2.4rem); font-weight:600; letter-spacing:-.02em}
 .rk-top h2 span{color:var(--ink3); font-weight:400; font-size:.58em}
@@ -674,7 +674,7 @@ body.win-blurred .che-big,html.lite .che-big{animation:none}
 .cst-row .nm{display:flex; align-items:center; min-width:0}
 
 /* ── TELA 3 — Tier da Semana (Netflix/Apple, glass) ── */
-.scene-tier{justify-content:flex-start; padding:calc(clamp(18px,2.4vh,30px) + 62px) clamp(40px,6vw,120px) clamp(44px,5vh,66px); gap:clamp(24px,4vh,44px)}
+.scene-tier{justify-content:flex-start; padding:calc(clamp(18px,2.4vh,30px) + 48px) clamp(40px,6vw,120px) clamp(14px,2vh,26px); gap:clamp(24px,4vh,44px)}
 .tier-list{width:min(1180px,90vw); display:flex; flex-direction:column; gap:clamp(10px,1.5vh,18px)}
 .tier-row{display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:clamp(18px,2.2vw,34px);
   padding:clamp(14px,1.8vh,24px) clamp(20px,2vw,34px); border-radius:18px; border:1px solid rgba(255,255,255,.10);
@@ -697,7 +697,7 @@ body.win-blurred .che-big,html.lite .che-big{animation:none}
 
 /* ── TELA — Eventos SPS de Hoje (cards vivos, stats por extenso, operador) ── */
 .ao-dot{width:7px; height:7px; border-radius:50%; background:#38e79a; box-shadow:0 0 10px #38e79a; animation:tv-pulse 2s var(--ease) infinite; display:inline-block; margin-right:6px}
-.scene-today{justify-content:flex-start; padding:calc(clamp(18px,2.4vh,30px) + 62px) clamp(30px,4vw,90px) clamp(40px,5vh,60px); gap:clamp(22px,3.5vh,40px)}
+.scene-today{justify-content:flex-start; padding:calc(clamp(18px,2.4vh,30px) + 48px) clamp(30px,4vw,90px) clamp(40px,5vh,60px); gap:clamp(22px,3.5vh,40px)}
 .tday-list{width:min(1500px,94vw); display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:clamp(14px,1.4vw,22px)}
 .tday-card{position:relative; overflow:hidden; padding:clamp(16px,1.5vw,24px); border-radius:18px; border:1px solid rgba(255,255,255,.10);
   background:linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.025) 62%); -webkit-backdrop-filter:blur(24px); backdrop-filter:blur(24px);
@@ -723,7 +723,7 @@ body.win-blurred .che-big,html.lite .che-big{animation:none}
 .tday-empty{display:flex; align-items:center; gap:10px; font-size:14px; color:var(--ink3); padding:48px 0; grid-column:1/-1; justify-content:center}
 
 /* ── TELA — VEM AÍ (grade SPS de amanhã, estilo lineup) ── */
-.scene-coming{justify-content:flex-start; padding:calc(clamp(18px,2.4vh,30px) + 62px) clamp(40px,6vw,110px) clamp(44px,5vh,66px); gap:clamp(24px,4vh,44px)}
+.scene-coming{justify-content:flex-start; padding:calc(clamp(18px,2.4vh,30px) + 48px) clamp(40px,6vw,110px) clamp(14px,2vh,26px); gap:clamp(24px,4vh,44px)}
 .coming-list{width:min(1100px,90vw); display:flex; flex-direction:column; gap:clamp(9px,1.3vh,15px)}
 .coming-card{display:grid; grid-template-columns:auto 1fr; align-items:center; gap:clamp(18px,2.2vw,34px);
   padding:clamp(13px,1.6vh,20px) clamp(20px,2vw,32px); border-radius:16px; border:1px solid rgba(255,255,255,.09);
@@ -737,7 +737,7 @@ body.win-blurred .che-big,html.lite .che-big{animation:none}
 .scene-giants .tier-val-lbl{color:var(--gold)} .scene-giants .tier-val b{color:#fff}
 
 /* ── TELA — Recordes da Semana (hero records, estilo TV) ── */
-.scene-records{justify-content:center; padding:calc(clamp(18px,2.4vh,30px) + 62px) clamp(40px,6vw,110px) clamp(44px,5vh,66px); gap:clamp(22px,3.5vh,40px)}
+.scene-records{justify-content:center; padding:calc(clamp(18px,2.4vh,30px) + 48px) clamp(40px,6vw,110px) clamp(14px,2vh,26px); gap:clamp(22px,3.5vh,40px)}
 .records-grid{width:min(1200px,92vw); display:grid; grid-template-columns:1fr 1fr; gap:clamp(18px,2vw,32px)}
 .rec-card{position:relative; overflow:hidden; padding:clamp(24px,2.6vw,42px); border-radius:22px; border:1px solid var(--line-gold);
   background:linear-gradient(160deg, rgba(201,168,76,.14), rgba(255,255,255,.02) 62%); -webkit-backdrop-filter:blur(26px); backdrop-filter:blur(26px);
@@ -755,8 +755,9 @@ body.win-blurred .che-big,html.lite .che-big{animation:none}
 .rec-empty{font-size:14px; color:var(--ink4); padding:30px 0}
 
 /* ── HERO cíclico (1 tela por item): Recordes e Gigantes ── */
-.scene-records,.scene-giants{justify-content:center; align-items:center; padding:calc(clamp(18px,2.4vh,30px) + 62px) clamp(40px,6vw,120px) clamp(44px,5vh,66px); gap:clamp(20px,3vh,38px)}
-.hero-wrap{width:min(1200px,92vw); display:flex; justify-content:center; align-items:center; flex:1; min-height:0}
+.scene-records,.scene-giants{justify-content:center; align-items:center; padding:calc(clamp(18px,2.4vh,30px) + 48px) clamp(40px,6vw,120px) clamp(14px,2vh,26px); gap:clamp(20px,3vh,38px)}
+.hero-wrap{width:min(1200px,92vw); display:flex; justify-content:center; align-items:center; flex:1; min-height:0; overflow-y:auto; scrollbar-width:none}
+.hero-wrap::-webkit-scrollbar{display:none}
 .hero-stage{text-align:center; display:flex; flex-direction:column; align-items:center; gap:clamp(4px,.9vh,11px); animation:hero-in .7s var(--ease-in) both}
 @keyframes hero-in{from{opacity:0; transform:translateY(26px) scale(.96); filter:blur(7px)}to{opacity:1; transform:none; filter:none}}
 .hero-rank{font-size:clamp(3rem,7vw,6rem); font-weight:800; line-height:.85; color:var(--gold-hi); letter-spacing:-.04em; font-variant-numeric:tabular-nums}
@@ -789,7 +790,7 @@ html.lite .hero-big{animation:none; color:var(--gold-hi)}
 @media (prefers-reduced-motion:reduce){ .tv-boom{transition:none} .tv-boom.run .boom-stage{animation:none; transform:none; opacity:1} }
 
 /* ── TELA — A Semana Inteira (grid de dias) ── */
-.scene-week{justify-content:flex-start; padding:calc(clamp(18px,2.4vh,30px) + 62px) clamp(30px,4vw,90px) clamp(44px,5vh,66px); gap:clamp(22px,3.5vh,40px)}
+.scene-week{justify-content:flex-start; padding:calc(clamp(18px,2.4vh,30px) + 48px) clamp(30px,4vw,90px) clamp(14px,2vh,26px); gap:clamp(22px,3.5vh,40px)}
 .week-grid{width:min(1500px,94vw); display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:clamp(12px,1.3vw,20px); align-content:start}
 .wk-card{padding:clamp(16px,1.5vw,24px); border-radius:16px; border:1px solid rgba(255,255,255,.08);
   background:linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.02) 62%); -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px);
@@ -806,7 +807,7 @@ html.lite .hero-big{animation:none; color:var(--gold-hi)}
 .wk-top span{color:var(--gold); font-weight:700; text-transform:uppercase; letter-spacing:.04em; font-size:9.5px; margin-right:5px}
 
 /* ── TELA — Avisos da Casa ── */
-.scene-avisos{justify-content:flex-start; padding:calc(clamp(18px,2.4vh,30px) + 62px) clamp(40px,6vw,120px) clamp(44px,5vh,66px); gap:clamp(22px,3.5vh,40px)}
+.scene-avisos{justify-content:flex-start; padding:calc(clamp(18px,2.4vh,30px) + 48px) clamp(40px,6vw,120px) clamp(14px,2vh,26px); gap:clamp(22px,3.5vh,40px)}
 .avisos-list{width:min(1100px,90vw); display:flex; flex-direction:column; gap:clamp(12px,1.6vh,20px)}
 .aviso-card{padding:clamp(18px,2vw,30px); border-radius:16px; border:1px solid var(--line-gold);
   background:linear-gradient(100deg, rgba(201,168,76,.10), rgba(255,255,255,.02) 70%); -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px);
@@ -815,7 +816,7 @@ html.lite .hero-big{animation:none; color:var(--gold-hi)}
 .aviso-t{font-size:clamp(13px,1.2vw,16px); color:var(--ink2); margin-top:8px; line-height:1.5}
 
 /* ── TELA — Quem Construiu a Série (créditos dos operadores) ── */
-.scene-team{justify-content:flex-start; padding:calc(clamp(18px,2.4vh,30px) + 62px) clamp(40px,6vw,120px) clamp(44px,5vh,66px); gap:clamp(24px,4vh,44px)}
+.scene-team{justify-content:flex-start; padding:calc(clamp(18px,2.4vh,30px) + 48px) clamp(40px,6vw,120px) clamp(14px,2vh,26px); gap:clamp(24px,4vh,44px)}
 .team-list{width:min(1000px,88vw); display:flex; flex-direction:column; gap:clamp(9px,1.3vh,15px)}
 .team-card{display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:clamp(16px,2vw,28px);
   padding:clamp(13px,1.6vh,20px) clamp(20px,2vw,30px); border-radius:16px; border:1px solid rgba(255,255,255,.09);
@@ -879,3 +880,6 @@ html.lite .hero-big{animation:none; color:var(--gold-hi)}
   .scene{transition:opacity .3s linear}
   .gfg,.fstage-bar i,.bbar i,.cats-seg{transition-duration:.3s!important}
 }
+
+/* logo Suprema Poker embutido (base64) — sempre carrega, sem depender de upload do PNG */
+.tv-logo,.ch-logo-img{content:url("data:image/png;base64,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")}

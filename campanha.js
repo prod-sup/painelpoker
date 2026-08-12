@@ -24,6 +24,7 @@ var AUDIT = {};       // admin-only; board (usuário 'tv') não lê auditoria
 var ROWS = [];        // linhas SPS da última agregação
 var GRADE = [];       // grade da GU (Global MTTS) — TODOS os SPS da semana (fonte da TV)
 var AVISOS = [];      // avisos da casa (hub/avisos), igual à TV
+var FELTRO = null;    // instância do Feltro (WebGL) — usada pro pulso/boom na troca de cena
 var T = null;         // últimos totais agregados
 var _liveWired = false, _recT = null, _revealed = false;
 var OV_ALERT_PCT = 8;          // overlay acima de 8% do garantido → alerta pulsante
@@ -219,8 +220,6 @@ var SCENES = [
   { id: 'ranking', dwell: 14000, enter: enterRanking },   // Tier — rola se precisar
   { id: 'records', dwell: 10000, enter: enterRecords },   // hero: 1 tela por recorde (cicla)
   { id: 'giants', dwell: 20000, enter: enterGiants },     // hero: 1 tela por gigante (cicla)
-  { id: 'team', dwell: 12000, enter: enterTeam },         // rola
-  { id: 'avisos', dwell: 14000, enter: enterAvisos, skip: function () { return !AVISOS.length; } },
 ];
 var _si = 0, _dirT = null, _dirStarted = false;
 /* loops por cena (auto-scroll / hero cíclico) — limpos a cada troca de cena */
@@ -270,6 +269,7 @@ function gotoScene(i) {
   var next = document.querySelector('.scene[data-scene="' + SCENES[i].id + '"]');
   if (!next) { _si = i; scheduleScene(i); return; }
   if (cur !== next) {
+    if (FELTRO && FELTRO.pulse) FELTRO.pulse();   // "explosão" de luz na névoa a cada corte (igual à TV)
     if (cur) { cur.classList.remove('is-active'); cur.classList.add('is-leaving'); var c = cur; setTimeout(function () { c.classList.remove('is-leaving'); c.hidden = true; }, 1350); }
     next.hidden = false; void next.offsetWidth; next.classList.remove('is-leaving'); next.classList.add('is-active');
   }
@@ -309,9 +309,7 @@ function applyStatic() {
   renderComing();
   renderGiants();
   renderRecords();
-  renderTeam();
   renderWeek();
-  renderAvisos();
 }
 
 /* #9 toast "acabou de fechar" — detecta SPS de HOJE que fecharam desde o último recompute */
@@ -343,6 +341,7 @@ function nextBoom() {
   _boomActive = true;
   var r = _boomQ.shift();
   clearTimeout(_dirT);                                 // pausa a rotação enquanto o boom toca
+  if (FELTRO && FELTRO.boom) FELTRO.boom();            // estouro grande na névoa (igual à TV)
   el.innerHTML = boomHTML(r);
   el.hidden = false; void el.offsetWidth; el.classList.add('run');
   setTimeout(function () {
@@ -893,8 +892,8 @@ function mountBackground() {
       SupremaMotion.network('.tv-bg', { c1: GOLD, c2: '#22d47e', maxNodes: 64, linkDist: 150, isDark: function () { return true; } });
   };
   if (typeof SupremaFeltro === 'undefined') { toCanvas2D(); return; }
-  var f = SupremaFeltro.mount('.tv-bg', { bg: '#0b0c10', gold: GOLD, felt: '#22d47e', onFallback: toCanvas2D });
-  if (f) console.info('[SUPREMA TV · SPS] fundo O Feltro no ar — tier "' + (f.tier && f.tier()) + '"');
+  FELTRO = SupremaFeltro.mount('.tv-bg', { bg: '#0b0c10', gold: GOLD, felt: '#22d47e', onFallback: function () { FELTRO = null; toCanvas2D(); } });
+  if (FELTRO) console.info('[SUPREMA TV · SPS] fundo O Feltro no ar — tier "' + (FELTRO.tier && FELTRO.tier()) + '"');
 }
 
 /* ── (legado) aura 2D — substituída pelo Feltro; mantida como no-op se o #ambient sumiu ── */
