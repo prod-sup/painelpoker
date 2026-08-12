@@ -27,7 +27,7 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
   <div class="tv-hero-img"></div>
   <!-- LOOP em CROSSFADE (2 vídeos alternando opacidade) — mata o corte seco do loop nativo.
        JS (mountBackground) dirige o fade; PNG acima fica de poster/fallback (reduced-motion). -->
-  <video class="tv-hero-vid is-front" id="heroVidA" autoplay muted playsinline preload="auto" poster="assets/sps-bg.png">
+  <video class="tv-hero-vid" id="heroVidA" autoplay muted playsinline preload="auto" poster="assets/sps-bg.png">
     <source src="assets/sps-bg.mp4" type="video/mp4">
   </video>
   <video class="tv-hero-vid" id="heroVidB" muted playsinline preload="auto" aria-hidden="true">
@@ -244,11 +244,14 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
   </section>
 
 
-  <!-- estado inicial / sem dados (loader) -->
+  <!-- estado inicial / carregando (fica até dados E fundo em vídeo carregarem) -->
   <section class="scene scene-off is-active" data-scene="off">
-    <div class="ident-mark">♠</div>
+    <div class="ident-logo">
+      <img class="ident-logo-img" src="suprema-logo.svg" alt="Suprema Poker" width="180" height="28">
+      <span class="ident-logo-sheen" aria-hidden="true"></span>
+    </div>
     <h2 class="off-title" id="offTitle">SUPREMA TV</h2>
-    <p class="off-sub" id="offSub">montando os resultados da série…</p>
+    <p class="off-sub" id="offSub">montando os resultados da série<span class="off-dots"><i></i><i></i><i></i></span></p>
   </section>
 
 </main>

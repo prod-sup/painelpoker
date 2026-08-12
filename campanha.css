@@ -176,7 +176,26 @@ body:hover .tv-btn{opacity:.9} body:hover .tv-btn:hover{opacity:1}
 .tv-mascot{position:absolute; right:clamp(24px,6vw,120px); bottom:0; height:min(74vh,780px); width:auto; z-index:-1;
   filter:drop-shadow(0 40px 70px rgba(0,0,0,.6)); opacity:.96; animation:tv-float 6s var(--ease) infinite}
 @keyframes tv-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+/* loader: LOGO oficial da Suprema Poker animado (sheen varrendo + respiro/glow) = "carregando" */
+.ident-logo{position:relative; display:inline-flex; line-height:0; filter:drop-shadow(0 0 42px var(--gold-glow)); animation:tv-breathe 3.6s var(--ease) infinite}
+.ident-logo-img{height:clamp(44px,9vmin,140px); width:auto; display:block}
+.ident-logo-sheen{position:absolute; inset:0; pointer-events:none; mix-blend-mode:screen;
+  -webkit-mask:url("suprema-logo.svg") center/contain no-repeat; mask:url("suprema-logo.svg") center/contain no-repeat;
+  background:linear-gradient(105deg, transparent 38%, rgba(255,246,214,.6) 48%, rgba(255,255,255,.98) 50%, rgba(255,246,214,.6) 52%, transparent 62%);
+  background-size:250% 100%; animation:tv-logo-sheen 2.4s ease-in-out infinite}
 .ident-mark{font-size:clamp(42px,6vh,72px); color:var(--gold); text-shadow:0 0 42px var(--gold-glow); animation:tv-breathe 3.6s var(--ease) infinite}
+/* três pontinhos "…" animados de carregando */
+.off-dots{display:inline-flex; gap:4px; margin-left:6px; vertical-align:middle}
+.off-dots i{width:5px; height:5px; border-radius:50%; background:var(--gold); opacity:.35; animation:off-dot 1.2s ease-in-out infinite}
+.off-dots i:nth-child(2){animation-delay:.18s} .off-dots i:nth-child(3){animation-delay:.36s}
+@keyframes off-dot{0%,100%{opacity:.28; transform:translateY(0)}45%{opacity:1; transform:translateY(-3px)}}
+@media (prefers-reduced-motion:reduce){ .ident-logo{animation:none} .ident-logo-sheen{display:none} .off-dots i{animation:none; opacity:.7} }
+html.lite .ident-logo-sheen{display:none} html.lite .off-dots i{animation:none}
+/* TV Samsung/Tizen: se o browser não suporta mask de SVG, esconde o sheen (evita barra branca);
+   o logo estático continua aparecendo normalmente */
+@supports not ((-webkit-mask:url("suprema-logo.svg")) or (mask:url("suprema-logo.svg"))){
+  .tv-logo-sheen,.ident-logo-sheen{display:none}
+}
 @keyframes tv-breathe{0%,100%{opacity:.82; transform:translateY(0)}50%{opacity:1; transform:translateY(-7px)}}
 .ident-kicker{font-size:clamp(11px,1vw,14px); font-weight:700; letter-spacing:.34em; text-transform:uppercase; color:var(--ink3); margin-top:8px}
 .ident-title{margin:2px 0 0; font-size:clamp(5rem,17vw,15rem); font-weight:800; line-height:.9; letter-spacing:-.04em;

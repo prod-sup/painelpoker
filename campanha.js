@@ -29,6 +29,7 @@ var AVISOS = [];      // avisos da casa (hub/avisos), igual à TV
 var FELTRO = null;    // instância do Feltro (WebGL) — usada pro pulso/boom na troca de cena
 var T = null;         // últimos totais agregados
 var _liveWired = false, _recT = null, _revealed = false;
+var _dataReady = false, _bgReady = false;   // o loader só sai quando DADOS e FUNDO (vídeo) estiverem prontos
 var OV_ALERT_PCT = 8;          // overlay acima de 8% do garantido → alerta pulsante
 var _closedKeys = null;        // rastro de eventos SPS já fechados (p/ toast "acabou de fechar")
 
@@ -224,8 +225,10 @@ function onData(t) {
   if (t.torneios <= 0) { if (!_revealed) showOff('Sem resultados SPS ainda', 'Assim que houver eventos SPS de ' + fmtDMY(CAMP.inicio) + ' em diante, eles entram no ar aqui.'); return; }
   applyStatic();
   detectClosures();
-  if (!_revealed) reveal();
+  _dataReady = true; maybeReveal();   // só revela quando o fundo (vídeo) também estiver pronto
 }
+/* o board só "sobe" quando DADOS e FUNDO estão prontos — evita ver o telão montando sem o vídeo */
+function maybeReveal() { if (_dataReady && _bgReady && !_revealed) reveal(); }
 function reveal() {
   _revealed = true;
   var off = document.querySelector('.scene-off'); if (off) { off.classList.remove('is-active'); off.hidden = true; }
@@ -1090,14 +1093,27 @@ function wireFs() {
    CROSSFADE de 1,4s dissolve a emenda → loop contínuo, sem parada. O fog/vinheta
    por cima escondem qualquer resíduo do dissolve. reduced-motion cai no PNG poster. */
 function mountBackground() {
+  var markBg = function () { if (!_bgReady) { _bgReady = true; maybeReveal(); } };   // fundo pronto → libera o loader
+  setTimeout(markBg, 7000);                              // fallback: nunca trava o loader por causa do vídeo
   var a = $('heroVidA'), b = $('heroVidB');
-  if (!a || !b) return;
-  if (reduced()) { try { a.pause(); b.pause(); } catch (e) {} return; }   // PNG poster fica de fundo
+  if (!a || !b) { markBg(); return; }
+  if (reduced()) { try { a.pause(); b.pause(); } catch (e) {} markBg(); return; }   // PNG poster já é o fundo
   [a, b].forEach(function (v) { v.muted = true; v.playsInline = true; v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); });
   var FADE = 1.6;                                        // s de crossfade — casa com a transição CSS (ease-in-out, dissolve suave)
-  var front = a, back = b, raf = 0;
-  front.classList.add('is-front');
+  var front = a, back = b, raf = 0, shown = false;
   var playSafe = function (v) { try { var p = v.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {} };
+  // o vídeo só APARECE (fade sobre o PNG) quando CONFIRMA que está exibindo frames. Se a TV
+  // (ex.: browser Samsung/Tizen) não decodificar/autoplay, ele fica invisível e o PNG (.tv-hero-img)
+  // continua sendo o fundo — nunca tela preta.
+  var showVideo = function () { if (!shown) { shown = true; front.classList.add('is-front'); } markBg(); };
+  a.addEventListener('playing', showVideo);
+  a.addEventListener('timeupdate', function () { if (a.currentTime > 0.05) showVideo(); });   // Tizen: 'playing' às vezes não dispara
+  a.addEventListener('canplay', markBg);
+  // falha de mídia (codec não suportado / rede) → mantém o PNG de fundo, sem tela preta
+  var toPoster = function () { markBg(); };
+  a.addEventListener('error', toPoster);
+  var src0 = a.querySelector('source'); if (src0) src0.addEventListener('error', toPoster);
+  setTimeout(function () { if (!shown) toPoster(); }, 4500);   // não exibiu em 4,5s → assume PNG
   playSafe(front);
   function tick() {
     var d = front.duration;
