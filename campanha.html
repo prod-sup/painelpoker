@@ -281,7 +281,9 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
 <!-- fundo da TV: motion (fallback 2D) + O Feltro (WebGL névoa/partículas) -->
 <script src="suprema-motion.js"></script>
 <script src="suprema-feltro.js"></script>
-<!-- grade da GU (Global MTTS): mesma fonte da TV pra listar TODOS os SPS por dia -->
+<!-- grade da GU (Global MTTS): radar-core + suas DEPENDÊNCIAS (gu-parser define WEEKDAYS_PT; xlsx pro parse) -->
+<script src="gu-parser.js"></script>
+<script src="suprema-xlsx.js"></script>
 <script src="radar-core.js"></script>
 <script src="campanha-core.js"></script>
 <script src="campanha.js"></script>
