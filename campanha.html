@@ -27,11 +27,8 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
   <div class="tv-hero-img"></div>
   <!-- LOOP em CROSSFADE (2 vídeos alternando opacidade) — mata o corte seco do loop nativo.
        JS (mountBackground) dirige o fade; PNG acima fica de poster/fallback (reduced-motion). -->
-  <video class="tv-hero-vid" id="heroVidA" muted playsinline preload="auto" poster="assets/sps-bg.png">
-    <source src="assets/sps-bg.mp4" type="video/mp4">
-  </video>
-  <video class="tv-hero-vid" id="heroVidB" muted playsinline preload="auto" aria-hidden="true">
-    <source src="assets/sps-bg.mp4" type="video/mp4">
+  <video class="tv-hero-vid" id="heroVidA" muted loop playsinline preload="auto" poster="assets/sps-bg.png">
+    <source src="assets/sps-bg.mp4?v=2" type="video/mp4">
   </video>
   <div class="tv-hero-shine"></div>
 </div>

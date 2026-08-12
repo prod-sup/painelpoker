@@ -1086,58 +1086,37 @@ function wireFs() {
   });
 }
 
-/* ── fundo: VÍDEO em LOOP por CROSSFADE ───────────────────────────────────────
-   O clipe SPS (sps-bg.mp4) tem push-in — o 1º e o último frame NÃO batem, então o
-   loop nativo dava um corte seco ("parando do nada"). Aqui 2 vídeos alternam a
-   opacidade: quando o da frente chega perto do fim, o de trás começa do 0 e um
-   CROSSFADE de 1,4s dissolve a emenda → loop contínuo, sem parada. O fog/vinheta
-   por cima escondem qualquer resíduo do dissolve. reduced-motion cai no PNG poster. */
+/* ── fundo: VÍDEO em LOOP NATIVO (1 só vídeo) ─────────────────────────────────
+   Em TV (Tizen/Samsung) o <video> vive num plano de hardware que IGNORA `opacity`.
+   Por isso o crossfade de 2 vídeos NÃO funciona lá: o 2º vídeo (sem frame ainda,
+   opacity ignorada) virava um plano AZUL sobre o 1º — mesmo o 1º decodificando bem.
+   Solução robusta: UM vídeo, `loop` NATIVO — confiável na TV e no PC. Fica
+   `display:none` até confirmar playback REAL (aí vira `.vid-live`); se não tocar,
+   fica o PNG (.tv-hero-img), NUNCA a tela azul. */
 function mountBackground() {
   var markBg = function () { if (!_bgReady) { _bgReady = true; maybeReveal(); } };   // fundo pronto → libera o loader
-  setTimeout(markBg, 7000);                              // fallback: nunca trava o loader por causa do vídeo
+  setTimeout(markBg, 7000);                              // fallback: nunca trava o loader
   var a = $('heroVidA'), b = $('heroVidB');
-  if (!a || !b) { markBg(); return; }
-  if (reduced()) { try { a.pause(); b.pause(); } catch (e) {} markBg(); return; }   // PNG (.tv-hero-img) é o fundo
-  // Vídeo re-encodado p/ H.264 BASELINE yuv420p → a TV (Tizen/Samsung) agora decodifica e roda o loop.
-  // Rede de segurança mantida: `.tv-hero-vid{display:none}` e só vira `.vid-live` com playback REAL
-  // confirmado (currentTime>0.12) — se algum browser não tocar, fica o PNG, NUNCA a tela azul.
-  [a, b].forEach(function (v) { v.muted = true; v.playsInline = true; v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); });
-  var FADE = 1.6;                                        // s de crossfade — casa com a transição CSS (ease-in-out, dissolve suave)
-  var front = a, back = b, raf = 0, shown = false;
-  var playSafe = function (v) { try { var p = v.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {} };
-  // o vídeo só APARECE (fade sobre o PNG) quando CONFIRMA que está exibindo frames. Se a TV
-  // (ex.: browser Samsung/Tizen) não decodificar/autoplay, ele fica invisível e o PNG (.tv-hero-img)
-  // continua sendo o fundo — nunca tela preta.
-  var hero = document.querySelector('.tv-hero');
-  var showVideo = function () {                           // só mostra o vídeo (display:block via .vid-live) quando ELE confirma que toca
-    if (!shown) { shown = true; if (hero) hero.classList.add('vid-live'); requestAnimationFrame(function () { front.classList.add('is-front'); }); }
+  if (b) { try { b.pause(); b.removeAttribute('src'); if (b.parentNode) b.parentNode.removeChild(b); } catch (e) {} }   // mata o 2º vídeo (plano azul em TV)
+  if (!a) { markBg(); return; }
+  if (reduced()) { try { a.pause(); } catch (e) {} markBg(); return; }   // PNG (.tv-hero-img) é o fundo
+  a.muted = true; a.playsInline = true; a.loop = true;
+  a.setAttribute('muted', ''); a.setAttribute('playsinline', ''); a.setAttribute('loop', '');
+  var hero = document.querySelector('.tv-hero'), shown = false;
+  var playSafe = function () { try { var p = a.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {} };
+  var showVideo = function () {                           // só exibe (display:block via .vid-live) com playback REAL confirmado
+    if (!shown) { shown = true; if (hero) hero.classList.add('vid-live'); requestAnimationFrame(function () { a.classList.add('is-front'); }); }
     markBg();
   };
   a.addEventListener('playing', showVideo);
-  a.addEventListener('timeupdate', function () { if (a.currentTime > 0.12) showVideo(); });   // playback REAL confirmado (não só 'playing')
+  a.addEventListener('timeupdate', function () { if (a.currentTime > 0.12) showVideo(); });
   a.addEventListener('canplay', markBg);
-  // falha de mídia (codec não suportado / rede) → mantém o PNG de fundo, sem tela preta
-  var toPoster = function () { markBg(); };
-  a.addEventListener('error', toPoster);
-  var src0 = a.querySelector('source'); if (src0) src0.addEventListener('error', toPoster);
-  setTimeout(function () { if (!shown) toPoster(); }, 4500);   // não exibiu em 4,5s → assume PNG
-  playSafe(front);
-  function tick() {
-    var d = front.duration;
-    if (d && isFinite(d) && front.currentTime >= d - FADE) {
-      back.currentTime = 0; playSafe(back);
-      back.classList.add('is-front'); front.classList.remove('is-front');
-      var out = front; front = back; back = out;
-      setTimeout(function () { if (!out.classList.contains('is-front')) out.pause(); }, (FADE + 0.35) * 1000);  // poupa CPU: pausa o que saiu
-    }
-    raf = document.hidden ? 0 : requestAnimationFrame(tick);
-  }
-  raf = requestAnimationFrame(tick);
-  document.addEventListener('visibilitychange', function () {
-    if (document.hidden) { try { a.pause(); b.pause(); } catch (e) {} if (raf) { cancelAnimationFrame(raf); raf = 0; } }
-    else { playSafe(front); if (!raf) raf = requestAnimationFrame(tick); }
-  });
-  console.info('[SUPREMA TV · SPS] fundo em vídeo (loop crossfade) no ar');
+  a.addEventListener('error', markBg);                   // codec/rede falhou → fica o PNG (sem azul)
+  var src0 = a.querySelector('source'); if (src0) src0.addEventListener('error', markBg);
+  setTimeout(function () { if (!shown) markBg(); }, 4500);
+  playSafe();
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) playSafe(); else { try { a.pause(); } catch (e) {} } });
+  console.info('[SUPREMA TV · SPS] fundo em vídeo (loop nativo, 1 vídeo) no ar');
 }
 
 /* ── (legado) aura 2D — substituída pelo Feltro; mantida como no-op se o #ambient sumiu ── */
