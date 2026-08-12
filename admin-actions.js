@@ -65,7 +65,7 @@
     'openAdminLog', 'openJustifs', 'openNotifHistory', 'toggleOpRanking',
     'buildOpRanking', 'buildHeatmap', 'filterOps', 'openAuditSummary', 'openInsightSettings',
     'buildAuditSummary', 'buildFieldTrend', 'buildMonthProjection',
-    'saveAudit', 'openAddTorneio', 'saveAddTorneio', 'saveAviso', 'saveHubLink', 'saveHubEvent', 'saveHubPatch',
+    'saveAudit', 'openAddTorneio', 'saveAddTorneio', 'openCampanhaCfg', 'saveCampanhaCfg', 'saveAviso', 'saveHubLink', 'saveHubEvent', 'saveHubPatch',
     'saveInsightSettings', 'resetAvisoForm',
     'sendNotif', 'selNotifType', 'batchApprove', 'batchDeselect', 'batchNotifyAnomalias', 'approveAllAudit',
     'toggleSoAnomalia', 'toggleCnErros',
@@ -104,7 +104,7 @@
     'openAuditSummary', 'openInsightSettings',
     'buildAuditSummary', 'buildFieldTrend', 'buildMonthProjection',
     'toggleSoAnomalia', 'toggleCnErros', 'toggleCheckAll', 'updateBatchActions', 'filterOps',
-    'previewCleanup', 'previewCleanupUntil', 'closeMo', 'maskBRL',
+    'previewCleanup', 'previewCleanupUntil', 'closeMo', 'maskBRL', 'openCampanhaCfg',
     // EXPORTAR XLSX (leitura → arquivo). exportToSheets fica FORA: escreve no Sheets.
     'exportAuditXlsx', 'exportAuditSummaryXlsx', 'exportGradeXlsx', 'exportCnXlsx',
     'exportMonthXlsx', 'exportAllTimeXlsx', 'exportSqlite', 'copyAppsScript',

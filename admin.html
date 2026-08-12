@@ -271,6 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="dp-sep">→</span>
             <input type="date" id="dpTo" class="dp-date" data-act="applyDpRange" data-act-on="change" data-act-self aria-label="Data final">
           </div>
+          <button class="btn btn-ghost" data-act="openCampanhaCfg" title="Configurar o board de telão da campanha (SPS)">🖥 Board da campanha</button>
         </div>
       </div>
       <div id="dashAlert"></div>
@@ -1019,6 +1020,53 @@ document.addEventListener('DOMContentLoaded', () => {
       <button class="btn btn-gold" data-act="saveAddTorneio">
         <span id="addBtnLabel">Adicionar à auditoria</span>
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Board da Campanha (config do telão SPS) ══
+     Escreve em campanhas/sps { nome, inicio, fim, meta, metaMetric }. O board
+     (campanha.html) lê daqui; sem config, ele usa os defaults embutidos. -->
+<div class="modal-bg" id="moCampanha" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal" style="max-width:520px;max-height:90vh;overflow-y:auto">
+    <h2>🖥 Board da campanha</h2>
+    <div class="msub">Telão sempre-ligado com os totais da campanha, ao vivo. Os números batem 100% com este dashboard (mesma fonte, filtrado a SPS). <a id="campOpenLink" href="campanha.html" target="_blank" style="color:var(--gold)">Abrir board ↗</a></div>
+    <div class="merr" id="campErr"></div>
+
+    <div class="mf">
+      <label>Nome da campanha</label>
+      <input type="text" id="campNome" placeholder="SPS" maxlength="40" autocomplete="off">
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div class="mf" style="flex:1;min-width:140px">
+        <label>Início</label>
+        <input type="date" id="campInicio">
+      </div>
+      <div class="mf" style="flex:1;min-width:140px">
+        <label>Fim</label>
+        <input type="date" id="campFim">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div class="mf" style="flex:1;min-width:150px">
+        <label>Meta <span style="color:var(--ink3);font-weight:400">· opcional (barra de progresso)</span></label>
+        <input type="text" inputmode="decimal" id="campMeta" placeholder="—" data-act="maskBRL" data-act-self data-act-on="input" onblur="fmtBRLInput(this)">
+      </div>
+      <div class="mf" style="flex:1;min-width:150px">
+        <label>Métrica da meta</label>
+        <select id="campMetaMetric">
+          <option value="arrecadado">Arrecadado (bruto)</option>
+          <option value="receita">Receita da casa</option>
+          <option value="rake">Rake gerado</option>
+          <option value="premiacao">Premiação paga</option>
+          <option value="garantido">Garantido total</option>
+        </select>
+      </div>
+    </div>
+    <div style="font-size:11.5px;color:var(--ink3);margin:2px 0 6px">Sem meta, a barra mostra a <b>cobertura</b> (premiação ÷ garantido). O board só conta eventos com prefixo <b>SPS</b> (SPT não entra).</div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-act="closeMo" data-arg="moCampanha">Cancelar</button>
+      <button class="btn btn-gold" data-act="saveCampanhaCfg"><span id="campBtnLabel">Salvar campanha</span></button>
     </div>
   </div>
 </div>

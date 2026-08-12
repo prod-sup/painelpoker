@@ -2875,6 +2875,54 @@ async function saveAddTorneio(){
   }
 }
 
+/* ── BOARD DA CAMPANHA (config do telão SPS) ──────────────────────
+   Escreve em campanhas/sps { nome, inicio, fim, meta, metaMetric }. O board
+   campanha.html lê daqui (e cai nos defaults embutidos se o nó não existir).
+   Os TOTAIS do board vêm da mesma fonte deste dashboard (campanha-core), então
+   batem 100% — aqui só se define o RECORTE (nome/período/meta). */
+const CAMP_CFG_DEFAULT = { nome:'SPS', inicio:'2026-08-01', fim:'2026-09-20', meta:null, metaMetric:'arrecadado' };
+async function openCampanhaCfg(){
+  const err = document.getElementById('campErr'); if(err){ err.style.display='none'; err.textContent=''; }
+  let c = {};
+  try{ if(fbOk) c = (await db.ref('campanhas/sps').once('value')).val() || {}; }catch(e){}
+  const cfg = Object.assign({}, CAMP_CFG_DEFAULT, c);
+  document.getElementById('campNome').value   = cfg.nome || 'SPS';
+  document.getElementById('campInicio').value = cfg.inicio || '';
+  document.getElementById('campFim').value    = cfg.fim || '';
+  document.getElementById('campMeta').value   = (cfg.meta != null && cfg.meta !== '') ? brl(cfg.meta,2) : '';
+  document.getElementById('campMetaMetric').value = cfg.metaMetric || 'arrecadado';
+  document.getElementById('moCampanha').classList.add('open');
+}
+async function saveCampanhaCfg(){
+  if(!fbOk){ toast('Firebase não conectado','err'); return; }
+  const err = document.getElementById('campErr');
+  const lbl = document.getElementById('campBtnLabel');
+  const fail = m => { err.textContent=m; err.style.display='block'; };
+  err.style.display='none';
+  const nome    = document.getElementById('campNome').value.trim() || 'SPS';
+  const inicio  = document.getElementById('campInicio').value;
+  const fim     = document.getElementById('campFim').value;
+  const metaRaw = document.getElementById('campMeta').value.trim();
+  const metric  = document.getElementById('campMetaMetric').value || 'arrecadado';
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(inicio)) return fail('Escolha a data de início.');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(fim))    return fail('Escolha a data de fim.');
+  if(fim < inicio) return fail('O fim não pode ser antes do início.');
+  const meta = metaRaw ? parseBRL(metaRaw) : null;
+  if(metaRaw && (isNaN(meta) || meta < 0)) return fail('Meta inválida.');
+  const cfg = { nome, inicio, fim, meta: (meta != null ? meta : null), metaMetric: metric, at: Date.now(), by: (_email||'admin') };
+  if(lbl) lbl.textContent='Salvando...';
+  try{
+    await db.ref('campanhas/sps').set(cfg);
+    closeMo('moCampanha');
+    toast('✓ Board da campanha atualizado','ok');
+    writeAdminLog('campanha', { nome, inicio, fim, meta, metric });
+  }catch(e){
+    fail('Erro: '+e.message + (String(e.message||'').indexOf('permission')>-1 ? ' — as regras do Firebase precisam ser publicadas (nó campanhas).' : ''));
+  }finally{
+    if(lbl) lbl.textContent='Salvar campanha';
+  }
+}
+
 // Enriquecer flatRows com dados de auditoria
 function enrichWithAudit(rows){
   return rows.map(r => {

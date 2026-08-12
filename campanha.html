@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SUPREMA TV · SPS</title>
+<script src="scripts/lite.js"></script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%23c9a84c'>♠</text></svg>">
+<style>html.dark{background:#05070a;color-scheme:dark}body{margin:0;background:#05070a}</style>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script src="suprema-auth.js"></script>
+<script>
+if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); SupremaAuth.revalidateAccess('tv'); }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="suprema-tokens.css">
+<link rel="stylesheet" href="campanha.css">
+</head>
+<body>
+
+<!-- fundo: O Feltro da Suprema TV (WebGL — névoa + partículas de poeira), idêntico ao canal -->
+<div class="tv-bg" aria-hidden="true"></div>
+
+<!-- grão + vinheta cinematográfica por cima do feltro -->
+<div class="tv-grain" aria-hidden="true"></div>
+<div class="tv-vignette" aria-hidden="true"></div>
+
+<!-- chrome de transmissão (sempre visível) -->
+<header class="tv-top" id="chrome">
+  <div class="tv-brand">
+    <img class="tv-logo" src="assets/logo-suprema.png" alt="Suprema Poker" width="290" height="62">
+  </div>
+  <div class="tv-top-right">
+    <span class="tv-live" id="liveBadge" hidden><i></i><span>AO VIVO</span></span>
+    <span class="tv-clock" id="clock">--:--:--</span>
+    <button class="tv-fs" id="fsBtn" title="Tela cheia" aria-label="Tela cheia">⛶</button>
+  </div>
+</header>
+
+<main class="tv-stage" id="stage">
+
+  <!-- ░░ TELA ÚNICA — CONTROL ROOM (as outras cenas serão construídas em volta) ░░ -->
+  <section class="scene scene-control" data-scene="control" hidden>
+
+    <div class="ctrl-grid">
+
+      <!-- arrecadado bruto: manchete no centro-topo, sem card (col2 · row1) -->
+      <div class="ctrl-headline">
+        <div class="chd-kicker">SÉRIE <b id="c_serieName">SPS</b> · ARRECADADO BRUTO ACUMULADO</div>
+        <div class="chd-big"><span class="pre">R$</span><span data-num="c_arr">0</span></div>
+        <div class="chd-sub" id="che-days">—</div>
+        <div class="chd-proj" id="che-proj"><span class="che-proj-dot"></span>—</div>
+        <div class="che-meta" id="che-meta" hidden>
+          <div class="che-meta-head"><span>Ritmo vs. meta</span><b id="che-meta-pct">—</b></div>
+          <div class="che-meta-bar"><i id="che-meta-fill"></i><span class="che-meta-proj" id="che-meta-proj"></span></div>
+        </div>
+      </div>
+
+      <!-- coluna esquerda: performance + em destaque hoje -->
+      <aside class="ctrl-left">
+      <!-- card 1: performance da série (com logo Suprema Poker no topo) -->
+      <div class="cglass ctrl-header">
+        <img class="card-accent" src="assets/sps-el/1-spade.png" alt="" aria-hidden="true" onerror="this.remove()">
+        <div class="ch-top">
+          <img class="ch-logo-img" src="assets/logo-suprema.png" alt="Suprema Poker">
+          <span class="ch-kicker" id="c_kicker">CAMPANHA SPS · 2026</span>
+        </div>
+        <h3 class="ch-title">Painel de Performance <span>da Série</span></h3>
+        <p class="ch-sub">Inteligência em tempo real da série SPS · ao vivo</p>
+        <div class="ch-stat">
+          <div class="ch-stat-num" data-num="c_perf" data-suffix="%">0</div>
+          <div class="ch-stat-cap">Performance da série · <b id="c_cob">—</b> de cobertura</div>
+        </div>
+        <div class="ch-tiles">
+          <div class="ch-tile"><span class="ch-tile-lbl">Arrecadado</span><b id="c_arrK">—</b><i id="c_arrSub">bruto da série</i></div>
+          <div class="ch-tile"><span class="ch-tile-lbl">Entradas</span><b id="c_entK">—</b><i id="c_entSub">total no período</i></div>
+        </div>
+      </div>
+
+      <!-- card 2: em destaque hoje (TOP 3) -->
+      <div class="cglass ctrl-today">
+        <img class="card-accent" src="assets/sps-el/5-trophy.png" alt="" aria-hidden="true" onerror="this.remove()">
+        <div class="ct-head"><span>Em destaque hoje</span><b class="ct-live"><i></i>TOP 3 · AO VIVO</b></div>
+        <div class="ct-list" id="today-top3"></div>
+      </div>
+      </aside>
+
+      <div class="cglass ctrl-totals">
+        <img class="card-accent" src="assets/sps-el/2-chips.png" alt="" aria-hidden="true" onerror="this.remove()">
+        <div class="cttl-head"><span>Totais da série</span><b class="cttl-live"><i></i>ao vivo</b><span class="cttl-day" id="cttl-day">—</span></div>
+        <div class="cttl-grid">
+          <div class="mtile" data-tone="arr">
+            <div class="mtile-top"><span class="mtile-lbl">Total arrecadado</span><span class="mtile-trend" id="tr_arr">▲</span></div>
+            <div class="mtile-num"><span class="pre">R$</span><span data-num="c_arrT">0</span></div>
+            <div class="mtile-sub" id="sb_arr">—</div>
+            <svg class="mtile-spark" data-spark="arr" viewBox="0 0 120 38" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </div>
+          <div class="mtile" data-tone="rake">
+            <div class="mtile-top"><span class="mtile-lbl">Total rake</span><span class="mtile-trend" id="tr_rake">▲</span></div>
+            <div class="mtile-num"><span class="pre">R$</span><span data-num="c_rakeT">0</span></div>
+            <div class="mtile-sub" id="sb_rake">—</div>
+            <svg class="mtile-spark" data-spark="rake" viewBox="0 0 120 38" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </div>
+          <div class="mtile" data-tone="admin">
+            <div class="mtile-top"><span class="mtile-lbl">Total admin fee</span><span class="mtile-trend" id="tr_admin">▲</span></div>
+            <div class="mtile-num"><span class="pre">R$</span><span data-num="c_adminT">0</span></div>
+            <div class="mtile-sub" id="sb_admin">—</div>
+            <svg class="mtile-spark" data-spark="admin" viewBox="0 0 120 38" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </div>
+          <div class="mtile" data-tone="ov">
+            <div class="mtile-top"><span class="mtile-lbl">Total overlay</span><span class="mtile-trend" id="tr_ov">▼</span></div>
+            <div class="mtile-num"><span class="pre">R$</span><span data-num="c_ovT">0</span></div>
+            <div class="mtile-sub" id="sb_ov">—</div>
+            <svg class="mtile-spark" data-spark="ov" viewBox="0 0 120 38" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </div>
+          <div class="mtile" data-tone="perf">
+            <div class="mtile-top"><span class="mtile-lbl">Performance</span><span class="mtile-trend" id="tr_perf">▲</span></div>
+            <div class="mtile-num"><span data-num="c_perfT" data-suffix="%">0</span></div>
+            <div class="mtile-sub" id="sb_perf">—</div>
+            <svg class="mtile-spark" data-spark="perf" viewBox="0 0 120 38" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- direita: destaque + standings -->
+      <div class="cglass ctrl-forecast">
+        <img class="card-accent" src="assets/sps-el/3-ace.png" alt="" aria-hidden="true" onerror="this.remove()">
+        <div class="cf-head"><span>Destaque da série</span><span class="cf-live">ao vivo</span></div>
+        <div class="cf-stage">Main Event · SPS</div>
+        <div class="cf-score">
+          <div class="cf-side"><b data-num="c_arrM" data-fmt="k">0</b><span>Arrecadado</span></div>
+          <div class="cf-perf" id="cf-perf">—</div>
+          <div class="cf-side"><b data-num="c_garM" data-fmt="k">0</b><span>Garantido</span></div>
+        </div>
+        <div class="cf-prob">
+          <div class="cf-prob-head"><span>COBERTURA DO GARANTIDO</span><b id="cf-cobpct">—</b></div>
+          <div class="cf-prob-bar"><i id="cf-cob"></i></div>
+        </div>
+        <div class="cf-spark">
+          <div class="cf-spark-head"><span>RECEITA ACUMULADA DA CASA</span><b id="cf-sparklast">—</b></div>
+          <div class="cf-chart-wrap"><svg class="cf-chart" id="fcChart" viewBox="0 0 320 100" preserveAspectRatio="none" aria-hidden="true"></svg><div class="cf-peak" aria-hidden="true"><span></span></div></div>
+        </div>
+        <div class="cf-cta">AO VIVO NA SUPREMA</div>
+      </div>
+
+      <div class="cglass ctrl-standing">
+        <img class="card-accent" src="assets/sps-el/4-cards.png" alt="" aria-hidden="true" onerror="this.remove()">
+        <div class="cst-head"><span>Maiores eventos</span><b>garantido</b></div>
+        <div class="cst-table" id="cst-table"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ░░ TELA 2 — JORNADA POR DIA (onda estilo WeatherWise) ░░ -->
+  <section class="scene scene-journey" data-scene="journey" hidden>
+    <div class="jn-top">
+      <div class="jn-title">
+        <span class="eyebrow">A jornada da série</span>
+        <h2>Dia a dia da série</h2>
+      </div>
+      <div class="jn-legend">
+        <div class="jn-leg"><span class="jn-leg-lbl">Total arrecadado</span><b id="jn-total">—</b></div>
+        <div class="jn-leg"><span class="jn-leg-lbl">Média por dia</span><b id="jn-avg">—</b></div>
+        <div class="jn-leg"><span class="jn-leg-lbl">Melhor dia</span><b id="jn-best">—</b></div>
+      </div>
+    </div>
+    <div class="jn-list" id="jn-list"></div>
+    <div class="jn-foot" id="jn-foot" hidden>
+      <span class="jn-foot-lbl">Projeção no ritmo atual · fim da série</span>
+      <div class="jn-foot-vals">
+        <span class="jn-foot-v"><i>Arrecadado</i><b id="jp-arr">—</b></span>
+        <span class="jn-foot-v"><i>Rake</i><b id="jp-rake">—</b></span>
+        <span class="jn-foot-v"><i>Receita</i><b id="jp-rec">—</b></span>
+        <span class="jn-foot-v jn-foot-meta" id="jp-meta-wrap" hidden><i>Meta</i><b id="jp-meta">—</b></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ░░ TELA 3 — TIER DA SEMANA (TOP 5 maiores garantidos SPS da semana) ░░ -->
+  <section class="scene scene-ranking scene-tier" data-scene="ranking" hidden>
+    <div class="rk-top">
+      <span class="eyebrow center">Os maiores garantidos da semana</span>
+      <h2>Tier da Semana <span>· SPS</span></h2>
+    </div>
+    <div class="tier-list" id="tier-list"></div>
+  </section>
+
+  <!-- ░░ TELA — EVENTOS SPS DE HOJE (arrecadado preenchido) + operador ░░ -->
+  <section class="scene scene-today" data-scene="today" hidden>
+    <div class="rk-top">
+      <span class="eyebrow center"><i class="ao-dot"></i>Ao vivo · hoje</span>
+      <h2>Eventos SPS de Hoje</h2>
+    </div>
+    <div class="tday-list" id="today-events"></div>
+  </section>
+
+  <!-- ░░ TELA — VEM AÍ (grade SPS de amanhã) ░░ -->
+  <section class="scene scene-coming" data-scene="coming" hidden>
+    <div class="rk-top">
+      <span class="eyebrow center">Amanhã na Suprema</span>
+      <h2>Vem aí <span>· SPS</span></h2>
+    </div>
+    <div class="coming-list" id="coming-events"></div>
+  </section>
+
+  <!-- ░░ TELA — GIGANTES DA SEMANA (maiores premiações SPS) ░░ -->
+  <section class="scene scene-ranking scene-tier scene-giants" data-scene="giants" hidden>
+    <div class="rk-top">
+      <span class="eyebrow center">As maiores premiações da semana</span>
+      <h2>Gigantes da Semana <span>· SPS</span></h2>
+    </div>
+    <div class="tier-list" id="giants-list"></div>
+  </section>
+
+  <!-- ░░ TELA — RECORDES DA SEMANA (maior premiação + maior público SPS) ░░ -->
+  <section class="scene scene-records" data-scene="records" hidden>
+    <div class="rk-top">
+      <span class="eyebrow center">Os recordes da semana</span>
+      <h2>Recordes SPS <span>· da semana</span></h2>
+    </div>
+    <div class="records-grid" id="records-grid"></div>
+  </section>
+
+  <!-- ░░ TELA — QUEM CONSTRUIU A SÉRIE (créditos dos operadores) ░░ -->
+  <section class="scene scene-team" data-scene="team" hidden>
+    <div class="rk-top">
+      <span class="eyebrow center">Créditos da operação</span>
+      <h2>Quem Construiu a Série</h2>
+    </div>
+    <div class="team-list" id="team-list"></div>
+  </section>
+
+  <!-- estado inicial / sem dados (loader) -->
+  <section class="scene scene-off is-active" data-scene="off">
+    <div class="ident-mark">♠</div>
+    <h2 class="off-title" id="offTitle">SUPREMA TV</h2>
+    <p class="off-sub" id="offSub">montando os resultados da série…</p>
+  </section>
+
+</main>
+
+<div class="tv-rot" id="tvRot" hidden aria-hidden="true"></div>
+
+<!-- ticker (barrinha do rodapé) — resumo de hoje + eventos que vão ocorrer, idêntico à Suprema TV -->
+<footer class="tv-ticker" id="ticker" hidden aria-hidden="true">
+  <span class="ticker-label">SPS · HOJE</span>
+  <div class="ticker-mask"><div class="ticker-track" id="tickerTrack"></div></div>
+</footer>
+
+<!-- toasts ao vivo (evento fechou) -->
+<div class="tv-toasts" id="tvToasts" aria-hidden="true"></div>
+
+<script>window.SUPREMA_KEEPALIVE = true;</script>
+<script src="suprema-db.js"></script>
+<!-- fundo da TV: motion (fallback 2D) + O Feltro (WebGL névoa/partículas) -->
+<script src="suprema-motion.js"></script>
+<script src="suprema-feltro.js"></script>
+<!-- grade da GU (Global MTTS): mesma fonte da TV pra listar TODOS os SPS por dia -->
+<script src="radar-core.js"></script>
+<script src="campanha-core.js"></script>
+<script src="campanha.js"></script>
+</body>
+</html>

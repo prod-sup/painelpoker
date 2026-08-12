@@ -89,6 +89,8 @@ html.light .tile .meta{color:color-mix(in srgb, var(--tint) 72%, #000 18%)}
 html.light .t-gu{background:linear-gradient(160deg, rgba(140,92,198,.10), var(--bg-raise) 55%)}
 html.light .t-learn{background:linear-gradient(160deg, rgba(232,147,61,.12), var(--bg-raise) 55%)}
 html.light .t-tv{background:linear-gradient(160deg, rgba(143,107,45,.12), var(--bg-raise) 55%)}
+html.light .t-campanha{background:linear-gradient(160deg, rgba(143,107,45,.14), var(--bg-raise) 55%)}
+html.light .t-novidades{background:linear-gradient(160deg, rgba(143,107,45,.12), var(--bg-raise) 55%)}
 /* A Constelação é uma experiência dark: o tile mantém o céu dela nos dois temas */
 html.light .t-org{color:#f2ede2;border-color:rgba(0,0,0,.18)}
 html.light .t-org .desc{color:rgba(242,237,226,.58)}
@@ -446,6 +448,8 @@ html.light .aviso[data-tipo="novidade"]{ --av-fg:#7a5bd0 }
 .t-eventos{grid-column:span 3;--tint:var(--p-eventos)}
 .t-tv{grid-column:span 3;--tint:var(--p-admin)}
 .t-tv{background:linear-gradient(160deg,color-mix(in srgb,var(--gold) 7%,var(--bg-raise)),var(--bg-raise) 62%)}
+.t-campanha{grid-column:span 3;--tint:var(--p-admin)}
+.t-campanha{background:linear-gradient(160deg,color-mix(in srgb,var(--gold) 9%,var(--bg-raise)),var(--bg-raise) 60%)}
 /* Novidades & Manual: faixa dourada de capacitação (visível pra todos) */
 .t-novidades{grid-column:span 6;min-height:120px;--tint:var(--gold);flex-direction:row;align-items:center;gap:22px}
 .t-novidades{background:linear-gradient(160deg,color-mix(in srgb,var(--gold) 9%,var(--bg-raise)),var(--bg-raise) 60%)}
@@ -1900,6 +1904,6 @@ footer{
   .tile{min-height:200px}
   .t-cash{flex-direction:column;align-items:flex-start;gap:8px}
   .t-cash .meta{margin:10px 0 0}
-  .t-eventos,.t-tv,.t-pipe{grid-column:span 6}
+  .t-eventos,.t-tv,.t-campanha,.t-pipe{grid-column:span 6}
   .hero{padding-top:40px}
 }

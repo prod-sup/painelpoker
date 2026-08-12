@@ -1,7 +1,7 @@
 // Suprema Poker — Service Worker
 // IMPORTANTE: incremente SW_VERSION a cada deploy — é isso que faz as abas abertas
 // receberem o aviso de "nova versão disponível" e ninguém operar com código velho
-const SW_VERSION = '3.166.0';
+const SW_VERSION = '3.197.0';
 const CACHE_NAME = `suprema-painel-v${SW_VERSION}`;
 // BASE derivada da própria URL do SW: '/' na Vercel (painelpoker.vercel.app/) e
 // '/painelpoker/' no GitHub Pages. Os assets abaixo são RELATIVOS e recebem a base
@@ -58,7 +58,13 @@ const STATIC_ASSETS = [
   'tv.html',
   'tv.css',
   'tv.js',
-  // O Feltro: o fundo em WebGL da TV. Sem ele o canal cai na rede de nós 2D.
+  // Board da campanha SPS (telão sempre-ligado): HTML/CSS/JS + o motor de agregação.
+  'campanha.html',
+  'campanha.css',
+  'campanha.js',
+  'campanha-core.js',
+  'assets/logo-suprema.png',
+  // O Feltro: o fundo em WebGL da TV/campanha. Sem ele o canal cai na rede de nós 2D.
   'suprema-feltro.js',
   'suprema-tokens.css',
   // PWA: manifest + ícones precisam existir offline pro app instalado abrir sem rede
