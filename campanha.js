@@ -1097,10 +1097,12 @@ function mountBackground() {
   setTimeout(markBg, 7000);                              // fallback: nunca trava o loader por causa do vídeo
   var a = $('heroVidA'), b = $('heroVidB');
   if (!a || !b) { markBg(); return; }
-  if (reduced()) { try { a.pause(); b.pause(); } catch (e) {} markBg(); return; }   // PNG (.tv-hero-img) é o fundo
-  // NB: TVs (Tizen/Samsung) TENTAM o vídeo normalmente. O `display:none` garante que, se a TV NÃO
-  // decodificar, o plano de vídeo nem aparece (nada de tela azul) — fica o PNG. Se decodificar, roda
-  // o loop em crossfade igual no PC. Só liberamos o vídeo (`.vid-live`) com playback REAL confirmado.
+  // TVs/smart-TVs (Tizen/Samsung etc.): confirmado na TV que o plano de vídeo EXIBE AZUL — a TV "toca"
+  // o clipe mas o decoder não aceita o codec (H.264 high do Higgsfield) e joga azul na tela toda.
+  // Então NESSES browsers não usamos vídeo → fundo = PNG animado (.tv-hero-img), preto/dourado correto.
+  // Pra ter o vídeo NA TV, re-encodar o mp4 p/ H.264 baseline/main yuv420p (ver instrução ao Brian).
+  var isTV = /Tizen|SMART-?TV|SmartTV|Web[O0]S|NetCast|HbbTV|VIDAA|BRAVIA|Maple|CrKey|AFT|GoogleTV/i.test(navigator.userAgent || '');
+  if (isTV || reduced()) { try { a.pause(); b.pause(); } catch (e) {} markBg(); return; }   // PNG é o fundo
   [a, b].forEach(function (v) { v.muted = true; v.playsInline = true; v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); });
   var FADE = 1.6;                                        // s de crossfade — casa com a transição CSS (ease-in-out, dissolve suave)
   var front = a, back = b, raf = 0, shown = false;
@@ -1204,6 +1206,49 @@ function bootDemo() {
   }, 4500);
 }
 
-function boot() { if (/[?&]demo=1/.test(location.search)) bootDemo(); else initData(); }
+/* DIAGNÓSTICO da TV (?diag=1) — mostra na tela o browser e o que ele suporta, pra saber EXATAMENTE
+   o que quebra na Samsung sem adivinhar. Feito só com px/inline (renderiza até em Chromium velho). */
+function showDiag() {
+  var v = document.createElement('video');
+  var cp = function (c) { try { return v.canPlayType('video/mp4; codecs="' + c + '"') || 'NÃO'; } catch (e) { return '?'; } };
+  var sup = function (p, val) { try { return (window.CSS && CSS.supports && CSS.supports(p, val)) ? 'OK' : 'NÃO'; } catch (e) { return '?'; } };
+  var flexGap = 'NÃO';
+  try {
+    var f = document.createElement('div'); f.style.cssText = 'display:flex;flex-direction:column;gap:10px;position:absolute;visibility:hidden';
+    f.appendChild(document.createElement('div')); f.appendChild(document.createElement('div'));
+    (document.body || document.documentElement).appendChild(f);
+    flexGap = (f.scrollHeight >= 10) ? 'OK' : 'NÃO'; if (f.parentNode) f.parentNode.removeChild(f);
+  } catch (e) {}
+  var rows = [
+    ['UA', navigator.userAgent || '?'],
+    ['Tela', window.innerWidth + '×' + window.innerHeight + ' · DPR ' + (window.devicePixelRatio || 1)],
+    ['clamp()', sup('width', 'clamp(1px,1vw,2px)')],
+    ['min()/max()', sup('width', 'min(1px,2px)')],
+    ['flex gap', flexGap],
+    ['var()', sup('color', 'var(--x,#000)')],
+    ['object-fit', sup('object-fit', 'cover')],
+    ['backdrop-filter', (sup('backdrop-filter', 'blur(1px)') === 'OK' || sup('-webkit-backdrop-filter', 'blur(1px)') === 'OK') ? 'OK' : 'NÃO'],
+    ['mask svg', (sup('-webkit-mask', 'url("x")') === 'OK' || sup('mask', 'url("x")') === 'OK') ? 'OK' : 'NÃO'],
+    ['bg-clip:text', (sup('-webkit-background-clip', 'text') === 'OK' || sup('background-clip', 'text') === 'OK') ? 'OK' : 'NÃO'],
+    ['H264 baseline', cp('avc1.42E01E')],
+    ['H264 main', cp('avc1.4D401F')],
+    ['H264 high', cp('avc1.64001F')],
+  ];
+  var d = document.createElement('div');
+  d.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;background:#05070a;color:#fff;font-family:monospace;font-size:20px;line-height:1.7;padding:32px;overflow:auto';
+  var html = '<div style="font-size:28px;color:#e6c34f;margin-bottom:16px">DIAGNOSTICO - Suprema Campanha</div>';
+  for (var i = 0; i < rows.length; i++) {
+    var k = rows[i][0], val = String(rows[i][1]);
+    var bad = (val === 'NÃO' || val === '' || val === '?');
+    var color = (k === 'UA' || k === 'Tela') ? '#8aa0aa' : (bad ? '#ef6f63' : '#38e79a');
+    html += '<div style="word-break:break-all"><b style="color:#c9a84c">' + k + ':</b> <span style="color:' + color + '">' + val + '</span></div>';
+  }
+  d.innerHTML = html;
+  (document.body || document.documentElement).appendChild(d);
+}
+function boot() {
+  if (/[?&]diag=1/.test(location.search)) { showDiag(); return; }
+  if (/[?&]demo=1/.test(location.search)) bootDemo(); else initData();
+}
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
 else boot();
