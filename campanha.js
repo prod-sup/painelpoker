@@ -239,7 +239,7 @@ var SCENES = [
   { id: 'control', dwell: 15000, enter: enterControl },
   { id: 'today', dwell: 22000, enter: enterToday },       // rola (grade cheia)
   { id: 'coming', dwell: 16000, enter: enterComing },     // rola
-  { id: 'journey', dwell: 24000, enter: enterJourney },   // rola sozinha (auto-scroll estilo TV)
+  { id: 'journey', dwell: 15000, enter: enterJourney },   // gráfico de barras (cabe inteiro)
   { id: 'week', dwell: 18000, enter: enterWeek },         // A Semana Inteira — rola
   { id: 'ranking', dwell: 14000, enter: enterRanking },   // Tier — rola se precisar
 ];
@@ -532,20 +532,28 @@ function renderCharts() {
     var last = vals[vals.length - 1];
     return { up: last >= avg ? 1 : -1, pct: avg > 0 ? (last - avg) / avg * 100 : 0 };
   };
-  var tg = lastVsAvg('gar'), ta = lastVsAvg('arr'), tr = lastVsAvg('rake'), tad = lastVsAvg('admin'), to = lastVsAvg('ov');
+  var tg = lastVsAvg('gar'), to = lastVsAvg('ov');
   setTrend('tr_gar', tg.up, false, tg.pct);
-  setTrend('tr_arr', ta.up, false, ta.pct);
-  setTrend('tr_rake', tr.up, false, tr.pct);
-  setTrend('tr_admin', tad.up, false, tad.pct);
-  setTrend('tr_ov', to.up, true, to.pct);                   // menos overlay = melhor (cor invertida)
+  // Total Arrecadado → % = PERFORMANCE DA SÉRIE (arrecadado ÷ garantido dos eventos rodados − 1)
+  var perfSerie = T && T.totalGarantido > 0 ? (T.arrecadadoBruto / T.totalGarantido - 1) * 100 : 0;
+  setTrend('tr_arr', perfSerie >= 0 ? 1 : -1, false, perfSerie);
+  // Rake e Admin → sem % (nem seta)
+  setTrend('tr_rake', 0, false, false);
+  setTrend('tr_admin', 0, false, false);
+  // Total Overlay → % = ÍNDICE DE OVERLAY (overlay ÷ garantido dos eventos rodados)
+  setTrend('tr_ov', to.up, true, T ? T.overlayPctGar : 0);
   setTrend('tr_perf', seriePerf(T) >= 0 ? 1 : -1, false, null);
 }
-/* up = seta; good decide a COR (verde bom/vermelho ruim, invert p/ overlay); pct = ritmo vs média */
+/* up = seta; good decide a COR (verde bom/vermelho ruim, invert p/ overlay); pct = valor a mostrar.
+   pct === false → esconde o indicador inteiro (sem seta, sem %). pct == null → só a seta. */
 function setTrend(id, up, invert, pct) {
   var el = $(id); if (!el) return;
+  if (pct === false) { el.innerHTML = ''; el.classList.remove('good', 'bad'); return; }
   var good = invert ? up < 0 : up >= 0;
   var arrow = up >= 0 ? '▲' : '▼';
-  el.innerHTML = arrow + (pct == null ? '' : '<span class="mtile-pct">' + Math.abs(pct).toFixed(0) + '%</span>');
+  var a = Math.abs(pct);
+  var num = pct == null ? '' : '<span class="mtile-pct">' + (a < 10 ? a.toFixed(1).replace('.', ',') : a.toFixed(0)) + '%</span>';
+  el.innerHTML = arrow + num;
   el.classList.toggle('good', good); el.classList.toggle('bad', !good);
 }
 
@@ -639,7 +647,7 @@ function fillControl(t) {
   setTxt('sb_arr', fmtMoneyK(t.dias ? t.arrecadadoBruto / t.dias : 0) + '/dia · ' + intNum(t.entradas) + ' jog.');
   setTxt('sb_rake', pctPlain(t.rakePct) + ' do arrec. · ' + fmtMoneyK(t.dias ? t.rake / t.dias : 0) + '/dia');
   setTxt('sb_admin', t.adminEvents + ' eventos · 2% buy-in');
-  setTxt('sb_ov', pctPlain(t.overlayPctGar) + ' do garantido · ' + intNum(t.fechados) + ' fech.');
+  setTxt('sb_ov', fmtMoneyK(t.dias ? Math.abs(t.totalOverlay) / t.dias : 0) + '/dia · ' + intNum(t.fechados) + ' fech.');
   // Performance = média por evento (arrec. líq./gar.−1); o sub dá o contexto (cobertura + nº de eventos fechados)
   setTxt('sb_perf', 'méd. de ' + intNum(t.fechados) + ' fech. · cob. ' + pctPlain(t.cobertura));
 
@@ -718,7 +726,8 @@ function smoothPath(pts) {
 var WEEKDAY_FULL = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 var MONTH_FULL = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 function dateExt(iso) { var d = new Date(iso + 'T12:00:00Z'); return WEEKDAY_FULL[d.getUTCDay()] + ' · ' + d.getUTCDate() + ' de ' + MONTH_FULL[d.getUTCMonth()]; }
-/* TELA 2 — Jornada dia a dia, dados por extenso (data completa + valores cheios) */
+/* TELA 2 — Jornada dia a dia = GRÁFICO DE BARRAS do arrecadado por dia.
+   Cabe a série INTEIRA numa tela só (barras se ajustam), sem scroll e sem cortar conteúdo. */
 function renderJourney() {
   if (!T) return;
   var el = $('jn-list'); if (!el) return;
@@ -731,30 +740,23 @@ function renderJourney() {
   setTxt('jn-avg', fmtMoney(n ? total / n : 0));
   setTxt('jn-best', fmtMoney(best));
   var todayISO = nowSPDate();
-  var evByDay = {}; ROWS.forEach(function (r) { evByDay[r.date] = (evByDay[r.date] || 0) + 1; });
-  var ordered = days.slice().reverse();   // dia mais recente no topo
-  el.innerHTML = ordered.map(function (d, i) {
-    var w = clamp((d.arr / (best || 1)) * 100, 3, 100).toFixed(1);
-    var isNow = d.date === todayISO, isBest = days.indexOf(d) === bestIdx;
-    var badge = isNow ? '<span class="jn-badge now">hoje</span>' : (isBest ? '<span class="jn-badge best">melhor dia</span>' : '');
-    return '<div class="jn-row' + (isNow ? ' is-now' : '') + '" style="--i:' + i + '">' +
-      '<div class="jn-date"><b>' + dateExt(d.date) + '</b>' + badge + '</div>' +
-      '<div class="jn-barwrap"><div class="jn-bar"><i style="width:' + w + '%"></i></div></div>' +
-      '<div class="jn-metrics">' +
-        '<div class="jn-m"><span>Arrecadado</span><b>' + fmtMoney(d.arr) + '</b></div>' +
-        '<div class="jn-m"><span>Receita da casa</span><b>' + fmtMoney(d.house) + '</b></div>' +
-        '<div class="jn-m"><span>Eventos</span><b>' + (evByDay[d.date] || 0) + '</b></div>' +
-      '</div></div>';
-  }).join('');
-  var foot = $('jn-foot');
-  if (foot) {
-    var pj = projections(T);
-    foot.hidden = false;
-    setTxt('jp-arr', fmtMoney(pj.arr)); setTxt('jp-rake', fmtMoney(pj.rake)); setTxt('jp-rec', fmtMoney(pj.rec));
-    var mw = $('jp-meta-wrap');
-    if (CAMP.meta && CAMP.meta > 0) { if (mw) mw.hidden = false; setTxt('jp-meta', fmtMoney(CAMP.meta)); }
-    else if (mw) mw.hidden = true;
-  }
+  var showEvery = Math.max(1, Math.ceil(n / 16));   // com muitos dias, mostra rótulos de data espaçados
+  el.innerHTML = '<div class="jn-chart" style="--n:' + n + '">' + days.map(function (d, i) {
+    var h = clamp((d.arr / (best || 1)) * 80, 3, 80).toFixed(1);   // teto 80% deixa folga p/ valor+tag acima da barra
+    var isNow = d.date === todayISO, isBest = i === bestIdx;
+    var dd = d.date.slice(8, 10) + '/' + d.date.slice(5, 7);
+    var showVal = isBest || isNow || n <= 14;
+    var showDay = isNow || isBest || i === 0 || i === n - 1 || (i % showEvery === 0);
+    return '<div class="jn-col' + (isNow ? ' is-now' : '') + (isBest ? ' is-best' : '') + '" style="--i:' + i + '">' +
+      '<div class="jn-bar-area"><div class="jn-bar-fill" style="--h:' + h + '%">' +
+        (isBest ? '<span class="jn-col-tag">melhor dia</span>' : (isNow ? '<span class="jn-col-tag now">hoje</span>' : '')) +
+        (showVal ? '<span class="jn-col-val">' + fmtMoneyK(d.arr) + '</span>' : '') +
+      '</div></div>' +
+      '<span class="jn-col-day' + (showDay ? '' : ' is-dim') + '">' + dd + '</span>' +
+    '</div>';
+  }).join('') + '</div>';
+  // rodapé de projeção escondido na jornada (a projeção fim-da-série já aparece no hero do control)
+  var foot = $('jn-foot'); if (foot) foot.hidden = true;
 }
 /* TELA 3 — Tier da Semana: TOP 5 maiores GARANTIDOS SPS da semana (rolling 7 dias) */
 function renderRanking() {
@@ -1015,8 +1017,8 @@ function renderAvisos() {
   }).join('');
 }
 function enterAvisos() { renderAvisos(); autoScrollList($('avisos-list'), SCENES[_si].dwell); }
-/* estilo Suprema TV: a lista desce sozinha (auto-scroll) revelando todos os dias */
-function enterJourney() { renderJourney(); autoScrollList($('jn-list'), SCENES[_si].dwell); }
+/* gráfico de barras — cabe inteiro, sem scroll */
+function enterJourney() { renderJourney(); }
 
 /* ── chrome ──────────────────────────────────────────────────── */
 function setLive(on) { var b = $('liveBadge'); if (b) b.hidden = !on; }

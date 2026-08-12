@@ -129,11 +129,11 @@ body:hover .tv-btn{opacity:.9} body:hover .tv-btn:hover{opacity:1}
 .scene.is-active{opacity:1; transform:none; pointer-events:auto}
 .scene.is-leaving{opacity:0; transform:scale(.985)}
 /* listas que descem sozinhas quando há mais conteúdo (scrollbar escondida) */
-.tday-list,.coming-list,.team-list,.tier-list,.jn-list,.week-grid,.avisos-list{flex:1 1 auto; min-height:0; overflow-y:auto; scroll-behavior:auto; scrollbar-width:none; -ms-overflow-style:none}
+.tday-list,.coming-list,.team-list,.tier-list,.week-grid,.avisos-list{flex:1 1 auto; min-height:0; overflow-y:auto; scroll-behavior:auto; scrollbar-width:none; -ms-overflow-style:none}
 .tday-list::-webkit-scrollbar,.coming-list::-webkit-scrollbar,.team-list::-webkit-scrollbar,.tier-list::-webkit-scrollbar,.jn-list::-webkit-scrollbar,.week-grid::-webkit-scrollbar,.avisos-list::-webkit-scrollbar{display:none}
 /* numa TV ninguém rola: quando a lista tem mais do que cabe, ela desce sozinha (auto-scroll) e
    as bordas topo/base ganham um FADE — linhas parciais somem suave em vez de aparecerem cortadas */
-.tday-list,.coming-list,.team-list,.tier-list,.avisos-list,.jn-list{
+.tday-list,.coming-list,.team-list,.tier-list,.avisos-list{
   -webkit-mask-image:linear-gradient(180deg, transparent 0, #000 30px, #000 calc(100% - 30px), transparent 100%);
   mask-image:linear-gradient(180deg, transparent 0, #000 30px, #000 calc(100% - 30px), transparent 100%)}
 /* cards não podem ENCOLHER dentro da coluna flex (senão o subtítulo é cortado) —
@@ -611,26 +611,26 @@ html.lite .ch-area,html.lite .cf-area,html.lite .sp-area,html.lite .che-peak spa
 .jn-leg-lbl{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink4)}
 .jn-leg b{font-size:clamp(1.1rem,1.6vw,1.6rem); font-weight:700; color:var(--gold-hi); font-variant-numeric:tabular-nums}
 
-/* ── Jornada dia-a-dia — estilo Suprema TV: linhas legíveis, cortadas, com SCROLL AUTOMÁTICO ── */
-.jn-list{width:min(1320px,95vw); display:flex; flex-direction:column; gap:clamp(9px,1.2vh,15px); flex:1; min-height:0; overflow:hidden}
-.jn-row{flex:0 0 auto; display:grid; grid-template-columns:minmax(210px,1.35fr) minmax(110px,1fr) auto; align-items:center; gap:clamp(18px,2.2vw,38px);
-  padding:clamp(12px,1.5vh,20px) clamp(20px,2vw,32px); border-radius:14px; border:1px solid rgba(255,255,255,.08);
-  background:linear-gradient(100deg, rgba(255,255,255,.05), rgba(255,255,255,.018) 70%); -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px);
-  opacity:0; animation:tier-in .55s var(--ease-in) both; animation-delay:calc(var(--i,0)*.06s)}
-.jn-row.is-now{border-color:var(--line-gold); background:linear-gradient(100deg, rgba(201,168,76,.13), rgba(255,255,255,.018) 70%)}
-.jn-date{display:flex; align-items:center; gap:12px; min-width:0}
-.jn-date b{font-size:clamp(14px,1.3vw,18px); font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-transform:capitalize}
-.jn-badge{font-size:9px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; padding:2px 8px; border-radius:999px; flex:none}
-.jn-badge.now{color:#05070a; background:linear-gradient(150deg,var(--gold-hi),var(--gold))}
-.jn-badge.best{color:var(--gold-hi); background:rgba(201,168,76,.14); border:1px solid var(--line-gold)}
-.jn-barwrap{min-width:0}
-.jn-bar{height:8px; border-radius:999px; background:rgba(255,255,255,.06); overflow:hidden}
-.jn-bar i{display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,var(--gold-deep),var(--gold-hi)); box-shadow:0 0 12px -2px var(--gold-glow); transition:width 1s var(--ease)}
-.jn-metrics{display:flex; gap:clamp(20px,2.6vw,50px)}
-.jn-m{display:flex; flex-direction:column; gap:2px; text-align:right}
-.jn-m span{font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink4)}
-.jn-m b{font-size:clamp(13px,1.2vw,17px); font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums; letter-spacing:-.01em}
-.jn-row.is-now .jn-m b{color:var(--gold-hi)}
+/* ── Jornada = GRÁFICO DE BARRAS do arrecadado/dia — cabe a série inteira, SEM scroll nem corte ── */
+.jn-list{width:min(1680px,96vw); display:flex; align-items:stretch; flex:1; min-height:0; overflow:hidden}
+.jn-chart{flex:1; min-width:0; display:flex; align-items:flex-end; justify-content:space-between; gap:clamp(2px,.45vw,10px); padding-top:44px}
+.jn-col{flex:1 1 0; min-width:0; height:100%; display:flex; flex-direction:column; align-items:center; gap:8px;
+  opacity:0; animation:tier-in .5s var(--ease-in) both; animation-delay:calc(var(--i,0)*.02s)}
+.jn-bar-area{flex:1; width:100%; min-height:0; display:flex; align-items:flex-end; justify-content:center}
+.jn-bar-fill{position:relative; width:clamp(6px,62%,46px); height:var(--h,2%); min-height:3px; border-radius:6px 6px 2px 2px;
+  background:linear-gradient(180deg,var(--gold-hi),var(--gold-deep)); box-shadow:0 0 14px -4px var(--gold-glow)}
+.jn-col.is-best .jn-bar-fill{background:linear-gradient(180deg,#fff2cf,var(--gold)); box-shadow:0 0 24px -2px var(--gold-glow)}
+.jn-col.is-now .jn-bar-fill{background:linear-gradient(180deg,var(--gen),var(--rake))}
+.jn-col-val{position:absolute; bottom:100%; left:50%; transform:translateX(-50%); margin-bottom:6px; white-space:nowrap;
+  font-size:clamp(9px,.72vw,12px); font-weight:700; color:var(--gold-hi); font-variant-numeric:tabular-nums}
+.jn-col.is-now .jn-col-val{color:var(--gen)}
+.jn-col-tag{position:absolute; bottom:100%; left:50%; transform:translateX(-50%); margin-bottom:24px; white-space:nowrap;
+  font-size:8px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; padding:2px 7px; border-radius:999px;
+  color:#1a1206; background:linear-gradient(90deg,var(--gold),var(--gold-hi))}
+.jn-col-tag.now{color:#05070a; background:linear-gradient(90deg,var(--gen),var(--rake))}
+.jn-col-day{font-family:var(--mono); font-size:clamp(8.5px,.66vw,11px); color:var(--ink4); white-space:nowrap}
+.jn-col.is-now .jn-col-day,.jn-col.is-best .jn-col-day{color:var(--gold-hi); font-weight:700}
+.jn-col-day.is-dim{visibility:hidden}
 .jn-wave{flex:1; width:100%; min-height:0; display:flex; flex-direction:column; padding:clamp(22px,2.6vh,40px) clamp(18px,2.4vw,42px)}
 .jn-days{display:grid; grid-template-columns:repeat(var(--n,6),1fr); text-align:center}
 .jn-day{font-size:clamp(12px,1.1vw,15px); color:var(--ink3); font-weight:500}
