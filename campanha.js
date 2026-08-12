@@ -978,7 +978,7 @@ function wireFs() {
    fica invisível — o fim de um clipe funde com o começo do outro. O fog premium
    (.tv-fog) fica por cima em CSS, então dá pra reforçar a névoa sem tocar no Feltro. */
 function mountBackground() {
-  var VID = 'assets/campanha-bg.mp4';
+  var VID = 'assets/Background%20atualizado.mp4';
   var a = $('bgVidA'), b = $('bgVidB');
   if (!a || !b) return;
   [a, b].forEach(function (v) { v.src = VID; v.muted = true; v.loop = false; v.playsInline = true; v.preload = 'auto'; });
