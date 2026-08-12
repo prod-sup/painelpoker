@@ -22,10 +22,13 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
 </head>
 <body>
 
-<!-- fundo: vídeo cinematográfico premium (loop SUAVE via crossfade de 2 <video>, sem corte no fim) -->
-<div class="tv-video" aria-hidden="true">
-  <video class="tv-vid is-front" id="bgVidA" muted playsinline preload="auto"></video>
-  <video class="tv-vid" id="bgVidB" muted playsinline preload="auto"></video>
+<!-- fundo: HERO SPS (troféu + logo oficial). Vídeo animado (Higgsfield) em loop; PNG fica de poster/fallback (reduced-motion e autoplay bloqueado) + shine varrendo o ouro -->
+<div class="tv-hero" aria-hidden="true">
+  <div class="tv-hero-img"></div>
+  <video class="tv-hero-vid" autoplay muted loop playsinline preload="auto" poster="assets/sps-bg.png">
+    <source src="assets/sps-bg.mp4" type="video/mp4">
+  </video>
+  <div class="tv-hero-shine"></div>
 </div>
 
 <!-- névoa PREMIUM (fog volumétrico em camadas) por cima do vídeo -->
