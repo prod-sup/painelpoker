@@ -47,7 +47,7 @@ body{
   transform:scale(1.06); will-change:transform; animation:hero-zoom 34s ease-in-out infinite}
 /* vídeo animado por cima do PNG (mesma moldura cover); PNG fica de fallback se o vídeo não tocar */
 .tv-hero-vid{position:absolute; inset:-2%; width:104%; height:104%; object-fit:cover; object-position:center 34%;
-  transform:scale(1.02); opacity:0; will-change:opacity; transition:opacity 1.4s linear; backface-visibility:hidden}
+  transform:scale(1.02); opacity:0; will-change:opacity; transition:opacity 1.6s cubic-bezier(.45,0,.55,1); backface-visibility:hidden}
 .tv-hero-vid.is-front{opacity:1}
 @media (prefers-reduced-motion: reduce){ .tv-hero-vid{display:none} }
 @keyframes hero-zoom{
@@ -106,7 +106,16 @@ html.lite .tv-grain,html.lite .tv-sweep{display:none}
 .tv-top{position:fixed; top:0; left:0; right:0; z-index:6; display:flex; align-items:center; justify-content:space-between;
   padding:clamp(18px,2.4vh,30px) clamp(28px,3vw,58px)}
 .tv-brand{display:flex; align-items:center}
+.tv-logo-wrap{position:relative; display:inline-flex; line-height:0}
 .tv-logo{height:clamp(26px,2.6vh,34px); width:auto; display:block}
+/* sheen dourado varrendo o logo (mascarado na forma exata do SVG) — "logo animado" */
+.tv-logo-sheen{position:absolute; inset:0; pointer-events:none; mix-blend-mode:screen; opacity:.9;
+  -webkit-mask:url("suprema-logo.svg") left center/contain no-repeat; mask:url("suprema-logo.svg") left center/contain no-repeat;
+  background:linear-gradient(105deg, transparent 42%, rgba(255,246,214,.5) 49%, rgba(255,255,255,.92) 50%, rgba(255,246,214,.5) 51%, transparent 58%);
+  background-size:260% 100%; animation:tv-logo-sheen 6.5s ease-in-out infinite}
+@keyframes tv-logo-sheen{0%{background-position:160% 0}55%,100%{background-position:-70% 0}}
+html.lite .tv-logo-sheen,body.win-blurred .tv-logo-sheen{animation:none; opacity:0}
+@media (prefers-reduced-motion:reduce){ .tv-logo-sheen{display:none} }
 .tv-word-fallback{font-size:15px; font-weight:600; letter-spacing:.14em; color:var(--ink)} .tv-word-fallback b{color:var(--gold); font-weight:800}
 .tv-top-right{display:flex; align-items:center; gap:14px}
 .tv-live{display:inline-flex; align-items:center; gap:8px; font-size:10.5px; font-weight:800; letter-spacing:.18em; color:#8ff3c0;
@@ -628,9 +637,103 @@ html.lite .ch-area,html.lite .cf-area,html.lite .sp-area,html.lite .che-peak spa
   border:1px solid rgba(255,255,255,.09);
   background:linear-gradient(180deg, rgba(14,18,25,.40) 0%, rgba(7,10,14,.62) 78%, rgba(7,10,14,.72) 100%);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.07), inset 0 0 70px -34px rgba(201,168,76,.28), 0 40px 90px -50px rgba(0,0,0,.75)}
-/* linhas-guia horizontais discretas (leitura estilo dashboard) atrás das barras */
-.jn-list::before{content:""; position:absolute; left:clamp(18px,2vw,38px); right:clamp(18px,2vw,38px); top:clamp(48px,7vh,84px); bottom:clamp(26px,3.4vh,40px);
-  background:repeating-linear-gradient(to top, transparent 0, transparent calc(25% - 1px), rgba(255,255,255,.05) 25%); pointer-events:none}
+/* ═══ Gráfico da Jornada (jc-*) — eixo-Y + linhas-guia + linha de média + barras (padrão dataviz).
+   Estrutura: .jc-plot › [.jc-frame › .jc-yaxis + .jc-area(grid/avg/bars)] + .jc-xaxis(datas).
+   Tudo posicionado por --f (bottom %) e --h (altura %) na MESMA escala → alinha perfeito. ═══ */
+.jc-plot{--gut:clamp(42px,4.2vw,68px); --gp:clamp(2px,.5vw,9px);
+  position:relative; z-index:1; flex:1; min-height:0; display:flex; flex-direction:column; gap:clamp(6px,1vh,12px)}
+.jc-frame{flex:1; min-height:0; display:flex}
+/* eixo Y — ticks alinhados às linhas-guia */
+.jc-yaxis{position:relative; width:var(--gut); flex:none}
+.jc-tick{position:absolute; right:10px; bottom:var(--f); transform:translateY(50%); white-space:nowrap;
+  font-family:var(--mono); font-size:clamp(8.5px,.6vw,10.5px); color:var(--ink4); font-variant-numeric:tabular-nums}
+.jc-area{position:relative; flex:1; min-width:0}
+/* linhas-guia horizontais discretas + baseline forte */
+.jc-grid{position:absolute; inset:0; pointer-events:none}
+.jc-gl{position:absolute; left:0; right:0; bottom:var(--f); height:1px; background:rgba(255,255,255,.06)}
+.jc-gl.is-base{height:1.5px; background:rgba(255,255,255,.22)}
+/* linha de média (tracejada dourada) + etiqueta */
+.jc-avg{position:absolute; left:0; right:0; bottom:var(--f); height:0; z-index:2; pointer-events:none;
+  border-top:1px dashed rgba(230,195,79,.55); animation:jc-avg-in .7s var(--ease-in) both; animation-delay:.5s}
+.jc-avg span{position:absolute; right:0; top:0; transform:translateY(-50%); background:rgba(4,6,10,.72); color:var(--gold-hi);
+  font-size:clamp(8px,.58vw,10px); font-family:var(--mono); padding:2px 8px; border-radius:6px; white-space:nowrap; border:1px solid var(--line-gold)}
+@keyframes jc-avg-in{from{opacity:0}}
+/* barras (crescem da base ao entrar) */
+.jc-bars{position:absolute; inset:0; display:flex; align-items:flex-end; gap:var(--gp); z-index:1}
+.jc-col{flex:1 1 0; min-width:0; height:100%; display:flex; align-items:flex-end; justify-content:center; position:relative}
+.jc-bar{position:relative; width:clamp(5px,64%,42px); height:var(--h,2%); min-height:3px; border-radius:5px 5px 1.5px 1.5px;
+  background:linear-gradient(180deg,var(--gold-hi),var(--gold-deep)); box-shadow:0 0 14px -5px var(--gold-glow);
+  animation:jc-grow .85s cubic-bezier(.22,1,.36,1) both; animation-delay:calc(.12s + var(--i,0)*.026s)}
+.jc-bar::after{content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  background:linear-gradient(180deg, rgba(255,255,255,.42), transparent 36%); opacity:.5; mix-blend-mode:overlay}
+@keyframes jc-grow{from{height:0}}
+.jc-col.is-best .jc-bar{background:linear-gradient(180deg,#fff2cf,var(--gold)); box-shadow:0 0 26px -3px var(--gold-glow)}
+.jc-col.is-now .jc-bar{background:linear-gradient(180deg,var(--gen),var(--rake));
+  animation:jc-grow .85s cubic-bezier(.22,1,.36,1) both, jc-now-pulse 2.2s ease-in-out 1s infinite}
+@keyframes jc-now-pulse{0%,100%{box-shadow:0 0 16px -3px rgba(56,231,154,.5)}50%{box-shadow:0 0 30px 2px rgba(56,231,154,.9)}}
+.jc-col.is-record .jc-bar{background:linear-gradient(180deg,#fff2cf,var(--gen));
+  animation:jc-grow .85s cubic-bezier(.22,1,.36,1) both, jc-record 2.4s ease-in-out infinite}
+@keyframes jc-record{0%,100%{box-shadow:0 0 22px -3px var(--gold-glow)}50%{box-shadow:0 0 40px 4px rgba(56,231,154,.85)}}
+/* brilho subindo nas barras de destaque */
+.jc-col.is-best .jc-bar::before,.jc-col.is-now .jc-bar::before{content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  background:linear-gradient(180deg, transparent, rgba(255,255,255,.5), transparent); background-size:100% 220%;
+  animation:jc-shine 3.2s ease-in-out infinite; mix-blend-mode:overlay}
+@keyframes jc-shine{0%{background-position:0 160%}100%{background-position:0 -70%}}
+/* rótulo de valor + tag acima da barra */
+.jc-val{position:absolute; bottom:100%; left:50%; transform:translateX(-50%); margin-bottom:6px; white-space:nowrap;
+  font-size:clamp(9px,.72vw,12px); font-weight:700; color:var(--gold-hi); font-variant-numeric:tabular-nums}
+.jc-col.is-now .jc-val{color:var(--gen)}
+.jc-tag{position:absolute; bottom:100%; left:50%; transform:translateX(-50%); margin-bottom:26px; white-space:nowrap;
+  font-size:8px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; padding:2px 7px; border-radius:999px;
+  color:#1a1206; background:linear-gradient(90deg,var(--gold),var(--gold-hi))}
+.jc-tag.now{color:#05070a; background:linear-gradient(90deg,var(--gen),var(--rake))}
+.jc-tag.record{color:#05070a; background:linear-gradient(90deg,var(--gold-hi),var(--gen)); box-shadow:0 0 16px -3px var(--gold-glow)}
+/* eixo X (datas) alinhado sob as barras (mesmo gutter + gap) */
+.jc-xaxis{flex:none; display:flex; gap:var(--gp); padding-left:var(--gut)}
+.jc-day{flex:1 1 0; min-width:0; text-align:center; font-family:var(--mono); font-size:clamp(8.5px,.64vw,11px); color:var(--ink4); white-space:nowrap; overflow:hidden}
+.jc-day.is-hi{color:var(--gold-hi); font-weight:700}
+.jc-day.is-dim{visibility:hidden}
+html.lite .jc-bar,html.lite .jc-col.is-now .jc-bar,html.lite .jc-col.is-record .jc-bar{animation:none}
+html.lite .jc-col.is-best .jc-bar::before,html.lite .jc-col.is-now .jc-bar::before{animation:none}
+@media (prefers-reduced-motion:reduce){ .jc-bar,.jc-col.is-now .jc-bar,.jc-col.is-record .jc-bar,.jc-avg{animation:none} }
+/* ── RESPONSIVO — impecável de laptop a TV 98" 4K ──────────────────────────────
+   TV grande (4K/QHD, ≥2200px de largura): os clamps batem no teto e o texto fica
+   pequeno de longe. Aqui as tipografias miúdas passam a escalar por vmin (ligado ao
+   tamanho da tela) e os títulos crescem — leitura confortável a metros de distância. */
+@media (min-width:2200px){
+  .jc-tick,.jc-day,.jc-avg span{font-size:clamp(15px,.9vmin,26px)}
+  .jc-val{font-size:clamp(16px,1.05vmin,30px)}
+  .jc-tag{font-size:clamp(12px,.72vmin,20px); margin-bottom:calc(26px + .8vmin)}
+  .jc-plot{--gut:clamp(70px,5vw,130px)}
+  .jn-title h2{font-size:clamp(2.6rem,2.8vw,4.6rem)}
+  .jn-title h2 span{font-size:.5em}
+  .jn-leg b{font-size:clamp(1.7rem,1.8vw,3.2rem)}
+  .jn-leg-lbl{font-size:clamp(12px,.7vw,18px)}
+  /* eleva também os cabeçalhos das OUTRAS cenas (leitura de TV) */
+  .scene-head h2{font-size:clamp(2.4rem,3vw,4.8rem)}
+  .eyebrow{font-size:clamp(12px,.9vw,20px)}
+}
+/* TV 8K / ultra-wide: mais um degrau */
+@media (min-width:3400px){
+  .jc-tick,.jc-day,.jc-avg span{font-size:clamp(20px,.95vmin,34px)}
+  .jc-val{font-size:clamp(22px,1.2vmin,40px)}
+}
+/* RETRATO / telas estreitas (preview em celular, monitor girado): empilha o topo,
+   encolhe o eixo e some com as tags pra nada cortar. */
+@media (max-width:820px), (orientation:portrait){
+  .scene-journey{padding-left:clamp(14px,4vw,30px); padding-right:clamp(14px,4vw,30px)}
+  .jn-top{flex-direction:column; align-items:flex-start; gap:clamp(8px,1.6vh,14px)}
+  .jn-legend{width:100%; justify-content:space-between; gap:clamp(8px,3vw,20px)}
+  .jn-leg{text-align:left}
+  .jc-plot{--gut:clamp(30px,8vw,46px); --gp:2px}
+  .jc-tag{display:none}
+  .jc-val{font-size:clamp(8px,2.4vw,12px)}
+}
+/* telas MUITO baixas (landscape de celular): comprime alturas verticais */
+@media (max-height:560px){
+  .scene-journey{padding-top:calc(clamp(8px,1.4vh,16px) + 40px); gap:clamp(8px,1.6vh,16px)}
+  .jn-title h2{margin-top:4px; font-size:clamp(1.1rem,2.4vw,1.7rem)}
+}
 .jn-chart{position:relative; z-index:1; flex:1; min-width:0; display:flex; align-items:flex-end; justify-content:space-between; gap:clamp(2px,.45vw,10px); padding-top:44px; border-bottom:1px solid rgba(255,255,255,.16)}
 .jn-col{flex:1 1 0; min-width:0; height:100%; display:flex; flex-direction:column; align-items:center; gap:8px;
   opacity:0; animation:tier-in .5s var(--ease-in) both; animation-delay:calc(var(--i,0)*.02s)}
@@ -1044,5 +1147,27 @@ html.lite .wk-bar i{animation:none}
   .gfg,.fstage-bar i,.bbar i,.cats-seg{transition-duration:.3s!important}
 }
 
-/* logo Suprema Poker embutido (base64) — sempre carrega, sem depender de upload do PNG */
-.tv-logo,.ch-logo-img{content:url("data:image/png;base64,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")}
+/* logo Suprema Poker embutido (base64) — só o logo DENTRO do card do control (.ch-logo-img).
+   O cabeçalho (.tv-logo) usa o SVG oficial animado; por isso NÃO entra mais nesta regra. */
+.ch-logo-img{content:url("data:image/png;base64,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")}
+
+/* ═══ 4K/TV grande — pente-fino das 5 outras cenas (control, hoje, vem aí, semana, tier/time).
+   Os clamps batem no teto em 4K e o texto fica pequeno de longe. Aqui rótulos/nomes/valores/heróis
+   passam a escalar por vmin (ligado ao tamanho da tela). Só ≥2200px — não toca laptop/monitor. ═══ */
+@media (min-width:2200px){
+  /* rótulos / kickers / metas / captions (eram 8–13px) */
+  .chd-kicker,.ch-kicker,.mtile-lbl,.mtile-sub,.ch-tile-lbl,.tier-meta,.coming-meta,
+  .wk-top,.wk-sum-i span,.tday-stat span,.ev-badge,.ev-tag,.ct-meta,.jn-leg-lbl,.che-proj{
+    font-size:clamp(14px,.92vmin,24px)!important}
+  /* nomes / valores médios de linha (eram 13–20px) */
+  .ct-name,.ct-prem,.rk-pod-name,.rk-nm,.rk-pr,.tier-name,.tday-name,.coming-name,
+  .team-name,.wk-day,.chd-sub,.tday-stat b{font-size:clamp(16px,1.15vmin,28px)!important}
+  /* números médios (eram ~1.1–1.85rem) */
+  .mtile-num,.cttl-grid .mtile-num,.rk-pod-prem,.rk-pod-base,.coming-hora,.wk-n b,
+  .wk-sum-i b,.tier-val b,.che-proj b{font-size:clamp(1.7rem,1.8vmin,2.8rem)!important}
+  /* numerais grandes de destaque (rank / medalha / stat) */
+  .tier-rank,.ct-rank,.rk-medal,.ch-stat-num{font-size:clamp(2.8rem,3vmin,4.2rem)!important}
+  /* heróis */
+  .che-big{font-size:clamp(4.5rem,7.5vmin,8.5rem)!important}
+  .che-title,.ch-title{font-size:clamp(2rem,3vmin,3.6rem)!important}
+}

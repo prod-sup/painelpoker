@@ -690,12 +690,16 @@ function spinScene(sceneId) {
   document.querySelectorAll('.scene[data-scene="' + sceneId + '"] [data-num]').forEach(function (el) { spin(el, el.getAttribute('data-num')); });
 }
 function grow(el, pct) { if (!el) return; el.style.setProperty('--w', '0%'); void el.offsetWidth; el.style.setProperty('--w', pct); }
-/* count-up genérico (ease-out) p/ números fora do mapa do spin() — ex.: topo da Jornada (item 3) */
+/* count-up genérico (ease-out) p/ números fora do mapa do spin() — ex.: topo da Jornada (item 3).
+   Parte do valor ATUAL exibido (não do 0), então uma atualização AO VIVO no meio da cena sobe
+   suave em vez de piscar pro 0. A entrada da cena zera antes (enterJourney) p/ ter o reveal 0→valor. */
 function countTo(el, to, fmt, ms) {
   if (!el) return;
   if (reduced()) { el.textContent = fmt(to); return; }
+  var raw = String(el.textContent || '').replace(/[^\d]/g, ''), from = raw ? parseFloat(raw) : 0;
+  if (!isFinite(from)) from = 0;
   ms = ms || 1150; var t0 = null;
-  (function step(ts) { if (t0 == null) t0 = ts; var p = Math.min(1, (ts - t0) / ms); el.textContent = fmt(to * easeOut(p)); if (p < 1) requestAnimationFrame(step); })(performance.now());
+  (function step(ts) { if (t0 == null) t0 = ts; var p = Math.min(1, (ts - t0) / ms); el.textContent = fmt(from + (to - from) * easeOut(p)); if (p < 1) requestAnimationFrame(step); })(performance.now());
 }
 function drawLine(el) {
   if (!el) return;
@@ -734,8 +738,15 @@ function smoothPath(pts) {
 var WEEKDAY_FULL = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 var MONTH_FULL = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 function dateExt(iso) { var d = new Date(iso + 'T12:00:00Z'); return WEEKDAY_FULL[d.getUTCDay()] + ' · ' + d.getUTCDate() + ' de ' + MONTH_FULL[d.getUTCMonth()]; }
-/* TELA 2 — Jornada dia a dia = GRÁFICO DE BARRAS do arrecadado por dia.
-   Cabe a série INTEIRA numa tela só (barras se ajustam), sem scroll e sem cortar conteúdo. */
+/* topo "redondo" do eixo Y (1/1.5/2/2.5/3/4/5/6/8/10 × 10^k) com folga p/ o rótulo acima da barra */
+function niceMax(v) {
+  if (!(v > 0)) return 1;
+  var base = Math.pow(10, Math.floor(Math.log10(v))), steps = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10], f = v / base;
+  for (var i = 0; i < steps.length; i++) if (f <= steps[i] * 0.9) return steps[i] * base;
+  return 10 * base;
+}
+/* TELA 2 — Jornada dia a dia = GRÁFICO DE BARRAS do arrecadado/dia, com eixo-Y, linhas-guia e
+   linha de média (dataviz). Cabe a série INTEIRA numa tela só, sem scroll nem corte. */
 function renderJourney() {
   if (!T) return;
   var el = $('jn-list'); if (!el) return;
@@ -744,25 +755,51 @@ function renderJourney() {
   var vals = days.map(function (d) { return d.arr; });
   var total = vals.reduce(function (s, v) { return s + v; }, 0);
   var best = Math.max.apply(null, vals.concat(0)), bestIdx = vals.indexOf(best);
+  var avg = n ? total / n : 0;
   countTo($('jn-total'), T.arrecadadoBruto, fmtMoney);   // sobe de 0 a cada entrada da cena (item 3)
-  countTo($('jn-avg'), n ? total / n : 0, fmtMoney);
+  countTo($('jn-avg'), avg, fmtMoney);
   countTo($('jn-best'), best, fmtMoney);
   var todayISO = nowSPDate();
-  var showEvery = Math.max(1, Math.ceil(n / 16));   // com muitos dias, mostra rótulos de data espaçados
-  el.innerHTML = '<div class="jn-chart" style="--n:' + n + '">' + days.map(function (d, i) {
-    var h = clamp((d.arr / (best || 1)) * 80, 3, 80).toFixed(1);   // teto 80% deixa folga p/ valor+tag acima da barra
-    var isNow = d.date === todayISO, isBest = i === bestIdx, isRecord = isBest && isNow;   // hoje == melhor dia = recorde ao vivo (item 6)
+  var max = niceMax(best);
+  // divisões "redondas" do eixo conforme o dígito líder do topo
+  var lead = +(max / Math.pow(10, Math.floor(Math.log10(max) + 1e-9))).toFixed(2);
+  var DIV = ({ 1: 4, 1.5: 3, 2: 4, 2.5: 5, 3: 3, 4: 4, 5: 5, 6: 6, 8: 4, 10: 5 })[lead] || 4;
+  var axis = '', grid = '';
+  for (var t = 0; t <= DIV; t++) {
+    var f = (t / DIV * 100).toFixed(3) + '%';
+    axis += '<span class="jc-tick" style="--f:' + f + '">' + (t === 0 ? '0' : fmtMoneyK(max * t / DIV)) + '</span>';
+    grid += '<i class="jc-gl' + (t === 0 ? ' is-base' : '') + '" style="--f:' + f + '"></i>';
+  }
+  var showEvery = Math.max(1, Math.ceil(n / 16));   // com muitos dias, espaça os rótulos de data
+  var bars = days.map(function (d, i) {
+    var h = clamp(d.arr / max * 100, 0.8, 100).toFixed(2);
+    var isNow = d.date === todayISO, isBest = i === bestIdx, isRecord = isBest && isNow;   // hoje==melhor = recorde ao vivo
+    var showVal = isBest || isNow || n <= 12;
+    return '<div class="jc-col' + (isNow ? ' is-now' : '') + (isBest ? ' is-best' : '') + (isRecord ? ' is-record' : '') + '" style="--i:' + i + '">' +
+      '<div class="jc-bar" style="--h:' + h + '%">' +
+        (isRecord ? '<span class="jc-tag record">★ recorde</span>' : (isBest ? '<span class="jc-tag">melhor dia</span>' : (isNow ? '<span class="jc-tag now">hoje</span>' : ''))) +
+        (showVal ? '<span class="jc-val">' + fmtMoneyK(d.arr) + '</span>' : '') +
+      '</div></div>';
+  }).join('');
+  var xaxis = days.map(function (d, i) {
+    var isNow = d.date === todayISO, isBest = i === bestIdx;
     var dd = d.date.slice(8, 10) + '/' + d.date.slice(5, 7);
-    var showVal = isBest || isNow || n <= 14;
-    var showDay = isNow || isBest || i === 0 || i === n - 1 || (i % showEvery === 0);
-    return '<div class="jn-col' + (isNow ? ' is-now' : '') + (isBest ? ' is-best' : '') + (isRecord ? ' is-record' : '') + '" style="--i:' + i + '">' +
-      '<div class="jn-bar-area"><div class="jn-bar-fill" style="--h:' + h + '%">' +
-        (isRecord ? '<span class="jn-col-tag record">★ recorde</span>' : (isBest ? '<span class="jn-col-tag">melhor dia</span>' : (isNow ? '<span class="jn-col-tag now">hoje</span>' : ''))) +
-        (showVal ? '<span class="jn-col-val">' + fmtMoneyK(d.arr) + '</span>' : '') +
-      '</div></div>' +
-      '<span class="jn-col-day' + (showDay ? '' : ' is-dim') + '">' + dd + '</span>' +
+    var show = isNow || isBest || i === 0 || i === n - 1 || (i % showEvery === 0);
+    return '<span class="jc-day' + (isNow || isBest ? ' is-hi' : '') + (show ? '' : ' is-dim') + '">' + dd + '</span>';
+  }).join('');
+  var avgF = clamp(avg / max * 100, 0, 100).toFixed(2) + '%';
+  el.innerHTML =
+    '<div class="jc-plot" style="--n:' + n + '">' +
+      '<div class="jc-frame">' +
+        '<div class="jc-yaxis">' + axis + '</div>' +
+        '<div class="jc-area">' +
+          '<div class="jc-grid" aria-hidden="true">' + grid + '</div>' +
+          (avg > 0 ? '<div class="jc-avg" style="--f:' + avgF + '"><span>média · ' + fmtMoneyK(avg) + '</span></div>' : '') +
+          '<div class="jc-bars">' + bars + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="jc-xaxis">' + xaxis + '</div>' +
     '</div>';
-  }).join('') + '</div>';
   // rodapé de projeção escondido na jornada (a projeção fim-da-série já aparece no hero do control)
   var foot = $('jn-foot'); if (foot) foot.hidden = true;
 }
@@ -1026,7 +1063,10 @@ function renderAvisos() {
 }
 function enterAvisos() { renderAvisos(); autoScrollList($('avisos-list'), SCENES[_si].dwell); }
 /* gráfico de barras — cabe inteiro, sem scroll */
-function enterJourney() { renderJourney(); }
+function enterJourney() {
+  if (!reduced()) ['jn-total', 'jn-avg', 'jn-best'].forEach(function (id) { var e = $(id); if (e) e.textContent = 'R$ 0'; });   // reveal 0→valor na entrada
+  renderJourney();
+}
 
 /* ── chrome ──────────────────────────────────────────────────── */
 function setLive(on) { var b = $('liveBadge'); if (b) b.hidden = !on; }
@@ -1054,7 +1094,7 @@ function mountBackground() {
   if (!a || !b) return;
   if (reduced()) { try { a.pause(); b.pause(); } catch (e) {} return; }   // PNG poster fica de fundo
   [a, b].forEach(function (v) { v.muted = true; v.playsInline = true; v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); });
-  var FADE = 1.4;                                        // s de crossfade — casa com a transição CSS
+  var FADE = 1.6;                                        // s de crossfade — casa com a transição CSS (ease-in-out, dissolve suave)
   var front = a, back = b, raf = 0;
   front.classList.add('is-front');
   var playSafe = function (v) { try { var p = v.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {} };

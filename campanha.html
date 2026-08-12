@@ -46,7 +46,11 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
 <!-- chrome de transmissão (sempre visível) -->
 <header class="tv-top" id="chrome">
   <div class="tv-brand">
-    <img class="tv-logo" src="logo-suprema.png" alt="Suprema Poker" width="290" height="62">
+    <!-- logo OFICIAL Suprema Poker (vetor, do projeto Grade-MTT) + sheen dourado animado mascarado na forma do logo -->
+    <span class="tv-logo-wrap">
+      <img class="tv-logo" src="suprema-logo.svg" alt="Suprema Poker" width="180" height="28">
+      <span class="tv-logo-sheen" aria-hidden="true"></span>
+    </span>
   </div>
   <div class="tv-top-right">
     <span class="tv-live" id="liveBadge" hidden><i></i><span>AO VIVO</span></span>
