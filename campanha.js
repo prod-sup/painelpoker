@@ -239,7 +239,7 @@ var SCENES = [
   { id: 'control', dwell: 15000, enter: enterControl },
   { id: 'today', dwell: 22000, enter: enterToday },       // rola (grade cheia)
   { id: 'coming', dwell: 16000, enter: enterComing },     // rola
-  { id: 'journey', dwell: 18000, enter: enterJourney },   // rola
+  { id: 'journey', dwell: 24000, enter: enterJourney },   // rola sozinha (auto-scroll estilo TV)
   { id: 'week', dwell: 18000, enter: enterWeek },         // A Semana Inteira — rola
   { id: 'ranking', dwell: 14000, enter: enterRanking },   // Tier — rola se precisar
 ];
@@ -315,8 +315,8 @@ var VNUM = {
   c_perf: [function (t) { return seriePerf(t); }, pctSigned],
   c_arr: [function (t) { return t.arrecadadoBruto; }, moneyNum],
   c_arrM: [function (t) { return t.arrecadadoBruto; }, fmtMoneyK],
-  c_garM: [function (t) { return t.totalGarantido; }, fmtMoneyK],
-  c_garT: [function (t) { return CAMP.garantidoSerie != null ? CAMP.garantidoSerie : serieGarantido().total; }, moneyNum],
+  c_garM: [function (t) { return CAMP.garantidoSerie != null ? CAMP.garantidoSerie : t.totalGarantido; }, fmtMoneyK],
+  c_garT: [function (t) { return t.totalGarantido; }, moneyNum],
   c_arrT: [function (t) { return t.arrecadadoBruto; }, moneyNum],
   c_rakeT: [function (t) { return t.rake; }, moneyNum],
   c_adminT: [function (t) { return t.adminFee; }, moneyNum],
@@ -630,7 +630,7 @@ function fillControl(t) {
   setTxt('cttl-day', 'Dia ' + pr.elapsed + ' / ' + pr.total);
 
   // totais DETALHADOS — contexto por métrica (curto, quebra em 2 linhas)
-  setTxt('sb_gar', 'planejado nos 51 dias · ' + intNum(t.fechados) + ' eventos já fechados');
+  setTxt('sb_gar', 'dos ' + intNum(t.fechados) + ' eventos que já rodaram');
   setTxt('sb_arr', fmtMoneyK(t.dias ? t.arrecadadoBruto / t.dias : 0) + '/dia · ' + intNum(t.entradas) + ' jog.');
   setTxt('sb_rake', pctPlain(t.rakePct) + ' do arrec. · ' + fmtMoneyK(t.dias ? t.rake / t.dias : 0) + '/dia');
   setTxt('sb_admin', t.adminEvents + ' eventos · 2% buy-in');
@@ -639,8 +639,11 @@ function fillControl(t) {
   setTxt('sb_perf', 'méd. de ' + intNum(t.fechados) + ' fech. · cob. ' + pctPlain(t.cobertura));
 
   setTxt('cf-perf', pctSigned(seriePerf(t)));
-  setTxt('cf-cobpct', pctPlain(t.cobertura));
-  var cob = $('cf-cob'); if (cob) cob.style.width = clamp(t.cobertura, 0, 100).toFixed(1) + '%';
+  // COBERTURA DA SÉRIE = quanto do garantido TOTAL planejado (100,4M) já foi arrecadado
+  var _garSerie = CAMP.garantidoSerie != null ? CAMP.garantidoSerie : t.totalGarantido;
+  var _cobSerie = _garSerie > 0 ? (t.arrecadadoBruto / _garSerie * 100) : 0;
+  setTxt('cf-cobpct', pctPlain(_cobSerie));
+  var cob = $('cf-cob'); if (cob) cob.style.width = clamp(_cobSerie, 0, 100).toFixed(1) + '%';
 
   // Maiores eventos — SÓ os com garantido de R$ 1 milhão ou mais (dedup por nome+hora)
   var seenG = {}, topG = ROWS.filter(function (r) {
@@ -686,7 +689,7 @@ function drawLine(el) {
 }
 function enterControl() {
   spinScene('control');
-  var cob = $('cf-cob'); if (cob && T) { cob.style.width = '0%'; void cob.offsetWidth; cob.style.width = clamp(T.cobertura, 0, 100).toFixed(1) + '%'; }
+  var cob = $('cf-cob'); if (cob && T) { var gs = CAMP.garantidoSerie != null ? CAMP.garantidoSerie : T.totalGarantido; var cs = gs > 0 ? (T.arrecadadoBruto / gs * 100) : 0; cob.style.width = '0%'; void cob.offsetWidth; cob.style.width = clamp(cs, 0, 100).toFixed(1) + '%'; }
   // desenha as linhas (draw-in) e depois deixa respirando (CSS)
   drawLine(document.querySelector('#heroChart .ch-line'));
   drawLine(document.querySelector('#fcChart .cf-pathline'));
@@ -1007,8 +1010,8 @@ function renderAvisos() {
   }).join('');
 }
 function enterAvisos() { renderAvisos(); autoScrollList($('avisos-list'), SCENES[_si].dwell); }
-/* os 8 dias cabem inteiros — sem auto-scroll (nada rola na TV) */
-function enterJourney() { renderJourney(); }
+/* estilo Suprema TV: a lista desce sozinha (auto-scroll) revelando todos os dias */
+function enterJourney() { renderJourney(); autoScrollList($('jn-list'), SCENES[_si].dwell); }
 
 /* ── chrome ──────────────────────────────────────────────────── */
 function setLive(on) { var b = $('liveBadge'); if (b) b.hidden = !on; }

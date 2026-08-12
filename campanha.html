@@ -31,6 +31,14 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
 <!-- névoa PREMIUM (fog volumétrico em camadas) por cima do vídeo -->
 <div class="tv-fog" aria-hidden="true"><i></i><i></i><i></i></div>
 
+<!-- FICHA SPS OFICIAL girando em 3D (moeda dupla-face) — em evidência, junto com o fundo -->
+<div class="tv-chip3d" aria-hidden="true">
+  <div class="chip-spin">
+    <img class="chip-face chip-front" src="assets/sps-chip.png" alt="" width="475" height="475">
+    <img class="chip-face chip-back" src="assets/sps-chip.png" alt="" width="475" height="475">
+  </div>
+</div>
+
 <!-- grão + vinheta cinematográfica por cima do fog -->
 <div class="tv-grain" aria-hidden="true"></div>
 <div class="tv-vignette" aria-hidden="true"></div>
@@ -143,14 +151,14 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
       <div class="cglass ctrl-forecast">
         <img class="card-accent" src="sps-el/3-ace.png" alt="" aria-hidden="true" onerror="this.remove()">
         <div class="cf-head"><span>Destaque da série</span><span class="cf-live">ao vivo</span></div>
-        <div class="cf-stage">Main Event · SPS</div>
+        <div class="cf-stage">Arrecadado × garantido da série</div>
         <div class="cf-score">
           <div class="cf-side"><b data-num="c_arrM" data-fmt="k">0</b><span>Arrecadado</span></div>
           <div class="cf-perf" id="cf-perf">—</div>
-          <div class="cf-side"><b data-num="c_garM" data-fmt="k">0</b><span>Garantido</span></div>
+          <div class="cf-side"><b data-num="c_garM" data-fmt="k">0</b><span>Garantido da série</span></div>
         </div>
         <div class="cf-prob">
-          <div class="cf-prob-head"><span>COBERTURA DO GARANTIDO</span><b id="cf-cobpct">—</b></div>
+          <div class="cf-prob-head"><span>COBERTURA DA SÉRIE</span><b id="cf-cobpct">—</b></div>
           <div class="cf-prob-bar"><i id="cf-cob"></i></div>
         </div>
         <div class="cf-spark">
