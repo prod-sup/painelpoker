@@ -1224,6 +1224,11 @@ function showDiag() {
   (document.body || document.documentElement).appendChild(d);
 }
 function boot() {
+  // TVs cortam ~3-5% das bordas (overscan) → marca `tv-device` p/ o CSS aplicar margem segura.
+  // Detecta pela UA; `?tv=1` força, `?tv=0` desliga (caso a detecção erre num modelo).
+  var noTV = /[?&]tv=0/.test(location.search);
+  var isTV = !noTV && (/[?&]tv=1/.test(location.search) || /Tizen|SMART-?TV|SmartTV|Web[O0]S|NetCast|HbbTV|VIDAA|BRAVIA|Maple|CrKey|AFT|GoogleTV/i.test(navigator.userAgent || ''));
+  if (isTV) document.documentElement.classList.add('tv-device');
   if (/[?&]diag=1/.test(location.search)) { showDiag(); return; }
   if (/[?&]demo=1/.test(location.search)) bootDemo(); else initData();
 }

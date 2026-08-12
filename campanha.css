@@ -141,6 +141,15 @@ body:hover .tv-btn{opacity:.9} body:hover .tv-btn:hover{opacity:1}
 
 /* palco + cenas ----------------------------------------------------------- */
 .tv-stage{position:fixed; inset:0 0 58px 0; z-index:3; display:grid; place-items:center}
+/* ── TV (OVERSCAN): a Samsung/Tizen corta ~3-5% das bordas por padrão → empurra o CONTEÚDO
+   (header, palco, ticker, indicador) p/ dentro de uma margem segura. O fundo (vídeo/PNG) segue
+   full-bleed (pode cortar nas pontas, é decorativo). Ativado via classe `.tv-device` (UA/?tv=1).
+   Obs.: o ideal é ligar "Ajustar à tela / Just Scan" nas configs de IMAGEM da TV — aí nem precisa. ── */
+html.tv-device{--ovh:3vh; --ovw:2.8vw}
+html.tv-device .tv-top{top:var(--ovh); left:var(--ovw); right:var(--ovw)}
+html.tv-device .tv-stage{inset:var(--ovh) var(--ovw) calc(58px + var(--ovh) + 12px) var(--ovw)}
+html.tv-device .tv-ticker{left:var(--ovw); right:var(--ovw); bottom:var(--ovh); border-radius:14px; overflow:hidden}
+html.tv-device .tv-rot{bottom:calc(58px + var(--ovh) + 24px)}
 /* transição IDÊNTICA à Suprema TV: crossfade + scale 1.02→1 (entra) / 1→.985 (sai), só opacity/transform */
 .scene{position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center;
   padding:clamp(54px,7vh,86px) clamp(40px,6vw,120px); gap:clamp(20px,3vh,40px);
