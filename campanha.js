@@ -15,7 +15,9 @@
 'use strict';
 console.info('[SUPREMA TV · SPS] control room — no ar');
 
-var CAMP_DEFAULT = { nome: 'SPS', inicio: '2026-08-01', fim: '2026-09-20', meta: null, metaMetric: 'arrecadado' };
+// garantidoSerie = garantido TOTAL PLANEJADO dos 51 dias da série (não dá pra derivar dos dados,
+// que só têm até a semana atual). Valor conhecido da SPS 2026; o admin pode sobrescrever em campanhas/sps.
+var CAMP_DEFAULT = { nome: 'SPS', inicio: '2026-08-01', fim: '2026-09-20', meta: null, metaMetric: 'arrecadado', garantidoSerie: 100444500 };
 var CAMP = Object.assign({}, CAMP_DEFAULT);
 
 var SNAP_BY = {};     // date -> snapshots/<date>
@@ -314,7 +316,7 @@ var VNUM = {
   c_arr: [function (t) { return t.arrecadadoBruto; }, moneyNum],
   c_arrM: [function (t) { return t.arrecadadoBruto; }, fmtMoneyK],
   c_garM: [function (t) { return t.totalGarantido; }, fmtMoneyK],
-  c_garT: [function (t) { return serieGarantido().total; }, moneyNum],
+  c_garT: [function (t) { return CAMP.garantidoSerie != null ? CAMP.garantidoSerie : serieGarantido().total; }, moneyNum],
   c_arrT: [function (t) { return t.arrecadadoBruto; }, moneyNum],
   c_rakeT: [function (t) { return t.rake; }, moneyNum],
   c_adminT: [function (t) { return t.adminFee; }, moneyNum],
@@ -347,16 +349,60 @@ function detectClosures() {
     if (!_closedKeys[k]) { _closedKeys[k] = true; showBoom(r); }
   });
 }
-/* #boom full-screen — quando um SPS fecha, comemora em tela cheia (pausa a rotação) — estilo TV */
+/* #boom full-screen — quando um SPS fecha, comemora IGUAL À SUPREMA TV:
+   confete em canvas + chip "PREMIAÇÃO CONFIRMADA" + valor em count-up + "superou/bateu o garantido". */
 function boomHTML(r) {
-  var op = operatorOf(r), perf = r.perf != null ? pctSigned(r.perf) : null;
-  return '<div class="boom-stage">' +
-    '<div class="boom-tag"><span class="boom-spark">♠</span> Acabou de fechar</div>' +
+  var op = operatorOf(r), gar = r.garantido || 0, diff = (r.premiacao || 0) - gar;
+  var sub = gar > 0
+    ? (diff > 0 ? 'superou o garantido de ' + fmtMoney(gar) + ' em <b>' + fmtMoney(diff) + '</b>'
+                : 'bateu o garantido de ' + fmtMoney(gar))
+    : 'em premiação';
+  return '<canvas id="confettiCv" aria-hidden="true"></canvas>' +
+    '<div class="boom-stage">' +
+    '<div class="boom-chip">🎉 PREMIAÇÃO CONFIRMADA</div>' +
     '<div class="boom-name">' + evBadge(r) + esc(fullName(r.nome)) + '</div>' +
-    '<div class="boom-big"><span class="pre">R$</span>' + moneyNum(r.premiacao) + '</div>' +
-    '<div class="boom-lbl">em premiação' + (r.field ? ' · ' + intNum(r.field) + ' jogadores' : '') + (perf ? ' · ' + perf + ' vs garantido' : '') + '</div>' +
+    '<div class="boom-big"><span class="pre">R$</span><span id="boomVal">0</span></div>' +
+    '<div class="boom-lbl">' + sub + (r.field ? ' · ' + intNum(r.field) + ' jogadores' : '') + '</div>' +
     (op ? '<div class="boom-by">' + avatarLetter(op) + '<span><b>' + esc(op) + '</b> lançou</span></div>' : '') +
     '</div>';
+}
+/* count-up do valor (ease-out cúbico), respeitando reduced-motion */
+function boomCountUp(id, to, ms) {
+  var el = $(id); if (!el) return;
+  if (reduced()) { el.textContent = moneyNum(to); return; }
+  var t0 = null;
+  function step(ts) {
+    if (t0 == null) t0 = ts;                                  // t0 vem do 1º rAF (mesma base de tempo)
+    var p = Math.max(0, Math.min(1, (ts - t0) / ms));         // clamp [0,1] — nunca estoura p/ negativo
+    el.textContent = moneyNum(to * (1 - Math.pow(1 - p, 3))); // ease-out cúbico
+    if (p < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+/* confete em canvas — leve, autolimitado, cores da casa (idêntico à Suprema TV) */
+function boomConfetti(cv, ms) {
+  if (!cv || reduced()) return;
+  var ctx = cv.getContext('2d'), dpr = Math.min(2, window.devicePixelRatio || 1);
+  var W = cv.width = window.innerWidth * dpr, H = cv.height = window.innerHeight * dpr;
+  var COLORS = ['#e8c884', '#e6c34f', '#22d47e', '#f4a9ba', '#5aa8ff', '#f0ede8'];
+  var P = []; for (var i = 0; i < 150; i++) P.push({
+    x: Math.random() * W, y: -Math.random() * H * .4,
+    vx: (Math.random() - .5) * 2.4 * dpr, vy: (1.6 + Math.random() * 2.6) * dpr,
+    w: (5 + Math.random() * 7) * dpr, h: (8 + Math.random() * 10) * dpr,
+    rot: Math.random() * Math.PI, vr: (Math.random() - .5) * .18, c: COLORS[(Math.random() * COLORS.length) | 0],
+  });
+  var t0 = performance.now();
+  (function frame(t) {
+    if (!cv.isConnected || t - t0 > ms) return;
+    ctx.clearRect(0, 0, W, H);
+    ctx.globalAlpha = Math.min(1, Math.max(0, (ms - (t - t0)) / 1500));
+    P.forEach(function (p) {
+      p.x += p.vx + Math.sin(t / 450 + p.rot) * .7 * dpr; p.y += p.vy; p.rot += p.vr;
+      if (p.y > H + 30) { p.y = -20; p.x = Math.random() * W; }
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = p.c; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); ctx.restore();
+    });
+    requestAnimationFrame(frame);
+  })(t0);
 }
 var _boomQ = [], _boomActive = false;
 function showBoom(r) { if (r && r.premiacao != null) { _boomQ.push(r); if (!_boomActive) nextBoom(); } }
@@ -365,9 +411,12 @@ function nextBoom() {
   _boomActive = true;
   var r = _boomQ.shift();
   clearTimeout(_dirT);                                 // pausa a rotação enquanto o boom toca
-  if (FELTRO && FELTRO.boom) FELTRO.boom();            // estouro grande na névoa (igual à TV)
   el.innerHTML = boomHTML(r);
   el.hidden = false; void el.offsetWidth; el.classList.add('run');
+  requestAnimationFrame(function () {
+    boomConfetti(document.getElementById('confettiCv'), 9000);   // confete por 9s (igual TV)
+    boomCountUp('boomVal', r.premiacao, 1500);                    // valor sobe em count-up
+  });
   setTimeout(function () {
     el.classList.remove('run');
     setTimeout(function () {
@@ -375,7 +424,7 @@ function nextBoom() {
       if (_boomQ.length) nextBoom();
       else { _boomActive = false; if (_dirStarted) scheduleScene(_si); }   // retoma a rotação
     }, 700);
-  }, 7000);
+  }, 11000);                                           // ~12s no total (igual TV)
 }
 
 /* progresso da campanha (dia atual / total) */
@@ -441,7 +490,7 @@ function renderSpark(metric, vals, stroke, gid) {
     dot = '<circle cx="120" cy="' + ly.toFixed(1) + '" r="2.1" fill="' + stroke + '"/>';
   }
   svg.innerHTML = '<line class="sp-base" x1="0" y1="36.5" x2="120" y2="36.5"/>' +
-    '<path class="sp-line" d="' + p.line + '" fill="none" stroke="' + stroke + '"/>' + dot;
+    '<path class="sp-line" pathLength="1" d="' + p.line + '" fill="none" stroke="' + stroke + '"/>' + dot;
 }
 function renderCharts() {
   var days = dailySeries();
@@ -451,14 +500,14 @@ function renderCharts() {
     var p = areaPath(arr, 600, 260, 12);
     hc.innerHTML = '<defs><linearGradient id="hgArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(201,168,76,.12)"/><stop offset="100%" stop-color="rgba(201,168,76,0)"/></linearGradient></defs>' +
       gridLines(600, 260, 3, 'ch-grid') +
-      '<path class="ch-area" d="' + p.area + '"/><path class="ch-line" d="' + p.line + '"/>';
+      '<path class="ch-area" d="' + p.area + '"/><path class="ch-line" pathLength="1" d="' + p.line + '"/>';
   }
   var fc = $('fcChart');
   if (fc) {
     var q = areaPath(house, 320, 100, 8);
     fc.innerHTML = '<defs><linearGradient id="fgArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(44,199,158,.1)"/><stop offset="100%" stop-color="rgba(44,199,158,0)"/></linearGradient></defs>' +
       gridLines(320, 100, 2, 'cf-grid') +
-      '<path class="cf-area" d="' + q.area + '"/><path class="cf-pathline" d="' + q.line + '"/>';
+      '<path class="cf-area" d="' + q.area + '"/><path class="cf-pathline" pathLength="1" d="' + q.line + '"/>';
   }
   setTxt('cf-sparklast', fmtMoneyK(house.length ? house[house.length - 1] : 0));
 
@@ -581,8 +630,7 @@ function fillControl(t) {
   setTxt('cttl-day', 'Dia ' + pr.elapsed + ' / ' + pr.total);
 
   // totais DETALHADOS — contexto por métrica (curto, quebra em 2 linhas)
-  var sg = serieGarantido();
-  setTxt('sb_gar', intNum(sg.n) + ' eventos na série · ' + intNum(t.fechados) + ' já fechados');
+  setTxt('sb_gar', 'planejado nos 51 dias · ' + intNum(t.fechados) + ' eventos já fechados');
   setTxt('sb_arr', fmtMoneyK(t.dias ? t.arrecadadoBruto / t.dias : 0) + '/dia · ' + intNum(t.entradas) + ' jog.');
   setTxt('sb_rake', pctPlain(t.rakePct) + ' do arrec. · ' + fmtMoneyK(t.dias ? t.rake / t.dias : 0) + '/dia');
   setTxt('sb_admin', t.adminEvents + ' eventos · 2% buy-in');
@@ -959,7 +1007,8 @@ function renderAvisos() {
   }).join('');
 }
 function enterAvisos() { renderAvisos(); autoScrollList($('avisos-list'), SCENES[_si].dwell); }
-function enterJourney() { renderJourney(); autoScrollList($('jn-list'), SCENES[_si].dwell); }
+/* os 8 dias cabem inteiros — sem auto-scroll (nada rola na TV) */
+function enterJourney() { renderJourney(); }
 
 /* ── chrome ──────────────────────────────────────────────────── */
 function setLive(on) { var b = $('liveBadge'); if (b) b.hidden = !on; }
@@ -976,40 +1025,25 @@ function wireFs() {
   });
 }
 
-/* ── fundo: VÍDEO cinematográfico com LOOP SUAVE ──────────────────────────────
-   Dois <video> sobrepostos: quando o da frente chega perto do fim, o de trás
-   reinicia do 0 e entra em CROSSFADE (opacity via CSS). Assim o "pulo" do loop
-   fica invisível — o fim de um clipe funde com o começo do outro. O fog premium
-   (.tv-fog) fica por cima em CSS, então dá pra reforçar a névoa sem tocar no Feltro. */
+/* ── fundo: VÍDEO cinematográfico com LOOP NATIVO ─────────────────────────────
+   O clipe "Background atualizado.mp4" já é feito p/ repetir, então o loop NATIVO
+   (attribute `loop`) é o mais SUAVE possível — sem o "fantasma"/dissolve que dois
+   vídeos sobrepostos causavam num fundo com muito movimento (o trono). Um só
+   elemento de vídeo também é bem mais leve (ajuda o painel a manter 60fps).
+   O fog premium (.tv-fog) fica por cima em CSS, reforçando a névoa sem tocar no Feltro. */
 function mountBackground() {
   var VID = 'assets/Background%20atualizado.mp4';
   var a = $('bgVidA'), b = $('bgVidB');
-  if (!a || !b) return;
-  [a, b].forEach(function (v) { v.src = VID; v.muted = true; v.loop = false; v.playsInline = true; v.preload = 'auto'; });
-  var playSafe = function (v) { var p = v.play && v.play(); if (p && p.catch) p.catch(function () {}); };
-
-  // reduced-motion / telas fracas: um loop simples, sem crossfade
-  if (reduced()) { a.loop = true; a.classList.add('is-front'); playSafe(a); return; }
-
-  var FADE = 1.1;                               // s de sobreposição no fim (suaviza o corte)
-  var front = a, back = b, swapping = false;
-  a.classList.add('is-front'); playSafe(a);
-
-  var nearEnd = function (v) { var d = v.duration; return d && isFinite(d) && (d - v.currentTime) <= FADE; };
-  function crossfade() {
-    if (swapping) return; swapping = true;
-    var out = front, incoming = back;
-    try { incoming.currentTime = 0; } catch (e) {}
-    playSafe(incoming);
-    incoming.classList.add('is-front');         // fade-in
-    out.classList.remove('is-front');           // fade-out
-    front = incoming; back = out;
-    setTimeout(function () { try { out.pause(); } catch (e) {} swapping = false; }, FADE * 1000 + 80);
-  }
-  a.addEventListener('timeupdate', function () { if (front === a && nearEnd(a)) crossfade(); });
-  b.addEventListener('timeupdate', function () { if (front === b && nearEnd(b)) crossfade(); });
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) playSafe(front); });
-  console.info('[SUPREMA TV · SPS] fundo em vídeo (loop suave por crossfade) no ar');
+  if (!a) return;
+  if (b) b.remove();                                   // não usamos o 2º vídeo no loop nativo
+  a.src = VID; a.muted = true; a.loop = true; a.playsInline = true; a.preload = 'auto';
+  a.setAttribute('muted', ''); a.setAttribute('playsinline', ''); a.setAttribute('loop', '');
+  a.classList.add('is-front');
+  var playSafe = function () { var p = a.play && a.play(); if (p && p.catch) p.catch(function () {}); };
+  playSafe();
+  a.addEventListener('canplay', playSafe, { once: true });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) playSafe(); });
+  console.info('[SUPREMA TV · SPS] fundo em vídeo (loop nativo) no ar');
 }
 
 /* ── (legado) aura 2D — substituída pelo Feltro; mantida como no-op se o #ambient sumiu ── */

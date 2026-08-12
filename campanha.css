@@ -502,6 +502,12 @@ html.lite .card-accent{display:none}
 .cf-chart{flex:1; width:100%; min-height:40px}
 .cf-chart .cf-area{fill:url(#fgArea)}
 .cf-chart .cf-pathline{fill:none; stroke:var(--gen); stroke-width:1.75; vector-effect:non-scaling-stroke}
+/* gráficos ANIMADOS: a linha se desenha (draw-in) e a área acende — pathLength="1" normaliza o traço */
+@keyframes chart-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes chart-area-in{from{opacity:0}to{opacity:1}}
+.ch-line,.cf-pathline{stroke-dasharray:1; stroke-dashoffset:1; animation:chart-draw 1.3s var(--ease) forwards}
+.ch-area,.cf-area{animation:chart-area-in 1.5s var(--ease) both}
+html.lite .ch-line,html.lite .cf-pathline{stroke-dasharray:none; stroke-dashoffset:0; animation:none}
 .cf-chart .cf-grid{stroke:rgba(255,255,255,.05); stroke-width:1; vector-effect:non-scaling-stroke; stroke-dasharray:2 5}
 .cf-cta{margin-top:0}
 .cf-chart-wrap{position:relative; flex:1; min-height:40px}
@@ -556,14 +562,15 @@ html.lite .card-accent{display:none}
 .mtile-spark{width:100%; height:clamp(28px,3.4vh,44px); margin-top:auto; display:block}
 
 /* linhas finas de terminal financeiro — respiração sutil de vida (sem glow pesado) */
-.sp-line{stroke-width:1.6; vector-effect:non-scaling-stroke; animation:sp-live 4.6s ease-in-out infinite}
+/* cada spark de tile se DESENHA (draw-in), com um pequeno atraso em cascata entre os tiles */
+.sp-line{stroke-width:1.6; vector-effect:non-scaling-stroke; stroke-dasharray:1; stroke-dashoffset:1; animation:chart-draw 1.05s var(--ease) both}
 @keyframes sp-live{0%,100%{opacity:.82}50%{opacity:1}}
-.mtile:nth-child(2) .sp-line{animation-duration:4.2s} .mtile:nth-child(3) .sp-line{animation-duration:5s}
-.mtile:nth-child(4) .sp-line{animation-duration:3.9s} .mtile:nth-child(5) .sp-line{animation-duration:4.5s}
+.mtile:nth-child(2) .sp-line{animation-delay:.08s} .mtile:nth-child(3) .sp-line{animation-delay:.16s}
+.mtile:nth-child(4) .sp-line{animation-delay:.24s} .mtile:nth-child(5) .sp-line{animation-delay:.32s} .mtile:nth-child(6) .sp-line{animation-delay:.4s}
 .sp-base{stroke:rgba(255,255,255,.07); stroke-width:1; vector-effect:non-scaling-stroke}
 .sp-dot{fill:var(--_c,var(--gold-hi)); animation:sp-dot-pulse 2.4s var(--ease) infinite}
 @keyframes sp-dot-pulse{0%,100%{opacity:1}50%{opacity:.35}}
-html.lite .sp-line,html.lite .sp-dot{animation:none}
+html.lite .sp-line,html.lite .sp-dot{animation:none} html.lite .sp-line{stroke-dasharray:none; stroke-dashoffset:0}
 
 /* ponto de "agora" pulsando no topo das curvas cumulativas */
 .che-peak,.cf-peak{position:absolute; z-index:2; pointer-events:none}
@@ -578,7 +585,7 @@ html.lite .ch-area,html.lite .cf-area,html.lite .sp-area,html.lite .che-peak spa
 /* totais DETALHADOS (valor cheio + linha de contexto) — 6 tiles precisam caber sem cortar */
 .cttl-grid{gap:clamp(7px,.7vw,12px)}
 .cttl-grid .mtile{padding:clamp(11px,1vw,15px)}
-.cttl-grid .mtile-num{font-size:clamp(.82rem,1.02vw,1.2rem); white-space:nowrap; letter-spacing:-.02em}
+.cttl-grid .mtile-num{font-size:clamp(.72rem,.9vw,1.06rem); white-space:nowrap; letter-spacing:-.02em}
 .cttl-grid .mtile-num .pre{font-size:.62em; margin-right:2px; opacity:.85}
 .mtile-sub{font-size:9.5px; color:var(--ink4); font-variant-numeric:tabular-nums; line-height:1.3; letter-spacing:.01em}
 
@@ -592,11 +599,11 @@ html.lite .ch-area,html.lite .cf-area,html.lite .sp-area,html.lite .che-peak spa
 .jn-leg-lbl{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink4)}
 .jn-leg b{font-size:clamp(1.1rem,1.6vw,1.6rem); font-weight:700; color:var(--gold-hi); font-variant-numeric:tabular-nums}
 
-/* ── Jornada dia-a-dia (por extenso) ── */
-.jn-list{width:min(1320px,95vw); display:flex; flex-direction:column; gap:clamp(8px,1.1vh,13px); flex:1; min-height:0; overflow:hidden}
-.jn-row{display:grid; grid-template-columns:minmax(210px,1.35fr) minmax(110px,1fr) auto; align-items:center; gap:clamp(18px,2.2vw,38px);
-  padding:clamp(11px,1.4vh,18px) clamp(20px,2vw,32px); border-radius:14px; border:1px solid rgba(255,255,255,.08);
-  background:linear-gradient(100deg, rgba(255,255,255,.05), rgba(255,255,255,.018) 70%); -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px);
+/* ── Jornada dia-a-dia (por extenso) — os 8 dias CABEM na tela, sem scroll nem corte ── */
+.jn-list{width:min(1320px,95vw); display:flex; flex-direction:column; justify-content:center; gap:clamp(6px,.85vh,11px); flex:1; min-height:0; overflow:visible}
+.jn-row{flex:0 0 auto; display:grid; grid-template-columns:minmax(210px,1.35fr) minmax(110px,1fr) auto; align-items:center; gap:clamp(18px,2.2vw,38px);
+  padding:clamp(8px,1.05vh,14px) clamp(20px,2vw,32px); border-radius:14px; border:1px solid rgba(255,255,255,.08);
+  background:linear-gradient(100deg, rgba(255,255,255,.05), rgba(255,255,255,.018) 70%); -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px);
   opacity:0; animation:tier-in .55s var(--ease-in) both; animation-delay:calc(var(--i,0)*.06s)}
 .jn-row.is-now{border-color:var(--line-gold); background:linear-gradient(100deg, rgba(201,168,76,.13), rgba(255,255,255,.018) 70%)}
 .jn-date{display:flex; align-items:center; gap:12px; min-width:0}
@@ -844,9 +851,20 @@ html.lite .hero-big{animation:none; color:var(--gold-hi)}
 .boom-stage{display:flex; flex-direction:column; align-items:center; gap:clamp(5px,1vh,13px); transform:scale(.9); opacity:0; padding:0 6vw}
 .tv-boom.run .boom-stage{animation:boom-in .8s var(--ease-in) forwards}
 @keyframes boom-in{to{transform:none; opacity:1}}
-.boom-tag{font-size:clamp(12px,1.2vw,16px); font-weight:800; letter-spacing:.24em; text-transform:uppercase; color:#8ff3c0; display:inline-flex; align-items:center; gap:10px}
-.boom-spark{color:var(--gold-hi)}
-.boom-name{display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:center; font-size:clamp(1.6rem,3.4vw,3rem); font-weight:700; color:var(--ink); margin-top:12px}
+/* confete full-screen por cima de tudo (o canvas é irmão do .boom-stage centrado) */
+#confettiCv{position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:1}
+.tv-boom .boom-stage{position:relative; z-index:2}
+/* chip "PREMIAÇÃO CONFIRMADA" — igual à Suprema TV (pílula dourada pulsante) */
+.boom-chip{display:inline-flex; align-items:center; gap:9px; font-size:clamp(12px,1.15vw,16px); font-weight:800; letter-spacing:.2em; text-transform:uppercase;
+  color:#1a1206; background:linear-gradient(90deg,var(--gold),var(--gold-hi)); padding:9px 20px; border-radius:999px;
+  box-shadow:0 10px 40px -12px var(--gold-glow); animation:boom-chip-pop .7s var(--ease-in) both}
+@keyframes boom-chip-pop{from{transform:scale(.7); opacity:0}to{transform:none; opacity:1}}
+/* flash dourado de bloom no início (substitui o FELTRO.boom da TV, já que aqui o fundo é vídeo) */
+.tv-boom::after{content:""; position:absolute; inset:0; pointer-events:none; z-index:0;
+  background:radial-gradient(60% 55% at 50% 46%, rgba(230,195,79,.5), transparent 62%); opacity:0}
+.tv-boom.run::after{animation:boom-bloom 1.1s var(--ease) forwards}
+@keyframes boom-bloom{0%{opacity:0; transform:scale(.6)}22%{opacity:1}100%{opacity:0; transform:scale(1.5)}}
+.boom-name{display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:center; font-size:clamp(1.6rem,3.4vw,3rem); font-weight:700; color:var(--ink); margin-top:16px}
 .boom-big{font-size:clamp(4rem,11vw,9rem); font-weight:800; line-height:.9; letter-spacing:-.05em; color:var(--gold-hi); font-variant-numeric:tabular-nums; margin-top:10px; text-shadow:0 0 70px var(--gold-glow)}
 .boom-big .pre{font-family:var(--mono); font-weight:500; font-size:.26em; color:var(--gold); margin-right:.12em; vertical-align:.55em; text-shadow:none}
 .boom-lbl{font-size:clamp(13px,1.4vw,18px); color:var(--ink2); letter-spacing:.02em; margin-top:6px}
