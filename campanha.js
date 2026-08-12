@@ -301,6 +301,7 @@ function gotoScene(i) {
   var next = document.querySelector('.scene[data-scene="' + SCENES[i].id + '"]');
   if (!next) { _si = i; scheduleScene(i); return; }
   if (cur !== next) {
+    triggerWipe();                                 // wipe cinematográfico no corte (item 5)
     if (FELTRO && FELTRO.pulse) FELTRO.pulse();   // "explosão" de luz na névoa a cada corte (igual à TV)
     if (cur) { cur.classList.remove('is-active'); cur.classList.add('is-leaving'); var c = cur; setTimeout(function () { c.classList.remove('is-leaving'); c.hidden = true; }, 1350); }
     next.hidden = false; void next.offsetWidth; next.classList.remove('is-leaving'); next.classList.add('is-active');
@@ -689,6 +690,13 @@ function spinScene(sceneId) {
   document.querySelectorAll('.scene[data-scene="' + sceneId + '"] [data-num]').forEach(function (el) { spin(el, el.getAttribute('data-num')); });
 }
 function grow(el, pct) { if (!el) return; el.style.setProperty('--w', '0%'); void el.offsetWidth; el.style.setProperty('--w', pct); }
+/* count-up genérico (ease-out) p/ números fora do mapa do spin() — ex.: topo da Jornada (item 3) */
+function countTo(el, to, fmt, ms) {
+  if (!el) return;
+  if (reduced()) { el.textContent = fmt(to); return; }
+  ms = ms || 1150; var t0 = null;
+  (function step(ts) { if (t0 == null) t0 = ts; var p = Math.min(1, (ts - t0) / ms); el.textContent = fmt(to * easeOut(p)); if (p < 1) requestAnimationFrame(step); })(performance.now());
+}
 function drawLine(el) {
   if (!el) return;
   if (reduced()) { el.style.strokeDasharray = ''; el.style.strokeDashoffset = ''; return; }
@@ -736,20 +744,20 @@ function renderJourney() {
   var vals = days.map(function (d) { return d.arr; });
   var total = vals.reduce(function (s, v) { return s + v; }, 0);
   var best = Math.max.apply(null, vals.concat(0)), bestIdx = vals.indexOf(best);
-  setTxt('jn-total', fmtMoney(T.arrecadadoBruto));
-  setTxt('jn-avg', fmtMoney(n ? total / n : 0));
-  setTxt('jn-best', fmtMoney(best));
+  countTo($('jn-total'), T.arrecadadoBruto, fmtMoney);   // sobe de 0 a cada entrada da cena (item 3)
+  countTo($('jn-avg'), n ? total / n : 0, fmtMoney);
+  countTo($('jn-best'), best, fmtMoney);
   var todayISO = nowSPDate();
   var showEvery = Math.max(1, Math.ceil(n / 16));   // com muitos dias, mostra rótulos de data espaçados
   el.innerHTML = '<div class="jn-chart" style="--n:' + n + '">' + days.map(function (d, i) {
     var h = clamp((d.arr / (best || 1)) * 80, 3, 80).toFixed(1);   // teto 80% deixa folga p/ valor+tag acima da barra
-    var isNow = d.date === todayISO, isBest = i === bestIdx;
+    var isNow = d.date === todayISO, isBest = i === bestIdx, isRecord = isBest && isNow;   // hoje == melhor dia = recorde ao vivo (item 6)
     var dd = d.date.slice(8, 10) + '/' + d.date.slice(5, 7);
     var showVal = isBest || isNow || n <= 14;
     var showDay = isNow || isBest || i === 0 || i === n - 1 || (i % showEvery === 0);
-    return '<div class="jn-col' + (isNow ? ' is-now' : '') + (isBest ? ' is-best' : '') + '" style="--i:' + i + '">' +
+    return '<div class="jn-col' + (isNow ? ' is-now' : '') + (isBest ? ' is-best' : '') + (isRecord ? ' is-record' : '') + '" style="--i:' + i + '">' +
       '<div class="jn-bar-area"><div class="jn-bar-fill" style="--h:' + h + '%">' +
-        (isBest ? '<span class="jn-col-tag">melhor dia</span>' : (isNow ? '<span class="jn-col-tag now">hoje</span>' : '')) +
+        (isRecord ? '<span class="jn-col-tag record">★ recorde</span>' : (isBest ? '<span class="jn-col-tag">melhor dia</span>' : (isNow ? '<span class="jn-col-tag now">hoje</span>' : ''))) +
         (showVal ? '<span class="jn-col-val">' + fmtMoneyK(d.arr) + '</span>' : '') +
       '</div></div>' +
       '<span class="jn-col-day' + (showDay ? '' : ' is-dim') + '">' + dd + '</span>' +
@@ -1035,25 +1043,38 @@ function wireFs() {
   });
 }
 
-/* ── fundo: VÍDEO cinematográfico com LOOP NATIVO ─────────────────────────────
-   O clipe "Background atualizado.mp4" já é feito p/ repetir, então o loop NATIVO
-   (attribute `loop`) é o mais SUAVE possível — sem o "fantasma"/dissolve que dois
-   vídeos sobrepostos causavam num fundo com muito movimento (o trono). Um só
-   elemento de vídeo também é bem mais leve (ajuda o painel a manter 60fps).
-   O fog premium (.tv-fog) fica por cima em CSS, reforçando a névoa sem tocar no Feltro. */
+/* ── fundo: VÍDEO em LOOP por CROSSFADE ───────────────────────────────────────
+   O clipe SPS (sps-bg.mp4) tem push-in — o 1º e o último frame NÃO batem, então o
+   loop nativo dava um corte seco ("parando do nada"). Aqui 2 vídeos alternam a
+   opacidade: quando o da frente chega perto do fim, o de trás começa do 0 e um
+   CROSSFADE de 1,4s dissolve a emenda → loop contínuo, sem parada. O fog/vinheta
+   por cima escondem qualquer resíduo do dissolve. reduced-motion cai no PNG poster. */
 function mountBackground() {
-  var VID = 'assets/Background%20atualizado.mp4';
-  var a = $('bgVidA'), b = $('bgVidB');
-  if (!a) return;
-  if (b) b.remove();                                   // não usamos o 2º vídeo no loop nativo
-  a.src = VID; a.muted = true; a.loop = true; a.playsInline = true; a.preload = 'auto';
-  a.setAttribute('muted', ''); a.setAttribute('playsinline', ''); a.setAttribute('loop', '');
-  a.classList.add('is-front');
-  var playSafe = function () { var p = a.play && a.play(); if (p && p.catch) p.catch(function () {}); };
-  playSafe();
-  a.addEventListener('canplay', playSafe, { once: true });
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) playSafe(); });
-  console.info('[SUPREMA TV · SPS] fundo em vídeo (loop nativo) no ar');
+  var a = $('heroVidA'), b = $('heroVidB');
+  if (!a || !b) return;
+  if (reduced()) { try { a.pause(); b.pause(); } catch (e) {} return; }   // PNG poster fica de fundo
+  [a, b].forEach(function (v) { v.muted = true; v.playsInline = true; v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); });
+  var FADE = 1.4;                                        // s de crossfade — casa com a transição CSS
+  var front = a, back = b, raf = 0;
+  front.classList.add('is-front');
+  var playSafe = function (v) { try { var p = v.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {} };
+  playSafe(front);
+  function tick() {
+    var d = front.duration;
+    if (d && isFinite(d) && front.currentTime >= d - FADE) {
+      back.currentTime = 0; playSafe(back);
+      back.classList.add('is-front'); front.classList.remove('is-front');
+      var out = front; front = back; back = out;
+      setTimeout(function () { if (!out.classList.contains('is-front')) out.pause(); }, (FADE + 0.35) * 1000);  // poupa CPU: pausa o que saiu
+    }
+    raf = document.hidden ? 0 : requestAnimationFrame(tick);
+  }
+  raf = requestAnimationFrame(tick);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { try { a.pause(); b.pause(); } catch (e) {} if (raf) { cancelAnimationFrame(raf); raf = 0; } }
+    else { playSafe(front); if (!raf) raf = requestAnimationFrame(tick); }
+  });
+  console.info('[SUPREMA TV · SPS] fundo em vídeo (loop crossfade) no ar');
 }
 
 /* ── (legado) aura 2D — substituída pelo Feltro; mantida como no-op se o #ambient sumiu ── */

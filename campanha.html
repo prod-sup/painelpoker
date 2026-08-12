@@ -25,7 +25,12 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
 <!-- fundo: HERO SPS (troféu + logo oficial). Vídeo animado (Higgsfield) em loop; PNG fica de poster/fallback (reduced-motion e autoplay bloqueado) + shine varrendo o ouro -->
 <div class="tv-hero" aria-hidden="true">
   <div class="tv-hero-img"></div>
-  <video class="tv-hero-vid" autoplay muted loop playsinline preload="auto" poster="assets/sps-bg.png">
+  <!-- LOOP em CROSSFADE (2 vídeos alternando opacidade) — mata o corte seco do loop nativo.
+       JS (mountBackground) dirige o fade; PNG acima fica de poster/fallback (reduced-motion). -->
+  <video class="tv-hero-vid is-front" id="heroVidA" autoplay muted playsinline preload="auto" poster="assets/sps-bg.png">
+    <source src="assets/sps-bg.mp4" type="video/mp4">
+  </video>
+  <video class="tv-hero-vid" id="heroVidB" muted playsinline preload="auto" aria-hidden="true">
     <source src="assets/sps-bg.mp4" type="video/mp4">
   </video>
   <div class="tv-hero-shine"></div>
@@ -253,6 +258,8 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
 </footer>
 
 <!-- boom full-screen: comemoração quando um SPS fecha (estilo TV) -->
+<!-- wipe cinematográfico na troca de cena (dispara no gotoScene) -->
+<div class="tv-wipe" id="tvWipe" aria-hidden="true"><span class="tv-wipe-spade">♠</span></div>
 <div class="tv-boom" id="boom" hidden aria-hidden="true"></div>
 
 <!-- toasts ao vivo (evento fechou) — fallback -->
