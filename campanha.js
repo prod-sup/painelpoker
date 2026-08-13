@@ -54,6 +54,12 @@ function shortName(n) { return String(n || '').replace(/^\s*SPS\s*/i, '').trim()
 function fullName(n) { var s = String(n || '').trim(); return /^\s*SPS\b/i.test(s) ? s : ('SPS ' + s); }
 /* chave nome+hora (casar grade da GU com dados ao vivo) */
 function nhk(nome, hora) { return String(nome || '').trim().toLowerCase() + '|' + String(hora || '').trim().replace(/^(\d{1,2}):(\d{2}).*/, '$1:$2'); }
+/* chave de EVENTO p/ dedup dos "maiores": tira o "SPS" e o código de dia (ex.: "19-M",
+   "60-M"), pra o MESMO torneio recorrente na semana não repetir na lista. */
+function eventKey(nome) {
+  return String(nome || '').replace(/^\s*SPS\s*/i, '')
+    .replace(/\b\d{1,3}\s*-\s*M\b/gi, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+}
 /* Main event / Side event (sat cai em side) */
 function catKey(r) { return (r && r.cat === 'main') ? 'main' : 'side'; }
 function catLabel(r) { return catKey(r) === 'main' ? 'Main Event' : 'Side Event'; }
@@ -87,11 +93,11 @@ function operatorOf(r) {
 }
 function reduced() { return window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches; }
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-/* Performance da série = MÉDIA por evento de (arrecadado líquido / garantido − 1),
-   igual à planilha =MÉDIA(M…) onde cada M = SE(Ações=0;"";Arrecadado líquido/Garantido−1).
-   No modelo do core, arrecadado líquido por evento == premiacao (gross·netFactor), então
-   o perf por linha já é (premiacao/garantido−1); aqui só tiramos a média simples (perfMedia). */
-function seriePerf(t) { return t && t.perfMedia != null ? t.perfMedia : 0; }
+/* Performance da SÉRIE (agregada) = Total ARRECADADO ÷ Total GARANTIDO (dos eventos já
+   rodados) − 1, em %. Ex.: arrecadou R$ 25,96 mi sobre R$ 22,98 mi de garantido → +13,0%.
+   É a razão dos TOTAIS (eventos grandes pesam pelo tamanho) — NÃO a média por evento
+   (perfMedia, onde cada evento pesava igual). Pedido do Brian: mostrar a da série, não a média. */
+function seriePerf(t) { return (t && t.totalGarantido > 0) ? (t.arrecadadoBruto / t.totalGarantido - 1) * 100 : 0; }
 
 /* Total GARANTIDO da SÉRIE = soma do garantido de TODOS os eventos SPS conhecidos,
    inclusive os que ainda NÃO aconteceram. Une os já jogados (ROWS, do início até hoje)
@@ -107,6 +113,38 @@ function serieGarantido() {
   ROWS.forEach(function (r) { add(r.date, r.nome, r.hora, r.garantido); });
   GRADE.forEach(function (e) { var d = e.dateISO || e.date; if (d && d >= CAMP.inicio && d <= CAMP.fim) add(d, e.nome, e.hora, e.garantido); });
   return { total: total, n: n };
+}
+
+/* Meta da série (métrica = arrecadado). REGRA (Brian): a meta = garantido total dos
+   eventos + 20% (a casa mira arrecadar 20% acima do que garantiu pagar). Ex.: garantido
+   planejado ~100,4 mi → meta ~120,5 mi. Base do garantido = CAMP.garantidoSerie (planejado
+   da série); na falta dele, a soma dos eventos conhecidos (serieGarantido) ou o já-jogado
+   (t.totalGarantido). Se o admin configurar em campanhas/sps uma meta MAIOR, ela prevalece. */
+var META_MARGIN = 0.20;   // meta = garantido total × (1 + 20%)
+function effectiveMeta(t) {
+  var gar = (CAMP.garantidoSerie != null ? +CAMP.garantidoSerie : 0) || 0;
+  var known = serieGarantido().total || 0;
+  if (known > gar) gar = known;
+  if (t && t.totalGarantido > gar) gar = t.totalGarantido;
+  var floor = gar * (1 + META_MARGIN);
+  var m = (CAMP.meta != null && +CAMP.meta > 0) ? +CAMP.meta : 0;
+  return Math.max(m, floor);
+}
+
+/* Maiores eventos que ainda VÃO acontecer: grade da GU (de hoje até o fim da série),
+   só SPS com garantido, deduplicados por evento (eventKey — mesmo torneio recorrente
+   entra uma vez) e ordenados do maior garantido pro menor. */
+function biggestUpcoming() {
+  var isDemo = /[?&]demo=1/.test(location.search), t = nowSPDate(), seen = {}, pool;
+  if (isDemo && !GRADE.length) {
+    pool = ROWS.slice();
+  } else {
+    pool = GRADE.filter(function (e) { var d = e.dateISO || e.date; return d && d >= t && d <= CAMP.fim; })
+      .map(function (e) { return { nome: e.nome, hora: e.hora, garantido: e.garantido, buyin: e.buyin, cat: e.cat, date: e.dateISO || e.date }; });
+  }
+  return pool.filter(function (r) { return r.garantido; })
+    .sort(function (a, b) { return (b.garantido || 0) - (a.garantido || 0); })
+    .filter(function (r) { var k = eventKey(r.nome); if (!k || seen[k]) return false; seen[k] = 1; return true; });
 }
 
 /* ── boot / dados ────────────────────────────────────────────── */
@@ -258,12 +296,19 @@ function autoScrollList(el, dwellMs) {
   requestAnimationFrame(function () {
     var max = el.scrollHeight - el.clientHeight;
     if (max <= 6) return;
-    var d = dwellMs || 16000, HOLD = 2600, travel = Math.max(2400, d - HOLD * 2), t0 = null;
+    // auto-scroll CONTÍNUO (vai-e-volta em loop) enquanto a cena está no ar: topo→desce→
+    // fim→sobe→repete, com pausa nas pontas. Velocidade constante (~85px/s) p/ ler sempre igual.
+    var HOLD = 2400, LEG = Math.max(3600, max / 85 * 1000), cycle = (HOLD + LEG) * 2, t0 = null;
     (function step(ts) {
+      if (!el.isConnected || el.offsetParent === null) { _scrollRAF = null; return; }  // cena saiu → para sozinho
       if (t0 == null) t0 = ts;
-      var e = ts - t0, p = e < HOLD ? 0 : e < HOLD + travel ? (e - HOLD) / travel : 1;
-      el.scrollTop = max * Math.min(1, p);
-      if (e < d) _scrollRAF = requestAnimationFrame(step);
+      var pos = (ts - t0) % cycle, y;
+      if (pos < HOLD) y = 0;
+      else if (pos < HOLD + LEG) y = (pos - HOLD) / LEG;
+      else if (pos < HOLD + LEG + HOLD) y = 1;
+      else y = 1 - (pos - HOLD - LEG - HOLD) / LEG;
+      el.scrollTop = max * y;
+      _scrollRAF = requestAnimationFrame(step);
     })();
   });
 }
@@ -321,7 +366,7 @@ function showOff(title, sub) {
 
 /* ── números animáveis do control ────────────────────────────── */
 var VNUM = {
-  c_perf: [function (t) { return seriePerf(t); }, pctSigned],
+  c_perf: [function (t) { return t && t.perfMedia != null ? t.perfMedia : 0; }, pctSigned],   // card grande = MÉDIA por evento (Brian pediu manter aqui)
   c_arr: [function (t) { return t.arrecadadoBruto; }, moneyNum],
   c_arrM: [function (t) { return t.arrecadadoBruto; }, fmtMoneyK],
   c_garM: [function (t) { return CAMP.garantidoSerie != null ? CAMP.garantidoSerie : t.totalGarantido; }, fmtMoneyK],
@@ -581,28 +626,44 @@ function runningNow() {
     pool = grToday.map(function (e) {
       var r = live[nhk(e.nome, e.hora)] || {};
       return { nome: e.nome, hora: e.hora, late: (r.late != null && r.late !== '' ? r.late : e.late), cat: e.cat, date: t,
-        garantido: (r.garantido != null ? r.garantido : e.garantido),
+        garantido: (r.garantido != null ? r.garantido : e.garantido), buyin: (r.buyin != null ? r.buyin : e.buyin),
         premiacao: (r.premiacao != null ? r.premiacao : null), field: r.field, status: r.status };
     });
   } else {
     pool = ROWS.filter(function (r) { return isDemo || r.date === t; });
   }
   // ROLANDO AGORA = arrecadado NÃO preenchido (premiacao == null) E late ainda aberto (agora < fim do late).
-  // Somente esses — nada de fallback (se ninguém está rolando, a tela mostra o estado vazio).
   var live2 = pool.filter(function (r) { return r.premiacao == null && (isDemo ? true : lateStillOpen(r, nowM)); });
   live2.sort(function (a, b) { return (horaMin(b.hora) || 0) - (horaMin(a.hora) || 0); });
-  return { mode: 'live', list: live2.slice(0, 3) };
+  if (live2.length) return { mode: 'live', list: live2.slice(0, 3) };
+  // Nada rolando agora → A SEGUIR HOJE: eventos de hoje que ainda VÃO começar (sem arrecadado,
+  // hora ainda por vir), do mais cedo pro mais tarde. Se não houver nenhum, cai no estado vazio.
+  var next = pool.filter(function (r) {
+    if (r.premiacao != null) return false;                 // já fechou
+    var hm = horaMin(r.hora);
+    return isDemo || hm == null || hm >= nowM;              // ainda vai começar hoje
+  }).sort(function (a, b) { return (horaMin(a.hora) || 9999) - (horaMin(b.hora) || 9999); });
+  return { mode: next.length ? 'next' : 'empty', list: next.slice(0, 3) };
 }
 function renderTodayTop3() {
   var el = $('today-top3'); if (!el) return;
-  var res = runningNow(), top = res.list;
+  var res = runningNow(), top = res.list, live = res.mode === 'live';
+  var titleEl = document.querySelector('.ctrl-today .ct-head > span');
+  if (titleEl) titleEl.textContent = live ? 'Rolando agora' : 'A seguir hoje';
   var head = $('ct-live-badge');
-  if (head) head.innerHTML = '<i></i>ROLANDO AGORA';
-  if (!top.length) { el.innerHTML = '<div class="ct-empty"><span class="ct-empty-dot"></span>Nenhum SPS rolando agora — late reg aberto aparece aqui ao vivo…</div>'; return; }
+  if (head) { head.className = 'ct-live' + (live ? '' : ' soon'); head.innerHTML = live ? '<i></i>ROLANDO AGORA' : '<i></i>A SEGUIR HOJE'; }
+  if (!top.length) {
+    el.innerHTML = '<div class="ct-empty"><span class="ct-empty-dot"></span>' +
+      (live ? 'Nenhum SPS rolando agora — late reg aberto aparece aqui ao vivo…'
+            : 'Sem SPS previsto pra hoje — os próximos aparecem aqui…') + '</div>';
+    return;
+  }
   el.innerHTML = top.map(function (r, i) {
     var val = r.garantido ? fmtMoneyK(r.garantido) : '—';
-    var meta = (r.hora ? esc(String(r.hora)) + ' · ' : '') + (r.field ? intNum(r.field) + ' jogadores · late aberto' : 'late aberto');
-    return '<div class="ct-card" data-r="' + (i + 1) + '" data-live="1"><div class="ct-rank">' + (i + 1) + '</div>' +
+    var meta = live
+      ? ((r.hora ? esc(String(r.hora)) + ' · ' : '') + (r.field ? intNum(r.field) + ' jogadores · late aberto' : 'late aberto'))
+      : ((r.hora ? 'às ' + esc(String(r.hora)) : 'horário a confirmar') + (r.buyin ? ' · buy-in ' + fmtMoney(r.buyin) : '') + ' · a começar');
+    return '<div class="ct-card" data-r="' + (i + 1) + '"' + (live ? ' data-live="1"' : '') + '><div class="ct-rank">' + (i + 1) + '</div>' +
       '<div class="ct-body"><div class="ct-name">' + esc(shortName(r.nome)) + '</div>' +
       '<div class="ct-meta">' + meta + '</div></div>' +
       '<div class="ct-prem ct-gar">' + val + '</div></div>';
@@ -620,17 +681,20 @@ function fillControl(t) {
 
   // projeção no ritmo atual (linear pelos dias decorridos)
   var proj = pr.elapsed > 0 ? t.arrecadadoBruto / pr.elapsed * pr.total : t.arrecadadoBruto;
-  var projHtml = '<span class="che-proj-dot"></span>Projeção fim da série · <b>' + fmtMoney(proj) + '</b>';
-  if (CAMP.meta && CAMP.meta > 0) projHtml += ' · <b>' + Math.round(proj / CAMP.meta * 100) + '%</b> da meta';
+  var meta = effectiveMeta(t);   // meta com PISO no garantido total da série (ver effectiveMeta)
+  // Projeção fim da série = a META da série (garantido total + 20% ≈ 120 mi).
+  // % da meta = ARRECADADO BRUTO ACUMULADO ÷ META. Bate com a barra "Ritmo vs. meta".
+  var projHtml = '<span class="che-proj-dot"></span>Projeção fim da série · <b>' + fmtMoney(meta) + '</b>';
+  if (meta > 0) projHtml += ' · <b>' + Math.round(t.arrecadadoBruto / meta * 100) + '%</b> da meta';
   setHTML('che-proj', projHtml);
 
-  // #1 barra ritmo vs meta (só se a meta estiver definida)
+  // #1 barra ritmo vs meta (a meta sempre existe — piso no garantido total da série)
   var cm = $('che-meta');
-  if (cm && CAMP.meta && CAMP.meta > 0) {
+  if (cm && meta > 0) {
     cm.hidden = false;
-    setTxt('che-meta-pct', Math.round(t.arrecadadoBruto / CAMP.meta * 100) + '% da meta');
-    var fill = $('che-meta-fill'); if (fill) fill.style.width = clamp(t.arrecadadoBruto / CAMP.meta * 100, 0, 100).toFixed(1) + '%';
-    var pj = $('che-meta-proj'); if (pj) pj.style.left = clamp(proj / CAMP.meta * 100, 0, 100).toFixed(1) + '%';
+    setTxt('che-meta-pct', Math.round(t.arrecadadoBruto / meta * 100) + '% da meta');
+    var fill = $('che-meta-fill'); if (fill) fill.style.width = clamp(t.arrecadadoBruto / meta * 100, 0, 100).toFixed(1) + '%';
+    var pj = $('che-meta-proj'); if (pj) pj.style.left = clamp(proj / meta * 100, 0, 100).toFixed(1) + '%';
   } else if (cm) { cm.hidden = true; }
 
   // #3 alerta de overlay acima do limite
@@ -652,8 +716,8 @@ function fillControl(t) {
   setTxt('sb_rake', pctPlain(t.rakePct) + ' do arrec. · ' + fmtMoneyK(t.dias ? t.rake / t.dias : 0) + '/dia');
   setTxt('sb_admin', t.adminEvents + ' eventos · 2% buy-in');
   setTxt('sb_ov', fmtMoneyK(t.dias ? Math.abs(t.totalOverlay) / t.dias : 0) + '/dia · ' + intNum(t.fechados) + ' fech.');
-  // Performance = média por evento (arrec. líq./gar.−1); o sub dá o contexto (cobertura + nº de eventos fechados)
-  setTxt('sb_perf', 'méd. de ' + intNum(t.fechados) + ' fech. · cob. ' + pctPlain(t.cobertura));
+  // Performance da série = arrecadado ÷ garantido (agregado); o sub dá o contexto (cobertura + nº rodados)
+  setTxt('sb_perf', 'arrec. ÷ gar. de ' + intNum(t.fechados) + ' fech. · cob. ' + pctPlain(t.cobertura));
 
   setTxt('cf-perf', pctSigned(seriePerf(t)));
   // COBERTURA DA SÉRIE = quanto do garantido TOTAL planejado (100,4M) já foi arrecadado
@@ -662,19 +726,19 @@ function fillControl(t) {
   setTxt('cf-cobpct', pctPlain(_cobSerie));
   var cob = $('cf-cob'); if (cob) cob.style.width = clamp(_cobSerie, 0, 100).toFixed(1) + '%';
 
-  // Maiores eventos — SÓ os com garantido de R$ 1 milhão ou mais (dedup por nome+hora)
-  var seenG = {}, topG = ROWS.filter(function (r) {
-    if (!r.garantido || r.garantido < 1000000) return false;
-    var k = nhk(r.nome, r.hora); if (seenG[k]) return false; seenG[k] = 1; return true;
-  }).sort(function (a, b) { return (b.garantido || 0) - (a.garantido || 0); });
+  // Maiores eventos — os MAIORES garantidos que ainda VÃO acontecer (grade da GU),
+  // sem repetir o mesmo torneio recorrente (dedup por eventKey). Mostra data · hora.
+  var topG = biggestUpcoming();
   var st = $('cst-table');
   if (st) st.innerHTML = '<div class="cst-row h"><span class="r">#</span><span class="nm">Evento</span><span class="pr">garantido</span></div>' +
     (topG.length ? topG.slice(0, 5).map(function (r, i) {
+      var quando = (r.date ? fmtDMY(r.date).slice(0, 5) : '') + (r.hora ? ((r.date ? ' · ' : '') + esc(String(r.hora))) : '');
+      var sub = quando + (r.buyin ? ' · buy-in ' + fmtMoney(r.buyin) : '');
       return '<div class="cst-row' + (i < 3 ? ' top' : '') + '"><span class="r">' + (i + 1) + '</span>' +
         '<div class="cst-ev"><div class="cst-nm">' + evTag(r) + esc(fullName(r.nome)) + '</div>' +
-        '<div class="cst-sub">' + evMeta(r, r.field ? intNum(r.field) + ' jog.' : null) + '</div></div>' +
+        '<div class="cst-sub">' + (sub || evMeta(r)) + '</div></div>' +
         '<span class="pr">' + fmtMoneyK(r.garantido) + '</span></div>';
-    }).join('') : '<div class="ct-empty"><span class="ct-empty-dot"></span>Sem eventos de R$ 1 mi+ nesta série ainda…</div>');
+    }).join('') : '<div class="ct-empty"><span class="ct-empty-dot"></span>Grade SPS futura ainda não publicada…</div>');
 
   renderCharts();
 }
@@ -774,10 +838,11 @@ function renderJourney() {
     grid += '<i class="jc-gl' + (t === 0 ? ' is-base' : '') + '" style="--f:' + f + '"></i>';
   }
   var showEvery = Math.max(1, Math.ceil(n / 16));   // com muitos dias, espaça os rótulos de data
+  var dense = n > 20;   // muitos dias → o rótulo de valor vira VERTICAL (não sobrepõe)
   var bars = days.map(function (d, i) {
     var h = clamp(d.arr / max * 100, 0.8, 100).toFixed(2);
     var isNow = d.date === todayISO, isBest = i === bestIdx, isRecord = isBest && isNow;   // hoje==melhor = recorde ao vivo
-    var showVal = isBest || isNow || n <= 12;
+    var showVal = true;   // TODAS as barras mostram o total acima (não só o melhor dia)
     return '<div class="jc-col' + (isNow ? ' is-now' : '') + (isBest ? ' is-best' : '') + (isRecord ? ' is-record' : '') + '" style="--i:' + i + '">' +
       '<div class="jc-bar" style="--h:' + h + '%">' +
         (isRecord ? '<span class="jc-tag record">★ recorde</span>' : (isBest ? '<span class="jc-tag">melhor dia</span>' : (isNow ? '<span class="jc-tag now">hoje</span>' : ''))) +
@@ -792,7 +857,7 @@ function renderJourney() {
   }).join('');
   var avgF = clamp(avg / max * 100, 0, 100).toFixed(2) + '%';
   el.innerHTML =
-    '<div class="jc-plot" style="--n:' + n + '">' +
+    '<div class="jc-plot' + (dense ? ' is-dense' : '') + '" style="--n:' + n + '">' +
       '<div class="jc-frame">' +
         '<div class="jc-yaxis">' + axis + '</div>' +
         '<div class="jc-area">' +

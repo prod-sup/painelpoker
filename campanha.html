@@ -171,7 +171,7 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
 
       <div class="cglass ctrl-standing">
         <img class="card-accent" src="sps-el/4-cards.png" alt="" aria-hidden="true" onerror="this.remove()">
-        <div class="cst-head"><span>Maiores eventos</span><b>garantido</b></div>
+        <div class="cst-head"><span>Maiores eventos · a caminho</span><b>garantido</b></div>
         <div class="cst-table" id="cst-table"></div>
       </div>
 
@@ -209,7 +209,7 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
       <span class="eyebrow center">Os maiores garantidos da semana</span>
       <h2>Tier da Semana <span>· SPS</span></h2>
     </div>
-    <div class="tier-list" id="tier-list"></div>
+    <div class="scene-panel"><div class="tier-list" id="tier-list"></div></div>
   </section>
 
   <!-- ░░ TELA — EVENTOS SPS DE HOJE (arrecadado preenchido) + operador ░░ -->
@@ -218,7 +218,7 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
       <span class="eyebrow center"><i class="ao-dot"></i>Ao vivo · hoje</span>
       <h2>Eventos SPS de Hoje</h2>
     </div>
-    <div class="tday-list" id="today-events"></div>
+    <div class="scene-panel"><div class="tday-list" id="today-events"></div></div>
   </section>
 
   <!-- ░░ TELA — VEM AÍ (grade SPS de amanhã) ░░ -->
@@ -227,7 +227,7 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
       <span class="eyebrow center">Amanhã na Suprema</span>
       <h2>Vem aí <span>· SPS</span></h2>
     </div>
-    <div class="coming-list" id="coming-events"></div>
+    <div class="scene-panel"><div class="coming-list" id="coming-events"></div></div>
   </section>
 
   <!-- ░░ TELA — A SEMANA INTEIRA (todos os SPS da semana por dia) ░░ -->
@@ -236,8 +236,10 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
       <span class="eyebrow center">A semana inteira</span>
       <h2>A Semana SPS <span>· dia a dia</span></h2>
     </div>
-    <div class="wk-summary" id="week-summary" hidden></div>
-    <div class="week-grid" id="week-grid"></div>
+    <div class="scene-panel">
+      <div class="wk-summary" id="week-summary" hidden></div>
+      <div class="week-grid" id="week-grid"></div>
+    </div>
   </section>
 
 

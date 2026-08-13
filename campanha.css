@@ -145,7 +145,7 @@ body:hover .tv-btn{opacity:.9} body:hover .tv-btn:hover{opacity:1}
    (header, palco, ticker, indicador) p/ dentro de uma margem segura. O fundo (vídeo/PNG) segue
    full-bleed (pode cortar nas pontas, é decorativo). Ativado via classe `.tv-device` (UA/?tv=1).
    Obs.: o ideal é ligar "Ajustar à tela / Just Scan" nas configs de IMAGEM da TV — aí nem precisa. ── */
-html.tv-device{--ovh:3vh; --ovw:2.8vw}
+html.tv-device{--ovh:3.5vh; --ovw:3.4vw}
 html.tv-device .tv-top{top:var(--ovh); left:var(--ovw); right:var(--ovw)}
 html.tv-device .tv-stage{inset:var(--ovh) var(--ovw) calc(58px + var(--ovh) + 12px) var(--ovw)}
 html.tv-device .tv-ticker{left:var(--ovw); right:var(--ovw); bottom:var(--ovh); border-radius:14px; overflow:hidden}
@@ -169,6 +169,31 @@ html.tv-device .tv-rot{bottom:calc(58px + var(--ovh) + 24px)}
 /* cards não podem ENCOLHER dentro da coluna flex (senão o subtítulo é cortado) —
    mantêm a altura natural e a lista desce sozinha (auto-scroll) quando há mais do que cabe */
 .coming-card,.tier-row,.team-card,.aviso-card{flex:0 0 auto}
+
+/* ── GLASSMORPHISM das cenas: um painel fosco atrás das infos pra elas não competirem
+   com o vídeo do fundo (troféu/logo do hero). Mesma linguagem do control room e da
+   jornada — translúcido + borda + brilho interno + sombra. SEM backdrop-filter de
+   propósito: blur ao vivo sobre o hero re-borra a cada frame e derruba o FPS na TV. ── */
+.scene-panel{position:relative; flex:1 1 auto; min-height:0; width:100%; display:flex; flex-direction:column;
+  margin-inline:auto; border-radius:24px; border:1px solid rgba(255,255,255,.09); overflow:hidden;
+  padding:clamp(16px,1.7vw,32px); gap:clamp(14px,1.8vh,26px);
+  background:linear-gradient(170deg, rgba(16,20,28,.42) 0%, rgba(8,11,15,.6) 74%, rgba(7,10,14,.7) 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 90px -42px rgba(201,168,76,.24), 0 44px 92px -52px rgba(0,0,0,.82)}
+/* listas que ROLAM: mantêm o fade de topo/base (linhas 166-168) pra as bordas desbotarem
+   suave DURANTE o auto-scroll — mas com padding igual ao fade (30px), então parado nenhum
+   card cai na zona do fade (não parece "corte"); só some suave quando está rolando. */
+.scene-panel>.tday-list,.scene-panel>.coming-list,.scene-panel>.tier-list{padding-block:30px}
+.scene-panel::before{content:""; position:absolute; inset:0 0 auto 0; height:1px; pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.22),transparent); opacity:.55}
+.scene-panel>.tier-list,.scene-panel>.tday-list,.scene-panel>.coming-list,.scene-panel>.week-grid,.scene-panel>.wk-summary{width:100%; max-width:none}
+/* essas cenas ROLAM (auto-scroll) quando têm mais do que cabe — a lista precisa PREENCHER
+   a altura do vidro (flex:1) e rolar, nunca centralizar/encolher (senão corta o card). */
+.scene-panel>.tier-list,.scene-panel>.tday-list,.scene-panel>.coming-list{flex:1 1 auto; min-height:0}
+/* o grid de HOJE: cada linha tem a ALTURA DO CONTEÚDO — nunca fatias iguais (align-content
+   stretch) que espremem os cards mais altos (com premiação) e cortam. O excedente rola. */
+.scene-panel>.tday-list{align-content:start; grid-auto-rows:max-content}
+/* títulos/olho-mágico das cenas ganham um scrim de sombra pra ler sobre o vídeo */
+.rk-top h2,.jn-title h2,.scene-head h2,.eyebrow{text-shadow:0 2px 20px rgba(0,0,0,.5)}
 
 /* cabeçalho de cena */
 .scene-head{text-align:center; max-width:78vw}
@@ -327,6 +352,37 @@ html.lite .ident-logo-sheen{display:none} html.lite .off-dots i{animation:none}
 .off-title{font-size:clamp(1.4rem,3vw,2.2rem); font-weight:600; margin:14px 0 0}
 .off-sub{font-size:14px; color:var(--ink3); max-width:52ch; text-align:center}
 
+/* ── BOOT do canal (estilo PlayStation): o logo Suprema se MONTA — sobe da escala,
+   sai do blur pra nítido com um flash dourado, um BLOOM respira atrás e uma luz varre.
+   Título/legenda entram em seguida. Premium e sem pressa, como uma tela de power-on. ── */
+.scene-off .ident-logo{position:relative; filter:drop-shadow(0 0 42px var(--gold-glow));
+  animation:ps-ident-in 1.6s cubic-bezier(.16,1,.3,1) both, tv-breathe 4.4s var(--ease) 1.7s infinite}
+.scene-off .ident-logo::before{content:""; position:absolute; left:50%; top:50%; width:170%; height:300%; z-index:-1;
+  pointer-events:none; opacity:.42; transform:translate(-50%,-50%);
+  background:radial-gradient(ellipse at center, var(--gold-glow) 0%, rgba(201,168,76,.10) 40%, transparent 72%);
+  animation:ps-ident-bloom 1.6s ease-out both, ps-bloom-breathe 4.4s var(--ease) 1.7s infinite}
+.scene-off .ident-logo-sheen{animation:tv-logo-sheen 3s ease-in-out .55s infinite}
+.scene-off .off-title{animation:ps-line-up .9s var(--ease-in) .6s both}
+.scene-off .off-sub{animation:ps-line-up .9s var(--ease-in) .82s both}
+@keyframes ps-ident-in{
+  0%  {opacity:0; transform:translateY(12px) scale(.84); filter:blur(16px) brightness(2)}
+  55% {opacity:1; filter:blur(0) brightness(1.14)}
+  100%{opacity:1; transform:translateY(0) scale(1); filter:blur(0) brightness(1)}
+}
+@keyframes ps-ident-bloom{
+  0%  {opacity:0; transform:translate(-50%,-50%) scale(.35)}
+  45% {opacity:.92}
+  100%{opacity:.42; transform:translate(-50%,-50%) scale(1)}
+}
+@keyframes ps-bloom-breathe{0%,100%{opacity:.32; transform:translate(-50%,-50%) scale(.96)}50%{opacity:.58; transform:translate(-50%,-50%) scale(1.06)}}
+@keyframes ps-line-up{from{opacity:0; transform:translateY(12px)}to{opacity:1; transform:none}}
+html.lite .scene-off .ident-logo,html.lite .scene-off .ident-logo::before{animation:none}
+@media (prefers-reduced-motion:reduce){
+  .scene-off .ident-logo,.scene-off .ident-logo::before,.scene-off .off-title,.scene-off .off-sub{
+    animation:none!important; opacity:1; transform:none; filter:none}
+  .scene-off .ident-logo::before{opacity:.42; transform:translate(-50%,-50%)}
+}
+
 /* chrome inferior --------------------------------------------------------- */
 .tv-bot{position:fixed; left:0; right:0; bottom:0; z-index:6; display:flex; flex-direction:column; gap:0}
 .tv-bot[hidden]{display:none}
@@ -356,7 +412,11 @@ html.lite .ident-logo-sheen{display:none} html.lite .off-dots i{animation:none}
 .tk-item em{font-style:normal; color:var(--gen); font-weight:800; margin-left:8px}
 .tk-sum{color:var(--gold-hi); font-weight:800; letter-spacing:.02em}
 .tk-sep{color:rgba(201,168,76,.5); font-size:13px}
-html.lite .ticker-track{animation:none}
+/* O ticker PRECISA rolar em lite/TV também: sem a animação ele fica preso no
+   padding-left:100% (empurrado pra FORA da tela → a faixa aparece VAZIA na TV). O scroll
+   é só um transform de compositor (barato), então mantém ligado mesmo em lite.
+   Em reduced-motion aí sim paramos — e zeramos o padding pra o conteúdo ficar visível parado. */
+@media (prefers-reduced-motion:reduce){ .ticker-track{animation:none; padding-left:0} }
 
 /* ── CENA CONTROL ROOM (composição cinematográfica multi-painel) ──────── */
 .scene-control{padding:calc(clamp(16px,2vh,26px) + 54px) clamp(20px,2.4vw,44px) calc(12px + clamp(10px,1.4vh,18px)); align-items:stretch; justify-content:flex-start; gap:clamp(12px,1.8vh,24px)}
@@ -572,6 +632,8 @@ html.lite .ch-line,html.lite .cf-pathline{stroke-dasharray:none; stroke-dashoffs
 .ct-head{display:flex; align-items:baseline; justify-content:space-between; font-size:12.5px; color:var(--ink2); font-weight:500}
 .ct-live{display:inline-flex; align-items:center; gap:6px; font-size:9px; font-weight:800; letter-spacing:.12em; color:#8ff3c0}
 .ct-live i{width:6px; height:6px; border-radius:50%; background:#38e79a; box-shadow:0 0 8px #38e79a; animation:tv-pulse 2s var(--ease) infinite}
+/* "A SEGUIR HOJE" (nada rolando agora) — dourado em vez do verde do ao vivo */
+.ct-live.soon{color:var(--gold-hi)} .ct-live.soon i{background:var(--gold-hi); box-shadow:0 0 8px var(--gold-glow)}
 .ct-list{display:flex; flex-direction:column; gap:10px; flex:1; min-height:0; justify-content:center}
 .ct-card{display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:14px; padding:13px 15px; border-radius:14px;
   border:1px solid var(--line); background:linear-gradient(120deg, rgba(255,255,255,.045), rgba(255,255,255,.015)); position:relative; overflow:hidden;
@@ -642,7 +704,13 @@ html.lite .ch-area,html.lite .cf-area,html.lite .sp-area,html.lite .che-peak spa
    número e sub centrados. Nada de conteúdo encostando na borda. */
 .cttl-grid .mtile{padding:clamp(11px,1vw,15px); align-items:center; text-align:center}
 .cttl-grid .mtile-top{flex-direction:column; align-items:center; justify-content:center; gap:3px; width:100%}
-.cttl-grid .mtile-lbl{text-align:center; line-height:1.15}
+/* reserva SEMPRE 2 linhas no rótulo (uns têm 1, outros 2) — assim o VALOR começa na
+   mesma altura em todos os tiles, em vez de cada um numa altura. */
+.cttl-grid .mtile-lbl{text-align:center; line-height:1.15; min-height:2.3em; display:flex; align-items:center; justify-content:center}
+/* reserva também a LINHA da tendência mesmo VAZIA (rake/admin têm pct=false → HTML vazio):
+   sem isso o topo deles encurta e o valor sobe. Com label(2 linhas)+trend(1 linha) fixos,
+   o topo fica idêntico nos 6 tiles → todos os valores na MESMA altura. */
+.cttl-grid .mtile-trend{min-height:1.2em; display:flex; align-items:center; justify-content:center}
 .cttl-grid .mtile-num{font-size:clamp(.72rem,.9vw,1.06rem); white-space:nowrap; letter-spacing:-.02em}
 .cttl-grid .mtile-num .pre{font-size:.62em; margin-right:2px; opacity:.85}
 .cttl-grid .mtile-sub{text-align:center}
@@ -715,6 +783,11 @@ html.lite .ch-area,html.lite .cf-area,html.lite .sp-area,html.lite .che-peak spa
 .jc-val{position:absolute; bottom:100%; left:50%; transform:translateX(-50%); margin-bottom:6px; white-space:nowrap;
   font-size:clamp(9px,.72vw,12px); font-weight:700; color:var(--gold-hi); font-variant-numeric:tabular-nums}
 .jc-col.is-now .jc-val{color:var(--gen)}
+/* muitos dias (is-dense): o valor de cada barra vira VERTICAL pra caber sem sobrepor;
+   os selos (melhor dia/hoje) somem — a cor da barra já distingue esses dias. */
+.jc-plot.is-dense .jc-val{transform-origin:50% 100%; transform:translateX(-50%) rotate(-90deg);
+  margin-bottom:9px; font-size:clamp(9px,.7vw,14px)}
+.jc-plot.is-dense .jc-tag{display:none}
 .jc-tag{position:absolute; bottom:100%; left:50%; transform:translateX(-50%); margin-bottom:26px; white-space:nowrap;
   font-size:8px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; padding:2px 7px; border-radius:999px;
   color:#1a1206; background:linear-gradient(90deg,var(--gold),var(--gold-hi))}
@@ -1155,9 +1228,10 @@ html.lite .wk-bar i{animation:none}
 @keyframes tv-toast-in{to{transform:none; opacity:1}}
 @keyframes tv-toast-out{to{transform:translateX(120%); opacity:0}}
 
-/* #10 escala p/ telão grande (distância) */
-@media (min-width:2560px){ body{ zoom:1.3 } }
-@media (min-width:3400px){ body{ zoom:1.7 } }
+/* #10 telão grande (distância): a legibilidade de longe é resolvida pelo bloco
+   @media (min-width:2200px) logo abaixo, que escala a TIPOGRAFIA por vmin. NÃO usar
+   `zoom` aqui — o palco é fixed/full-viewport e JÁ preenche a tela; `zoom>1` ampliava
+   todo o body além da viewport e CORTAVA o conteúdo no telão 4K (98" Samsung). */
 
 @media (max-width:1100px){
   .ctrl-grid{grid-template-columns:1fr 1fr; grid-template-rows:auto auto auto auto}
