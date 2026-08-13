@@ -405,19 +405,17 @@ html.lite .scene-off .ident-logo,html.lite .scene-off .ident-logo::before{animat
   background:linear-gradient(135deg,var(--gold-hi),var(--gold))}
 .ticker-mask{flex:1; overflow:hidden; display:flex; align-items:center;
   -webkit-mask-image:linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent); mask-image:linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent)}
-.ticker-track{display:inline-flex; align-items:center; gap:34px; white-space:nowrap; padding-left:100%; will-change:transform; animation:ticker-run linear infinite}
-@keyframes ticker-run{to{transform:translateX(-50%)}}
+/* scroll do ticker é dirigido por JS (rAF translateX) — mais robusto na TV Samsung/Tizen,
+   que ignora a duração de animação CSS setada por JS (fazia a faixa congelar/ficar vazia).
+   Sem padding-left: começa já com conteúdo visível; o JS translada e loopa (2 cópias). */
+.ticker-track{display:inline-flex; align-items:center; gap:34px; white-space:nowrap; will-change:transform}
 .tk-item{font-size:16.5px; font-weight:600; color:var(--ink)}
 .tk-item b{font-family:var(--mono); color:var(--gold-hi); margin-right:8px}
 .tk-item i{font-style:normal; color:var(--ink3); margin:0 6px}
 .tk-item em{font-style:normal; color:var(--gen); font-weight:800; margin-left:8px}
 .tk-sum{color:var(--gold-hi); font-weight:800; letter-spacing:.02em}
 .tk-sep{color:rgba(201,168,76,.5); font-size:13px}
-/* O ticker PRECISA rolar em lite/TV também: sem a animação ele fica preso no
-   padding-left:100% (empurrado pra FORA da tela → a faixa aparece VAZIA na TV). O scroll
-   é só um transform de compositor (barato), então mantém ligado mesmo em lite.
-   Em reduced-motion aí sim paramos — e zeramos o padding pra o conteúdo ficar visível parado. */
-@media (prefers-reduced-motion:reduce){ .ticker-track{animation:none; padding-left:0} }
+/* (o scroll do ticker é dirigido por JS — ver startTickerScroll no campanha.js) */
 
 /* ── CENA CONTROL ROOM (composição cinematográfica multi-painel) ──────── */
 .scene-control{padding:calc(clamp(16px,2vh,26px) + 54px) clamp(20px,2.4vw,44px) calc(12px + clamp(10px,1.4vh,18px)); align-items:stretch; justify-content:flex-start; gap:clamp(12px,1.8vh,24px)}
