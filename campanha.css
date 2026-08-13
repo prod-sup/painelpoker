@@ -7,7 +7,8 @@
 
 :root{
   --bg0:#04060a; --bg1:#080c12; --bg2:#0c141b;
-  --ink:#f4f6f8; --ink2:rgba(244,246,248,.62); --ink3:rgba(244,246,248,.38); --ink4:rgba(244,246,248,.17);
+  /* Brian pediu: nada de fonte cinza — os secundários sobem pra branco (leve hierarquia só). */
+  --ink:#f4f6f8; --ink2:rgba(244,246,248,.96); --ink3:rgba(244,246,248,.86); --ink4:rgba(244,246,248,.74);
 
   /* dourado da marca */
   --gold:#c9a84c; --gold-hi:#f2dc94; --gold-deep:#8f6b2d; --gold-glow:rgba(201,168,76,.55);
@@ -1152,8 +1153,10 @@ html.lite .hero-big{animation:none; color:var(--gold-hi)}
 .wk-n{display:flex; flex-direction:column; gap:3px; min-width:0}
 .wk-n b{font-size:clamp(1.4rem,2vw,2.6rem); font-weight:800; color:var(--gold-hi); font-variant-numeric:tabular-nums; white-space:nowrap; line-height:1; letter-spacing:-.02em}
 .wk-n span{font-size:clamp(8.5px,.65vw,10.5px); letter-spacing:.06em; text-transform:uppercase; color:var(--ink4); white-space:nowrap; margin-top:1px}
-.wk-top{font-size:clamp(10px,.72vw,12.5px); color:var(--ink3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.wk-top span{color:var(--gold); font-weight:700; text-transform:uppercase; letter-spacing:.04em; font-size:clamp(8.5px,.6vw,10px); margin-right:5px}
+/* sem barrinha: o NOME do maior torneio do dia fica em destaque (branco/negrito, até 2 linhas) */
+.wk-top{font-size:clamp(12px,.95vw,17px); color:var(--ink); font-weight:600; line-height:1.3; white-space:normal;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+.wk-top span{color:var(--gold); font-weight:700; text-transform:uppercase; letter-spacing:.05em; font-size:.72em; margin-right:6px}
 
 /* resumo da semana (faixa acima da grade) */
 .wk-summary{width:min(1780px,97vw); display:grid; grid-template-columns:repeat(4,1fr); gap:clamp(10px,1.1vw,18px)}

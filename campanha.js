@@ -282,7 +282,7 @@ var SCENES = [
   { id: 'coming', dwell: 16000, enter: enterComing },     // rola
   { id: 'journey', dwell: 15000, enter: enterJourney },   // gráfico de barras (cabe inteiro)
   { id: 'week', dwell: 18000, enter: enterWeek },         // A Semana Inteira — rola
-  { id: 'ranking', dwell: 14000, enter: enterRanking },   // Tier — rola se precisar
+  // 'ranking' (Tier da Semana) removido da rotação a pedido do Brian.
 ];
 var _si = 0, _dirT = null, _dirStarted = false;
 /* loops por cena (auto-scroll / hero cíclico) — limpos a cada troca de cena */
@@ -1112,7 +1112,6 @@ function renderWeek() {
       '<div class="wk-day">' + wd + '<small>' + d.slice(8, 10) + '/' + d.slice(5, 7) + (isNow ? ' · hoje' : '') + '</small></div>' +
       '<div class="wk-stats"><div class="wk-n"><b>' + evs.length + '</b><span>eventos SPS</span></div>' +
       '<div class="wk-n"><b>' + fmtMoneyK(totGar) + '</b><span>garantido total</span></div></div>' +
-      '<div class="wk-bar" style="--p:' + barPct + '%"><i></i></div>' +
       (biggest ? '<div class="wk-top"><span>Maior</span> ' + esc(fullName(biggest.nome)) + ' · ' + fmtMoneyK(biggest.garantido) + '</div>' : '') +
       '</div>';
   }).join('');
