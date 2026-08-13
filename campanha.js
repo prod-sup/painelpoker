@@ -148,14 +148,25 @@ function biggestUpcoming() {
 }
 
 /* ── boot / dados ────────────────────────────────────────────── */
+/* RESILIÊNCIA: se o carregamento do histórico falha, tenta de novo com backoff exponencial
+   (teto 60s) até dar certo. Se o telão JÁ subiu, NÃO volta pra tela de "carregando" — segue
+   com o último render bom e reconecta em silêncio. Só mostra aviso se ainda não revelou. */
+var _retryMs = 0;
+function retryLoad() {
+  if (!_revealed) showOff('Reconectando…', 'Sem dados da série ainda — o canal tenta de novo sozinho.');
+  _retryMs = Math.min(60000, (_retryMs || 3000) * 1.8);
+  setTimeout(function () {
+    loadHistory().then(function () { _retryMs = 0; recompute(); wireLive(); }).catch(function () { retryLoad(); });
+  }, _retryMs);
+}
 function initData() {
   if (!window.SupremaDB || !SupremaDB.init()) { setTimeout(initData, 300); return; }
   SupremaDB.requireUser(function () {
     console.info('[SUPREMA TV] auth ok — carregando');
     loadConfig()
       .then(loadHistory)
-      .then(function () { recompute(); wireLive(); })
-      .catch(function (e) { console.error('[SUPREMA TV] falha', e); showOff('Não deu pra carregar', 'Verifique a conexão — o canal tenta de novo sozinho.'); setTimeout(function () { loadHistory().then(recompute).catch(function () {}); }, 8000); });
+      .then(function () { _retryMs = 0; recompute(); wireLive(); })
+      .catch(function (e) { console.error('[SUPREMA TV] falha ao carregar', e && (e.message || e)); retryLoad(); });
     loadGrade();
     var lastGlobalAt = null;
     SupremaDB.watch('painel/globalMtt/at', function (snap) { var at = snap.val(); if (at == null || ('' + at) === ('' + lastGlobalAt)) return; lastGlobalAt = '' + at; loadGrade(); });
@@ -238,13 +249,19 @@ function wireLive() {
 function scheduleRecompute() { clearTimeout(_recT); _recT = setTimeout(recompute, 400); }
 function recompute() {
   if (!window.CampanhaCore) return;
-  var today = clampTo(), days = {};
-  var okD = function (d) { return isDate(d) && d >= CAMP.inicio && d <= today; };
-  Object.keys(SNAP_BY).forEach(function (d) { if (okD(d)) (days[d] = days[d] || {}).snap = SNAP_BY[d]; });
-  Object.keys(PAINEL_BY).forEach(function (d) { if (okD(d)) (days[d] = days[d] || {}).day = PAINEL_BY[d]; });
-  var res = CampanhaCore.computeCampaign(days, CAMP.inicio, today, { filter: CampanhaCore.isSPS, auditData: AUDIT });
-  ROWS = res.rows;
-  onData(res.totals);
+  try {
+    var today = clampTo(), days = {};
+    var okD = function (d) { return isDate(d) && d >= CAMP.inicio && d <= today; };
+    Object.keys(SNAP_BY).forEach(function (d) { if (okD(d)) (days[d] = days[d] || {}).snap = SNAP_BY[d]; });
+    Object.keys(PAINEL_BY).forEach(function (d) { if (okD(d)) (days[d] = days[d] || {}).day = PAINEL_BY[d]; });
+    var res = CampanhaCore.computeCampaign(days, CAMP.inicio, today, { filter: CampanhaCore.isSPS, auditData: AUDIT });
+    ROWS = res.rows;
+    onData(res.totals);
+  } catch (e) {
+    // RESILIÊNCIA: um update ruim (dado corrompido num blip do Firebase) NÃO pode apagar o
+    // telão. Loga e mantém o ÚLTIMO RENDER BOM (ROWS/T e o DOM ficam como estavam).
+    console.error('[SUPREMA TV] recompute falhou — mantendo último render bom:', e && (e.message || e));
+  }
 }
 
 /* ── identidade ──────────────────────────────────────────────── */
@@ -286,11 +303,26 @@ var SCENES = [
 ];
 var _si = 0, _dirT = null, _dirStarted = false;
 /* loops por cena (auto-scroll / hero cíclico) — limpos a cada troca de cena */
-var _sceneTimers = [], _scrollRAF = null;
-function stopSceneLoops() { _sceneTimers.forEach(function (t) { clearInterval(t); }); _sceneTimers = []; if (_scrollRAF) { cancelAnimationFrame(_scrollRAF); _scrollRAF = null; } }
+var _sceneTimers = [], _scrollLoop = null;
+function stopSceneLoops() { _sceneTimers.forEach(function (t) { clearInterval(t); }); _sceneTimers = []; if (_scrollLoop) { _scrollLoop.stop(); _scrollLoop = null; } }
+/* Loop de animação por rAF com dt SEGURO: o 1º frame só ancora o tempo (nunca dt=NaN — o
+   bug que travou o ticker). step(dt) roda a cada frame com dt em segundos (clamp 50ms p/
+   aba que volta do 2º plano); retorne false pra parar. Devolve { stop } pra cancelar. */
+function rafLoop(step) {
+  var last = null, id = null, live = true;
+  function tick(ts) {
+    if (!live) return;
+    if (last == null) { last = ts; id = requestAnimationFrame(tick); return; }
+    var dt = Math.min(0.05, (ts - last) / 1000); last = ts;
+    if (step(dt) === false) { live = false; id = null; return; }
+    id = requestAnimationFrame(tick);
+  }
+  id = requestAnimationFrame(tick);
+  return { stop: function () { live = false; if (id) cancelAnimationFrame(id); id = null; } };
+}
 /* telas com mais conteúdo descem sozinhas (estilo "s-roll" da TV) */
 function autoScrollList(el, dwellMs) {
-  if (_scrollRAF) { cancelAnimationFrame(_scrollRAF); _scrollRAF = null; }
+  if (_scrollLoop) { _scrollLoop.stop(); _scrollLoop = null; }
   if (!el || reduced()) return;
   el.scrollTop = 0;
   requestAnimationFrame(function () {
@@ -298,18 +330,17 @@ function autoScrollList(el, dwellMs) {
     if (max <= 6) return;
     // auto-scroll CONTÍNUO (vai-e-volta em loop) enquanto a cena está no ar: topo→desce→
     // fim→sobe→repete, com pausa nas pontas. Velocidade constante (~85px/s) p/ ler sempre igual.
-    var HOLD = 2400, LEG = Math.max(3600, max / 85 * 1000), cycle = (HOLD + LEG) * 2, t0 = null;
-    (function step(ts) {
-      if (!el.isConnected || el.offsetParent === null) { _scrollRAF = null; return; }  // cena saiu → para sozinho
-      if (t0 == null) t0 = ts;
-      var pos = (ts - t0) % cycle, y;
+    var HOLD = 2400, LEG = Math.max(3600, max / 85 * 1000), cycle = (HOLD + LEG) * 2, elapsed = 0;
+    _scrollLoop = rafLoop(function (dt) {
+      if (!el.isConnected || el.offsetParent === null) return false;  // cena saiu → para sozinho
+      elapsed += dt * 1000;
+      var pos = elapsed % cycle, y;
       if (pos < HOLD) y = 0;
       else if (pos < HOLD + LEG) y = (pos - HOLD) / LEG;
       else if (pos < HOLD + LEG + HOLD) y = 1;
       else y = 1 - (pos - HOLD - LEG - HOLD) / LEG;
       el.scrollTop = max * y;
-      _scrollRAF = requestAnimationFrame(step);
-    })();
+    });
   });
 }
 function startDirector() {
@@ -1038,24 +1069,20 @@ function renderTicker() {
 /* Scroll do ticker por JS (rAF): translada o track pra esquerda a ~90px/s e loopa quando
    passou UMA cópia (o conteúdo é duplicado, então o loop é imperceptível). Robusto na TV —
    não depende de animação CSS (que o Tizen congela). É elemento de broadcast: rola sempre. */
-var _tickRAF = null, _tickX = 0;
+var _tickLoop = null;
 function startTickerScroll(track) {
-  if (_tickRAF) { cancelAnimationFrame(_tickRAF); _tickRAF = null; }
+  if (_tickLoop) { _tickLoop.stop(); _tickLoop = null; }
   if (!track) return;
-  _tickX = 0; var last = null, SPEED = 90;
-  function step(ts) {
-    if (!track.isConnected) { _tickRAF = null; return; }
-    if (last == null) { last = ts; _tickRAF = requestAnimationFrame(step); return; }   // 1º frame só ancora o tempo (senão dt=NaN trava tudo)
-    var dt = Math.min(0.05, (ts - last) / 1000); last = ts;   // clamp dt (aba volta do 2º plano)
+  var x = 0, SPEED = 90;
+  _tickLoop = rafLoop(function (dt) {
+    if (!track.isConnected) return false;
     var half = track.scrollWidth / 2;
     if (half > 1) {
-      _tickX -= SPEED * dt;
-      if (-_tickX >= half) _tickX += half;
-      track.style.transform = 'translateX(' + _tickX.toFixed(1) + 'px)';
+      x -= SPEED * dt;
+      if (-x >= half) x += half;                 // loop imperceptível (conteúdo duplicado)
+      track.style.transform = 'translateX(' + x.toFixed(1) + 'px)';
     }
-    _tickRAF = requestAnimationFrame(step);
-  }
-  _tickRAF = requestAnimationFrame(step);   // arranca via rAF → 1º ts é REAL, nunca undefined
+  });
 }
 
 /* ── TELA — Recordes da Semana: 1 tela por recorde (maior premiação / maior público) ── */

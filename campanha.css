@@ -106,6 +106,10 @@ html.lite .tv-fog{display:none}
   background-size:240% 100%; animation:tv-sweep 14s ease-in-out infinite}
 @keyframes tv-sweep{0%,100%{background-position:130% 0}50%{background-position:-30% 0}}
 html.lite .tv-grain,html.lite .tv-sweep{display:none}
+/* #perf: nenhum backdrop-filter AO VIVO na TV (modo lite) — blur sobre o vídeo do hero
+   re-borra a cada frame e derruba o FPS. Os cards mantêm o gradiente translúcido (glass
+   sem blur), então o visual continua. No desktop (sem lite) o blur segue normal. */
+html.lite *{ -webkit-backdrop-filter:none !important; backdrop-filter:none !important; }
 
 /* chrome ------------------------------------------------------------------ */
 .tv-top{position:fixed; top:0; left:0; right:0; z-index:6; display:flex; align-items:center; justify-content:space-between;
@@ -947,7 +951,8 @@ body.win-blurred .che-big,html.lite .che-big{animation:none}
 .che-meta-bar{position:relative; height:8px; border-radius:999px; background:rgba(255,255,255,.08)}
 .che-meta-bar i{display:block; height:100%; width:0; border-radius:999px; background:linear-gradient(90deg,var(--gold-deep),var(--gold-hi)); transition:width 1.3s var(--ease)}
 .che-meta-proj{position:absolute; top:-5px; bottom:-5px; width:2px; background:var(--ink); box-shadow:0 0 8px rgba(255,255,255,.5)}
-.che-meta-proj::after{content:"proj"; position:absolute; top:-14px; left:50%; transform:translateX(-50%); font-size:8px; color:var(--ink3); letter-spacing:.04em}
+/* rótulo "proj" ABAIXO da barra — em cima ele colidia com o "22%" do cabeçalho quando o marcador ficava à direita */
+.che-meta-proj::after{content:"proj"; position:absolute; top:auto; bottom:-14px; left:50%; transform:translateX(-50%); font-size:8px; color:var(--ink3); letter-spacing:.04em; text-transform:uppercase}
 
 /* #6/#4 journey: séries + linha de meta + rodapé projeção */
 .jn-series{display:flex; gap:18px; margin-top:12px}
