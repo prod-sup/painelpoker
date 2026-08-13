@@ -692,7 +692,7 @@ function fillControl(t) {
   var cm = $('che-meta');
   if (cm && meta > 0) {
     cm.hidden = false;
-    setTxt('che-meta-pct', Math.round(t.arrecadadoBruto / meta * 100) + '% da meta');
+    setTxt('che-meta-pct', Math.round(t.arrecadadoBruto / meta * 100) + '%');   // só o número — o rótulo já diz "vs. meta" (evita colar)
     var fill = $('che-meta-fill'); if (fill) fill.style.width = clamp(t.arrecadadoBruto / meta * 100, 0, 100).toFixed(1) + '%';
     var pj = $('che-meta-proj'); if (pj) pj.style.left = clamp(proj / meta * 100, 0, 100).toFixed(1) + '%';
   } else if (cm) { cm.hidden = true; }

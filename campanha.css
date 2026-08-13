@@ -943,7 +943,8 @@ body.win-blurred .che-big,html.lite .che-big{animation:none}
 /* #1 hero: barra ritmo vs meta */
 .che-meta{margin-top:14px; max-width:360px}
 .che-meta[hidden]{display:none}
-.che-meta-head{display:flex; justify-content:space-between; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink4); margin-bottom:8px}
+.che-meta-head{display:flex; justify-content:space-between; align-items:baseline; gap:16px; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink4); margin-bottom:8px}
+.che-meta-head span,.che-meta-head b{white-space:nowrap}
 .che-meta-head b{color:var(--gold-hi)}
 .che-meta-bar{position:relative; height:8px; border-radius:999px; background:rgba(255,255,255,.08)}
 .che-meta-bar i{display:block; height:100%; width:0; border-radius:999px; background:linear-gradient(90deg,var(--gold-deep),var(--gold-hi)); transition:width 1.3s var(--ease)}
