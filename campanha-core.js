@@ -29,20 +29,22 @@
 
   var RATES_DEFAULT = { normal: 0.90, campanha: 0.88, sat: 0.95, adminPct: 0.02 };
 
-  /* Campanha SPS: prefixo SPS no começo do nome (não pega SPT). */
+  /* Campanha SPS: prefixo SPS no começo do nome. */
   function isSPS(nome) { return /^\s*SPS\b/i.test(String(nome || '')); }
-  /* Regra de campanha do ADMIN (rake/admin-fee): SPS OU SPT. Mantida idêntica
-     pra o cálculo por-linha bater com o dashboard. */
-  function isCampRate(nome) { return /^\s*(SPS|SPT)\b/i.test(String(nome || '')); }
+  /* Regra de admin fee do ADMIN: SÓ SPS. (Hoje == isSPS.) */
+  function isCampRate(nome) { return /^\s*SPS\b/i.test(String(nome || '')); }
 
   /* admin.js classify() @L104 — categoria por tipo, senão por nome/garantido. */
   function classify(r) {
+    var n = (r.nome || '').toLowerCase();
     var t = (r.tipo || '').toLowerCase();
     if (t.indexOf('main') > -1) return 'main';
     if (t.indexOf('side') > -1) return 'side';
     if (t.indexOf('sat') > -1) return 'sat';
-    var n = (r.nome || '').toLowerCase();
     if (n.indexOf('seat') > -1 || n.indexOf('satelit') > -1 || n.indexOf('satélite') > -1) return 'sat';
+    // Satélite puro do SPT ("N Seats SPT") = satélite; "+SPT" (crossover SPS que
+    // dá seat de SPT) é SPS main/side COM admin fee → NÃO satélite.
+    if (/\bspt\b/.test(n) && !/\+\s*spt\b/.test(n)) return 'sat';
     if ((r.garantido || 0) >= 20000) return 'main';
     return 'side';
   }

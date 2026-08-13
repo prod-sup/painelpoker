@@ -52,10 +52,10 @@ try {
   const nfM = adminSrc.match(/netFactorOf\s*=\s*(\([^)]*\)\s*=>[^;\n]+)/);
   global.DASH_RATES = admin.rates;                      // o arrow do admin fecha sobre este global
   admin.netFactorOf = (0, eval)('(' + nfM[1] + ')');
-  const campRxM = adminSrc.match(/\/\^\\s\*\(SPS\|SPT\)\\b\/i/);   // regex de taxa de campanha (SPS|SPT)
-  admin.isCampRate = (nome) => /^\s*(SPS|SPT)\b/i.test(nome || '');
+  const campRxM = adminSrc.match(/isCamp\s*=\s*\/\^\\s\*SPS\\b\/i/);   // admin fee: SPS (inclui "SPS … +SPT")
+  admin.isCampRate = (nome) => /^\s*SPS\b/i.test(nome || '');
   ok('extração das funções puras do admin.js', true);
-  ok('regra de taxa de campanha (SPS|SPT) presente no admin.js', !!campRxM);
+  ok('regra de admin fee (SPS) presente no admin.js', !!campRxM);
 } catch (e) {
   ok('extração das funções puras do admin.js', false, e.message);
 }
@@ -67,6 +67,10 @@ if (admin) {
     { nome: 'SPS X seat Y' }, { nome: 'Satelite do Main' }, { nome: 'satélite' },
     { garantido: 25000 }, { garantido: 20000 }, { garantido: 19999 }, { garantido: 0 },
     { tipo: 'MAIN', garantido: 100 }, { nome: 'Bounty', garantido: 50000 }, {},
+    // SPT é satélite mesmo com tipo/garantido de Main (regra da casa)
+    { nome: 'SPT Turbo', garantido: 50000 }, { nome: 'SPT Main', tipo: 'Main Event' }, { nome: 'spt' },
+    // satélites reais do SPT têm "SPT" no FIM do nome ("3 Seats SPT", "4 Seats SPT")
+    { nome: '3 Seats SPT' }, { nome: '4 Seats SPT', tipo: 'Main Event', garantido: 99000 }, { nome: 'Satélite SPT #2' },
   ];
   let clsOk = true, clsBad = '';
   rowsCls.forEach((r) => { if (admin.classify(r) !== core.classify(r)) { clsOk = false; clsBad = JSON.stringify(r) + ' → admin=' + admin.classify(r) + ' core=' + core.classify(r); } });
@@ -110,12 +114,18 @@ if (admin) {
   });
   ok('netFactorOf: mesmo fator (cat × campanha)', nfOk, nfBad);
 
-  /* ── isCampRate (SPS|SPT) ── */
+  /* ── isCampRate: SÓ SPS (SPT é satélite, sem admin fee) ── */
   let icOk = true;
   ['SPS Main', 'SPT Turbo', 'spS x', 'Normal', ' SPS ', 'ASPS'].forEach((n) => {
     if (admin.isCampRate(n) !== core.isCampRate(n)) icOk = false;
   });
-  ok('isCampRate: SPS|SPT igual', icOk);
+  ok('isCampRate: admin ⇄ core igual', icOk);
+  ok('isCampRate: SPS = admin fee', admin.isCampRate('SPS Main') === true && core.isCampRate('SPS Main') === true);
+  ok('isCampRate: "SPS … +SPT" É SPS = admin fee', admin.isCampRate('SPS 75K Plus+SPT') === true && core.isCampRate('SPS 75K Plus+SPT') === true);
+  ok('isSPS: "SPS … +SPT" É SPS', core.isSPS('SPS 75K Plus+SPT') === true);
+  ok('classify: "SPS 75K Plus+SPT" (crossover) NÃO é satélite (é SPS c/ admin)', admin.classify({ nome: 'SPS 75K Plus+SPT', garantido: 75000 }) !== 'sat' && core.classify({ nome: 'SPS 75K Plus+SPT', garantido: 75000 }) !== 'sat');
+  ok('classify: "3 Seats SPT" (satélite puro) vira satélite', admin.classify({ nome: '3 Seats SPT', garantido: 99000 }) === 'sat' && core.classify({ nome: '3 Seats SPT', garantido: 99000 }) === 'sat');
+  ok('isCampRate: "3 Seats SPT" (satélite puro) NÃO tem admin fee', admin.isCampRate('3 Seats SPT') === false && core.isCampRate('3 Seats SPT') === false);
 }
 
 console.log('\n' + (falhas.length ? '❌' : '✅') + ' paridade admin⇄core: ' + passed + ' checagens passaram' +

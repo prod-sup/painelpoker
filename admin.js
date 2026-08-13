@@ -51,8 +51,9 @@ const pct  = (v,d=2) => v==null?'—':(v>=0?'+':'')+Number(v).toFixed(d)+'%';
 
 // ── TAXAS DA CASA (config, não mais chumbado) ────────────────────────────
 // netFactor = fração da entrada que vira prize pool. A casa fica com (1−netFactor).
-// Regra padrão: normal 10% rake · campanha (SPS/SPT) 10% rake + 2% admin ·
-// satélite 5% rake. Editável no card "Metas & taxas" → nó adminDashConfig.
+// Regra padrão: normal 10% rake · campanha (SPS) 10% rake + 2% admin ·
+// satélite 5% rake (SPT entra aqui — é satélite, sem admin fee).
+// Editável no card "Metas & taxas" → nó adminDashConfig.
 const DASH_RATES_DEFAULT={normal:0.90, campanha:0.88, sat:0.95, adminPct:0.02};
 let DASH_RATES={...DASH_RATES_DEFAULT};
 const netFactorOf=(cat,isCamp)=> cat==='sat'?DASH_RATES.sat:(isCamp?DASH_RATES.campanha:DASH_RATES.normal);
@@ -80,6 +81,85 @@ async function saveDashSettings(goalsPatch, ratesPatch){
   if(ratesPatch){ DASH_RATES=Object.assign({},DASH_RATES,ratesPatch); try{localStorage.setItem('adminDashConfig',JSON.stringify(DASH_RATES));}catch(_){}
     if(db){ try{await db.ref('adminDashConfig').update(ratesPatch);}catch(e){console.error(e);} } }
 }
+
+// ── CAMPANHAS (resultados por série) ─────────────────────────────────────
+// Config vive em campanhas/<slug> (o MESMO nó que o telão lê — campanha.js).
+// Cada campanha tem um PREFIXO (SPS, SPT…) que define quais eventos entram
+// (nome começa com o prefixo). O FINANCEIRO por linha é da regra da casa, não
+// da campanha: SPS = campanha (0,88 → 10% rake + 2% admin) · SPT = satélite
+// (0,95 → 5% rake, SEM admin fee, como qualquer satélite). Ou seja, o SPT é
+// tratado como campanha aqui, mas contabilizado como satélite.
+// garantidoSerie = garantido planejado (não dá pra derivar dos dados; null =
+// usa o já jogado). Meta (arrecadado) = garantido × (1+20%), regra do Brian.
+const CAMP_DEFAULTS=[
+  // "SPS … +SPT" É SPS (com admin fee) → entra normalmente no card SPS.
+  { nome:'SPS', slug:'sps', prefix:'SPS', inicio:'2026-08-01', fim:'2026-09-20', meta:null, metaMetric:'arrecadado', garantidoSerie:100444500 },
+  // SPT (Suprema Poker Tour) roda o ANO TODO — sem janela fixa (continuous).
+  // match:'word' → casa "SPT" em qualquer posição (ex.: "3 Seats SPT", "4 Seats SPT").
+  // notPattern → NÃO conta "+SPT" (crossover SPS que dá seat) — esse é SPS, não SPT.
+  { nome:'SPT · Suprema Poker Tour', slug:'spt', prefix:'SPT', match:'word', notPattern:'\\+\\s*SPT\\b', inicio:null, fim:null, continuous:true, meta:null, metaMetric:'arrecadado', garantidoSerie:null, note:'Satélites puros do SPT · roda o ano todo · 5% rake · sem admin fee' },
+];
+const CAMP_BASE={ meta:null, metaMetric:'arrecadado', garantidoSerie:null };   // defaults p/ config vinda do Firebase
+const CAMP_META_MARGIN=0.20;
+let _campaigns=[];                    // configs carregadas de campanhas/*
+// O dashboard só carrega 60 dias em _allData (egress). Mas campanhas contínuas
+// (SPT roda o ano todo) precisam do HISTÓRICO INTEIRO. _campAllData guarda esse
+// histórico completo (snapshots + painel do 1º dia do Suprema OS até hoje),
+// carregado UMA vez por sessão e montado com o MESMO motor do telão
+// (CampanhaCore.mergeDayInto). A seção de campanhas usa _campAllData quando
+// pronto; enquanto isso, cai no _allData (60d) pra pintar rápido.
+let _campAllData=null, _campDataLoading=false, _campDataTried=false;
+async function loadCampaignData(){
+  if(_campAllData || _campDataLoading) return _campAllData;
+  _campDataTried=true;   // marca a tentativa ANTES dos guards: nunca re-dispara em loop, mesmo em falha
+  if(typeof db==='undefined' || !db || typeof CampanhaCore==='undefined') return null;
+  _campDataLoading=true;
+  try{
+    // + auditoria INTEIRA: a seção aplica enrichWithAudit (igual à aba Auditoria),
+    //   então precisa do nó auditoria carregado. Só carrega se ainda não veio
+    //   (não clobbera edições feitas nesta sessão pela aba Auditoria).
+    const needAudit = !_auditData || Object.keys(_auditData).length===0;
+    const [s,p,au]=await Promise.all([
+      db.ref('snapshots').once('value').then(x=>x.val()||{}),   // 1º dia → hoje (sem startAt)
+      db.ref('painel').once('value').then(x=>x.val()||{}),
+      needAudit ? db.ref('auditoria').once('value').then(x=>x.val()||{}) : Promise.resolve(null),
+    ]);
+    if(au && needAudit) _auditData = au;
+    const isDate=d=>/^\d{4}-\d{2}-\d{2}$/.test(d);
+    const dates={};
+    Object.keys(s).forEach(d=>{ if(isDate(d)) dates[d]=1; });
+    Object.keys(p).forEach(d=>{ if(isDate(d)) dates[d]=1; });
+    const allData={};
+    Object.keys(dates).forEach(d=> CampanhaCore.mergeDayInto(allData, d, s[d]||null, p[d]||null));
+    _campAllData=allData;
+  }catch(e){ console.error('loadCampaignData',e); }
+  finally{ _campDataLoading=false; }
+  return _campAllData;
+}
+async function loadCampaigns(){
+  // Começa SEMPRE com SPS + SPT (defaults). O Firebase (campanhas/<slug>)
+  // SOBRESCREVE janela/garantido dessas e pode ADICIONAR outras campanhas.
+  // Assim o SPT aparece como campanha mesmo sem config, e o Brian ajusta depois.
+  const bySlug={};
+  CAMP_DEFAULTS.forEach(d=>{ bySlug[d.slug]=Object.assign({},d); });
+  try{
+    if(typeof db!=='undefined' && db){
+      const val=await db.ref('campanhas').once('value').then(s=>s.val());
+      if(val && typeof val==='object'){
+        Object.keys(val).forEach(slug=>{ const c=val[slug]; if(!c || typeof c!=='object') return;
+          const base=bySlug[slug]||Object.assign({},CAMP_BASE);
+          const merged=Object.assign({},base,c,{slug});
+          if(!merged.prefix) merged.prefix=String(merged.nome||slug||'').trim().split(/\s+/)[0].toUpperCase();
+          bySlug[slug]=merged;
+        });
+      }
+    }
+  }catch(e){ console.error('loadCampaigns',e); }
+  const list=Object.keys(bySlug).map(k=>bySlug[k]);
+  // ordena por início (mais recente primeiro), depois slug pra estabilidade
+  list.sort((a,b)=>String(b.inicio||'').localeCompare(String(a.inicio||''))||String(a.slug).localeCompare(String(b.slug)));
+  _campaigns=list;
+}
 // Parse valor em formato pt-BR ("400.708,00" ou "308500") → número (400708)
 const parseBRL = raw => {
   const s = String(raw??'').trim().replace(/[R$\s]/g,'').replace(/\./g,'').replace(',','.');
@@ -102,12 +182,16 @@ function toast(msg,type=''){
 }
 
 function classify(r){
+  const n=(r.nome||'').toLowerCase();
   const t=(r.tipo||'').toLowerCase();
   if(t.includes('main'))return'main';
   if(t.includes('side'))return'side';
   if(t.includes('sat'))return'sat';
-  const n=(r.nome||'').toLowerCase();
   if(n.includes('seat')||n.includes('satelit')||n.includes('satélite'))return'sat';
+  // Satélite puro do SPT ("N Seats SPT") = satélite. Mas "+SPT" é um CROSSOVER:
+  // evento SPS que também dá seat de SPT — esse é SPS (main/side, COM admin fee),
+  // NÃO satélite. Por isso o /\bspt\b/ exclui o "+SPT".
+  if(/\bspt\b/.test(n) && !/\+\s*spt\b/.test(n))return'sat';
   if((r.garantido||0)>=20000)return'main';
   return'side';
 }
@@ -709,15 +793,19 @@ function flatRows(fromDate, toDate){
 
       // Só incluir se tem dados relevantes (nome existe)
       if(!r.nome)return;
+      // Próximo cronograma (madrugada de amanhã) não deve aparecer na auditoria de hoje
+      // — aparece apenas no dia correto quando o arrecadado for coletado
+      if(r.proxCronograma || key.endsWith('_px')) return;
 
       // AÇÕES = total de entradas (com re-entries) que gerou a premiação. A premiação é
       // o LÍQUIDO (a parte da entrada que vai pro prize pool); o fator líquido depende de
-      // ser "campanha" (prefixo SPS/SPT antes do nome do evento) e de ser satélite:
+      // ser "campanha" (prefixo SPS antes do nome do evento) e de ser satélite:
       //   com campanha 0,88 · sem campanha 0,90 · satélite 0,95
-      // "+"/série no Main NÃO é campanha — só o prefixo SPS/SPT conta.
+      // "+"/série no Main NÃO é campanha — só o prefixo SPS conta.
+      // SPT é satélite (0,95) e cai pelo cat==='sat', não por campanha.
       // Ex.: 750 Plus (side sem campanha) prem R$1.068,30 ÷ (R$1 × 0,90) = 1.187 ações.
       const buyin = pick(day.buy) ?? r.buyin ?? null;   // buy-in corrigido na auditoria vence a planilha
-      const isCampanha = /^\s*(SPS|SPT)\b/i.test(r.nome||'');
+      const isCampanha = /^\s*SPS\b/i.test(r.nome||'');
       const netFactor = netFactorOf(cat, isCampanha);
       const acoes = prem!=null && buyin ? Math.round(prem/(buyin*netFactor)) : null;
       out.push({
@@ -772,7 +860,7 @@ function nav(id,btn){
   closeTbMenu();                                   // fecha o menu de ações se estava aberto
   const pg=document.getElementById('page'+id.charAt(0).toUpperCase()+id.slice(1));
   if(pg)pg.classList.add('active');
-  if(id==='dashboard'){ buildDash(); if(!_dashSettingsLoaded){ _dashSettingsLoaded=true; loadDashSettings().then(()=>buildDash()); } }
+  if(id==='dashboard'){ buildDash(); if(!_dashSettingsLoaded){ _dashSettingsLoaded=true; Promise.all([loadDashSettings(),loadCampaigns()]).then(()=>buildDash()); } }
   if(id==='backup')initBackup(); // initBackup já faz loadAll() internamente
   if(id==='grade')renderGrade();
   if(id==='audit')loadAudit();
@@ -1409,15 +1497,16 @@ function buildDash(){
   // A premiação é o LÍQUIDO (parte da entrada que vira prize pool). O bruto
   // arrecadado = premiação ÷ netFactor. A casa fica com (1−netFactor):
   //   normal netFactor 0,90 → 10% rake · campanha 0,88 → 10% rake + 2% admin ·
-  //   satélite 0,95 → 5% rake. Admin fee só existe em evento SPS/SPT (regra da
-  //   casa: 10% do buy-in / +2% se tiver admin fee). Só rows FECHADAS (têm prem).
+  //   satélite 0,95 → 5% rake. Admin fee em evento SPS (inclui "SPS … +SPT",
+  //   que É SPS main/side com admin fee). Satélite PURO do SPT ("N Seats SPT")
+  //   não é SPS → 5% sem admin. Só rows FECHADAS (têm prem).
   let grossSum=0, rakeSum=0, adminSum=0, entradas=0, adminEvents=0;
   const catAgg={main:{gross:0,rake:0,admin:0,ov:0,gar:0,prem:0,n:0},side:{gross:0,rake:0,admin:0,ov:0,gar:0,prem:0,n:0},sat:{gross:0,rake:0,admin:0,ov:0,gar:0,prem:0,n:0}};
   rows.forEach(r=>{ const c=catAgg[r.cat]; if(c && r.garantido) c.gar+=r.garantido; });
   closed.forEach(r=>{
     if(r.premiacao==null || !r.netFactor) return;
     const gross    = r.premiacao / r.netFactor;
-    const isCamp   = /^\s*(SPS|SPT)\b/i.test(r.nome||'');
+    const isCamp   = /^\s*SPS\b/i.test(r.nome||'');   // admin fee em SPS (inclui "SPS … +SPT", que É SPS)
     const adminFrac= isCamp ? DASH_RATES.adminPct : 0;
     const rakeFrac = Math.max(0, (1 - r.netFactor) - adminFrac);
     const gRake=gross*rakeFrac, gAdmin=gross*adminFrac;
@@ -1456,7 +1545,7 @@ function buildDash(){
   ],`Média de ${rakePct.toFixed(1)}% do arrecadado`);
   const admTip = tCard('Admin fee gerado','R$ '+brl(adminSum,0),[
     tRow('Eventos c/ admin',intBR(adminEvents)), tRow('Taxa',(DASH_RATES.adminPct*100).toFixed(0)+'% do buy-in'),
-  ],'Só eventos SPS/SPT');
+  ],'Eventos SPS (inclui SPS +SPT) — satélites puros do SPT não têm admin fee');
   const houseTip = tCard('Receita da casa','R$ '+brl(houseSum,0),[
     tRow('Rake','R$ '+brl(rakeSum,0)), tRow('Admin fee','R$ '+brl(adminSum,0)),
     tRow('Overlay coberto','−R$ '+brl(Math.abs(totalOv),0)), tRow('Margem real','R$ '+brl(margem,0)),
@@ -1476,7 +1565,7 @@ function buildDash(){
     <div class="kpi b" data-tip="${arrTip}"><div class="kpi-label">Arrecadado (bruto)</div><div class="kpi-val">${brlk(grossSum)}</div><div class="kpi-sub">${intBR(entradas)} entradas · casa ${housePct.toFixed(1)}%</div></div>
     <div class="kpi g"><div class="kpi-label">Premiação total</div><div class="kpi-val">${brlk(totalPrem)}</div><div class="kpi-sub">Cobertura ${cobertura.toFixed(0)}% do GTD</div></div>
     <div class="kpi g" data-tip="${rakeTip}"><div class="kpi-label">Rake gerado</div><div class="kpi-val">${brlk(rakeSum)}</div><div class="kpi-sub">${rakePct.toFixed(1)}% do arrecadado · +admin = ${brlk(houseSum)}</div></div>
-    <div class="kpi p" data-tip="${admTip}"><div class="kpi-label">Admin fee</div><div class="kpi-val">${brlk(adminSum)}</div><div class="kpi-sub">${adminEvents} evento(s) SPS/SPT · ${(DASH_RATES.adminPct*100).toFixed(0)}% do buy-in</div></div>
+    <div class="kpi p" data-tip="${admTip}"><div class="kpi-label">Admin fee</div><div class="kpi-val">${brlk(adminSum)}</div><div class="kpi-sub">${adminEvents} evento(s) SPS · ${(DASH_RATES.adminPct*100).toFixed(0)}% do buy-in</div></div>
     <div class="kpi ${rakeOK==null?'g':rakeOK?'g':'r'}" data-tip="${houseTip}"><div class="kpi-label">Receita da casa</div><div class="kpi-val">${brlk(houseSum)}</div><div class="kpi-sub">R$ ${brl(rakeDiaReal,0)}/dia${gRakeDia>0?` · meta ≥ ${brlk(gRakeDia)} ${rakeOK?'✓':'✗'}`:''}</div></div>
     <div class="kpi ${margem>=0?'g':'r'}" data-tip="${margTip}"><div class="kpi-label">Margem real</div><div class="kpi-val">${brlk(margem)}</div><div class="kpi-sub">receita − overlay coberto</div></div>
     <div class="kpi b" data-tip="${tickTip}"><div class="kpi-label">Ticket médio</div><div class="kpi-val">${brlk(ticket)}</div><div class="kpi-sub">field médio ${intBR(fieldMed)}/torneio</div></div>
@@ -1486,6 +1575,7 @@ function buildDash(){
   `;
   // ── alerta proativo + quebra por categoria + settings (metas/taxas) ──
   renderDashAlert(overlayPctGar, gOvl, totalOv, rakeDiaReal, gRakeDia, rows.excludedNoStamp);
+  renderDashCampaigns();
   renderDashCatBreakdown(catAgg);
   renderDashSettings();
 
@@ -1572,6 +1662,140 @@ function renderDashCatBreakdown(catAgg){
   el.innerHTML=`<div class="tbl-wrap"><table>
     <thead><tr><th>Categoria</th><th class="r">GTD</th><th class="r">Arrecadado</th><th class="r">Rake</th><th class="r">Admin</th><th class="r">Overlay</th><th class="r">Margem</th></tr></thead>
     <tbody>${cats.map(c=>row(c.n,catAgg[c.k])).join('')}${row('Total',tot,true)}</tbody></table></div>`;
+}
+
+// Resultados das campanhas: cada série (SPS na janela do festival, SPT o ano
+// todo) com os MESMOS números do telão — motor testado campanha-core, filtro
+// por prefixo. Cada card abre um drill-down por torneio com link pra auditoria.
+function renderDashCampaigns(){
+  const el=document.getElementById('dashCampaigns'); if(!el) return;
+  if(typeof CampanhaCore==='undefined'){ el.innerHTML='<div style="font-size:12px;color:var(--ink3)">Motor da campanha (campanha-core.js) não carregou.</div>'; return; }
+  if(!_campaigns.length){ el.innerHTML='<div style="font-size:12px;color:var(--ink3)">Nenhuma campanha configurada.</div>'; return; }
+  const today=nowSP();
+  const stat=(lab,val,cls)=>`<div><div style="font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);margin-bottom:3px">${lab}</div><div class="mono ${cls||''}" style="font-size:16px;font-weight:800;color:var(--ink)">${val}</div></div>`;
+  const pill=(txt,bg,fg)=>`<span style="font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:${bg};color:${fg}">${txt}</span>`;
+  // matcher da campanha: 'prefix' (SPS no começo — igual ao isSPS/telão) ou
+  // 'word' (SPT em qualquer posição, ex.: "3 Seats SPT", "4 Seats SPT").
+  const campMatcher=cmp=>{
+    const esc1=s=>String(s||'').trim().replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    const term=esc1(cmp.prefix||cmp.slug);
+    if(!term) return ()=>false;
+    const re = cmp.match==='word' ? new RegExp('\\b'+term+'\\b','i') : new RegExp('^\\s*'+term+'\\b','i');
+    // exclusão: notMatch (palavra) ou notPattern (regex crua, ex.: SPT exclui "+SPT")
+    const notRe = cmp.notMatch ? new RegExp('\\b'+esc1(cmp.notMatch)+'\\b','i')
+                : cmp.notPattern ? new RegExp(cmp.notPattern,'i') : null;
+    return nome=>{ const n=String(nome||''); return re.test(n) && (!notRe || !notRe.test(n)); };
+  };
+  const intBR=n=>Math.round(n||0).toLocaleString('pt-BR');
+  const fmtDshort=d=>d?`${d.slice(8,10)}/${d.slice(5,7)}`:'—';
+  // Fonte de dados: histórico COMPLETO quando pronto (_campAllData), senão os
+  // 60 dias do dashboard (_allData) pra pintar rápido. Campanhas contínuas (SPT)
+  // dependem do histórico completo — dispara a carga única e re-renderiza.
+  const DATA = _campAllData || _allData;
+  const fullReady = !!_campAllData;
+  const needsFull = _campaigns.some(c=> c.continuous || (!c.inicio && !c.fim) || (c.inicio && c.inicio < dago(60)));
+  if(needsFull && !fullReady && !_campDataLoading && !_campDataTried){ loadCampaignData().then(()=>renderDashCampaigns()); }
+  el.innerHTML=_campaigns.map(cmp=>{
+    const pfx=cmp.prefix || String(cmp.nome||cmp.slug||'').trim().split(/\s+/)[0];
+    // continuous = roda o ano todo (SPT): sem janela → pega TODOS os eventos do prefixo.
+    const isCont = cmp.continuous || (!cmp.inicio && !cmp.fim);
+    // Corta em HOJE (igual ao clampTo do telão): "resultado" não inclui evento que
+    // ainda não rodou. Sem isso, a madrugada de amanhã (já fixada) entraria como aberta.
+    const toClamp = isCont ? today : ((cmp.fim && cmp.fim < today) ? cmp.fim : today);
+    let rows=CampanhaCore.flatRows(DATA, _auditData||{}, isCont?null:cmp.inicio, toClamp, {filter:campMatcher(cmp), rates:DASH_RATES});
+    // aplica correções de auditoria (premiação/garantido/field auditados), igual à aba Auditoria
+    if(typeof enrichWithAudit==='function') rows=enrichWithAudit(rows).map(r=> (r.premiacao!=null && r.status==='aberto') ? {...r, status:'fechado'} : r);
+    const t=CampanhaCore.aggregate(rows, DASH_RATES);
+    // Meta (arrecadado) = garantido planejado × (1+margem); nunca menor que o já jogado; meta manual maior prevalece.
+    let garBase=(cmp.garantidoSerie!=null?+cmp.garantidoSerie:0)||0;
+    if(t.totalGarantido>garBase) garBase=t.totalGarantido;
+    let meta=Math.round(garBase*(1+CAMP_META_MARGIN));
+    if(cmp.meta!=null && +cmp.meta>meta) meta=+cmp.meta;
+    const prog=meta>0?(t.arrecadadoBruto/meta*100):0;
+    const rangeLabel = isCont ? 'roda o ano todo' : `${fmtDshort(cmp.inicio)} → ${fmtDshort(cmp.fim)}`;
+    const st = isCont            ? pill('Em curso','rgba(34,197,94,.16)','var(--green)')
+             : today<cmp.inicio  ? pill('Agendada','rgba(59,130,246,.15)','#3b82f6')
+             : today>cmp.fim     ? pill('Encerrada','var(--s2,rgba(0,0,0,.08))','var(--ink3)')
+             :                     pill('Em curso','rgba(34,197,94,.16)','var(--green)');
+    // enquanto o histórico completo não chega, campanha contínua ainda está com dados parciais (60d)
+    const loadingFull = (isCont || (cmp.inicio && cmp.inicio<dago(60))) && !fullReady;
+    const loadHint = loadingFull ? `<span style="font-size:10px;color:var(--gold)">⏳ carregando histórico completo…</span>` : '';
+    const emptyMsg = loadingFull ? `Carregando o histórico do 1º dia até hoje…`
+                   : isCont ? `Sem eventos ${esc(pfx)} nos dados carregados.` : `Sem eventos ${esc(pfx)} na janela desta campanha.`;
+    const empty = t.torneios===0 ? `<div style="font-size:12px;color:var(--ink3);margin-top:4px">${emptyMsg}</div>` : '';
+    const note = cmp.note ? `<span style="font-size:10.5px;color:var(--ink3)">${esc(cmp.note)}</span>` : '';
+
+    // ── Drill-down por torneio: cada evento com o financeiro por linha, e 🔍 que
+    //    salta pra aba Auditoria já filtrada pelo torneio (goToAuditFor). ──
+    const sorted = rows.slice().sort((a,b)=> String(b.date).localeCompare(String(a.date)) || String(a.hora).localeCompare(String(b.hora)));
+    const trs = sorted.map(r=>{
+      const isCamp=CampanhaCore.isCampRate(r.nome);   // isCampRate já exclui quem tem "SPT" no nome
+      const adminFrac=isCamp?DASH_RATES.adminPct:0;
+      const rakeFrac=Math.max(0,(1-(r.netFactor||0))-adminFrac);
+      const gross=r.premiacao!=null&&r.netFactor?r.premiacao/r.netFactor:null;
+      const gRake=gross!=null?gross*rakeFrac:null;
+      const gAdmin=gross!=null?gross*adminFrac:null;
+      const rateLbl=`${(rakeFrac*100).toFixed(0)}%${adminFrac>0?' + '+(adminFrac*100).toFixed(0)+'%':''}`;
+      const tag = r.status!=='fechado' ? ` <span style="font-size:9px;color:var(--ink3)">(${r.status})</span>` : '';
+      const auMark = r._audited ? ` <span title="Auditado" style="font-size:9px;color:var(--green);font-weight:700">✓ aud.</span>` : '';
+      return `<tr${r.status!=='fechado'?' style="opacity:.72"':''}>
+        <td class="mono">${fmtDshort(r.date)}</td>
+        <td class="mono">${esc(r.hora||'—')}</td>
+        <td class="nm">${esc(r.nome)}${auMark}${tag}</td>
+        <td class="r mono">${r.garantido!=null?brlk(r.garantido):'—'}</td>
+        <td class="r mono">${r.buyin!=null?'R$'+brl(r.buyin,0):'—'}</td>
+        <td class="r mono">${rateLbl}</td>
+        <td class="r mono">${r.acoes!=null?intBR(r.acoes):'—'}</td>
+        <td class="r mono">${gross!=null?brlk(gross):'—'}</td>
+        <td class="r mono c-green">${gRake!=null?brlk(gRake):'—'}</td>
+        <td class="r mono">${gAdmin!=null?(gAdmin>0?brlk(gAdmin):'R$0'):'—'}</td>
+        <td class="r mono ${r.overlay<0?'c-red':''}">${r.overlay!=null?brlk(r.overlay):'—'}</td>
+        <td class="r mono">${r.perf!=null?pct(r.perf):'—'}</td>
+        <td><button class="btn btn-ghost btn-sm" data-act="goToAuditFor" data-arg="${esc(r.nome)}" title="Abrir na auditoria">🔍</button></td>
+      </tr>`;
+    }).join('');
+    const table = rows.length ? `<details style="margin-top:12px">
+      <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--gold);user-select:none;list-style:none">▸ Ver ${rows.length} torneio${rows.length>1?'s':''} · clique 🔍 pra auditar</summary>
+      <div class="tbl-wrap" style="margin-top:8px">
+        <table>
+          <thead><tr>
+            <th>Data</th><th>Início</th><th>Torneio</th><th class="r">Garantido</th><th class="r">Buy-in</th>
+            <th class="r">Rake · admin</th><th class="r">Ações</th><th class="r">Arrecadado</th>
+            <th class="r">Rake R$</th><th class="r">Admin R$</th><th class="r">Overlay</th><th class="r">Perf</th><th></th>
+          </tr></thead>
+          <tbody>${trs}</tbody>
+        </table>
+      </div>
+    </details>` : '';
+
+    return `<div style="border:1px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:12px;background:var(--s1)">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-size:15px;font-weight:800;color:var(--ink)">${esc(cmp.nome||cmp.slug)}</span>
+          <span style="font-size:11px;color:var(--ink3)">${rangeLabel}</span>
+          ${note}
+          ${loadHint}
+        </div>${st}
+      </div>
+      ${meta>0 ? `<div style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink2);margin-bottom:5px">
+          <span>Arrecadado <b style="color:var(--ink)">${brlk(t.arrecadadoBruto)}</b> · meta ${brlk(meta)}</span>
+          <span style="font-weight:800;color:${prog>=100?'var(--green)':'var(--gold)'}">${prog.toFixed(0)}%</span>
+        </div>
+        <div style="height:8px;border-radius:6px;background:var(--s2,rgba(0,0,0,.08));overflow:hidden"><div style="height:100%;width:${Math.max(0,Math.min(100,prog))}%;background:linear-gradient(90deg,var(--gold),#c9a84c)"></div></div>
+      </div>` : `<div style="margin-bottom:14px;font-size:11px;color:var(--ink3)">Sem meta definida · arrecadado <b style="color:var(--ink)">${brlk(t.arrecadadoBruto)}</b> <span style="opacity:.7">(defina o garantido da série em campanhas/${esc(cmp.slug)} pra ver o progresso)</span></div>`}
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:14px 12px">
+        ${stat('Arrecadado', brlk(t.arrecadadoBruto))}
+        ${stat('Rake', brlk(t.rake))}
+        ${stat('Admin fee', brlk(t.adminFee))}
+        ${stat('Receita da casa', brlk(t.receitaCasa))}
+        ${stat('Premiação', brlk(t.totalPremiacao))}
+        ${stat('Overlay', brlk(t.totalOverlay), t.totalOverlay<0?'c-red':'')}
+        ${stat('Cobertura', t.totalGarantido>0?(t.cobertura||0).toFixed(0)+'%':'—')}
+        ${stat('Torneios', t.fechados+'/'+t.torneios)}
+      </div>${empty}${table}
+    </div>`;
+  }).join('');
 }
 
 // Editor de metas + taxas (salva no Firebase; re-renderiza a dashboard).
