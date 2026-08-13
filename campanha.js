@@ -1037,16 +1037,15 @@ function renderTicker() {
 }
 /* Scroll do ticker por JS (rAF): translada o track pra esquerda a ~90px/s e loopa quando
    passou UMA cópia (o conteúdo é duplicado, então o loop é imperceptível). Robusto na TV —
-   não depende de animação CSS (que o Tizen congela). Respeita reduced-motion no desktop. */
+   não depende de animação CSS (que o Tizen congela). É elemento de broadcast: rola sempre. */
 var _tickRAF = null, _tickX = 0;
 function startTickerScroll(track) {
   if (_tickRAF) { cancelAnimationFrame(_tickRAF); _tickRAF = null; }
   if (!track) return;
-  if (reduced()) { track.style.transform = 'none'; return; }
   _tickX = 0; var last = null, SPEED = 90;
-  (function step(ts) {
+  function step(ts) {
     if (!track.isConnected) { _tickRAF = null; return; }
-    if (last == null) last = ts;
+    if (last == null) { last = ts; _tickRAF = requestAnimationFrame(step); return; }   // 1º frame só ancora o tempo (senão dt=NaN trava tudo)
     var dt = Math.min(0.05, (ts - last) / 1000); last = ts;   // clamp dt (aba volta do 2º plano)
     var half = track.scrollWidth / 2;
     if (half > 1) {
@@ -1055,7 +1054,8 @@ function startTickerScroll(track) {
       track.style.transform = 'translateX(' + _tickX.toFixed(1) + 'px)';
     }
     _tickRAF = requestAnimationFrame(step);
-  })();
+  }
+  _tickRAF = requestAnimationFrame(step);   // arranca via rAF → 1º ts é REAL, nunca undefined
 }
 
 /* ── TELA — Recordes da Semana: 1 tela por recorde (maior premiação / maior público) ── */
