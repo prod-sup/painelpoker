@@ -59,6 +59,19 @@ body{
   0%   {transform:scale(1.05) translate(-.6%, .4%)}
   50%  {transform:scale(1.14) translate(.8%, -1.4%)}
   100% {transform:scale(1.05) translate(-.6%, .4%)}}
+/* ── EMENDA DO LOOP (véu) ────────────────────────────────────────────────────
+   O loop nativo volta ao 1º frame de um quadro pro outro: na TV isso lê como um
+   TRANCO no fundo a cada volta. A emenda passa a acontecer NO ESCURO — este véu
+   sobe pouco antes do fim, o vídeo é rebobinado no ponto mais escuro e o véu desce.
+   Só opacity (composto na GPU, 1 camada) e só sobre o FUNDO: está dentro do
+   .tv-hero (z-index 0), então o palco (z-index 3) não escurece junto.
+   A VOLTA é bem mais lenta que a ida — abrir devagar depois de fechar rápido é o
+   que faz parecer respiração de câmera em vez de piscada. */
+.tv-hero-dip{position:absolute; inset:0; z-index:3; pointer-events:none; opacity:0;
+  background:radial-gradient(125% 105% at 50% 44%, rgba(5,7,11,.92), rgba(2,3,6,.99) 68%);
+  transition:opacity 1.5s cubic-bezier(.33,0,.2,1)}          /* volta (clareia) */
+.tv-hero-dip.is-dim{opacity:1; transition:opacity .82s cubic-bezier(.5,0,.75,0)}  /* ida (escurece) */
+@media (prefers-reduced-motion:reduce){ .tv-hero-dip{display:none} }
 /* shine metálico varrendo (o logo/ouro brilham quando o realce passa) */
 .tv-hero-shine{position:absolute; inset:0; mix-blend-mode:overlay; opacity:.7; background-repeat:no-repeat;
   background-image:linear-gradient(74deg, transparent 38%, rgba(255,240,205,.16) 47%, rgba(255,255,255,.32) 50%, rgba(255,240,205,.16) 53%, transparent 62%);

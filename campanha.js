@@ -1275,6 +1275,7 @@ function mountBackground() {
     if (!shown) { shown = true; if (hero) hero.classList.add('vid-live'); requestAnimationFrame(function () { a.classList.add('is-front'); }); }
     markBg();
   };
+  seamLoop(a, playSafe);                                  // emenda suave da volta do loop
   a.addEventListener('playing', showVideo);
   a.addEventListener('timeupdate', function () { if (a.currentTime > 0.12) showVideo(); });
   a.addEventListener('canplay', markBg);
@@ -1283,7 +1284,51 @@ function mountBackground() {
   setTimeout(function () { if (!shown) markBg(); }, 4500);
   playSafe();
   document.addEventListener('visibilitychange', function () { if (!document.hidden) playSafe(); else { try { a.pause(); } catch (e) {} } });
-  console.info('[SUPREMA TV · SPS] fundo em vídeo (loop nativo, 1 vídeo) no ar');
+  console.info('[SUPREMA TV · SPS] fundo em vídeo (1 vídeo, emenda por véu) no ar');
+}
+
+/* ── EMENDA DO LOOP ───────────────────────────────────────────────────────────
+   O `loop` nativo volta ao primeiro frame de um quadro pro outro — no telão isso
+   aparece como um tranco no fundo a cada volta. Aqui a virada acontece NO ESCURO:
+   o véu (.tv-hero-dip) fecha pouco antes do fim, o vídeo é rebobinado no ponto mais
+   escuro e o véu abre bem mais devagar do que fechou (respiração de câmera).
+
+   Por que NÃO é crossfade de 2 vídeos (o desenho original): na Samsung/Tizen o vídeo
+   vive num plano de HARDWARE que ignora opacity — o segundo <video> aparecia como um
+   retângulo azul. O véu é um DIV comum, então funciona na TV igual ao PC.
+
+   O `loop` do elemento CONTINUA ligado de propósito: é a rede de segurança. Se a aba
+   for congelada (2º plano) e o nosso rebobinar atrasar, o navegador emenda sozinho —
+   corte seco, mas nunca um vídeo parado no último frame.                            */
+function seamLoop(v, playSafe) {
+  var dip = $('heroDip');
+  if (reduced()) return;                                  // sem vídeo/animação: nada a emendar
+  var FADE = 1.0;                                         // s de escurecimento antes da virada
+  var TAIL = 0.08;                                        // rebobina 80ms antes do fim real
+  var busy = false, guard = null;
+  var abrir = function () { if (dip) dip.classList.remove('is-dim'); };
+  var soltar = function () { busy = false; clearTimeout(guard); guard = null; };
+  v.addEventListener('timeupdate', function () {
+    var d = v.duration;
+    // vídeo curto ou sem duração conhecida (stream/metadata ausente): loop nativo puro —
+    // um véu de 1s a cada 5s seria pior que o corte que ele conserta
+    if (busy || !isFinite(d) || d < 6) return;
+    var left = d - v.currentTime;
+    if (left > FADE || left < 0) return;
+    busy = true;
+    if (dip) dip.classList.add('is-dim');
+    // o atraso sai do tempo QUE FALTA (o timeupdate dispara ~4x/s, então `left` no
+    // gatilho varia): assim a rebobinada cai sempre logo antes do fim, nunca depois —
+    // se caísse depois, o loop nativo já teria dado o corte que estamos evitando.
+    setTimeout(function () {
+      try { v.currentTime = 0; playSafe(); } catch (e) {}
+      requestAnimationFrame(abrir);                       // abre o véu já com o início no ar
+      guard = setTimeout(soltar, 500);                    // trava anti-redisparo do mesmo fim
+    }, Math.max(60, (left - TAIL) * 1000));
+  });
+  // rede: se o loop nativo emendou antes de nós (aba congelada), o véu não pode ficar preso
+  v.addEventListener('ended', function () { abrir(); soltar(); });
+  v.addEventListener('seeked', function () { if (!busy) abrir(); });
 }
 
 /* ── (legado) aura 2D — substituída pelo Feltro; mantida como no-op se o #ambient sumiu ── */
