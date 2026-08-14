@@ -362,26 +362,29 @@ function autoScrollList(el, dwellMs) {
   // DUPLO rAF: mede depois do layout FINAL — senão na TV o scrollHeight sai errado e "não desce".
   requestAnimationFrame(function () { requestAnimationFrame(function () {
     var max = el.scrollHeight - el.clientHeight;
-    if (max <= 8) return;                                  // cabe inteiro → nada a rolar
-    var D = Math.max(6000, dwellMs || 12000);
-    var HOLD_TOP = 1500, HOLD_BOT = 1200;                  // pausa pra ler topo e base
-    // desce numa velocidade legível (~80px/s), MAS encurta o tempo se não couber no dwell (pra
-    // SEMPRE chegar ao fim) — nunca mais lento que ~1,8s (senão parece parado com pouco conteúdo).
-    var legRead = max / 80 * 1000;
-    var legFit  = D - HOLD_TOP - HOLD_BOT - 300;           // margem antes de a cena trocar
-    var LEG = Math.max(1800, Math.min(legRead, legFit));
-    var easeInOut = function (p) { return 0.5 - 0.5 * Math.cos(Math.PI * p); };   // cosseno: suave nas 2 pontas
+    if (max <= 8) return;                                  // cabe inteiro → nada a rolar (mantém dwell fixo)
+    var HOLD_TOP = 2200, HOLD_BOT = 2600;                  // respiro pra ler topo e base
+    // VELOCIDADE FIXA (crawl de créditos de cinema): sempre ~46px/s, independente do tamanho da
+    // lista → sempre a mesma cadência bonita/natural. A CENA é que estica pra caber a descida
+    // inteira (holdSceneAtLeast) — nunca acelera pra "caber no tempo" (era o que ficava rápido).
+    var V = 46 / 1000;                                     // px/ms
+    var Ti = 1300, Td = 1300;                              // rampa suave de partida e de chegada (ms)
+    var LEG = max / V + 0.5 * (Ti + Td);                   // tempo pra descer tudo na velocidade fixa
+    var dist = function (t) {                              // posição (px) com ease-in / constante / ease-out
+      if (t <= Ti) return 0.5 * V * t * t / Ti;
+      if (t <= LEG - Td) return 0.5 * V * Ti + V * (t - Ti);
+      var td = LEG - t; return max - 0.5 * V * td * td / Td;
+    };
+    var total = HOLD_TOP + LEG + HOLD_BOT;
+    holdSceneAtLeast(Math.max(dwellMs || 0, total + 900)); // a cena fica no ar até terminar de descer + respiro
     var t = 0, last = -1;
     _scrollLoop = rafLoop(function (dt) {
       if (!el.isConnected) return false;                   // saiu do DOM → para
       t += dt * 1000;
-      var y;
-      if (t < HOLD_TOP) y = 0;                             // segura no topo
-      else if (t < HOLD_TOP + LEG) y = easeInOut((t - HOLD_TOP) / LEG);   // desce suave até o fim
-      else y = 1;                                          // chegou ao fim → segura embaixo
-      var top = Math.round(max * y);                       // px inteiro → sem jitter na TV
+      var d = t < HOLD_TOP ? 0 : t < HOLD_TOP + LEG ? dist(t - HOLD_TOP) : max;
+      var top = Math.round(d < 0 ? 0 : d > max ? max : d); // px inteiro, clampado
       if (top !== last) { setY(top); last = top; }
-      if (t > HOLD_TOP + LEG + HOLD_BOT) return false;     // ciclo completo → para (a cena troca logo)
+      if (t > total) return false;                         // ciclo completo → para (a cena troca em seguida)
     });
   }); });
 }
@@ -407,6 +410,9 @@ function updateRot(i) {
   document.querySelectorAll('#tvRot i').forEach(function (d, k) { d.classList.toggle('on', k === i); if (k === i) d.style.setProperty('--dwell', (SCENES[i].dwell / 1000) + 's'); });
 }
 function scheduleScene(i) { clearTimeout(_dirT); _dirT = setTimeout(function () { gotoScene(_si + 1); }, SCENES[i].dwell); }
+/* estica a cena atual pra ela ficar no ar até o auto-scroll terminar de descer (velocidade fixa
+   → cenas com muito conteúdo ficam mais tempo, em vez de o scroll acelerar pra caber). */
+function holdSceneAtLeast(ms) { clearTimeout(_dirT); _dirT = setTimeout(function () { gotoScene(_si + 1); }, ms); }
 function triggerWipe() {
   if (reduced()) return;
   var w = $('tvWipe'); if (!w) return;
@@ -1381,10 +1387,11 @@ function showDiag() {
   (document.body || document.documentElement).appendChild(d);
 }
 function boot() {
-  // TVs cortam ~3-5% das bordas (overscan) → marca `tv-device` p/ o CSS aplicar margem segura.
-  // Detecta pela UA; `?tv=1` força, `?tv=0` desliga (caso a detecção erre num modelo).
-  var noTV = /[?&]tv=0/.test(location.search);
-  var isTV = !noTV && (/[?&]tv=1/.test(location.search) || /Tizen|SMART-?TV|SmartTV|Web[O0]S|NetCast|HbbTV|VIDAA|BRAVIA|Maple|CrKey|AFT|GoogleTV/i.test(navigator.userAgent || ''));
+  // Esta página É um telão (SUPREMA TV · SPS): MODO TV LIGADO POR PADRÃO — cards sólidos, fundo só
+  // vídeo, scroll por transform e margem de overscan. Não depende mais de adivinhar a UA da TV
+  // (a detecção falhava em alguns modelos Samsung → cards transparentes + bordas cortadas).
+  // `?tv=0` desliga (preview/dev no PC com o visual de vidro).
+  var isTV = !/[?&]tv=0/.test(location.search);
   if (isTV) document.documentElement.classList.add('tv-device');
   if (/[?&]diag=1/.test(location.search)) { showDiag(); return; }
   if (/[?&]demo=1/.test(location.search)) bootDemo(); else initData();
