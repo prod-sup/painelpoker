@@ -409,7 +409,7 @@ async function enterApp(email, name){
   // o resto sai do caminho crítico: a primeira tela já está de pé,
   // operadores/usuários/notificações carregam quando a thread sobrar
   const idle = window.requestIdleCallback || (fn => setTimeout(fn, 350));
-  idle(async () => { await loadOps(); await loadUsers(); loadPendingNotifs(); });
+  idle(async () => { await loadOps(); await loadUsers(); loadPendingNotifs(); refreshAlertasBadge(); });
 }
 
 /* ── RECONHECIMENTO AUTOMÁTICO ──
@@ -629,6 +629,7 @@ function refreshDayLive(date){
       mergeDayInto(date, snapS.val(), _liveDay[date] || null);
       // re-renderiza só se a tela de Acompanhamento estiver aberta (é a "grade")
       if(document.getElementById('pageAudit')?.classList.contains('active')) loadAudit();
+      refreshAlertasBadge();   // novos comportamentos suspeitos acendem o sino na hora
     }catch(e){ /* negado/offline: mantém o que já tem */ }
   }, 1000);
 }
@@ -815,6 +816,7 @@ function flatRows(fromDate, toDate){
         garantido:gar, buyin, netFactor,
         premiacao:prem, overlay:ov, perf, field, acoes,
         id:idVal, idBy, fixBy, fixAt, premBy, premByAt, fixLeadMin, fixTiming, status,
+        manual: !!r.manual,   // veio de manualRows → card adicionado à mão (Central de Alertas)
       });
     });
   });
@@ -1030,16 +1032,11 @@ function cnDates(){
   while(d <= end && out.length < 62){ out.push(d.toISOString().slice(0,10)); d.setUTCDate(d.getUTCDate()+1); }
   return out;
 }
-async function loadCriacao(){
-  if(!document.getElementById('cnFrom').value) setCnPeriodDefaults();
-  const dates = cnDates();
-  if(!dates.length){ toast('Escolha o período','err'); return; }
-  // skeleton shimmer enquanto o Firebase responde (percepção de velocidade)
-  document.getElementById('cnKpi').innerHTML = Array.from({length:6}, () =>
-    '<div class="kpi"><div class="kpi-label sp-shimmer" style="height:11px;width:60%">&nbsp;</div>' +
-    '<div class="kpi-val sp-shimmer" style="height:26px;width:45%;margin:8px 0">&nbsp;</div>' +
-    '<div class="kpi-sub sp-shimmer" style="height:10px;width:80%">&nbsp;</div></div>').join('');
-  const snaps = await Promise.all(dates.map(d => db.ref(`painel/${d}/criacaoNoturna`).once('value').then(s => ({d, v: s.val()}))));
+/* Busca+monta as linhas da Criação Noturna de um conjunto de datas, SEM renderizar.
+   Extraído do loadCriacao pra a Central de Alertas reaproveitar a MESMA lógica
+   (mesmas anomalias em cnAnoms) sem tocar na aba Criação. */
+async function fetchCnRows(dates){
+  const snaps = await Promise.all(dates.map(d => db.ref(`painel/${d}/criacaoNoturna`).once('value').then(s => ({d, v: s.val()})).catch(()=>({d, v:null}))));
   const rows = [];
   snaps.forEach(({d, v}) => {
     if(!v || !v.sheet || !v.sheet.json) return;
@@ -1068,7 +1065,18 @@ async function loadCriacao(){
         alteradoPos: !!(doneAt && sheetAt && doneAt < sheetAt && changedNames.has(cnNorm(it.nome)))});
     }));
   });
-  _cnRows = rows;
+  return rows;
+}
+async function loadCriacao(){
+  if(!document.getElementById('cnFrom').value) setCnPeriodDefaults();
+  const dates = cnDates();
+  if(!dates.length){ toast('Escolha o período','err'); return; }
+  // skeleton shimmer enquanto o Firebase responde (percepção de velocidade)
+  document.getElementById('cnKpi').innerHTML = Array.from({length:6}, () =>
+    '<div class="kpi"><div class="kpi-label sp-shimmer" style="height:11px;width:60%">&nbsp;</div>' +
+    '<div class="kpi-val sp-shimmer" style="height:26px;width:45%;margin:8px 0">&nbsp;</div>' +
+    '<div class="kpi-sub sp-shimmer" style="height:10px;width:80%">&nbsp;</div></div>').join('');
+  _cnRows = await fetchCnRows(dates);
   // popula o filtro de operador com quem realmente criou no período
   const sel = document.getElementById('cnOp'), cur = sel.value;
   const ops = [...new Set(rows.map(r => r.doneBy).filter(Boolean))].sort();
@@ -1331,12 +1339,8 @@ async function loadAudit(){
         if(r.garantido)sumGar+=r.garantido;
         if(r.premiacao)sumPrem+=r.premiacao;
         if(r.overlay)sumOv+=r.overlay;
-        // 11. Detectar anomalias automaticamente
-        const anomalias = [];
-        if(r.premiacao === 0) anomalias.push('Premiação R$0');
-        if(r.premiacao != null && r.garantido && r.premiacao > r.garantido * 3) anomalias.push('Premiação muito alta');
-        if(r.field != null && r.buyin && r.field > 0 && r.garantido && (r.field * r.buyin) < r.garantido * 0.1) anomalias.push('Field baixo pro GTD');
-        if(r.overlay != null && r.garantido && Math.abs(r.overlay) > r.garantido * 0.5) anomalias.push('Overlay >50% GTD');
+        // 11. Detectar anomalias automaticamente (mesma regra da Central de Alertas)
+        const anomalias = resultAnoms(r);
         const hasAnomalia = anomalias.length > 0 && !r._audited;
         const trCls = [cls, r._audited?'audit-edited':'', hasAnomalia?'anomalia':''].filter(Boolean).join(' ');
         const anomaliaHtml = hasAnomalia ? `<span title="${anomalias.join(', ')}" style="font-size:9px;background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.2);border-radius:4px;padding:1px 5px;margin-left:4px">⚠ ${anomalias[0]}</span>` : '';
@@ -1375,6 +1379,7 @@ async function loadAudit(){
           ${cc.label}
           <span class="audit-group-count">${count} torneio${count>1?'s':''}</span>
         </div>
+        <div class="audit-scroll">
         <table class="audit-table">
           <thead><tr>
             <th style="width:32px"><input type="checkbox" id="checkAll" data-act="toggleCheckAll" data-act-self data-act-on="change" style="accent-color:var(--gold);width:14px;height:14px"></th>
@@ -1385,6 +1390,7 @@ async function loadAudit(){
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table>
+        </div>
         <div class="audit-total">
           <span>Total (${count})</span>
           <span>GTD <strong>R$ ${brl(sumGar)}</strong></span>
@@ -3312,6 +3318,7 @@ async function initBackup(){
   // ANTES das regras do nó `config` serem publicadas (a 1ª escrita falhava em silêncio).
   const _savedSheetsUrl = (localStorage.getItem('suprema_sheets_url')||'').trim();
   if(_savedSheetsUrl) syncSheetsCfgToRTDB(_savedSheetsUrl, (localStorage.getItem('suprema_sheets_secret')||'').trim());
+  renderAutoBackupStatus();   // status do backup diário automático (Cloud Function)
   await loadAll(true);   // backup exporta o histórico COMPLETO, não a janela de 60 dias
   const dates = Object.keys(_allData).sort();
   if(!dates.length){ document.getElementById('backupKpi').innerHTML='<div style="color:var(--ink3);font-size:12px">Nenhum dado encontrado.</div>'; return; }
@@ -3639,6 +3646,29 @@ function _sheetsCfg(){
   const url = (localStorage.getItem('suprema_sheets_url')||'').trim();
   if(!url) return null;
   return { url, secret:(localStorage.getItem('suprema_sheets_secret')||'').trim() };
+}
+
+/* Status do BACKUP DIÁRIO AUTOMÁTICO (Cloud Function supremaBackupSheets).
+   Lê config/sheetsBackup/lastRun — carimbo que a função grava a cada execução —
+   e mostra se rodou, quando e se deu certo. Fecha o ciclo do "está funcionando?". */
+async function renderAutoBackupStatus(){
+  const el = document.getElementById('autoBackupStatus');
+  if(!el || !fbOk) return;
+  try{
+    const lr = (await db.ref('config/sheetsBackup/lastRun').once('value')).val();
+    if(!lr || !lr.at){
+      el.innerHTML = `<div style="font-size:11.5px;color:var(--ink3);display:flex;gap:6px;align-items:center">⏱ <span>Backup automático diário: <b>sem execução registrada ainda</b> — arme a URL abaixo e faça o deploy da Cloud Function <code>supremaBackupSheets</code>.</span></div>`;
+      return;
+    }
+    const when = new Date(lr.at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+    const okCol = lr.ok ? 'var(--green)' : 'var(--red)';
+    const icon  = lr.ok ? '✓' : '⚠';
+    const msg   = lr.ok ? `enviou ${lr.rows||0} torneios do dia ${lr.date? lr.date.slice(8,10)+'/'+lr.date.slice(5,7):'—'}`
+                        : `falhou (${esc(lr.error||'sem detalhe')})`;
+    el.innerHTML = `<div style="font-size:11.5px;display:flex;gap:6px;align-items:center;color:var(--ink2)">
+      <span style="color:${okCol};font-weight:800">${icon}</span>
+      <span>Backup automático diário — último run <b>${when}</b>: ${msg}</span></div>`;
+  }catch(e){ /* sem permissão/config → silencioso */ }
 }
 
 // Grava a config do backup no RTDB (config/sheetsBackup) — é isso que ARMA o
@@ -4173,6 +4203,131 @@ async function openAdminLog(){
     '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--ink3)">Nenhum registro ainda.</td></tr>';
   }catch(e){ el.innerHTML='<tr><td colspan="4" style="color:var(--red)">Erro ao carregar.</td></tr>'; }
   mo.classList.add('open');
+}
+
+/* ══════════════════════════════════════════════════════════════
+   CENTRAL DE ALERTAS — "o admin manda em tudo": todo comportamento
+   suspeito do operador vira alerta num lugar só (sino na topbar).
+   Fontes (TODAS já detectadas noutras telas; aqui só agregadas, pra
+   não divergirem):
+   • fixação cedo/atrasada     → flatRows.fixTiming
+   • anomalias de resultado    → resultAnoms (prem R$0 / >3× GTD / field baixo / overlay >50%)
+   • criação noturna suspeita  → cnAnoms (sem ID / após início / tempo 3× / alterado)
+   • criação de card à mão     → flatRows.manual (manualRows)
+══════════════════════════════════════════════════════════════ */
+let _alertasDays = 7;
+const _sevRank = { alta:3, media:2, info:1 };
+/* alertas já VISTOS (some do contador). Em sessionStorage: some só quando o
+   admin viu, sobrevive a reload da sessão, mas NADA vai pro Firebase. */
+const alSig = a => `${a.date}|${a.hora}|${a.nome}|${a.motivo}`;
+const _alSeen = (() => {
+  try { return new Set(JSON.parse(sessionStorage.getItem('alertSeen')||'[]')); }
+  catch(e){ return new Set(); }
+})();
+function _alSeenPersist(){
+  try { sessionStorage.setItem('alertSeen', JSON.stringify([..._alSeen].slice(-500))); }
+  catch(e){ /* storage cheio/indisponível — o Set em memória ainda vale */ }
+}
+
+/* Anomalias de RESULTADO — MESMA regra da tabela de auditoria (~L1335),
+   centralizada aqui pra as duas telas nunca discordarem. */
+function resultAnoms(r){
+  const out = [];
+  if(r.premiacao === 0) out.push('Premiação R$0');
+  if(r.premiacao != null && r.garantido && r.premiacao > r.garantido*3) out.push('Premiação >3× o GTD');
+  if(r.field != null && r.buyin && r.field > 0 && r.garantido && (r.field*r.buyin) < r.garantido*0.1) out.push('Field baixo pro GTD');
+  if(r.overlay != null && r.garantido && Math.abs(r.overlay) > r.garantido*0.5) out.push('Overlay >50% do GTD');
+  return out;
+}
+
+/* Junta TODOS os alertas do período. Puro sobre _allData (já em memória) + fetch
+   leve da Criação Noturna. Não renderiza nem re-baixa a janela de 60 dias. */
+async function collectAlertas(days){
+  const to = nowSP(), from = dago((days||7)-1);
+  const rows = flatRows(from, to);
+  const out = [];
+  const push = (sev, cat, motivo, r) => out.push({
+    sev, cat, motivo, nome:r.nome, hora:r.hora, date:r.date,
+    op: r.fixBy || r.idBy || '', when:0,
+  });
+  for(const r of rows){
+    if(r.fixTiming === 'atrasado')
+      push('alta','fix', `Fixou atrasado (${Math.abs(r.fixLeadMin)}min ${r.fixLeadMin<0?'após o':'antes do'} início)`, r);
+    else if(r.fixTiming === 'cedo')
+      push('media','fix', `Fixou muito cedo (${Math.round(r.fixLeadMin/60*10)/10}h antes do prazo)`, r);
+    for(const a of resultAnoms(r))
+      push(a==='Premiação R$0'?'alta':'media','resultado', a, r);
+    if(r.manual)
+      push('info','card', 'Card adicionado à mão na auditoria', r);
+  }
+  // Criação Noturna — mesma janela
+  try{
+    const dates = []; const d=new Date(from+'T12:00:00Z'), end=new Date(to+'T12:00:00Z');
+    while(d<=end && dates.length<62){ dates.push(d.toISOString().slice(0,10)); d.setUTCDate(d.getUTCDate()+1); }
+    const cn = await fetchCnRows(dates);
+    const avg = cnAvgDur(cn);
+    for(const r of cn) for(const a of cnAnoms(r, avg))
+      out.push({ sev:(a==='criado após o início'?'alta':'media'), cat:'criacao',
+        motivo:'Criação · '+a, nome:r.nome, hora:r.hora, date:r.date, op:r.doneBy||'', when:r.doneAt||0 });
+  }catch(e){ console.warn('[alertas] CN:', e.message); }
+  // ordena: gravidade ↓, depois data ↓ / hora ↓
+  out.sort((a,b)=> (_sevRank[b.sev]-_sevRank[a.sev])
+    || String(b.date).localeCompare(String(a.date))
+    || String(b.hora).localeCompare(String(a.hora)));
+  return out;
+}
+
+function setAlertasPeriod(n){ _alertasDays = n; openAlertas(); }
+
+async function openAlertas(){
+  const mo = document.getElementById('moAlertas');
+  const body = document.getElementById('alertasBody');
+  if(!mo || !body) return;
+  mo.classList.add('open');
+  body.innerHTML = '<div style="padding:24px;text-align:center;color:var(--ink3)">Carregando alertas…</div>';
+  [7,15,30].forEach(n=>{ const b=document.getElementById('alPer'+n); if(b) b.classList.toggle('btn-gold', _alertasDays===n); });
+  let al; try{ al = await collectAlertas(_alertasDays); }
+  catch(e){ body.innerHTML='<div style="padding:24px;color:var(--red)">Erro ao carregar alertas.</div>'; return; }
+  if(!al.length){ updateAlertasBadge(0); body.innerHTML='<div style="padding:24px;text-align:center;color:var(--ink3)">✓ Nenhum comportamento suspeito no período.</div>'; return; }
+  const sevMeta = {
+    alta:  ['var(--red)','rgba(239,68,68,.12)','Alta'],
+    media: ['var(--amber)','rgba(245,158,11,.12)','Média'],
+    info:  ['#60a5fa','rgba(96,165,250,.12)','Info'],
+  };
+  const catIcon = { fix:'⏱', resultado:'⚠', criacao:'🌙', card:'➕' };
+  const fmtD = d => d ? `${d.slice(8,10)}/${d.slice(5,7)}` : '—';
+  body.innerHTML = al.map(a=>{
+    const [c,bg,lbl] = sevMeta[a.sev]||sevMeta.info;
+    const novo = !_alSeen.has(alSig(a));   // marca os que ainda não tinham sido vistos
+    return `<div style="display:flex;gap:10px;align-items:flex-start;padding:10px 4px;border-bottom:1px solid var(--s2,rgba(0,0,0,.06))${novo?';background:rgba(96,165,250,.05)':''}">
+      <span style="font-size:16px;flex:0 0 auto">${catIcon[a.cat]||'•'}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;color:var(--ink);font-weight:600">${novo?'<span style="color:#60a5fa;font-weight:800;margin-right:4px">•</span>':''}${esc(a.motivo)}</div>
+        <div style="font-size:11px;color:var(--ink3);margin-top:2px">${esc(a.nome||'—')} · ${esc(a.hora||'—')} · ${fmtD(a.date)}${a.op?` · <b style="color:var(--ink2)">${esc(a.op)}</b>`:''}</div>
+      </div>
+      <span style="flex:0 0 auto;font-size:9px;font-weight:800;color:${c};background:${bg};border-radius:5px;padding:2px 7px;white-space:nowrap">${lbl}</span>
+    </div>`;
+  }).join('');
+  // abriu = viu: marca todos como vistos e zera o contador
+  al.forEach(a => _alSeen.add(alSig(a)));
+  _alSeenPersist();
+  updateAlertasBadge(0);
+}
+
+/* atualiza SÓ o número do sino (sem abrir o modal) = quantos alertas AINDA NÃO
+   foram vistos. Roda no idle do init e a cada atualização ao vivo da grade. */
+async function refreshAlertasBadge(){
+  try{
+    if(!Object.keys(_allData).length) return;
+    const al = await collectAlertas(_alertasDays);
+    updateAlertasBadge(al.filter(a => !_alSeen.has(alSig(a))).length);
+  }catch(e){ /* silencioso — o sino é secundário */ }
+}
+function updateAlertasBadge(n){
+  const b = document.getElementById('alertasBadge');
+  if(!b) return;
+  if(n>0){ b.textContent = n>99?'99+':String(n); b.style.display=''; }
+  else b.style.display='none';
 }
 
 /* ── 13. Tendência de field por torneio ── */
