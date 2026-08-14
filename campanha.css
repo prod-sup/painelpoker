@@ -1259,7 +1259,9 @@ html.lite .hero-big{animation:none; color:var(--gold-hi)}
 /* ── TELA — A Semana Inteira (grid de dias) ── */
 /* A Semana SPS — TUDO cabe numa tela de TV (7 dias em UMA linha) e OCUPA a tela toda:
    o bloco (resumo + grade) é centralizado na vertical e os cards são altos (~54vh). */
-.scene-week{justify-content:center; padding:calc(clamp(16px,2vh,26px) + 44px) clamp(24px,2.4vw,52px) clamp(16px,2.2vh,30px); gap:clamp(18px,2.6vh,32px)}
+/* flex-start (não center): center empurrava o conteúdo tao alto que o título saía da área
+   segura da TV e o body(overflow:hidden) cortava — agora ancora no topo igual à Jornada */
+.scene-week{justify-content:flex-start; padding:calc(clamp(16px,2vh,26px) + 44px) clamp(24px,2.4vw,52px) clamp(16px,2.2vh,30px); gap:clamp(18px,2.6vh,32px)}
 .week-grid{width:min(1780px,97vw); display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:clamp(9px,.85vw,16px); align-content:stretch; overflow:visible}
 .wk-card{position:relative; min-height:clamp(320px,52vh,520px); padding:clamp(16px,1.4vw,26px); border-radius:18px; border:1px solid rgba(255,255,255,.08);
   background:linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.02) 62%); -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px);
