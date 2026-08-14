@@ -236,6 +236,19 @@ html.tv-device .scene-panel{
           mask-image:linear-gradient(180deg, transparent 0, #000 30px, #000 calc(100% - 30px), transparent 100%);
 }
 
+/* 6) TÍTULOS das cenas (EVENTOS SPS DE HOJE / VEM AÍ / A SEMANA SPS) ficam SOBRE o vídeo (não num
+   card) → o logo grande do vídeo passava por trás e "quebrava"/cortava o texto. Solução à prova de
+   bala: cada título ganha uma PLACA SÓLIDA própria (centralizada) — o vídeo nunca mais aparece
+   atrás do texto, independente de brilho. */
+html.tv-device .rk-top{
+  align-self:center;
+  background:rgba(7,9,13,.94) !important;
+  border:1px solid rgba(255,255,255,.07);
+  border-radius:18px;
+  padding:clamp(10px,1.3vh,18px) clamp(30px,3.4vw,62px);
+  box-shadow:0 22px 54px -30px rgba(0,0,0,.92);
+}
+
 /* transição IDÊNTICA à Suprema TV: crossfade + scale 1.02→1 (entra) / 1→.985 (sai), só opacity/transform */
 .scene{position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center;
   padding:clamp(54px,7vh,86px) clamp(40px,6vw,120px); gap:clamp(20px,3vh,40px);
