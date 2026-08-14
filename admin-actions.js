@@ -65,7 +65,7 @@
     'openAdminLog', 'openJustifs', 'openNotifHistory', 'openAlertas', 'setAlertasPeriod', 'toggleOpRanking',
     'buildOpRanking', 'buildHeatmap', 'filterOps', 'openAuditSummary', 'openInsightSettings',
     'buildAuditSummary', 'buildFieldTrend', 'buildMonthProjection',
-    'saveAudit', 'openAddTorneio', 'saveAddTorneio', 'openCampanhaCfg', 'saveCampanhaCfg', 'saveAviso', 'saveHubLink', 'saveHubEvent', 'saveHubPatch',
+    'saveAudit', 'openAddTorneio', 'saveAddTorneio', 'syncAddEtapa', 'openCampanhaCfg', 'saveCampanhaCfg', 'saveAviso', 'saveHubLink', 'saveHubEvent', 'saveHubPatch',
     'saveInsightSettings', 'resetAvisoForm',
     'sendNotif', 'selNotifType', 'batchApprove', 'batchDeselect', 'batchNotifyAnomalias', 'approveAllAudit',
     'toggleSoAnomalia', 'toggleCnErros',

@@ -1019,6 +1019,23 @@ document.addEventListener('DOMContentLoaded', () => {
         <option value="sat">Satélite</option>
       </select>
     </div>
+    <!-- Multiday (torneio A/B/C + Dia 2): o valor do torneio inteiro é do Dia 2 — os
+         flights de Dia 1 entram na grade só com jogadores/buy-in. Ver saveAddTorneio. -->
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div class="mf" style="flex:1;min-width:160px">
+        <label>Etapa</label>
+        <select id="addEtapa" data-act="syncAddEtapa" data-act-on="change">
+          <option value="">Evento normal</option>
+          <option value="d1">Multiday · Dia 1 (flight)</option>
+          <option value="d2">Multiday · Dia 2 (final)</option>
+        </select>
+      </div>
+      <div class="mf" id="addFlightWrap" style="flex:1;min-width:100px;display:none">
+        <label>Flight</label>
+        <input type="text" id="addFlight" placeholder="A" maxlength="3" autocomplete="off">
+      </div>
+    </div>
+    <div class="msub" id="addEtapaHint" style="display:none;margin-top:-4px"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <div class="mf" style="flex:1;min-width:120px">
         <label>Buy-in (R$)</label>

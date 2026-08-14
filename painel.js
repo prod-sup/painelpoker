@@ -3926,13 +3926,16 @@ function manualIdent(r){
 }
 
 /* =========================================================================
-   MULTIDAY — torneio A/B/C + Dia 2
+   MULTIDAY — torneio A/B/C + Dia 2  (LADO LEITURA)
    Um multiday é UM torneio jogado em vários dias: os flights de Dia 1 (A, B, C…)
    e o Dia 2, que é a final. O VALOR do multiday (garantido e arrecadado) é do DIA 2 —
    se cada flight carregasse o garantido, o total do dia contaria o mesmo prêmio 3, 4
    vezes e a performance sairia toda errada. Então o flight ENTRA na grade e conta
    jogadores/buy-in (são entradas de verdade), mas fica SEM garantido, SEM arrecadado,
    sem overlay e fora da performance: só o Dia 2 fecha valor.
+   QUEM CRIA é o ADMIN (admin.js → saveAddTorneio): o multiday é decisão de quem monta
+   a grade, não do turno. O painel só RECEBE a linha por painel/<data>/manualRows e
+   respeita a regra — por isso aqui só existem leitores, nenhum construtor.
    Marcadores na row (sobrevivem ao Firebase, ao re-upload da Global e ao snapshot):
      mdEtapa  'd1' (flight) | 'd2' (final)
      mdFlight 'A', 'B', 'C'… (só no Dia 1)
@@ -3947,14 +3950,6 @@ function multidayBadgeText(r){
   if(isMultidayFinal(r))  return 'DIA 2';
   return '';
 }
-/* sufixo que vai no NOME do evento na grade — o operador digita o nome do multiday uma
-   vez ("SPS Mystery Multiday") e cada etapa vira uma linha distinta e legível. */
-function multidaySuffix(etapa, flight){
-  if(etapa === 'd1') return ' · Dia 1' + (flight || '');
-  if(etapa === 'd2') return ' · Dia 2';
-  return '';
-}
-function multidayGrupoKey(nome){ return String(nome || '').trim().toUpperCase(); }
 /* total de jogadores dos flights do mesmo multiday — é o número que o Dia 2 precisa
    mostrar (o field da final é só quem voltou, não o tamanho do torneio). */
 function multidayFlightsField(grupo){
@@ -3995,15 +3990,12 @@ function reingestComManuais(){
 
 /* Monta a row do torneio manual com a MESMA forma de uma linha parseada da planilha
    (ver o out.push do parser) — qualquer campo faltando aqui vira `undefined` lá na frente. */
-function buildManualRow({nome, hora, garantido, buyin, tipo, etapa, flight}){
-  const md = etapa === 'd1' || etapa === 'd2' ? etapa : null;
-  const fl = md === 'd1' ? String(flight || '').trim().toUpperCase() : '';
+function buildManualRow({nome, hora, garantido, buyin, tipo}){
   return {
-    nome: String(nome).trim() + multidaySuffix(md, fl),
+    nome: String(nome).trim(),
     hora: hora || null,
     late: null,
-    // flight de Dia 1 NUNCA carrega garantido — o valor do multiday é do Dia 2
-    garantido: md === 'd1' ? null : (garantido != null ? garantido : null),
+    garantido: garantido != null ? garantido : null,
     buyin: buyin != null ? buyin : null,
     premiacao: null,
     premFromSheet: false,
@@ -4015,9 +4007,6 @@ function buildManualRow({nome, hora, garantido, buyin, tipo, etapa, flight}){
     check: null,
     tipo: tipo || null,          // vazio => classify() deduz por nome/garantido
     highlighted: false,
-    mdEtapa: md,                 // null | 'd1' (flight) | 'd2' (final) — ver bloco MULTIDAY
-    mdFlight: fl || null,
-    mdGrupo: md ? multidayGrupoKey(nome) : null,
     _manual: true,               // marca a origem (separa a planilha pura no ingest)
     _by: (typeof OPERATOR_NAME !== 'undefined' && OPERATOR_NAME) ? OPERATOR_NAME : '',
     _at: Date.now(),
@@ -6011,36 +6000,6 @@ function parseValorBRL(s){
   return isNaN(n) || n < 0 ? null : Math.round(n * 100) / 100;
 }
 
-/* Etapa do multiday no formulário: mostra o campo do flight, TRAVA o garantido no Dia 1
-   (o valor é do Dia 2 — deixar digitável só convidaria a contar o prêmio duas vezes) e
-   explica em uma linha o que cada etapa faz com os números. */
-function syncAddtEtapa(){
-  const sel = document.getElementById('addtEtapa');
-  if(!sel) return;
-  const etapa = sel.value;
-  const wrap  = document.getElementById('addtFlightWrap');
-  const flight= document.getElementById('addtFlight');
-  const gar   = document.getElementById('addtGarantido');
-  const hint  = document.getElementById('addtEtapaHint');
-  if(wrap) wrap.hidden = etapa !== 'd1';
-  if(flight && etapa !== 'd1') flight.value = '';
-  if(gar){
-    gar.disabled = etapa === 'd1';
-    if(etapa === 'd1'){ gar.value = ''; gar.placeholder = 'vale no Dia 2'; }
-    else gar.placeholder = '50.000';
-  }
-  if(hint){
-    hint.hidden = !etapa;
-    if(etapa === 'd1') hint.innerHTML = 'O flight entra na grade e conta <b>jogadores e buy-in</b>, mas fica sem garantido, sem arrecadado e fora da performance — quem fecha o valor do multiday é o <b>Dia 2</b>.';
-    else if(etapa === 'd2') hint.innerHTML = 'A final <b>carrega o valor do multiday inteiro</b>: garantido, arrecadado, overlay e performance saem daqui. Os flights de Dia 1 só somam jogadores.';
-  }
-}
-document.getElementById('addtEtapa')?.addEventListener('change', syncAddtEtapa);
-document.getElementById('addtFlight')?.addEventListener('input', function(){
-  this.value = this.value.toUpperCase();
-  this.classList.remove('addt-invalid');
-});
-
 function addtMsg(txt, cls){
   const el = document.getElementById('addtMsg');
   if (!el) return;
@@ -6089,43 +6048,33 @@ function renderManualList(){
 document.getElementById('addTorneioForm')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const $ = id => document.getElementById(id);
-  const nomeEl = $('addtNome'), horaEl = $('addtHora'), flightEl = $('addtFlight');
+  const nomeEl = $('addtNome'), horaEl = $('addtHora');
   const nome = nomeEl.value.trim();
   const hora = horaEl.value;
   const garantido = parseValorBRL($('addtGarantido').value);
   const buyin = parseValorBRL($('addtBuyin').value);
   const tipo = $('addtTipo').value;
-  const etapa = $('addtEtapa') ? $('addtEtapa').value : '';
-  const flight = flightEl ? flightEl.value.trim().toUpperCase() : '';
 
-  [nomeEl, horaEl, flightEl].forEach(el => el && el.classList.remove('addt-invalid'));
+  [nomeEl, horaEl].forEach(el => el.classList.remove('addt-invalid'));
   if (!nome){ nomeEl.classList.add('addt-invalid'); nomeEl.focus(); return addtMsg('Dê um nome ao evento.', 'err'); }
   if (!hora){ horaEl.classList.add('addt-invalid'); horaEl.focus(); return addtMsg('Informe o horário.', 'err'); }
-  // sem a letra do flight os Dia 1 do mesmo multiday ficariam com nome idêntico
-  if (etapa === 'd1' && !flight){
-    flightEl.classList.add('addt-invalid'); flightEl.focus();
-    return addtMsg('Diga qual é o flight (A, B, C…).', 'err');
-  }
 
   // a grade precisa existir: os manuais são fundidos NA planilha do dia
   if (!LAST_SHEET_ROWS.length) return addtMsg('Carregue a Global MTT de hoje antes de adicionar torneios.', 'err');
 
   // nome+hora é a identidade do torneio no painel inteiro — duplicar quebraria o casamento
-  // da premiação e a auditoria (dois eventos indistinguíveis). No multiday quem vale é o nome
-  // JÁ com o sufixo da etapa ("… · Dia 1B"), que é o que entra na grade.
-  const nomeGrade = nome + multidaySuffix(etapa, flight);
-  const ident = manualIdent({nome: nomeGrade, hora});
+  // da premiação e a auditoria (dois eventos indistinguíveis)
+  const ident = manualIdent({nome, hora});
   if (RAW_ROWS.some(r => manualIdent(r) === ident))
     return addtMsg('Já existe um torneio com esse nome e horário na grade de hoje.', 'err');
 
   const btn = $('addtSubmit');
   btn.disabled = true; addtMsg('adicionando…');
   try{
-    await addManualTournament({nome, hora, garantido, buyin, tipo, etapa, flight});
-    addtMsg(`✓ "${nomeGrade}" entrou na grade das ${hora}.`, 'ok');
-    showToast(`✓ Torneio "${nomeGrade}" adicionado à grade de hoje`);
+    await addManualTournament({nome, hora, garantido, buyin, tipo});
+    addtMsg(`✓ "${nome}" entrou na grade das ${hora}.`, 'ok');
+    showToast(`✓ Torneio "${nome}" adicionado à grade de hoje`);
     document.getElementById('addTorneioForm').reset();
-    syncAddtEtapa();  // reset devolve a etapa pra "evento normal" — destrava o garantido
     nomeEl.focus(); // pronto pro próximo (o operador costuma adicionar mais de um)
   }catch(err){
     addtMsg('Falha ao salvar: ' + (err?.message || 'sem conexão'), 'err');

@@ -3003,14 +3003,59 @@ async function saveAudit(){
    nós overlay do painel (premiacao/premBy/field/garantido/ids), pelo mesmo padrão
    do saveAudit. Não toca em painel/<data>/sheet.rows → não aparece na grade ao
    vivo dos operadores. */
+/* ── MULTIDAY (torneio A/B/C + Dia 2) ─────────────────────────────
+   Um multiday é UM torneio jogado em vários dias: os flights de Dia 1 (A, B, C…)
+   e o Dia 2, que é a final. O VALOR do torneio (garantido e arrecadado) é do DIA 2 —
+   se cada flight carregasse o garantido, o total do dia contaria o mesmo prêmio uma
+   vez por flight, inflando garantido, overlay e performance. Então o flight entra na
+   grade e conta jogadores/buy-in (entradas de verdade), mas SEM garantido e SEM
+   arrecadado. Marcadores gravados na row (o painel lê e respeita a mesma regra):
+     mdEtapa  'd1' (flight) | 'd2' (final)
+     mdFlight 'A', 'B', 'C'… (só no Dia 1)
+     mdGrupo  nome do multiday em CAIXA ALTA — amarra os flights à final          */
+function multidaySuffix(etapa, flight){
+  if(etapa === 'd1') return ' · Dia 1' + (flight || '');
+  if(etapa === 'd2') return ' · Dia 2';
+  return '';
+}
+function multidayGrupoKey(nome){ return String(nome || '').trim().toUpperCase(); }
+
+/* Etapa escolhida no modal: mostra o campo do flight, TRAVA garantido/arrecadado no
+   Dia 1 (deixá-los digitáveis só convidaria a lançar o mesmo prêmio em cada flight)
+   e explica em uma linha o que a etapa faz com os números. */
+function syncAddEtapa(){
+  const sel = document.getElementById('addEtapa');
+  if(!sel) return;
+  const etapa = sel.value;
+  const wrap  = document.getElementById('addFlightWrap');
+  const flight= document.getElementById('addFlight');
+  const hint  = document.getElementById('addEtapaHint');
+  if(wrap) wrap.style.display = etapa === 'd1' ? '' : 'none';
+  if(flight && etapa !== 'd1') flight.value = '';
+  ['addGar','addPrem'].forEach(id => {
+    const el = document.getElementById(id); if(!el) return;
+    el.disabled = etapa === 'd1';
+    el.style.opacity = etapa === 'd1' ? '.45' : '';
+    if(etapa === 'd1'){ el.value=''; el.placeholder='vale no Dia 2'; }
+    else el.placeholder = id === 'addGar' ? '0,00' : '—';
+  });
+  if(hint){
+    hint.style.display = etapa ? '' : 'none';
+    if(etapa === 'd1') hint.innerHTML = 'O flight entra na grade e conta <b>jogadores e buy-in</b>, mas fica sem garantido e sem arrecadado — quem fecha o valor do multiday é o <b>Dia 2</b>.';
+    else if(etapa === 'd2') hint.innerHTML = 'A final <b>carrega o valor do multiday inteiro</b>: garantido, arrecadado, overlay e performance saem daqui. Os flights de Dia 1 só somam jogadores.';
+  }
+}
+
 function openAddTorneio(){
   const err = document.getElementById('addErr');
   if(err){ err.style.display='none'; err.textContent=''; }
   const d = document.getElementById('addDate');
   if(d) d.value = document.getElementById('auFrom')?.value || nowSP();
-  ['addNome','addHora','addBuyin','addGar','addPrem','addField','addId','addObs']
+  ['addNome','addHora','addBuyin','addGar','addPrem','addField','addId','addObs','addFlight']
     .forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   const cat = document.getElementById('addCat'); if(cat) cat.value='side';
+  const et = document.getElementById('addEtapa'); if(et) et.value='';
+  syncAddEtapa();   // reabrir o modal volta pro estado "evento normal" (destrava os valores)
   document.getElementById('moAddTorneio').classList.add('open');
   setTimeout(() => document.getElementById('addNome')?.focus(), 80);
 }
@@ -3023,9 +3068,13 @@ async function saveAddTorneio(){
   err.style.display='none';
 
   const date     = document.getElementById('addDate').value;
-  const nome     = document.getElementById('addNome').value.trim();
+  const nomeBase = document.getElementById('addNome').value.trim();
   const hora     = document.getElementById('addHora').value.trim();
   const cat      = document.getElementById('addCat').value || 'side';
+  const etapaSel = document.getElementById('addEtapa');
+  const etapa    = etapaSel ? etapaSel.value : '';
+  const flightEl = document.getElementById('addFlight');
+  const flight   = flightEl ? flightEl.value.trim().toUpperCase() : '';
   const buyinRaw = document.getElementById('addBuyin').value.trim();
   const garRaw   = document.getElementById('addGar').value.trim();
   const premRaw  = document.getElementById('addPrem').value.trim();
@@ -3033,17 +3082,23 @@ async function saveAddTorneio(){
   const idVal    = document.getElementById('addId').value.trim();
   const obs      = document.getElementById('addObs').value.trim();
 
-  if(!date)  return fail('Escolha a data da grade.');
-  if(!nome)  return fail('Preencha o nome do torneio.');
+  if(!date)      return fail('Escolha a data da grade.');
+  if(!nomeBase)  return fail('Preencha o nome do torneio.');
   if(!/^\d{1,2}:\d{2}$/.test(hora)) return fail('Hora inválida — use HH:MM (ex: 20:00).');
+  // sem a letra, dois flights do mesmo multiday no mesmo horário ficariam indistinguíveis
+  if(etapa === 'd1' && !flight) return fail('Diga qual é o flight (A, B, C…).');
 
+  // o nome que vai pra grade carrega a etapa: "SPS Mystery Multiday · Dia 1B"
+  const nome  = nomeBase + multidaySuffix(etapa, flight);
+  const isFlight = etapa === 'd1';
   const buyin = buyinRaw ? parseBRL(buyinRaw)     : null;
-  const gar   = garRaw   ? parseBRL(garRaw)       : null;
-  const prem  = premRaw  ? parseBRL(premRaw)      : null;
+  // flight de Dia 1 NUNCA carrega valor — o garantido/arrecadado do multiday é do Dia 2
+  const gar   = isFlight ? null : (garRaw  ? parseBRL(garRaw)  : null);
+  const prem  = isFlight ? null : (premRaw ? parseBRL(premRaw) : null);
   const field = fieldRaw ? parseInt(fieldRaw,10)  : null;
   if(buyinRaw && isNaN(buyin)) return fail('Buy-in inválido.');
-  if(garRaw   && isNaN(gar))   return fail('Garantido inválido.');
-  if(premRaw  && isNaN(prem))  return fail('Arrecadado inválido.');
+  if(!isFlight && garRaw  && isNaN(gar))   return fail('Garantido inválido.');
+  if(!isFlight && premRaw && isNaN(prem))  return fail('Arrecadado inválido.');
 
   // MESMA forma da linha manual do PAINEL (buildManualRow) — é isto que faz o painel fundir
   // este torneio na grade AO VIVO exatamente como a ferramenta "Adicionar torneio" dele:
@@ -3058,6 +3113,11 @@ async function saveAddTorneio(){
     premiacao:null, premFromSheet:false, explicitNF:false, overlay:null,
     field: field!=null?field:null, acoes:null, perf:null, check:null,
     tipo:cat, highlighted:false,
+    // multiday: o painel lê estes 3 campos pra tirar o flight dos valores (ver bloco
+    // MULTIDAY no painel.js) — card sem arrecadado, fora de overlay/performance/fechamento
+    mdEtapa: (etapa === 'd1' || etapa === 'd2') ? etapa : null,
+    mdFlight: isFlight ? flight : null,
+    mdGrupo: etapa ? multidayGrupoKey(nomeBase) : null,
     _manual:true,                       // ← painel: trata como torneio manual (grade ao vivo)
     manual:true,                        // compat: o merge da auditoria (mergeDayInto) usa este flag
     obs: obs||null,
@@ -3091,7 +3151,8 @@ async function saveAddTorneio(){
     toast(date === nowSP()
       ? '✓ Torneio adicionado — já está na grade ao vivo de hoje'
       : '✓ Torneio adicionado à auditoria','ok');
-    writeAdminLog('adicionar', { torneio:nome, date, hora, cat, buyin, garantido:gar, premiacao:prem, field, id:idVal, obs });
+    writeAdminLog('adicionar', { torneio:nome, date, hora, cat, buyin, garantido:gar, premiacao:prem, field, id:idVal, obs,
+      etapa: etapa || null, flight: flight || null });
 
     // Garante que o período visível cobre a data lançada, senão a linha não apareceria
     const fromEl=document.getElementById('auFrom'), toEl=document.getElementById('auTo');
