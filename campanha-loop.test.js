@@ -234,9 +234,27 @@ console.log('\nmarcação e CSS:');
   ok(zStill != null && zScrim != null && Number(zStill) < Number(zScrim),
      'still (z' + zStill + ') pinta ABAIXO do scrim (z' + zScrim + ') — mesmo brilho do vídeo');
 
+  /* A duração NÃO é gosto: o clipe foi medido quadro a quadro e o dissolve foi simulado
+     em cima dos quadros reais (probe headless). Clipe 8,04s @24fps:
+       régua (mudança entre 2 quadros seguidos) = 0,42
+       corte nativo (último → 1º)              = 17,29  = 40x a régua num quadro só
+       0,85s curva S → 2,0x (pico 3,9x) · 0,85s linear → 2,1x
+       1,15s linear  → 1,5x (pico 1,7x) · 1,60s linear → 1,1x mas pico volta a 2,1x
+     Ou seja: abaixo de ~1,1s a emenda volta a aparecer; acima, para de compensar. */
+  const REGUA = 0.42, SALTO = 17.29, FPS = 24;
   const dis = (css.match(/\.tv-hero-still\{[^}]*transition:opacity ([\d.]+)s/) || [])[1];
-  ok(parseFloat(dis) >= 0.6 && parseFloat(dis) <= 1.2,
-     'dissolve de ' + dis + 's — lê como dissolve e cabe num ciclo de 8s');
+  const passo = SALTO / (parseFloat(dis) * FPS);
+  ok(parseFloat(dis) >= 1.05 && parseFloat(dis) <= 1.4 && passo <= REGUA * 1.6,
+     'dissolve de ' + dis + 's → ' + (passo / REGUA).toFixed(1) + 'x a régua por quadro (movimento normal do clipe)');
+  ok(/transition:opacity [\d.]+s linear/.test(css),
+     'dissolve LINEAR — curva em S concentraria a mudança no meio (inchaço visível)');
+  /* a camada que sai continua se mexendo: parada por 1,15s, ela se entrega como foto */
+  const escSai = (css.match(/\.tv-hero-still\{[^}]*transform:scale\(([\d.]+)\)/) || [])[1];
+  const escSeg = (css.match(/\.tv-hero-still\.is-holding\{[^}]*transform:scale\(([\d.]+)\)/) || [])[1];
+  const deriva = (parseFloat(escSai) / parseFloat(escSeg) - 1) * 100;
+  ok(deriva > 0.2 && deriva < 1.2,
+     'deriva de ' + deriva.toFixed(1) + '% na saída — vivo sem duplicar a imagem');
+  ok(escSeg === '1.02', 'segurando, a escala é a MESMA do vídeo (senão a foto entra deslocada)');
   // o plano B tem que ser RASO: a cada 8s, escurecer forte é pior que o corte
   const alfas = (css.match(/\.tv-hero-dip\{[^}]*background:[^;]+/) || [''])[0]
     .match(/rgba\([^)]+,\s*\.(\d+)\)/g) || [];

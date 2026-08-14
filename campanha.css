@@ -70,17 +70,36 @@ body{
    momento nenhum — o que se dissolve é conteúdo, não luz.
    Só opacity (1 camada composta na GPU) e só sobre o FUNDO: os dois vivem dentro
    do .tv-hero (z-index 0), então o palco (z-index 3) nunca escurece junto.
-   Curva em S nos dois sentidos (sem "liga/desliga" nas pontas) e 850ms — o bastante
-   pra ler como dissolve, curto o bastante pra caber num ciclo de 8s. */
+
+   OS NÚMEROS saíram de MEDIR o clipe quadro a quadro e simular o dissolve em cima dos
+   quadros de verdade (probe headless; a tabela virou teste em campanha-loop.test.js):
+     · clipe: 8,04s a 24 fps;
+     · régua = quanto a tela já muda sozinha entre dois quadros seguidos: 0,42;
+     · corte nativo (último quadro → primeiro): 17,29 = 40x a régua NUM quadro só.
+       Isso não é um loop, é um salto — o clipe não foi montado pra emendar.
+   Espalhando esse salto pelo dissolve, a mudança por quadro fica:
+     0,85s curva S → 2,0x a régua, com PICO de 3,9x no meio
+     0,85s linear  → 2,1x, sem pico
+     1,15s linear  → 1,5x, pico 1,7x     ← daqui
+     1,60s linear  → 1,1x, mas o pico VOLTA a 2,1x (o próprio vídeo tem um trecho
+                     rápido nessa janela) e a foto fica 20% do ciclo na tela
+   Por isso 1,15s LINEAR, e não "o que parecia bonito": é o ponto onde a volta passa a
+   mudar quase no ritmo do movimento normal do clipe. E linear porque dissolve é mistura
+   de imagem, não gesto de interface — a curva em S concentra tudo no meio (o pico de
+   3,9x acima), que é exatamente o inchaço que entrega a emenda. */
 /* MESMA CAIXA do .tv-hero-vid (inset/tamanho/scale) — é o que faz a foto cair pixel a
    pixel em cima do vídeo. E z-index 0 de propósito: o still tem que ficar ABAIXO do
    scrim (.tv-hero::after), senão ele entraria mais CLARO que o vídeo e a emenda viraria
    um salto de brilho — exatamente o que o corte coberto existe pra não fazer. */
+/* saindo: some em passo constante e AINDA SE MEXENDO. O empurrão de 0,6% existe porque
+   uma camada 100% parada por 1,15s entrega que tem uma foto ali; com a deriva, a imagem
+   que sai continua viva e o olho lê movimento, não congelamento. 0,6% (~8px em 1080p) é
+   deriva de câmera, não zoom — acima disso as duas camadas começam a "duplicar". */
 .tv-hero-still{position:absolute; inset:-2%; width:104%; height:104%; z-index:0;
-  pointer-events:none; opacity:0; transform:scale(1.02); backface-visibility:hidden;
-  transition:opacity .85s cubic-bezier(.55,0,.45,1)}
-/* segurando o quadro: entra SEM transição (é a cópia exata do que está na tela) */
-.tv-hero-still.is-holding{opacity:1; transition:none}
+  pointer-events:none; opacity:0; transform:scale(1.026); backface-visibility:hidden;
+  transition:opacity 1.15s linear, transform 1.15s linear}
+/* segurando o quadro: entra SEM transição e na escala EXATA do vídeo (é a cópia da tela) */
+.tv-hero-still.is-holding{opacity:1; transform:scale(1.02); transition:none}
 
 /* PLANO B — quando a TV não deixa fotografar o vídeo (plano de hardware: o canvas
    sai preto). Aí não dá pra dissolver, só suavizar a borda do corte: uma sombra

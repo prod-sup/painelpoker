@@ -1296,8 +1296,9 @@ function mountBackground() {
    Como um montador faria: CORTE COBERTO. Fotografamos o quadro que está no ar num
    canvas por cima do vídeo — como é cópia exata do que a tela já mostra, ele entra
    SEM transição e ninguém percebe. Aí o vídeo rebobina ESCONDIDO atrás do still e o
-   still se dissolve em 850ms, revelando o início já rodando. O brilho da tela não
-   muda em instante nenhum: o que se dissolve é conteúdo, não luz.
+   still se dissolve (1,15s, linear — a duração saiu de medir o clipe: ver o bloco
+   EMENDA DO LOOP no campanha.css), revelando o início já rodando. O brilho da tela
+   não muda em instante nenhum: o que se dissolve é conteúdo, não luz.
 
    Por que não crossfade de 2 vídeos (o desenho original): na Samsung/Tizen o vídeo
    vive num plano de HARDWARE que ignora opacity — o segundo <video> aparecia como um
@@ -1315,7 +1316,7 @@ function seamLoop(v, playSafe) {
   var still = $('heroStill'), dip = $('heroDip');
   var WATCH = 1.2;    // s antes do fim em que passamos a olhar quadro a quadro
   var CUT   = 0.08;   // s de vídeo que abrimos mão pra emendar sem congelar a imagem
-  var HOLD  = 950;    // ms de trava até a próxima emenda (o dissolve dura 850ms)
+  var HOLD  = 1300;   // ms de trava até a próxima emenda (o dissolve do CSS dura 1,15s)
   var ctx = null, raf = 0, busy = false, canDraw = true;
 
   function vale(d) { return isFinite(d) && d > 3; }       // clipe curtíssimo/stream: loop nativo
