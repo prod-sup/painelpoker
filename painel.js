@@ -701,7 +701,8 @@ function generateShiftSummary(){
     lines.push(`🟢 *Maior excedente:* ${melhorE.nome} (${melhorE.hora}) — +R$ ${fmtBRL(exc,2)}`);
   }
   if(closed.length < total){
-    const abertos = RAW_ROWS.filter(r => r.premiacao == null && getId(r._key).toUpperCase() !== 'NF');
+    // flight de multiday não entra em "pendente": ele não tem arrecadado próprio (é do Dia 2)
+    const abertos = RAW_ROWS.filter(r => r.premiacao == null && getId(r._key).toUpperCase() !== 'NF' && !isMultidayFlight(r));
     if(abertos.length){
       lines.push(``);
       lines.push(`⏳ *Pendentes (${abertos.length}):*`);
@@ -3131,7 +3132,11 @@ function sheetsRowsNow(){
       cat: classify(r),
       garantido: getGarantidoEffective(r._key), buyin: r.buyin,
       premiacao: r.premiacao, field: r.field, id,
-      status: id.toUpperCase() === 'NF' ? 'nf' : (r.premiacao != null ? 'fechado' : 'aberto'),
+      // flight de multiday nunca fecha valor próprio — no backup ele aparece como etapa,
+      // não como "Aberto" (que leria como pendência esquecida)
+      status: id.toUpperCase() === 'NF' ? 'nf'
+            : isMultidayFlight(r) ? 'Dia 1 · flight'
+            : (r.premiacao != null ? 'fechado' : 'aberto'),
     };
   });
 }
@@ -3146,8 +3151,10 @@ function sheetsDayComplete(){
   const real = RAW_ROWS.filter(r => r && r.nome && !r.proxCronograma);
   if(!real.length) return false;
   const isNF = r => (getId(r._key) || '').toUpperCase() === 'NF';
-  // (1) nada "aberto": todo torneio tem arrecadado (premiação) ou é NF
-  if(real.some(r => r.premiacao == null && !isNF(r))) return false;
+  // (1) nada "aberto": todo torneio tem arrecadado (premiação) ou é NF.
+  //     Flight de multiday (Dia 1) não tem arrecadado próprio — quem fecha o valor é o Dia 2;
+  //     sem esta exceção o dia NUNCA fecharia enquanto houvesse um flight na grade.
+  if(real.some(r => r.premiacao == null && !isNF(r) && !isMultidayFlight(r))) return false;
   // (2) o último torneio do dia (maior posição na ordem da grade) está fixado (ou NF, já resolvido)
   const gradeOrder = r => { const m = timeToMinutes(r.hora); const mm = (m==null?9999:m); return mm>=DAY_START ? mm : mm+1440; };
   const last = real.reduce((a,b) => gradeOrder(b) >= gradeOrder(a) ? b : a);
@@ -3561,11 +3568,14 @@ function buildDaySummaryText(){
   const premiacaoTotal = RESULTS.reduce((s,r) => s + (r.premiacao || 0), 0);
   const relevant = RAW_ROWS.filter(r => mustFix(r, classify(r)));
   const fixedCount = relevant.filter(r => isFixed(r._key)).length;
-  const closedCount = relevant.filter(r => r.premiacao !== null && r.premiacao !== undefined).length;
+  // flight de multiday é fixado como qualquer evento, mas NÃO fecha valor (o arrecadado é do
+  // Dia 2) — fora da conta de "fechados", senão o dia parecia eternamente incompleto
+  const closable = relevant.filter(r => !isMultidayFlight(r));
+  const closedCount = closable.filter(r => r.premiacao !== null && r.premiacao !== undefined).length;
 
   lines.push(`Garantido total: R$ ${fmtBRL(garantidoTotal)}`);
   lines.push(`Pago em premiações: R$ ${fmtBRL(premiacaoTotal, 2)}`);
-  lines.push(`Fixados: ${fixedCount}/${relevant.length} · Fechados: ${closedCount}/${relevant.length}`);
+  lines.push(`Fixados: ${fixedCount}/${relevant.length} · Fechados: ${closedCount}/${closable.length}`);
   lines.push('');
 
   if (RESULTS.length){
@@ -3915,6 +3925,49 @@ function manualIdent(r){
   return `${String(r?.nome || '').trim().toUpperCase()}|${r?.hora || ''}`;
 }
 
+/* =========================================================================
+   MULTIDAY — torneio A/B/C + Dia 2
+   Um multiday é UM torneio jogado em vários dias: os flights de Dia 1 (A, B, C…)
+   e o Dia 2, que é a final. O VALOR do multiday (garantido e arrecadado) é do DIA 2 —
+   se cada flight carregasse o garantido, o total do dia contaria o mesmo prêmio 3, 4
+   vezes e a performance sairia toda errada. Então o flight ENTRA na grade e conta
+   jogadores/buy-in (são entradas de verdade), mas fica SEM garantido, SEM arrecadado,
+   sem overlay e fora da performance: só o Dia 2 fecha valor.
+   Marcadores na row (sobrevivem ao Firebase, ao re-upload da Global e ao snapshot):
+     mdEtapa  'd1' (flight) | 'd2' (final)
+     mdFlight 'A', 'B', 'C'… (só no Dia 1)
+     mdGrupo  nome do multiday em CAIXA ALTA — é o que amarra os flights à final
+========================================================================= */
+function isMultidayFlight(r){ return !!r && r.mdEtapa === 'd1'; }
+function isMultidayFinal(r){  return !!r && r.mdEtapa === 'd2'; }
+function isMultiday(r){ return isMultidayFlight(r) || isMultidayFinal(r); }
+/* etiqueta curta do card/lista: "DIA 1B" / "DIA 2" */
+function multidayBadgeText(r){
+  if(isMultidayFlight(r)) return 'DIA 1' + (r.mdFlight || '');
+  if(isMultidayFinal(r))  return 'DIA 2';
+  return '';
+}
+/* sufixo que vai no NOME do evento na grade — o operador digita o nome do multiday uma
+   vez ("SPS Mystery Multiday") e cada etapa vira uma linha distinta e legível. */
+function multidaySuffix(etapa, flight){
+  if(etapa === 'd1') return ' · Dia 1' + (flight || '');
+  if(etapa === 'd2') return ' · Dia 2';
+  return '';
+}
+function multidayGrupoKey(nome){ return String(nome || '').trim().toUpperCase(); }
+/* total de jogadores dos flights do mesmo multiday — é o número que o Dia 2 precisa
+   mostrar (o field da final é só quem voltou, não o tamanho do torneio). */
+function multidayFlightsField(grupo){
+  if(!grupo) return null;
+  let soma = null;
+  RAW_ROWS.forEach(r => {
+    if(!isMultidayFlight(r) || r.mdGrupo !== grupo) return;
+    const f = getField(r._key);
+    if(f != null) soma = (soma || 0) + f;
+  });
+  return soma;
+}
+
 /* Funde os torneios manuais na planilha. Idempotente: se o torneio já existe na grade
    (mesmo nome+hora), NÃO duplica — cobre tanto o reingest do conjunto já publicado quanto
    o caso do evento manual entrar na Global depois (aí a planilha vence e o manual some da
@@ -3942,12 +3995,15 @@ function reingestComManuais(){
 
 /* Monta a row do torneio manual com a MESMA forma de uma linha parseada da planilha
    (ver o out.push do parser) — qualquer campo faltando aqui vira `undefined` lá na frente. */
-function buildManualRow({nome, hora, garantido, buyin, tipo}){
+function buildManualRow({nome, hora, garantido, buyin, tipo, etapa, flight}){
+  const md = etapa === 'd1' || etapa === 'd2' ? etapa : null;
+  const fl = md === 'd1' ? String(flight || '').trim().toUpperCase() : '';
   return {
-    nome: String(nome).trim(),
+    nome: String(nome).trim() + multidaySuffix(md, fl),
     hora: hora || null,
     late: null,
-    garantido: garantido != null ? garantido : null,
+    // flight de Dia 1 NUNCA carrega garantido — o valor do multiday é do Dia 2
+    garantido: md === 'd1' ? null : (garantido != null ? garantido : null),
     buyin: buyin != null ? buyin : null,
     premiacao: null,
     premFromSheet: false,
@@ -3959,6 +4015,9 @@ function buildManualRow({nome, hora, garantido, buyin, tipo}){
     check: null,
     tipo: tipo || null,          // vazio => classify() deduz por nome/garantido
     highlighted: false,
+    mdEtapa: md,                 // null | 'd1' (flight) | 'd2' (final) — ver bloco MULTIDAY
+    mdFlight: fl || null,
+    mdGrupo: md ? multidayGrupoKey(nome) : null,
     _manual: true,               // marca a origem (separa a planilha pura no ingest)
     _by: (typeof OPERATOR_NAME !== 'undefined' && OPERATOR_NAME) ? OPERATOR_NAME : '',
     _at: Date.now(),
@@ -4729,8 +4788,10 @@ function renderUpcoming(){
       const catTd   = '<td class="ctr-catcell" style="width:4px;padding:0"><span class="ctr-cat-bar" style="background:'+catColor+'"></span></td>';
       const lateInfo = t.late ? ` \u00b7 Late at\u00e9 ${escHtml(t.late)}` : '';
       const flagBtn = '<button class="ctr-flag-btn flag-toggle'+(isFlagged(key)?' on':'')+'" data-key="'+key+'" type="button" aria-pressed="'+isFlagged(key)+'" title="'+(isFlagged(key)?'Tirar destaque \u2014 volta \u00e0 ordem por hor\u00e1rio':'Destacar \u2014 sobe pro topo da lista')+'">'+FLAG_SVG+'</button>';
+      const mdFlightRow = isMultidayFlight(t);   // flight de Dia 1: linha sem arrecadado/overlay
       const nomeTd  = '<td class="ctr-nome" title="'+escHtml(t.nome||'')+lateInfo+'"><span class="ctr-nome-inner">'+flagBtn+'<span class="ctr-nome-txt">'+escHtml(t.nome||'\u2014')
                     + (t._manual ? ' <span class="tcard-manual-badge" title="Adicionado \u00e0 m\u00e3o \u2014 n\u00e3o veio da Global">MANUAL</span>' : '')
+                    + (isMultiday(t) ? ' <span style="font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px;background:rgba(96,165,250,.14);color:#60a5fa;letter-spacing:.04em" title="'+(mdFlightRow?'Flight de Dia 1 \u2014 s\u00f3 jogadores; o valor do multiday \u00e9 do Dia 2':'Final do multiday \u2014 carrega o garantido e o arrecadado do torneio inteiro')+'">'+multidayBadgeText(t)+'</span>' : '')
                     + (t.proxCronograma ? ' <span style="font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px;background:rgba(96,165,250,.14);color:#60a5fa;letter-spacing:.04em">PR\u00d3X. CRONOGRAMA</span>' : '')
                     + '</span></span></td>';
       const horaTd  = '<td class="ctr-hora" data-label="Hora">'+(t.hora||'\u2014')+'</td>';
@@ -4738,13 +4799,17 @@ function renderUpcoming(){
       const garTd   = '<td class="ctr-gar" data-label="GTD">'+(garVal!=null?'R$'+fmtBRL(garVal,0):'\u2014')+'</td>';
       // card do pr\u00f3ximo cronograma: s\u00f3 fixa\u00e7\u00e3o \u2014 premia\u00e7\u00e3o/field pertencem ao quadro do dia seguinte
       const soFixar = '<td class="ctr-sofixar" data-label="Arrecadado" style="padding:3px 5px;color:var(--ink-soft);font-size:11px;font-style:italic" title="Evento do pr\u00f3ximo cronograma \u2014 premia\u00e7\u00e3o e field entram no quadro do pr\u00f3ximo dia">s\u00f3 fixar</td>';
+      // flight de multiday: o arrecadado é lançado UMA vez, no Dia 2 — a linha do flight nem
+      // oferece o campo (evita contar o mesmo prêmio em cada flight)
+      const mdSoField = '<td class="ctr-sofixar" data-label="Arrecadado" style="padding:3px 5px;color:var(--ink-soft);font-size:11px;font-style:italic" title="Flight de Dia 1 — o arrecadado e o garantido do multiday entram no card do Dia 2">no Dia 2</td>';
       const premTd  = t.proxCronograma ? soFixar
+                    : mdFlightRow ? mdSoField
                     : '<td data-label="Arrecadado" style="padding:3px 5px"><input class="ctr-inp tcard-prem-input'+(premVal!=null?' has-value':'')+'"'
                     + ' data-key="'+key+'" type="text" inputmode="decimal"'
                     + ' placeholder="R$ \u2014" value="'+premFmt+'"'
                     + ' oninput="onCardPremiacaoInput(this)"'
                     + ' onblur="formatPremInput(this)" onfocus="this.select()"></td>';
-      const ovTd    = t.proxCronograma ? '<td class="ctr-ov" data-label="Overlay" id="tci-ov-'+key+'">\u2014</td>'
+      const ovTd    = (t.proxCronograma || mdFlightRow) ? '<td class="ctr-ov" data-label="Overlay" id="tci-ov-'+key+'">\u2014</td>'
                     : '<td class="ctr-ov'+ovCls+'" data-label="Overlay" id="tci-ov-'+key+'">'+ovTxt+'</td>';
       const fieldTd = t.proxCronograma ? '<td class="ctr-sofixar" data-label="Field" style="padding:3px 5px;color:var(--ink-soft)">\u2014</td>'
                     : '<td data-label="Field" style="padding:3px 5px"><input class="ctr-inp tcard-field-input"'
@@ -4826,11 +4891,19 @@ function renderUpcoming(){
         Não formou
       </div>` : '';
     const nfBadgeHtml = isNF ? `<span class="tcard-nf-badge">NF</span>` : '';
+    // multiday: etiqueta da etapa + (no Dia 2) o field somado dos flights
+    const mdFlight = isMultidayFlight(t), mdFinal = isMultidayFinal(t);
+    const mdBadgeHtml = isMultiday(t)
+      ? `<span class="tcard-campanha-badge" style="background:rgba(96,165,250,.14);color:#60a5fa" title="${mdFlight
+          ? 'Flight de Dia 1 — conta jogadores e buy-in; garantido e arrecadado do multiday são do Dia 2'
+          : 'Final do multiday — carrega o garantido e o arrecadado do torneio inteiro'}">${multidayBadgeText(t)}</span>`
+      : '';
+    const mdFlightsField = mdFinal ? multidayFlightsField(t.mdGrupo) : null;
     el.innerHTML = `
       ${nfBannerHtml}
       <div class="tcard-top">
         <div>
-          <div class="tcard-name-row">${crownHtml}<div class="tcard-name">${t.nome}</div>${nfBadgeHtml}${t._manual ? '<span class="tcard-manual-badge" title="Torneio adicionado à mão — criado às pressas, não veio da Global">MANUAL</span>' : ''}${t.proxCronograma ? '<span class="tcard-campanha-badge" style="background:rgba(96,165,250,.14);color:#60a5fa" title="Evento da madrugada — pertence à seção do próximo dia na Global, fixar com antecedência (late register)">PRÓX. CRONOGRAMA</span>' : ''}${buildHistTooltip(t.nome)}</div>
+          <div class="tcard-name-row">${crownHtml}<div class="tcard-name">${t.nome}</div>${nfBadgeHtml}${t._manual ? '<span class="tcard-manual-badge" title="Torneio adicionado à mão — criado às pressas, não veio da Global">MANUAL</span>' : ''}${mdBadgeHtml}${t.proxCronograma ? '<span class="tcard-campanha-badge" style="background:rgba(96,165,250,.14);color:#60a5fa" title="Evento da madrugada — pertence à seção do próximo dia na Global, fixar com antecedência (late register)">PRÓX. CRONOGRAMA</span>' : ''}${buildHistTooltip(t.nome)}</div>
           <span class="cat-tag ${cat}"><span class="cat-suit">${CAT_SUIT[cat]}</span>${CAT_LABEL[cat]}</span>
           ${runningHtml}${flagHtml}${notNeededHtml}
         </div>
@@ -4843,10 +4916,11 @@ function renderUpcoming(){
       <div class="tcard-grid">
         <div class="tcard-field">
           <div class="k">Garantido</div>
-          <div class="v gold">${getGarantidoEffective(key) != null ? 'R$ '+fmtBRL(getGarantidoEffective(key)) : (t.garantido!=null ? 'R$ '+fmtBRL(t.garantido) : '—')}</div>
+          <div class="v gold">${mdFlight ? '<span style="color:var(--ink-faint);font-size:12px">no Dia 2</span>' : (getGarantidoEffective(key) != null ? 'R$ '+fmtBRL(getGarantidoEffective(key)) : (t.garantido!=null ? 'R$ '+fmtBRL(t.garantido) : '—'))}</div>
         </div>
         <div class="tcard-field"><div class="k">Buy-in</div><div class="v">${fmtBuyin(t.buyin)}</div></div>
       </div>
+      ${mdFlightsField != null ? `<div class="tcard-late" style="opacity:.85">Flights do Dia 1: <b>${mdFlightsField}</b> jogador${mdFlightsField===1?'':'es'} somados.</div>` : ''}
       ${(()=>{
   if(!t.late) return '';
   const lateMin = timeToMinutes(t.late);
@@ -4862,6 +4936,18 @@ function renderUpcoming(){
       <!-- Card do próximo cronograma: SÓ fixação — premiação/field pertencem ao dia seguinte
            e serão preenchidos no quadro dele, senão os dados cairiam no nó do dia errado -->
       <div class="tcard-late" style="opacity:.75">Somente fixação — premiação e field entram no quadro do próximo dia.</div>
+      ` : mdFlight ? `
+      <!-- Flight de Dia 1 (multiday): SÓ jogadores. Sem campo de arrecadado de propósito —
+           o valor do multiday é lançado uma única vez, no card do Dia 2 -->
+      <div class="tcard-op-fields">
+        <div class="tcard-op-field">
+          <label class="tcard-prem-label">Field (jogadores)</label>
+          <input type="number" step="1" placeholder="—" class="tcard-field-input" data-key="${key}"
+            value="${getField(key) || ''}"
+            oninput="onCardFieldInput(this)">
+        </div>
+      </div>
+      <div class="tcard-late" style="opacity:.75">Multiday · flight — o arrecadado e o garantido entram no card do <b>Dia 2</b>.</div>
       ` : `
       <!-- Campos operacionais: Premiação + Field -->
       <div class="tcard-op-fields">
@@ -5925,6 +6011,36 @@ function parseValorBRL(s){
   return isNaN(n) || n < 0 ? null : Math.round(n * 100) / 100;
 }
 
+/* Etapa do multiday no formulário: mostra o campo do flight, TRAVA o garantido no Dia 1
+   (o valor é do Dia 2 — deixar digitável só convidaria a contar o prêmio duas vezes) e
+   explica em uma linha o que cada etapa faz com os números. */
+function syncAddtEtapa(){
+  const sel = document.getElementById('addtEtapa');
+  if(!sel) return;
+  const etapa = sel.value;
+  const wrap  = document.getElementById('addtFlightWrap');
+  const flight= document.getElementById('addtFlight');
+  const gar   = document.getElementById('addtGarantido');
+  const hint  = document.getElementById('addtEtapaHint');
+  if(wrap) wrap.hidden = etapa !== 'd1';
+  if(flight && etapa !== 'd1') flight.value = '';
+  if(gar){
+    gar.disabled = etapa === 'd1';
+    if(etapa === 'd1'){ gar.value = ''; gar.placeholder = 'vale no Dia 2'; }
+    else gar.placeholder = '50.000';
+  }
+  if(hint){
+    hint.hidden = !etapa;
+    if(etapa === 'd1') hint.innerHTML = 'O flight entra na grade e conta <b>jogadores e buy-in</b>, mas fica sem garantido, sem arrecadado e fora da performance — quem fecha o valor do multiday é o <b>Dia 2</b>.';
+    else if(etapa === 'd2') hint.innerHTML = 'A final <b>carrega o valor do multiday inteiro</b>: garantido, arrecadado, overlay e performance saem daqui. Os flights de Dia 1 só somam jogadores.';
+  }
+}
+document.getElementById('addtEtapa')?.addEventListener('change', syncAddtEtapa);
+document.getElementById('addtFlight')?.addEventListener('input', function(){
+  this.value = this.value.toUpperCase();
+  this.classList.remove('addt-invalid');
+});
+
 function addtMsg(txt, cls){
   const el = document.getElementById('addtMsg');
   if (!el) return;
@@ -5947,11 +6063,13 @@ function renderManualList(){
     return;
   }
   list.innerHTML = entries.map(([id, r]) => {
-    const gtd = r.garantido != null ? 'GTD R$ ' + fmtBRL(r.garantido, 0) : 'sem GTD';
+    const gtd = isMultidayFlight(r) ? 'GTD no Dia 2'
+              : r.garantido != null ? 'GTD R$ ' + fmtBRL(r.garantido, 0) : 'sem GTD';
     const bi  = r.buyin != null ? 'BI R$ ' + fmtBRL(r.buyin, r.buyin % 1 ? 2 : 0) : 'sem BI';
+    const md  = multidayBadgeText(r);
     return `<div class="addt-item">
       <div class="addt-item-main">
-        <div class="addt-item-nome">${escHtml(r.nome)}</div>
+        <div class="addt-item-nome">${escHtml(r.nome)}${md ? ` <span class="addt-item-md">${md}</span>` : ''}</div>
         <div class="addt-item-meta">${escHtml(r.hora || '--:--')} · ${gtd} · ${bi}</div>
         ${r._by ? `<div class="addt-item-by">por ${escHtml(r._by)}</div>` : ''}
       </div>
@@ -5971,33 +6089,43 @@ function renderManualList(){
 document.getElementById('addTorneioForm')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const $ = id => document.getElementById(id);
-  const nomeEl = $('addtNome'), horaEl = $('addtHora');
+  const nomeEl = $('addtNome'), horaEl = $('addtHora'), flightEl = $('addtFlight');
   const nome = nomeEl.value.trim();
   const hora = horaEl.value;
   const garantido = parseValorBRL($('addtGarantido').value);
   const buyin = parseValorBRL($('addtBuyin').value);
   const tipo = $('addtTipo').value;
+  const etapa = $('addtEtapa') ? $('addtEtapa').value : '';
+  const flight = flightEl ? flightEl.value.trim().toUpperCase() : '';
 
-  [nomeEl, horaEl].forEach(el => el.classList.remove('addt-invalid'));
+  [nomeEl, horaEl, flightEl].forEach(el => el && el.classList.remove('addt-invalid'));
   if (!nome){ nomeEl.classList.add('addt-invalid'); nomeEl.focus(); return addtMsg('Dê um nome ao evento.', 'err'); }
   if (!hora){ horaEl.classList.add('addt-invalid'); horaEl.focus(); return addtMsg('Informe o horário.', 'err'); }
+  // sem a letra do flight os Dia 1 do mesmo multiday ficariam com nome idêntico
+  if (etapa === 'd1' && !flight){
+    flightEl.classList.add('addt-invalid'); flightEl.focus();
+    return addtMsg('Diga qual é o flight (A, B, C…).', 'err');
+  }
 
   // a grade precisa existir: os manuais são fundidos NA planilha do dia
   if (!LAST_SHEET_ROWS.length) return addtMsg('Carregue a Global MTT de hoje antes de adicionar torneios.', 'err');
 
   // nome+hora é a identidade do torneio no painel inteiro — duplicar quebraria o casamento
-  // da premiação e a auditoria (dois eventos indistinguíveis)
-  const ident = manualIdent({nome, hora});
+  // da premiação e a auditoria (dois eventos indistinguíveis). No multiday quem vale é o nome
+  // JÁ com o sufixo da etapa ("… · Dia 1B"), que é o que entra na grade.
+  const nomeGrade = nome + multidaySuffix(etapa, flight);
+  const ident = manualIdent({nome: nomeGrade, hora});
   if (RAW_ROWS.some(r => manualIdent(r) === ident))
     return addtMsg('Já existe um torneio com esse nome e horário na grade de hoje.', 'err');
 
   const btn = $('addtSubmit');
   btn.disabled = true; addtMsg('adicionando…');
   try{
-    await addManualTournament({nome, hora, garantido, buyin, tipo});
-    addtMsg(`✓ "${nome}" entrou na grade das ${hora}.`, 'ok');
-    showToast(`✓ Torneio "${nome}" adicionado à grade de hoje`);
+    await addManualTournament({nome, hora, garantido, buyin, tipo, etapa, flight});
+    addtMsg(`✓ "${nomeGrade}" entrou na grade das ${hora}.`, 'ok');
+    showToast(`✓ Torneio "${nomeGrade}" adicionado à grade de hoje`);
     document.getElementById('addTorneioForm').reset();
+    syncAddtEtapa();  // reset devolve a etapa pra "evento normal" — destrava o garantido
     nomeEl.focus(); // pronto pro próximo (o operador costuma adicionar mais de um)
   }catch(err){
     addtMsg('Falha ao salvar: ' + (err?.message || 'sem conexão'), 'err');
@@ -9363,6 +9491,10 @@ function buildSnapshotRows(){
       // madrugada do dia SEGUINTE mostrada cedo só pra fixação — a auditoria do admin
       // usa essa flag pra NÃO contar o evento no dia de hoje (pertence ao quadro de amanhã)
       proxCronograma: r.proxCronograma || false,
+      // multiday: 'd1' = flight (sem valor próprio, o garantido/arrecadado é do Dia 2) | 'd2' = final
+      mdEtapa:  r.mdEtapa  || null,
+      mdFlight: r.mdFlight || null,
+      mdGrupo:  r.mdGrupo  || null,
     };
   });
 }

@@ -315,6 +315,18 @@ document.addEventListener('DOMContentLoaded', () => {
           </select>
         </div>
         <div class="addt-field">
+          <label for="addtEtapa">Etapa</label>
+          <select id="addtEtapa">
+            <option value="">Evento normal</option>
+            <option value="d1">Multiday · Dia 1</option>
+            <option value="d2">Multiday · Dia 2</option>
+          </select>
+        </div>
+        <div class="addt-field" id="addtFlightWrap" hidden>
+          <label for="addtFlight">Flight</label>
+          <input type="text" id="addtFlight" maxlength="3" placeholder="A" autocapitalize="characters">
+        </div>
+        <div class="addt-field">
           <label for="addtGarantido">Garantido (R$)</label>
           <input type="text" id="addtGarantido" inputmode="decimal" placeholder="50.000">
         </div>
@@ -322,6 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <label for="addtBuyin">Buy-in (R$)</label>
           <input type="text" id="addtBuyin" inputmode="decimal" placeholder="55">
         </div>
+        <p class="addt-hint" id="addtEtapaHint" hidden></p>
         <div class="addt-actions">
           <button type="submit" class="addt-submit" id="addtSubmit">Adicionar torneio</button>
           <span class="addt-msg" id="addtMsg" role="status" aria-live="polite"></span>
