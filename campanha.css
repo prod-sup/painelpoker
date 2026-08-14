@@ -180,7 +180,15 @@ html.tv-device .cglass::after,
 html.tv-device .scene-panel::before,
 html.tv-device .cglass::before{ display:none !important; }
 /* vídeo levemente escurecido pra o conteúdo respirar por cima (segue sendo só o vídeo) */
-html.tv-device .tv-hero-vid{ filter:brightness(.5) saturate(1.05); }
+/* NADA de filter no vídeo (filtro sobre vídeo que se mexe = recomposição por frame → derruba o
+   FPS na TV). O escurecimento vem de um SCRIM ESTÁTICO por cima — dim de graça (1 composição só),
+   mais escuro no TOPO (onde ficam os títulos das cenas, que ficam sobre o vídeo) e na base. */
+html.tv-device .tv-hero::after{
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:1;
+  background:linear-gradient(180deg,
+    rgba(4,6,9,.92) 0%, rgba(4,6,9,.82) 20%, rgba(4,6,9,.66) 40%,
+    rgba(4,6,9,.66) 66%, rgba(4,6,9,.82) 84%, rgba(4,6,9,.93) 100%);
+}
 
 /* 2) sem backdrop-filter em lugar nenhum + loops → 1 ciclo (entradas seguem one-shot) */
 html.tv-device *,
