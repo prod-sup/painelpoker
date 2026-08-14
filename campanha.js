@@ -320,6 +320,26 @@ function rafLoop(step) {
   id = requestAnimationFrame(tick);
   return { stop: function () { live = false; if (id) cancelAnimationFrame(id); id = null; } };
 }
+/* auto-fit: remove as ÚLTIMAS linhas que estouram a altura do container (nada de scroll — é
+   um card fixo do control room). Roda depois do layout (rAF). Guarda o HTML pra restaurar
+   quando reabre num container maior. Garante que a TV, com menos altura útil (overscan),
+   nunca corte uma linha no meio — só mostra as que cabem inteiras. */
+/* fitFull(el, html): guarda o conjunto COMPLETO no elemento e monta ele + apara pra caber. */
+function fitFull(el, html) { if (!el) return; el.__full = html; el.innerHTML = html; fitRows(el); }
+function fitRows(el) {
+  if (!el || el.__full == null) return;
+  // DUPLO rAF: mede só depois do grid finalizar a altura de linhas/colunas. Sempre REMONTA o
+  // conjunto completo antes de aparar → cada medição se auto-corrige (linhas apagadas por uma
+  // medição prematura voltam), e nunca corta uma linha no meio quando a TV tem menos altura.
+  requestAnimationFrame(function () { requestAnimationFrame(function () {
+    if (!el.isConnected || el.clientHeight <= 0) return;   // cena escondida → re-tenta ao entrar (enterControl)
+    if (el.innerHTML !== el.__full) el.innerHTML = el.__full;
+    var guard = 0;
+    while (el.scrollHeight > el.clientHeight + 2 && el.children.length > 1 && guard++ < 20) {
+      el.removeChild(el.lastElementChild);
+    }
+  }); });
+}
 /* telas com mais conteúdo descem sozinhas (estilo "s-roll" da TV) */
 function autoScrollList(el, dwellMs) {
   if (_scrollLoop) { _scrollLoop.stop(); _scrollLoop = null; }
@@ -329,17 +349,22 @@ function autoScrollList(el, dwellMs) {
     var max = el.scrollHeight - el.clientHeight;
     if (max <= 6) return;
     // auto-scroll CONTÍNUO (vai-e-volta em loop) enquanto a cena está no ar: topo→desce→
-    // fim→sobe→repete, com pausa nas pontas. Velocidade constante (~85px/s) p/ ler sempre igual.
-    var HOLD = 2400, LEG = Math.max(3600, max / 85 * 1000), cycle = (HOLD + LEG) * 2, elapsed = 0;
+    // fim→sobe→repete, com pausa nas pontas. Cada perna usa EASE-IN-OUT (acelera saindo da
+    // pausa, desacelera ao chegar) — mata o "robótico" da velocidade constante e das paradas
+    // secas, que fica pior nas TVs Tizen (rAF a menos FPS deixa o passo linear visível).
+    var HOLD = 2200, LEG = Math.max(4200, max / 70 * 1000), cycle = (HOLD + LEG) * 2, elapsed = 0;
+    var easeInOut = function (p) { return 0.5 - 0.5 * Math.cos(Math.PI * p); };   // cosseno: suave nas 2 pontas
+    var last = -1;
     _scrollLoop = rafLoop(function (dt) {
       if (!el.isConnected || el.offsetParent === null) return false;  // cena saiu → para sozinho
       elapsed += dt * 1000;
       var pos = elapsed % cycle, y;
       if (pos < HOLD) y = 0;
-      else if (pos < HOLD + LEG) y = (pos - HOLD) / LEG;
+      else if (pos < HOLD + LEG) y = easeInOut((pos - HOLD) / LEG);
       else if (pos < HOLD + LEG + HOLD) y = 1;
-      else y = 1 - (pos - HOLD - LEG - HOLD) / LEG;
-      el.scrollTop = max * y;
+      else y = 1 - easeInOut((pos - HOLD - LEG - HOLD) / LEG);
+      var top = Math.round(max * y);           // px inteiro → sem jitter de subpixel na TV
+      if (top !== last) { el.scrollTop = top; last = top; }
     });
   });
 }
@@ -761,15 +786,16 @@ function fillControl(t) {
   // sem repetir o mesmo torneio recorrente (dedup por eventKey). Mostra data · hora.
   var topG = biggestUpcoming();
   var st = $('cst-table');
-  if (st) st.innerHTML = '<div class="cst-row h"><span class="r">#</span><span class="nm">Evento</span><span class="pr">garantido</span></div>' +
-    (topG.length ? topG.slice(0, 5).map(function (r, i) {
+  // sem linha-cabeçalho aqui (o card já rotula "Maiores eventos" + "garantido") — evita o
+  // "GARANTIDO" duplicado E libera uma linha de altura (importante na TV, que tem menos espaço).
+  if (st) fitFull(st, (topG.length ? topG.slice(0, 5).map(function (r, i) {
       var quando = (r.date ? fmtDMY(r.date).slice(0, 5) : '') + (r.hora ? ((r.date ? ' · ' : '') + esc(String(r.hora))) : '');
       var sub = quando + (r.buyin ? ' · buy-in ' + fmtMoney(r.buyin) : '');
       return '<div class="cst-row' + (i < 3 ? ' top' : '') + '"><span class="r">' + (i + 1) + '</span>' +
         '<div class="cst-ev"><div class="cst-nm">' + evTag(r) + esc(fullName(r.nome)) + '</div>' +
         '<div class="cst-sub">' + (sub || evMeta(r)) + '</div></div>' +
         '<span class="pr">' + fmtMoneyK(r.garantido) + '</span></div>';
-    }).join('') : '<div class="ct-empty"><span class="ct-empty-dot"></span>Grade SPS futura ainda não publicada…</div>');
+    }).join('') : '<div class="ct-empty"><span class="ct-empty-dot"></span>Grade SPS futura ainda não publicada…</div>'));   // apara pra caber (TV/overscan nunca corta no meio)
 
   renderCharts();
 }
@@ -817,6 +843,7 @@ function enterControl() {
   drawLine(document.querySelector('#heroChart .ch-line'));
   drawLine(document.querySelector('#fcChart .cf-pathline'));
   document.querySelectorAll('.mtile-spark .sp-line').forEach(function (el, i) { setTimeout(function () { drawLine(el); }, 120 * i); });
+  fitRows($('cst-table'));   // agora que a cena está visível, apara o que não couber (TV/overscan)
 }
 
 /* ── TELA 2 — Jornada por dia (onda) ── */

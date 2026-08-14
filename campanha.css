@@ -155,6 +155,65 @@ html.tv-device .tv-top{top:var(--ovh); left:var(--ovw); right:var(--ovw)}
 html.tv-device .tv-stage{inset:var(--ovh) var(--ovw) calc(58px + var(--ovh) + 12px) var(--ovw)}
 html.tv-device .tv-ticker{left:var(--ovw); right:var(--ovw); bottom:var(--ovh); border-radius:14px; overflow:hidden}
 html.tv-device .tv-rot{bottom:calc(58px + var(--ovh) + 24px)}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODO TV (html.tv-device) — browser nativo da Samsung/Tizen (Chromium antigo).
+   REGRA DO BRIAN: o ÚNICO fundo é o vídeo em loop.
+   No Tizen o `backdrop-filter` (vidro fosco) não roda → os cards ficavam
+   TRANSPARENTES e o vídeo/troféu vazava POR CIMA do conteúdo (ilegível). Além
+   disso, backdrop-filter sobre um vídeo que se mexe custa GPU em TODO frame →
+   derrubava o FPS e deixava ticker/scroll "robóticos". Solução única:
+     1) fundo = só o vídeo (mata PNG-poster, brilho, névoa, grão, vinheta, acentos);
+     2) ZERO backdrop-filter + cards SÓLIDOS (o vídeo não atravessa mais o texto);
+     3) loops de animação viram 1 ciclo (mata o repaint infinito) — as ENTRADAS
+        (mount-in/tier-in, que já são one-shot) continuam valendo.
+   Vale SÓ na TV; no PC nada muda.
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* 1) só o vídeo no fundo */
+html.tv-device .tv-hero-img,
+html.tv-device .tv-hero-shine,
+html.tv-device .tv-fog,
+html.tv-device .tv-grain,
+html.tv-device .tv-vignette,
+html.tv-device .card-accent,
+html.tv-device .cglass::after,
+html.tv-device .scene-panel::before,
+html.tv-device .cglass::before{ display:none !important; }
+/* vídeo levemente escurecido pra o conteúdo respirar por cima (segue sendo só o vídeo) */
+html.tv-device .tv-hero-vid{ filter:brightness(.5) saturate(1.05); }
+
+/* 2) sem backdrop-filter em lugar nenhum + loops → 1 ciclo (entradas seguem one-shot) */
+html.tv-device *,
+html.tv-device *::before,
+html.tv-device *::after{
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+  animation-iteration-count:1 !important;
+}
+
+/* 3) cards SÓLIDOS — o vídeo só aparece nos vãos do fundo, nunca através do conteúdo */
+html.tv-device .cglass,
+html.tv-device .scene-panel,
+html.tv-device .mtile,
+html.tv-device .ct-card,
+html.tv-device .wk-card,
+html.tv-device .wk-sum-i,
+html.tv-device .tday-card,
+html.tv-device .coming-card,
+html.tv-device .tier-row,
+html.tv-device .team-card,
+html.tv-device .rk-row,
+html.tv-device .aviso-card,
+html.tv-device .tv-ticker{ background:#0c1016 !important; }
+/* variantes douradas: seguem destacando pela borda + tom sólido levemente quente */
+html.tv-device .ct-card[data-r="1"],
+html.tv-device .wk-card.is-now,
+html.tv-device .wk-card.is-best,
+html.tv-device .wk-sum-best{ background:linear-gradient(160deg,#1b1710,#0c1016) !important; }
+
+/* 4) cortes: cards do dia sem altura mínima gigante (cabem no palco com overscan) */
+html.tv-device .wk-card{ min-height:0 }
+
 /* transição IDÊNTICA à Suprema TV: crossfade + scale 1.02→1 (entra) / 1→.985 (sai), só opacity/transform */
 .scene{position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center;
   padding:clamp(54px,7vh,86px) clamp(40px,6vw,120px); gap:clamp(20px,3vh,40px);
@@ -649,7 +708,7 @@ html.lite .ch-line,html.lite .cf-pathline{stroke-dasharray:none; stroke-dashoffs
 .ct-card[data-r="2"] .ct-rank{color:var(--ink2)} .ct-card[data-r="3"] .ct-rank{color:var(--gold-deep)}
 .ct-body{min-width:0}
 .ct-name{font-size:clamp(13px,1vw,15.5px); font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.ct-meta{font-size:10.5px; color:var(--ink3); margin-top:3px}
+.ct-meta{font-size:10.5px; color:var(--ink3); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .ct-prem{font-size:clamp(13px,1.05vw,15.5px); font-weight:700; color:var(--gold-hi); font-variant-numeric:tabular-nums; text-align:right}
 /* valor "garantido" (evento ainda rolando, sem premiação fechada) — mais discreto que a premiação */
 .ct-prem.ct-gar{color:var(--ink2); font-weight:600}
@@ -1147,7 +1206,7 @@ html.lite .hero-big{animation:none; color:var(--gold-hi)}
 .week-grid{width:min(1780px,97vw); display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:clamp(9px,.85vw,16px); align-content:stretch; overflow:visible}
 .wk-card{position:relative; min-height:clamp(320px,52vh,520px); padding:clamp(16px,1.4vw,26px); border-radius:18px; border:1px solid rgba(255,255,255,.08);
   background:linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.02) 62%); -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px);
-  display:flex; flex-direction:column; gap:clamp(12px,1.6vh,22px); min-width:0; opacity:0; animation:tier-in .6s var(--ease-in) both; animation-delay:calc(var(--i,0)*.06s)}
+  display:flex; flex-direction:column; gap:clamp(12px,1.6vh,22px); min-width:0; overflow:hidden; opacity:0; animation:tier-in .6s var(--ease-in) both; animation-delay:calc(var(--i,0)*.06s)}
 .wk-card.is-now{border-color:var(--line-gold); background:linear-gradient(160deg, rgba(201,168,76,.13), rgba(255,255,255,.02) 62%)}
 .wk-day{font-size:clamp(14px,1.15vw,20px); font-weight:700; color:var(--ink); text-transform:capitalize; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .wk-day small{display:block; font-family:var(--mono); font-size:clamp(10px,.75vw,12.5px); color:var(--ink4); margin-top:4px; text-transform:none}
@@ -1155,7 +1214,7 @@ html.lite .hero-big{animation:none; color:var(--gold-hi)}
 /* os números ficam grandes e centrados no corpo do card (aproveita a altura) */
 .wk-stats{display:flex; flex-direction:column; gap:clamp(12px,2vh,26px); padding:clamp(14px,2vh,26px) 0; margin:auto 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line)}
 .wk-n{display:flex; flex-direction:column; gap:3px; min-width:0}
-.wk-n b{font-size:clamp(1.4rem,2vw,2.6rem); font-weight:800; color:var(--gold-hi); font-variant-numeric:tabular-nums; white-space:nowrap; line-height:1; letter-spacing:-.02em}
+.wk-n b{font-size:clamp(1.05rem,1.4vw,1.75rem); font-weight:800; color:var(--gold-hi); font-variant-numeric:tabular-nums; white-space:nowrap; line-height:1; letter-spacing:-.02em}
 .wk-n span{font-size:clamp(8.5px,.65vw,10.5px); letter-spacing:.06em; text-transform:uppercase; color:var(--ink4); white-space:nowrap; margin-top:1px}
 /* sem barrinha: o NOME do maior torneio do dia fica em destaque (branco/negrito, até 2 linhas) */
 .wk-top{font-size:clamp(12px,.95vw,17px); color:var(--ink); font-weight:600; line-height:1.3; white-space:normal;
