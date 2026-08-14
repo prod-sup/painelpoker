@@ -1138,9 +1138,15 @@ body.win-blurred .che-big,html.lite .che-big{animation:none}
 html.tv-device .scene-today .rk-top,
 html.tv-device .scene-coming .rk-top,
 html.tv-device .scene-week .rk-top{
-  align-self:stretch; width:100%; text-align:left;   /* full-width igual à .jn-top — não encolher (encolher cortava o título) */
+  align-self:stretch; width:100%; text-align:left;   /* full-width igual à .jn-top */
+  flex:0 0 auto;                                      /* NUNCA encolher: o scene-panel (flex:1) espremia o título e cortava o texto na TV */
   background:none !important; border:0; border-radius:0; padding:0; box-shadow:none;
 }
+/* respiro vertical do título nas cenas sem placa — o line-height apertado da TV (Chromium
+   antigo) cortava acentos (í em "Vem aí", "A Semana"); nunca deixa o texto colar na borda */
+html.tv-device .scene-today .rk-top h2,
+html.tv-device .scene-coming .rk-top h2,
+html.tv-device .scene-week .rk-top h2{ line-height:1.18; padding-block:.06em }
 /* olho-mágico igual ao da Jornada: só o traço à esquerda (sem o traço de fecho) */
 .scene-today .eyebrow.center::after,
 .scene-coming .eyebrow.center::after,
