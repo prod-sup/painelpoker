@@ -1134,7 +1134,8 @@ body.win-blurred .che-big,html.lite .che-big{animation:none}
 .scene-today{justify-content:flex-start; padding:calc(clamp(18px,2.4vh,30px) + 48px) clamp(30px,4vw,90px) clamp(40px,5vh,60px); gap:clamp(22px,3.5vh,40px)}
 /* títulos de HOJE / VEM AÍ / A SEMANA SPS ficam no MESMO lugar da Jornada (encostados à
    esquerda, no topo) e SEM a placa preta — sobrescreve o placard genérico de
-   html.tv-device .rk-top (a cena ranking/pódio segue centralizada, de propósito) */
+   html.tv-device .rk-top. Todas as telas de conteúdo (todas com lista) seguem a Jornada. */
+html.tv-device .scene-ranking .rk-top,
 html.tv-device .scene-today .rk-top,
 html.tv-device .scene-coming .rk-top,
 html.tv-device .scene-week .rk-top{
@@ -1142,15 +1143,15 @@ html.tv-device .scene-week .rk-top{
   flex:0 0 auto;                                      /* NUNCA encolher: o scene-panel (flex:1) espremia o título e cortava o texto na TV */
   background:none !important; border:0; border-radius:0; padding:0; box-shadow:none;
 }
-/* respiro vertical do título nas cenas sem placa — o line-height apertado da TV (Chromium
-   antigo) cortava acentos (í em "Vem aí", "A Semana"); nunca deixa o texto colar na borda */
-html.tv-device .scene-today .rk-top h2,
-html.tv-device .scene-coming .rk-top h2,
-html.tv-device .scene-week .rk-top h2{ line-height:1.18; padding-block:.06em }
+/* NÃO mexer no line-height destes títulos: o line-height "normal" do font (igual ao da
+   Jornada, que não corta) já reserva o espaço do topo das maiúsculas/acentos. Qualquer
+   valor menor que ~1.2 fazia o Chromium antigo da Tizen FATIAR o topo das letras. */
 /* olho-mágico igual ao da Jornada: só o traço à esquerda (sem o traço de fecho) */
+.scene-ranking .eyebrow.center::after,
 .scene-today .eyebrow.center::after,
 .scene-coming .eyebrow.center::after,
 .scene-week .eyebrow.center::after{display:none}
+.scene-ranking .eyebrow.center::before,
 .scene-today .eyebrow.center::before,
 .scene-coming .eyebrow.center::before,
 .scene-week .eyebrow.center::before{background:linear-gradient(90deg,transparent,var(--gold))}
