@@ -795,7 +795,7 @@ function flatRows(fromDate, toDate){
       if(!r.nome)return;
       // Próximo cronograma (madrugada de amanhã) não deve aparecer na auditoria de hoje
       // — aparece apenas no dia correto quando o arrecadado for coletado
-      if(r.proxCronograma || key.endsWith('_px')) return;
+      if(r.proxCronograma) return;
 
       // AÇÕES = total de entradas (com re-entries) que gerou a premiação. A premiação é
       // o LÍQUIDO (a parte da entrada que vai pro prize pool); o fator líquido depende de

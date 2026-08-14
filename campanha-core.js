@@ -217,6 +217,11 @@
         var status = isNF ? 'nf' : (prem != null ? 'fechado' : 'aberto');
 
         if (!r.nome) return;
+        // madrugada de amanhã já fixada (proxCronograma) — ainda não rodou, não é
+        // resultado. O flatRows do admin já a descarta (admin.js @L798); sem isto o
+        // card de campanha mostrava o evento como "aberto" e a lupa não o achava na
+        // auditoria (as duas flatRows discordavam).
+        if (r.proxCronograma) return;
 
         var isCamp = isCampRate(r.nome);
         var netFactor = netFactorOf(cat, isCamp, opts.rates || RATES_DEFAULT);
