@@ -1132,15 +1132,22 @@ body.win-blurred .che-big,html.lite .che-big{animation:none}
 /* ── TELA — Eventos SPS de Hoje (cards vivos, stats por extenso, operador) ── */
 .ao-dot{width:7px; height:7px; border-radius:50%; background:#38e79a; box-shadow:0 0 10px #38e79a; animation:tv-pulse 2s var(--ease) infinite; display:inline-block; margin-right:6px}
 .scene-today{justify-content:flex-start; padding:calc(clamp(18px,2.4vh,30px) + 48px) clamp(30px,4vw,90px) clamp(40px,5vh,60px); gap:clamp(22px,3.5vh,40px)}
-/* título de HOJE fica no MESMO lugar da Jornada (encostado à esquerda, no topo) e SEM a
-   placa preta — sobrescreve o placard genérico de html.tv-device .rk-top (só nesta cena) */
-html.tv-device .scene-today .rk-top{
+/* títulos de HOJE / VEM AÍ / A SEMANA SPS ficam no MESMO lugar da Jornada (encostados à
+   esquerda, no topo) e SEM a placa preta — sobrescreve o placard genérico de
+   html.tv-device .rk-top (a cena ranking/pódio segue centralizada, de propósito) */
+html.tv-device .scene-today .rk-top,
+html.tv-device .scene-coming .rk-top,
+html.tv-device .scene-week .rk-top{
   align-self:flex-start; text-align:left;
   background:none !important; border:0; border-radius:0; padding:0; box-shadow:none;
 }
 /* olho-mágico igual ao da Jornada: só o traço à esquerda (sem o traço de fecho) */
-.scene-today .eyebrow.center::after{display:none}
-.scene-today .eyebrow.center::before{background:linear-gradient(90deg,transparent,var(--gold))}
+.scene-today .eyebrow.center::after,
+.scene-coming .eyebrow.center::after,
+.scene-week .eyebrow.center::after{display:none}
+.scene-today .eyebrow.center::before,
+.scene-coming .eyebrow.center::before,
+.scene-week .eyebrow.center::before{background:linear-gradient(90deg,transparent,var(--gold))}
 .tday-list{width:min(1500px,94vw); display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:clamp(14px,1.4vw,22px)}
 .tday-card{position:relative; overflow:hidden; padding:clamp(16px,1.5vw,24px); border-radius:18px; border:1px solid rgba(255,255,255,.10);
   background:linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.025) 62%); -webkit-backdrop-filter:blur(24px); backdrop-filter:blur(24px);
