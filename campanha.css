@@ -913,6 +913,10 @@ html.lite .jc-col.is-best .jc-bar::before,html.lite .jc-col.is-now .jc-bar::befo
   .jn-leg-lbl{font-size:clamp(12px,.7vw,18px)}
   /* eleva também os cabeçalhos das OUTRAS cenas (leitura de TV) */
   .scene-head h2{font-size:clamp(2.4rem,3vw,4.8rem)}
+  /* HOJE / VEM AÍ / A SEMANA SPS ficavam com o título miúdo (2,4rem) ao lado do da Jornada
+     (4,6rem) na mesma TV — agora acompanham, na mesma escala. */
+  .rk-top h2{font-size:clamp(2.6rem,2.8vw,4.6rem)}
+  .rk-top h2 span{font-size:.5em}
   .eyebrow{font-size:clamp(12px,.9vw,20px)}
 }
 /* TV 8K / ultra-wide: mais um degrau */
@@ -1067,7 +1071,17 @@ body.win-blurred .che-big,html.lite .che-big{animation:none}
 
 /* #5 TELA 3 — ranking / pódio */
 .scene-ranking{justify-content:flex-start; padding:calc(clamp(18px,2.4vh,30px) + 48px) clamp(40px,6vw,120px) clamp(14px,2vh,26px); gap:clamp(26px,4vh,52px)}
+/* TÍTULO DE CENA NUNCA É CORTADO — 3 travas, valem em QUALQUER modo (TV, PC, ?tv=0):
+   1) flex:0 0 auto → o .scene-panel (flex:1) não espreme mais o bloco do título; sem isso,
+      quando o conteúdo passava da altura da tela, o flex ENCOLHIA o .rk-top, as letras
+      vazavam pra fora da caixa e o painel (pintado depois) cobria a METADE DE BAIXO delas
+      — era exatamente o "título cortado" na tela;
+   2) z-index acima do painel → mesmo que algo se sobreponha, o texto fica POR CIMA;
+   3) line-height folgado + respiro embaixo → nem o Chromium antigo da Tizen fatia
+      acentos/descidas (o "normal" do font não deixava margem nenhuma). */
+.rk-top,.jn-top{flex:0 0 auto; position:relative; z-index:2; overflow:visible}
 .rk-top{text-align:center}
+.rk-top h2,.jn-title h2{line-height:1.3; padding-bottom:.06em; overflow:visible}
 .rk-top h2{margin:14px 0 0; font-size:clamp(1.5rem,2.6vw,2.4rem); font-weight:600; letter-spacing:-.02em}
 .rk-top h2 span{color:var(--ink3); font-weight:400; font-size:.58em}
 .rk-podium{display:grid; grid-template-columns:1fr 1.14fr 1fr; align-items:end; gap:clamp(16px,2vw,34px); width:min(1100px,86vw)}

@@ -293,12 +293,16 @@ function reveal() {
 }
 
 /* ═══════════ DIRETOR (rotação entre as telas) ═══════════ */
+/* dwell = quanto tempo cada tela FICA NO AR. Telão de sala: quem passa precisa parar,
+   ler o título e percorrer a lista inteira — tempos curtos faziam a tela trocar antes
+   de dar pra ler. Referência: ~25-35s por cena (as que ROLAM ainda esticam sozinhas
+   pelo holdSceneAtLeast, que espera a descida terminar). */
 var SCENES = [
-  { id: 'control', dwell: 15000, enter: enterControl },
-  { id: 'today', dwell: 22000, enter: enterToday },       // rola (grade cheia)
-  { id: 'coming', dwell: 16000, enter: enterComing },     // rola
-  { id: 'journey', dwell: 15000, enter: enterJourney },   // gráfico de barras (cabe inteiro)
-  { id: 'week', dwell: 18000, enter: enterWeek },         // A Semana Inteira — rola
+  { id: 'control', dwell: 24000, enter: enterControl },
+  { id: 'today', dwell: 34000, enter: enterToday },       // rola (grade cheia)
+  { id: 'coming', dwell: 26000, enter: enterComing },     // rola
+  { id: 'journey', dwell: 24000, enter: enterJourney },   // gráfico de barras (cabe inteiro)
+  { id: 'week', dwell: 30000, enter: enterWeek },         // A Semana Inteira — rola
   // 'ranking' (Tier da Semana) removido da rotação a pedido do Brian.
 ];
 var _si = 0, _dirT = null, _dirStarted = false;
@@ -363,7 +367,7 @@ function autoScrollList(el, dwellMs) {
   requestAnimationFrame(function () { requestAnimationFrame(function () {
     var max = el.scrollHeight - el.clientHeight;
     if (max <= 8) return;                                  // cabe inteiro → nada a rolar (mantém dwell fixo)
-    var HOLD_TOP = 2200, HOLD_BOT = 2600;                  // respiro pra ler topo e base
+    var HOLD_TOP = 3200, HOLD_BOT = 3600;                  // respiro pra ler topo e base
     // VELOCIDADE FIXA (crawl de créditos de cinema): sempre ~46px/s, independente do tamanho da
     // lista → sempre a mesma cadência bonita/natural. A CENA é que estica pra caber a descida
     // inteira (holdSceneAtLeast) — nunca acelera pra "caber no tempo" (era o que ficava rápido).
