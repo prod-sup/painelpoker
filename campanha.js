@@ -1288,47 +1288,112 @@ function mountBackground() {
 }
 
 /* ── EMENDA DO LOOP ───────────────────────────────────────────────────────────
-   O `loop` nativo volta ao primeiro frame de um quadro pro outro — no telão isso
-   aparece como um tranco no fundo a cada volta. Aqui a virada acontece NO ESCURO:
-   o véu (.tv-hero-dip) fecha pouco antes do fim, o vídeo é rebobinado no ponto mais
-   escuro e o véu abre bem mais devagar do que fechou (respiração de câmera).
+   O `loop` nativo volta ao primeiro quadro de um frame pro outro — no telão isso é
+   um tranco. E o clipe tem ~8s: a volta acontece umas 450x por hora, então a emenda
+   precisa ser INVISÍVEL. Qualquer coisa que se anuncie (escurecer, piscar, dar zoom)
+   deixa de ser transição e vira tique.
 
-   Por que NÃO é crossfade de 2 vídeos (o desenho original): na Samsung/Tizen o vídeo
+   Como um montador faria: CORTE COBERTO. Fotografamos o quadro que está no ar num
+   canvas por cima do vídeo — como é cópia exata do que a tela já mostra, ele entra
+   SEM transição e ninguém percebe. Aí o vídeo rebobina ESCONDIDO atrás do still e o
+   still se dissolve em 850ms, revelando o início já rodando. O brilho da tela não
+   muda em instante nenhum: o que se dissolve é conteúdo, não luz.
+
+   Por que não crossfade de 2 vídeos (o desenho original): na Samsung/Tizen o vídeo
    vive num plano de HARDWARE que ignora opacity — o segundo <video> aparecia como um
-   retângulo azul. O véu é um DIV comum, então funciona na TV igual ao PC.
+   retângulo azul. Canvas e div são DOM comum, então valem na TV igual ao PC.
 
-   O `loop` do elemento CONTINUA ligado de propósito: é a rede de segurança. Se a aba
-   for congelada (2º plano) e o nosso rebobinar atrasar, o navegador emenda sozinho —
-   corte seco, mas nunca um vídeo parado no último frame.                            */
+   Plano B: o mesmo plano de hardware pode fazer o canvas sair PRETO. Se a foto vier
+   vazia, cai numa sombra rasa e curta (só tira a aresta do corte) — nunca um fade
+   pro preto, que a cada 8s seria pior que o corte que estamos consertando.
+
+   O `loop` do elemento continua ligado de propósito: é a rede. Se a aba for congelada
+   e a nossa emenda atrasar, o navegador vira sozinho — corte seco, mas nunca um vídeo
+   parado no último quadro.                                                            */
 function seamLoop(v, playSafe) {
-  var dip = $('heroDip');
-  if (reduced()) return;                                  // sem vídeo/animação: nada a emendar
-  var FADE = 1.0;                                         // s de escurecimento antes da virada
-  var TAIL = 0.08;                                        // rebobina 80ms antes do fim real
-  var busy = false, guard = null;
-  var abrir = function () { if (dip) dip.classList.remove('is-dim'); };
-  var soltar = function () { busy = false; clearTimeout(guard); guard = null; };
-  v.addEventListener('timeupdate', function () {
-    var d = v.duration;
-    // vídeo curto ou sem duração conhecida (stream/metadata ausente): loop nativo puro —
-    // um véu de 1s a cada 5s seria pior que o corte que ele conserta
-    if (busy || !isFinite(d) || d < 6) return;
-    var left = d - v.currentTime;
-    if (left > FADE || left < 0) return;
+  if (reduced()) return;                                  // fundo já é estático: nada a emendar
+  var still = $('heroStill'), dip = $('heroDip');
+  var WATCH = 1.2;    // s antes do fim em que passamos a olhar quadro a quadro
+  var CUT   = 0.08;   // s de vídeo que abrimos mão pra emendar sem congelar a imagem
+  var HOLD  = 950;    // ms de trava até a próxima emenda (o dissolve dura 850ms)
+  var ctx = null, raf = 0, busy = false, canDraw = true;
+
+  function vale(d) { return isFinite(d) && d > 3; }       // clipe curtíssimo/stream: loop nativo
+  function rebobina() { try { v.currentTime = 0; playSafe(); } catch (e) {} }
+
+  /* Fotografa o quadro no ar recortando IGUAL ao object-fit:cover do vídeo (mesma
+     caixa, mesmo object-position:center 34%) — sem isso o still entraria deslocado
+     ou esticado e o "corte invisível" viraria um solavanco de enquadramento. */
+  function fotografa() {
+    if (!still || !canDraw || !v.videoWidth || !v.videoHeight) return false;
+    var r = still.getBoundingClientRect();
+    if (!r.width || !r.height) return false;
+    var W = Math.max(2, Math.min(1280, Math.round(r.width)));
+    var H = Math.max(2, Math.round(W * r.height / r.width));
+    if (still.width !== W || still.height !== H) { still.width = W; still.height = H; ctx = null; }
+    if (!ctx) { try { ctx = still.getContext('2d'); } catch (e) { canDraw = false; return false; } }
+    if (!ctx) { canDraw = false; return false; }
+    var esc = Math.max(W / v.videoWidth, H / v.videoHeight);            // cover
+    var sw = W / esc, sh = H / esc;
+    try { ctx.drawImage(v, (v.videoWidth - sw) / 2, (v.videoHeight - sh) * 0.34, sw, sh, 0, 0, W, H); }
+    catch (e) { canDraw = false; return false; }          // vídeo protegido → sem foto, nunca
+    return temImagem(W, H);
+  }
+  /* Na Samsung/Tizen o vídeo pode viver num plano de hardware que o canvas não enxerga:
+     o drawImage "funciona" e sai preto. Confere ANTES de mostrar (um still preto seria
+     exatamente o fade-pro-preto que estamos evitando). Não desliga o recurso: um quadro
+     legitimamente escuro reprova aqui, e a próxima volta tenta de novo. */
+  function temImagem(W, H) {
+    try {
+      var w = Math.min(32, W), h = Math.min(18, H);
+      var d = ctx.getImageData((W - w) >> 1, (H - h) >> 1, w, h).data;
+      for (var i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] > 24) return true;
+      return false;
+    } catch (e) { canDraw = false; return false; }        // canvas sujo (cross-origin)
+  }
+
+  function dissolve() {
+    still.classList.add('is-holding');                    // cópia do que está na tela → invisível
+    rebobina();                                           // a virada acontece atrás do still
+    requestAnimationFrame(function () {
+      void still.offsetWidth;                             // fixa o estado "1" antes de soltar
+      still.classList.remove('is-holding');               // dissolve pro vídeo já rodando
+    });
+  }
+  function sombra() {                                     // plano B
+    if (!dip) { rebobina(); return; }
+    dip.classList.add('is-dim');
+    setTimeout(function () {                              // vira no ponto mais escuro da sombra
+      rebobina();
+      requestAnimationFrame(function () { dip.classList.remove('is-dim'); });
+    }, 260);
+  }
+  function emenda() {
     busy = true;
-    if (dip) dip.classList.add('is-dim');
-    // o atraso sai do tempo QUE FALTA (o timeupdate dispara ~4x/s, então `left` no
-    // gatilho varia): assim a rebobinada cai sempre logo antes do fim, nunca depois —
-    // se caísse depois, o loop nativo já teria dado o corte que estamos evitando.
-    setTimeout(function () {
-      try { v.currentTime = 0; playSafe(); } catch (e) {}
-      requestAnimationFrame(abrir);                       // abre o véu já com o início no ar
-      guard = setTimeout(soltar, 500);                    // trava anti-redisparo do mesmo fim
-    }, Math.max(60, (left - TAIL) * 1000));
+    if (fotografa()) dissolve(); else sombra();
+    setTimeout(function () { busy = false; }, HOLD);
+  }
+
+  /* Perto do fim olhamos quadro a quadro: o `timeupdate` dispara só ~4x/s e essa
+     imprecisão (até 250ms) obrigaria a cortar 1/4 de segundo de vídeo, ou a arriscar
+     chegar depois do fim — quando o loop nativo já deu o corte. O rAF roda ~1,2s por
+     volta, não faz layout nenhum e para sozinho. */
+  function espia() {
+    raf = 0;
+    if (busy || v.paused) return;
+    var d = v.duration; if (!vale(d)) return;
+    var left = d - v.currentTime;
+    if (left > WATCH) return;                             // rebobinou/pulou: o timeupdate re-arma
+    if (left > CUT) { raf = requestAnimationFrame(espia); return; }
+    emenda();
+  }
+  v.addEventListener('timeupdate', function () {
+    if (raf || busy || v.paused || !vale(v.duration)) return;
+    if (v.duration - v.currentTime <= WATCH) raf = requestAnimationFrame(espia);
   });
-  // rede: se o loop nativo emendou antes de nós (aba congelada), o véu não pode ficar preso
-  v.addEventListener('ended', function () { abrir(); soltar(); });
-  v.addEventListener('seeked', function () { if (!busy) abrir(); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden && raf) { cancelAnimationFrame(raf); raf = 0; }
+  });
 }
 
 /* ── (legado) aura 2D — substituída pelo Feltro; mantida como no-op se o #ambient sumiu ── */

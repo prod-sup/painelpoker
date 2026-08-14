@@ -59,19 +59,38 @@ body{
   0%   {transform:scale(1.05) translate(-.6%, .4%)}
   50%  {transform:scale(1.14) translate(.8%, -1.4%)}
   100% {transform:scale(1.05) translate(-.6%, .4%)}}
-/* ── EMENDA DO LOOP (véu) ────────────────────────────────────────────────────
-   O loop nativo volta ao 1º frame de um quadro pro outro: na TV isso lê como um
-   TRANCO no fundo a cada volta. A emenda passa a acontecer NO ESCURO — este véu
-   sobe pouco antes do fim, o vídeo é rebobinado no ponto mais escuro e o véu desce.
-   Só opacity (composto na GPU, 1 camada) e só sobre o FUNDO: está dentro do
-   .tv-hero (z-index 0), então o palco (z-index 3) não escurece junto.
-   A VOLTA é bem mais lenta que a ida — abrir devagar depois de fechar rápido é o
-   que faz parecer respiração de câmera em vez de piscada. */
-.tv-hero-dip{position:absolute; inset:0; z-index:3; pointer-events:none; opacity:0;
-  background:radial-gradient(125% 105% at 50% 44%, rgba(5,7,11,.92), rgba(2,3,6,.99) 68%);
-  transition:opacity 1.5s cubic-bezier(.33,0,.2,1)}          /* volta (clareia) */
-.tv-hero-dip.is-dim{opacity:1; transition:opacity .82s cubic-bezier(.5,0,.75,0)}  /* ida (escurece) */
-@media (prefers-reduced-motion:reduce){ .tv-hero-dip{display:none} }
+/* ── EMENDA DO LOOP (cross-dissolve) ─────────────────────────────────────────
+   O loop nativo volta ao 1º quadro de um frame pro outro: no telão isso é um
+   TRANCO. E o clipe tem 8s — a volta acontece ~450x por hora, então a emenda tem
+   que ser INVISÍVEL, não vistosa: qualquer coisa que se anuncie (escurecer, piscar,
+   dar zoom) vira um tique a cada 8 segundos.
+   Solução = corte de montagem: o #heroStill congela o último quadro POR CIMA do
+   vídeo (pixel a pixel: entra sem transição, ninguém vê), o vídeo rebobina embaixo
+   e o still se dissolve revelando o início já rodando. O brilho da tela não muda em
+   momento nenhum — o que se dissolve é conteúdo, não luz.
+   Só opacity (1 camada composta na GPU) e só sobre o FUNDO: os dois vivem dentro
+   do .tv-hero (z-index 0), então o palco (z-index 3) nunca escurece junto.
+   Curva em S nos dois sentidos (sem "liga/desliga" nas pontas) e 850ms — o bastante
+   pra ler como dissolve, curto o bastante pra caber num ciclo de 8s. */
+/* MESMA CAIXA do .tv-hero-vid (inset/tamanho/scale) — é o que faz a foto cair pixel a
+   pixel em cima do vídeo. E z-index 0 de propósito: o still tem que ficar ABAIXO do
+   scrim (.tv-hero::after), senão ele entraria mais CLARO que o vídeo e a emenda viraria
+   um salto de brilho — exatamente o que o corte coberto existe pra não fazer. */
+.tv-hero-still{position:absolute; inset:-2%; width:104%; height:104%; z-index:0;
+  pointer-events:none; opacity:0; transform:scale(1.02); backface-visibility:hidden;
+  transition:opacity .85s cubic-bezier(.55,0,.45,1)}
+/* segurando o quadro: entra SEM transição (é a cópia exata do que está na tela) */
+.tv-hero-still.is-holding{opacity:1; transition:none}
+
+/* PLANO B — quando a TV não deixa fotografar o vídeo (plano de hardware: o canvas
+   sai preto). Aí não dá pra dissolver, só suavizar a borda do corte: uma sombra
+   RASA e curta. Rasa de propósito — a cada 8s, um escurecimento forte seria pior
+   que o corte que ele conserta. */
+.tv-hero-dip{position:absolute; inset:0; z-index:4; pointer-events:none; opacity:0;
+  background:radial-gradient(125% 105% at 50% 44%, rgba(4,6,10,.22), rgba(3,4,7,.34) 70%);
+  transition:opacity .5s cubic-bezier(.33,0,.2,1)}            /* volta (clareia) */
+.tv-hero-dip.is-dim{opacity:1; transition:opacity .26s cubic-bezier(.5,0,.75,0)}   /* ida */
+@media (prefers-reduced-motion:reduce){ .tv-hero-still,.tv-hero-dip{display:none} }
 /* shine metálico varrendo (o logo/ouro brilham quando o realce passa) */
 .tv-hero-shine{position:absolute; inset:0; mix-blend-mode:overlay; opacity:.7; background-repeat:no-repeat;
   background-image:linear-gradient(74deg, transparent 38%, rgba(255,240,205,.16) 47%, rgba(255,255,255,.32) 50%, rgba(255,240,205,.16) 53%, transparent 62%);

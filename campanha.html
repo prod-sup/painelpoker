@@ -31,9 +31,12 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
     <source src="assets/sps-bg.mp4?v=2" type="video/mp4">
   </video>
   <div class="tv-hero-shine"></div>
-  <!-- véu da emenda do loop: sobe ~1s antes do fim, o vídeo volta ao início NO ESCURO e ele
-       desce devagar. Fica dentro do .tv-hero (abaixo do palco) → só o fundo respira, o
-       conteúdo nunca escurece. Ver seamLoop() no campanha.js. -->
+  <!-- EMENDA DO LOOP (o clipe tem 8s: a volta acontece ~450x por hora, então ela precisa ser
+       invisível, não "bonita"). #heroStill congela o último quadro por cima, o vídeo rebobina
+       embaixo e o still se dissolve — corte de montagem, sem mexer no brilho. #heroDip é o
+       plano B (sombra rápida) pra quando a TV não deixa fotografar o vídeo. Ambos vivem dentro
+       do .tv-hero, abaixo do palco: o conteúdo nunca é afetado. Ver seamLoop() no campanha.js. -->
+  <canvas class="tv-hero-still" id="heroStill" aria-hidden="true"></canvas>
   <div class="tv-hero-dip" id="heroDip" aria-hidden="true"></div>
 </div>
 
