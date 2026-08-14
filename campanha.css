@@ -214,6 +214,20 @@ html.tv-device .wk-sum-best{ background:linear-gradient(160deg,#1b1710,#0c1016) 
 /* 4) cortes: cards do dia sem altura mínima gigante (cabem no palco com overscan) */
 html.tv-device .wk-card{ min-height:0 }
 
+/* 5) AUTO-SCROLL por TRANSFORM (GPU) — as listas NÃO rolam por scrollTop na TV (repaint mata o
+   FPS e trava ticker+scroll). Elas ficam overflow:visible e são transladadas; quem RECORTA e
+   faz o fade topo/base é o scene-panel. */
+html.tv-device .tday-list,
+html.tv-device .coming-list,
+html.tv-device .tier-list{
+  overflow:visible !important; will-change:transform;
+  -webkit-mask-image:none !important; mask-image:none !important;
+}
+html.tv-device .scene-panel{
+  -webkit-mask-image:linear-gradient(180deg, transparent 0, #000 30px, #000 calc(100% - 30px), transparent 100%);
+          mask-image:linear-gradient(180deg, transparent 0, #000 30px, #000 calc(100% - 30px), transparent 100%);
+}
+
 /* transição IDÊNTICA à Suprema TV: crossfade + scale 1.02→1 (entra) / 1→.985 (sai), só opacity/transform */
 .scene{position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center;
   padding:clamp(54px,7vh,86px) clamp(40px,6vw,120px); gap:clamp(20px,3vh,40px);

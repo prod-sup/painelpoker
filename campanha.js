@@ -340,33 +340,50 @@ function fitRows(el) {
     }
   }); });
 }
-/* telas com mais conteúdo descem sozinhas (estilo "s-roll" da TV) */
+/* telas com mais conteúdo descem sozinhas (estilo "s-roll" da TV).
+   UMA passada topo→fim, cronometrada pra CABER no tempo da cena (dwell) → sempre chega ao
+   fim antes de trocar. Sem `offsetParent` na parada (no Tizen ele volta null com a cena
+   visível → travava tudo no 1º frame); a limpeza fica no stopSceneLoops (chamado no gotoScene)
+   + isConnected. É rolagem FUNCIONAL de telão (mostra o que não coube), então roda mesmo em
+   reduced-motion. */
 function autoScrollList(el, dwellMs) {
   if (_scrollLoop) { _scrollLoop.stop(); _scrollLoop = null; }
-  if (!el || reduced()) return;
-  el.scrollTop = 0;
-  requestAnimationFrame(function () {
+  if (!el) return;
+  // Na TV, mover por TRANSFORM (composto na GPU) em vez de scrollTop — setar scrollTop força
+  // repaint da lista toda todo frame e no Tizen isso trava TUDO (o próprio scroll E o ticker).
+  // É a mesma técnica do ticker, que já roda liso na Samsung. O scene-panel (overflow:hidden +
+  // máscara) recorta; o transform não mexe no grid/flex interno da lista.
+  var TV = document.documentElement.classList.contains('tv-device');
+  el.scrollTop = 0; el.style.transform = '';
+  var setY = TV
+    ? function (top) { el.style.transform = 'translate3d(0,' + (-top) + 'px,0)'; }
+    : function (top) { el.scrollTop = top; };
+  if (TV) el.style.willChange = 'transform';
+  // DUPLO rAF: mede depois do layout FINAL — senão na TV o scrollHeight sai errado e "não desce".
+  requestAnimationFrame(function () { requestAnimationFrame(function () {
     var max = el.scrollHeight - el.clientHeight;
-    if (max <= 6) return;
-    // auto-scroll CONTÍNUO (vai-e-volta em loop) enquanto a cena está no ar: topo→desce→
-    // fim→sobe→repete, com pausa nas pontas. Cada perna usa EASE-IN-OUT (acelera saindo da
-    // pausa, desacelera ao chegar) — mata o "robótico" da velocidade constante e das paradas
-    // secas, que fica pior nas TVs Tizen (rAF a menos FPS deixa o passo linear visível).
-    var HOLD = 2200, LEG = Math.max(4200, max / 70 * 1000), cycle = (HOLD + LEG) * 2, elapsed = 0;
+    if (max <= 8) return;                                  // cabe inteiro → nada a rolar
+    var D = Math.max(6000, dwellMs || 12000);
+    var HOLD_TOP = 1500, HOLD_BOT = 1200;                  // pausa pra ler topo e base
+    // desce numa velocidade legível (~80px/s), MAS encurta o tempo se não couber no dwell (pra
+    // SEMPRE chegar ao fim) — nunca mais lento que ~1,8s (senão parece parado com pouco conteúdo).
+    var legRead = max / 80 * 1000;
+    var legFit  = D - HOLD_TOP - HOLD_BOT - 300;           // margem antes de a cena trocar
+    var LEG = Math.max(1800, Math.min(legRead, legFit));
     var easeInOut = function (p) { return 0.5 - 0.5 * Math.cos(Math.PI * p); };   // cosseno: suave nas 2 pontas
-    var last = -1;
+    var t = 0, last = -1;
     _scrollLoop = rafLoop(function (dt) {
-      if (!el.isConnected || el.offsetParent === null) return false;  // cena saiu → para sozinho
-      elapsed += dt * 1000;
-      var pos = elapsed % cycle, y;
-      if (pos < HOLD) y = 0;
-      else if (pos < HOLD + LEG) y = easeInOut((pos - HOLD) / LEG);
-      else if (pos < HOLD + LEG + HOLD) y = 1;
-      else y = 1 - easeInOut((pos - HOLD - LEG - HOLD) / LEG);
-      var top = Math.round(max * y);           // px inteiro → sem jitter de subpixel na TV
-      if (top !== last) { el.scrollTop = top; last = top; }
+      if (!el.isConnected) return false;                   // saiu do DOM → para
+      t += dt * 1000;
+      var y;
+      if (t < HOLD_TOP) y = 0;                             // segura no topo
+      else if (t < HOLD_TOP + LEG) y = easeInOut((t - HOLD_TOP) / LEG);   // desce suave até o fim
+      else y = 1;                                          // chegou ao fim → segura embaixo
+      var top = Math.round(max * y);                       // px inteiro → sem jitter na TV
+      if (top !== last) { setY(top); last = top; }
+      if (t > HOLD_TOP + LEG + HOLD_BOT) return false;     // ciclo completo → para (a cena troca logo)
     });
-  });
+  }); });
 }
 function startDirector() {
   if (_dirStarted) return; _dirStarted = true;
