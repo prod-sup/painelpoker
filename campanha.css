@@ -1138,7 +1138,7 @@ body.win-blurred .che-big,html.lite .che-big{animation:none}
 html.tv-device .scene-today .rk-top,
 html.tv-device .scene-coming .rk-top,
 html.tv-device .scene-week .rk-top{
-  align-self:flex-start; text-align:left;
+  align-self:stretch; width:100%; text-align:left;   /* full-width igual à .jn-top — não encolher (encolher cortava o título) */
   background:none !important; border:0; border-radius:0; padding:0; box-shadow:none;
 }
 /* olho-mágico igual ao da Jornada: só o traço à esquerda (sem o traço de fecho) */
