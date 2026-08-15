@@ -2764,7 +2764,7 @@ function renderSecFs(){
     </div>
     <div class="secwrap" data-suit="${cat.suit}">${
       SEC_VIEW === 'sheet' ? renderPlanilhaRows(items, cat, asg)
-      : renderVertical(items, cat, asg, essentialRecipeFields(), true)
+      : renderVertical(items, cat, asg, visibleRecipeFields(), true)
     }</div>
     <div class="sec-fs-foot">
       <div class="keys" aria-hidden="true">
@@ -3048,7 +3048,7 @@ function renderCards(items, cat, asg){
    na tela cheia. Mesmas ações de sempre (ID, criado, copiar, abrir em tela
    cheia por evento) — data-attrs batem com os listeners já existentes. */
 function renderPlanilhaRows(items, cat, asg){
-  const cols = essentialRecipeFields();   // Apenas campos essenciais - cabe em uma tela
+  const cols = visibleRecipeFields();   // Todos os campos na ordem de criação
   const head = `<tr>
       <th class="pname">Torneio</th><th data-field="hora" data-flabel="Horário">Horário</th><th class="key" data-field="criar" data-flabel="Criar em">Criar em</th>
       <th data-field="admin" data-flabel="Admin Fee">Admin Fee</th><th data-field="early" data-flabel="Early Bird">Early Bird</th>
