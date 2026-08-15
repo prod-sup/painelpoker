@@ -2226,6 +2226,12 @@ function applyColOrder(fields){
   return [...ordered, ...rest];
 }
 function visibleRecipeFields(){ return applyColOrder(creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l))))); }
+/* Campos principais para o modo Colunas (vertical) - tudo cabe em uma tela */
+function essentialRecipeFields(){
+  const all = recipeFields();
+  const essential = ['Prize Pool USD', 'Buy-In', 'Reentry/Rebuy', 'Add-on', 'Stack Reentry/Rebuy', 'Admin Fee', 'Early Bird', 'Chips', 'Structure'];
+  return all.filter(l => essential.some(e => normText(l).includes(normText(e))) && !HIDDEN_RECIPE.test(normText(l)));
+}
 /* salva a nova ordem (lista completa de rótulos) e re-renderiza */
 function saveColOrder(list){
   COL_ORDER = list;
@@ -2746,7 +2752,7 @@ function renderSecFs(){
     </div>
     <div class="secwrap" data-suit="${cat.suit}">${
       SEC_VIEW === 'sheet' ? renderPlanilhaRows(items, cat, asg)
-      : renderVertical(items, cat, asg, null, true)
+      : renderVertical(items, cat, asg, essentialRecipeFields(), true)
     }</div>
     <div class="sec-fs-foot">
       <div class="keys" aria-hidden="true">
