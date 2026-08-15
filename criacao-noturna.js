@@ -406,8 +406,10 @@ const TYPE_META = {
   sat:         { label:'Satélite',      cls:'sat',      suit:'♣' },
   sideAdmin:   { label:'Side c/ Admin', cls:'side',     suit:'♥' },
   sideNoAdmin: { label:'Side s/ Admin', cls:'sidefree', suit:'♦' },
+  sideEvent:   { label:'Side Event',    cls:'side',     suit:'♥' },
+  principal:   { label:'Principal',     cls:'liga',     suit:'🏆' },
 };
-const TYPE_ORDER = ['main','sat','sideAdmin','sideNoAdmin'];
+const TYPE_ORDER = ['main','sat','sideAdmin','sideNoAdmin','sideEvent','principal'];
 let CUSTOM_SECTIONS = [];
 try{ CUSTOM_SECTIONS = JSON.parse(localStorage.getItem('cn_custom_sections') || '[]') || []; }catch(e){ CUSTOM_SECTIONS = []; }
 let SECTION_MODE = localStorage.getItem('cn_section_mode') || 'default';   // 'default' | 'custom'
@@ -418,7 +420,17 @@ function typePool(t){
   if (t === 'main') return DATA.main;
   if (t === 'sat')  return DATA.sat;
   const s = sideSplit();
-  return t === 'sideAdmin' ? s.admin : t === 'sideNoAdmin' ? s.noadmin : [];
+  if (t === 'sideAdmin') return s.admin;
+  if (t === 'sideNoAdmin') return s.noadmin;
+  if (t === 'sideEvent') return [...s.admin, ...s.noadmin];   // todos os Side Events
+  if (t === 'principal'){
+    // Liga Principal: combina main + sat (Eventos Principais)
+    if (typeof LIGA_PRINCIPAL_SECTIONS === 'undefined') return [];
+    const lp = LIGA_PRINCIPAL_SECTIONS[WEEKDAY_TOMORROW_EN];
+    if (!lp) return [];
+    return [...(lp.main||[]), ...(lp.side||[]), ...(lp.sat||[])];
+  }
+  return [];
 }
 /* minuto "na janela" 06:10→05:30: o que é depois da meia-noite conta como +24h,
    pra "até 02:00" incluir a madrugada e não cortar antes das 22:00 da noite */
@@ -3036,7 +3048,7 @@ function renderCards(items, cat, asg){
    na tela cheia. Mesmas ações de sempre (ID, criado, copiar, abrir em tela
    cheia por evento) — data-attrs batem com os listeners já existentes. */
 function renderPlanilhaRows(items, cat, asg){
-  const cols = visibleRecipeFields();   // TODAS as colunas, na ordem da planilha (ver renderVertical)
+  const cols = essentialRecipeFields();   // Apenas campos essenciais - cabe em uma tela
   const head = `<tr>
       <th class="pname">Torneio</th><th data-field="hora" data-flabel="Horário">Horário</th><th class="key" data-field="criar" data-flabel="Criar em">Criar em</th>
       <th data-field="admin" data-flabel="Admin Fee">Admin Fee</th><th data-field="early" data-flabel="Early Bird">Early Bird</th>
