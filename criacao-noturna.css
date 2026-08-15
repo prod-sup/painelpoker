@@ -217,7 +217,7 @@ body > *{position:relative;z-index:1}
       radial-gradient(900px 380px at 12% -40%, rgba(14,107,64,.30), transparent 60%),
       linear-gradient(180deg,#0b0d14 0%, #0d1112 90%, var(--bg) 100%);
     color:#e8ede9;
-    padding:58px 28px 42px;
+    padding:18px 20px 14px;
   }
   html:not(.dark) .hero{
     background:
@@ -239,24 +239,24 @@ body > *{position:relative;z-index:1}
   }
   .hero-inner{max-width:min(1680px, 96vw);margin:0 auto;position:relative}
   .hero-eyebrow{
-    display:inline-flex;align-items:center;gap:8px;
-    font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    display:inline-flex;align-items:center;gap:6px;
+    font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
     color:#b888f0;background:rgba(155,97,214,.16);border:1px solid rgba(155,97,214,.3);
-    padding:6px 14px;border-radius:99px;margin-bottom:18px;
+    padding:4px 10px;border-radius:99px;margin-bottom:6px;
   }
   .hero h1{
-    font-family:var(--display);font-size:clamp(28px,4.4vw,44px);
-    font-weight:800;letter-spacing:-.03em;line-height:1.06;
+    font-family:var(--display);font-size:clamp(20px,3.5vw,32px);
+    font-weight:800;letter-spacing:-.03em;line-height:1.1;
   }
   .hero h1 em{font-style:normal;background:linear-gradient(92deg,#22d47e,#5aa8ff 55%,#b888f0);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .hero p.sub{margin-top:12px;font-size:14.5px;color:rgba(232,237,233,.62);max-width:620px;line-height:1.6}
-  .hero-stats{display:flex;gap:14px;margin-top:28px;flex-wrap:wrap}
+  .hero p.sub{margin-top:4px;font-size:12px;color:rgba(232,237,233,.62);max-width:620px;line-height:1.4}
+  .hero-stats{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap}
   .hstat{
-    min-width:132px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
-    backdrop-filter:blur(8px);border-radius:var(--radius-md);padding:14px 18px;
+    min-width:110px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+    backdrop-filter:blur(8px);border-radius:var(--radius-md);padding:8px 12px;
   }
-  .hstat .n{font-family:var(--mono);font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
-  .hstat .l{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(232,237,233,.5);margin-top:4px}
+  .hstat .n{font-family:var(--mono);font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+  .hstat .l{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(232,237,233,.5);margin-top:2px}
   .hstat.c-main .n{color:#f06050}
   .hstat.c-side .n{color:#5aa8ff}
   .hstat.c-sat .n{color:#b888f0}
@@ -319,7 +319,7 @@ body > *{position:relative;z-index:1}
   .card{
     border:1px solid var(--hairline);
     border-radius:var(--radius-lg);box-shadow:var(--shadow-md);
-    padding:26px 28px;margin-bottom:22px;
+    padding:12px 16px;margin-bottom:8px;
     transition:background .4s var(--ease), border-color .4s;
     /* vidro fosco (ref. MotionSites/Liquid Glass), com fallback sólido */
     background:color-mix(in srgb, var(--card) 86%, transparent);
@@ -794,18 +794,18 @@ body > *{position:relative;z-index:1}
   /* min-width:0 é OBRIGATÓRIO: sem ele o flex item usa min-width:auto e cresce
      até a largura do conteúdo (tabela larga), vazando a viewport — aí o
      overflow:auto do .secwrap nunca dispara e não dá pra rolar pro lado. */
-  .sec-fs-card{display:flex;flex-direction:column;flex:1;min-width:0;min-height:0}
-  /* cabeçalho da tela cheia: minimalista pra ganhar altura */
-  .sec-fs-card .section-head{flex:none;margin:0 0 4px;padding-bottom:4px;border:none}
+  .sec-fs-card{display:flex;flex-direction:column;flex:1;min-width:0;min-height:0;gap:2px}
+  /* cabeçalho da tela cheia: bem compacto */
+  .sec-fs-card .section-head{flex:none;margin:0;padding:2px 0;border:none;font-size:12px;font-weight:700}
   .sec-fs-card .secwrap{flex:1;overflow:auto;min-width:0;min-height:0;overscroll-behavior:contain}
   #secFsOverlay .vwrap, #secFsOverlay .pwrap{
     overflow:visible;max-height:none;border:none;border-radius:0;
     box-shadow:none;background:transparent;content-visibility:visible;contain:none;
   }
-  /* Otimizar espaço: máxima densidade sem sacrificar legibilidade */
-  #secFsOverlay .secwrap:not(.focus) .vtable th, #secFsOverlay .secwrap:not(.focus) .vtable td{padding:2px 8px;font-size:11.5px;line-height:1.3}
-  #secFsOverlay .secwrap:not(.focus) .vtable td.vname{font-size:11px;line-height:1.15;max-width:140px}
-  #secFsOverlay .secwrap:not(.focus) .vtable .rowlab{font-size:9.5px;min-width:90px}
+  /* Máxima densidade: compacto como o print */
+  #secFsOverlay .secwrap:not(.focus) .vtable th, #secFsOverlay .secwrap:not(.focus) .vtable td{padding:1px 6px;font-size:11px;line-height:1.25}
+  #secFsOverlay .secwrap:not(.focus) .vtable td.vname{font-size:10.5px;line-height:1.1;max-width:130px}
+  #secFsOverlay .secwrap:not(.focus) .vtable .rowlab{font-size:9px;min-width:85px;font-weight:600;letter-spacing:.02em}
   #secFsOverlay .ptable thead th,#secFsOverlay .ptable tbody td{padding:3px 8px;font-size:11px}
   #secFsOverlay .section-head{margin:0 0 2px;padding-bottom:2px;font-size:13px}
   #secFsOverlay .sec-fs-foot{margin-top:4px;padding-top:4px;font-size:10.5px}
