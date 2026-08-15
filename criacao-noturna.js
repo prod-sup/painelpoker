@@ -2755,12 +2755,9 @@ function renderVertical(items, cat, asg, fieldList, dropEmpty){
   const addonL = labelOf(addonInfo), ticketL = labelOf(ticketInfo), chipsL = labelOf(chipsInfo),
         gameL = labelOf(gameTypeInfo), koL = labelOf(koInfo);
   const SUITS = ['♠','♥','♦','♣'];
-  // MOSTRAR TODAS as colunas: FEE/ADMIN FEE/EARLY BIRD crus continuam na receita, na
-  // ordem da planilha (a operação pediu). Os chips Admin Fee/Early Bird no topo são só
-  // atalho JÁ CALCULADO (10% / +2% / % das fichas), não substituem a coluna original.
-  let rows = (fieldList || visibleRecipeFields());
-  // tela cheia: descarta campo que é vazio ("—") em TODOS os torneios da seção —
-  // linha só de traço é ruído e come altura à toa (pedido: evitar scroll vertical)
+  // Mostrar apenas campos essenciais para vista compacta sem scroll
+  let rows = (fieldList || essentialRecipeFields());
+  // Descartar campos vazios — linha só de traço é ruído e come altura à toa
   if (dropEmpty) rows = rows.filter(label => cols.some(c => {
     const v = c.it.extra ? c.it.extra[label] : undefined;
     return v !== undefined && v !== null && v !== '';
@@ -2775,6 +2772,7 @@ function renderVertical(items, cat, asg, fieldList, dropEmpty){
           + (m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : '');
       }, 'vname')}</tr>
       <tr data-field="admin" data-flabel="Admin Fee">${rlabTh('admin', 'Admin Fee', false)}${cell(c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
+
       ${cols.some(c => hasCampaign(c.it)) ? `<tr data-field="camp" data-flabel="Campanha">${rlabTh('camp', 'Campanha', false)}${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : ''}
       ${cat.key === 'sat' ? `<tr data-field="grupo" data-flabel="Grupo">${rlabTh('grupo', 'Grupo', false)}${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : ''}
       ${rows.length
@@ -2998,12 +2996,6 @@ $('handoffBtn').addEventListener('click', e => openHandoff(e.currentTarget));
 document.addEventListener('keydown', e => {
   if ($('popMenu') && e.key === 'Escape'){ closePickMenu(); return; }
   if (TV_OPEN && e.key === 'Escape'){ closeTV(); return; }
-  if (SEC_FS && e.key === 'Escape'){ toggleSectionFs(SEC_FS); return; }
-  if (!SEC_FS) return;
-  const ae = document.activeElement;
-  const tag = ae && ae.tagName;
-  if (tag && /^(INPUT|SELECT|TEXTAREA)$/.test(tag)) return; // digitando o ID: não sequestra teclas
-  // Espaço/Enter num controle (botão, nome-link) = ação dele, não "marcar criado"
 });
 
 
