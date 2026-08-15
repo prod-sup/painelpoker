@@ -2237,11 +2237,23 @@ function applyColOrder(fields){
   return [...ordered, ...rest];
 }
 function visibleRecipeFields(){ return applyColOrder(creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l)) && !/size.*buy/i.test(normText(l))))); }
-/* Campos principais para o modo Colunas (vertical) - mínimo essencial, cabe confortável */
+/* Campos do painel Criação Noturna — ordem exata conforme especificado */
 function essentialRecipeFields(){
   const all = recipeFields();
-  const essential = ['Prize Pool USD', 'Buy-In', 'Admin Fee', 'Early Bird', 'Chips', 'Structure'];
-  return all.filter(l => essential.some(e => normText(l).includes(normText(e))) && !HIDDEN_RECIPE.test(normText(l)));
+  const essential = [
+    'MTT', 'TYPE', 'Game Type', 'K.O', 'MAX. TABLE', 'PRIZE POOL USD',
+    'TICKET AWARD', 'PERSONALIZED AWARD', 'PAYOUT', 'CALCULATED PAYOUT',
+    'BUY-IN', 'REENTRY/REBUY', 'STACK REENTRY/REBUY', 'REBUY CONDITION',
+    'ADD-ON', 'STACK ADD-ON', 'BREAK LATE REG.', 'RAKE', 'ADM FEE',
+    'STRUCTURE', 'CHIPS', 'BLINDS UP', 'LATE REG.', 'NUM. PLAYERS',
+    'EARLY BIRD', 'CHAT', 'TIME BANK', 'HORA'
+  ];
+  const result = [];
+  for (const e of essential){
+    const found = all.find(l => normText(l).includes(normText(e)) && !HIDDEN_RECIPE.test(normText(l)));
+    if (found && !result.includes(found)) result.push(found);
+  }
+  return result;
 }
 /* salva a nova ordem (lista completa de rótulos) e re-renderiza */
 function saveColOrder(list){
