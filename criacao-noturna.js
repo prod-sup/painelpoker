@@ -597,7 +597,16 @@ try{
   });
   fbDb.ref(`${FB_PATH}/done`).on('value', s => {
     DONE = s.val() || {};
-    renderAll();
+    // não re-renderizar enquanto alguém clica em "criado" — apenas atualiza os checkboxes
+    if (_lastTouchedKey && document.querySelector(`[data-done="${CSS.escape(_lastTouchedKey)}"]`)){
+      document.querySelectorAll('[data-done]').forEach(el => {
+        const k = el.dataset.done;
+        const done = !!DONE[k];
+        el.classList.toggle('on', done);
+        el.setAttribute('aria-checked', done ? 'true' : 'false');
+      });
+      renderStats();
+    } else renderAll();
   });
   fbDb.ref(`${FB_PATH}/ids`).on('value', s => {
     IDS = s.val() || {};
@@ -1413,11 +1422,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const b = e.target.closest('button[data-view]');
     if (b) setView(b.dataset.view);
   });
+  // Mostrar quick start se não há dados carregados ainda
+  if (!DATA) $('quickStart').hidden = false;
 });
 
 function onDataReady(fromRemote){
   $('controlsCard').hidden = false;
   $('actionsBar').hidden = false;
+  $('quickStart').hidden = true;
   const vs = $('viewSwitch'); if (vs) vs.hidden = false;   // null-safe: não trava o render se o seletor faltar
   const meta = $('uploadMeta');
   meta.hidden = false;
@@ -1439,7 +1451,10 @@ function renderAllNow(){
   const secScroll = {};
   document.querySelectorAll('#listArea .secwrap').forEach(sw => {
     const vw = sw.querySelector('.vwrap');
-    if (vw) secScroll[sw.dataset.suit] = { t: vw.scrollTop, l: vw.scrollLeft };
+    if (vw) {
+      const id = sw.dataset.sectionid || sw.dataset.suit;
+      secScroll[id] = { t: vw.scrollTop, l: vw.scrollLeft };
+    }
   });
   // ÂNCORA DE TOPO — quando o re-render vem da GU (auto-sync/upload), não há _lastTouchedKey e
   // os banners de "X alterações" mudam a altura acima da lista, quebrando a restauração por pixel
@@ -1462,7 +1477,8 @@ function renderAllNow(){
   const restoreScroll = () => {
     // Restaura scrollTop de cada tabela (será ajustado depois se houver scrollIntoView)
     document.querySelectorAll('#listArea .secwrap').forEach(sw => {
-      const p = secScroll[sw.dataset.suit]; if (!p) return;
+      const id = sw.dataset.sectionid || sw.dataset.suit;
+      const p = secScroll[id]; if (!p) return;
       const vw = sw.querySelector('.vwrap');
       if (vw){ vw.scrollTop = p.t; }
     });
@@ -1483,7 +1499,8 @@ function renderAllNow(){
     }
     // Restaura scrollLeft DEPOIS de scrollIntoView (que pode sobrescrever a posição horizontal)
     document.querySelectorAll('#listArea .secwrap').forEach(sw => {
-      const p = secScroll[sw.dataset.suit]; if (!p) return;
+      const id = sw.dataset.sectionid || sw.dataset.suit;
+      const p = secScroll[id]; if (!p) return;
       const vw = sw.querySelector('.vwrap');
       if (vw){ vw.scrollLeft = p.l; }
     });
@@ -2498,14 +2515,14 @@ function renderList(){
     area.innerHTML = `<div class="empty-state"><span class="moon">🌙</span>Nenhuma planilha carregada ainda pra este dia da grade.<br>Suba a Global MTT acima — ou aguarde: se um parceiro subir, aparece aqui sozinho.</div>`;
     return;
   }
-  // COMPORTAMENTO GOOGLE SHEETS: uma atualização de dados (listener do Firebase → renderAll)
-  // reconstrói o innerHTML e zeraria a rolagem de cada grade. Guarda a rolagem de cada grade
-  // (por naipe) + a da janela ANTES de reconstruir e restaura DEPOIS — o operador não perde o
-  // lugar onde estava quando um parceiro marca um ID/torneio do outro lado.
+  // Preserva scroll por ID único de seção, não só por suit (que pode ter conflitos)
   const _scroll = {};
   area.querySelectorAll('.secwrap').forEach(sw => {
     const vw = sw.querySelector('.vwrap');
-    if (vw) _scroll[sw.dataset.suit] = { t: vw.scrollTop, l: vw.scrollLeft };
+    if (vw) {
+      const id = sw.dataset.sectionid || sw.dataset.suit;
+      _scroll[id] = { t: vw.scrollTop, l: vw.scrollLeft };
+    }
   });
   const _winY = window.scrollY;
   const asg = computeAssignments();
@@ -2530,7 +2547,7 @@ function renderList(){
         </button>
       </div>
       ${sectionNoteHtml(cat)}
-      <div class="secwrap" data-suit="${cat.suit}">${renderVertical(items, cat, secAsg)}</div>`;
+      <div class="secwrap" data-sectionid="${cat.key}" data-suit="${cat.suit}">${renderVertical(items, cat, secAsg)}</div>`;
   });
 
   // #2 LIGA PRINCIPAL — grade fixa dos Eventos Principais do dia. Reconstruída do dado
@@ -2567,7 +2584,7 @@ function renderList(){
             <span class="line"></span>
           </div>
           <p class="section-note" style="margin:4px 0 0">Grade fixa dos <b>Eventos Principais</b> (R$ nativo). Selecione alguém na equipe e clique nos eventos pra atribuir, ou defina um <b>dono da seção</b>.</p>
-          <div class="secwrap liga-sec" data-suit="🏆">${renderVertical(pit, pcat, ligaAsg, ligaFields)}</div>`;
+          <div class="secwrap liga-sec" data-sectionid="liga" data-suit="🏆">${renderVertical(pit, pcat, ligaAsg, ligaFields)}</div>`;
       }
     }
   }
@@ -2613,11 +2630,12 @@ function renderList(){
 
   // restaura a rolagem capturada acima (atribuição direta = instantânea, sem animar o scroll-behavior:smooth)
   area.querySelectorAll('.secwrap').forEach(sw => {
-    const p = _scroll[sw.dataset.suit]; if (!p) return;
+    const id = sw.dataset.sectionid || sw.dataset.suit;
+    const p = _scroll[id]; if (!p) return;
     const vw = sw.querySelector('.vwrap');
     if (vw){ vw.scrollTop = p.t; vw.scrollLeft = p.l; }
   });
-  document.documentElement.scrollTop = _winY;
+  window.scrollTo(0, _winY);
 
   area.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
   area.querySelectorAll('[data-secfs]').forEach(el => el.addEventListener('click', () => toggleSectionFs(el.dataset.secfs)));
@@ -3426,7 +3444,7 @@ $('currencySeg').querySelectorAll('button').forEach(b => b.addEventListener('cli
   if (window.VIEW === 'week') renderWeek();   // a visão da semana também segue a moeda
 }));
 /* ── densidade: Confortável / Compacto — cabe mais na tela, menos scroll ── */
-let DENSITY = localStorage.getItem('cn_density') || 'comfy';
+let DENSITY = localStorage.getItem('cn_density') || 'compact';
 function applyDensity(){ document.body.classList.toggle('cn-compact', DENSITY === 'compact'); }
 const _densitySeg = $('densitySeg');
 if (_densitySeg) _densitySeg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
