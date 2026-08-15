@@ -1485,7 +1485,6 @@ function renderAllNow(){
   renderFieldDiag();
   renderList();
   renderTV();
-  renderSecFs();
   const restoreScroll = () => {
     // Restaura scrollTop de cada tabela (será ajustado depois se houver scrollIntoView)
     document.querySelectorAll('#listArea .secwrap').forEach(sw => {
@@ -2559,10 +2558,6 @@ function renderList(){
         <span class="cnt">${doneCount}/${items.length} criados</span>
         ${prizeChip(items, isBrl)}
         ${secOwnerChipHtml(cat.key)}
-        <span class="line"></span>
-        <button class="sec-fs-btn" data-secfs="${cat.key}" title="Tela cheia" aria-label="Tela cheia desta seção">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
-        </button>
       </div>
       ${sectionNoteHtml(cat)}
       <div class="secwrap" data-sectionid="${cat.key}" data-suit="${cat.suit}">${renderVertical(items, cat, secAsg)}</div>`;
@@ -2656,7 +2651,6 @@ function renderList(){
   window.scrollTo(0, _winY);
 
   area.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
-  area.querySelectorAll('[data-secfs]').forEach(el => el.addEventListener('click', () => toggleSectionFs(el.dataset.secfs)));
   area.querySelectorAll('[data-secowner]').forEach(el => el.addEventListener('click', () => openSecOwnerMenu(el, el.dataset.secowner)));
   area.querySelectorAll('[data-hiderow]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); hideRow(el.dataset.hiderow); }));
   area.querySelectorAll('[data-showrow]').forEach(el => el.addEventListener('click', () => showRow(el.dataset.showrow)));
@@ -2664,13 +2658,6 @@ function renderList(){
   area.querySelectorAll('[data-resetorder]').forEach(el => el.addEventListener('click', resetColOrder));
   bindColDrag(area);   // arrastar-e-soltar das colunas
   area.querySelectorAll('[data-assign]').forEach(el => el.addEventListener('click', el2 => onAssignClick(el)));
-  area.querySelectorAll('[data-focus]').forEach(el => {
-    el.addEventListener('click', () => openSectionFsAt(el.dataset.focuscat, el.dataset.focus));
-    /* teclado: o nome é role="button" — Enter/Espaço abrem a seção em tela cheia */
-    el.addEventListener('keydown', ev => {
-      if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openSectionFsAt(el.dataset.focuscat, el.dataset.focus); }
-    });
-  });
   // ID Pokerbyte: grava ao sair do campo ou no Enter (não a cada tecla, pra não ecoar no parceiro)
   area.querySelectorAll('.id-inp').forEach(inp => {
     inp.addEventListener('change', () => setId(inp.dataset.idkey, inp.value));
@@ -2691,145 +2678,15 @@ function renderList(){
   }));
 }
 
-/* liga/desliga a tela cheia de UMA seção (Main/Side/Satélite) — só uma por vez,
-   igual ao padrão já usado na Conferência do dia (conf-dia.js). Sair da tela
-   cheia de uma volta pra ela, sair da atual fecha (mesmo botão). */
-function toggleSectionFs(catKey){
-  const opening = SEC_FS !== catKey;
-  SEC_FS = opening ? catKey : null;
-  document.body.classList.toggle('cn-sec-fs-lock', !!SEC_FS);
-  renderSecFs();
-  if (opening) a11yOpenDialog('secFsOverlay'); else a11yCloseDialog('secFsOverlay');
-}
-// Modo Foco: direção da última navegação, consumida por renderSecFs pra dar a
-// transição direcional (avançar entra da direita, voltar da esquerda). 'none' =
-// re-render sem navegação (update ao vivo/busca) → sem animação, evita "pular".
-let _focusDir = 'none';
-function setSectionView(view){
-  SEC_VIEW = view;
-  try{ localStorage.setItem('cn_sec_view', view); }catch(e){}
-  if (view === 'focus') _focusDir = 'fade';   // entrar no Foco (tecla F): fade suave
-  renderSecFs();
-}
-/* tela cheia de UMA seção — overlay PRÓPRIO no nível do <body> (#secFsOverlay,
-   ver criacao-noturna.html, mesmo padrão do #tvOverlay), NUNCA
-   aninhado dentro de #listArea: um elemento position:fixed dentro de um
-   ancestral com transform/will-change (as animações de entrada da lista usam
-   isso) deixa de ser fixo à VIEWPORT e passa a ser fixo ao ancestral — daí o
-   bug de ter que rolar a página inteira pra alcançar o botão de fechar. Um
-   overlay solto direto no body nunca tem esse problema. */
-function renderSecFs(){
-  if (_dragCol) endColDrag();   // idem renderList: nunca deixa arrasto travado ao reconstruir a tela cheia
-  const ov = $('secFsOverlay');
-  if (!ov) return;
-  if (!SEC_FS || !DATA){ ov.classList.remove('open'); ov.setAttribute('aria-hidden', 'true'); return; }
-  const cat = findCat(SEC_FS);
-  // tela cheia usa o MESMO asg da grade: override por evento + dono da seção, e respeita
-  // o filtro por pessoa — assim o dono aparece na tela de criação e "meus torneios" bate.
-  const allCat = cat ? catItems(cat) : [];
-  const asg = withSecOwner(computeAssignments(), allCat, SEC_FS);
-  const items = cat ? visibleItems(allCat, asg) : [];
-  if (!cat || !items.length){
-    SEC_FS = null;
-    document.body.classList.remove('cn-sec-fs-lock');
-    ov.classList.remove('open'); ov.setAttribute('aria-hidden', 'true');
-    return;
-  }
-  // sem cursor válido nesta seção (primeira abertura pelo ⛶, ou o item
-  // sumiu/foi criado) — cai no primeiro torneio, pra ← → sempre ter de onde partir
-  if (!SEC_CURSOR || !items.some(it => itemKey(it) === SEC_CURSOR)) SEC_CURSOR = itemKey(items[0]);
-  const doneCount = items.filter(it => DONE[itemKey(it)]).length;
-  const pct = items.length ? Math.round(doneCount / items.length * 100) : 0;
-  const card = $('secFsCard');
-  card.innerHTML = `
-    <div class="section-head ${cat.cls}">
-      <span class="tag"><span class="suit">${cat.suit}</span>${cat.label}</span>
-      <span class="cnt">${doneCount}/${items.length} criados</span>
-      ${prizeChip(items, CURRENCY === 'brl')}
-      ${secOwnerChipHtml(SEC_FS)}
-      <span class="sec-fs-prog" title="${pct}% criados" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></span>
-      <span class="line"></span>
-      <input type="search" class="sec-fs-search" id="secFsSearch" placeholder="Buscar (/)" value="${escHtml(SEARCH || '')}" aria-label="Buscar torneio na seção">
-      <div class="seg sec-view-seg" role="group" aria-label="Visão da seção">
-        <button data-secview="columns" class="${SEC_VIEW === 'columns' ? 'on' : ''}" title="Colunas — vertical, um torneio por coluna (tecla C)">Colunas</button>
-        <button data-secview="sheet" class="${SEC_VIEW === 'sheet' ? 'on' : ''}" title="Planilha — horizontal, um torneio por linha (tecla P)">Planilha</button>
-      </div>
-      <button class="sec-fs-btn sec-fs-eye" id="secFsEye" title="Mostrar/ocultar campos" aria-label="Escolher campos visíveis" aria-haspopup="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
-        <span class="eye-n"></span>
-      </button>
-      <button class="sec-fs-btn" id="secFsClose" title="Fechar (Esc)" aria-label="Fechar tela cheia">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
-      </button>
-    </div>
-    <div class="secwrap" data-suit="${cat.suit}">${
-      SEC_VIEW === 'sheet' ? renderPlanilhaRows(items, cat, asg)
-      : renderVertical(items, cat, asg, essentialRecipeFields(), true)
-    }</div>
-    <div class="sec-fs-foot">
-      <div class="keys" aria-hidden="true">
-        <span class="kbtn"><kbd>←</kbd><kbd>→</kbd> navegar</span>
-        <span class="kbtn"><kbd>Espaço</kbd> marcar + avançar</span>
-        <span class="kbtn"><kbd>1</kbd>–<kbd>9</kbd> atribuir</span>
-        <span class="kbtn"><kbd>/</kbd> buscar</span>
-        <span class="kbtn"><kbd>P</kbd> planilha · <kbd>C</kbd> colunas</span>
-        <span class="kbtn"><kbd>Esc</kbd> sair</span>
-      </div>
-      <span class="sec-fs-pos" id="secFsPos" aria-live="polite"></span>
-    </div>`;
-  ov.classList.add('open');
-  ov.setAttribute('aria-hidden', 'false');
-  card.classList.toggle('sec-complete', pct === 100);   // B4: momento de conclusão (100% criados)
-  $('secFsClose').addEventListener('click', () => toggleSectionFs(SEC_FS));
-  $('secFsEye').addEventListener('click', e => { e.stopPropagation(); openFieldEye(e.currentTarget); });
-  const secSearch = document.getElementById('secFsSearch');
-  if (secSearch) secSearch.addEventListener('input', () => {
-    SEARCH = secSearch.value;
-    clearTimeout(window.__secSearchT);
-    window.__secSearchT = setTimeout(() => {
-      renderSecFs();
-      const i2 = document.getElementById('secFsSearch');
-      if (i2){ i2.focus(); try { i2.setSelectionRange(i2.value.length, i2.value.length); } catch (e) {} }
-    }, 160);
-  });
-  card.querySelectorAll('[data-secview]').forEach(b => b.addEventListener('click', () => setSectionView(b.dataset.secview)));
-  card.querySelectorAll('[data-secowner]').forEach(el => el.addEventListener('click', () => openSecOwnerMenu(el, el.dataset.secowner)));
-  card.querySelectorAll('[data-assign]').forEach(el => el.addEventListener('click', () => onAssignClick(el)));
-  card.querySelectorAll('[data-hiderow]').forEach(el => el.addEventListener('click', e => { e.stopPropagation(); hideRow(el.dataset.hiderow); }));
-  bindColDrag(card);   // arrastar-e-soltar das colunas também na tela cheia
-  card.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
-  card.querySelectorAll('.id-inp').forEach(inp => {
-    inp.addEventListener('change', () => setId(inp.dataset.idkey, inp.value));
-    inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
-  });
-  card.querySelectorAll('[data-copy]').forEach(el => el.addEventListener('click', async () => {
-    try{ await navigator.clipboard.writeText(el.dataset.copy); showToast('Receita copiada 📋'); }
-    catch(e){ showToast('Não consegui copiar — copie manualmente.', true); }
-  }));
-  card.querySelectorAll('[data-focus]').forEach(el => {
-    el.addEventListener('click', () => { SEC_CURSOR = el.dataset.focus; secFsHighlightCursor(); });
-    el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); SEC_CURSOR = el.dataset.focus; secFsHighlightCursor(); } });
-  });
-  applySecFsHidden();
-  secFsHighlightCursor();
-}
+// Fullscreen mode disabled per user request — no longer available
+// function toggleSectionFs(catKey){ ... }
+// function setSectionView(view){ ... }
+// Fullscreen mode removed — function renderSecFs() no longer used
 
 /* ── O "OLHINHO": mostra/oculta campos na tela cheia (Colunas = linhas,
    Planilha = colunas). Cada campo carrega data-field; ocultar é só esconder
    todo elemento com aquele data-field. O conjunto é persistido e vale pras
    duas visões — serve pra enxugar a tela e evitar scroll. ─────────────────── */
-function applySecFsHidden(){
-  const card = $('secFsCard'); if (!card) return;
-  card.querySelectorAll('[data-field]').forEach(el => {
-    el.style.display = SEC_HIDDEN.has(el.dataset.field) ? 'none' : '';
-  });
-  const btn = document.getElementById('secFsEye');
-  if (btn){
-    const n = SEC_HIDDEN.size;
-    btn.classList.toggle('has-hidden', n > 0);
-    const tag = btn.querySelector('.eye-n'); if (tag) tag.textContent = n ? String(n) : '';
-  }
-}
 /* rótulo legível a partir do data-field (pra barra de "linhas ocultas") */
 function fieldLabelFor(key){
   if (key.startsWith('f:')) return key.slice(2);
@@ -2862,49 +2719,7 @@ function fieldEyeOutside(e){
   const m = document.getElementById('fieldEyeMenu');
   if (m && !m.contains(e.target) && e.target.id !== 'secFsEye' && !e.target.closest('#secFsEye')) closeFieldEye();
 }
-function openFieldEye(anchor){
-  if (document.getElementById('fieldEyeMenu')){ closeFieldEye(); return; } // toggle
-  const card = $('secFsCard'); if (!card) return;
-  // fonte de verdade = o que está renderizado agora (fica em sincronia com a visão)
-  const seen = new Map();
-  card.querySelectorAll('[data-flabel]').forEach(el => { if (!seen.has(el.dataset.field)) seen.set(el.dataset.field, el.dataset.flabel); });
-  const fields = [...seen.entries()]; // [ [key,label], ... ] na ordem de render
-  if (!fields.length) return;
-  const eyeOn  = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>`;
-  const eyeOff = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>`;
-  const m = document.createElement('div');
-  m.className = 'pop-menu fieldeye'; m.id = 'fieldEyeMenu';
-  m.setAttribute('role', 'menu');
-  m.innerHTML =
-    `<div class="ph">Campos visíveis · clique pra ocultar</div>` +
-    fields.map(([k, lbl]) => {
-      const off = SEC_HIDDEN.has(k);
-      return `<button class="pm feye ${off ? 'off' : ''}" data-fk="${escHtml(k)}" role="menuitemcheckbox" aria-checked="${off ? 'false' : 'true'}">
-        <span class="eye" aria-hidden="true">${off ? eyeOff : eyeOn}</span><span class="lbl">${escHtml(lbl)}</span></button>`;
-    }).join('') +
-    `<button class="pm feye-all">↺ Mostrar tudo</button>`;
-  document.body.appendChild(m);
-  const r = anchor.getBoundingClientRect();
-  m.style.left = Math.max(12, Math.min(r.right - m.offsetWidth, window.innerWidth - m.offsetWidth - 12)) + 'px';
-  m.style.top  = Math.min(r.bottom + 6, window.innerHeight - m.offsetHeight - 12) + 'px';
-  // toggle de cada campo — atualiza o item no lugar, sem fechar o menu
-  m.querySelectorAll('.feye[data-fk]').forEach(b => b.addEventListener('click', () => {
-    const k = b.dataset.fk;
-    if (SEC_HIDDEN.has(k)) SEC_HIDDEN.delete(k); else SEC_HIDDEN.add(k);
-    try{ localStorage.setItem('cn_sec_hidden', JSON.stringify([...SEC_HIDDEN])); }catch(e){}
-    const off = SEC_HIDDEN.has(k);
-    b.classList.toggle('off', off);
-    b.setAttribute('aria-checked', off ? 'false' : 'true');
-    b.querySelector('.eye').innerHTML = off ? eyeOff : eyeOn;
-    applySecFsHidden();
-  }));
-  m.querySelector('.feye-all').addEventListener('click', () => {
-    SEC_HIDDEN.clear();
-    try{ localStorage.setItem('cn_sec_hidden', '[]'); }catch(e){}
-    applySecFsHidden(); closeFieldEye();
-  });
-  setTimeout(() => document.addEventListener('mousedown', fieldEyeOutside, true), 0);
-}
+// Fullscreen field visibility menu removed — openFieldEye() no longer used
 
 /* planilha transposta: campos nas linhas, torneios nas colunas — é a visão
    "Colunas" (padrão da lista normal, e opção dentro da tela cheia da seção).
@@ -3176,98 +2991,8 @@ function openHandoff(anchor){
    explícito: "as funcionalidades tem que ser por seção não no modo foco".
 ========================================================================= */
 let SEC_CURSOR = null; // itemKey do torneio "atual" dentro da seção em tela cheia
-function openSectionFsAt(catKey, key){
-  if (SEC_FS !== catKey){
-    SEC_FS = catKey;
-    document.body.classList.add('cn-sec-fs-lock');
-  }
-  SEC_CURSOR = key;
-  renderSecFs();
-  a11yOpenDialog('secFsOverlay');
-}
-function secFsMoveCursor(delta){
-  if (!SEC_FS || !DATA) return;
-  const cat = findCat(SEC_FS);
-  if (!cat) return;
-  const asg = computeAssignments();
-  const items = visibleItems(catItems(cat), asg);
-  if (!items.length) return;
-  const keys = items.map(itemKey);
-  let idx = SEC_CURSOR ? keys.indexOf(SEC_CURSOR) : -1;
-  idx = idx === -1 ? 0 : Math.max(0, Math.min(keys.length - 1, idx + delta));
-  SEC_CURSOR = keys[idx];
-  secFsHighlightCursor();
-}
-/* Flow state: ao marcar CRIADO (Espaço), pula pro próximo torneio NÃO-criado da
-   seção (dá a volta). Se não sobrou nenhum, fica no lugar — o momento de conclusão
-   (100%) cuida do resto. O item atual acabou de ser marcado, então é pulado. */
-function secFsAdvanceToNextUndone(){
-  if (!SEC_FS || !DATA) return;
-  const cat = findCat(SEC_FS); if (!cat) return;
-  const keys = visibleItems(catItems(cat), computeAssignments()).map(itemKey);
-  if (!keys.length) return;
-  const i = SEC_CURSOR ? keys.indexOf(SEC_CURSOR) : -1;
-  for (let step = 1; step <= keys.length; step++){
-    const j = ((i < 0 ? 0 : i) + step) % keys.length;
-    if (keys[j] !== SEC_CURSOR && !DONE[keys[j]]){ SEC_CURSOR = keys[j]; secFsHighlightCursor(); return; }
-  }
-}
-/* Home/End — pula pro primeiro/último torneio da seção (idx=Infinity = último) */
-function secFsJumpCursor(idx){
-  if (!SEC_FS || !DATA) return;
-  const cat = findCat(SEC_FS);
-  if (!cat) return;
-  const keys = visibleItems(catItems(cat), computeAssignments()).map(itemKey);
-  if (!keys.length) return;
-  const i = Math.max(0, Math.min(keys.length - 1, idx === Infinity ? keys.length - 1 : idx));
-  SEC_CURSOR = keys[i];
-  secFsHighlightCursor();
-}
-/* destaca e rola até o torneio "atual": em Colunas (vtable transposta) marca
-   a COLUNA inteira (mesmo índice em toda linha); em Planilha marca a LINHA.
-   Também atualiza o indicador de posição "N / Total" no rodapé. */
-function secFsHighlightCursor(){
-  const card = $('secFsCard');
-  if (!card || !SEC_CURSOR) return;
-  // indicador de posição (N / Total) — some redundante mas barato; roda a cada ← →
-  const pos = document.getElementById('secFsPos');
-  if (pos && SEC_FS){
-    const c = findCat(SEC_FS);
-    if (c){
-      const keys = visibleItems(catItems(c), computeAssignments()).map(itemKey);
-      const i = keys.indexOf(SEC_CURSOR);
-      if (i >= 0) pos.innerHTML = `<b>${i + 1}</b> / ${keys.length}`;
-    }
-  }
-  const esc = k => (window.CSS && CSS.escape) ? CSS.escape(k) : k;
-  card.querySelectorAll('.sec-cursor, .sec-cursor-col, .cur-next, .cur-prev')
-      .forEach(el => el.classList.remove('sec-cursor', 'sec-cursor-col', 'cur-next', 'cur-prev'));
-  // direção da navegação → pulso direcional ao pousar o cursor
-  const dirCls = 'cur-next';
-  // Cards: não é <table> — realça o próprio cartão (antes ← → não fazia nada aqui)
-  const cardEl = card.querySelector(`.cn-card[data-cardkey="${esc(SEC_CURSOR)}"]`);
-  if (cardEl){
-    cardEl.classList.add('sec-cursor', dirCls);
-    cardEl.scrollIntoView({block:'nearest', behavior:'smooth'});
-    return;
-  }
-  const table = card.querySelector('table');
-  if (!table) return;
-  const anchor = table.querySelector(`[data-idkey="${esc(SEC_CURSOR)}"], [data-done="${esc(SEC_CURSOR)}"]`);
-  if (!anchor) return;
-  if (table.classList.contains('ptable')){
-    const tr = anchor.closest('tr');
-    if (tr){ tr.classList.add('sec-cursor', dirCls); tr.scrollIntoView({block:'nearest', behavior:'smooth'}); }
-  } else {
-    const td = anchor.closest('td');
-    if (td){
-      const idx = td.cellIndex;
-      table.querySelectorAll('tr').forEach(row => { const cell = row.cells[idx]; if (cell) cell.classList.add('sec-cursor-col'); });
-      td.classList.add(dirCls);   // o pulso direcional vai na célula-âncora (nome)
-      td.scrollIntoView({inline:'center', block:'nearest', behavior:'smooth'});
-    }
-  }
-}
+// Fullscreen opening removed — function openSectionFsAt() no longer used
+// All fullscreen navigation functions removed: secFsMoveCursor, secFsAdvanceToNextUndone, secFsJumpCursor, secFsHighlightCursor
 $('handoffBtn').addEventListener('click', e => openHandoff(e.currentTarget));
 
 document.addEventListener('keydown', e => {
@@ -3279,18 +3004,6 @@ document.addEventListener('keydown', e => {
   const tag = ae && ae.tagName;
   if (tag && /^(INPUT|SELECT|TEXTAREA)$/.test(tag)) return; // digitando o ID: não sequestra teclas
   // Espaço/Enter num controle (botão, nome-link) = ação dele, não "marcar criado"
-  const onControl = !!(ae && (tag === 'BUTTON' || tag === 'A' || (ae.getAttribute && ae.getAttribute('role') === 'button')));
-  // ← → e ↑ ↓ navegam torneio (o mapeamento certo depende da visão; aceitar os dois é perdão de UX)
-  if (e.key === 'ArrowRight' || e.key === 'ArrowDown'){ e.preventDefault(); secFsMoveCursor(1); }
-  else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp'){ e.preventDefault(); secFsMoveCursor(-1); }
-  else if (e.key === 'Home'){ e.preventDefault(); secFsJumpCursor(0); }
-  else if (e.key === 'End'){ e.preventDefault(); secFsJumpCursor(Infinity); }
-  else if ((e.key === ' ' || e.key === 'Enter') && !onControl){ if (SEC_CURSOR){ e.preventDefault(); const wasDone = !!DONE[SEC_CURSOR]; toggleDone(SEC_CURSOR); if (!wasDone) secFsAdvanceToNextUndone(); } }
-  // teclas 1–9: atribui o torneio em foco ao N-ésimo operador da equipe (velocidade)
-  else if (/^[1-9]$/.test(e.key) && !onControl){ const op = OPS[parseInt(e.key,10)-1]; if (op && SEC_CURSOR){ e.preventDefault(); setAssignTo(SEC_CURSOR, op); showToast(`Atribuído a ${op.split(' ')[0]}`); } }
-  else if (e.key === 'p' || e.key === 'P'){ e.preventDefault(); setSectionView('sheet'); }
-  else if (e.key === 'c' || e.key === 'C'){ e.preventDefault(); setSectionView('columns'); }
-  else if (e.key === '/'){ e.preventDefault(); const s = document.getElementById('secFsSearch'); if (s){ s.focus(); s.select(); } }   // B3: busca rápida
 });
 
 
@@ -3314,7 +3027,6 @@ setInterval(() => {
   LAST_URG_SIG = sig;
   const ae = document.activeElement;
   if (!(ae && ae.classList.contains('id-inp'))) renderList();
-  if (!(SEC_FS && ae && ae.classList.contains('id-inp'))) renderSecFs();
 }, 60000);
 
 /* ── AVISO: fechamento dos planos de mesa — toda SEGUNDA 05:00 (BRT) ──
