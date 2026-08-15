@@ -2237,7 +2237,7 @@ function applyColOrder(fields){
   const rest = fields.filter(l => !COL_ORDER.includes(l));
   return [...ordered, ...rest];
 }
-function visibleRecipeFields(){ return applyColOrder(creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l))))); }
+function visibleRecipeFields(){ return applyColOrder(creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l)) && !/size.*buy/i.test(normText(l))))); }
 /* Campos principais para o modo Colunas (vertical) - mínimo essencial, cabe confortável */
 function essentialRecipeFields(){
   const all = recipeFields();
@@ -2959,10 +2959,7 @@ function renderVertical(items, cat, asg, fieldList, dropEmpty){
           + (urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(c.it)}</span>` : '')
           + (m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : '');
       }, 'vname')}</tr>
-      <tr data-field="hora" data-flabel="Horário">${rlabTh('hora', 'Horário', false)}${cell(c => `<span class="thora">${escHtml(c.it.hora)}</span>`)}</tr>
-      <tr data-field="criar" data-flabel="Criar em">${rlabTh('criar', 'Criar em', true)}${cell(c => `<span class="mono" style="font-weight:700">${escHtml(creationWhen(c.it))}</span>`)}</tr>
       <tr data-field="admin" data-flabel="Admin Fee">${rlabTh('admin', 'Admin Fee', false)}${cell(c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
-      <tr data-field="early" data-flabel="Early Bird">${rlabTh('early', 'Early Bird', false)}${cell(c => { const p = earlyParts(c.it); return p ? `<span class="calc-chip early">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
       ${cols.some(c => hasCampaign(c.it)) ? `<tr data-field="camp" data-flabel="Campanha">${rlabTh('camp', 'Campanha', false)}${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : ''}
       ${cat.key === 'sat' ? `<tr data-field="grupo" data-flabel="Grupo">${rlabTh('grupo', 'Grupo', false)}${cell(c => `<span style="font-size:11px;color:var(--sat-bright)">${escHtml(c.it.groupHeader || '—')}</span>`)}</tr>` : ''}
       ${rows.length
