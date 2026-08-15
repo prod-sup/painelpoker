@@ -522,7 +522,7 @@ let FILTER = 'all';
    visão (planilha = tabela atual / colunas = um cartão por torneio, sem
    precisar rolar na horizontal pra ver os campos de todos de uma vez) */
 let SEC_FS = null;    // cat.key da seção em tela cheia, ou null
-let SEC_VIEW = localStorage.getItem('cn_sec_view') || 'sheet'; // 'sheet' | 'columns'
+let SEC_VIEW = localStorage.getItem('cn_sec_view') || 'columns'; // 'sheet' | 'columns'
 // campos ocultos na tela cheia (o "olhinho") — persistido, vale pras duas visões
 let SEC_HIDDEN = new Set();
 try{ SEC_HIDDEN = new Set(JSON.parse(localStorage.getItem('cn_sec_hidden') || '[]')); }catch(e){}
@@ -2733,10 +2733,8 @@ function renderSecFs(){
       <span class="line"></span>
       <input type="search" class="sec-fs-search" id="secFsSearch" placeholder="Buscar (/)" value="${escHtml(SEARCH || '')}" aria-label="Buscar torneio na seção">
       <div class="seg sec-view-seg" role="group" aria-label="Visão da seção">
-        <button data-secview="focus" class="${SEC_VIEW === 'focus' ? 'on' : ''}" title="Foco — UM torneio por vez, sem rolar pro lado (tecla F). Use ← → pra trocar de torneio.">◎ Foco</button>
-        <button data-secview="cards" class="${SEC_VIEW === 'cards' ? 'on' : ''}" title="Cards — todos os torneios como cartas, num grid (tecla D). Escaneia a seção inteira e age em qualquer um.">▦ Cards</button>
-        <button data-secview="sheet" class="${SEC_VIEW === 'sheet' ? 'on' : ''}" title="Planilha — um torneio por linha, igual à Global (tecla P)">Planilha</button>
-        <button data-secview="columns" class="${SEC_VIEW === 'columns' ? 'on' : ''}" title="Colunas — campos empilhados, um torneio por coluna (tecla C)">Colunas</button>
+        <button data-secview="columns" class="${SEC_VIEW === 'columns' ? 'on' : ''}" title="Colunas — vertical, um torneio por coluna (tecla C)">Colunas</button>
+        <button data-secview="sheet" class="${SEC_VIEW === 'sheet' ? 'on' : ''}" title="Planilha — horizontal, um torneio por linha (tecla P)">Planilha</button>
       </div>
       <button class="sec-fs-btn sec-fs-eye" id="secFsEye" title="Mostrar/ocultar campos" aria-label="Escolher campos visíveis" aria-haspopup="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -2746,10 +2744,8 @@ function renderSecFs(){
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
     </div>
-    <div class="secwrap${SEC_VIEW === 'focus' ? ' focus ' + cat.cls : SEC_VIEW === 'cards' ? ' cards ' + cat.cls : ''}" data-suit="${cat.suit}">${
+    <div class="secwrap" data-suit="${cat.suit}">${
       SEC_VIEW === 'sheet' ? renderPlanilhaRows(items, cat, asg)
-      : SEC_VIEW === 'focus' ? renderVertical(items.filter(it => itemKey(it) === SEC_CURSOR), cat, asg, null, false)
-      : SEC_VIEW === 'cards' ? renderCards(items, cat, asg)
       : renderVertical(items, cat, asg, null, true)
     }</div>
     <div class="sec-fs-foot">
@@ -2758,7 +2754,7 @@ function renderSecFs(){
         <span class="kbtn"><kbd>Espaço</kbd> marcar + avançar</span>
         <span class="kbtn"><kbd>1</kbd>–<kbd>9</kbd> atribuir</span>
         <span class="kbtn"><kbd>/</kbd> buscar</span>
-        <span class="kbtn"><kbd>F</kbd> foco · <kbd>D</kbd> cards · <kbd>P</kbd><kbd>C</kbd> planilha/colunas</span>
+        <span class="kbtn"><kbd>P</kbd> planilha · <kbd>C</kbd> colunas</span>
         <span class="kbtn"><kbd>Esc</kbd> sair</span>
       </div>
       <span class="sec-fs-pos" id="secFsPos" aria-live="polite"></span>
@@ -2766,12 +2762,6 @@ function renderSecFs(){
   ov.classList.add('open');
   ov.setAttribute('aria-hidden', 'false');
   card.classList.toggle('sec-complete', pct === 100);   // B4: momento de conclusão (100% criados)
-  // Modo Foco: transição direcional ao trocar de torneio (só quando houve navegação)
-  if (SEC_VIEW === 'focus' && _focusDir !== 'none'){
-    const fw = card.querySelector('.secwrap.focus');
-    if (fw) fw.classList.add(_focusDir === 'next' ? 'foc-next' : _focusDir === 'prev' ? 'foc-prev' : 'foc-fade');
-  }
-  _focusDir = 'none';
   $('secFsClose').addEventListener('click', () => toggleSectionFs(SEC_FS));
   $('secFsEye').addEventListener('click', e => { e.stopPropagation(); openFieldEye(e.currentTarget); });
   const secSearch = document.getElementById('secFsSearch');
@@ -3178,7 +3168,6 @@ function openSectionFsAt(catKey, key){
     document.body.classList.add('cn-sec-fs-lock');
   }
   SEC_CURSOR = key;
-  if (SEC_VIEW === 'focus') _focusDir = 'fade';   // abrir um torneio direto no Foco: fade suave
   renderSecFs();
   a11yOpenDialog('secFsOverlay');
 }
@@ -3193,9 +3182,7 @@ function secFsMoveCursor(delta){
   let idx = SEC_CURSOR ? keys.indexOf(SEC_CURSOR) : -1;
   idx = idx === -1 ? 0 : Math.max(0, Math.min(keys.length - 1, idx + delta));
   SEC_CURSOR = keys[idx];
-  _focusDir = delta > 0 ? 'next' : 'prev';   // direção da navegação (foco desliza; cards/planilha pulsam)
-  if (SEC_VIEW === 'focus') renderSecFs();
-  else secFsHighlightCursor();
+  secFsHighlightCursor();
 }
 /* Flow state: ao marcar CRIADO (Espaço), pula pro próximo torneio NÃO-criado da
    seção (dá a volta). Se não sobrou nenhum, fica no lugar — o momento de conclusão
@@ -3208,7 +3195,7 @@ function secFsAdvanceToNextUndone(){
   const i = SEC_CURSOR ? keys.indexOf(SEC_CURSOR) : -1;
   for (let step = 1; step <= keys.length; step++){
     const j = ((i < 0 ? 0 : i) + step) % keys.length;
-    if (keys[j] !== SEC_CURSOR && !DONE[keys[j]]){ SEC_CURSOR = keys[j]; _focusDir = 'next'; if (SEC_VIEW === 'focus') renderSecFs(); else secFsHighlightCursor(); return; }
+    if (keys[j] !== SEC_CURSOR && !DONE[keys[j]]){ SEC_CURSOR = keys[j]; secFsHighlightCursor(); return; }
   }
 }
 /* Home/End — pula pro primeiro/último torneio da seção (idx=Infinity = último) */
@@ -3220,9 +3207,7 @@ function secFsJumpCursor(idx){
   if (!keys.length) return;
   const i = Math.max(0, Math.min(keys.length - 1, idx === Infinity ? keys.length - 1 : idx));
   SEC_CURSOR = keys[i];
-  _focusDir = idx === Infinity ? 'next' : 'prev';
-  if (SEC_VIEW === 'focus') renderSecFs();
-  else secFsHighlightCursor();
+  secFsHighlightCursor();
 }
 /* destaca e rola até o torneio "atual": em Colunas (vtable transposta) marca
    a COLUNA inteira (mesmo índice em toda linha); em Planilha marca a LINHA.
@@ -3240,16 +3225,11 @@ function secFsHighlightCursor(){
       if (i >= 0) pos.innerHTML = `<b>${i + 1}</b> / ${keys.length}`;
     }
   }
-  // No Modo Foco só existe UM torneio na tela — o próprio cartão é o cursor.
-  // Pintar a coluna de valores de verde (sec-cursor-col) não faz sentido aqui e
-  // virava um "contorno verde" em cada campo. Atualiza só a posição e sai.
-  if (SEC_VIEW === 'focus') return;
   const esc = k => (window.CSS && CSS.escape) ? CSS.escape(k) : k;
   card.querySelectorAll('.sec-cursor, .sec-cursor-col, .cur-next, .cur-prev')
       .forEach(el => el.classList.remove('sec-cursor', 'sec-cursor-col', 'cur-next', 'cur-prev'));
-  // direção da navegação → pulso direcional ao pousar o cursor (consumida aqui)
-  const dirCls = _focusDir === 'prev' ? 'cur-prev' : 'cur-next';
-  _focusDir = 'none';
+  // direção da navegação → pulso direcional ao pousar o cursor
+  const dirCls = 'cur-next';
   // Cards: não é <table> — realça o próprio cartão (antes ← → não fazia nada aqui)
   const cardEl = card.querySelector(`.cn-card[data-cardkey="${esc(SEC_CURSOR)}"]`);
   if (cardEl){
@@ -3296,8 +3276,6 @@ document.addEventListener('keydown', e => {
   else if (/^[1-9]$/.test(e.key) && !onControl){ const op = OPS[parseInt(e.key,10)-1]; if (op && SEC_CURSOR){ e.preventDefault(); setAssignTo(SEC_CURSOR, op); showToast(`Atribuído a ${op.split(' ')[0]}`); } }
   else if (e.key === 'p' || e.key === 'P'){ e.preventDefault(); setSectionView('sheet'); }
   else if (e.key === 'c' || e.key === 'C'){ e.preventDefault(); setSectionView('columns'); }
-  else if (e.key === 'f' || e.key === 'F'){ e.preventDefault(); setSectionView('focus'); }
-  else if (e.key === 'd' || e.key === 'D'){ e.preventDefault(); setSectionView('cards'); }
   else if (e.key === '/'){ e.preventDefault(); const s = document.getElementById('secFsSearch'); if (s){ s.focus(); s.select(); } }   // B3: busca rápida
 });
 
