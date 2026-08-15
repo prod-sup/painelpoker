@@ -2238,10 +2238,10 @@ function applyColOrder(fields){
   return [...ordered, ...rest];
 }
 function visibleRecipeFields(){ return applyColOrder(creationOrderFields(recipeFields().filter(l => !HIDDEN_RECIPE.test(normText(l))))); }
-/* Campos principais para o modo Colunas (vertical) - tudo cabe em uma tela */
+/* Campos principais para o modo Colunas (vertical) - mínimo essencial, cabe confortável */
 function essentialRecipeFields(){
   const all = recipeFields();
-  const essential = ['Prize Pool USD', 'Buy-In', 'Reentry/Rebuy', 'Add-on', 'Stack Reentry/Rebuy', 'Admin Fee', 'Early Bird', 'Chips', 'Structure'];
+  const essential = ['Prize Pool USD', 'Buy-In', 'Admin Fee', 'Early Bird', 'Chips', 'Structure'];
   return all.filter(l => essential.some(e => normText(l).includes(normText(e))) && !HIDDEN_RECIPE.test(normText(l)));
 }
 /* salva a nova ordem (lista completa de rótulos) e re-renderiza */
@@ -2993,8 +2993,7 @@ function renderVertical(items, cat, asg, fieldList, dropEmpty){
       <tr data-field="done" data-flabel="Criado"><th class="rowlab">Criado</th>${cell(c => `
         <button class="chk ${c.done ? 'on' : ''}" data-done="${c.key}" role="checkbox" aria-checked="${c.done ? 'true' : 'false'}"
           aria-label="${c.done ? `Criado por ${escHtml((DONE[c.key]||{}).by || '—')} — desmarcar` : `Marcar ${escHtml(c.it.nome)} como criado`}"
-          title="${c.done ? `Criado por ${escHtml((DONE[c.key]||{}).by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>
-        <button class="copy-btn" data-copy="${escHtml(recipeText(c.it, cat.label))}" title="Copiar receita" style="margin-left:6px;display:inline-grid;vertical-align:middle"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button>`)}</tr>
+          title="${c.done ? `Criado por ${escHtml((DONE[c.key]||{}).by || '—')}` : 'Marcar como criado'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5 9.5 18 20 6.5"/></svg></button>`)}</tr>
     </table></div>`;
 }
 
