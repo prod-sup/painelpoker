@@ -73,6 +73,9 @@
     'exportMonthXlsx', 'exportAllTimeXlsx', 'exportToSheets', 'copyAppsScript',
     'previewCleanup', 'runCleanup', 'previewCleanupUntil', 'runCleanupUntil', 'closeMo', 'maskBRL',
     'openAuditEditByEl', 'openNotifByEl',
+    /* excluir torneio adicionado à mão — ESCRITA: fica FORA do LIMITED_ALLOW
+       de propósito, o admin limitado não apaga nada */
+    'removeAddedTorneioByEl',
     /* acionadas por markup que o próprio admin.js gera (tabelas, listas) — a
        delegação cobre elemento criado depois, então não precisam religar nada */
     'goToAuditFor', 'toggleAccess', 'toggleAviso', 'editAviso', 'removeAviso',

@@ -1352,7 +1352,7 @@ async function loadAudit(){
           <td class="au-check"><input type="checkbox" class="row-check" data-key="${r.key}" data-date="${r.date}"
             style="accent-color:var(--gold);width:14px;height:14px"
             data-act="updateBatchActions" data-act-on="change"></td>
-          <td class="nm" style="max-width:200px">${esc(r.nome)}${anomaliaHtml}</td>
+          <td class="nm" style="max-width:200px">${esc(r.nome)}${r.manual?'<span class="au-manual" title="Adicionado à mão pela ferramenta Adicionar torneio — não veio da Global">MANUAL</span>':''}${anomaliaHtml}</td>
           <td class="mono" data-label="Hora">${esc(r.hora)}</td>
           <td class="mono" data-label="Late">${esc(r.late)}</td>
           <td class="r mono" data-label="GTD">${r.garantido!=null?'R$ '+brl(r.garantido):'—'}</td>
@@ -1374,6 +1374,9 @@ async function loadAudit(){
             <button class="btn-notif"
               data-nome="${esc(r.nome)}" data-date="${r.date}" data-fixby="${esc(r.premBy||r.fixBy||r.idBy||'')}" data-key="${r.key}"
               data-act="openNotifByEl" data-act-self>⚠ Notif</button>
+            ${r.manual ? `<button class="btn-del-manual" title="Excluir este torneio adicionado à mão"
+              data-key="${r.key}" data-date="${r.date}"
+              data-act="removeAddedTorneioByEl" data-act-self aria-label="Excluir ${esc(r.nome)}">🗑</button>` : ''}
           </td>
         </tr>`;
       }).join('');
@@ -3168,6 +3171,51 @@ async function saveAddTorneio(){
   }finally{
     if(lbl) lbl.textContent='Adicionar à auditoria';
   }
+}
+
+/* ── EXCLUIR TORNEIO ADICIONADO À MÃO ────────────────────────────
+   Só vale pra linha que veio de painel/<data>/manualRows (a ferramenta
+   "Adicionar torneio"). Linha da planilha NÃO tem este botão: apagá-la aqui
+   não adiantaria nada — o próximo ingest da Global traria de volta, e o
+   admin ficaria achando que excluiu.
+
+   Apaga o nó base E os valores que o "Adicionar" gravou junto (ids, garantido,
+   field, premiacao/premBy, fixed). Deixar esses pendurados seria pior que não
+   excluir: a chave é hash de nome|hora|buyin|garantido, então recriar o mesmo
+   torneio ressuscitaria arrecadado e field antigos sem ninguém digitar nada. */
+async function removeAddedTorneio(key, date){
+  if(!fbOk){ toast('Firebase não conectado','err'); return; }
+  if(!key || !date){ toast('Torneio sem referência — recarregue a página','err'); return; }
+  const linha = (_allData[date] && _allData[date].rows && _allData[date].rows[key]) || {};
+  if(!linha.manual){ toast('Só dá pra excluir torneio adicionado à mão','err'); return; }
+  const nome = linha.nome || 'este torneio';
+  const [y,m,d] = String(date).split('-');
+  if(!confirm(`Excluir "${nome}" de ${d}/${m}/${y}?\n\nApaga também o arrecadado, o field, o garantido e o ID lançados nele. Não dá pra desfazer.`)) return;
+
+  const base = `painel/${date}`;
+  try{
+    // manualRows por último: enquanto ele existir, a linha ainda aparece — se algum
+    // remove falhar no meio, o admin vê o torneio lá e pode repetir a exclusão
+    await Promise.all(['ids','garantido','field','premiacao','premBy','fixed']
+      .map(no => db.ref(`${base}/${no}/${key}`).remove().catch(()=>{})));
+    await db.ref(`${base}/manualRows/${key}`).remove();
+
+    // espelha em memória pra lista sumir sem esperar o refresh ao vivo
+    const dia = _allData[date];
+    if(dia) ['rows','ids','field','prem','guar','premBy','fixed','buy'].forEach(b => { if(dia[b]) delete dia[b][key]; });
+
+    await writeAdminLog('excluir', { torneio:nome, date, hora:linha.hora||null, key });
+    toast('✓ Torneio excluído','ok');
+    loadAudit();
+  }catch(e){
+    toast('Falha ao excluir: '+e.message,'err');
+  }
+}
+/* o botão vive numa linha gerada pelo próprio admin.js — mesmo padrão de
+   openAuditEditByEl: o dispatcher entrega o elemento e a chave vem do dataset */
+function removeAddedTorneioByEl(el){
+  if(!el) return;
+  removeAddedTorneio(el.dataset.key, el.dataset.date);
 }
 
 /* ── BOARD DA CAMPANHA (config do telão SPS) ──────────────────────
