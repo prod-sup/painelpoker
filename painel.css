@@ -2382,6 +2382,27 @@
   .shared-global-btn.is-stale{ border-color:color-mix(in srgb, var(--red, #c0392b) 40%, transparent); }
   .shared-global-btn.is-stale b{ color:var(--red, #c0392b); }
 
+  /* "Sincronizar planilha" — a Global automática da Conferência do dia (o mesmo
+     .sync-now da Criação Noturna, no vocabulário do drawer). Ação neutra: o
+     verde/dourado ficam pras ações fortes. */
+  .gc-sync-btn{
+    display:flex; align-items:center; justify-content:center; gap:9px; width:100%;
+    margin:0 0 10px; padding:11px 14px; border-radius:11px; cursor:pointer;
+    border:1px solid var(--hairline-strong); background:var(--card-elevated); color:var(--ink);
+    font:inherit; font-size:12.5px; font-weight:650; line-height:1.45;
+    transition:border-color .2s var(--ease), background-color .2s var(--ease), color .2s var(--ease), opacity .2s var(--ease);
+  }
+  .gc-sync-btn:hover{ border-color:var(--felt-bright); color:var(--felt); background:var(--felt-soft); }
+  .gc-sync-btn:focus-visible{ outline:2px solid var(--felt-bright); outline-offset:2px; }
+  .gc-sync-btn svg{ width:16px; height:16px; flex:none; }
+  .gc-sync-btn.busy{ opacity:.65; pointer-events:none; }
+  .gc-sync-btn.busy .gc-sync-ico{ animation:gc-sync-spin .8s linear infinite; transform-origin:50% 50%; }
+  @keyframes gc-sync-spin{ to{ transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce){ .gc-sync-btn.busy .gc-sync-ico{ animation:none; } }
+  @media (pointer:coarse){ .gc-sync-btn{ min-height:44px; } }
+  .gc-sync-meta{ font-size:11.5px; color:var(--ink-soft); line-height:1.5; margin:0 0 10px; }
+  .gc-sync-meta[hidden]{ display:none; }
+
   .routine-tool-desc{ font-size:12.5px; color:var(--ink-soft); line-height:1.6; margin:0 0 16px; }
   .drawer-section-divider{ height:1px; background:var(--hairline); margin:26px 0 20px; }
   .drawer-section-title{ font-family:var(--display); font-weight:650; font-size:15px; letter-spacing:-0.01em; margin-bottom:10px; }

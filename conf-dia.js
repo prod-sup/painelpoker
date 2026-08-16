@@ -407,7 +407,7 @@
     const items = gcItems();
     const noIdPill = document.getElementById('guConfNoId');
     if (!items.length){
-      area.innerHTML = `<div class="gc-empty"><span class="ic gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></span>Nenhuma receita publicada pra hoje (${d}/${m}).<br>O turno noturno sobe a GU na página de Criação — ou carregue a <b>Global MTT</b> no botão acima que ela aparece aqui na hora.</div>`;
+      area.innerHTML = `<div class="gc-empty"><span class="ic gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></span>Nenhuma receita publicada pra hoje (${d}/${m}).<br>A grade vem sozinha da planilha da GU — se não aparecer em alguns segundos, toque em <b>Sincronizar planilha</b> aí em cima.</div>`;
       document.getElementById('guConfProgress').textContent = '—';
       document.getElementById('guConfBadge').hidden = true;
       if (noIdPill) noIdPill.hidden = true;
@@ -550,6 +550,11 @@
           try{
             gcSheet = JSON.parse(v.json);
             gcSrc = {fileName: gcSheet.fileName || '', by: v.by || '', at: v.at || 0};
+            /* alinha a guarda do auto-sync com o que ACABOU de chegar de outro painel.
+               Sem isto, o próximo poll acharia que a versão local era "antiga", reescreveria
+               /sheet com conteúdo idêntico, e o listener do outro painel dispararia de volta —
+               uma reescrita a cada ~2,5 min por drawer aberto, sem nada ter mudado. */
+            gcLastSig = gcSignature(gcSheet);
           }catch(e){ console.error('guConf: sheet corrompida', e); }
         }
         gcRender();
@@ -606,7 +611,24 @@
      Firebase que a Criação usa — a tabela aparece na hora e os ✓ de
      Action sincronizam com a equipe do mesmo jeito. */
   const gcWeekdayEn = iso => WEEKDAYS_EN[new Date(iso + 'T12:00:00Z').getUTCDay()];
-  function gcProcessGlobal(arrayBuffer, fileName){
+  /* assinatura só do CONTEÚDO extraído (sem fileName/at): no auto-sync, planilha
+     igual = NADA reescrito no Firebase. Sem ela, cada leitura reescreveria
+     /sheet e re-baixaria a grade em todo painel aberto (egress). Mesma guarda
+     do _cnLastSig da Criação Noturna. */
+  function gcSignature(s){
+    try{ return JSON.stringify([s.main, s.side, s.sat, s.unknown]); }
+    catch(e){ return 'sig-' + Date.now() + '-' + Math.random(); }
+  }
+  let gcLastSig = null;
+
+  /* opts.auto = veio do auto-sync (silencioso: sem toast de sucesso nem de aviso
+     de parser, e não reescreve o Firebase se o conteúdo não mudou). O diff de
+     alterações GRITA nos dois modos — é o ponto todo da conferência.
+     Retorna {ok, count, unchanged}; erro de planilha continua sendo throw. */
+  function gcProcessGlobal(arrayBuffer, fileName, opts){
+    opts = opts || {};
+    const auto = !!opts.auto;
+    const warn = msg => { if (!auto) showToast(msg, true); };
     const matrix = readSheetMatrix(arrayBuffer, 'G MTTS');
     const headerCols = findHeaderCols(matrix);
     if (!headerCols) throw new Error('Não encontrei o cabeçalho da aba G MTTS (MTT MARKETING / TYPE / BUY-IN…) — é a Global MTT certa?');
@@ -619,57 +641,134 @@
     if (!total) throw new Error('Nenhum torneio na janela de hoje (06:10 → 05:30) nessa planilha.');
     // avisos do parser — os mesmos que a Criação mostra
     const semHora = [...secToday.semHora, ...(secNext ? secNext.semHora : [])];
-    if (semHora.length) showToast(`Atenção: ${semHora.length} torneio(s) sem horário reconhecível ficaram de fora: ${semHora.map(x=>x.nome).slice(0,3).join(', ')}${semHora.length>3?'…':''}`, true);
-    if (secToday.duplicateSection || (secNext && secNext.duplicateSection)) showToast('Atenção: nome de dia duplicado na planilha — confira se a seção usada é a certa.', true);
-    if (sections.unknown.length) showToast(`Atenção: ${sections.unknown.length} torneio(s) com tipo não reconhecido na coluna TYPE ficaram de fora.`, true);
-    if (sections.tipoColMissing) showToast('⚠ Coluna TYPE não encontrada — classifiquei tudo pelo nome/garantido. Confira a divisão Main/Side.', true);
-    // diff contra o que a equipe já estava conferindo (publicado pelo noturno ou por upload anterior)
-    const changes = gcComputeChanges(gcSheet, sections);
+    if (semHora.length) warn(`Atenção: ${semHora.length} torneio(s) sem horário reconhecível ficaram de fora: ${semHora.map(x=>x.nome).slice(0,3).join(', ')}${semHora.length>3?'…':''}`);
+    if (secToday.duplicateSection || (secNext && secNext.duplicateSection)) warn('Atenção: nome de dia duplicado na planilha — confira se a seção usada é a certa.');
+    if (sections.unknown.length) warn(`Atenção: ${sections.unknown.length} torneio(s) com tipo não reconhecido na coluna TYPE ficaram de fora.`);
+    if (sections.tipoColMissing) warn('⚠ Coluna TYPE não encontrada — classifiquei tudo pelo nome/garantido. Confira a divisão Main/Side.');
+
+    const sig = gcSignature(sections);
+    if (auto && gcSheet && sig === gcLastSig) return { ok:true, unchanged:true, count: total };
+
+    // diff contra o que a equipe já estava conferindo (publicado pelo noturno ou por upload anterior).
+    // NO AUTO-SYNC, só mostra depois que a conferência COMEÇOU (algum ✓ marcado): antes disso o
+    // baseline troca em silêncio, senão abrir o drawer contra uma versão antiga despejaria um
+    // muro de "N alterações" sem ninguém ter conferido nada ainda.
+    const confStarted = gcConf && Object.keys(gcConf).length > 0;
+    const changes = (auto && !confStarted) ? [] : gcComputeChanges(gcSheet, sections);
+    gcLastSig = sig;
     gcSheet = {...sections, fields, fileName, changes};
-    gcSrc = {fileName, by: OPERATOR_NAME || 'você', at: Date.now()};
+    gcSrc = {fileName, by: auto ? 'Sheets' : (OPERATOR_NAME || 'você'), at: Date.now()};
     gcRender();
     if (changes.length) showToast(`⚠ ${changes.length} alteração(ões) em relação à versão anterior — veja o quadro amarelo.`, true);
     if (fbDb){
       fbDb.ref(`${BASE}/sheet`).set({
         json: JSON.stringify({main: sections.main, side: sections.side, sat: sections.sat, unknown: sections.unknown, fields, fileName, changes}),
-        by: OPERATOR_NAME || 'Alguém', at: Date.now()
+        by: auto ? 'Sheets' : (OPERATOR_NAME || 'Alguém'), at: Date.now()
+      }).catch(err => {
+        // escrita negada (auth ainda restaurando / regra) — solta a guarda, senão o
+        // conteúdo só seria reenviado quando a planilha mudasse, deixando a equipe sem a grade
+        gcLastSig = null;
+        console.error('guConf: falha ao publicar a sheet', err);
       });
-      showToast(`GU carregada — ${total} torneios de hoje, compartilhada com a equipe.`);
-    } else {
+      if (!auto) showToast(`GU carregada — ${total} torneios de hoje, compartilhada com a equipe.`);
+    } else if (!auto){
       showToast(`GU carregada — ${total} torneios de hoje (só neste navegador, sem conexão pra compartilhar).`);
     }
-    return total;
+    return { ok:true, count: total, changed:true };
   }
 
-  document.getElementById('guConfFileInput').addEventListener('change', async function(e){
-    const file = e.target.files[0];
-    if (!file) return;
-    const lbl = document.getElementById('guConfFileLabel');
-    const box = document.getElementById('guConfUploadLabel');
-    if (typeof XLSX === 'undefined'){
-      showToast('A biblioteca de planilhas ainda está carregando — aguarde 2 segundos e tente de novo.', true);
-      e.target.value = ''; return;
-    }
-    lbl.textContent = 'Lendo…';
-    // deixa o navegador pintar "Lendo…" antes do parse pesado do XLSX
-    // (com fallback de timeout: em aba oculta o requestAnimationFrame não dispara)
-    await new Promise(r => { requestAnimationFrame(() => requestAnimationFrame(r)); setTimeout(r, 200); });
+  /* =======================================================================
+     GLOBAL AUTOMÁTICA — igual à Criação Noturna
+     A Conferência sempre dependeu de alguém subir a planilha: o noturno
+     publicava a versão da madrugada e, se a GU corrigisse a Global durante o
+     dia, o quadro seguia mostrando a versão velha até alguém reparar. Agora a
+     MESMA planilha publicada que alimenta a Criação Noturna (gu-parser.js →
+     fetchGuSheetBuffer) é lida direto daqui, pelo MESMO gcProcessGlobal do
+     upload — nada de caminho paralelo "do automático".
+     SÓ RODA COM O DRAWER ABERTO: o Painel fica aberto o turno inteiro e não
+     faz sentido baixar planilha (nem o SheetJS de 861KB) pra quem não está
+     conferindo. Ao abrir, lê na hora; depois, a cada ~2,5 min.
+  ======================================================================= */
+  const GC_SYNC_POLL_MS = 150000;                 // ~2,5 min, como na Criação
+  let gcSyncOn = false, gcSyncing = false, gcSyncTimer = null;
+  let gcLastSyncAt = 0, gcLastSyncOk = false;
+
+  function gcSetSyncBusy(b){
+    const btn = document.getElementById('guConfSyncBtn');
+    if (!btn) return;
+    btn.classList.toggle('busy', b); btn.disabled = b;
+  }
+  function gcRenderSyncMeta(){
+    const m = document.getElementById('guConfSyncMeta');
+    if (!m) return;
+    if (!guAutoSyncEnabled()){ m.textContent = '⏸ Atualização automática desligada — use o botão.'; m.hidden = false; return; }
+    const when = gcLastSyncAt
+      ? new Date(gcLastSyncAt).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', timeZone:'America/Sao_Paulo'})
+      : null;
+    m.textContent = when
+      ? `↻ Atualiza sozinho · última leitura da planilha ${when}${gcLastSyncOk ? '' : ' — falhou, vou tentar de novo'}`
+      : '↻ Atualiza sozinho a cada ~2 min direto da planilha da GU.';
+    m.hidden = false;
+  }
+  async function gcSyncFromSheets(opts){
+    opts = opts || {};
+    if (gcSyncing) return;
+    gcSyncing = true; gcSetSyncBusy(true);
     try{
-      const arrayBuffer = await file.arrayBuffer();
-      gcProcessGlobal(arrayBuffer, file.name);
-      lbl.textContent = file.name;
-      box.classList.add('is-loaded');
-      // compartilha o ARQUIVO inteiro também (painel/globalMtt) — as outras
-      // ferramentas e o parceiro reaproveitam sem subir de novo
-      if (typeof publishSharedGlobal === 'function') publishSharedGlobal(arrayBuffer, file.name);
+      const buf = await fetchGuSheetBuffer();
+      const r = gcProcessGlobal(buf, 'Google Sheets (auto)', { auto:true });
+      gcLastSyncAt = Date.now(); gcLastSyncOk = true;
+      if (opts.manual){
+        if (r && r.unchanged) showToast('Já está na versão mais recente da planilha.');
+        else showToast(`Sincronizado com o Google Sheets — ${r.count} torneios de hoje.`);
+      }
     }catch(err){
-      console.error('guConf: erro no upload da GU', err);
-      showToast(err && err.message ? err.message : 'Erro ao ler a planilha — confira se é a Global MTT (.xlsx).', true);
-      lbl.textContent = 'Carregar Global MTT (.xlsx)';
-      box.classList.remove('is-loaded');
+      console.error('guConf: syncFromSheets', err);
+      gcLastSyncOk = false;
+      if (opts.manual){
+        showToast(err && err.message ? err.message : 'Não consegui buscar a planilha (sem internet, ou o "Publicar na web" saiu do ar?).', true);
+      }
+    }finally{
+      gcSyncing = false; gcSetSyncBusy(false); gcRenderSyncMeta();
     }
-    e.target.value = '';
+  }
+  /* poll com jitter: dois painéis abertos não batem no Google (nem gravam) juntos */
+  function gcScheduleSync(){
+    clearTimeout(gcSyncTimer);
+    if (!gcSyncOn || !guAutoSyncEnabled()) return;
+    gcSyncTimer = setTimeout(() => {
+      if (gcSyncOn && guAutoSyncEnabled() && document.visibilityState === 'visible') gcSyncFromSheets({});
+      gcScheduleSync();
+    }, GC_SYNC_POLL_MS + Math.floor(Math.random() * 30000));
+  }
+  function gcStartSync(){
+    gcRenderSyncMeta();
+    if (gcSyncOn) return;
+    gcSyncOn = true;
+    if (!guAutoSyncEnabled()) return;
+    // fora do caminho crítico da abertura do drawer (a tabela pinta primeiro)
+    setTimeout(() => { if (gcSyncOn) gcSyncFromSheets({}); }, 600);
+    gcScheduleSync();
+  }
+  function gcStopSync(){
+    gcSyncOn = false;
+    clearTimeout(gcSyncTimer); gcSyncTimer = null;
+  }
+  // voltou pra aba com a conferência aberta e a última leitura já tem mais de 1 min: relê
+  document.addEventListener('visibilitychange', () => {
+    if (gcSyncOn && guAutoSyncEnabled() && document.visibilityState === 'visible' && Date.now() - gcLastSyncAt > 60000) gcSyncFromSheets({});
   });
+  const gcSyncBtn = document.getElementById('guConfSyncBtn');
+  if (gcSyncBtn) gcSyncBtn.addEventListener('click', () => gcSyncFromSheets({ manual:true }));
+
+  /* O UPLOAD MANUAL DE .xlsx SAIU DAQUI (pedido do Brian, mesma decisão da
+     Criação Noturna): a planilha chega sozinha do Google Sheets publicado. Com
+     dois caminhos abertos, bastava alguém subir um arquivo velho do próprio
+     computador pra conferir a grade do dia contra a receita errada — e o quadro
+     não tinha como saber. Quem quiser forçar uma leitura usa "Sincronizar
+     planilha"; o parser e o gcProcessGlobal continuam os mesmos.
+     O botão "usar a Global compartilhada" fica: ele reaproveita o arquivo que
+     JÁ está circulando entre as ferramentas, não abre o seletor de arquivos. */
 
   // botão "usar a Global compartilhada" — o arquivo que alguém da equipe já subiu hoje
   const gcSharedBtn = document.getElementById('guConfSharedBtn');
@@ -678,9 +777,6 @@
     if (!sg || !sg.buf){ showToast('Nenhuma Global compartilhada disponível.', true); return; }
     try{
       gcProcessGlobal(sg.buf.slice(0), sg.filename);
-      const lbl = document.getElementById('guConfFileLabel');
-      lbl.textContent = sg.filename;
-      document.getElementById('guConfUploadLabel').classList.add('is-loaded');
     }catch(err){
       console.error('guConf: erro na Global compartilhada', err);
       showToast(err && err.message ? err.message : 'Erro ao ler a Global compartilhada.', true);
@@ -690,9 +786,10 @@
   // fecha o drawer saindo antes de qualquer quadro em tela cheia
   function gcCloseDrawer(){
     if (gcFs) gcToggleFs(gcFs);
+    gcStopSync();                       // fechou = para de baixar a planilha
     closeDrawer('guConfDrawerOverlay');
   }
-  document.getElementById('guConfToggle').addEventListener('click', () => { openDrawer('guConfDrawerOverlay'); gcAttach(); gcRender(); });
+  document.getElementById('guConfToggle').addEventListener('click', () => { openDrawer('guConfDrawerOverlay'); gcAttach(); gcRender(); gcStartSync(); });
   document.getElementById('guConfDrawerClose').addEventListener('click', gcCloseDrawer);
   document.getElementById('guConfDrawerOverlay').addEventListener('click', (e) => {
     if (e.target.id === 'guConfDrawerOverlay') gcCloseDrawer();

@@ -782,12 +782,15 @@ document.addEventListener('DOMContentLoaded', () => {
       <button class="drawer-close" id="guConfDrawerClose" type="button" aria-label="Fechar">✕</button>
     </div>
     <div class="drawer-body">
-      <p class="routine-tool-desc">A receita completa da <b>GU</b> dos eventos de hoje — confira coluna a coluna contra o Pokerbyte e marque <b>✓</b> em Action. Sincroniza ao vivo com a equipe. Vem do que o turno noturno publicou, ou suba a <b>Global MTT</b> aqui mesmo (aba G MTTS, valores em dólar).</p>
-      <label class="routine-upload" id="guConfUploadLabel">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
-        <span id="guConfFileLabel">Carregar Global MTT (.xlsx)</span>
-        <input type="file" id="guConfFileInput" accept=".xlsx" hidden>
-      </label>
+      <p class="routine-tool-desc">A receita completa da <b>GU</b> dos eventos de hoje — confira coluna a coluna contra o Pokerbyte e marque <b>✓</b> em Action. Sincroniza ao vivo com a equipe. A grade <b>atualiza sozinha</b> direto da planilha da GU (aba G MTTS) enquanto esta janela estiver aberta.</p>
+      <!-- SINCRONIZAR: puxa a Global direto do Google Sheets publicado, igual à Criação Noturna. Fora do clique, atualiza sozinho.
+           O upload manual de .xlsx foi REMOVIDO daqui (mesma decisão da Criação Noturna): a planilha vem sozinha, e ter dois
+           caminhos abria espaço pra alguém conferir contra um arquivo velho do próprio computador. -->
+      <button type="button" class="gc-sync-btn" id="guConfSyncBtn" title="Atualizar agora direto da planilha da GU (aba G MTTS).">
+        <svg class="gc-sync-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>
+        <span>Sincronizar planilha</span>
+      </button>
+      <p class="gc-sync-meta" id="guConfSyncMeta" hidden></p>
       <button type="button" class="shared-global-btn" id="guConfSharedBtn" hidden></button>
       <p class="gc-src" id="guConfSrc" hidden></p>
       <div class="gc-meta">

@@ -323,3 +323,40 @@ function buildSections(sectionTomorrow, sectionDayAfter){
   const tipoColMissing = !!(sectionTomorrow && sectionTomorrow.tipoColMissing);
   return { main, side, sat, unknown, semTipo, suspensos, tipoColMissing };
 }
+
+/* =========================================================================
+   FONTE AUTOMÁTICA DA GLOBAL — a planilha da GU publicada na web (aba G MTTS
+   → "Publicar na web" como XLSX). Mora aqui, junto do parser, porque DUAS
+   páginas puxam o MESMO link: a Criação Noturna (grade de amanhã) e a
+   Conferência do dia, no Painel (grade de hoje). Em dois lugares, um dia
+   divergiriam — e ninguém perceberia até a conferência estar lendo de uma
+   planilha e a criação de outra.
+   O link é público mas expõe SÓ a aba G MTTS (single=true); o resto do
+   documento continua privado.
+   Trocar de planilha sem redeploy: localStorage 'cn_sheet_url'.
+   Desligar o auto-sync (nas duas pontas): localStorage 'cn_autosync' = '0'.
+========================================================================= */
+const GU_SHEET_XLSX_URL_DEFAULT = 'https://docs.google.com/spreadsheets/d/1GMcEG3-J1Bg8nDvivHh6yAbVv914eJJA5rDT7DuYXck/pub?gid=1114105684&single=true&output=xlsx';
+
+function guSheetXlsxUrl(){
+  try{ return localStorage.getItem('cn_sheet_url') || GU_SHEET_XLSX_URL_DEFAULT; }
+  catch(e){ return GU_SHEET_XLSX_URL_DEFAULT; }
+}
+function guAutoSyncEnabled(){
+  try{ return localStorage.getItem('cn_autosync') !== '0'; }catch(e){ return true; }
+}
+/* baixa o .xlsx publicado e devolve o ArrayBuffer CRU — quem chamou manda pro
+   mesmo caminho de extração do upload manual, então não existe parsing
+   paralelo "do automático". Garante o SheetJS carregado antes de voltar.
+   Estoura Error em falha de rede/HTTP: quem chamou decide o que dizer. */
+async function fetchGuSheetBuffer(){
+  const base = guSheetXlsxUrl();
+  if (!base) throw new Error('Sem link do Google Sheets configurado.');
+  if (typeof ensureXLSX === 'function') await ensureXLSX();
+  else if (typeof XLSX === 'undefined') throw new Error('A biblioteca de planilhas não carregou — recarregue a página.');
+  // cache-buster p/ o cache DO NAVEGADOR (o cache do "Publicar na web" é do Google e não dá pra furar)
+  const url = base + (base.indexOf('?') >= 0 ? '&' : '?') + '_gu=' + Date.now();
+  const resp = await fetch(url, { cache:'no-store', redirect:'follow' });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  return resp.arrayBuffer();
+}

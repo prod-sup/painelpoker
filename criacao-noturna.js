@@ -989,12 +989,12 @@ function processGlobalBuffer(arrayBuffer, sourceName, opts){
    Link é público mas expõe SÓ a aba G MTTS (single=true); o resto do doc fica
    privado. Para trocar de planilha sem redeploy: localStorage 'cn_sheet_url'.
    Para desligar o auto-sync: localStorage 'cn_autosync' = '0'.
+   O LINK e as chaves moram no gu-parser.js (guSheetXlsxUrl/fetchGuSheetBuffer):
+   a Conferência do dia, no Painel, lê a MESMA planilha — duplicar aqui era
+   deixar as duas pontas divergirem no dia em que a GU trocasse de arquivo.
 ========================================================================= */
-const SHEET_XLSX_URL_DEFAULT = 'https://docs.google.com/spreadsheets/d/1GMcEG3-J1Bg8nDvivHh6yAbVv914eJJA5rDT7DuYXck/pub?gid=1114105684&single=true&output=xlsx';
-let SHEET_XLSX_URL = SHEET_XLSX_URL_DEFAULT;
-try{ const _u = localStorage.getItem('cn_sheet_url'); if (_u) SHEET_XLSX_URL = _u; }catch(e){}
-let AUTO_SYNC = true;
-try{ AUTO_SYNC = localStorage.getItem('cn_autosync') !== '0'; }catch(e){}
+const SHEET_XLSX_URL = guSheetXlsxUrl();
+let AUTO_SYNC = guAutoSyncEnabled();
 const SYNC_POLL_MS = 150000;   // ~2,5 min entre leituras (só com a aba visível)
 let _syncing = false, _lastSyncAt = 0, _lastSyncOk = false;
 
@@ -1018,12 +1018,7 @@ async function syncFromSheets(opts){
   if (!SHEET_XLSX_URL){ if (opts.manual) showToast('Sem link do Google Sheets configurado.', true); return; }
   _syncing = true; setSyncBusy(true);
   try{
-    await ensureXLSX();
-    // cache-buster p/ o cache DO NAVEGADOR (o cache do "Publicar na web" é do Google e não dá pra furar)
-    const url = SHEET_XLSX_URL + (SHEET_XLSX_URL.indexOf('?') >= 0 ? '&' : '?') + '_cn=' + Date.now();
-    const resp = await fetch(url, { cache:'no-store', redirect:'follow' });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const buf = await resp.arrayBuffer();
+    const buf = await fetchGuSheetBuffer();
     const r = processGlobalBuffer(buf, 'Google Sheets (auto)', { auto:true, manual: !!opts.manual });
     _lastSyncAt = Date.now(); _lastSyncOk = !!(r && r.ok);
     if (opts.manual){
