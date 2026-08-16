@@ -1269,7 +1269,16 @@ body > *{position:relative;z-index:1}
 
   /* ── OCULTAR LINHA/COLUNA (campo da receita) — olhinho abre/fecha ───────── */
   .rl-hide .eye,.hf-chip .eye{width:15px;height:15px;display:block;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-  .vtable .rowlab.hideable{position:relative;padding-right:24px}
+  /* NÃO declarar position aqui. `.vtable .rowlab` é position:sticky (left:0) — é o
+     que mantém a coluna de rótulos colada ao rolar a grade pro lado. Este seletor
+     é mais específico, então um `position:relative` aqui VENCIA e matava o sticky
+     de TODA linha vinda do rlabTh() (as da receita). O resultado: Torneio,
+     Operador, ID Pokerbyte e Criado — que usam `<th class="rowlab">` puro —
+     continuavam colados, enquanto o resto rolava pra fora e sobrava só o fim do
+     rótulo ("…WARD", "…OUT"), com os pinados cobrindo a 1ª coluna.
+     O `relative` era pra ancorar o .rl-hide (position:absolute) — desnecessário:
+     sticky já é elemento posicionado e serve de bloco contêiner do botão. */
+  .vtable .rowlab.hideable{padding-right:24px}
   .rowlab .rl-hide{
     position:absolute;top:50%;right:4px;transform:translateY(-50%);
     border:none;background:none;cursor:pointer;color:var(--ink-soft);
