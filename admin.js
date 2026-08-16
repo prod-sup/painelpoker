@@ -1078,8 +1078,12 @@ async function loadCriacao(){
     '<div class="kpi-sub sp-shimmer" style="height:10px;width:80%">&nbsp;</div></div>').join('');
   _cnRows = await fetchCnRows(dates);
   // popula o filtro de operador com quem realmente criou no período
+  // (ler de _cnRows, NÃO de um `rows` local: a busca mora no fetchCnRows desde que
+  //  a Central de Alertas passou a reaproveitá-la — o `rows` daqui deixou de existir
+  //  e o ReferenceError abortava loadCriacao antes do renderCn, deixando a aba
+  //  eternamente nos esqueletos de carregamento)
   const sel = document.getElementById('cnOp'), cur = sel.value;
-  const ops = [...new Set(rows.map(r => r.doneBy).filter(Boolean))].sort();
+  const ops = [...new Set(_cnRows.map(r => r.doneBy).filter(Boolean))].sort();
   sel.innerHTML = '<option value="">Todos</option>' + ops.map(o => `<option ${o===cur?'selected':''}>${esc(o)}</option>`).join('');
   renderCn();
 }
