@@ -2124,6 +2124,27 @@ function urgLabel(it){
   return `em ${Math.floor(h)}h${String(Math.round((h%1)*60)).padStart(2,'0')}`;
 }
 
+/* ── ESCRITA CRÍTICA: nunca falhar em silêncio ───────────────────────────
+   O ID do Pokerbyte e o "criado" SÃO o resultado do turno. Até aqui a escrita
+   era disparada e ninguém olhava o retorno: se o Firebase recusasse (regra,
+   sessão expirada, rede caída), a tela continuava mostrando o valor e a equipe
+   só descobria no dia seguinte, com o nó vazio no banco. Agora toda falha
+   aparece na hora e o estado otimista é desfeito — a tela nunca mostra algo
+   que o banco não tem.
+   Transação abortada de propósito (o parceiro marcou primeiro) RESOLVE com
+   committed:false, não rejeita: não vira alarme falso. */
+function fbCritical(p, oQue, desfazer){
+  if (!p || typeof p.catch !== 'function') return p;
+  return p.catch(err => {
+    console.error(`falha ao gravar: ${oQue}`, err);
+    const negado = err && (err.code === 'PERMISSION_DENIED' || /permission[_ ]denied/i.test(String(err.message || '')));
+    showToast(negado
+      ? `⚠ ${oQue} NÃO foi salvo — o banco recusou a gravação. Não confie no que está na tela e avise o Brian.`
+      : `⚠ ${oQue} NÃO foi salvo (conexão?). Refaça — não ficou registrado.`, true);
+    if (typeof desfazer === 'function'){ try{ desfazer(); }catch(e){} }
+  });
+}
+
 /* ── ID do evento (Pokerbyte) — compartilhado com o turno via Firebase ── */
 /* log=false: gravação PARCIAL (durante a digitação, ver o debounce no bind dos
    .id-inp). Salva no Firebase do mesmo jeito — só não enche a trilha de
@@ -2133,8 +2154,18 @@ function setId(key, val, autoCheck = true, log = true){
   _lastTouchedKey = key;
   val = String(val || '').trim();
   if (fbDb){
-    if (val){ fbDb.ref(`${FB_PATH}/ids/${key}`).set({val, by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP}); if (log) logEvent('registrou ID', `${key} → ${val}`); }
-    else { fbDb.ref(`${FB_PATH}/ids/${key}`).remove(); if (log) logEvent('apagou ID', key); }
+    /* falhou: devolve o campo ao último valor CONFIRMADO pelo Firebase (IDS),
+       pra ninguém seguir a noite achando que aquele ID está salvo */
+    const reverter = () => {
+      const esc = k => (window.CSS && CSS.escape) ? CSS.escape(k) : k;
+      const inp = document.querySelector(`.id-inp[data-idkey="${esc(key)}"]`);
+      if (inp && inp !== document.activeElement){
+        const v = idVal(key);
+        inp.value = v; inp.classList.toggle('has-id', !!v);
+      }
+    };
+    if (val){ fbCritical(fbDb.ref(`${FB_PATH}/ids/${key}`).set({val, by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP}), `o ID ${val}`, reverter); if (log) logEvent('registrou ID', `${key} → ${val}`); }
+    else { fbCritical(fbDb.ref(`${FB_PATH}/ids/${key}`).remove(), 'a remoção do ID', reverter); if (log) logEvent('apagou ID', key); }
   } else {
     if (val) IDS[key] = {val, by: ME}; else delete IDS[key];
   }
@@ -2153,12 +2184,12 @@ function toggleDone(key){
   _lastTouchedKey = key;
   const cur = DONE[key];
   if (fbDb){
-    if (cur){ fbDb.ref(`${FB_PATH}/done/${key}`).remove(); logEvent('desmarcou criado', key); }
+    if (cur){ fbCritical(fbDb.ref(`${FB_PATH}/done/${key}`).remove(), 'o "desmarcar criado"'); logEvent('desmarcou criado', key); }
     // transação: se um parceiro marcou no mesmo instante, o registro dele
     // (by/at) é preservado — retornar undefined aborta sem sobrescrever
     else {
-      fbDb.ref(`${FB_PATH}/done/${key}`).transaction(existing =>
-        existing ? undefined : {by: ME || 'Alguém', at: Date.now()}); logEvent('marcou criado', key);
+      fbCritical(fbDb.ref(`${FB_PATH}/done/${key}`).transaction(existing =>
+        existing ? undefined : {by: ME || 'Alguém', at: Date.now()}), 'o "criado"'); logEvent('marcou criado', key);
       // progressão: cada torneio criado na GU é uma ação da jornada do operador
       try{ SupremaAuth.trackAction('gu_criado'); }catch(e){}
     }
@@ -2965,8 +2996,10 @@ function markDone(key){
   DONE[key] = {by: ME || 'Alguém', at: Date.now()}; // otimista — o eco do Firebase confirma
   // transação: se dois operadores marcarem juntos, o primeiro vence
   if (fbDb){
-    fbDb.ref(`${FB_PATH}/done/${key}`).transaction(existing =>
-      existing ? undefined : {by: ME || 'Alguém', at: Date.now()});
+    // falhou: desfaz o otimismo, senão o ✓ fica na tela sem existir no banco
+    fbCritical(fbDb.ref(`${FB_PATH}/done/${key}`).transaction(existing =>
+      existing ? undefined : {by: ME || 'Alguém', at: Date.now()}), 'o "criado"',
+      () => { delete DONE[key]; renderAll(); });
     logEvent('marcou criado', key);
   }
   renderAll();
