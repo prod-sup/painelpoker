@@ -2788,7 +2788,7 @@ function renderList(){
 /* rótulo legível a partir do data-field (pra barra de "linhas ocultas") */
 function fieldLabelFor(key){
   if (key.startsWith('f:')) return key.slice(2);
-  return ({hora:'Horário', criar:'Criar em', admin:'Admin Fee', early:'Early Bird', camp:'Campanha', grupo:'Grupo', late:'Late reg'})[key] || key;
+  return ({hora:'Horário', criar:'Criar em', admin:'Admin Fee', early:'Early Bird', camp:'Campanha', grupo:'Grupo', late:'Late reg', secao:'Seção Global'})[key] || key;
 }
 function persistHidden(){ try{ localStorage.setItem('cn_sec_hidden', JSON.stringify([...SEC_HIDDEN])); }catch(e){} }
 /* aplica SEC_HIDDEN na LISTA normal (#listArea) — some/aparece a <tr> inteira (vtable
