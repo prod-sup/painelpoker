@@ -1449,7 +1449,27 @@ function onDataReady(fromRemote){
   setView(window.VIEW);   // mantém a visão atual (dia/semana) coerente quando a grade chega/atualiza
 }
 
+/* ── TRAVA DE RENDER ENQUANTO SE DIGITA UM ID ────────────────────────────
+   O <input> do ID só grava no `change` (blur/Enter). QUALQUER renderAll()
+   refaz o innerHTML de #listArea, destrói o campo em foco e o `change` nunca
+   dispara — o que foi digitado evapora sem aviso, e no F5 não há nada salvo.
+   Os listeners de /ids e /done já checavam isso cada um por si, mas /ops,
+   /roles, /overrides, /secOwners, /fieldMap, /audit e o onDataReady chamam
+   renderAll() direto. Com o auto-sync da Global lendo a planilha a cada
+   ~2,5 min (e a GU corrigindo a Global durante a noite), esse rebuild passou
+   a cair no meio da digitação com frequência. A trava fica AQUI, num lugar
+   só, valendo pra todos os caminhos: segura o rebuild e refaz assim que o
+   campo perde o foco. */
+let _renderHeld = false;
+document.addEventListener('focusout', e => {
+  if (!_renderHeld) return;
+  const t = e.target;
+  if (t && t.classList && t.classList.contains('id-inp')){ _renderHeld = false; renderAll(); }
+});
+
 function renderAllNow(){
+  const _ae = document.activeElement;
+  if (_ae && _ae.classList && _ae.classList.contains('id-inp')){ _renderHeld = true; return; }
   // PRESERVAR SCROLL — captura ANTES de qualquer re-render (marcar criado/ID re-renderiza
   // tudo via listener do Firebase; se não guardar aqui, a página pula pro topo). Restaura a
   // rolagem da JANELA + a de cada tabela (por naipe) depois do rebuild — síncrono e no rAF
@@ -2105,12 +2125,16 @@ function urgLabel(it){
 }
 
 /* ── ID do evento (Pokerbyte) — compartilhado com o turno via Firebase ── */
-function setId(key, val, autoCheck = true){
+/* log=false: gravação PARCIAL (durante a digitação, ver o debounce no bind dos
+   .id-inp). Salva no Firebase do mesmo jeito — só não enche a trilha de
+   auditoria com uma linha por pausa no teclado. O `change` final grava de novo,
+   já com autoCheck e log. */
+function setId(key, val, autoCheck = true, log = true){
   _lastTouchedKey = key;
   val = String(val || '').trim();
   if (fbDb){
-    if (val){ fbDb.ref(`${FB_PATH}/ids/${key}`).set({val, by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP}); logEvent('registrou ID', `${key} → ${val}`); }
-    else { fbDb.ref(`${FB_PATH}/ids/${key}`).remove(); logEvent('apagou ID', key); }
+    if (val){ fbDb.ref(`${FB_PATH}/ids/${key}`).set({val, by: ME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP}); if (log) logEvent('registrou ID', `${key} → ${val}`); }
+    else { fbDb.ref(`${FB_PATH}/ids/${key}`).remove(); if (log) logEvent('apagou ID', key); }
   } else {
     if (val) IDS[key] = {val, by: ME}; else delete IDS[key];
   }
@@ -2669,6 +2693,15 @@ function renderList(){
   area.querySelectorAll('.id-inp').forEach(inp => {
     inp.addEventListener('change', () => setId(inp.dataset.idkey, inp.value));
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
+    /* REDE DE SEGURANÇA DO ID: gravar SÓ no `change` significa que nada é salvo
+       enquanto o campo não perde o foco — fechar a aba, o navegador recarregar
+       sozinho ou a sessão cair no meio da digitação levava o ID junto. Grava
+       também 1,2s depois da última tecla (sem marcar "criado" e sem entupir o
+       log). O `change` continua sendo a gravação "oficial". */
+    inp.addEventListener('input', () => {
+      clearTimeout(inp._idSaveT);
+      inp._idSaveT = setTimeout(() => setId(inp.dataset.idkey, inp.value, false, false), 1200);
+    });
   });
   // receita expandida sobrevive aos re-renders (sync do Firebase re-renderiza a lista toda)
   area.querySelectorAll('[data-expand]').forEach(el => el.addEventListener('click', () => {
