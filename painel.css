@@ -2242,6 +2242,16 @@
   .gc-err.on{ background:var(--red); border-color:var(--red); color:#fff; }
   .gc-table td.gc-errcol{ box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--red) 45%,transparent); }
   .gc-errpill{ display:inline-block; margin-top:3px; font-size:9.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--red); background:var(--red-soft); border-radius:99px; padding:1px 7px; }
+  /* ── de qual SEÇÃO da Global veio o torneio (a janela cruza a meia-noite) ──
+     Discreto pros torneios do próprio dia; destacado pros da madrugada, que
+     moram na seção do dia SEGUINTE da planilha — é onde nasce a conferência
+     contra a linha errada. */
+  .gc-daytag{
+    display:inline-block; margin-top:3px; font-family:var(--mono); font-size:9.5px;
+    font-weight:700; letter-spacing:.02em; border-radius:99px; padding:1px 7px;
+    color:var(--ink-soft); background:var(--hairline);
+  }
+  .gc-daytag.next{ color:var(--gold, #8f6b2d); background:var(--gold-soft); }
   /* ↻ registrar novo ID do evento recriado */
   .gc-newid{
     width:26px; height:26px; border-radius:8px; border:2px solid var(--hairline-strong); cursor:pointer;

@@ -1089,6 +1089,33 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
 function itemKey(it){
   return `${normText(it.nome)}|${it.hora}`.replace(/[.#$\[\]\/]/g,'_');
 }
+
+/* ── DE QUAL SEÇÃO DA GLOBAL VEIO O TORNEIO ───────────────────────────────
+   A grade cruza a meia-noite: 06:10 da madrugada ativa → 05:30 do dia
+   seguinte. Quem começa até 05:30 NÃO está na seção do dia ativo na G MTTS,
+   e sim na seção do dia SEGUINTE. Sem isso escrito em cada torneio, quem
+   confere procura o horário na seção errada, encontra outro torneio com o
+   MESMO nome e a MESMA hora — porém receita diferente — e conclui que o
+   sistema está errado quando não está.
+   Não é caso de canto: auditando a Global inteira, 73 combinações
+   nome+horário se repetem em dias diferentes com receitas diferentes
+   (ex.: "500 Bounty 05:00" tem 30.000 chips no domingo e 40.000 na segunda;
+   "500 Omax 07:10" aparece em 6 dias com 2 receitas).
+   A regra usa a MESMA constante do buildSections (gu-parser.js): a etiqueta
+   não tem como discordar de como a grade foi montada. */
+const WD_PT_CURTO = ['dom','seg','ter','qua','qui','sex','sáb'];
+function itemISO(it){
+  const m = timeToMinutes(it.hora);
+  return (m !== null && m >= CONF_WINDOW_START_MIN) ? TOMORROW_ISO : refToISO(_refAfter);
+}
+function dayTagHtml(it){
+  const iso = itemISO(it);
+  const [, mo, dd] = iso.split('-');
+  const ref = new Date(iso + 'T12:00:00Z');
+  const secao = WEEKDAYS_EN[ref.getUTCDay()];      // o nome da seção COMO ESTÁ na planilha
+  const madrugada = iso !== TOMORROW_ISO;
+  return `<span class="day-tag${madrugada ? ' next' : ''}" title="Na Global MTT este torneio está na seção ${secao}, dia ${dd}/${mo}. Confira contra ESSA seção.">${WD_PT_CURTO[ref.getUTCDay()]} ${dd}/${mo} · ${secao}</span>`;
+}
 /* DIVISÃO 100% MANUAL (por clique) — as funções fixas (Main+Sat / Side c-s Admin) e o
    round-robin automático foram removidos a pedido. Cada torneio pertence a quem foi
    atribuído no clique (OVERRIDES), desde que a pessoa siga na equipe. */
@@ -2838,6 +2865,7 @@ function renderVertical(items, cat, asg, fieldList, dropEmpty){
       <tr class="trow-head"><th class="rowlab">Torneio</th>${cell(c => {
         const m = mttKicker(c.it), urg = urgency(c.it);
         return `<span class="vgo" data-focus="${c.key}" data-focuscat="${cat.key}" role="button" tabindex="0" title="Abrir a seção em tela cheia neste torneio" aria-label="Abrir a seção em tela cheia em ${escHtml(c.it.nome)}">${escHtml(c.it.nome)}</span>` + campBadgeHtml(c.it) + valBadge(c.it, cat) + changeBadge(c.it) + auditBadge(c.it)
+          + `<br>${dayTagHtml(c.it)}`
           + (auditErr(c.it) && auditErr(c.it).motivo ? `<br><span style="font-size:10.5px;color:var(--red);font-weight:600">↳ ${escHtml(auditErr(c.it).motivo)}</span>` : '')
           + (urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(c.it)}</span>` : '')
           + (m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : '');

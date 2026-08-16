@@ -383,6 +383,32 @@
     return `<div class="gc-alerts"><div class="ttl">⚠ ${ch.length} alteração(ões) em relação à versão anterior da Global — revise antes de confiar no que já foi conferido:</div>${rows}${ch.length > 40 ? `<div class="row">…e mais ${ch.length - 40}.</div>` : ''}</div>`;
   }
 
+  /* ── DE QUAL SEÇÃO DA PLANILHA VEIO ESTE TORNEIO ─────────────────────────
+     A janela da grade cruza a meia-noite: 06:10 de hoje → 05:30 de amanhã.
+     Quem começa de madrugada (até 05:30) NÃO está na seção de hoje da G MTTS
+     — está na seção do DIA SEGUINTE. Sem isso escrito na tela, quem confere
+     procura o horário na seção de hoje, encontra um torneio de mesmo nome e
+     mesma hora com receita DIFERENTE, e marca erro no que estava certo.
+     Foi exatamente o que aconteceu com o 500 Bounty das 05:00 (SUNDAY tem
+     30.000 chips, MONDAY tem 40.000 — dois torneios distintos).
+     Não é caso isolado: auditando a Global inteira, 73 combinações
+     nome+horário se repetem em dias diferentes com receitas diferentes.
+     A regra abaixo usa a MESMA constante do buildSections (gu-parser.js),
+     pra não existir chance da etiqueta discordar de como a grade foi montada. */
+  const GC_WD_PT = ['dom','seg','ter','qua','qui','sex','sáb'];
+  const gcItemISO = it => {
+    const m = timeToMinutes(it.hora);
+    return (m !== null && m >= CONF_WINDOW_START_MIN) ? DAY_ISO : addDaysISO(DAY_ISO, 1);
+  };
+  function gcDayTagHtml(it){
+    const iso = gcItemISO(it);
+    const [, mo, dd] = iso.split('-');
+    const wd = GC_WD_PT[new Date(iso + 'T12:00:00Z').getUTCDay()];
+    const secao = gcWeekdayEn(iso);            // o nome da seção COMO ESTÁ na planilha
+    const madrugada = iso !== DAY_ISO;
+    return `<span class="gc-daytag${madrugada ? ' next' : ''}" title="Na Global MTT este torneio está na seção ${secao}, dia ${dd}/${mo}. Confira contra ESSA seção.">${wd} ${dd}/${mo} · ${secao}</span>`;
+  }
+
   function gcRender(){
     const area = document.getElementById('guConfArea');
     // A Conferência é TRANSPOSTA: cada seção rola na HORIZONTAL (torneios = colunas).
@@ -441,6 +467,7 @@
       const secDone = sec.items.filter(it => gcConf[gcKey(it)]).length;
       const cell = (fn, cls) => cols.map(c => `<td class="${c.ok ? 'gc-ok' : ''} ${c.err ? 'gc-errcol' : ''} ${cls || ''}">${fn(c)}</td>`).join('');
       let t = `<tr class="gc-head"><th class="gc-rowlab">Torneio</th>${cell(c => escHtml(c.it.nome)
+        + `<br>${gcDayTagHtml(c.it)}`
         + (c.err ? `<br><span class="gc-errpill" title="${escHtml((c.errTipo ? c.errTipo + ' — ' : '') + c.errMotivo)}">⚠ erro${c.errTipo ? ' · ' + escHtml(c.errTipo) : ''}</span>` : '')
         + (c.recriado ? `<br><span class="gc-recri" title="Recriado — ID anterior (erro): ${escHtml(c.idAnterior || '—')}">↻ recriado · novo ID ${escHtml(c.idNovo)}</span>` : ''), 'gc-name')}</tr>`;
       t += `<tr><th class="gc-rowlab key">Horário</th>${cell(c => escHtml(c.it.hora || '—'), 'gc-time')}</tr>`;
