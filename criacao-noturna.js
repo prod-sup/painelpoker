@@ -1114,7 +1114,7 @@ function dayTagHtml(it){
   const ref = new Date(iso + 'T12:00:00Z');
   const secao = WEEKDAYS_EN[ref.getUTCDay()];      // o nome da seção COMO ESTÁ na planilha
   const madrugada = iso !== TOMORROW_ISO;
-  return `<span class="day-tag${madrugada ? ' next' : ''}" title="Na Global MTT este torneio está na seção ${secao}, dia ${dd}/${mo}. Confira contra ESSA seção.">${WD_PT_CURTO[ref.getUTCDay()]} ${dd}/${mo} · ${secao}</span>`;
+  return `<span class="day-tag${madrugada ? ' next' : ''}" title="Na Global MTT este torneio está na seção ${secao} (${WD_PT_CURTO[ref.getUTCDay()]}), dia ${dd}/${mo}. Confira contra ESSA seção.">${secao} ${dd}/${mo}</span>`;
 }
 /* DIVISÃO 100% MANUAL (por clique) — as funções fixas (Main+Sat / Side c-s Admin) e o
    round-robin automático foram removidos a pedido. Cada torneio pertence a quem foi
@@ -2865,11 +2865,11 @@ function renderVertical(items, cat, asg, fieldList, dropEmpty){
       <tr class="trow-head"><th class="rowlab">Torneio</th>${cell(c => {
         const m = mttKicker(c.it), urg = urgency(c.it);
         return `<span class="vgo" data-focus="${c.key}" data-focuscat="${cat.key}" role="button" tabindex="0" title="Abrir a seção em tela cheia neste torneio" aria-label="Abrir a seção em tela cheia em ${escHtml(c.it.nome)}">${escHtml(c.it.nome)}</span>` + campBadgeHtml(c.it) + valBadge(c.it, cat) + changeBadge(c.it) + auditBadge(c.it)
-          + `<br>${dayTagHtml(c.it)}`
           + (auditErr(c.it) && auditErr(c.it).motivo ? `<br><span style="font-size:10.5px;color:var(--red);font-weight:600">↳ ${escHtml(auditErr(c.it).motivo)}</span>` : '')
           + (urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(c.it)}</span>` : '')
           + (m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : '');
       }, 'vname')}</tr>
+      <tr data-field="secao" data-flabel="Seção Global">${rlabTh('secao', 'Seção Global', false)}${cell(c => dayTagHtml(c.it))}</tr>
       <tr data-field="admin" data-flabel="Admin Fee">${rlabTh('admin', 'Admin Fee', false)}${cell(c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
 
       ${cols.some(c => hasCampaign(c.it)) ? `<tr data-field="camp" data-flabel="Campanha">${rlabTh('camp', 'Campanha', false)}${cell(c => hasCampaign(c.it) ? campBadgeHtml(c.it) : `<span style="opacity:.4">—</span>`)}</tr>` : ''}
