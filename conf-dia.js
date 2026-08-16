@@ -761,27 +761,16 @@
   const gcSyncBtn = document.getElementById('guConfSyncBtn');
   if (gcSyncBtn) gcSyncBtn.addEventListener('click', () => gcSyncFromSheets({ manual:true }));
 
-  /* O UPLOAD MANUAL DE .xlsx SAIU DAQUI (pedido do Brian, mesma decisão da
-     Criação Noturna): a planilha chega sozinha do Google Sheets publicado. Com
-     dois caminhos abertos, bastava alguém subir um arquivo velho do próprio
-     computador pra conferir a grade do dia contra a receita errada — e o quadro
-     não tinha como saber. Quem quiser forçar uma leitura usa "Sincronizar
-     planilha"; o parser e o gcProcessGlobal continuam os mesmos.
-     O botão "usar a Global compartilhada" fica: ele reaproveita o arquivo que
-     JÁ está circulando entre as ferramentas, não abre o seletor de arquivos. */
-
-  // botão "usar a Global compartilhada" — o arquivo que alguém da equipe já subiu hoje
-  const gcSharedBtn = document.getElementById('guConfSharedBtn');
-  if (gcSharedBtn) gcSharedBtn.addEventListener('click', () => {
-    const sg = window.SHARED_GLOBAL;
-    if (!sg || !sg.buf){ showToast('Nenhuma Global compartilhada disponível.', true); return; }
-    try{
-      gcProcessGlobal(sg.buf.slice(0), sg.filename);
-    }catch(err){
-      console.error('guConf: erro na Global compartilhada', err);
-      showToast(err && err.message ? err.message : 'Erro ao ler a Global compartilhada.', true);
-    }
-  });
+  /* ENTRADA MANUAL DE PLANILHA REMOVIDA DAQUI (pedido do Brian) — saíram os DOIS
+     caminhos: o upload de .xlsx e o botão "usar a Global compartilhada".
+     A Conferência do dia agora tem UMA fonte só: a planilha publicada da GU,
+     lida pelo auto-sync (e pelo botão "Sincronizar planilha", que é a MESMA
+     leitura, só que na hora). Com mais de uma fonte, bastava alguém subir um
+     arquivo do próprio computador — ou reaproveitar um compartilhado horas
+     antes — pra conferência do dia rodar contra uma receita que não é a
+     vigente, sem nada na tela denunciando isso.
+     O parser e o gcProcessGlobal continuam idênticos: o que mudou foi só QUEM
+     tem permissão de alimentar a tela. */
 
   // fecha o drawer saindo antes de qualquer quadro em tela cheia
   function gcCloseDrawer(){
