@@ -529,6 +529,114 @@ function rowKey(row){
   return 'rk_' + Math.abs(h) + (row.proxCronograma ? '_px' : '');
 }
 
+/* =========================================================================
+   QUEM ESTÁ DIGITANDO — três pontinhos ao vivo no campo em edição
+
+   POR QUÊ
+   -------
+   Dois operadores dividem o mesmo dia. Hoje, se os dois abrem o mesmo torneio
+   pra lançar Arrecadado/Field/ID, nada na tela avisa — o segundo a salvar
+   sobrescreve o primeiro e ninguém percebe. O aviso não impede a escrita (não
+   dá pra travar o parceiro), mas mostra na hora que alguém já está ali.
+
+   EGRESS (esta base já estourou os 10GB uma vez, com presença O(N²))
+   ------
+   • NÃO escreve por tecla: uma escrita ao começar, renovada no máximo a cada
+     8s enquanto a pessoa continua digitando, e uma remoção ao sair do campo.
+   • Cada sessão tem o SEU filho (typing/{rowKey}/{sid}), então sair de um
+     campo nunca apaga o aviso do parceiro no mesmo campo.
+   • onDisconnect().remove() limpa a marca se a aba fechar ou a rede cair —
+     sem isso ficariam pontinhos eternos de gente que já foi embora.
+   • Aqui o .on('value') no nó inteiro é aceitável (ao contrário da grade): o
+     payload é de 1–2 entradas minúsculas e só muda quando alguém entra ou sai
+     de um campo, não a cada tecla.
+========================================================================= */
+const TYPING_SID = 'tp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+const TYPING_TTL = 12000;    // sem renovar por 12s = parou de digitar (protege contra marca órfã)
+const TYPING_RENEW = 8000;   // intervalo mínimo entre escritas enquanto digita
+let TYPING_MAP = {};         // rowKey -> { sid: {by, at} }
+let _typingKey = null, _typingTimer = null, _typingSentAt = 0;
+
+function typingSelfRef(key){ return fbDb.ref(`${FB_BASE_PATH}/typing/${key}/${TYPING_SID}`); }
+
+function typingStart(key){
+  if(!fbDb || !FB_BASE_PATH || !key) return;
+  if(_typingKey && _typingKey !== key) typingStop();
+  const agora = Date.now();
+  if(_typingKey !== key || agora - _typingSentAt > TYPING_RENEW){
+    _typingKey = key; _typingSentAt = agora;
+    const ref = typingSelfRef(key);
+    ref.set({ by: OPERATOR_NAME || 'Alguém', at: agora }).catch(() => {});
+    ref.onDisconnect().remove();
+  }
+  clearTimeout(_typingTimer);
+  _typingTimer = setTimeout(typingStop, TYPING_TTL);
+}
+function typingStop(){
+  clearTimeout(_typingTimer); _typingTimer = null;
+  const key = _typingKey;
+  _typingKey = null; _typingSentAt = 0;
+  if(!fbDb || !FB_BASE_PATH || !key) return;
+  const ref = typingSelfRef(key);
+  try{ ref.onDisconnect().cancel(); }catch(e){}
+  ref.remove().catch(() => {});
+}
+
+/* nomes de QUEM MAIS está digitando neste campo (eu nunca conto, e marca velha é ignorada) */
+function typingOthers(key){
+  const agora = Date.now();
+  const entradas = TYPING_MAP[key] || {};
+  return Object.keys(entradas)
+    .filter(sid => sid !== TYPING_SID && entradas[sid] && (agora - (entradas[sid].at || 0)) < TYPING_TTL)
+    .map(sid => String(entradas[sid].by || 'Alguém').trim().split(/\s+/)[0]);
+}
+
+/* Reconciliação do DOM. É idempotente e roda também num tique lento porque a
+   agenda/os cards são reconstruídos por vários caminhos (scheduleUI, patch de
+   card, filtros) — sem isso os pontinhos sumiriam no primeiro re-render. */
+function paintTyping(){
+  document.querySelectorAll('.typing-dots').forEach(el => el.remove());
+  document.querySelectorAll('.is-typing-other').forEach(el => el.classList.remove('is-typing-other'));
+  const esc = k => (window.CSS && CSS.escape) ? CSS.escape(k) : k;
+  Object.keys(TYPING_MAP).forEach(key => {
+    const quem = typingOthers(key);
+    if(!quem.length) return;
+    const rotulo = quem.length === 1 ? `${quem[0]} está digitando…` : `${quem.join(', ')} estão digitando…`;
+    document.querySelectorAll(
+      `.tcard-prem-input[data-key="${esc(key)}"], .tcard-field-input[data-key="${esc(key)}"], .id-input[data-key="${esc(key)}"]`
+    ).forEach(inp => {
+      inp.classList.add('is-typing-other');
+      const dots = document.createElement('span');
+      dots.className = 'typing-dots';
+      dots.title = rotulo;
+      dots.setAttribute('aria-label', rotulo);
+      dots.innerHTML = '<i></i><i></i><i></i>';
+      inp.insertAdjacentElement('afterend', dots);
+    });
+  });
+}
+
+function setupTypingPresence(){
+  if(window._typingReady || !fbDb) return;
+  window._typingReady = true;
+
+  fbDb.ref(`${FB_BASE_PATH}/typing`).on('value', snap => { TYPING_MAP = snap.val() || {}; paintTyping(); });
+
+  /* delegação no documento: os inputs são recriados a cada render, então prender
+     listener em cada um se perderia no primeiro rebuild */
+  const ehCampo = t => t && t.dataset && t.dataset.key && (
+    t.classList.contains('tcard-prem-input') || t.classList.contains('tcard-field-input') || t.classList.contains('id-input'));
+  document.addEventListener('input', e => { if(ehCampo(e.target)) typingStart(e.target.dataset.key); }, true);
+  document.addEventListener('focusout', e => { if(ehCampo(e.target) && _typingKey === e.target.dataset.key) typingStop(); }, true);
+  // fechar/esconder a aba sem blur: some com a marca em vez de deixar pontinho preso
+  window.addEventListener('pagehide', typingStop);
+  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'hidden') typingStop(); });
+
+  // marca de parceiro que expirou (aba morta sem onDisconnect) some sozinha
+  if(typeof setVisibilityAwareInterval === 'function') setVisibilityAwareInterval(paintTyping, 2000);
+  else setInterval(paintTyping, 2000);
+}
+
 /* checa quantos torneios JÁ FIXADOS (ou com ID preenchido) na planilha atual deixariam de existir na
    nova planilha — a chave de cada torneio (rowKey) depende de nome+hora+buyin+garantido, então qualquer
    ajuste nesses valores entre uma planilha e outra (ex: garantido corrigido depois de fechar o pote)
@@ -2599,6 +2707,11 @@ function initFirebaseSync(){
       if(RAW_ROWS.length) scheduleUI('results', 'upcoming');
       maybeAutoBackupSheets();   // field mudou → se o dia já está completo, reescreve o backup
     });
+
+    // ── Quem está digitando ───────────────────────────────────────────────
+    // O parceiro vê três pontinhos no campo que você está preenchendo.
+    // (a mecânica está em setupTypingPresence, logo abaixo do bloco de listeners)
+    whenAuthed(setupTypingPresence);
 
     // ── Garantido editado ─────────────────────────────────────────────────
     fbDb.ref(`${FB_BASE_PATH}/garantido`).on('value', snap => {
