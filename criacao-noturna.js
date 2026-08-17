@@ -706,7 +706,11 @@ try{
   setSync('off','Offline (só local)');
 }
 }
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', cnInitFirebase); else cnInitFirebase();
+function initWhenReady(){
+  if(typeof SupremaDB === 'undefined'){ setTimeout(initWhenReady, 10); return; }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', cnInitFirebase); else cnInitFirebase();
+}
+initWhenReady();
 
 /* =========================================================================
    CONTA — a MESMA do Painel/Admin, e SÓ ela: não existe login próprio aqui.
