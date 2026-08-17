@@ -558,7 +558,16 @@ function setSync(state, label){
    (roda depois dos deferred, quando `firebase` já existe). */
 function cnInitFirebase(){
 try{
-  firebase.initializeApp(SupremaDB.CONFIG);
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAFy1GtRaJE3LHC1Rjtmq0uw2JC8bviXes",
+    authDomain: "design-1-53c00.firebaseapp.com",
+    databaseURL: "https://design-1-53c00-default-rtdb.firebaseio.com",
+    projectId: "design-1-53c00",
+    storageBucket: "design-1-53c00.firebasestorage.app",
+    messagingSenderId: "140511032441",
+    appId: "1:140511032441:web:dcf970125bbf5eec53d0a8"
+  };
+  firebase.initializeApp(FIREBASE_CONFIG);
   // Cutover email/senha (Fase 4): sem login anônimo. O token de acesso vem da
   // sessão real do Firebase Auth (email/senha) que o hub deixa persistida por
   // origem — quem logou no hub já chega autenticado aqui.
