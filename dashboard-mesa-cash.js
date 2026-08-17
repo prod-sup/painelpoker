@@ -275,6 +275,15 @@ const AUDIT = auditDataConsistency();
 /* ── DEBUG: Diagnóstico de carregamento de semanas ──
    Chame window.diagWeeks() no console (F12) para ver se as semanas estão sendo carregadas */
 window.diagWeeks = async function(){
+  const results = {
+    fbOk,
+    dbConnected: !!db,
+    rawsCacheSize: Object.keys(_rawsCache).length,
+    rawsCacheKeys: Object.keys(_rawsCache),
+    firebaseData: null,
+    error: null
+  };
+
   console.log('🔍 Diagnóstico de semanas:');
   console.log('✓ Firebase OK:', fbOk);
   console.log('✓ DB conectado:', !!db);
@@ -287,7 +296,8 @@ window.diagWeeks = async function(){
 
       const data = (await db.ref(RTDB_DATA).once('value')).val();
       const keys = data ? Object.keys(data) : [];
-      console.log(`✓ RTDB_DATA tem ${keys.length} dias:`, keys);
+      console.log(`✓ RTDB_DATA tem ${keys.length} semanas:`, keys);
+      results.firebaseData = keys;
 
       // Tenta hidratar o primeiro
       if(keys.length > 0){
@@ -296,16 +306,46 @@ window.diagWeeks = async function(){
       }
     }catch(e){
       console.error('❌ Erro ao buscar Firebase:', e.message);
+      results.error = e.message;
     }
   }
 
   // Verifica localStorage
   const localRaws = JSON.parse(localStorage.getItem('cashRaws')||'{}');
-  console.log(`✓ localStorage tem ${Object.keys(localRaws).length} dias`);
+  console.log(`✓ localStorage tem ${Object.keys(localRaws).length} semanas`);
 
   // Verifica _rawsCache
-  console.log(`✓ _rawsCache tem ${Object.keys(_rawsCache).length} dias:`, Object.keys(_rawsCache));
+  console.log(`✓ _rawsCache tem ${Object.keys(_rawsCache).length} semanas:`, Object.keys(_rawsCache));
+
+  return results;
 };
+
+// Roda diagnóstico automaticamente e mostra alerta se necessário
+async function runAutodiag(){
+  try{
+    const diag = await window.diagWeeks();
+    const hasWeeks = diag.rawsCacheSize > 0 || (diag.firebaseData && diag.firebaseData.length > 0);
+
+    if(!hasWeeks){
+      const msg = diag.error
+        ? `❌ Erro ao conectar Firebase: ${diag.error}. Tente recarregar a página.`
+        : '⚠️ Nenhuma semana encontrada! Suba uma semana via "Importar Semana" ou verifique a conexão com Firebase.';
+      console.warn(msg);
+
+      // Mostra alerta visual na página
+      const alert = document.createElement('div');
+      alert.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;background:#fff3cd;border:2px solid #ffc107;border-radius:8px;padding:16px 24px;max-width:500px;box-shadow:0 4px 12px rgba(0,0,0,.15);font-size:14px;color:#856404;';
+      alert.innerHTML = `<strong>⚠️ Problema de carregamento:</strong><br>${msg.replace(/❌|⚠️/g, '').trim()}`;
+      document.body.appendChild(alert);
+    }
+  }catch(e){
+    console.error('Autodiag erro:', e);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(runAutodiag, 2500);  // Espera 2.5s pro Firebase carregar
+});
 
 /* ── MAPA DE INTEGRIDADE: Qual visualização usa qual dados ──
    Referência central para garantir que cada gráfico/tabela usa a fonte correta.
