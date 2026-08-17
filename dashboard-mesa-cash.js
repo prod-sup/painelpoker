@@ -272,6 +272,41 @@ function auditDataConsistency() {
 // Roda auditoria ao inicializar
 const AUDIT = auditDataConsistency();
 
+/* ── DEBUG: Diagnóstico de carregamento de semanas ──
+   Chame window.diagWeeks() no console (F12) para ver se as semanas estão sendo carregadas */
+window.diagWeeks = async function(){
+  console.log('🔍 Diagnóstico de semanas:');
+  console.log('✓ Firebase OK:', fbOk);
+  console.log('✓ DB conectado:', !!db);
+
+  // Tenta buscar direto do Firebase
+  if(fbOk && db){
+    try{
+      const rev = (await db.ref(RTDB_REV).once('value')).val();
+      console.log('✓ RTDB_REV:', rev);
+
+      const data = (await db.ref(RTDB_DATA).once('value')).val();
+      const keys = data ? Object.keys(data) : [];
+      console.log(`✓ RTDB_DATA tem ${keys.length} dias:`, keys);
+
+      // Tenta hidratar o primeiro
+      if(keys.length > 0){
+        const firstRaw = fbUnpack(data[keys[0]]);
+        console.log('✓ Primeiro dia hidratado:', firstRaw ? 'SIM' : 'NÃO');
+      }
+    }catch(e){
+      console.error('❌ Erro ao buscar Firebase:', e.message);
+    }
+  }
+
+  // Verifica localStorage
+  const localRaws = JSON.parse(localStorage.getItem('cashRaws')||'{}');
+  console.log(`✓ localStorage tem ${Object.keys(localRaws).length} dias`);
+
+  // Verifica _rawsCache
+  console.log(`✓ _rawsCache tem ${Object.keys(_rawsCache).length} dias:`, Object.keys(_rawsCache));
+};
+
 /* ── MAPA DE INTEGRIDADE: Qual visualização usa qual dados ──
    Referência central para garantir que cada gráfico/tabela usa a fonte correta.
 
@@ -2352,7 +2387,12 @@ function buildResumo(){
 
   // ── KPIs essenciais (reaproveita os cards .kpi)
   const topRoom=[...D.rooms].sort((a,b)=>b.fee-a.fee)[0]||{name:'—',fee:0,tables:0,rake_rate:0};
-  const topTier=[...D.tiers].sort((a,b)=>b.fee-a.fee)[0]||{tier:'—',fee:0,tables:0,avg_fph:0};
+  const topTier=[...D.tiers].sort((a,b)=>b.fee-a.fee)[0]||{tier:'—',fee:0,tables:0,avg_fph:0,range:'Medium'};
+
+  // Mapa de tiers para ranges
+  const tierToRange = {'Micro':'Micro','Low':'Low','Mid':'Medium','High':'High','VHigh':'High'};
+  const topTierRange = tierToRange[topTier.tier] || topTier.range || 'Medium';
+
   // Helper para construir tooltips (estrutura igual ao admin)
   const tRow=(k,v)=>`<div class='tip-l'><span>${k}</span><b>${v}</b></div>`;
   const tCard=(head,big,rows,foot)=>`<div class='tip-h'>${head}</div><div class='tip-b'>${big}</div>${rows.join('')}${foot?`<div class='tip-f'>${foot}</div>`:''}`;
