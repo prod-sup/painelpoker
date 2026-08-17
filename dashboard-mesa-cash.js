@@ -835,7 +835,13 @@ function buildRooms(){
     const rr=r.rake_rate;
     const c=rr>15?'var(--red)':rr>10?'var(--amber)':'var(--green)';
     const bg=rr>15?'rgba(248,113,113,.1)':rr>10?'rgba(251,191,36,.1)':'rgba(52,211,153,.1)';
-    return`<tr><td><span class="rk">${i+1}</span></td><td class="b">${r.name}</td><td class="r m">${r.tables}</td><td class="r m">${f(r.players)}</td><td class="r b">${f(r.fee,0)}</td><td class="r m">${f(r.buyin,0)}</td>
+    const roomTip = tip(r.name, 'R$ '+f(r.fee,0), [
+      trow('Mesas', f(r.tables)),
+      trow('Players', f(r.players)),
+      trow('Buy-in total', 'R$ '+f(r.buyin,0)),
+      trow('Rake rate', rr + '%')
+    ], `Fee/mesa: R$ ${f(r.fee/Math.max(1,r.tables),0)}`);
+    return`<tr data-tip="${roomTip}"><td><span class="rk">${i+1}</span></td><td class="b">${r.name}</td><td class="r m">${r.tables}</td><td class="r m">${f(r.players)}</td><td class="r b">${f(r.fee,0)}</td><td class="r m">${f(r.buyin,0)}</td>
       <td class="r"><span style="padding:2px 8px;border-radius:4px;font-size:8px;font-weight:800;background:${bg};color:${c}">${rr}%</span></td></tr>`;
   }).join('')+'</tbody>';
 }
@@ -2856,6 +2862,22 @@ function initTooltips(){
     if(el && !el.contains(e.relatedTarget)) t.classList.remove('on');
   });
 }
+
+/* ── HELPERS para adicionar tooltips a visualizações ──
+   Facilita adicionar detalhes a cards, tabelas, gráficos etc. */
+const tipHelpers = {
+  // Para linhas de tabela
+  row: (label, value, extra='') => `<div class='tip-l'><span>${label}</span><b>${value}</b></div>${extra}`,
+  // Para cards completos
+  card: (head, big, rows=[], foot='') =>
+    `<div class='tip-h'>${head}</div><div class='tip-b'>${big}</div>${rows.join('')}${foot?`<div class='tip-f'>${foot}</div>`:''}`,
+  // Adiciona data-tip a um elemento
+  addToElement: (el, tip) => { if(el) el.setAttribute('data-tip', tip); return el; },
+};
+
+// Helper rápido
+const tip = (h, b, rows=[], f='') => tipHelpers.card(h, b, rows, f);
+const trow = (k, v, e='') => tipHelpers.row(k, v, e);
 // telão dedicado: abrir dashboard-mesa-cash.html#tv já entra direto no Modo TV
 if(location.hash==='#tv'){
   const wait=setInterval(()=>{if(_appStarted){clearInterval(wait);setTimeout(tvEnter,600);}},250);

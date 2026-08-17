@@ -279,9 +279,10 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{animatio
 .kb.b{background:var(--dia2);color:var(--dia)}
 
 /* ── CARD ── */
-.card{
+.card, [data-tip]{
   border:1px solid var(--bdr);border-radius:var(--r3);padding:20px;box-shadow:var(--sh);
   transition:border-color .18s var(--ease), transform .18s var(--ease), box-shadow .18s var(--ease);
+  cursor:help;
   /* translúcido SEM blur: com 32 cards, backdrop-filter em todos custava
      compositor à toa (o fundo aqui é quase plano — o vidro nem aparecia).
      O header mantém o blur de verdade. */
@@ -292,7 +293,7 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{animatio
   contain-intrinsic-size:auto 380px;
 }
 @supports not (background:color-mix(in srgb, #000 50%, #fff)){ .card{background:var(--surf)} }
-.card:hover{border-color:color-mix(in srgb, var(--dia) 32%, var(--bdr));transform:translateY(-2px);box-shadow:0 10px 24px -16px rgba(79,142,247,.4)}
+.card:hover, [data-tip]:hover{border-color:color-mix(in srgb, var(--dia) 32%, var(--bdr));transform:translateY(-2px);box-shadow:0 10px 24px -16px rgba(79,142,247,.4)}
 .card+.card{margin-top:0}
 .ct{font-size:13px;font-weight:800;letter-spacing:-.01em;color:var(--ink);margin-bottom:2px}
 .cs{font-size:10px;color:var(--ink3);margin-bottom:16px;line-height:1.55}
