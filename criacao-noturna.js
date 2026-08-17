@@ -716,7 +716,7 @@ try{
 }
 }
 function initWhenReady(){
-  if(typeof SupremaDB === 'undefined'){ setTimeout(initWhenReady, 10); return; }
+  if(typeof firebase === 'undefined'){ setTimeout(initWhenReady, 10); return; }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', cnInitFirebase); else cnInitFirebase();
 }
 initWhenReady();
