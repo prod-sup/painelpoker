@@ -182,19 +182,116 @@ const KPI_DEMO={
   multiRetTables:1727,handsPerHourP50:32.0,handsPerHourP25:17.9,handsPerHourP90:52.0,
   date:'22/06/2026'
 };
-Object.keys(KPI_DEMO).forEach(k=>{
-  if(/fee|buyin|jackpot/i.test(k)&&typeof KPI_DEMO[k]==='number')KPI_DEMO[k]=KPI_DEMO[k]*GU_TO_BRL;
-});
-KPI_DEMO.feeRateB.forEach(x=>x.fee*=GU_TO_BRL);
-D.slots30.forEach(s=>s.fee*=GU_TO_BRL);
-D.gametypes.forEach(g=>{g.fee*=GU_TO_BRL;g.buyin*=GU_TO_BRL;});
-D.opShift.forEach(o=>o.fee*=GU_TO_BRL);
-D.rooms.forEach(r=>{r.fee*=GU_TO_BRL;r.buyin*=GU_TO_BRL;});
-D.blinds.forEach(b=>{b.fee*=GU_TO_BRL;b.range=getBlindRange(b.bb);});
-D.duration.forEach(x=>x.fee*=GU_TO_BRL);
-D.top10.forEach(x=>{x.fee*=GU_TO_BRL;x.buyin*=GU_TO_BRL;});
-D.tiers.forEach(t=>{t.fee*=GU_TO_BRL;t.buyin*=GU_TO_BRL;t.avg_fph*=GU_TO_BRL;t.avg_fpp*=GU_TO_BRL;t.avg_bpp*=GU_TO_BRL;});
-D.fpp.forEach(x=>x.fpp*=GU_TO_BRL);
+
+/* ── NORMALIZA TODOS OS DADOS ──
+   Aplica conversão GU→BRL e enriquece com ranges de forma consistente */
+function normalizeAllData() {
+  // Conversão GU→BRL
+  D.gametypes.forEach(g=>{g.fee*=GU_TO_BRL;g.buyin*=GU_TO_BRL;});
+  D.opShift.forEach(o=>o.fee*=GU_TO_BRL);
+  D.rooms.forEach(r=>{r.fee*=GU_TO_BRL;r.buyin*=GU_TO_BRL;});
+  D.blinds.forEach(b=>{b.fee*=GU_TO_BRL;b.range=getBlindRange(b.bb);});
+  D.duration.forEach(x=>x.fee*=GU_TO_BRL);
+  D.top10.forEach(x=>{x.fee*=GU_TO_BRL;x.buyin*=GU_TO_BRL;});
+  D.tiers.forEach(t=>{
+    t.fee*=GU_TO_BRL;t.buyin*=GU_TO_BRL;t.avg_fph*=GU_TO_BRL;t.avg_fpp*=GU_TO_BRL;t.avg_bpp*=GU_TO_BRL;
+    // Map tier names to ranges: Micro→Micro, Low→Low, Mid→Medium, High/VHigh→High
+    const tierToRange = {'Micro':'Micro','Low':'Low','Mid':'Medium','High':'High','VHigh':'High'};
+    t.range = tierToRange[t.tier] || 'Medium';
+    t.color = getColorByRange(t.range);
+  });
+  D.fpp.forEach(x=>x.fpp*=GU_TO_BRL);
+
+  // KPI_DEMO: enriquecer com ranges também
+  Object.keys(KPI_DEMO).forEach(k=>{
+    if(/fee|buyin|jackpot/.test(k)&&typeof KPI_DEMO[k]==='number') KPI_DEMO[k]*=GU_TO_BRL;
+  });
+  if(KPI_DEMO.feeRateB) KPI_DEMO.feeRateB.forEach(x=>x.fee*=GU_TO_BRL);
+
+  // Slots (timeline)
+  D.slots30.forEach(s=>s.fee*=GU_TO_BRL);
+}
+
+normalizeAllData();
+
+/* ── AUDITORIA: Validar consistência de dados entre visualizações ──
+   Calcula totais e compara se batem. Log de erros se encontrar divergências. */
+function auditDataConsistency() {
+  const audit = {
+    errors: [],
+    warnings: [],
+    summary: {}
+  };
+
+  // Total geral: soma de todas as mesas
+  const totalTables = D.tiers.reduce((s,t)=>s+t.tables,0);
+  const totalFee = D.tiers.reduce((s,t)=>s+t.fee,0);
+  const totalPlayers = D.tiers.reduce((s,t)=>s+t.players,0);
+
+  audit.summary = { totalTables, totalFee, totalPlayers };
+
+  // Auditoria por componente
+  const tierTables = D.tiers.reduce((s,t)=>s+t.tables,0);
+  const blindTables = D.blinds.reduce((s,b)=>s+b.tables,0);
+  const roomTables = D.rooms.reduce((s,r)=>s+r.tables,0);
+  const gameTypeTables = D.gametypes.reduce((s,g)=>s+g.tables,0);
+
+  // Verifica se os totais de mesas batem
+  if (Math.abs(tierTables - blindTables) > 1)
+    audit.errors.push(`⚠️ Mesas: Tiers (${tierTables}) ≠ Blinds (${blindTables})`);
+  if (Math.abs(tierTables - roomTables) > 1)
+    audit.errors.push(`⚠️ Mesas: Tiers (${tierTables}) ≠ Rooms (${roomTables})`);
+
+  // Verifica fees
+  const tierFee = D.tiers.reduce((s,t)=>s+t.fee,0);
+  const blindFee = D.blinds.reduce((s,b)=>s+b.fee,0);
+  const roomFee = D.rooms.reduce((s,r)=>s+r.fee,0);
+  const gameTypeFee = D.gametypes.reduce((s,g)=>s+g.fee,0);
+
+  if (Math.abs(tierFee - blindFee) > 100)
+    audit.errors.push(`⚠️ Fee: Tiers (${Math.round(tierFee)}) ≠ Blinds (${Math.round(blindFee)})`);
+  if (Math.abs(tierFee - roomFee) > 100)
+    audit.errors.push(`⚠️ Fee: Tiers (${Math.round(tierFee)}) ≠ Rooms (${Math.round(roomFee)})`);
+
+  // Verifica ranges
+  D.tiers.forEach(t => {
+    if (!t.range) audit.warnings.push(`⚠️ Tier ${t.tier} sem range atribuído`);
+  });
+  D.blinds.forEach(b => {
+    if (!b.range) audit.warnings.push(`⚠️ Blind ${b.bb} sem range atribuído`);
+  });
+
+  if (audit.errors.length === 0) audit.summary.status = '✅ Dados consistentes';
+  else audit.summary.status = '❌ Inconsistências detectadas';
+
+  // Log para debug
+  console.log('📊 Auditoria de dados:', audit);
+  return audit;
+}
+
+// Roda auditoria ao inicializar
+const AUDIT = auditDataConsistency();
+
+/* ── MAPA DE INTEGRIDADE: Qual visualização usa qual dados ──
+   Referência central para garantir que cada gráfico/tabela usa a fonte correta.
+
+   REGRA: Não somar tiers + blinds + rooms (são dimensões diferentes do MESMO volume)
+          Somar SIM: tiers.reduce(t=>t.fee) = volume total ✓
+*/
+const DATA_MAP = {
+  'Timeline (slots30)': { source: 'D.slots30', aggregation: 'Por slot de 30min', metric: 'fee, tables' },
+  'Concurrent Tables': { source: 'D.concurrent', aggregation: 'Por hora', metric: 'tables simultâneas' },
+  'Tier Chart (Fee/Mão)': { source: 'D.tiers', aggregation: 'Por stake tier', metric: 'fee, avg_fph' },
+  'Concentration': { source: 'D.tiers', aggregation: 'Top 1%/5%/10%/20%', metric: 'fee distribution' },
+  'Blind Bars': { source: 'D.blinds', aggregation: 'Por big blind', metric: 'tables, fee' },
+  'Rooms Table': { source: 'D.rooms', aggregation: 'Por sala', metric: 'tables, fee, rake_rate' },
+  'Game Types': { source: 'D.gametypes', aggregation: 'Por modalidade', metric: 'tables, fee, rake_rate' },
+  'Resumo/KPIs': { source: 'KPI_DEMO + D.tiers.reduce()', aggregation: 'Agregado geral', metric: 'feeGross, sessions' },
+  'Top 10': { source: 'D.top10', aggregation: 'Mesas individuais top fee', metric: 'fee, players' },
+  'FPP': { source: 'D.fpp', aggregation: 'Por tipo de jogo', metric: 'fee/player' },
+};
+
+console.log('📋 Mapa de integridade:', DATA_MAP);
 
 // ══════════════════════════════ HELPERS
 // (shiftOf definido logo abaixo; a normalização de turnos roda após ele)
@@ -578,16 +675,29 @@ function buildConcurrent(){
 function buildTierCharts(){
   const ctx1=document.getElementById('cTierFee');if(!ctx1)return;
   const cols=['rgba(120,120,150,.6)','rgba(79,142,247,.7)','rgba(52,211,153,.7)','rgba(251,191,36,.8)','rgba(212,168,83,.9)'];
+
+  // Labels com ranges
+  const tierLabels = D.tiers.map(t=>`${t.tier} (${t.range})`);
+
   new Chart(ctx1,{type:'bar',
-    data:{labels:D.tiers.map(t=>t.tier),datasets:[{label:'Fee',data:D.tiers.map(t=>t.fee),backgroundColor:cols,borderRadius:6,borderSkipped:false}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{...CTOP,callbacks:{label:c=>` R$ ${f(c.parsed.y,0)} · rake ${D.tiers[c.dataIndex].rake_rate}% · ret ${D.tiers[c.dataIndex].ret_pct}%`}}},
+    data:{labels:tierLabels,datasets:[{label:'Fee',data:D.tiers.map(t=>t.fee),backgroundColor:cols,borderRadius:6,borderSkipped:false}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{...CTOP,callbacks:{
+      title:c=>`${D.tiers[c[0].dataIndex].tier} · ${D.tiers[c[0].dataIndex].range}`,
+      label:c=>` R$ ${f(c.parsed.y,0)} · rake ${D.tiers[c.dataIndex].rake_rate}% · ret ${D.tiers[c.dataIndex].ret_pct}%`,
+      afterLabel:c=>` Mesas: ${D.tiers[c.dataIndex].tables}`
+    }}},
       scales:{x:{grid:{display:false},ticks:{font:{size:9},color:CTEXT},border:{display:false}},y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>fK(v)},border:{display:false}}}
     }
   });
+
   const ctx2=document.getElementById('cTierFph');if(!ctx2)return;
   new Chart(ctx2,{type:'bar',
-    data:{labels:D.tiers.map(t=>t.tier),datasets:[{label:'Fee/mão',data:D.tiers.map(t=>t.avg_fph),backgroundColor:cols,borderRadius:6,borderSkipped:false}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{...CTOP,callbacks:{label:c=>` R$ ${c.parsed.y.toFixed(4)}/mão · fee/player ${D.tiers[c.dataIndex].avg_fpp}`}}},
+    data:{labels:tierLabels,datasets:[{label:'Fee/mão',data:D.tiers.map(t=>t.avg_fph),backgroundColor:cols,borderRadius:6,borderSkipped:false}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{...CTOP,callbacks:{
+      title:c=>`${D.tiers[c[0].dataIndex].tier} · ${D.tiers[c[0].dataIndex].range}`,
+      label:c=>` R$ ${c.parsed.y.toFixed(4)}/mão · fee/player ${D.tiers[c.dataIndex].avg_fpp}`,
+      afterLabel:c=>` Mesas: ${D.tiers[c.dataIndex].tables}`
+    }}},
       scales:{x:{grid:{display:false},ticks:{font:{size:9},color:CTEXT},border:{display:false}},y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT},border:{display:false}}}
     }
   });
