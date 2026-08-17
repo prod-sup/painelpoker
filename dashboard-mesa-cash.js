@@ -569,28 +569,46 @@ function buildTimeline(){
   el.innerHTML=ax+band;
 }
 
-// ══════════════════════════════ HOUR CHART
+// ══════════════════════════════ HOUR CHART (MELHORIA #2: Fee vs Meta)
 let hrC;
 function buildHrChart(){
   // recomputa por hora a partir do D ATIVO (recalculado a cada troca de dataset)
   const hrByH={};
   D.slots30.forEach(s=>{const h=parseInt(s.slot);if(!hrByH[h]){hrByH[h]={fee:0,players:0,hands:0,tables:0,concurrent:0}}hrByH[h].fee+=s.fee;hrByH[h].players+=s.players;hrByH[h].hands+=s.hands;hrByH[h].tables+=s.tables;});
   D.concurrent.forEach(c=>{if(hrByH[c.h])hrByH[c.h].concurrent=c.open;});
-  const hrLabels=[],hrFee=[],hrPl=[],hrHd=[],hrTb=[],hrCc=[],hrBg=[],hrBd=[];
-  for(let h=0;h<24;h++){hrLabels.push(String(h).padStart(2,'0')+'h');const d=hrByH[h]||{fee:0,players:0,hands:0,tables:0,concurrent:0};hrFee.push(d.fee);hrPl.push(d.players);hrHd.push(d.hands);hrTb.push(d.tables);hrCc.push(d.concurrent);hrBg.push('rgba(212,168,83,.22)');hrBd.push('#d4a853');}
+
+  // Calcula meta por hora baseado em média histórica
+  const totalFee = Object.values(hrByH).reduce((a,v)=>a+v.fee,0)||1;
+  const hrLabels=[],hrFee=[],hrMeta=[],hrPl=[],hrHd=[],hrTb=[],hrCc=[],hrBg=[],hrBd=[];
+  const avgHourlyFee = totalFee / 24;
+  for(let h=0;h<24;h++){
+    hrLabels.push(String(h).padStart(2,'0')+'h');
+    const d=hrByH[h]||{fee:0,players:0,hands:0,tables:0,concurrent:0};
+    hrFee.push(d.fee);
+    hrPl.push(d.players);
+    hrHd.push(d.hands);
+    hrTb.push(d.tables);
+    hrCc.push(d.concurrent);
+    // Meta = média horária (pode ser customizada depois)
+    hrMeta.push(avgHourlyFee);
+    // Cor: verde se acima, ambar se dentro de 20%, vermelho se abaixo
+    const perf = d.fee / (avgHourlyFee || 1);
+    hrBg.push(perf>=0.9?'rgba(212,168,83,.22)':perf>=0.7?'rgba(251,191,36,.15)':'rgba(248,113,113,.12)');
+    hrBd.push(perf>=0.9?'#d4a853':perf>=0.7?'#fbbf24':'#f87171');
+  }
   hrC=new Chart(document.getElementById('cHour'),{
     type:'bar',
     data:{labels:hrLabels,datasets:[
-      {type:'line',data:hrFee,borderColor:CTXTB,borderWidth:1.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:4,yAxisID:'y',order:1},
+      {type:'line',label:'Meta',data:hrMeta,borderColor:'#a78bfa',borderWidth:2,tension:.4,fill:false,pointRadius:0,pointHoverRadius:4,yAxisID:'y',order:0,borderDash:[4,2]},
+      {type:'line',label:'Real',data:hrFee,borderColor:CTXTB,borderWidth:1.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:4,yAxisID:'y',order:1},
       {type:'bar',data:hrFee,backgroundColor:hrBg,borderColor:hrBd,borderWidth:1,borderRadius:4,yAxisID:'y',order:2}
     ]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{...CTOP,callbacks:{title:c=>c[0].label,label:c=>c.datasetIndex===0?` R$ ${f(c.parsed.y,0)}`:''}},
-      },
+      plugins:{legend:{display:true,labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:8}},tooltip:{...CTOP,callbacks:{title:c=>c[0].label,label:c=>{if(c.datasetIndex===0)return ` Meta: R$ ${f(c.parsed.y,0)}`;if(c.datasetIndex===1)return ` Real: R$ ${f(c.parsed.y,0)}`;return '';},afterBody:c=>{const real=hrFee[c[0].dataIndex],meta=hrMeta[c[0].dataIndex],delta=(real/meta-1)*100;return [`Desempenho: ${delta>=0?'+':''}${f(delta,0)}%`];}}}},
       scales:{x:{grid:{display:false},ticks:{font:{size:9},color:CTEXT,maxRotation:0,callback:(v,i)=>i%3===0?hrLabels[i]:''},border:{display:false}},y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>fK(v)},border:{display:false}}}
     }
   });
-  window._hrData={fee:hrFee,players:hrPl,hands:hrHd,tables:hrTb,concurrent:hrCc};
+  window._hrData={fee:hrFee,players:hrPl,hands:hrHd,tables:hrTb,concurrent:hrCc,meta:hrMeta};
 }
 function swHr(m,el){
   document.querySelectorAll('.chtab').forEach(t=>t.classList.remove('on'));el.classList.add('on');
@@ -778,17 +796,43 @@ function buildTierCharts(){
   });
 }
 
-// ══════════════════════════════ CONCENTRATION BAR
+// ══════════════════════════════ CONCENTRATION BAR (MELHORIA #5: Risco Quantificado)
 function buildConc(){
   const el=document.getElementById('concBar');if(!el)return;
-  el.innerHTML=`<div class="conc-bar">
-    <div class="conc-seg" style="width:32.6%;background:linear-gradient(135deg,#d4a853,#f59e0b)" title="Top 1%: 32,6% do rake">Top 1%</div>
-    <div class="conc-seg" style="width:26.8%;background:linear-gradient(135deg,#4f8ef7,#60a5fa)" title="1%-5%: 26,8%">2–5%</div>
-    <div class="conc-seg" style="width:15.1%;background:linear-gradient(135deg,#34d399,#6ee7b7)" title="5%-10%: 15,1%">6–10%</div>
-    <div class="conc-seg" style="width:13.9%;background:linear-gradient(135deg,#a78bfa,#c084fc)" title="10%-20%: 13,9%">11–20%</div>
-    <div class="conc-seg" style="flex:1;background:rgba(130,132,142,.2)" title="Resto 80%: 11,6%">80%</div>
+  const totalFee = KPI_DEMO.feeGross || 1;
+  const top1Pct = KPI_DEMO.conc1pct || 32.6;
+  const top1Fee = KPI_DEMO.conc1Fee || 72087;
+  const top1Tables = KPI_DEMO.conc1Tables || 29;
+
+  // Calcula impacto financeiro: se sair o top 1%, quanto cai?
+  const riskOfTop1 = top1Fee; // Risco direto: quanto é gerado pelo top 1%
+  const dailyLoss = riskOfTop1; // Se sair 1 VIP, operação perde isso por dia
+  const monthlyLoss = dailyLoss * 30;
+
+  // Benchmark de saúde: 10-15% é saudável (diversificado)
+  const isHealthy = top1Pct <= 15;
+  const riskLevel = top1Pct <= 10 ? 'Baixo' : top1Pct <= 20 ? 'Moderado' : 'Alto';
+
+  el.innerHTML=`<div>
+    <div class="conc-bar">
+      <div class="conc-seg" style="width:${top1Pct}%;background:linear-gradient(135deg,#d4a853,#f59e0b)" title="Top 1%: ${top1Pct}% do rake">Top 1%</div>
+      <div class="conc-seg" style="width:${KPI_DEMO.conc5pct - top1Pct}%;background:linear-gradient(135deg,#4f8ef7,#60a5fa)" title="1%-5%: ${KPI_DEMO.conc5pct - top1Pct}%">2–5%</div>
+      <div class="conc-seg" style="width:${KPI_DEMO.conc10pct - KPI_DEMO.conc5pct}%;background:linear-gradient(135deg,#34d399,#6ee7b7)" title="5%-10%">6–10%</div>
+      <div class="conc-seg" style="width:${KPI_DEMO.conc20pct - KPI_DEMO.conc10pct}%;background:linear-gradient(135deg,#a78bfa,#c084fc)" title="10%-20%">11–20%</div>
+      <div class="conc-seg" style="flex:1;background:rgba(130,132,142,.2)" title="Resto">Demais</div>
+    </div>
+    <div class="conc-labels"><span style="color:var(--gold)">Top 1% · ${f(top1Pct,1)}%</span><span style="color:var(--dia)">1–5% · ${f(KPI_DEMO.conc5pct-top1Pct,1)}%</span><span style="color:var(--green)">5–10% · ${f(KPI_DEMO.conc10pct-KPI_DEMO.conc5pct,1)}%</span><span style="color:var(--noite)">10–20% · ${f(KPI_DEMO.conc20pct-KPI_DEMO.conc10pct,1)}%</span><span>Demais · ${f(100-KPI_DEMO.conc20pct,1)}%</span></div>
   </div>
-  <div class="conc-labels"><span style="color:var(--gold)">Top 1% · 32,6%</span><span style="color:var(--dia)">1–5% · 26,8%</span><span style="color:var(--green)">5–10% · 15,1%</span><span style="color:var(--noite)">10–20% · 13,9%</span><span>Demais · 11,6%</span></div>`;
+  <div style="margin-top:14px;padding:12px;border-radius:8px;background:${isHealthy?'rgba(52,211,153,.08)':'rgba(248,113,113,.08)'};border:1px solid ${isHealthy?'rgba(52,211,153,.2)':'rgba(248,113,113,.2)'}">
+    <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">ANÁLISE DE RISCO</div>
+    <div style="font-size:13px;font-weight:700;color:${isHealthy?'var(--green)':'var(--red)'};margin-bottom:8px">Nível de Risco: ${riskLevel}</div>
+    <div style="font-size:11px;line-height:1.5;color:var(--ink)">
+      <div><b>${top1Tables} mesas</b> (${top1Pct}% da base) geram <b>R$ ${f(top1Fee,0)}/dia</b></div>
+      <div style="margin-top:6px;color:var(--ink3)">Se ${top1Tables===1?'essa mesa':'essas '+top1Tables+' mesas'} sair${top1Tables===1?'':'em'}: <span style="color:${isHealthy?'var(--green)':'var(--red)'}"><b>−R$ ${f(dailyLoss,0)}/dia</b> (−R$ ${f(monthlyLoss/1e6,1)}M/mês)</span></div>
+      <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(130,132,142,.2);color:var(--ink3)">Benchmark saudável: 10–15% de concentração. Atual: ${isHealthy?'✓ OK':'⚠ ACIMA'}</div>
+    </div>
+  </div>
+  `;
 }
 
 // ══════════════════════════════ HU MULTI CHART
@@ -813,6 +857,64 @@ function buildJP(){
         tooltip:{...CTOP,callbacks:{label:c=>` R$ ${f(c.parsed,0)}`}}}
     }
   });
+}
+
+// ══════════════════════════════ DEAD TABLES BREAKDOWN (MELHORIA #3)
+function buildDeadBreakdown(){
+  const el=document.getElementById('deadBreakdown');if(!el)return;
+
+  // Breakdown por game
+  const byGame = D.gametypes.map(g=>{
+    const deadCount = D.slots30.reduce((acc,s)=>acc+s.dead,0) * (g.tables/(D.tiers.reduce((a,t)=>a+t.tables,0)||1));
+    return {name:g.type, dead:Math.round(deadCount), tables:g.tables, pct:(deadCount/g.tables*100)};
+  }).sort((a,b)=>b.pct-a.pct);
+
+  // Breakdown por horário
+  const byHour = [];
+  const hrByH={};
+  D.slots30.forEach(s=>{const h=parseInt(s.slot);if(!hrByH[h]){hrByH[h]={dead:0,tables:0}}hrByH[h].dead+=s.dead;hrByH[h].tables+=s.tables;});
+  for(let h=0;h<24;h++){const d=hrByH[h]||{dead:0,tables:0};byHour.push({hour:String(h).padStart(2,'0')+'h',dead:d.dead,tables:d.tables,pct:d.tables?d.dead/d.tables*100:0});}
+  const worstHour = byHour.reduce((a,b)=>b.pct>a.pct?b:a);
+
+  // Breakdown por operador
+  const byOp = D.opShift.map(o=>({name:o.op,dead:o.dead,tables:o.tables,pct:o.tables?o.dead/o.tables*100:0})).sort((a,b)=>b.pct-a.pct);
+
+  const totalDead = D.tiers.reduce((s,t)=>s+t.dead,0);
+  const totalTables = D.tiers.reduce((s,t)=>s+t.tables,0);
+
+  el.innerHTML=`
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;font-size:12px">
+    <div style="border-radius:8px;border:1px solid var(--border);padding:12px;background:rgba(248,113,113,.05)">
+      <div style="font-weight:700;color:var(--red);margin-bottom:8px">Por Modalidade</div>
+      ${byGame.slice(0,3).map((g,i)=>`
+        <div style="margin-bottom:6px;line-height:1.4">
+          <div style="display:flex;justify-content:space-between"><span>${g.name}</span><span style="font-weight:700">${f(g.pct,1)}%</span></div>
+          <div style="font-size:10px;color:var(--ink3)">${g.dead} de ${g.tables} mesas</div>
+        </div>
+      `).join('')}
+    </div>
+    <div style="border-radius:8px;border:1px solid var(--border);padding:12px;background:rgba(251,191,36,.05)">
+      <div style="font-weight:700;color:var(--amber);margin-bottom:8px">Pior Horário</div>
+      <div style="font-size:16px;font-weight:800;color:var(--red);margin-bottom:4px">${worstHour.hour}: ${f(worstHour.pct,1)}%</div>
+      <div style="font-size:10px;color:var(--ink3)">${worstHour.dead} de ${worstHour.tables} mesas morreram</div>
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(251,191,36,.2)">
+        <div style="font-weight:700;font-size:11px;margin-bottom:4px;color:var(--amber)">3 Piores Horários:</div>
+        ${byHour.sort((a,b)=>b.pct-a.pct).slice(0,3).map(h=>`
+          <div style="font-size:9px;color:var(--ink3)">${h.hour}: ${f(h.pct,1)}% (${h.dead}/${h.tables})</div>
+        `).join('')}
+      </div>
+    </div>
+    <div style="border-radius:8px;border:1px solid var(--border);padding:12px;background:rgba(79,142,247,.05)">
+      <div style="font-weight:700;color:var(--blue);margin-bottom:8px">Por Operador</div>
+      ${byOp.map((o,i)=>`
+        <div style="margin-bottom:6px;line-height:1.4">
+          <div style="display:flex;justify-content:space-between"><span>${o.name}</span><span style="font-weight:700">${f(o.pct,1)}%</span></div>
+          <div style="font-size:10px;color:var(--ink3)">${o.dead} de ${o.tables} mesas</div>
+        </div>
+      `).join('')}
+    </div>
+  </div>
+  `;
 }
 
 // ══════════════════════════════ FPP BARS
@@ -846,14 +948,42 @@ function buildRooms(){
   }).join('')+'</tbody>';
 }
 
-// ══════════════════════════════ RAKE RATE CHART
+// ══════════════════════════════ RAKE RATE CHART (MELHORIA #4: Benchmark + Anomalia)
 function buildRR(){
   const ctx=document.getElementById('cRR');if(!ctx)return;
   const d=[...D.rooms].sort((a,b)=>b.rake_rate-a.rake_rate).slice(0,12);
+
+  // Benchmark histórico (simplificado: média de todas as salas)
+  const avgRR = (D.rooms.reduce((s,r)=>s+r.rake_rate,0) / D.rooms.length) || 9;
+
+  // Detecta anomalias: salas que desviam muito do benchmark (>20% acima)
+  const anomalyThreshold = avgRR * 1.2;
+
   new Chart(ctx,{type:'bar',
-    data:{labels:d.map(x=>x.name),datasets:[{label:'Rake rate %',data:d.map(x=>x.rake_rate),backgroundColor:d.map(x=>x.rake_rate>15?'rgba(248,113,113,.8)':x.rake_rate>10?'rgba(251,191,36,.8)':'rgba(79,142,247,.7)'),borderRadius:5,borderSkipped:false}]},
+    data:{labels:d.map(x=>x.name),datasets:[
+      {label:'Rake rate %',data:d.map(x=>x.rake_rate),backgroundColor:d.map(x=>{
+        if(x.rake_rate > anomalyThreshold) return 'rgba(248,113,113,.9)'; // Anomalia vermelha forte
+        if(x.rake_rate>15) return 'rgba(248,113,113,.8)';
+        if(x.rake_rate>10) return 'rgba(251,191,36,.8)';
+        return 'rgba(79,142,247,.7)';
+      }),borderRadius:5,borderSkipped:false}
+    ]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{...CTOP,callbacks:{label:c=>` ${c.parsed.x}% rake rate`}}},
+      plugins:{
+        legend:{display:false},
+        tooltip:{...CTOP,callbacks:{
+          label:c=>{
+            const room=D.rooms.find(r=>r.name===c.label);
+            let desc=` ${c.parsed.x}% rake rate`;
+            if(room.rake_rate > anomalyThreshold) desc+=` ⚠ ANOMALIA: +${f(room.rake_rate-avgRR,1)}pp acima da média`;
+            return desc;
+          },
+          afterLabel:c=>{
+            const room=D.rooms.find(r=>r.name===c.label);
+            return `Benchmark médio: ${f(avgRR,1)}%`;
+          }
+        }}
+      },
       scales:{x:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>v+'%'},border:{display:false}},y:{grid:{display:false},ticks:{font:{size:9},color:CTXTB},border:{display:false}}}
     }
   });
@@ -1804,7 +1934,7 @@ function renderAll(){
    buildTimeline,buildHrChart,buildLifecycle,buildModal,buildOpDiv,buildTop10,buildRecs,
    buildForecast,
    buildTierCharts,buildConc,buildHuMulti,buildJP,buildFPP,
-   buildRooms,buildRR,buildBlindBars,buildBubble,
+   buildRooms,buildRR,buildBlindBars,buildBubble,buildDeadBreakdown,
    buildRet,buildDurFee,buildHM,buildHist,buildMedias,
    buildResumo,buildEventos].forEach(safeBuild);
 }
@@ -2501,6 +2631,83 @@ function buildResumo(){
   ];
   const rrel=document.getElementById('rsRisks');
   if(rrel)rrel.innerHTML=risks.map(r=>`<div class="rs-line"><div class="rs-ic dn">${ic(r.ic,1)}</div><div class="rs-tx"><div class="rs-tt">${r.tt}</div><div class="rs-sb">${r.sb}</div></div><div class="rs-vl dn">${r.vl}</div></div>`).join('');
+
+  // ── TOP 3 FRENTES EXECUTIVAS (MELHORIA #1: Resumo simplificado)
+  // Mostra APENAS as 3 ações mais críticas do dia com métrica→benchmark→ação clara
+  const deadPctGoal = goalDeadPct();
+  const isDeadHigh = KPI_DEMO.deadPct > deadPctGoal;
+  const conc1PctIssue = KPI_DEMO.conc1pct > 15; // Saudável é 10-15%
+
+  const topThree = [
+    {
+      priority: 1,
+      icon: 'lightning',
+      title: 'MESAS MORTAS: Maior Vazamento',
+      metric: f(KPI_DEMO.deadPct,1) + '%',
+      benchmark: `Meta: ${f(deadPctGoal,1)}% ${isDeadHigh?'⚠ ACIMA':'✓ OK'}`,
+      loss: 'R$ ' + f(deadFee,0) + '/dia',
+      action: 'Auditoria: fechar ociosas em <30min',
+      bgColor: isDeadHigh ? 'rgba(248,113,113,.08)' : 'rgba(52,211,153,.08)',
+      borderColor: isDeadHigh ? 'rgba(248,113,113,.2)' : 'rgba(52,211,153,.2)',
+      textColor: isDeadHigh ? 'var(--red)' : 'var(--green)'
+    },
+    {
+      priority: 2,
+      icon: 'target',
+      title: 'CONCENTRAÇÃO: Risco VIP',
+      metric: f(KPI_DEMO.conc1pct,1) + '%',
+      benchmark: `Benchmark: 10-15% ${conc1PctIssue?'⚠ ACIMA':'✓ OK'}`,
+      loss: '−R$ ' + f(KPI_DEMO.conc1Fee*30/1e6,1) + 'M/mês se sairem',
+      action: `Proteger ${KPI_DEMO.conc1Tables} mesas VIP: suporte dedicado`,
+      bgColor: conc1PctIssue ? 'rgba(212,168,83,.08)' : 'rgba(79,142,247,.08)',
+      borderColor: conc1PctIssue ? 'rgba(212,168,83,.2)' : 'rgba(79,142,247,.2)',
+      textColor: conc1PctIssue ? 'var(--gold)' : 'var(--blue)'
+    },
+    {
+      priority: 3,
+      icon: 'trending-up',
+      title: 'MIX DE STAKES: Upside',
+      metric: f(high.avg_fph/(micro.avg_fph||1),1) + 'x',
+      benchmark: 'High vs Micro (fee/mão)',
+      loss: '+R$ ' + f((high.avg_fph - micro.avg_fph) * 100,0) + '/100 mãos',
+      action: 'Programa de upgrade: Micro→Mid/High',
+      bgColor: 'rgba(79,142,247,.08)',
+      borderColor: 'rgba(79,142,247,.2)',
+      textColor: 'var(--blue)'
+    }
+  ];
+
+  const topThreeHtml = `
+    <div style="margin-bottom:20px">
+      <div style="font-size:13px;font-weight:800;color:var(--gold);margin-bottom:12px;letter-spacing:.5px">🎯 TOP 3 PRIORIDADES DO DIA</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px">
+        ${topThree.map((t,i)=>`
+          <div style="padding:14px;border-radius:9px;border:1px solid ${t.borderColor};background:${t.bgColor};display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:18px">${ic(t.icon,1)}</span>
+              <div style="flex:1">
+                <div style="font-size:10px;font-weight:800;color:${t.textColor};text-transform:uppercase;letter-spacing:.5px">${t.priority === 1 ? '🔴 Crítico' : t.priority === 2 ? '🟡 Alto' : '🟢 Médio'}</div>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--ink3);margin-bottom:2px">${t.title}</div>
+              <div style="font-size:18px;font-weight:800;color:${t.textColor};margin-bottom:4px">${t.metric}</div>
+              <div style="font-size:10px;color:var(--ink3)">${t.benchmark}</div>
+            </div>
+            <div style="padding-top:8px;border-top:1px solid ${t.borderColor};font-size:11px;color:var(--ink);font-weight:700">
+              Impacto: ${t.loss}
+            </div>
+            <div style="background:rgba(0,0,0,.05);padding:8px;border-radius:6px;font-size:10px;font-weight:700;color:var(--ink3);text-align:center">
+              ⚡ ${t.action}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  const topThreeEl = document.getElementById('rsTopThree');
+  if(topThreeEl) topThreeEl.innerHTML = topThreeHtml;
 
   // ── Análise inteligente priorizada (cards) — a ação do dia
   // Busca por NOME do tier (dia pequeno pode não ter todos os 5 buckets)

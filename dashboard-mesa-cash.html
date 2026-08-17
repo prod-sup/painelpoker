@@ -129,6 +129,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   <!-- alerta proativo (mortas do dia acima do limite) -->
   <div id="rsAlert"></div>
+
+  <!-- TOP 3 PRIORIDADES EXECUTIVAS (MELHORIA #1) -->
+  <div id="rsTopThree"></div>
+
   <!-- FAIXA DE KPIs ESSENCIAIS -->
   <div class="kg" id="rsKpis"></div>
 
@@ -447,6 +451,13 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="cs">Tamanho = nº de mesas · eixo Y = rake rate · eixo X = fee total</div>
       <div class="cw" style="height:260px"><canvas id="cBubble" role="img" aria-label="Bubble"></canvas></div>
     </div>
+  </div>
+
+  <!-- BREAKDOWN DE MESAS MORTAS (MELHORIA #3) -->
+  <div class="card">
+    <div class="ct">Breakdown de Mesas Mortas (Por Game / Horário / Operador)</div>
+    <div class="cs">Identifique onde estão concentrados os problemas de retenção</div>
+    <div id="deadBreakdown" style="margin-top:8px"></div>
   </div>
 </div>
 
