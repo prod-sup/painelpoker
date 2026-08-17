@@ -96,6 +96,61 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 // (SupremaDB) sem tocar em dois arquivos; cash-players.js LÊ deste window.
 const GU_TO_BRL=(typeof window!=='undefined'&&+window.GU_TO_BRL)||5;
 try{ window.GU_TO_BRL=GU_TO_BRL; }catch(_){}
+
+/* ── REGRAS DE MESAS: BIG BLIND / ANTE / BUY-IN → RANGE ──────────────────────
+   Mapeamento oficial de todos os tipos de jogos conforme a tabela corrigida.
+   Modalidades: OFC, G+NLH (6+), 6+PLO4, Cash NLH (<6), Cash PLO4 (<6), Cash PLO5, MTT/SNG */
+const BLIND_RANGES = {
+  // OFC, Cash-Game NLH, PLO4, PLO5 (baseado em Big Blind)
+  0.01: 'Micro',  0.02: 'Micro',  0.03: 'Micro',  0.04: 'Micro',  0.05: 'Micro',
+  0.06: 'Micro',  0.08: 'Micro',  0.1: 'Micro',   0.12: 'Micro',  0.16: 'Low',
+  0.2: 'Low',     0.3: 'Low',     0.4: 'Low',     0.5: 'Low',     0.6: 'Medium',
+  0.8: 'Medium',  1: 'Medium',    1.2: 'Medium',  1.5: 'Medium',  1.6: 'Medium',
+  2: 'Medium',    3: 'High',      4: 'High',      5: 'High',      6: 'High',
+  8: 'High',      10: 'High',     15: 'High',     20: 'High',     25: 'High',
+  30: 'High',     35: 'High',     40: 'High',     45: 'High',     50: 'High',
+  80: 'High',     100: 'High',    200: 'High',    300: 'High',    400: 'High',
+  500: 'High',    1000: 'High',   2500: 'High'
+};
+
+/* MTT & SNG: Range por buy-in (em reais)
+   0-5 = Micro, 5.01-19.8 = Low, 19.81-99.8 = Medium, 99.81+ = High */
+function getByBuyinRange(buyin) {
+  buyin = +buyin || 0;
+  if (buyin <= 5) return 'Micro';
+  if (buyin <= 19.8) return 'Low';
+  if (buyin <= 99.8) return 'Medium';
+  return 'High';
+}
+
+/* Determina o range de uma mesa pelo big blind.
+   Procura valor exato primeiro; depois o intervalo mais próximo inferior. */
+function getBlindRange(bb) {
+  bb = +bb || 0;
+
+  // Valor exato na tabela
+  if (BLIND_RANGES[bb]) return BLIND_RANGES[bb];
+
+  // Encontra o maior blind que é ≤ ao valor procurado
+  const blinds = Object.keys(BLIND_RANGES).map(Number).sort((a,b)=>a-b);
+  for (let i = blinds.length - 1; i >= 0; i--) {
+    if (blinds[i] <= bb) return BLIND_RANGES[blinds[i]];
+  }
+
+  // Se for menor que o menor blind da tabela, retorna Micro
+  return 'Micro';
+}
+
+/* Cores e estilos por range — consistente em todo o painel */
+function getColorByRange(range) {
+  const colors = {
+    'Micro': { bg:'rgba(52,211,153,.12)', text:'#34d399', border:'rgba(52,211,153,.3)' },   // Verde
+    'Low':   { bg:'rgba(79,142,247,.12)', text:'#4f8ef7', border:'rgba(79,142,247,.3)' },   // Azul
+    'Medium':{ bg:'rgba(251,191,36,.12)', text:'#fbbf24', border:'rgba(251,191,36,.3)' },   // Âmbar
+    'High':  { bg:'rgba(248,113,113,.12)', text:'#f87171', border:'rgba(248,113,113,.3)' }  // Vermelho
+  };
+  return colors[range] || colors['Micro'];
+}
 // ══════════════════════════════ DATA
 const D = {
   slots30:[{"slot":"00:00","turno":"noite","tables":34,"fee":2006.36,"players":413,"hands":3238,"dead":7},{"slot":"00:30","turno":"noite","tables":19,"fee":866.64,"players":114,"hands":973,"dead":7},{"slot":"01:00","turno":"noite","tables":39,"fee":774.5,"players":278,"hands":2394,"dead":11},{"slot":"01:30","turno":"noite","tables":23,"fee":1840.93,"players":251,"hands":1994,"dead":3},{"slot":"02:00","turno":"noite","tables":26,"fee":317.38,"players":153,"hands":1223,"dead":15},{"slot":"02:30","turno":"noite","tables":26,"fee":227.18,"players":192,"hands":1385,"dead":10},{"slot":"03:00","turno":"noite","tables":22,"fee":1221.79,"players":118,"hands":1338,"dead":11},{"slot":"03:30","turno":"noite","tables":24,"fee":5153.18,"players":335,"hands":2785,"dead":6},{"slot":"04:00","turno":"noite","tables":16,"fee":232.59,"players":129,"hands":1034,"dead":7},{"slot":"04:30","turno":"noite","tables":12,"fee":165.36,"players":97,"hands":737,"dead":3},{"slot":"05:00","turno":"noite","tables":63,"fee":3079.97,"players":1016,"hands":8464,"dead":20},{"slot":"05:30","turno":"noite","tables":11,"fee":758.77,"players":254,"hands":1528,"dead":5},{"slot":"06:00","turno":"noite","tables":6,"fee":678.38,"players":72,"hands":646,"dead":1},{"slot":"06:30","turno":"noite","tables":16,"fee":847.22,"players":149,"hands":1516,"dead":4},{"slot":"07:00","turno":"noite","tables":78,"fee":10787.66,"players":1374,"hands":12103,"dead":12},{"slot":"07:30","turno":"noite","tables":23,"fee":1806.41,"players":360,"hands":3092,"dead":8},{"slot":"08:00","turno":"dia","tables":27,"fee":1543.53,"players":667,"hands":5573,"dead":8},{"slot":"08:30","turno":"dia","tables":38,"fee":832.71,"players":189,"hands":1305,"dead":17},{"slot":"09:00","turno":"dia","tables":118,"fee":16734.66,"players":1523,"hands":12066,"dead":33},{"slot":"09:30","turno":"dia","tables":44,"fee":2465.83,"players":858,"hands":6656,"dead":9},{"slot":"10:00","turno":"dia","tables":55,"fee":3458.72,"players":680,"hands":4955,"dead":20},{"slot":"10:30","turno":"dia","tables":42,"fee":3198.32,"players":421,"hands":3509,"dead":6},{"slot":"11:00","turno":"dia","tables":122,"fee":6966.21,"players":1830,"hands":13955,"dead":31},{"slot":"11:30","turno":"dia","tables":56,"fee":6807.86,"players":653,"hands":6030,"dead":10},{"slot":"12:00","turno":"dia","tables":58,"fee":1401.36,"players":828,"hands":5805,"dead":18},{"slot":"12:30","turno":"dia","tables":73,"fee":3742.18,"players":993,"hands":7943,"dead":18},{"slot":"13:00","turno":"dia","tables":132,"fee":10158.95,"players":1803,"hands":15205,"dead":26},{"slot":"13:30","turno":"dia","tables":60,"fee":1665.91,"players":515,"hands":3776,"dead":20},{"slot":"14:00","turno":"dia","tables":65,"fee":2023.39,"players":653,"hands":4516,"dead":21},{"slot":"14:30","turno":"dia","tables":64,"fee":5289.42,"players":749,"hands":6520,"dead":14},{"slot":"15:00","turno":"dia","tables":122,"fee":6035.11,"players":1092,"hands":7460,"dead":28},{"slot":"15:30","turno":"dia","tables":54,"fee":3637.27,"players":550,"hands":4117,"dead":13},{"slot":"16:00","turno":"dia","tables":89,"fee":4352.6,"players":978,"hands":8154,"dead":23},{"slot":"16:30","turno":"dia","tables":86,"fee":8430.7,"players":1159,"hands":9606,"dead":15},{"slot":"17:00","turno":"dia","tables":122,"fee":10808.45,"players":1681,"hands":12119,"dead":26},{"slot":"17:30","turno":"dia","tables":78,"fee":4565.63,"players":1030,"hands":7789,"dead":18},{"slot":"18:00","turno":"dia","tables":94,"fee":7830.08,"players":1142,"hands":8802,"dead":20},{"slot":"18:30","turno":"dia","tables":79,"fee":3246.5,"players":1377,"hands":10166,"dead":12},{"slot":"19:00","turno":"dia","tables":120,"fee":8433.82,"players":1436,"hands":10244,"dead":35},{"slot":"19:30","turno":"dia","tables":101,"fee":4652.64,"players":1600,"hands":11474,"dead":22},{"slot":"20:00","turno":"noite","tables":73,"fee":4051.8,"players":1175,"hands":7601,"dead":13},{"slot":"20:30","turno":"noite","tables":84,"fee":3903.2,"players":1297,"hands":8870,"dead":13},{"slot":"21:00","turno":"noite","tables":89,"fee":16764.81,"players":1242,"hands":9023,"dead":19},{"slot":"21:30","turno":"noite","tables":83,"fee":5921.28,"players":1090,"hands":7989,"dead":16},{"slot":"22:00","turno":"noite","tables":69,"fee":6726.92,"players":817,"hands":6255,"dead":15},{"slot":"22:30","turno":"noite","tables":75,"fee":2650.23,"players":843,"hands":5737,"dead":15},{"slot":"23:00","turno":"noite","tables":96,"fee":20500.95,"players":1026,"hands":8440,"dead":22},{"slot":"23:30","turno":"noite","tables":59,"fee":1322.23,"players":575,"hands":3944,"dead":20}],
@@ -135,7 +190,7 @@ D.slots30.forEach(s=>s.fee*=GU_TO_BRL);
 D.gametypes.forEach(g=>{g.fee*=GU_TO_BRL;g.buyin*=GU_TO_BRL;});
 D.opShift.forEach(o=>o.fee*=GU_TO_BRL);
 D.rooms.forEach(r=>{r.fee*=GU_TO_BRL;r.buyin*=GU_TO_BRL;});
-D.blinds.forEach(b=>b.fee*=GU_TO_BRL);
+D.blinds.forEach(b=>{b.fee*=GU_TO_BRL;b.range=getBlindRange(b.bb);});
 D.duration.forEach(x=>x.fee*=GU_TO_BRL);
 D.top10.forEach(x=>{x.fee*=GU_TO_BRL;x.buyin*=GU_TO_BRL;});
 D.tiers.forEach(t=>{t.fee*=GU_TO_BRL;t.buyin*=GU_TO_BRL;t.avg_fph*=GU_TO_BRL;t.avg_fpp*=GU_TO_BRL;t.avg_bpp*=GU_TO_BRL;});
@@ -617,13 +672,23 @@ function buildRR(){
 function buildBlindBars(){
   const el=document.getElementById('blindBars');if(!el)return;
   const max=Math.max(...D.blinds.map(b=>b.tables));
-  el.innerHTML=D.blinds.map(b=>`
-    <div class="mb">
-      <span class="mb-l">BB ${b.bb} GU</span>
-      <div class="mb-t"><div class="mb-f" style="width:${(b.tables/max*100).toFixed(0)}%;background:${b.fee>40000?'#d4a853':b.fee>15000?'#4f8ef7':CMUTE}"></div></div>
+  const tRow=(k,v)=>`<div class='tip-l'><span>${k}</span><b>${v}</b></div>`;
+  const tCard=(head,big,rows,foot)=>`<div class='tip-h'>${head}</div><div class='tip-b'>${big}</div>${rows.join('')}${foot?`<div class='tip-f'>${foot}</div>`:''}`;
+
+  el.innerHTML=D.blinds.map(b=>{
+    const range=b.range||getBlindRange(b.bb);
+    const colors=getColorByRange(range);
+    const tip=tCard(`BB ${b.bb} · ${range}`,`${b.tables} mesas`,[
+      tRow('Fee total','R$ '+f(b.fee,0)), tRow('Fee/mesa','R$ '+f(b.fee/Math.max(1,b.tables),0)),
+    ],`Categoria: <b>${range}</b>`);
+    return `
+    <div class="mb" data-tip="${tip}">
+      <span class="mb-l">BB ${b.bb} GU <span style="font-size:9px;color:${colors.text};font-weight:700;background:${colors.bg};padding:1px 6px;border-radius:3px">${range}</span></span>
+      <div class="mb-t"><div class="mb-f" style="width:${(b.tables/max*100).toFixed(0)}%;background:${colors.text}"></div></div>
       <span class="mb-v">${b.tables} <span style="font-weight:400;color:var(--ink3)">mesas</span></span>
     </div>
-    <div style="font-size:8px;color:var(--ink3);margin:-4px 0 8px 84px">Fee R$ ${f(b.fee,0)}</div>`).join('');
+    <div style="font-size:8px;color:var(--ink3);margin:-4px 0 8px 84px">Fee R$ ${f(b.fee,0)}</div>`;
+  }).join('');
 }
 
 // ══════════════════════════════ BUBBLE
@@ -2219,8 +2284,9 @@ function buildResumo(){
   }).join('');
 
   // ── Onde está o dinheiro (destaques positivos)
+  const tierRangeColors = getColorByRange(topTierRange);
   const highlights=[
-    {ic:'crown',tt:`${topTier.tier} é o motor do rake`,sb:`R$ ${f(topTier.fee,0)} com ${f(topTier.tables)} mesas · fee/mão R$ ${f(topTier.avg_fph,3)}`,vl:(topTier.fee/tot*100).toFixed(0)+'%'},
+    {ic:'crown',tt:`${topTier.tier} <span style="font-size:9px;background:${tierRangeColors.bg};color:${tierRangeColors.text};padding:1px 6px;border-radius:3px;font-weight:700;margin-left:6px">${topTierRange}</span> é o motor do rake`,sb:`R$ ${f(topTier.fee,0)} com ${f(topTier.tables)} mesas · fee/mão R$ ${f(topTier.avg_fph,3)}`,vl:(topTier.fee/tot*100).toFixed(0)+'%'},
     {ic:'buildings',tt:`Sala campeã: ${topRoom.name}`,sb:`R$ ${f(topRoom.fee,0)} de fee · take rate ${f(topRoom.rake_rate,2)}%`,vl:'R$ '+fK(topRoom.fee)},
     {ic:'clock',tt:`Pico às ${KPI_DEMO.peakHour||'—'}`,sb:`${KPI_DEMO.peakConcurrent} mesas simultâneas no auge · melhor slot ${KPI_DEMO.bestSlot||'—'}`,vl:KPI_DEMO.bestSlot||'—'},
     {ic:'target',tt:'Top 1% das mesas concentra o rake',sb:`${KPI_DEMO.conc1Tables} mesas geram R$ ${f(KPI_DEMO.conc1Fee,0)} — proteger esses jogadores é prioridade`,vl:f(KPI_DEMO.conc1pct,1)+'%'},
