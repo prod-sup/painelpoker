@@ -2178,16 +2178,29 @@ function buildResumo(){
   // ── KPIs essenciais (reaproveita os cards .kpi)
   const topRoom=[...D.rooms].sort((a,b)=>b.fee-a.fee)[0]||{name:'—',fee:0,tables:0,rake_rate:0};
   const topTier=[...D.tiers].sort((a,b)=>b.fee-a.fee)[0]||{tier:'—',fee:0,tables:0,avg_fph:0};
+  // Helper para construir tooltips (estrutura igual ao admin)
+  const tRow=(k,v)=>`<div class='tip-l'><span>${k}</span><b>${v}</b></div>`;
+  const tCard=(head,big,rows,foot)=>`<div class='tip-h'>${head}</div><div class='tip-b'>${big}</div>${rows.join('')}${foot?`<div class='tip-f'>${foot}</div>`:''}`;
+
+  const feeTip=tCard('Fee bruto do dia','R$ '+f(KPI_DEMO.feeGross,0),[
+    tRow('Líquido','R$ '+f(KPI_DEMO.feeNet,0)), tRow('Jackpot deduzido','R$ '+f(KPI_DEMO.jackpot,0)),
+  ],`Take rate médio ${f(KPI_DEMO.takeRate,2)}% · ${KPI_DEMO.sessions} sessões`);
+
+  const sessTip=tCard('Sessões cash','R$ '+f(KPI_DEMO.feeGross,0),[
+    tRow('Mesas','R$ '+f(KPI_DEMO.feeGross/Math.max(1,KPI_DEMO.sessions),0)+' fee/mesa'),
+    tRow('Jogadores',f(KPI_DEMO.playersTotal)), tRow('Taxa média',f(KPI_DEMO.takeRate,2)+'%'),
+  ],`Concentração: top 1% = ${f(KPI_DEMO.conc1pct,1)}%`);
+
   const kpis=[
-    {cls:'hero',l:'Fee bruto do dia',v:'R$ '+f(KPI_DEMO.feeGross,0),s:'líquido R$ '+f(KPI_DEMO.feeNet,0)+' após JP'},
-    {cls:'',l:'Sessões cash',v:f(KPI_DEMO.sessions),s:f(KPI_DEMO.playersTotal)+' jogadores'},
-    {cls:'c-green',l:'Fee / mesa',v:'R$ '+f(fpt,0),s:'rake médio por sessão'},
-    {cls:'c-gold',l:'Concentração top 1%',v:f(KPI_DEMO.conc1pct,1)+'%',s:KPI_DEMO.conc1Tables+' mesas = R$ '+f(KPI_DEMO.conc1Fee,0)},
-    {cls:(KPI_DEMO.deadPct>goalDeadPct()?'c-red':'c-green'),l:'Mesas mortas',v:f(KPI_DEMO.deadPct,1)+'%',s:`${f(KPI_DEMO.deadTables)} mesas · meta ≤ ${f(goalDeadPct(),1)}% ${KPI_DEMO.deadPct>goalDeadPct()?'(acima)':'(ok)'}`},
-    {cls:'c-green',l:'Take rate médio',v:f(KPI_DEMO.takeRate,2)+'%',s:'fee ÷ R$ '+fK(KPI_DEMO.buyinTotal)+' em buyins'},
+    {cls:'hero',l:'Fee bruto do dia',v:'R$ '+f(KPI_DEMO.feeGross,0),s:'líquido R$ '+f(KPI_DEMO.feeNet,0)+' após JP',tip:feeTip},
+    {cls:'',l:'Sessões cash',v:f(KPI_DEMO.sessions),s:f(KPI_DEMO.playersTotal)+' jogadores',tip:sessTip},
+    {cls:'c-green',l:'Fee / mesa',v:'R$ '+f(fpt,0),s:'rake médio por sessão',tip:tCard('Fee por mesa','R$ '+f(fpt,0),[tRow('Fee bruto','R$ '+f(KPI_DEMO.feeGross,0)), tRow('Sessões',f(KPI_DEMO.sessions))],`Mesas mortas custam ~${f(KPI_DEMO.deadPct,1)}%`)},
+    {cls:'c-gold',l:'Concentração top 1%',v:f(KPI_DEMO.conc1pct,1)+'%',s:KPI_DEMO.conc1Tables+' mesas = R$ '+f(KPI_DEMO.conc1Fee,0),tip:tCard('Top 1% concentra','R$ '+f(KPI_DEMO.conc1Fee,0),[tRow('Mesas VIP',f(KPI_DEMO.conc1Tables)), tRow('% do rake',f(KPI_DEMO.conc1pct,1)+'%')],`Proteger esses jogadores é prioridade`)},
+    {cls:(KPI_DEMO.deadPct>goalDeadPct()?'c-red':'c-green'),l:'Mesas mortas',v:f(KPI_DEMO.deadPct,1)+'%',s:`${f(KPI_DEMO.deadTables)} mesas · meta ≤ ${f(goalDeadPct(),1)}% ${KPI_DEMO.deadPct>goalDeadPct()?'(acima)':'(ok)'}`,tip:tCard('Mesas mortas','R$ '+f(Math.round((KPI_DEMO.deadPct/100)*KPI_DEMO.feeGross),0),[tRow('Mesas',f(KPI_DEMO.deadTables)), tRow('% do total',f(KPI_DEMO.deadPct,1)+'%'), tRow('Meta',f(goalDeadPct(),1)+'%')],`Custo estimado em receita parada`)},
+    {cls:'c-green',l:'Take rate médio',v:f(KPI_DEMO.takeRate,2)+'%',s:'fee ÷ R$ '+fK(KPI_DEMO.buyinTotal)+' em buyins',tip:tCard('Take rate','R$ '+f(KPI_DEMO.feeGross,0),[tRow('Buy-in total','R$ '+fK(KPI_DEMO.buyinTotal)), tRow('Fee bruto','R$ '+f(KPI_DEMO.feeGross,0))],`Taxa média de rake sobre o volume`)},
   ];
   const kel=document.getElementById('rsKpis');
-  if(kel)kel.innerHTML=kpis.map(k=>`<div class="kpi ${k.cls}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div><div class="ks">${k.s}</div></div>`).join('');
+  if(kel)kel.innerHTML=kpis.map(k=>`<div class="kpi ${k.cls}" data-tip="${k.tip}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div><div class="ks">${k.s}</div></div>`).join('');
   if(window.SupremaMotion) SupremaMotion.countUp('#rsKpis .kv, .kpi.hero .kv');   // números "rolam" ao aparecer
 
   // ── Amplitude de cenários (mesma base do simulador da aba Previsão)
@@ -2302,6 +2315,7 @@ function startApp(){
   // Mostra o estado-vazio JÁ (sem piscar números do demo); initDayView revela os
   // dados reais se existirem (applyDataset → _hasRealData=true → esconde).
   try{refreshNoData();}catch(e){}
+  initTooltips(); // tooltips flutuantes ao passar o mouse nos cards
 }
 /* mesmo motivo do initFb: startApp() usa `db`, que só existe depois do Firebase (deferido)
    carregar. Roda no DOMContentLoaded, após o initFb registrado acima (ordem preservada). */
@@ -2561,6 +2575,31 @@ addEventListener('keydown',e=>{
   else if(e.key==='ArrowRight')tvShow(TV.scene+1);
   else if(e.key==='ArrowLeft')tvShow(TV.scene-1);
 });
+
+/* ── TOOLTIP FLUTUANTE (data-tip) ──
+   Cards com detalhes ao passar o mouse (igual aos do admin). */
+let _tipBound=false;
+function initTooltips(){
+  if(_tipBound)return; _tipBound=true;
+  let t=document.getElementById('supTip');
+  if(!t){ t=document.createElement('div'); t.id='supTip'; t.className='sup-tip'; document.body.appendChild(t); }
+  const place=e=>{
+    const pad=15, w=t.offsetWidth, h=t.offsetHeight;
+    let x=e.clientX+pad, y=e.clientY+pad;
+    if(x+w>innerWidth-8)  x=e.clientX-w-pad;
+    if(y+h>innerHeight-8) y=e.clientY-h-pad;
+    t.style.left=Math.max(8,x)+'px'; t.style.top=Math.max(8,y)+'px';
+  };
+  document.addEventListener('mouseover',e=>{
+    const el=e.target.closest && e.target.closest('[data-tip]');
+    if(el){ t.innerHTML=el.getAttribute('data-tip')||''; t.classList.add('on'); place(e); }
+  });
+  document.addEventListener('mousemove',e=>{ if(t.classList.contains('on'))place(e); });
+  document.addEventListener('mouseout',e=>{
+    const el=e.target.closest && e.target.closest('[data-tip]');
+    if(el && !el.contains(e.relatedTarget)) t.classList.remove('on');
+  });
+}
 // telão dedicado: abrir dashboard-mesa-cash.html#tv já entra direto no Modo TV
 if(location.hash==='#tv'){
   const wait=setInterval(()=>{if(_appStarted){clearInterval(wait);setTimeout(tvEnter,600);}},250);
