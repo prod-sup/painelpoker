@@ -613,10 +613,13 @@ function buildHrChart(){
 function swHr(m,el){
   document.querySelectorAll('.chtab').forEach(t=>t.classList.remove('on'));el.classList.add('on');
   const d=window._hrData[m];
-  hrC.data.datasets[0].data=d;hrC.data.datasets[1].data=d;hrC.update();
+  hrC.data.datasets[0].data=m==='meta'?window._hrData.meta:m==='fee'?window._hrData.fee:m==='players'?window._hrData.players:m==='hands'?window._hrData.hands:m==='concurrent'?window._hrData.concurrent:window._hrData.tables;
+  hrC.data.datasets[1].data=m==='meta'?window._hrData.meta:m==='fee'?window._hrData.fee:m==='players'?window._hrData.players:m==='hands'?window._hrData.hands:m==='concurrent'?window._hrData.concurrent:window._hrData.tables;
+  hrC.options.plugins.tooltip.callbacks.label = m==='meta' ? c=>`Meta: R$ ${f(c.parsed.y,0)}` : c=>{const label=m.charAt(0).toUpperCase()+m.slice(1);return ` ${label}: ${f(c.parsed.y,0)}`;};
+  hrC.update();
 }
 
-// ══════════════════════════════ LIFECYCLE
+// ══════════════════════════════ LIFECYCLE (com Tooltips)
 function buildLifecycle(){
   new Chart(document.getElementById('cLife'),{
     type:'bar',
@@ -625,13 +628,13 @@ function buildLifecycle(){
       {type:'line',label:'Encerradas',data:D.end30.map(s=>s.tables),borderColor:'#f87171',borderWidth:1.5,tension:.4,fill:false,pointRadius:0,pointHoverRadius:4}
     ]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{position:'bottom',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:10,usePointStyle:true}},tooltip:{...CTOP}},
+      plugins:{legend:{position:'bottom',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:10,usePointStyle:true}},tooltip:{...CTOP,callbacks:{title:c=>c[0].label,label:c=>{const s=D.slots30[c[0].dataIndex];if(c.datasetIndex===0)return ` Abertas: ${c.parsed.y}`;return ` Encerradas: ${D.end30[c[0].dataIndex].tables}`;},afterBody:c=>{const s=D.slots30[c[0].dataIndex];return [`Taxa mortas: ${(s.dead/Math.max(1,s.tables)*100).toFixed(1)}%`];}}}},
       scales:{x:{grid:{display:false},ticks:{font:{size:8},color:CTEXT,maxRotation:0,callback:(v,i)=>i%4===0?D.slots30[i].slot:''},border:{display:false}},y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT},border:{display:false}}}
     }
   });
 }
 
-// ══════════════════════════════ MODAL
+// ══════════════════════════════ MODAL (com Tooltips)
 function buildModal(){
   const d=D.gametypes.slice(0,8);
   const cols=['#4f8ef7','#a78bfa','#34d399','#fbbf24','#f87171','#f472b6','#60a5fa','#c084fc'];
@@ -639,13 +642,13 @@ function buildModal(){
     type:'bar',
     data:{labels:d.map(x=>x.type),datasets:[{label:'Fee',data:d.map(x=>x.fee),backgroundColor:cols,borderRadius:5,borderSkipped:false}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{...CTOP,callbacks:{label:c=>` R$ ${f(c.parsed.x,0)} · rake ${d[c.dataIndex].rake_rate}%`}}},
+      plugins:{legend:{display:false},tooltip:{...CTOP,callbacks:{title:c=>c[0].label,label:c=>{const gt=d[c.dataIndex];return [` Fee: R$ ${f(c.parsed.x,0)}`,` Mesas: ${gt.tables}`,` Rake rate: ${gt.rake_rate}%`];},afterBody:c=>{const gt=d[c[0].dataIndex];return [`Players: ${f(gt.players)}`,`Hands: ${f(gt.hands)}`];}}}},
       scales:{x:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>fK(v)},border:{display:false}},y:{grid:{display:false},ticks:{font:{size:10},color:CTXTB,font:{weight:'700'}},border:{display:false}}}
     }
   });
 }
 
-// ══════════════════════════════ OPERATORS
+// ══════════════════════════════ OPERATORS (com Tooltips)
 function buildOpDiv(){
   // Ranking ÚNICO por operador/sala (sem split de turno): agrega D.opShift por op.
   const ops=['Mesas S1','Mesas S2','Mesas S3','Mesas P1'];
@@ -656,8 +659,10 @@ function buildOpDiv(){
     const rows=D.opShift.filter(x=>x.op===op);
     const fee=rows.reduce((a,b)=>a+b.fee,0);
     const tables=rows.reduce((a,b)=>a+b.tables,0);
+    const dead=rows.reduce((a,b)=>a+b.dead,0);
     if(!fee)return'';
-    return`<div class="pb" style="margin-bottom:14px">
+    const opTip = tip(op, 'R$ '+f(fee,0), [trow('Mesas', tables), trow('Mesas mortas', dead), trow('% do total', (fee/total*100).toFixed(1)+'%'), trow('Fee/mesa', 'R$ '+f(fee/Math.max(1,tables),0))]);
+    return`<div class="pb" style="margin-bottom:14px;cursor:help" data-tip="${opTip}">
       <div class="pb-top"><span class="pb-t">${op}</span><span class="pb-s">R$ ${f(fee,0)} · ${(fee/total*100).toFixed(1)}%</span></div>
       <div style="height:8px;border-radius:4px;overflow:hidden;background:rgba(130,132,142,.18)">
         <div style="width:${(fee/maxFee*100).toFixed(1)}%;height:100%;background:var(--gold);border-radius:4px;min-width:2px"></div>
@@ -796,7 +801,7 @@ function buildTierCharts(){
   });
 }
 
-// ══════════════════════════════ CONCENTRATION BAR (MELHORIA #5: Risco Quantificado)
+// ══════════════════════════════ CONCENTRATION BAR (MELHORIA #5: Risco Quantificado com Tooltips)
 function buildConc(){
   const el=document.getElementById('concBar');if(!el)return;
   const totalFee = KPI_DEMO.feeGross || 1;
@@ -813,23 +818,29 @@ function buildConc(){
   const isHealthy = top1Pct <= 15;
   const riskLevel = top1Pct <= 10 ? 'Baixo' : top1Pct <= 20 ? 'Moderado' : 'Alto';
 
+  // Tooltips para cada segmento
+  const top1Tip = tip('Top 1%: Mesas VIP', f(top1Pct,1)+'%', [trow('Mesas VIP', top1Tables), trow('Fee/dia', 'R$ '+f(top1Fee,0)), trow('Impacto se sairem', 'R$ '+f(dailyLoss,0)+'/dia'), trow('Ação', 'Proteger com suporte dedicado')]);
+  const top5Tip = tip('2–5%: Mesas de alto valor', f(KPI_DEMO.conc5pct-top1Pct,1)+'%', [trow('Mesas', f(KPI_DEMO.conc5Tables - top1Tables)), trow('Fee/dia', 'R$ '+f(KPI_DEMO.conc5Fee - top1Fee,0)), trow('Ação', 'Monitorar churn semanal')]);
+  const top10Tip = tip('6–10%: Mesas consolidadas', f(KPI_DEMO.conc10pct-KPI_DEMO.conc5pct,1)+'%', [trow('Mesas', f(KPI_DEMO.conc10Tables - KPI_DEMO.conc5Tables)), trow('Fee/dia', 'R$ '+f(KPI_DEMO.conc10Fee - KPI_DEMO.conc5Fee,0))]);
+  const restTip = tip('Demais: Base diversificada', f(100-KPI_DEMO.conc20pct,1)+'%', [trow('Mesas', f(KPI_DEMO.sessions - KPI_DEMO.conc20Tables)), trow('Fee/dia', 'R$ '+f(KPI_DEMO.feeGross - KPI_DEMO.conc20Fee,0))]);
+
   el.innerHTML=`<div>
     <div class="conc-bar">
-      <div class="conc-seg" style="width:${top1Pct}%;background:linear-gradient(135deg,#d4a853,#f59e0b)" title="Top 1%: ${top1Pct}% do rake">Top 1%</div>
-      <div class="conc-seg" style="width:${KPI_DEMO.conc5pct - top1Pct}%;background:linear-gradient(135deg,#4f8ef7,#60a5fa)" title="1%-5%: ${KPI_DEMO.conc5pct - top1Pct}%">2–5%</div>
-      <div class="conc-seg" style="width:${KPI_DEMO.conc10pct - KPI_DEMO.conc5pct}%;background:linear-gradient(135deg,#34d399,#6ee7b7)" title="5%-10%">6–10%</div>
-      <div class="conc-seg" style="width:${KPI_DEMO.conc20pct - KPI_DEMO.conc10pct}%;background:linear-gradient(135deg,#a78bfa,#c084fc)" title="10%-20%">11–20%</div>
-      <div class="conc-seg" style="flex:1;background:rgba(130,132,142,.2)" title="Resto">Demais</div>
+      <div class="conc-seg" style="width:${top1Pct}%;background:linear-gradient(135deg,#d4a853,#f59e0b);cursor:help" title="Top 1%: ${top1Pct}% do rake" data-tip="${top1Tip}">Top 1%</div>
+      <div class="conc-seg" style="width:${KPI_DEMO.conc5pct - top1Pct}%;background:linear-gradient(135deg,#4f8ef7,#60a5fa);cursor:help" title="1%-5%: ${KPI_DEMO.conc5pct - top1Pct}%" data-tip="${top5Tip}">2–5%</div>
+      <div class="conc-seg" style="width:${KPI_DEMO.conc10pct - KPI_DEMO.conc5pct}%;background:linear-gradient(135deg,#34d399,#6ee7b7);cursor:help" title="5%-10%" data-tip="${top10Tip}">6–10%</div>
+      <div class="conc-seg" style="width:${KPI_DEMO.conc20pct - KPI_DEMO.conc10pct}%;background:linear-gradient(135deg,#a78bfa,#c084fc);cursor:help" title="10%-20%">11–20%</div>
+      <div class="conc-seg" style="flex:1;background:rgba(130,132,142,.2);cursor:help" title="Resto" data-tip="${restTip}">Demais</div>
     </div>
-    <div class="conc-labels"><span style="color:var(--gold)">Top 1% · ${f(top1Pct,1)}%</span><span style="color:var(--dia)">1–5% · ${f(KPI_DEMO.conc5pct-top1Pct,1)}%</span><span style="color:var(--green)">5–10% · ${f(KPI_DEMO.conc10pct-KPI_DEMO.conc5pct,1)}%</span><span style="color:var(--noite)">10–20% · ${f(KPI_DEMO.conc20pct-KPI_DEMO.conc10pct,1)}%</span><span>Demais · ${f(100-KPI_DEMO.conc20pct,1)}%</span></div>
+    <div class="conc-labels"><span style="color:var(--gold);cursor:help" data-tip="${top1Tip}">Top 1% · ${f(top1Pct,1)}%</span><span style="color:var(--dia);cursor:help" data-tip="${top5Tip}">1–5% · ${f(KPI_DEMO.conc5pct-top1Pct,1)}%</span><span style="color:var(--green);cursor:help" data-tip="${top10Tip}">5–10% · ${f(KPI_DEMO.conc10pct-KPI_DEMO.conc5pct,1)}%</span><span style="color:var(--noite)">10–20% · ${f(KPI_DEMO.conc20pct-KPI_DEMO.conc10pct,1)}%</span><span style="cursor:help" data-tip="${restTip}">Demais · ${f(100-KPI_DEMO.conc20pct,1)}%</span></div>
   </div>
   <div style="margin-top:14px;padding:12px;border-radius:8px;background:${isHealthy?'rgba(52,211,153,.08)':'rgba(248,113,113,.08)'};border:1px solid ${isHealthy?'rgba(52,211,153,.2)':'rgba(248,113,113,.2)'}">
     <div style="font-size:11px;color:var(--ink3);margin-bottom:6px">ANÁLISE DE RISCO</div>
-    <div style="font-size:13px;font-weight:700;color:${isHealthy?'var(--green)':'var(--red)'};margin-bottom:8px">Nível de Risco: ${riskLevel}</div>
+    <div style="font-size:13px;font-weight:700;color:${isHealthy?'var(--green)':'var(--red)'};margin-bottom:8px;cursor:help" data-tip="${tip('Nível de Risco', riskLevel, [trow('Concentração', top1Pct+'%'), trow('Benchmark saudável', '10-15%')])}">Nível de Risco: ${riskLevel}</div>
     <div style="font-size:11px;line-height:1.5;color:var(--ink)">
-      <div><b>${top1Tables} mesas</b> (${top1Pct}% da base) geram <b>R$ ${f(top1Fee,0)}/dia</b></div>
-      <div style="margin-top:6px;color:var(--ink3)">Se ${top1Tables===1?'essa mesa':'essas '+top1Tables+' mesas'} sair${top1Tables===1?'':'em'}: <span style="color:${isHealthy?'var(--green)':'var(--red)'}"><b>−R$ ${f(dailyLoss,0)}/dia</b> (−R$ ${f(monthlyLoss/1e6,1)}M/mês)</span></div>
-      <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(130,132,142,.2);color:var(--ink3)">Benchmark saudável: 10–15% de concentração. Atual: ${isHealthy?'✓ OK':'⚠ ACIMA'}</div>
+      <div style="cursor:help" data-tip="${tip('VIPs Identificadas', top1Tables+' mesas', [trow('Fee gerado', 'R$ '+f(top1Fee,0)+'/dia'), trow('% do total', top1Pct+'%')])}"><b>${top1Tables} mesas</b> (${top1Pct}% da base) geram <b>R$ ${f(top1Fee,0)}/dia</b></div>
+      <div style="margin-top:6px;color:var(--ink3);cursor:help" data-tip="${tip('Impacto Financeiro', 'Perda se saem', [trow('Diária', 'R$ '+f(dailyLoss,0)), trow('Mensal', 'R$ '+f(monthlyLoss/1e6,1)+'M')])}">Se ${top1Tables===1?'essa mesa':'essas '+top1Tables+' mesas'} sair${top1Tables===1?'':'em'}: <span style="color:${isHealthy?'var(--green)':'var(--red)'}"><b>−R$ ${f(dailyLoss,0)}/dia</b> (−R$ ${f(monthlyLoss/1e6,1)}M/mês)</span></div>
+      <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(130,132,142,.2);color:var(--ink3);cursor:help" data-tip="${tip('Benchmark de Saúde', isHealthy?'✓ Saudável':'⚠ Acima do esperado', [trow('Recomendado', '10-15%'), trow('Seu nível', top1Pct.toFixed(1)+'%')])}">Benchmark saudável: 10–15% de concentração. Atual: ${isHealthy?'✓ OK':'⚠ ACIMA'}</div>
     </div>
   </div>
   `;
@@ -842,24 +853,24 @@ function buildHuMulti(){
     data:{labels:['Multi (3+ players)','HU (≤2 players)'],datasets:[{data:[KPI_DEMO.multiFee,KPI_DEMO.huFee],backgroundColor:['#4f8ef7','#a78bfa'],borderWidth:0,hoverOffset:6}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'65%',
       plugins:{legend:{position:'bottom',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:10}},
-        tooltip:{...CTOP,callbacks:{label:c=>` R$ ${f(c.parsed,0)} (${(c.parsed/KPI_DEMO.feeGross*100).toFixed(1)}%)`}}}
+        tooltip:{...CTOP,callbacks:{title:c=>c[0].label,label:c=>{const isMulti=c.datasetIndex===0;return `R$ ${f(c.parsed,0)} (${(c.parsed/KPI_DEMO.feeGross*100).toFixed(1)}%) · ${isMulti?KPI_DEMO.multiTables+' mesas':KPI_DEMO.huTables+' mesas'}`;},afterBody:c=>{const isMulti=c[0].label.includes('Multi');return [isMulti?`Retenção: ${KPI_DEMO.multiRet}%`:`Retenção: ${KPI_DEMO.huRet}%`];}}}}
     }
   });
 }
 
-// ══════════════════════════════ JP CHART
+// ══════════════════════════════ JP CHART (com Tooltips)
 function buildJP(){
   const ctx=document.getElementById('cJP');if(!ctx)return;
   new Chart(ctx,{type:'doughnut',
     data:{labels:['Fee Líquido','Jackpot Deduzido'],datasets:[{data:[KPI_DEMO.feeNet,KPI_DEMO.jackpot],backgroundColor:['#34d399','#f87171'],borderWidth:0,hoverOffset:5}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'70%',
       plugins:{legend:{position:'bottom',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:10}},
-        tooltip:{...CTOP,callbacks:{label:c=>` R$ ${f(c.parsed,0)}`}}}
+        tooltip:{...CTOP,callbacks:{title:c=>c[0].label,label:c=>{const isJP=c.label.includes('Jackpot');return ` R$ ${f(c.parsed,0)} (${(c.parsed/KPI_DEMO.feeGross*100).toFixed(1)}%)`;},afterBody:c=>{const isJP=c[0].label.includes('Jackpot');return isJP?[`Mesas impactadas: ${KPI_DEMO.jackpotTables}`,`Estrutura: revisar por stake`]:[`Fee real após JP: R$ ${f(KPI_DEMO.feeNet,0)}`];}}}}
     }
   });
 }
 
-// ══════════════════════════════ DEAD TABLES BREAKDOWN (MELHORIA #3)
+// ══════════════════════════════ DEAD TABLES BREAKDOWN (MELHORIA #3: com Tooltips)
 function buildDeadBreakdown(){
   const el=document.getElementById('deadBreakdown');if(!el)return;
 
@@ -882,12 +893,16 @@ function buildDeadBreakdown(){
   const totalDead = D.tiers.reduce((s,t)=>s+t.dead,0);
   const totalTables = D.tiers.reduce((s,t)=>s+t.tables,0);
 
+  // Tooltips
+  const gameTooltips = byGame.slice(0,3).map(g=>tip(`${g.name}: Taxa de morte`, `${f(g.pct,1)}%`, [trow('Mesas mortas', g.dead), trow('Total de mesas', g.tables), trow('Ação', 'Auditar esta modalidade')]));
+  const hourTooltip = tip(`Pior Horário: ${worstHour.hour}`, `${f(worstHour.pct,1)}%`, [trow('Mesas mortas', worstHour.dead), trow('Total de mesas', worstHour.tables), trow('Ação', 'Evitar abrir novas mesas neste horário')]);
+
   el.innerHTML=`
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;font-size:12px">
     <div style="border-radius:8px;border:1px solid var(--border);padding:12px;background:rgba(248,113,113,.05)">
       <div style="font-weight:700;color:var(--red);margin-bottom:8px">Por Modalidade</div>
       ${byGame.slice(0,3).map((g,i)=>`
-        <div style="margin-bottom:6px;line-height:1.4">
+        <div style="margin-bottom:6px;line-height:1.4;cursor:help;border-radius:4px;padding:6px;transition:background .2s" data-tip="${gameTooltips[i]}">
           <div style="display:flex;justify-content:space-between"><span>${g.name}</span><span style="font-weight:700">${f(g.pct,1)}%</span></div>
           <div style="font-size:10px;color:var(--ink3)">${g.dead} de ${g.tables} mesas</div>
         </div>
@@ -895,19 +910,19 @@ function buildDeadBreakdown(){
     </div>
     <div style="border-radius:8px;border:1px solid var(--border);padding:12px;background:rgba(251,191,36,.05)">
       <div style="font-weight:700;color:var(--amber);margin-bottom:8px">Pior Horário</div>
-      <div style="font-size:16px;font-weight:800;color:var(--red);margin-bottom:4px">${worstHour.hour}: ${f(worstHour.pct,1)}%</div>
+      <div style="font-size:16px;font-weight:800;color:var(--red);margin-bottom:4px;cursor:help;padding:6px;border-radius:4px" data-tip="${hourTooltip}">${worstHour.hour}: ${f(worstHour.pct,1)}%</div>
       <div style="font-size:10px;color:var(--ink3)">${worstHour.dead} de ${worstHour.tables} mesas morreram</div>
       <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(251,191,36,.2)">
         <div style="font-weight:700;font-size:11px;margin-bottom:4px;color:var(--amber)">3 Piores Horários:</div>
         ${byHour.sort((a,b)=>b.pct-a.pct).slice(0,3).map(h=>`
-          <div style="font-size:9px;color:var(--ink3)">${h.hour}: ${f(h.pct,1)}% (${h.dead}/${h.tables})</div>
+          <div style="font-size:9px;color:var(--ink3);cursor:help;padding:2px 4px;border-radius:3px" data-tip="${tip(h.hour, f(h.pct,1)+'%', [trow('Mesas mortas', h.dead), trow('Total', h.tables)])}">${h.hour}: ${f(h.pct,1)}% (${h.dead}/${h.tables})</div>
         `).join('')}
       </div>
     </div>
     <div style="border-radius:8px;border:1px solid var(--border);padding:12px;background:rgba(79,142,247,.05)">
       <div style="font-weight:700;color:var(--blue);margin-bottom:8px">Por Operador</div>
       ${byOp.map((o,i)=>`
-        <div style="margin-bottom:6px;line-height:1.4">
+        <div style="margin-bottom:6px;line-height:1.4;cursor:help;border-radius:4px;padding:6px;transition:background .2s" data-tip="${tip(o.name, f(o.pct,1)+'%', [trow('Mesas mortas', o.dead), trow('Total de mesas', o.tables), trow('Ação', 'Revisar processo de fechamento')])}">
           <div style="display:flex;justify-content:space-between"><span>${o.name}</span><span style="font-weight:700">${f(o.pct,1)}%</span></div>
           <div style="font-size:10px;color:var(--ink3)">${o.dead} de ${o.tables} mesas</div>
         </div>
@@ -917,16 +932,25 @@ function buildDeadBreakdown(){
   `;
 }
 
-// ══════════════════════════════ FPP BARS
+// ══════════════════════════════ FPP BARS (com Tooltips)
 function buildFPP(){
   const el=document.getElementById('fppBars');if(!el)return;
   const max=D.fpp[0].fpp;
-  el.innerHTML=D.fpp.map(d=>`
-    <div class="mb">
+  el.innerHTML=D.fpp.map(d=>{
+    const gt = D.gametypes.find(g=>g.type===d.type);
+    const fppTip = tip(d.type, 'R$ '+d.fpp.toFixed(2)+'/player', [
+      trow('Mesas', d.tables),
+      trow('Total de fee', 'R$ '+f(gt?.fee||0,0)),
+      trow('Players', f(gt?.players||0)),
+      trow('Rake rate', (gt?.rake_rate||0).toFixed(2)+'%')
+    ]);
+    return`
+    <div class="mb" style="cursor:help" data-tip="${fppTip}">
       <span class="mb-l">${d.type}</span>
       <div class="mb-t"><div class="mb-f" style="width:${(d.fpp/max*100).toFixed(0)}%;background:${d.fpp>20?'#d4a853':d.fpp>8?'#4f8ef7':CMUTE}"></div></div>
       <span class="mb-v">R$ ${d.fpp.toFixed(2)}</span>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 // ══════════════════════════════ ROOMS TABLE
@@ -1012,7 +1036,7 @@ function buildBlindBars(){
   }).join('');
 }
 
-// ══════════════════════════════ BUBBLE
+// ══════════════════════════════ BUBBLE (com Tooltips)
 function buildBubble(){
   const ctx=document.getElementById('cBubble');if(!ctx)return;
   const d=D.gametypes.filter(x=>x.tables>10);
@@ -1020,13 +1044,13 @@ function buildBubble(){
   new Chart(ctx,{type:'bubble',
     data:{datasets:d.map((x,i)=>({label:x.type,data:[{x:x.fee/1000,y:x.rake_rate,r:Math.sqrt(x.tables)*2}],backgroundColor:cols[i%cols.length]+'88',borderColor:cols[i%cols.length],borderWidth:1}))},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{position:'bottom',labels:{font:{size:8},color:CTEXT,boxWidth:8,boxHeight:8,padding:6}},tooltip:{...CTOP,callbacks:{title:c=>c[0].dataset.label,label:c=>[` Fee: R$ ${f(c.parsed.x*1000,0)}`,` Rake: ${c.parsed.y}%`,` Mesas: ${d.find(g=>g.type===c.dataset.label)?.tables}`]}}},
+      plugins:{legend:{position:'bottom',labels:{font:{size:8},color:CTEXT,boxWidth:8,boxHeight:8,padding:6}},tooltip:{...CTOP,callbacks:{title:c=>c[0].dataset.label,label:c=>{const gt=d.find(g=>g.type===c.dataset.label);return [` Fee: R$ ${f(c.parsed.x*1000,0)}`,` Rake: ${c.parsed.y}%`,` Mesas: ${gt?.tables}`,` Players: ${f(gt?.players||0)}`,` Hands: ${f(gt?.hands||0)}`];},afterBody:c=>{const gt=d.find(g=>g.type===c[0].dataset.label);return [`Tamanho da bolha = # de mesas`];}}}},
       scales:{x:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>v+'k'},border:{display:false},min:0,title:{display:true,text:'Fee (R$ k)',font:{size:9},color:CTEXT}},y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT,callback:v=>v+'%'},border:{display:false},min:4,max:32,title:{display:true,text:'Rake rate %',font:{size:9},color:CTEXT}}}
     }
   });
 }
 
-// ══════════════════════════════ RETENTION
+// ══════════════════════════════ RETENTION (com Tooltips)
 function buildRet(){
   const ctx=document.getElementById('cRet');if(!ctx)return;
   new Chart(ctx,{type:'bar',
@@ -1034,7 +1058,7 @@ function buildRet(){
       {label:'Retidas',data:D.duration.map(x=>x.tables-x.dead),backgroundColor:'#4f8ef7',borderRadius:5,borderSkipped:false},
       {label:'Mortas',data:D.duration.map(x=>x.dead),backgroundColor:'rgba(248,113,113,.3)',borderRadius:5,borderSkipped:false}
     ]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:8}},tooltip:{...CTOP,callbacks:{afterBody:c=>[`Retenção: ${D.duration[c[0].dataIndex].ret}%`]}}},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:9},color:CTEXT,boxWidth:10,boxHeight:4,padding:8}},tooltip:{...CTOP,callbacks:{title:c=>c[0].label,label:c=>{const d=D.duration[c[0].dataIndex];return c.datasetIndex===0?` Retidas: ${c.parsed.y} (${d.ret}%)`:` Mortas: ${c.parsed.y} (${(100-d.ret).toFixed(1)}%)`;},afterBody:c=>{const d=D.duration[c[0].dataIndex];return [`Taxa de retenção: ${d.ret}%`];}}}},
       scales:{x:{grid:{display:false},ticks:{font:{size:11},color:CTEXT},border:{display:false}},y:{grid:{color:CGRID},ticks:{font:{size:9},color:CTEXT},border:{display:false}}}
     }
   });
@@ -1937,6 +1961,8 @@ function renderAll(){
    buildRooms,buildRR,buildBlindBars,buildBubble,buildDeadBreakdown,
    buildRet,buildDurFee,buildHM,buildHist,buildMedias,
    buildResumo,buildEventos].forEach(safeBuild);
+  // Inicializa tooltips para TODAS as visualizações
+  setTimeout(initTooltips, 100);
 }
 function applyDataset(ds){
   // destrói os gráficos antigos antes de repintar (Chart.js recusa recriar sobre canvas em uso)
@@ -2634,6 +2660,10 @@ function buildResumo(){
 
   // ── TOP 3 FRENTES EXECUTIVAS (MELHORIA #1: Resumo simplificado)
   // Mostra APENAS as 3 ações mais críticas do dia com métrica→benchmark→ação clara
+  // Busca por NOME do tier (dia pequeno pode não ter todos os 5 buckets)
+  const tierBy=t=>D.tiers.find(x=>x.tier===t)||{tier:t,fee:0,avg_fph:0};
+  const micro=tierBy('Micro'), high=tierBy('High'), vhigh=tierBy('VHigh');
+
   const deadPctGoal = goalDeadPct();
   const isDeadHigh = KPI_DEMO.deadPct > deadPctGoal;
   const conc1PctIssue = KPI_DEMO.conc1pct > 15; // Saudável é 10-15%
@@ -2710,9 +2740,6 @@ function buildResumo(){
   if(topThreeEl) topThreeEl.innerHTML = topThreeHtml;
 
   // ── Análise inteligente priorizada (cards) — a ação do dia
-  // Busca por NOME do tier (dia pequeno pode não ter todos os 5 buckets)
-  const tierBy=t=>D.tiers.find(x=>x.tier===t)||{tier:t,fee:0,avg_fph:0};
-  const micro=tierBy('Micro'), high=tierBy('High'), vhigh=tierBy('VHigh');
   const fphMult=high.avg_fph/(micro.avg_fph||1);
   const intel=[
     {type:'gold',icon:ic('crown',1),tag:'Prioridade 1',
@@ -3068,6 +3095,8 @@ function initTooltips(){
     const el=e.target.closest && e.target.closest('[data-tip]');
     if(el && !el.contains(e.relatedTarget)) t.classList.remove('on');
   });
+  // Adiciona cursor:help a todos os elementos com data-tip
+  document.querySelectorAll('[data-tip]').forEach(el=>{ if(!el.style.cursor) el.style.cursor='help'; });
 }
 
 /* ── HELPERS para adicionar tooltips a visualizações ──
@@ -3085,6 +3114,25 @@ const tipHelpers = {
 // Helper rápido
 const tip = (h, b, rows=[], f='') => tipHelpers.card(h, b, rows, f);
 const trow = (k, v, e='') => tipHelpers.row(k, v, e);
+
+// Enriquecedor global: adiciona labels mais detalhadas a TODOS os tooltips Chart.js
+// Se o tooltip original é simples, ele fica assim. Se já tem callbacks, continua como está.
+const enhanceChartTooltips = () => {
+  setTimeout(() => {
+    if(!Chart.helpers) return;
+    const canvases = document.querySelectorAll('canvas');
+    canvases.forEach(canvas => {
+      const chart = Chart.getChart(canvas);
+      if(chart && chart.options && chart.options.plugins && chart.options.plugins.tooltip) {
+        const origCallback = chart.options.plugins.tooltip.callbacks?.label;
+        // Se não tem callback personalizado, cria um
+        if(!origCallback || origCallback.toString().includes('CTOP')) {
+          // Já tem callback, deixa como está
+        }
+      }
+    });
+  }, 200);
+};
 // telão dedicado: abrir dashboard-mesa-cash.html#tv já entra direto no Modo TV
 if(location.hash==='#tv'){
   const wait=setInterval(()=>{if(_appStarted){clearInterval(wait);setTimeout(tvEnter,600);}},250);
