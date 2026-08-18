@@ -2452,17 +2452,27 @@ function essentialRecipeFields(){
     'TICKET AWARD', 'PERSONALIZED AWARD', 'PAYOUT', 'CALCULATED PAYOUT',
     'BUY-IN', 'REENTRY/REBUY', 'STACK REENTRY/REBUY', 'REBUY CONDITION',
     'ADD-ON', 'STACK ADD-ON', 'BREAK LATE REG.', 'RAKE', 'ADM FEE',
-    /* 'BLIND' (radical) e não 'BLINDS UP': o casamento é por `includes` do rótulo
-       INTEIRO da planilha, e esta lista DESCARTA o que não casa — então "BLIND UP"
-       no singular, ou com espaço duplo, fazia a coluna sumir da receita em vez de
-       aparecer fora de ordem. Radical casa todas as grafias. */
-    'STRUCTURE', 'CHIPS', 'BLIND', 'LATE REG.', 'NUM. PLAYERS',
+    /* ── BLINDS UP (min) ──
+       Na G MTTS o "BLINDS UP (min)" é um cabeçalho GUARDA-CHUVA na linha DE CIMA,
+       e o findHeaderCols só mescla pra BAIXO — então a palavra "blind" se perde e
+       as três colunas chegam aqui como "Early game", "Pós Late Reg." e "Final
+       Table". Sem estes três termos elas não casavam com nada e eram DESCARTADAS:
+       a receita pulava de CHIPS direto pra "Num. players", ou seja, quem cria o
+       torneio ficava sem a estrutura de blind inteira.
+       O 'BLIND' continua na lista porque em outras abas (MTTS BRAZIL, Liga) o
+       merge acontece e o rótulo vira "BLINDS UP (min) — Early game". */
+    'STRUCTURE', 'CHIPS', 'BLIND', 'Early game', 'Pós Late Reg.', 'Final Table',
+    'LATE REG.', 'NUM. PLAYERS',
     'EARLY BIRD', 'CHAT', 'TIME BANK', 'HORA'
   ];
   const result = [];
   for (const e of essential){
-    const found = all.find(l => normText(l).includes(normText(e)) && !HIDDEN_RECIPE.test(normText(l)));
-    if (found && !result.includes(found)) result.push(found);
+    /* `!result.includes(l)`: sem isto, um termo genérico reencontrava a coluna que
+       um termo específico já tinha levado e a linha era PERDIDA em vez de cair na
+       coluna certa — era o que sumia com a "LATE REG.", achada primeiro como
+       "BREAK LATE REG.". Pulando o que já foi usado, cada termo pega a sua. */
+    const found = all.find(l => !result.includes(l) && normText(l).includes(normText(e)) && !HIDDEN_RECIPE.test(normText(l)));
+    if (found) result.push(found);
   }
   return result;
 }
