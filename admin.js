@@ -785,8 +785,28 @@ function flatRows(fromDate, toDate){
       }
       // Field
       const field  = pick(day.field)??r.field??null;
+      // buy-in corrigido na auditoria vence a planilha. Sobe pra cá (antes era declarado
+      // junto das AÇÕES, mais abaixo) porque o overlay agora depende dele — ver freeroll.
+      const buyin = pick(day.buy) ?? r.buyin ?? null;
+      /* FREEROLL = buy-in ZERO. A casa PAGA o garantido inteiro do próprio bolso, então
+         ele é custo real e tem que aparecer como overlay NEGATIVO — não como zero.
+         O detalhe que faz isto funcionar: num freeroll não existe arrecadação pra
+         alguém lançar, então o `arrecadado` fica null pra sempre e o overlay nunca era
+         calculado (diff exige prem != null) — o custo ficava invisível na auditoria.
+         Aqui o arrecadado do freeroll vale 0 POR NATUREZA, e o overlay sai
+         0 − garantido = −garantido, sempre negativo, sem depender de digitação.
+         Não é forçado a −garantido: um "FreeBuy" (buy-in 0 com rebuy/add-on, ex.:
+         "FreeBuy Supremo" gtd 220) arrecada de verdade, e aí o overlay é a diferença
+         real — e some se a arrecadação cobrir o garantido.
+         O teste é `buyin === 0` e NUNCA o nome: a grade tem 18 torneios "Freeze", que
+         casam com /free/i e são PAGOS (ex.: "4 Seats Freeze", buy-in 0,80).
+         `=== 0` e não `!buyin`: buy-in ausente (null) é dado faltando, não freeroll.
+         `premOv` é local do overlay de propósito — mexer no `prem` marcaria o freeroll
+         como "fechado" no status e entraria nos totais de arrecadação como coleta real. */
+      const ehFreeroll = buyin === 0;
+      const premOv = ehFreeroll ? (prem ?? 0) : prem;
       // Cálculos
-      const diff   = prem!=null&&gar!=null ? prem-gar : null;
+      const diff   = premOv!=null&&gar!=null ? premOv-gar : null;
       const ov     = diff!=null&&diff<0 ? diff : null;
       const perf   = prem!=null&&gar!=null&&gar>0 ? Math.round(((prem-gar)/gar)*10000)/100 : null;
       const isNF   = idVal.toUpperCase()==='NF';
@@ -805,7 +825,6 @@ function flatRows(fromDate, toDate){
       // "+"/série no Main NÃO é campanha — só o prefixo SPS conta.
       // SPT é satélite (0,95) e cai pelo cat==='sat', não por campanha.
       // Ex.: 750 Plus (side sem campanha) prem R$1.068,30 ÷ (R$1 × 0,90) = 1.187 ações.
-      const buyin = pick(day.buy) ?? r.buyin ?? null;   // buy-in corrigido na auditoria vence a planilha
       const isCampanha = /^\s*SPS\b/i.test(r.nome||'');
       const netFactor = netFactorOf(cat, isCampanha);
       const acoes = prem!=null && buyin ? Math.round(prem/(buyin*netFactor)) : null;
