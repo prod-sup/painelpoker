@@ -2100,8 +2100,8 @@ html,body{overflow-x:hidden;max-width:100%}
 .mysec-f-actions .btn{padding:8px 16px}
 .mysec-hint{font-size:11.5px;color:var(--ink3)}
 
-/* ═══ TURNO DO DIA — madrugada 00:00 → 05:30 (regra da terça) ═══
-   Está na grade que a noite monta, mas quem cria é o turno do dia. O tom é SOLAR
+/* ═══ TURNO DO DIA — Side Events 00:00 → 05:30 (regra da terça) ═══
+   Estão na grade que a noite monta, mas quem cria é o turno do dia. O tom é SOLAR
    (dourado) de propósito: destoa das seções noturnas, então bate o olho e se
    entende que aquele bloco não é carga desta equipe. Fica visível pra conferência
    e fora de toda contagem — mesma lógica visual dos suspensos, sem o "não crie". */
