@@ -2390,6 +2390,11 @@ const CREATION_ORDER = [
   { m: n => (n.includes('adm') || n.includes('admin')) && n.includes('fee') },      // ADM FEE
   { m: n => n.includes('structure') || n.includes('estrutura') },                   // STRUCTURE
   { m: n => n === 'chips' || n.includes('chip') || n.includes('starting stack') || n.includes('stack inicial') }, // CHIPS
+  /* BLINDS UP — faltava slot: sem ele a coluna não casava com nenhum e caía no
+     concat(remaining) lá no FIM da receita, longe do CHIPS (na Liga ia do índice
+     13 pro 18). Matcher por radical 'blind' pra aguentar "BLINDS UP (min)",
+     "BLIND UP" e afins. */
+  { m: n => n.includes('blind') },                                                  // BLINDS UP (min)
   { m: n => n.includes('early game') },                                             // EARLY GAME
   { m: n => n.includes('pos late') },                                               // PÓS LATE REG. (normText tira o acento)
   { m: n => n.includes('final table') },                                            // FINAL TABLE
@@ -2447,7 +2452,11 @@ function essentialRecipeFields(){
     'TICKET AWARD', 'PERSONALIZED AWARD', 'PAYOUT', 'CALCULATED PAYOUT',
     'BUY-IN', 'REENTRY/REBUY', 'STACK REENTRY/REBUY', 'REBUY CONDITION',
     'ADD-ON', 'STACK ADD-ON', 'BREAK LATE REG.', 'RAKE', 'ADM FEE',
-    'STRUCTURE', 'CHIPS', 'BLINDS UP', 'LATE REG.', 'NUM. PLAYERS',
+    /* 'BLIND' (radical) e não 'BLINDS UP': o casamento é por `includes` do rótulo
+       INTEIRO da planilha, e esta lista DESCARTA o que não casa — então "BLIND UP"
+       no singular, ou com espaço duplo, fazia a coluna sumir da receita em vez de
+       aparecer fora de ordem. Radical casa todas as grafias. */
+    'STRUCTURE', 'CHIPS', 'BLIND', 'LATE REG.', 'NUM. PLAYERS',
     'EARLY BIRD', 'CHAT', 'TIME BANK', 'HORA'
   ];
   const result = [];
