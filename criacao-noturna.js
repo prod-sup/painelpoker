@@ -3063,6 +3063,11 @@ function renderVertical(items, cat, asg, fieldList, dropEmpty){
           + (urg ? `<br><span class="urg-pill ${urg}">⏰ ${urgLabel(c.it)}</span>` : '')
           + (m ? `<br><span class="mtt-kick"><span class="tag-k">MTT</span><span class="val">${escHtml(m)}</span></span>` : '');
       }, 'vname')}</tr>
+      <!-- HORÁRIO — a visão transposta nunca teve esta linha: o horário só existia no
+           card e na visão planilha, então quem cria pela grade (a visão padrão) via
+           nome e receita, mas não a hora do torneio. Fica logo abaixo do nome porque
+           nome+hora é o par que identifica o evento (é a própria itemKey). -->
+      <tr data-field="hora" data-flabel="Horário">${rlabTh('hora', 'Horário', true)}${cell(c => `<span class="mono hora-v">${escHtml(c.it.hora || '—')}</span>`)}</tr>
       <tr data-field="secao" data-flabel="Seção Global">${rlabTh('secao', 'Seção Global', false)}${cell(c => dayTagHtml(c.it))}</tr>
       <tr data-field="admin" data-flabel="Admin Fee">${rlabTh('admin', 'Admin Fee', false)}${cell(c => { const p = adminFeeParts(c.it); return p ? `<span class="calc-chip admin">${escHtml(p.main)}${p.sub ? `<span class="amt">${escHtml(p.sub)}</span>` : ''}</span>` : `<span style="opacity:.4">—</span>`; })}</tr>
 
