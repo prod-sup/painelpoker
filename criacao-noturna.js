@@ -543,6 +543,10 @@ function ligaItemsForDay(){
 }
 /* os side events da Liga que passam pro turno do dia */
 function ligaTurnoDia(){ const lp = ligaSections(); return lp ? sideDoTurnoDia(lp.side) : []; }
+/* o bloco do turno do dia começa RECOLHIDO (pra noite é só conferência) e lembra
+   a escolha — quem é do turno do dia abre uma vez e não abre de novo todo sync */
+let TD_OPEN = false;
+try{ TD_OPEN = localStorage.getItem('cn_td_open') === '1'; }catch(e){}
 /* A Liga é R$ NATIVO: converte pra US-equivalente e deixa o renderVertical
    reaplicar a moeda do toggle. Era inline na seção da Liga; virou helper porque o
    bloco do turno do dia precisa exatamente da mesma conversão. */
@@ -2853,16 +2857,24 @@ function renderList(){
       /* fixedOwner: a linha "Operador" vira um selo fixo em vez do botão de
          atribuir — este bloco não entra na divisão da noite. */
       const tdCat = { key:'turnoDia', cls:'turnodia', suit:'☀', label:'Turno do dia', fixedOwner:'Turno do dia' };
+      /* RECOLHÍVEL: a receita é transposta (campos = linhas), então CADA tabela custa
+         ~26 linhas de altura mesmo com 3 ou 4 torneios — e este bloco desenha duas.
+         Aberto o tempo todo, ele sozinho acrescentava quase duas telas de rolagem
+         numa seção que, pra noite, é só conferência. Fica recolhido por padrão e
+         LEMBRA a escolha: quem é do turno do dia abre uma vez e continua aberto. */
       html += `
-        <div class="section-head turnodia">
-          <span class="tag"><span class="suit">☀</span>Side Events 00:00 → 05:30 · Turno do dia</span>
-          <span class="cnt">${tdDone}/${tdAll.length} criados</span>
-          ${prizeChip(tdAll, isBrl)}
-          <span class="line"></span>
-        </div>
-        <p class="section-note"><b>Side Events</b> da madrugada de <b>${WEEKDAY_DAYAFTER.toLowerCase()} (${refToLabel(TURNO.refDayAfter)})</b> — na ${WEEKDAY_TOMORROW.toLowerCase()} quem cria estes é o <b>turno do dia</b>. Main e Satélites da mesma madrugada continuam com a noite. Fora do total, dos anéis, da divisão e do relógio de atraso.</p>
-        ${guVis.length ? `<div class="secwrap turnodia-sec" data-sectionid="turnoDia" data-suit="☀">${renderVertical(guVis, tdCat, {})}</div>` : ''}
-        ${ligaVis.length ? `<div class="secwrap turnodia-sec" data-sectionid="turnoDiaLiga" data-suit="🏆">${renderVertical(ligaVis, {...tdCat, key:'turnoDiaLiga', suit:'🏆', label:'Turno do dia · Liga Principal'}, {}, ligaFieldList())}</div>` : ''}`;
+        <details class="turnodia-box"${TD_OPEN ? ' open' : ''}>
+          <summary class="section-head turnodia">
+            <span class="tag"><span class="suit">☀</span>Side Events 00:00 → 05:30 · Turno do dia</span>
+            <span class="cnt">${tdDone}/${tdAll.length} criados</span>
+            ${prizeChip(tdAll, isBrl)}
+            <span class="td-toggle" aria-hidden="true"></span>
+            <span class="line"></span>
+          </summary>
+          <p class="section-note"><b>Side Events</b> da madrugada de <b>${WEEKDAY_DAYAFTER.toLowerCase()} (${refToLabel(TURNO.refDayAfter)})</b> — na ${WEEKDAY_TOMORROW.toLowerCase()} quem cria estes é o <b>turno do dia</b>. Main e Satélites da mesma madrugada continuam com a noite. Fora do total, dos anéis, da divisão e do relógio de atraso.</p>
+          ${guVis.length ? `<div class="secwrap turnodia-sec" data-sectionid="turnoDia" data-suit="☀">${renderVertical(guVis, tdCat, {})}</div>` : ''}
+          ${ligaVis.length ? `<div class="secwrap turnodia-sec" data-sectionid="turnoDiaLiga" data-suit="🏆">${renderVertical(ligaVis, {...tdCat, key:'turnoDiaLiga', suit:'🏆', label:'Turno do dia · Liga Principal'}, {}, ligaFieldList())}</div>` : ''}
+        </details>`;
     }
   }
 
@@ -2913,6 +2925,13 @@ function renderList(){
     if (vw){ vw.scrollTop = p.t; vw.scrollLeft = p.l; }
   });
   window.scrollTo(0, _winY);
+
+  /* lembra o abre/fecha do bloco do turno do dia — sem isto, todo sync do Firebase
+     reconstrói a lista e o bloco voltaria a fechar na cara de quem está usando ele */
+  area.querySelectorAll('details.turnodia-box').forEach(d => d.addEventListener('toggle', () => {
+    TD_OPEN = d.open;
+    try{ localStorage.setItem('cn_td_open', TD_OPEN ? '1' : '0'); }catch(e){}
+  }));
 
   area.querySelectorAll('[data-done]').forEach(el => el.addEventListener('click', () => toggleDone(el.dataset.done)));
   area.querySelectorAll('[data-secowner]').forEach(el => el.addEventListener('click', () => openSecOwnerMenu(el, el.dataset.secowner)));

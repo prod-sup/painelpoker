@@ -2107,6 +2107,25 @@ html,body{overflow-x:hidden;max-width:100%}
    e fora de toda contagem — mesma lógica visual dos suspensos, sem o "não crie". */
 .section-head.turnodia .tag{background:color-mix(in srgb,var(--gold) 20%,transparent);color:var(--gold);font-weight:800}
 .section-head.turnodia .cnt{color:var(--gold);font-weight:700}
+/* recolhível: o cabeçalho É o <summary>. O marcador nativo (▸) quebra o layout
+   flex do .section-head, então some com ele e desenha a seta no .td-toggle. */
+summary.section-head{cursor:pointer;list-style:none;user-select:none}
+summary.section-head::-webkit-details-marker{display:none}
+.td-toggle{
+  width:18px;height:18px;flex:none;border-radius:5px;
+  background:color-mix(in srgb,var(--gold) 14%,transparent);
+  position:relative;transition:transform .18s var(--ease);
+}
+.td-toggle::before{
+  content:'';position:absolute;top:5px;left:6px;
+  width:5px;height:5px;border-right:1.6px solid var(--gold);border-bottom:1.6px solid var(--gold);
+  transform:rotate(45deg);   /* seta pra baixo = fechado */
+}
+details.turnodia-box[open] .td-toggle{transform:rotate(180deg)}
+summary.section-head:hover .td-toggle{background:color-mix(in srgb,var(--gold) 26%,transparent)}
+/* fechado, o bloco custa só a altura do cabeçalho — a receita transposta são ~26
+   linhas fixas, então cada tabela aberta vale quase meia tela sozinha. */
+details.turnodia-box > .section-note{margin-top:4px}
 .turnodia-sec .vwrap{
   border-color:color-mix(in srgb,var(--gold) 42%,var(--hairline));
   box-shadow:0 0 0 1px color-mix(in srgb,var(--gold) 18%,transparent),var(--shadow-sm);
