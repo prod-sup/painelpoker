@@ -3064,6 +3064,7 @@ function openAddTorneio(){
   const et = document.getElementById('addEtapa'); if(et) et.value='';
   syncAddEtapa();   // reabrir o modal volta pro estado "evento normal" (destrava os valores)
   document.getElementById('moAddTorneio').classList.add('open');
+  loadManualList();   // mostra (e permite excluir) o que já foi adicionado nessa data
   setTimeout(() => document.getElementById('addNome')?.focus(), 80);
 }
 
@@ -3192,20 +3193,85 @@ async function removeAddedTorneio(key, date){
   const [y,m,d] = String(date).split('-');
   if(!confirm(`Excluir "${nome}" de ${d}/${m}/${y}?\n\nApaga também o arrecadado, o field, o garantido e o ID lançados nele. Não dá pra desfazer.`)) return;
 
-  const base = `painel/${date}`;
   try{
-    // manualRows por último: enquanto ele existir, a linha ainda aparece — se algum
-    // remove falhar no meio, o admin vê o torneio lá e pode repetir a exclusão
-    await Promise.all(['ids','garantido','field','premiacao','premBy','fixed']
-      .map(no => db.ref(`${base}/${no}/${key}`).remove().catch(()=>{})));
-    await db.ref(`${base}/manualRows/${key}`).remove();
-
-    // espelha em memória pra lista sumir sem esperar o refresh ao vivo
-    const dia = _allData[date];
-    if(dia) ['rows','ids','field','prem','guar','premBy','fixed','buy'].forEach(b => { if(dia[b]) delete dia[b][key]; });
-
-    await writeAdminLog('excluir', { torneio:nome, date, hora:linha.hora||null, key });
+    await wipeManualRow(date, key, nome, linha.hora||null);
     toast('✓ Torneio excluído','ok');
+    loadAudit();
+  }catch(e){
+    toast('Falha ao excluir: '+e.message,'err');
+  }
+}
+
+/* apaga o nó base + os valores que o "Adicionar" gravou junto. Extraído porque a
+   lista do modal (loadManualList) precisa exatamente da mesma limpeza — duas
+   versões disso divergiriam e uma delas deixaria valor órfão. */
+async function wipeManualRow(date, key, nome, hora){
+  const base = `painel/${date}`;
+  // manualRows por último: enquanto ele existir, a linha ainda aparece — se algum
+  // remove falhar no meio, o admin vê o torneio lá e pode repetir a exclusão
+  await Promise.all(['ids','garantido','field','premiacao','premBy','fixed']
+    .map(no => db.ref(`${base}/${no}/${key}`).remove().catch(()=>{})));
+  await db.ref(`${base}/manualRows/${key}`).remove();
+
+  // espelha em memória pra lista sumir sem esperar o refresh ao vivo
+  const dia = _allData[date];
+  if(dia) ['rows','ids','field','prem','guar','premBy','fixed','buy'].forEach(b => { if(dia[b]) delete dia[b][key]; });
+
+  await writeAdminLog('excluir', { torneio:nome||null, date, hora:hora||null, key });
+}
+
+/* ── LISTA DO QUE JÁ FOI ADICIONADO À MÃO (dentro do modal) ──────────────
+   Por que existe, se a linha da auditoria já tem o 🗑: aquele botão só aparece
+   quando a linha chega à tabela COM o flag `manual`. O flatRows deduplica por
+   nome+hora, então se a Global passar a trazer um torneio que alguém já tinha
+   adicionado à mão, a linha da planilha vence — o flag some, o 🗑 não é
+   desenhado, e o registro fica INVISÍVEL e impossível de apagar, continuando a
+   somar arrecadado/field na auditoria. Esta lista lê o nó CRU
+   (painel/<data>/manualRows), então o que foi criado à mão sempre dá pra tirar. */
+async function loadManualList(){
+  const wrap = document.getElementById('addExistingWrap');
+  const list = document.getElementById('addExistingList');
+  const cnt  = document.getElementById('addExistingCount');
+  if(!wrap || !list) return;
+  const date = document.getElementById('addDate')?.value;
+  if(!fbOk || !date){ wrap.style.display='none'; return; }
+  let val = null;
+  // sem permissão/offline: esconde em vez de mostrar caixa vazia (que leria como
+  // "não há nada adicionado" — mentira perigosa numa tela de exclusão)
+  try{ val = (await db.ref(`painel/${date}/manualRows`).once('value')).val(); }
+  catch(e){ wrap.style.display='none'; return; }
+  const itens = Object.entries(val || {})
+    .filter(([,r]) => r && typeof r === 'object' && r.nome)
+    .sort((a,b) => String(a[1].hora||'').localeCompare(String(b[1].hora||'')));
+  if(!itens.length){ wrap.style.display='none'; list.innerHTML=''; return; }
+  wrap.style.display='';
+  if(cnt) cnt.textContent = `· ${itens.length}`;
+  list.innerHTML = itens.map(([k,r]) => `
+    <div class="manual-row">
+      <div class="manual-info">
+        <b>${esc(r.nome)}</b>
+        <span>${esc(r.hora||'--:--')}${r.buyin!=null?' · buy-in R$ '+brl(r.buyin):''}${r.garantido!=null?' · gtd R$ '+brl(r.garantido):''}</span>
+      </div>
+      <button class="btn-del-manual" title="Excluir este torneio adicionado à mão"
+        data-act="removeManualByEl" data-act-self data-key="${esc(k)}" data-date="${esc(date)}"
+        data-nome="${esc(r.nome)}" data-hora="${esc(r.hora||'')}"
+        aria-label="Excluir ${esc(r.nome)}">🗑</button>
+    </div>`).join('');
+}
+function removeManualByEl(el){
+  if(!el) return;
+  removeManualFromList(el.dataset.key, el.dataset.date, el.dataset.nome, el.dataset.hora);
+}
+async function removeManualFromList(key, date, nomeAttr, hora){
+  if(!fbOk){ toast('Firebase não conectado','err'); return; }
+  if(!key || !date){ toast('Torneio sem referência — reabra o modal','err'); return; }
+  const nome = nomeAttr || 'este torneio';
+  const [y,m,d] = String(date).split('-');
+  if(!confirm(`Excluir "${nome}"${hora ? ' ('+hora+')' : ''} de ${d}/${m}/${y}?\n\nApaga também o arrecadado, o field, o garantido e o ID lançados nele. Não dá pra desfazer.`)) return;
+  try{
+    await wipeManualRow(date, key, nome, hora || null);
+    toast('✓ Torneio excluído','ok');
+    await loadManualList();   // a lista vem do nó cru: recarrega pra refletir o que sobrou
     loadAudit();
   }catch(e){
     toast('Falha ao excluir: '+e.message,'err');

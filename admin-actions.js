@@ -107,6 +107,9 @@
     'openAuditSummary', 'openInsightSettings',
     'buildAuditSummary', 'buildFieldTrend', 'buildMonthProjection',
     'toggleSoAnomalia', 'toggleCnErros', 'toggleCheckAll', 'updateBatchActions', 'filterOps',
+    // loadManualList só LÊ painel/<data>/manualRows pra montar a lista do modal — a
+    // exclusão (removeManualByEl) fica de fora e continua barrada no modo leitura
+    'loadManualList',
     'previewCleanup', 'previewCleanupUntil', 'closeMo', 'maskBRL', 'openCampanhaCfg',
     // EXPORTAR XLSX (leitura → arquivo). exportToSheets fica FORA: escreve no Sheets.
     'exportAuditXlsx', 'exportAuditSummaryXlsx', 'exportGradeXlsx', 'exportCnXlsx',

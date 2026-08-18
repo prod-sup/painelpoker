@@ -719,6 +719,28 @@ body > *{position:relative;z-index:1}
   .cn-compact .vwrap{ max-height:80vh; }
   .cn-compact .card{ padding:12px 16px; }
 
+  /* ══ CABER A SEÇÃO INTEIRA SEM ROLAGEM INTERNA ═════════════════════════════
+     A vtable é TRANSPOSTA: a altura é a soma das ~31 linhas de campo e NÃO
+     diminui quando a seção tem menos torneios — Main Event, com 8-12 torneios,
+     é tão alto quanto Side com 70. Passando de 80vh, a seção começa a rolar por
+     dentro, que é o que incomodava.
+     Como a decisão foi não esconder campo nenhum, o único caminho é apertar a
+     linha: aqui o padding vertical vai a zero e a entrelinha fica explícita.
+     São ~4px por linha × ~31 linhas ≈ 124px a menos por seção — o suficiente
+     pra ficar abaixo do corte num 1080p. A fonte NÃO diminui de propósito: quem
+     lê isto está digitando receita de torneio, e texto menor troca rolagem por
+     erro de digitação. */
+  .cn-compact .vtable th, .cn-compact .vtable td{ padding:0 7px; line-height:1.15; }
+  /* nome do torneio: um pouco mais largo quebra menos linha — e é altura que a
+     linha "Torneio" (a mais alta da tabela, com selos e pill de prazo) devolve.
+     Custa largura, que é o eixo que sobra em monitor grande. */
+  .cn-compact .vtable td.vname{ line-height:1.15; max-width:165px; }
+  .cn-compact .vtable .urg-pill, .cn-compact .vtable .mtt-kick{ line-height:1.1; }
+  /* as três linhas de ação têm altura ditada pelo controle, não pelo texto */
+  .cn-compact .vtable .id-inp{ height:19px; padding:1px 6px; }
+  .cn-compact .vtable .chk{ width:17px; height:17px; }
+  .cn-compact .vtable .op-tag{ padding-top:1px; padding-bottom:1px; }
+
 
   /* ══ ELEMENTOS DE POKER na planilha ══ */
   /* ticket com borda picotada (furos nas laterais + picote no canhoto) */

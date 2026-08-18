@@ -1000,7 +1000,8 @@ document.addEventListener('DOMContentLoaded', () => {
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <div class="mf" style="flex:1;min-width:140px">
         <label>Data da grade</label>
-        <input type="date" id="addDate">
+        <!-- trocar a data recarrega a lista "Já adicionados nesta data" logo abaixo -->
+        <input type="date" id="addDate" data-act="loadManualList" data-act-on="change">
       </div>
       <div class="mf" style="flex:1;min-width:120px">
         <label>Hora (HH:MM)</label>
@@ -1064,6 +1065,15 @@ document.addEventListener('DOMContentLoaded', () => {
       <label>Observação</label>
       <textarea id="addObs" rows="2" placeholder="Ex: torneio extra fora da grade, lançado na mão"></textarea>
     </div>
+    <!-- Já adicionados nesta data: lido DIRETO de painel/<data>/manualRows, sem passar
+         pela tabela da auditoria. É o caminho garantido pra excluir — a auditoria
+         deduplica por nome+hora, então um torneio adicionado à mão que a Global passou
+         a trazer depois some de lá e ficava impossível de apagar. Ver loadManualList. -->
+    <div class="mf" id="addExistingWrap" style="display:none">
+      <label>Já adicionados nesta data <span id="addExistingCount" style="color:var(--ink3);font-weight:400"></span></label>
+      <div id="addExistingList" class="manual-list"></div>
+    </div>
+
     <div class="modal-actions">
       <button class="btn btn-ghost" data-act="closeMo" data-arg="moAddTorneio">Cancelar</button>
       <button class="btn btn-gold" data-act="saveAddTorneio">

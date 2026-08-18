@@ -2797,7 +2797,7 @@ function renderList(){
         ${secOwnerChipHtml(cat.key)}
       </div>
       ${sectionNoteHtml(cat)}
-      <div class="secwrap" data-sectionid="${cat.key}" data-suit="${cat.suit}">${renderVertical(items, cat, secAsg)}</div>`;
+      <div class="secwrap" data-sectionid="${cat.key}" data-suit="${cat.suit}">${renderVertical(items, cat, secAsg, null, true)}</div>`;
   });
 
   // #2 LIGA PRINCIPAL — grade fixa dos Eventos Principais do dia. Reconstruída do dado
@@ -2872,8 +2872,8 @@ function renderList(){
             <span class="line"></span>
           </summary>
           <p class="section-note"><b>Side Events</b> da madrugada de <b>${WEEKDAY_DAYAFTER.toLowerCase()} (${refToLabel(TURNO.refDayAfter)})</b> — na ${WEEKDAY_TOMORROW.toLowerCase()} quem cria estes é o <b>turno do dia</b>. Main e Satélites da mesma madrugada continuam com a noite. Fora do total, dos anéis, da divisão e do relógio de atraso.</p>
-          ${guVis.length ? `<div class="secwrap turnodia-sec" data-sectionid="turnoDia" data-suit="☀">${renderVertical(guVis, tdCat, {})}</div>` : ''}
-          ${ligaVis.length ? `<div class="secwrap turnodia-sec" data-sectionid="turnoDiaLiga" data-suit="🏆">${renderVertical(ligaVis, {...tdCat, key:'turnoDiaLiga', suit:'🏆', label:'Turno do dia · Liga Principal'}, {}, ligaFieldList())}</div>` : ''}
+          ${guVis.length ? `<div class="secwrap turnodia-sec" data-sectionid="turnoDia" data-suit="☀">${renderVertical(guVis, tdCat, {}, null, true)}</div>` : ''}
+          ${ligaVis.length ? `<div class="secwrap turnodia-sec" data-sectionid="turnoDiaLiga" data-suit="🏆">${renderVertical(ligaVis, {...tdCat, key:'turnoDiaLiga', suit:'🏆', label:'Turno do dia · Liga Principal'}, {}, ligaFieldList(), true)}</div>` : ''}
         </details>`;
     }
   }
