@@ -140,6 +140,36 @@ const WEEKDAY_DAYAFTER_EN = WEEKDAYS_EN[TURNO.refDayAfter.getUTCDay()];
 const DAY_LABEL = `${WEEKDAY_TOMORROW.split('-')[0].toLowerCase()} · ${refToLabel(TURNO.refTomorrow)}`;
 const NIGHT_ADVANCED = NATURAL_ISO > ACTIVE_ISO;   // já chegou uma madrugada mais nova que a carregada
 
+/* ── ESCALA: a madrugada da TERÇA é do TURNO DO DIA ───────────────────────
+   Regra da operação: toda TERÇA o turno do dia (07→19) cria os eventos da
+   madrugada seguinte — 00:00 → 05:30 de QUARTA. Esses torneios ESTÃO na grade
+   de terça (a janela é 06:10 ter → 05:30 qua) e por isso vinham caindo na
+   Criação Noturna como se fossem trabalho da noite.
+   Aqui eles continuam APARECENDO (a noite precisa enxergar a grade inteira e
+   conferir se saíram), só que numa seção própria e FORA da carga da noite:
+   não entram no total, nos anéis, na divisão entre operadores, no relógio de
+   atraso, nas notificações de prazo nem no handoff. É a mesma ideia que os
+   suspensos já usam — visíveis, porém fora da contagem do turno.
+
+   ATENÇÃO ao dia: TURNO_DIA_WEEKDAY é o dia da GRADE (terça), não o dia civil
+   em que a madrugada cai (quarta). Trocar por outro dia — ou null pra desligar
+   a regra — é a única edição necessária se a escala mudar. */
+const TURNO_DIA_WEEKDAY = 2;                       // 0=dom 1=seg 2=TERÇA 3=qua 4=qui 5=sex 6=sáb
+const TURNO_DIA_ON = TURNO_DIA_WEEKDAY !== null && TURNO.refTomorrow.getUTCDay() === TURNO_DIA_WEEKDAY;
+/* madrugada = exatamente o que a grade puxa da seção do dia SEGUINTE na G MTTS.
+   Usa a MESMA constante do buildSections (gu-parser.js), então esta divisão não
+   tem como discordar de como a grade foi montada. Sem horário legível não é
+   madrugada (fica com a noite) — o contrário esconderia torneio por engano. */
+function isMadrugadaItem(it){
+  const m = timeToMinutes(it ? it.hora : null);
+  return m !== null && m <= CONF_WINDOW_END_MIN;
+}
+function isTurnoDiaItem(it){ return TURNO_DIA_ON && isMadrugadaItem(it); }
+/* lista SEM o bloco do turno do dia — é o que toda contagem/divisão da noite usa */
+function semTurnoDia(list){ return TURNO_DIA_ON ? (list || []).filter(it => !isMadrugadaItem(it)) : (list || []); }
+/* só o bloco do turno do dia — alimenta a seção própria dele */
+function soTurnoDia(list){ return TURNO_DIA_ON ? (list || []).filter(isMadrugadaItem) : []; }
+
 $('heroDay').textContent = `de ${WEEKDAY_TOMORROW.toLowerCase()} · ${refToLabel(TURNO.refTomorrow)}`;
 $('uploadDayLabel').textContent = `${WEEKDAY_TOMORROW.toLowerCase()} (${refToLabel(TURNO.refTomorrow)})`;
 
@@ -373,7 +403,9 @@ function mttKicker(it){
 /* separa os Side Events em dois blocos: com e sem Admin Fee */
 function sideSplit(){
   const admin = [], noadmin = [];
-  ((DATA && DATA.side) || []).forEach(it => (hasAdminFee(it) ? admin : noadmin).push(it));
+  /* semTurnoDia: na terça a madrugada (00:00→05:30) é do turno do dia e sai das
+     seções da noite — vai pra seção própria dela (ver soTurnoDia no renderList) */
+  semTurnoDia((DATA && DATA.side) || []).forEach(it => (hasAdminFee(it) ? admin : noadmin).push(it));
   return {admin, noadmin};
 }
 
@@ -390,8 +422,8 @@ const SECTIONS = [CAT_MAIN, CAT_SAT, CAT_SIDE_A, CAT_SIDE_B];
 function catItems(cat){
   if (!DATA) return [];
   if (cat.custom) return customPool(cat);
-  if (cat.key === 'main') return DATA.main;
-  if (cat.key === 'sat')  return DATA.sat;
+  if (cat.key === 'main') return semTurnoDia(DATA.main);
+  if (cat.key === 'sat')  return semTurnoDia(DATA.sat);
   const s = sideSplit();
   return cat.key === 'sideAdmin' ? s.admin : s.noadmin;
 }
@@ -417,19 +449,13 @@ function persistCustomSections(){ try{ localStorage.setItem('cn_custom_sections'
 function setSectionMode(m){ SECTION_MODE = m; try{ localStorage.setItem('cn_section_mode', m); }catch(e){} renderAll(); }
 function typePool(t){
   if (!DATA) return [];
-  if (t === 'main') return DATA.main;
-  if (t === 'sat')  return DATA.sat;
+  if (t === 'main') return semTurnoDia(DATA.main);
+  if (t === 'sat')  return semTurnoDia(DATA.sat);
   const s = sideSplit();
   if (t === 'sideAdmin') return s.admin;
   if (t === 'sideNoAdmin') return s.noadmin;
   if (t === 'sideEvent') return [...s.admin, ...s.noadmin];   // todos os Side Events
-  if (t === 'principal'){
-    // Liga Principal: combina main + sat (Eventos Principais)
-    if (typeof LIGA_PRINCIPAL_SECTIONS === 'undefined') return [];
-    const lp = LIGA_PRINCIPAL_SECTIONS[WEEKDAY_TOMORROW_EN];
-    if (!lp) return [];
-    return [...(lp.main||[]), ...(lp.side||[]), ...(lp.sat||[])];
-  }
+  if (t === 'principal') return ligaItemsForDay();   // já sem a madrugada do turno do dia
   return [];
 }
 /* minuto "na janela" 06:10→05:30: o que é depois da meia-noite conta como +24h,
@@ -460,22 +486,54 @@ function customCats(){ return CUSTOM_SECTIONS.map(customCat); }
 function activeSections(){ return (SECTION_MODE === 'custom' && CUSTOM_SECTIONS.length) ? customCats() : SECTIONS; }
 function findCat(key){ return SECTIONS.find(c => c.key === key) || customCats().find(c => c.key === key) || null; }
 const CAT_LIGA = {key:'liga', cls:'liga', suit:'🏆', label:'Liga Principal'};
-function ligaItemsForDay(){
+/* Liga Principal do dia, COMPLETA (inclui a madrugada) — base das duas versões abaixo */
+function ligaItemsRaw(){
   if (typeof LIGA_PRINCIPAL_SECTIONS === 'undefined') return [];
   const lp = LIGA_PRINCIPAL_SECTIONS[WEEKDAY_TOMORROW_EN];
   return lp ? [...(lp.main||[]), ...(lp.side||[]), ...(lp.sat||[])] : [];
 }
+/* a Liga que é carga da NOITE — na terça, o Corujão 00:00 sai daqui e vai pro
+   bloco do turno do dia junto com o resto da madrugada */
+function ligaItemsForDay(){ return semTurnoDia(ligaItemsRaw()); }
+/* A Liga é R$ NATIVO: converte pra US-equivalente e deixa o renderVertical
+   reaplicar a moeda do toggle. Era inline na seção da Liga; virou helper porque o
+   bloco do turno do dia precisa exatamente da mesma conversão. */
+function ligaToUsdEq(it){
+  return {...it,
+    garantido: typeof it.garantido === 'number' ? it.garantido / BRL_RATE : it.garantido,
+    buyin: typeof it.buyin === 'number' ? it.buyin / BRL_RATE : it.buyin };
+}
+/* campos da receita da Liga (idem: era inline, os dois blocos usam) */
+function ligaFieldList(){
+  return applyColOrder(creationOrderFields((typeof LIGA_PRINCIPAL_FIELDS !== 'undefined' ? LIGA_PRINCIPAL_FIELDS : []).filter(l => !isCoreLabel(l))));
+}
 function allWithCat(){
   const s = sideSplit();
   return [
-    ...DATA.main.map(it => ({it, cat: CAT_MAIN})),
+    ...semTurnoDia(DATA.main).map(it => ({it, cat: CAT_MAIN})),
     ...s.admin.map(it => ({it, cat: CAT_SIDE_A})),
     ...s.noadmin.map(it => ({it, cat: CAT_SIDE_B})),
-    ...DATA.sat.map(it => ({it, cat: CAT_SAT})),
+    ...semTurnoDia(DATA.sat).map(it => ({it, cat: CAT_SAT})),
     // Liga Principal agora entra na divisão/handoff — itemKey (nome|hora) casa com as
     // cópias US-eq do render, então atribuição e "meus torneios" enxergam a Liga também
     ...ligaItemsForDay().map(it => ({it, cat: CAT_LIGA}))
   ];
+}
+
+/* ── CARGA DA NOITE ───────────────────────────────────────────────────────
+   Os torneios da GU que a noite realmente tem que criar: tudo menos a
+   madrugada do turno do dia (terça). É a base de TODO total, progresso, anel,
+   prazo e ritmo por operador — quem contar por fora disso vai divergir da tela.
+   Quem precisa da grade CRUA continua lendo DATA.main/side/sat direto, e isso é
+   de propósito: auditoria, ID órfão e export enxergam o dia inteiro. */
+function nightItems(){
+  return DATA ? semTurnoDia([...(DATA.main||[]), ...(DATA.side||[]), ...(DATA.sat||[])]) : [];
+}
+/* o bloco do turno do dia, já em ordem cronológica (GU + Liga Principal) */
+function turnoDiaItems(){
+  if (!DATA || !TURNO_DIA_ON) return [];
+  const arr = soTurnoDia([...(DATA.main||[]), ...(DATA.side||[]), ...(DATA.sat||[])]);
+  return arr.sort((a,b) => (timeToMinutes(a.hora) ?? 9999) - (timeToMinutes(b.hora) ?? 9999));
 }
 
 /* papéis (função) por operador — chave saneada pro Firebase */
@@ -1230,11 +1288,9 @@ function onAssignClick(el){
 /* todos os torneios atribuíveis do dia (GU + Liga Principal) */
 function assignableItems(){
   if (!DATA) return [];
-  const arr = [...(DATA.main||[]), ...(DATA.side||[]), ...(DATA.sat||[])];
-  if (typeof LIGA_PRINCIPAL_SECTIONS !== 'undefined'){
-    const lp = LIGA_PRINCIPAL_SECTIONS[WEEKDAY_TOMORROW_EN];
-    if (lp) arr.push(...(lp.main||[]), ...(lp.side||[]), ...(lp.sat||[]));
-  }
+  // madrugada da terça não é atribuível: é do turno do dia, ninguém da noite "pega"
+  const arr = semTurnoDia([...(DATA.main||[]), ...(DATA.side||[]), ...(DATA.sat||[])]);
+  arr.push(...ligaItemsForDay());
   return arr;
 }
 /* "Pegar livres" — a pessoa selecionada pega TODOS os torneios sem dono de uma vez */
@@ -1304,7 +1360,9 @@ function setView(v){
   const hint = $('viewHint');
   if (hint) hint.textContent = week
     ? 'Selecione um dia pra ver os torneios daquela madrugada e quem preencheu cada ID do Pokerbyte. Só leitura — a marcação/divisão continua na aba Noite.'
-    : `Janela 06:10 → 05:30 · divisão e marcação da madrugada de ${WEEKDAY_TOMORROW.toLowerCase()}.`;
+    : TURNO_DIA_ON
+      ? `Janela 06:10 → 05:30 · divisão e marcação da madrugada de ${WEEKDAY_TOMORROW.toLowerCase()}. ☀ Nesta ${WEEKDAY_TOMORROW.toLowerCase()}, o bloco 00:00 → 05:30 é do turno do dia — aparece separado e fora da contagem.`
+      : `Janela 06:10 → 05:30 · divisão e marcação da madrugada de ${WEEKDAY_TOMORROW.toLowerCase()}.`;
   if (week) renderWeek();
 }
 
@@ -1616,7 +1674,8 @@ document.addEventListener('click', () => {
 }, {once: true});
 function checkDeadlineNotifs(){
   if (!('Notification' in window) || Notification.permission !== 'granted' || !DATA) return;
-  const late = [...DATA.main, ...DATA.side, ...DATA.sat]
+  // só a carga da noite: não faz sentido acordar o turno por torneio do turno do dia
+  const late = nightItems()
     .filter(it => !DONE[itemKey(it)] && !NOTIFIED.has(itemKey(it)) && urgency(it) === 'late')
     .slice(0, 3); // no máx. 3 por checagem pra não virar spam
   late.forEach(it => {
@@ -1631,7 +1690,7 @@ let TV_OPEN = false;
 function renderTV(){
   if (!TV_OPEN || !DATA) return;
   const asg = computeAssignments();
-  const all = [...DATA.main, ...DATA.side, ...DATA.sat];
+  const all = nightItems();
   const total = all.length, doneCount = all.filter(it => DONE[itemKey(it)]).length;
   const pct = total ? Math.round(doneCount/total*100) : 0;
   const n = nowInSP();
@@ -1990,7 +2049,7 @@ function renderFilters(){
     const o = asg[itemKey(it)];
     if (o in counts){ counts[o]++; if (!DONE[itemKey(it)]) pend[o]++; }
   });
-  const total = DATA ? DATA.main.length + DATA.side.length + DATA.sat.length + ligaItemsForDay().length : 0;
+  const total = DATA ? nightItems().length + ligaItemsForDay().length : 0;
   const cntBadge = o => `<span class="cnt" title="${counts[o]||0} atribuído(s) · ${pend[o]||0} pendente(s)">${pend[o]||0}/${counts[o] || 0}</span>`;
   let html = `<button class="fchip ${FILTER==='all'?'on':''}" data-f="all">Todos <span class="cnt">${total}</span></button>`;
   // atalho destacado: "Meus torneios" (só quando você está na equipe) — vai direto pro seu filtro
@@ -2083,7 +2142,7 @@ let _cnRingsBuilt = false;
 function renderCriacaoRings(){
   const el = document.getElementById('cnRings');
   if (!el || !DATA) return;
-  const mainSat = [...DATA.main, ...DATA.sat];
+  const mainSat = [...semTurnoDia(DATA.main), ...semTurnoDia(DATA.sat)];
   const sd = sideSplit();
   const doneOf = arr => arr.filter(it => DONE[itemKey(it)]).length;
   el.innerHTML =
@@ -2097,16 +2156,19 @@ function renderCriacaoRings(){
 function renderStats(){
   if (!DATA){ return; }
   renderCriacaoRings();
-  const total = DATA.main.length + DATA.side.length + DATA.sat.length;
-  const doneCount = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => DONE[itemKey(it)]).length;
+  /* tudo aqui conta a CARGA DA NOITE — na terça a madrugada 00:00→05:30 é do
+     turno do dia e tem contagem própria (ver a seção dela no renderList) */
+  const night = nightItems();
+  const total = night.length;
+  const doneCount = night.filter(it => DONE[itemKey(it)]).length;
   const pct = total ? Math.round(doneCount/total*100) : 0;
   // banner de troca de dia dispara pelos IDs preenchidos (regra do Brian), não pelos "criados"
-  const idsCount = cnIdsFilledCount([...DATA.main, ...DATA.side, ...DATA.sat]);
+  const idsCount = cnIdsFilledCount(night);
   renderAllDone(total, idsCount);
   const side = sideSplit();
-  const campCount = [...DATA.main, ...DATA.side, ...DATA.sat].filter(hasCampaign).length;
+  const campCount = night.filter(hasCampaign).length;
   $('stTotal').textContent = total;
-  $('stMain').textContent = DATA.main.length + DATA.sat.length;
+  $('stMain').textContent = semTurnoDia(DATA.main).length + semTurnoDia(DATA.sat).length;
   $('stSideA').textContent = side.admin.length;
   $('stSideB').textContent = side.noadmin.length;
   $('stCampWrap').hidden = campCount === 0;
@@ -2114,14 +2176,14 @@ function renderStats(){
   $('stProg').textContent = pct + '%';
   $('progFill').style.width = pct + '%';
   // torneios estourando prazo (começam em <6h e ainda não criados)
-  const urgAll = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => urgency(it));
+  const urgAll = night.filter(it => urgency(it));
   const lateCount = urgAll.filter(it => urgency(it) === 'late').length;
   $('stUrgWrap').hidden = urgAll.length === 0;
   $('stUrg').textContent = urgAll.length;
   $('stUrg').style.color = lateCount ? '#f06050' : '#e8c860';
   const perOp = OPS.map(o => {
     const asg = computeAssignments();
-    const mine = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => asg[itemKey(it)] === o);
+    const mine = night.filter(it => asg[itemKey(it)] === o);
     const d = mine.filter(it => DONE[itemKey(it)]).length;
     return `${o.split(' ')[0]} ${d}/${mine.length}`;
   }).join(' · ');
@@ -2677,17 +2739,15 @@ function renderList(){
   if (typeof LIGA_PRINCIPAL_SECTIONS !== 'undefined'){
     const lp = LIGA_PRINCIPAL_SECTIONS[WEEKDAY_TOMORROW_EN];
     if (lp){
-      const toUsdEq = it => ({...it,
-        garantido: typeof it.garantido === 'number' ? it.garantido / BRL_RATE : it.garantido,
-        buyin: typeof it.buyin === 'number' ? it.buyin / BRL_RATE : it.buyin });
-      let pit = [...(lp.main||[]), ...(lp.side||[]), ...(lp.sat||[])].map(toUsdEq);
+      // ligaItemsForDay: sem a madrugada do turno do dia (ela tem seção própria)
+      let pit = ligaItemsForDay().map(ligaToUsdEq);
       const ligaAsgAll = withSecOwner(asg, pit, 'liga');
       if (FILTER !== 'all') pit = pit.filter(it => ligaAsgAll[itemKey(it)] === FILTER);
       if (SEARCH){ const q = normText(SEARCH); pit = pit.filter(it => normText(it.nome).includes(q) || String(it.hora||'').includes(SEARCH)); }
       pit.sort((a,b) => (timeToMinutes(a.hora) ?? 9999) - (timeToMinutes(b.hora) ?? 9999));
       if (pit.length){
         const pcat = { key:'liga', cls:'liga', suit:'🏆', label:`Liga Principal · ${cur === 'usd' ? '$' : 'R$'}` };
-        const ligaFields = applyColOrder(creationOrderFields((typeof LIGA_PRINCIPAL_FIELDS !== 'undefined' ? LIGA_PRINCIPAL_FIELDS : []).filter(l => !isCoreLabel(l))));
+        const ligaFields = ligaFieldList();
         const ligaAsg = withSecOwner(asg, pit, 'liga');   // per-evento + dono da seção
         const pdone = pit.filter(it => DONE[itemKey(it)]).length;
         html += `
@@ -2701,6 +2761,39 @@ function renderList(){
           <p class="section-note" style="margin:4px 0 0">Grade fixa dos <b>Eventos Principais</b> (R$ nativo). Selecione alguém na equipe e clique nos eventos pra atribuir, ou defina um <b>dono da seção</b>.</p>
           <div class="secwrap liga-sec" data-sectionid="liga" data-suit="🏆">${renderVertical(pit, pcat, ligaAsg, ligaFields)}</div>`;
       }
+    }
+  }
+
+  /* ☀ TURNO DO DIA — a madrugada 00:00 → 05:30 da terça (ver TURNO_DIA_WEEKDAY).
+     Está na grade que este painel monta, mas quem cria é o turno do dia. Fica
+     visível pra noite CONFERIR se saiu, com contagem própria, e fora de tudo que
+     mede o turno da noite. Só em "Todos": não tem dono na noite, então dentro do
+     filtro de uma pessoa só faria confusão. */
+  if (TURNO_DIA_ON && FILTER === 'all'){
+    const tdGu = turnoDiaItems();
+    const tdLiga = soTurnoDia(ligaItemsRaw()).map(ligaToUsdEq);
+    const byQuery = list => {
+      if (!SEARCH) return list;
+      const q = normText(SEARCH);
+      return list.filter(it => normText(it.nome).includes(q) || String(it.hora || '').includes(SEARCH.trim()));
+    };
+    const guVis = byQuery(tdGu), ligaVis = byQuery(tdLiga);
+    if (guVis.length || ligaVis.length){
+      const tdAll = [...guVis, ...ligaVis];
+      const tdDone = tdAll.filter(it => DONE[itemKey(it)]).length;
+      /* fixedOwner: a linha "Operador" vira um selo fixo em vez do botão de
+         atribuir — este bloco não entra na divisão da noite. */
+      const tdCat = { key:'turnoDia', cls:'turnodia', suit:'☀', label:'Turno do dia', fixedOwner:'Turno do dia', noFeeCheck:true };
+      html += `
+        <div class="section-head turnodia">
+          <span class="tag"><span class="suit">☀</span>00:00 → 05:30 · Turno do dia</span>
+          <span class="cnt">${tdDone}/${tdAll.length} criados</span>
+          ${prizeChip(tdAll, isBrl)}
+          <span class="line"></span>
+        </div>
+        <p class="section-note">Madrugada de <b>${WEEKDAY_DAYAFTER.toLowerCase()} (${refToLabel(TURNO.refDayAfter)})</b> — na ${WEEKDAY_TOMORROW.toLowerCase()} quem cria estes é o <b>turno do dia</b>. Estão aqui só pra <b>conferência</b>: fora do total, dos anéis, da divisão entre operadores e do relógio de atraso da noite.</p>
+        ${guVis.length ? `<div class="secwrap turnodia-sec" data-sectionid="turnoDia" data-suit="☀">${renderVertical(guVis, tdCat, {})}</div>` : ''}
+        ${ligaVis.length ? `<div class="secwrap turnodia-sec" data-sectionid="turnoDiaLiga" data-suit="🏆">${renderVertical(ligaVis, {...tdCat, key:'turnoDiaLiga', suit:'🏆', label:'Turno do dia · Liga Principal'}, {}, ligaFieldList())}</div>` : ''}`;
     }
   }
 
@@ -2910,7 +3003,9 @@ function renderVertical(items, cat, asg, fieldList, dropEmpty){
             return `<span class="mono" style="${keyLabels.has(label) ? 'font-weight:700' : ''}">${escHtml(disp)}</span>`;
           })}</tr>`).join('')
         : `<tr data-field="late" data-flabel="Late reg">${rlabTh('late', 'Late reg', false)}${cell(c => `<span class="mono" style="color:var(--ink-soft)">${c.it.late ? escHtml(c.it.late) : '—'}</span>`)}</tr>`}
-      <tr data-field="op" data-flabel="Operador"><th class="rowlab">Operador</th>${cell(c => opTagHtml(c.op, c.key))}</tr>
+      <tr data-field="op" data-flabel="Operador"><th class="rowlab">Operador</th>${cell(c => cat.fixedOwner
+        ? `<span class="op-tag fixed" title="Fora da divisão da noite — quem cria é o turno do dia">${escHtml(cat.fixedOwner)}</span>`
+        : opTagHtml(c.op, c.key))}</tr>
       <tr data-field="id" data-flabel="ID Pokerbyte"><th class="rowlab">ID Pokerbyte</th>${cell(c => idInputHtml(c.key, 'width:110px'))}</tr>
       <tr data-field="done" data-flabel="Criado"><th class="rowlab">Criado</th>${cell(c => `
         <button class="chk ${c.done ? 'on' : ''}" data-done="${c.key}" role="checkbox" aria-checked="${c.done ? 'true' : 'false'}"
@@ -3025,7 +3120,10 @@ function validateItem(it, cat){
   const out = [];
   if (it.buyin === null || it.buyin === undefined) out.push('Buy-in ausente na receita');
   if (it.garantido === null || it.garantido === undefined) out.push('Garantido (prize pool) ausente');
-  if (!feeActive(it) && !adminActive(it) && cat.key !== 'sat') out.push('Sem Admin Fee (rake/fee) reconhecido na receita');
+  /* noFeeCheck: blocos só de conferência (turno do dia) misturam Main/Side/Satélite
+     numa seção só, então não dá pra saber pelo cat.key se a ausência de fee é normal
+     (satélite) ou erro — sem isto todo satélite da madrugada viraria "⚠ conferir" falso. */
+  if (!feeActive(it) && !adminActive(it) && cat.key !== 'sat' && !cat.noFeeCheck) out.push('Sem Admin Fee (rake/fee) reconhecido na receita');
   return out;
 }
 function valBadge(it, cat){
@@ -3121,7 +3219,7 @@ $('searchInp').addEventListener('input', () => { SEARCH = $('searchInp').value; 
    sem mudança, re-renderizar 10 mil células é desperdício */
 let LAST_URG_SIG = '';
 function urgSignature(){
-  return [...DATA.main, ...DATA.side, ...DATA.sat].map(it => urgency(it) || '-').join('');
+  return nightItems().map(it => urgency(it) || '-').join('');
 }
 setInterval(() => {
   if (!DATA) return;
@@ -3289,7 +3387,10 @@ $('exportBtn').addEventListener('click', async () => {
   const satGroups = satOrder.map(k => satMap[k]);
 
   const rows = [['Torneio', 'Horário', `Garantido (${cur})`, `Buy in (${cur})`, 'ID', 'Operador']];
-  const pushRow = it => { const key = itemKey(it); rows.push([it.nome, it.hora, conv(it.garantido), conv(it.buyin), idVal(key), asg[key] || '']); };
+  /* a planilha é a conferência da grade INTEIRA, então a madrugada do turno do dia
+     continua aqui — mas identificada na coluna Operador, pra ninguém cobrar a noite
+     por torneio que não era dela (nem achar que ficou sem dono). */
+  const pushRow = it => { const key = itemKey(it); rows.push([it.nome, it.hora, conv(it.garantido), conv(it.buyin), idVal(key), isTurnoDiaItem(it) ? 'Turno do dia' : (asg[key] || '')]); };
   const blankRow = () => rows.push([]);
 
   main.forEach(pushRow); if (main.length) blankRow();
@@ -3305,6 +3406,8 @@ $('exportBtn').addEventListener('click', async () => {
   // rodapé de checagem: quem receber a planilha confere se nada foi cortado
   blankRow();
   rows.push([`Total: ${total} torneios (Main ${main.length} · Side ${side.length} · Sat ${sat.length}) — ${WEEKDAY_TOMORROW} ${refToLabel(TURNO.refTomorrow)}`]);
+  const _td = turnoDiaItems().length;
+  if (_td) rows.push([`Destes, ${_td} são da madrugada 00:00 → 05:30 de ${WEEKDAY_DAYAFTER.toLowerCase()} (${refToLabel(TURNO.refDayAfter)}) — criados pelo TURNO DO DIA, fora da contagem da noite.`]);
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = [{wch:30},{wch:10},{wch:14},{wch:12},{wch:16},{wch:18}];
@@ -3335,10 +3438,14 @@ $('summaryBtn').addEventListener('click', async () => {
   } else {
     SECTIONS.forEach(cat => lines.push(`${cat.label}: ${catItems(cat).length}`));
   }
-  const total = DATA.main.length + DATA.side.length + DATA.sat.length;
-  const doneCount = [...DATA.main, ...DATA.side, ...DATA.sat].filter(it => DONE[itemKey(it)]).length;
+  // o resumo é o que a noite presta conta no grupo: conta a CARGA DA NOITE
+  const night = nightItems();
+  const total = night.length;
+  const doneCount = night.filter(it => DONE[itemKey(it)]).length;
   const avg = avgDurMin();
   lines.push(`\nTotal: ${total} torneios · ${doneCount} criados${avg ? ` · ⏱ ${avg < 1 ? Math.round(avg*60) + 's' : avg.toFixed(1) + 'm'}/torneio` : ''}`);
+  const td = turnoDiaItems();
+  if (td.length) lines.push(`☀ Fora da conta: ${td.length} da madrugada 00:00→05:30 (${WEEKDAY_DAYAFTER.toLowerCase()}) — criação do turno do dia.`);
   try{
     await navigator.clipboard.writeText(lines.join('\n'));
     showToast('Resumo copiado — pronto pra colar no grupo 📋');
