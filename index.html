@@ -1172,6 +1172,14 @@ document.addEventListener('DOMContentLoaded', () => {
         <h2>Metas dos Main Events</h2>
         <p class="metas-sub">Só aparece o que já começou e ainda aceita inscrição — enviamos a cada 30 min no grupo. <span class="ok-dot"></span> enviada no ciclo, <span class="warn-dot"></span> aguardando envio.</p>
       </div>
+      <div class="metas-sync" id="metasSync">
+        <span class="metas-sync-status" id="metasSyncStatus">
+          <span class="dot"></span><span id="metasSyncTexto">sem sincronizar</span>
+        </span>
+        <button type="button" class="metas-sync-btn" id="metasSyncBtn" data-act="pedirSyncMetas" title="Buscar os números e o print no PokerByte agora">
+          Atualizar agora
+        </button>
+      </div>
       <span class="count" id="metasCount">0</span>
     </div>
     <div class="metas-grid reveal" id="metasGrid"></div>

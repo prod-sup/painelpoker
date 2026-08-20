@@ -1538,9 +1538,41 @@
   .metas-sub .ok-dot, .metas-sub .warn-dot{width:7px; height:7px; border-radius:50%; display:inline-block; margin-left:4px;}
   .metas-sub .ok-dot{background:var(--felt-bright);}
   .metas-sub .warn-dot{background:var(--warn-border);}
+  /* controle do sync — a "ferramenta" que o operador opera, dentro da seção */
+  .metas-sync{display:flex; align-items:center; gap:10px; margin-left:auto; flex:none;}
+  .metas-sync-status{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:11px; color:var(--ink-soft); white-space:nowrap;
+  }
+  .metas-sync-status .dot{
+    width:7px; height:7px; border-radius:50%; flex:none; background:var(--ink-soft); opacity:.5;
+  }
+  /* verde de STATUS (o mesmo do "Fixado"), não var(--felt-bright): o feltro virou
+     dourado no design system e ficaria idêntico ao âmbar de "dado velho" logo
+     abaixo — que é exatamente a distinção que este ponto precisa fazer. */
+  .metas-sync-status.ok .dot{ background:#34b876; opacity:1; }
+  /* dado velho não pode passar por dado fresco — âmbar é o aviso de "confira" */
+  .metas-sync-status.velho .dot{ background:var(--warn-border); opacity:1; }
+  .metas-sync-status.velho{ color:var(--warn-border); }
+  .metas-sync-status.erro .dot{ background:var(--red); opacity:1; }
+  .metas-sync-status.erro{ color:var(--red); font-weight:700; }
+  .metas-sync-status.sincronizando .dot{ background:var(--felt); opacity:1; animation:metas-pulso 1.1s ease-in-out infinite; }
+  @keyframes metas-pulso{ 0%,100%{opacity:1;} 50%{opacity:.25;} }
+  .metas-sync-btn{
+    border:1px solid var(--hairline-strong); background:var(--card); color:var(--ink);
+    border-radius:99px; padding:5px 12px; cursor:pointer; flex:none;
+    font-family:inherit; font-size:11px; font-weight:700;
+    transition:background .2s var(--ease), border-color .2s var(--ease);
+  }
+  .metas-sync-btn:hover:not([disabled]){ background:var(--hairline); }
+  .metas-sync-btn[disabled]{ opacity:.5; cursor:not-allowed; }
+
+  /* margin-left:0 de propósito: quem empurra o bloco pra direita é o .metas-sync
+     (que já tem margin-left:auto). Dois autos seguidos rachariam o espaço livre
+     entre eles e afastariam o contador do controle de sync. */
   .metas-head .count{
     font-family:var(--mono); font-size:12px; font-weight:700; color:var(--felt);
-    background:rgba(34,212,126,.14); padding:3px 10px; border-radius:99px; margin-left:auto; flex:none;
+    background:rgba(34,212,126,.14); padding:3px 10px; border-radius:99px; margin-left:0; flex:none;
   }
   /* align-items:start impede que o card sem print estique até a altura do mais
      alto — senão sobra um vão morto embaixo do botão dele */

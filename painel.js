@@ -141,6 +141,7 @@ let UNFIXED = [];         // not-fixed tournaments (any status, no Ações/owner
 let METAS = [];           // Main Events na janela de meta (já começaram, late ainda aberto)
 let META_MAP = {};        // _key -> {by, at} do último envio de meta — compartilhado entre operadores via Firebase
 let META_DADOS = {};      // _key -> dados vindos do PokerByte pelo sync (print em base64, arrecadado, overlay…)
+let META_STATUS = {};     // {em, ok, torneios, erro, sessao, comando} — saúde do serviço de sync
 let activeUpcomingCat = new Set(['all']); // Set: permite múltiplos filtros ativos ao mesmo tempo (ex.: Main Event + Satélite)
 let nameSearchQuery = '';
 let activeResultsCat = 'all';
@@ -763,6 +764,72 @@ function metaFresh(key){
 
 /* dados que o sync do PokerByte gravou pra este torneio (print, arrecadado, overlay) */
 function metaDados(key){ return META_DADOS[key] || null; }
+
+/* =========================================================================
+   CONTROLE DO SYNC — a ferramenta mora aqui, não num terminal.
+
+   O NAVEGADOR NÃO PODE BUSCAR O POKERBYTE.
+   Same-origin policy: a página não lê outro domínio com a sessão de lá. A coleta
+   roda fora (Playwright, numa máquina ligada). O que o painel faz é COMANDAR:
+   escreve um pedido no Firebase, o serviço obedece e devolve o estado. Assim o
+   operador nunca abre terminal nem sabe que existe script.
+
+       metasComando → {em, por}     pedido de atualização
+       metasStatus  → {em, ok, torneios, erro, sessao}
+   ========================================================================= */
+const META_SYNC_TIMEOUT_MS = 3 * 60 * 1000;  // sem resposta nisso, o serviço está fora
+
+function metaSyncPendente(){
+  const c = META_STATUS.comando;
+  if(!c || !c.em) return false;
+  const resp = META_STATUS.em || 0;
+  return c.em > resp && (Date.now() - c.em) < META_SYNC_TIMEOUT_MS;
+}
+
+/* Uma frase só, dizendo a verdade sobre a fonte dos números.
+   Sem isso o operador olha um overlay de duas horas atrás achando que é de agora. */
+function metaSyncTexto(){
+  const s = META_STATUS;
+  if(metaSyncPendente()) return { classe:'sincronizando', texto:'buscando no PokerByte…' };
+  if(s.sessao === 'expirada') return { classe:'erro', texto:'sessão do PokerByte expirou' };
+  if(s.erro) return { classe:'erro', texto:`falhou: ${String(s.erro).slice(0, 60)}` };
+  if(!s.em)  return { classe:'', texto:'sem sincronizar' };
+
+  const min = Math.floor((Date.now() - s.em) / 60000);
+  const quando = min < 1 ? 'agora' : min === 1 ? 'há 1 min' : `há ${min} min`;
+  // acima de 20min o dado não é mais "de agora" — avisa em vez de fingir
+  return { classe: min > 20 ? 'velho' : 'ok', texto: `atualizado ${quando}` };
+}
+
+function renderMetaSync(){
+  const cont = document.getElementById('metasSync');
+  if(!cont) return;
+  const { classe, texto } = metaSyncTexto();
+  const st = document.getElementById('metasSyncStatus');
+  const tx = document.getElementById('metasSyncTexto');
+  const bt = document.getElementById('metasSyncBtn');
+  if(st) st.className = `metas-sync-status ${classe}`;
+  if(tx) tx.textContent = texto;
+  if(bt){
+    const ocupado = metaSyncPendente();
+    bt.disabled = ocupado || PANEL_RO;
+    bt.textContent = ocupado ? 'buscando…' : 'Atualizar agora';
+  }
+}
+
+/* Enfileira o pedido. Não espera resposta: quem responde é o serviço, e o painel
+   descobre pelo listener — então funciona igual pra quem clicou e pra quem não. */
+function pedirSyncMetas(){
+  if(roGuard()) return;
+  if(!fbReady || !fbDb){ showToast('Sem conexão com o Firebase.', true); return; }
+  if(metaSyncPendente()){ showToast('Já tem uma atualização em andamento.'); return; }
+
+  fbDb.ref(`${FB_BASE_PATH}/metasComando`)
+    .set({ em: Date.now(), por: OPERATOR_NAME || 'Alguém' })
+    .then(() => showToast('Atualização pedida — os cards mudam sozinhos quando chegar.'))
+    .catch(() => showToast('Não consegui pedir a atualização.', true));
+}
+window.pedirSyncMetas = pedirSyncMetas;
 
 /* Legenda que acompanha o print no canal de metas do Digisac.
 
@@ -2770,6 +2837,18 @@ function initFirebaseSync(){
     fbDb.ref(`${FB_BASE_PATH}/metasDados`).on('value', snap => {
       META_DADOS = snap.val() || {};
       if(RAW_ROWS.length) scheduleUI('metas');
+    });
+
+    // ── Saúde do serviço de sync (e o comando pendente) ───────────────────
+    // Dois nós num objeto só: o status que o serviço escreve e o pedido que o
+    // painel faz. Comparar os dois é o que diz "está buscando agora".
+    fbDb.ref(`${FB_BASE_PATH}/metasStatus`).on('value', snap => {
+      META_STATUS = Object.assign({}, META_STATUS, snap.val() || {});
+      renderMetaSync();
+    });
+    fbDb.ref(`${FB_BASE_PATH}/metasComando`).on('value', snap => {
+      META_STATUS.comando = snap.val() || null;
+      renderMetaSync();
     });
 
     // ── Flags (destaque manual que sobe ao topo) — compartilhado entre operadores ──
@@ -4859,6 +4938,7 @@ function renderMetas(){
 
   const countEl = document.getElementById('metasCount');
   if(countEl) countEl.textContent = METAS.length;
+  renderMetaSync();
 
   if(METAS.length === 0){ section.hidden = true; return; }
   section.hidden = false;
@@ -9004,6 +9084,8 @@ setVisibilityAwareInterval(() => {
      agenda inteira (~150 cards) seria reconstruída por minuto — exatamente o que
      esse guard existe pra evitar. A seção de metas tem poucos cards e se
      re-renderiza sozinha, sem arrastar o resto do painel junto. */
+  renderMetaSync();   // o "atualizado há X min" envelhece sozinho, sem depender de mudança no Firebase
+
   const newMetas = computeMetas();
   const metasSig = newMetas.map(t =>
     `${t._key}:${metaState(t)}:${metaMinsLeft(t) ?? '-'}:${metaFresh(t._key) ? 's' : 'n'}`).join(',');
