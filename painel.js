@@ -800,8 +800,12 @@ function metaSyncMorto(){
 function metaSyncTexto(){
   const s = META_STATUS;
   if(metaSyncPendente()) return { classe:'sincronizando', texto:'buscando no PokerByte…' };
-  if(metaSyncMorto())    return { classe:'erro', texto:'serviço de sync fora do ar' };
-  if(s.sessao === 'expirada') return { classe:'erro', texto:'sessão do PokerByte expirou' };
+  /* Aviso tem que dizer O QUE FAZER, não só o que quebrou: quem lê isto às 23h
+     não vai deduzir sozinho que existe um atalho na área de trabalho. */
+  if(metaSyncMorto())    return { classe:'erro', texto:'sync fora do ar',
+    ajuda:'O serviço de sincronização não respondeu. Confira se a máquina da operação está ligada.' };
+  if(s.sessao === 'expirada') return { classe:'erro', texto:'sessão do PokerByte expirou',
+    ajuda:'Na máquina da operação, dê dois cliques no atalho "RELOGAR POKERBYTE" da área de trabalho e faça o login.' };
   if(s.erro) return { classe:'erro', texto:`falhou: ${String(s.erro).slice(0, 60)}` };
   if(!s.em)  return { classe:'', texto:'sem sincronizar' };
 
@@ -814,12 +818,21 @@ function metaSyncTexto(){
 function renderMetaSync(){
   const cont = document.getElementById('metasSync');
   if(!cont) return;
-  const { classe, texto } = metaSyncTexto();
+  const { classe, texto, ajuda } = metaSyncTexto();
   const st = document.getElementById('metasSyncStatus');
   const tx = document.getElementById('metasSyncTexto');
   const bt = document.getElementById('metasSyncBtn');
-  if(st) st.className = `metas-sync-status ${classe}`;
+  if(st){
+    st.className = `metas-sync-status ${classe}`;
+    st.title = ajuda || '';
+  }
   if(tx) tx.textContent = texto;
+  // a instrução também vira linha visível: passar o mouse não é descoberta confiável
+  const dica = document.getElementById('metasSyncAjuda');
+  if(dica){
+    dica.textContent = ajuda || '';
+    dica.hidden = !ajuda;
+  }
   if(bt){
     const ocupado = metaSyncPendente();
     bt.disabled = ocupado || PANEL_RO;

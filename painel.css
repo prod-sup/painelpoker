@@ -1538,6 +1538,14 @@
   .metas-sub .ok-dot, .metas-sub .warn-dot{width:7px; height:7px; border-radius:50%; display:inline-block; margin-left:4px;}
   .metas-sub .ok-dot{background:var(--felt-bright);}
   .metas-sub .warn-dot{background:var(--warn-border);}
+  /* instrução do que fazer quando o sync quebra — some quando está tudo bem */
+  .metas-ajuda{
+    margin:6px 0 0; padding:6px 10px; border-radius:8px;
+    background:var(--red-soft); color:var(--red);
+    font-size:12px; font-weight:600; line-height:1.4;
+  }
+  .metas-ajuda[hidden]{display:none;}
+
   /* controle do sync — a "ferramenta" que o operador opera, dentro da seção */
   .metas-sync{display:flex; align-items:center; gap:10px; margin-left:auto; flex:none;}
   .metas-sync-status{
