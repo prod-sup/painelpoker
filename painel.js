@@ -800,38 +800,49 @@ function metaSyncMorto(){
 function metaSyncTexto(){
   const s = META_STATUS;
   if(metaSyncPendente()) return { classe:'sincronizando', texto:'buscando no PokerByte…' };
-  /* Aviso tem que dizer O QUE FAZER, não só o que quebrou: quem lê isto às 23h
-     não vai deduzir sozinho que existe um atalho na área de trabalho. */
-  if(metaSyncMorto())    return { classe:'erro', texto:'sync fora do ar',
-    ajuda:'O serviço de sincronização não respondeu. Confira se a máquina da operação está ligada.' };
-  if(s.sessao === 'expirada') return { classe:'erro', texto:'sessão do PokerByte expirou',
-    ajuda:'Na máquina da operação, dê dois cliques no atalho "RELOGAR POKERBYTE" da área de trabalho e faça o login.' };
+  /* Aviso tem que dizer O QUE FAZER e ONDE, com o nome da máquina. "Confira o
+     serviço" não ajuda ninguém às 23h; "vá no computador Mesas1 e clique no
+     atalho" ajuda. Sem o nome, com o sync rodando em vários computadores,
+     ninguém adivinha em qual mexer. */
+  const onde = s.maquina ? `no computador ${s.maquina}` : 'no computador da operação';
+
+  if(metaSyncMorto()) return { classe:'erro', texto:'parou de atualizar',
+    ajuda:`Os prints pararam de chegar. Confira se o computador ${s.maquina || 'da operação'} está ligado. Enquanto isso, tire o print direto no PokerByte e mande no grupo.` };
+
+  if(s.sessao === 'expirada') return { classe:'erro', texto:'precisa relogar no PokerByte',
+    ajuda:`${onde.charAt(0).toUpperCase() + onde.slice(1)}, dê dois cliques no ícone "RELOGAR POKERBYTE" da área de trabalho e faça o login. Enquanto isso, tire o print direto no PokerByte e mande no grupo.` };
   if(s.erro) return { classe:'erro', texto:`falhou: ${String(s.erro).slice(0, 60)}` };
   if(!s.em)  return { classe:'', texto:'sem sincronizar' };
 
   const min = Math.floor((Date.now() - s.em) / 60000);
   const quando = min < 1 ? 'agora' : min === 1 ? 'há 1 min' : `há ${min} min`;
   // acima de 20min o dado não é mais "de agora" — avisa em vez de fingir
-  return { classe: min > 20 ? 'velho' : 'ok', texto: `atualizado ${quando}` };
+  return {
+    classe: min > 20 ? 'velho' : 'ok',
+    texto: `atualizado ${quando}`,
+    // qual máquina está alimentando: com o serviço em vários computadores, saber
+    // QUEM está sincronizando é o que permite descobrir onde relogar
+    dica: s.maquina ? `Sincronizado pela máquina ${s.maquina}.` : '',
+  };
 }
 
 function renderMetaSync(){
   const cont = document.getElementById('metasSync');
   if(!cont) return;
-  const { classe, texto, ajuda } = metaSyncTexto();
+  const { classe, texto, ajuda, dica } = metaSyncTexto();
   const st = document.getElementById('metasSyncStatus');
   const tx = document.getElementById('metasSyncTexto');
   const bt = document.getElementById('metasSyncBtn');
   if(st){
     st.className = `metas-sync-status ${classe}`;
-    st.title = ajuda || '';
+    st.title = ajuda || dica || '';
   }
   if(tx) tx.textContent = texto;
   // a instrução também vira linha visível: passar o mouse não é descoberta confiável
-  const dica = document.getElementById('metasSyncAjuda');
-  if(dica){
-    dica.textContent = ajuda || '';
-    dica.hidden = !ajuda;
+  const elAjuda = document.getElementById('metasSyncAjuda');
+  if(elAjuda){
+    elAjuda.textContent = ajuda || '';
+    elAjuda.hidden = !ajuda;
   }
   if(bt){
     const ocupado = metaSyncPendente();
@@ -5112,7 +5123,7 @@ function sendMeta(key){
   if(print && navigator.clipboard && window.ClipboardItem){
     navigator.clipboard.write([new ClipboardItem({ 'image/png': trabalho })])
       .then(() => {
-        showToast(`Print copiado — cole no canal de metas. Legenda: ${metaCaption(row)}`);
+        showToast('Print copiado! Agora cole no grupo Suprema | Metas do WhatsApp.');
         scheduleUI('metas');
       })
       .catch(err => aviso(err && err.message === 'ocupado' ? 'ocupado' : 'erro'));
@@ -5137,7 +5148,7 @@ window.sendMeta = sendMeta;
 function copyMetaCaption(key){
   const row = rowByKey(key);
   if(!row) return;
-  copyToClipboard(metaCaption(row), null, 'Legenda copiada.');
+  copyToClipboard(metaCaption(row), null, 'Legenda copiada! Cole junto com o print, no mesmo envio.');
 }
 window.copyMetaCaption = copyMetaCaption;
 
