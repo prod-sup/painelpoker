@@ -844,6 +844,10 @@ function renderMetaSync(){
     elAjuda.textContent = ajuda || '';
     elAjuda.hidden = !ajuda;
   }
+  /* o convite pra instalar só aparece quando ninguém está sincronizando — senão
+     vira ruído permanente numa tela que já pede atenção pro que importa */
+  const elInst = document.getElementById('metasInstalar');
+  if(elInst) elInst.hidden = !(classe === 'erro' || (!META_STATUS.em && !metaSyncPendente()));
   if(bt){
     const ocupado = metaSyncPendente();
     bt.disabled = ocupado || PANEL_RO;

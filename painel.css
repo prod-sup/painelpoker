@@ -1570,6 +1570,16 @@
   }
   .metas-ajuda[hidden]{display:none;}
 
+  .metas-instalar{
+    margin:6px 0 0; font-size:12px; color:var(--ink-soft); line-height:1.45;
+  }
+  .metas-instalar[hidden]{display:none;}
+  .metas-instalar a{
+    display:inline-block; margin-right:6px; padding:4px 11px; border-radius:99px;
+    background:var(--felt); color:#fff; font-weight:700; text-decoration:none;
+  }
+  .metas-instalar a:hover{ filter:brightness(1.06); }
+
   /* controle do sync — a "ferramenta" que o operador opera, dentro da seção */
   .metas-sync{display:flex; align-items:center; gap:10px; margin-left:auto; flex:none;}
   .metas-sync-status{

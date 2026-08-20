@@ -1177,6 +1177,12 @@ document.addEventListener('DOMContentLoaded', () => {
         </ol>
         <p class="metas-sub">Só aparece torneio que já começou e ainda aceita inscrição. O botão libera de novo a cada 30 min.</p>
         <p class="metas-ajuda" id="metasSyncAjuda" hidden></p>
+        <!-- aparece só quando NENHUMA máquina está sincronizando: o navegador não
+             pode instalar nada (segurança), então o máximo é entregar o arquivo -->
+        <p class="metas-instalar" id="metasInstalar" hidden>
+          <a href="sync-metas/INSTALAR.cmd" download>Baixar o robô para este computador</a>
+          <span>— baixe, dê dois cliques no arquivo e siga a janela. Se o navegador avisar que o arquivo é perigoso, escolha “Manter”.</span>
+        </p>
       </div>
       <div class="metas-sync" id="metasSync">
         <span class="metas-sync-status" id="metasSyncStatus">
