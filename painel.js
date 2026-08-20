@@ -5056,7 +5056,18 @@ function renderMetas(){
           ${dados.metaAlcancada === true ? `<span class="mcard-badge ok">META ALCANÇADA</span>` : ''}
           ${dados.overlay != null ? `<span class="mcard-over">overlay R$ ${fmtBRL(dados.overlay)}</span>` : ''}
         </div>` : ''}
-      ${temPrint ? `<img class="mcard-print" src="${dados.print}" alt="Print da meta de ${escHtml(r.nome)}" loading="lazy">` : ''}
+      ${temPrint
+        ? `<img class="mcard-print" src="${dados.print}" alt="Print da meta de ${escHtml(r.nome)}" loading="lazy">`
+        /* CARD SEM PRINT NÃO PODE PASSAR EM SILÊNCIO.
+           Antes ele só degradava (o botão virava "Copiar legenda") e o operador
+           tinha que perceber sozinho que faltava imagem. Agora o buraco é
+           declarado, com a instrução do que fazer no lugar. */
+        : (state === 'aberta' || state === 'encerrada')
+          ? `<div class="mcard-sem-print">
+               <b>Sem print automático</b>
+               <span>Tire o print no PokerByte e mande junto com a legenda.</span>
+             </div>`
+          : ''}
       ${timeHtml}
       ${captionHtml}
       ${cycleHtml}
