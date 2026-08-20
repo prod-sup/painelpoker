@@ -140,6 +140,7 @@ let RESULTS = [];         // closed tournaments (premiação filled)
 let UNFIXED = [];         // not-fixed tournaments (any status, no Ações/owner)
 let METAS = [];           // Main Events na janela de meta (já começaram, late ainda aberto)
 let META_MAP = {};        // _key -> {by, at} do último envio de meta — compartilhado entre operadores via Firebase
+let META_DADOS = {};      // _key -> dados vindos do PokerByte pelo sync (print em base64, arrecadado, overlay…)
 let activeUpcomingCat = new Set(['all']); // Set: permite múltiplos filtros ativos ao mesmo tempo (ex.: Main Event + Satélite)
 let nameSearchQuery = '';
 let activeResultsCat = 'all';
@@ -758,6 +759,42 @@ function metaLast(key){ return META_MAP[key] || null; }
 function metaFresh(key){
   const m = metaLast(key);
   return !!m && (Date.now() - (m.at || 0)) < META_CYCLE_MS;
+}
+
+/* dados que o sync do PokerByte gravou pra este torneio (print, arrecadado, overlay) */
+function metaDados(key){ return META_DADOS[key] || null; }
+
+/* Legenda que acompanha o print no canal de metas do Digisac.
+
+   O formato saiu do que já é enviado hoje à mão — e à mão sai inconsistente
+   (`*40K OmaX HR 20h/ENCERRADO*` e `*SPS 47-H Mystery HR - META ALCANÇADA /
+   ENCERRADO*` no mesmo canal). Aqui vira uma regra só:
+       rolando            → *Nome do torneio*
+       encerrado          → *Nome do torneio - ENCERRADO*
+       encerrado batendo  → *Nome do torneio - META ALCANÇADA / ENCERRADO*
+
+   "META ALCANÇADA" só entra quando o sync confirma arrecadado >= garantido. Sem
+   dado do PokerByte, omite — melhor faltar do que afirmar errado no grupo. */
+function metaCaption(row){
+  const nome = String(row && row.nome || '').trim();
+  if (metaState(row) !== 'encerrada') return `*${nome}*`;
+  const d = metaDados(row && row._key);
+  return d && d.metaAlcancada === true
+    ? `*${nome} - META ALCANÇADA / ENCERRADO*`
+    : `*${nome} - ENCERRADO*`;
+}
+
+/* base64 → Blob SEM fetch/await: a escrita na área de transferência exige gesto
+   do usuário ainda "quente", e um await no meio do caminho derruba essa ativação
+   em alguns navegadores. Conversão síncrona mantém o clique válido. */
+function dataUrlParaBlob(dataUrl){
+  const virg = String(dataUrl || '').indexOf(',');
+  if (virg < 0) return null;
+  const tipo = (dataUrl.match(/^data:([^;,]+)/) || [])[1] || 'image/png';
+  const bin = atob(dataUrl.slice(virg + 1));
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: tipo });
 }
 
 /* status de tempo do evento comparado ao agora: 'late' (já passou do PRAZO-LIMITE de fixar, ou seja
@@ -2724,6 +2761,14 @@ function initFirebaseSync(){
     // cada aba acharia que ninguém enviou e o grupo receberia a meta duplicada.
     fbDb.ref(`${FB_BASE_PATH}/metas`).on('value', snap => {
       META_MAP = snap.val() || {};
+      if(RAW_ROWS.length) scheduleUI('metas');
+    });
+
+    // ── Dados do PokerByte (print + números), escritos pelo sync ──────────
+    // Nó volátil de propósito: o sync SOBRESCREVE a cada ciclo e apaga o que sai
+    // da janela. Não é histórico — é o estado de agora.
+    fbDb.ref(`${FB_BASE_PATH}/metasDados`).on('value', snap => {
+      META_DADOS = snap.val() || {};
       if(RAW_ROWS.length) scheduleUI('metas');
     });
 
@@ -4851,12 +4896,29 @@ function renderMetas(){
       : `<div class="mcard-cycle is-none"><b>Nenhuma meta enviada</b></div>`;
 
     // botão: um estado por situação, sempre dizendo POR QUE está travado
+    const dados = metaDados(key);
+    const temPrint = !!(dados && dados.print);
+
     let btnLabel, btnDisabled = false, btnCls = '';
     if(PANEL_RO){                     btnLabel = 'Modo leitura';            btnDisabled = true; }
     else if(state === 'sem-late'){    btnLabel = 'Cadastre o late';         btnDisabled = true; }
     else if(state === 'encerrada'){   btnLabel = 'Late encerrado';          btnDisabled = true; }
     else if(fresh){                   btnLabel = `Enviada ${metaHora(last.at)}`; btnDisabled = true; btnCls = 'is-done'; }
-    else {                            btnLabel = 'Enviar meta';             btnCls = 'is-ready'; }
+    else if(temPrint){                btnLabel = 'Copiar print';            btnCls = 'is-ready'; }
+    // sem print do sync o botão ainda serve: copia a legenda e o print sai do
+    // PokerByte à mão, como antes. Melhor degradar que travar o envio.
+    else {                            btnLabel = 'Copiar legenda';          btnCls = 'is-ready'; }
+
+    /* prévia do texto exato que vai pra área de transferência — sem isso o
+       operador clica sem saber o que vai colar no grupo.
+       Com print disponível ganha um botão próprio: a área de transferência leva
+       uma coisa por vez, então é print primeiro, legenda depois. */
+    const captionHtml = (state === 'aberta' || state === 'encerrada')
+      ? `<div class="mcard-caption-row">
+           <code class="mcard-caption">${escHtml(metaCaption(r))}</code>
+           ${temPrint && !PANEL_RO ? `<button type="button" class="mcard-caption-btn" data-act="copyMetaCaption" data-arg="${key}" title="Copiar só a legenda">copiar</button>` : ''}
+         </div>`
+      : '';
 
     card.innerHTML = `
       <div class="mcard-top">
@@ -4868,7 +4930,15 @@ function renderMetas(){
         <span>Buy-in <b>${fmtBuyin(r.buyin)}</b></span>
         ${r.garantido != null ? `<span>GTD <b>R$ ${fmtBRL(r.garantido)}</b></span>` : ''}
       </div>
+      ${dados ? `
+        <div class="mcard-sync">
+          <span>Arrecadado <b>R$ ${fmtBRL(dados.arrecadado, 2)}</b> de <b>R$ ${fmtBRL(dados.garantido)}</b></span>
+          ${dados.metaAlcancada === true ? `<span class="mcard-badge ok">META ALCANÇADA</span>` : ''}
+          ${dados.overlay != null ? `<span class="mcard-over">overlay R$ ${fmtBRL(dados.overlay)}</span>` : ''}
+        </div>` : ''}
+      ${temPrint ? `<img class="mcard-print" src="${dados.print}" alt="Print da meta de ${escHtml(r.nome)}" loading="lazy">` : ''}
       ${timeHtml}
+      ${captionHtml}
       ${cycleHtml}
       <button type="button" class="mcard-btn ${btnCls}" data-act="sendMeta" data-arg="${key}" ${btnDisabled ? 'disabled' : ''}>
         ${btnLabel}
@@ -4887,7 +4957,7 @@ function renderMetas(){
    vezes no grupo. Por isso a marca vive no Firebase (não no localStorage) e a
    escrita é uma TRANSACTION — quem chegar em segundo lugar é recusado pelo
    próprio banco, não por um if que já leu valor velho. */
-async function sendMeta(key){
+function sendMeta(key){
   if(roGuard()) return;
   const row = rowByKey(key);
   if(!row){ showToast('Torneio não encontrado.', true); return; }
@@ -4907,44 +4977,66 @@ async function sendMeta(key){
 
   const payload = { by: OPERATOR_NAME || 'Alguém', at: Date.now() };
   const ref = fbDb.ref(`${FB_BASE_PATH}/metas/${key}`);
+  const dados = metaDados(key);
+  const print = dados && dados.print;
 
-  let res;
-  try {
-    res = await ref.transaction(cur => {
+  /* Reserva a vaga e devolve o que vai pra área de transferência.
+     Quem perde a corrida rejeita — e aí NADA é copiado, então o segundo operador
+     não sai com o print na mão pra colar de novo no grupo. */
+  const trabalho = (async () => {
+    const res = await ref.transaction(cur => {
       // outro operador enviou dentro do ciclo → aborta sem sobrescrever
       if(cur && (Date.now() - (cur.at || 0)) < META_CYCLE_MS) return;
       return payload;
     });
-  } catch(e){
-    showToast('Não foi possível registrar o envio da meta.', true);
+    if(!res || !res.committed) throw new Error('ocupado');
+    return print ? dataUrlParaBlob(print) : null;
+  })();
+
+  const aviso = motivo => {
+    showToast(motivo === 'ocupado'
+      ? 'Outro operador acabou de enviar a meta deste torneio.'
+      : 'Não foi possível registrar o envio da meta.', true);
+    scheduleUI('metas');
+  };
+
+  /* CLIPBOARD E GESTO DO USUÁRIO
+     navigator.clipboard.write exige ativação "quente" do clique. Se a gente
+     esperasse a transaction terminar (await) pra só então copiar, a ativação já
+     teria expirado e o copiar falharia de forma intermitente — o pior tipo de bug.
+     Passar uma PROMISE dentro do ClipboardItem resolve: a chamada acontece agora,
+     de forma síncrona, e o conteúdo chega depois. */
+  if(print && navigator.clipboard && window.ClipboardItem){
+    navigator.clipboard.write([new ClipboardItem({ 'image/png': trabalho })])
+      .then(() => {
+        showToast(`Print copiado — cole no canal de metas. Legenda: ${metaCaption(row)}`);
+        scheduleUI('metas');
+      })
+      .catch(err => aviso(err && err.message === 'ocupado' ? 'ocupado' : 'erro'));
     return;
   }
 
-  if(!res || !res.committed){
-    showToast('Outro operador acabou de enviar a meta deste torneio.', true);
-    return;
-  }
-
-  /* ── PONTO DE INTEGRAÇÃO — Digisac ───────────────────────────────────────
-     Hoje o clique REGISTRA o envio (quem/quando), que já é o que destrava o
-     trabalho em equipe. Quando o disparo real existir, ele entra aqui: gerar a
-     imagem da meta e postar no grupo via Digisac. Se falhar, a marca é
-     REVERTIDA — senão a meta fica registrada como enviada sem ter ido. */
-  if(typeof window.dispatchMetaToDigisac === 'function'){
-    try {
-      await window.dispatchMetaToDigisac(row, payload);
-    } catch(e){
-      await ref.transaction(cur => (cur && cur.at === payload.at) ? null : cur).catch(() => {});
-      showToast('Falha ao enviar a meta no grupo. Registro desfeito, pode tentar de novo.', true);
-      scheduleUI('metas');
-      return;
-    }
-  }
-
-  showToast(`Meta de "${row.nome}" registrada às ${metaHora(payload.at)}.`);
-  scheduleUI('metas');
+  /* Sem print do sync (ou navegador sem ClipboardItem): copia a legenda e o print
+     sai do PokerByte à mão, como antes. Degradar é melhor que travar o envio. */
+  trabalho
+    .then(() => copyToClipboard(
+      metaCaption(row), null,
+      `Legenda copiada — o print sai do PokerByte. (${metaHora(payload.at)})`
+    ))
+    .then(() => scheduleUI('metas'))
+    .catch(err => aviso(err && err.message === 'ocupado' ? 'ocupado' : 'erro'));
 }
 window.sendMeta = sendMeta;
+
+/* Copiar SÓ a legenda — botão secundário do card.
+   Existe porque a área de transferência carrega uma coisa de cada vez: primeiro
+   você cola o print no grupo, depois volta aqui e pega o texto pra legenda. */
+function copyMetaCaption(key){
+  const row = rowByKey(key);
+  if(!row) return;
+  copyToClipboard(metaCaption(row), null, 'Legenda copiada.');
+}
+window.copyMetaCaption = copyMetaCaption;
 
 /* =========================================================================
    RENDER — Upcoming cards

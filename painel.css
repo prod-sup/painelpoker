@@ -1542,7 +1542,9 @@
     font-family:var(--mono); font-size:12px; font-weight:700; color:var(--felt);
     background:rgba(34,212,126,.14); padding:3px 10px; border-radius:99px; margin-left:auto; flex:none;
   }
-  .metas-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(268px,1fr)); gap:12px; padding-bottom:36px;}
+  /* align-items:start impede que o card sem print estique até a altura do mais
+     alto — senão sobra um vão morto embaixo do botão dele */
+  .metas-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(268px,1fr)); gap:12px; padding-bottom:36px; align-items:start;}
 
   .mcard{
     position:relative; contain:layout style;
@@ -1573,6 +1575,41 @@
   .mcard-flag.warn{ background:rgba(201,168,76,.16); color:#8a6d1f; }
   .mcard-flag.closed{ background:var(--hairline); color:var(--ink-soft); }
 
+  /* números vindos do sync do PokerByte */
+  .mcard-sync{
+    display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:11px; color:var(--ink-soft);
+  }
+  .mcard-sync b{color:var(--ink); font-weight:700;}
+  .mcard-over{color:var(--red);}
+  .mcard-badge.ok{
+    font-family:inherit; font-size:9.5px; font-weight:800; letter-spacing:.05em;
+    padding:2px 7px; border-radius:99px; background:rgba(52,184,118,.16); color:#1c7a48;
+  }
+
+  /* o print da meta, já pronto pra copiar. Altura limitada porque o card é uma
+     PRÉVIA — a imagem cheia tem ~1100px e empurraria todo o resto pra fora da tela. */
+  .mcard-print{
+    display:block; width:100%; max-height:150px; object-fit:cover; object-position:top;
+    border:1px solid var(--hairline); border-radius:8px; background:#fff;
+  }
+
+  /* prévia da legenda que vai pra área de transferência — o operador vê o texto
+     exato antes de clicar, em vez de confiar no botão */
+  .mcard-caption-row{display:flex; align-items:stretch; gap:6px;}
+  .mcard-caption{
+    display:block; flex:1; min-width:0; font-family:var(--mono); font-size:11px; line-height:1.45;
+    color:var(--ink-soft); background:var(--hairline); border-radius:8px;
+    padding:6px 9px; word-break:break-word;
+  }
+  .mcard-caption-btn{
+    flex:none; border:1px solid var(--hairline-strong); background:transparent;
+    border-radius:8px; padding:0 10px; cursor:pointer; font-family:inherit;
+    font-size:10.5px; font-weight:700; color:var(--ink-soft);
+    transition:background .2s var(--ease), color .2s var(--ease);
+  }
+  .mcard-caption-btn:hover{ background:var(--hairline); color:var(--ink); }
+
   /* linha do CICLO — o dado que só existe nesta seção */
   .mcard-cycle{
     display:flex; flex-direction:column; gap:1px; font-size:11.5px; color:var(--ink-soft);
@@ -1598,8 +1635,12 @@
   html.dark .mcard{ background:var(--card); border-color:var(--hairline-strong); }
   html.dark .mcard.is-aberta{ border-color:rgba(34,212,126,.30); }
   html.dark .mcard.is-sem-late{ background:var(--card); border-color:rgba(201,168,76,.34); }
+  html.dark .mcard-caption{ background:rgba(255,255,255,.06); }
   html.dark .mcard-cycle b{ color:var(--felt-bright); }
   html.dark .mcard-flag.open{ color:var(--felt-bright); }
+  /* #1c7a48 sobre fundo escuro fica ilegível — a badge sumia por completo */
+  html.dark .mcard-badge.ok{ background:rgba(52,184,118,.20); color:#5fd39b; }
+  html.dark .mcard-flag.closed{ background:rgba(255,255,255,.08); }
 
   /* ---------- UPCOMING (Live grid) ---------- */
   .upcoming{background:var(--bg);}

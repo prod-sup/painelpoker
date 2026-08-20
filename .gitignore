@@ -40,6 +40,13 @@ cash-roster*.json
 *roster*.json
 _dev-*
 
+# Ferramenta de sync do PokerByte — fica SÓ LOCAL, nunca no ar.
+# Dentro dela vivem o perfil do navegador (com o COOKIE DE SESSÃO do PokerByte) e
+# as capturas de payload (metas por clube/afiliado). Num repo público, qualquer um
+# dos dois seria baixável por URL direta. A pasta inteira é ignorada de propósito:
+# os scripts também não têm por que ser publicados.
+_pokerbyte/
+
 # Credenciais / contas — NUNCA versionar (o repo é PÚBLICO)
 # Obs: brian_account.json já vazou no HISTÓRICO — ignorar aqui NÃO o remove do passado.
 brian_account.json
