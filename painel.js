@@ -779,11 +779,20 @@ function metaDados(key){ return META_DADOS[key] || null; }
    ========================================================================= */
 const META_SYNC_TIMEOUT_MS = 3 * 60 * 1000;  // sem resposta nisso, o serviço está fora
 
-function metaSyncPendente(){
+/* pedido feito e ainda sem resposta do serviço */
+function metaSyncAguardando(){
   const c = META_STATUS.comando;
   if(!c || !c.em) return false;
-  const resp = META_STATUS.em || 0;
-  return c.em > resp && (Date.now() - c.em) < META_SYNC_TIMEOUT_MS;
+  return c.em > (META_STATUS.em || 0);
+}
+function metaSyncPendente(){
+  return metaSyncAguardando() && (Date.now() - META_STATUS.comando.em) < META_SYNC_TIMEOUT_MS;
+}
+/* pedido velho que ninguém atendeu = serviço parado. Precisa ser DITO: antes o
+   indicador voltava a "atualizado há X min" depois do timeout, como se estivesse
+   tudo bem, enquanto o clique tinha sido ignorado. */
+function metaSyncMorto(){
+  return metaSyncAguardando() && (Date.now() - META_STATUS.comando.em) >= META_SYNC_TIMEOUT_MS;
 }
 
 /* Uma frase só, dizendo a verdade sobre a fonte dos números.
@@ -791,6 +800,7 @@ function metaSyncPendente(){
 function metaSyncTexto(){
   const s = META_STATUS;
   if(metaSyncPendente()) return { classe:'sincronizando', texto:'buscando no PokerByte…' };
+  if(metaSyncMorto())    return { classe:'erro', texto:'serviço de sync fora do ar' };
   if(s.sessao === 'expirada') return { classe:'erro', texto:'sessão do PokerByte expirou' };
   if(s.erro) return { classe:'erro', texto:`falhou: ${String(s.erro).slice(0, 60)}` };
   if(!s.em)  return { classe:'', texto:'sem sincronizar' };
