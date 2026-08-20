@@ -822,7 +822,9 @@ function metaSyncTexto(){
     texto: `atualizado ${quando}`,
     // qual máquina está alimentando: com o serviço em vários computadores, saber
     // QUEM está sincronizando é o que permite descobrir onde relogar
-    dica: s.maquina ? `Sincronizado pela máquina ${s.maquina}.` : '',
+    dica: s.maquina
+      ? `Sincronizado pela máquina ${s.maquina}${s.por ? `, com a conta de ${String(s.por).split('@')[0]}` : ''}.`
+      : '',
   };
 }
 
