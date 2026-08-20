@@ -138,6 +138,8 @@ let _compactMode = localStorage.getItem('suprema_compact_mode_v1') === '1';     
 let _reorderRender = false; // true durante um re-render que é SÓ reordenação (flag) — pula o fade de entrada dos cards; o FLIP anima o deslize
 let RESULTS = [];         // closed tournaments (premiação filled)
 let UNFIXED = [];         // not-fixed tournaments (any status, no Ações/owner)
+let METAS = [];           // Main Events na janela de meta (já começaram, late ainda aberto)
+let META_MAP = {};        // _key -> {by, at} do último envio de meta — compartilhado entre operadores via Firebase
 let activeUpcomingCat = new Set(['all']); // Set: permite múltiplos filtros ativos ao mesmo tempo (ex.: Main Event + Satélite)
 let nameSearchQuery = '';
 let activeResultsCat = 'all';
@@ -342,8 +344,10 @@ function flushUI(){
     const el = document.getElementById('statUnfixed');
     if(el) el.textContent = UNFIXED.length;
   }
+  if(parts.has('metas')) METAS = computeMetas();
   if(parts.has('stats')){ computeStats(); updateProgress(); }
   if(parts.has('unfixed')) renderUnfixed();
+  if(parts.has('metas')) renderMetas();
   if(parts.has('results')) renderResults();
   if(parts.has('upcoming') && !isTypingInCard() && !window._suppressRenderUpcoming) renderUpcoming();
 }
@@ -680,6 +684,80 @@ function isRunningNow(t, nowMin){
   const lateMin = timeToMinutes(t.late);
   const endMin = lateMin !== null ? lateMin : (startMin !== null ? startMin + 180 : null);
   return startMin !== null && endMin !== null && nowMin >= startMin && nowMin <= endMin;
+}
+
+/* =========================================================================
+   JANELA DE META — quando um Main Event aceita envio de meta.
+
+   Regra: o torneio JÁ COMEÇOU e o late registration AINDA ESTÁ ABERTO. Fora
+   dessa janela não há meta a enviar — antes do início não há o que vender,
+   depois do late ninguém mais se inscreve.
+
+   POR QUE NÃO REAPROVEITAR isRunningNow (logo acima)
+   --------------------------------------------------
+   1) Ele usa o relógio CRU (nowMinutesSP). Um Main das 23:30 com late 00:53 vira
+      `now >= 1410 && now <= 53` — nunca verdadeiro. Ou seja: todo evento que
+      cruza a meia-noite ficava de fora, justamente os que mais interessam pra
+      meta. Aqui usamos a régua OPERACIONAL (opMinutes/opNowMinutes), a mesma do
+      lateState, que joga o que é <= 05:30 pro FIM do dia (+24h).
+   2) Ele chuta `início + 180min` quando a planilha não trouxe o late. Pra pintar
+      "rolando agora" é um fallback aceitável; pra ENVIAR META não é — não dá pra
+      afirmar que o late está aberto. Sem late informado o torneio NÃO entra na
+      janela: aparece na seção como pendência de cadastro (metaState 'sem-late').
+
+   isRunningNow segue intocado de propósito — mexer nele mudaria o chip "Rolando
+   agora" da agenda, que é outro contrato. (O mesmo bug de meia-noite existe lá.)
+========================================================================= */
+const META_CYCLE_MS = 30 * 60 * 1000;  // cadência de envio: 30 em 30 min
+const META_HOLD_MIN = 15;              // minutos que o card fica na tela depois do late fechar
+
+/* janela em minutos OPERACIONAIS: {start, end, semLate} — ou null se nem o horário de início veio */
+function metaWindow(t){
+  if(!t) return null;
+  const startRaw = timeToMinutes(t.hora);
+  if(startRaw === null) return null;
+  const lateRaw = timeToMinutes(t.late);
+  return {
+    start:   opMinutes(startRaw),
+    end:     lateRaw === null ? null : opMinutes(lateRaw),
+    semLate: lateRaw === null,
+  };
+}
+
+/* true só quando dá pra enviar meta AGORA: começou, tem late informado e ele não fechou */
+function isMetaWindow(t){
+  if (gradeDaysAhead() > 0) return false;   // grade já é de amanhã: nada dela está em janela
+  const w = metaWindow(t);
+  if(!w || w.semLate) return false;
+  const now = opNowMinutes();
+  return now >= w.start && now <= w.end;
+}
+
+/* estado do card: 'sem-late' (bloqueado por cadastro) | 'aberta' | 'encerrada' | 'aguardando' */
+function metaState(t){
+  const w = metaWindow(t);
+  if(!w) return 'aguardando';
+  const now = opNowMinutes();
+  if(now < w.start) return 'aguardando';
+  if(w.semLate) return 'sem-late';
+  return now <= w.end ? 'aberta' : 'encerrada';
+}
+
+/* minutos até o late fechar (negativo = já fechou, null = sem late/sem início) */
+function metaMinsLeft(t){
+  const w = metaWindow(t);
+  if(!w || w.semLate) return null;
+  return w.end - opNowMinutes();
+}
+
+/* último envio registrado — vem do Firebase, então vale pra TODOS os operadores */
+function metaLast(key){ return META_MAP[key] || null; }
+
+/* a meta desse torneio já foi enviada no ciclo atual (últimos 30min)? É o que
+   segura o botão e evita duas mensagens iguais no grupo. */
+function metaFresh(key){
+  const m = metaLast(key);
+  return !!m && (Date.now() - (m.at || 0)) < META_CYCLE_MS;
 }
 
 /* status de tempo do evento comparado ao agora: 'late' (já passou do PRAZO-LIMITE de fixar, ou seja
@@ -2636,8 +2714,17 @@ function initFirebaseSync(){
     fbDb.ref(`${FB_BASE_PATH}/fixed`).on('value', snap => {
       FIXED_MAP = snap.val() || {};
       saveFixedMapLocal(FIXED_MAP);
-      if(RAW_ROWS.length) scheduleUI('unfixed', 'stats', 'results', 'upcoming');
+      if(RAW_ROWS.length) scheduleUI('unfixed', 'metas', 'stats', 'results', 'upcoming');
       maybeAutoBackupSheets();   // fixar o último torneio pode completar o dia → dispara o auto-backup
+    });
+
+    // ── Metas enviadas (Main Events) ──────────────────────────────────────
+    // Compartilhado entre operadores DE PROPÓSITO: o destino é um grupo único de
+    // WhatsApp, então "já enviei" precisa valer para todo mundo. Em localStorage
+    // cada aba acharia que ninguém enviou e o grupo receberia a meta duplicada.
+    fbDb.ref(`${FB_BASE_PATH}/metas`).on('value', snap => {
+      META_MAP = snap.val() || {};
+      if(RAW_ROWS.length) scheduleUI('metas');
     });
 
     // ── Flags (destaque manual que sobe ao topo) — compartilhado entre operadores ──
@@ -2686,7 +2773,7 @@ function initFirebaseSync(){
         // modo compacto, etc.) — isso é normal, não significa que precisa reconstruir a agenda.
         // Só força renderUpcoming se não for eco da própria escrita (senão marcar NF, por exemplo,
         // reconstruía o grid inteiro à toa e os cards "sumiam" até revelar de novo)
-        if(!allPatched && RAW_ROWS.length && !window._suppressRenderUpcoming) scheduleUI('unfixed', 'stats', 'results', 'upcoming');
+        if(!allPatched && RAW_ROWS.length && !window._suppressRenderUpcoming) scheduleUI('unfixed', 'metas', 'stats', 'results', 'upcoming');
       } else {
         // Só patch do card sem recriar
         Object.keys(ID_MAP).forEach(key => patchCardFields(key));
@@ -3143,7 +3230,7 @@ function applyFbPremiacao(data){
   if(changed || RAW_ROWS.length){
     RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
     UPCOMING = [...RAW_ROWS];
-    scheduleUI('unfixed', 'stats', 'results', 'upcoming');
+    scheduleUI('unfixed', 'metas', 'stats', 'results', 'upcoming');
   }
 }
 /* BUG CORRIGIDO: se v.val (ou v, no formato legado sem wrapper) não for string/número
@@ -3768,6 +3855,38 @@ function computeUnfixed(){
   });
 }
 
+/* =========================================================================
+   COMPUTE — Metas (Main Events com late em aberto)
+
+   Entra na lista quem é Main Event E já começou, com três nuances que existem
+   pra nada sumir da tela sem alguém ter visto:
+     • 'sem-late'  — começou mas a planilha não trouxe o late. Não dá pra enviar
+                     meta às cegas, então aparece como pendência de CADASTRO.
+     • 'encerrada' — o late fechou. O card NÃO evapora no tick seguinte: fica
+                     META_HOLD_MIN minutos, e continua indefinidamente se nenhuma
+                     meta chegou a ser enviada (aí é pendência de verdade).
+========================================================================= */
+function computeMetas(){
+  if (gradeDaysAhead() > 0) return [];
+  const now = opNowMinutes();
+  return RAW_ROWS.filter(r => {
+    if (classify(r) !== 'main') return false;
+    const w = metaWindow(r);
+    if (!w) return false;
+    if (now < w.start) return false;   // ainda não começou: não há meta a enviar
+    if (w.semLate)     return true;    // começou sem late cadastrado → pendência visível
+    if (now <= w.end)  return true;    // janela aberta
+    // late fechou: segura na tela por um tempo, e para sempre se nunca enviou nada
+    return (now - w.end) <= META_HOLD_MIN || !metaLast(r._key);
+  }).sort((a, b) => {
+    // ordem de urgência: cadastro pendente > janela aberta (fechando primeiro) > encerrada
+    const rank = t => ({'sem-late':0, 'aberta':1, 'encerrada':2})[metaState(t)] ?? 3;
+    const ra = rank(a), rb = rank(b);
+    if (ra !== rb) return ra - rb;
+    return (metaMinsLeft(a) ?? 9999) - (metaMinsLeft(b) ?? 9999);
+  });
+}
+
 /* atualiza a barra de progresso "X de Y fixados" — conta sobre TODOS os torneios que precisam ser
    fixados no dia (mustFix), não só os que estão dentro da janela de tempo agora (diferente de UNFIXED).
    assim a barra cresce de forma estável ao longo do dia, sem pular pra trás quando um torneio sai da janela */
@@ -4352,13 +4471,15 @@ function ingest(rows, filename, fromRemote=false){
 
   computeStats();
   renderUnfixed();
+  METAS = computeMetas();
+  renderMetas();
   renderUpcoming();
   renderResults();
 
   document.getElementById('footerMeta').textContent = `${rows.length} TORNEIOS · ARQUIVO: ${(filename||'').toUpperCase()}`;
 
   // reveal sections that may have been hidden (first upload) or refresh content already visible (re-upload)
-  [document.querySelector('#nao-fixados'), document.querySelector('#agenda'), document.querySelector('#resultados')].forEach(sec=>{
+  [document.querySelector('#nao-fixados'), document.querySelector('#metas'), document.querySelector('#agenda'), document.querySelector('#resultados')].forEach(sec=>{
     if (!sec) return;
     sec.querySelectorAll('.reveal').forEach(el=>{
       if (el.classList.contains('in')) return; // already visible, keep as-is on re-upload
@@ -4670,6 +4791,160 @@ function renderUnfixed(){
   observeAnimatedCards(grid); // liga/desliga pulso de atrasado conforme entra/sai da tela
   wireCardInteractions(grid);
 }
+
+/* =========================================================================
+   RENDER — Metas (Main Events com late em aberto)
+
+   Este card NÃO é o card da agenda filtrado por Main Event. A agenda já tem chip
+   de Main Event; duplicar a mesma informação em duas seções só cria divergência.
+   O que ele carrega e não existe em nenhum outro lugar é o CICLO da meta: quando
+   foi enviada, por quem, e quanto tempo resta de late.
+========================================================================= */
+function metaHora(ms){
+  try {
+    return new Date(ms).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', timeZone:'America/Sao_Paulo'});
+  } catch(e){ return '--:--'; }
+}
+
+function renderMetas(){
+  const section = document.getElementById('metas');
+  const grid = document.getElementById('metasGrid');
+  if(!section || !grid) return;
+  grid.innerHTML = '';
+
+  const countEl = document.getElementById('metasCount');
+  if(countEl) countEl.textContent = METAS.length;
+
+  if(METAS.length === 0){ section.hidden = true; return; }
+  section.hidden = false;
+
+  const fragment = document.createDocumentFragment();
+
+  METAS.forEach(r => {
+    const key   = r._key;
+    const state = metaState(r);
+    const left  = metaMinsLeft(r);
+    const last  = metaLast(key);
+    const fresh = metaFresh(key);
+
+    const card = document.createElement('div');
+    card.className = `mcard is-${state}${fresh ? ' is-sent' : ''}`;
+    card.dataset.key = key;
+
+    // faixa de tempo: só faz sentido com late informado
+    let timeHtml = '';
+    if(state === 'sem-late'){
+      timeHtml = `<span class="mcard-flag warn">Late não informado na planilha</span>`;
+    } else if(state === 'encerrada'){
+      timeHtml = `<span class="mcard-flag closed">Late encerrado às ${r.late}</span>`;
+    } else {
+      const urgent = left != null && left <= 10;
+      timeHtml = `<span class="mcard-flag ${urgent ? 'urgent' : 'open'}">Late fecha em ${left}min · ${r.late}</span>`;
+    }
+
+    // linha do ciclo — o dado exclusivo desta seção
+    const cycleHtml = last
+      ? `<div class="mcard-cycle${fresh ? '' : ' is-stale'}">
+           <b>${fresh ? 'Meta enviada' : 'Última meta'} ${metaHora(last.at)}</b>
+           <span>por ${escHtml(last.by || 'Alguém')}</span>
+         </div>`
+      : `<div class="mcard-cycle is-none"><b>Nenhuma meta enviada</b></div>`;
+
+    // botão: um estado por situação, sempre dizendo POR QUE está travado
+    let btnLabel, btnDisabled = false, btnCls = '';
+    if(PANEL_RO){                     btnLabel = 'Modo leitura';            btnDisabled = true; }
+    else if(state === 'sem-late'){    btnLabel = 'Cadastre o late';         btnDisabled = true; }
+    else if(state === 'encerrada'){   btnLabel = 'Late encerrado';          btnDisabled = true; }
+    else if(fresh){                   btnLabel = `Enviada ${metaHora(last.at)}`; btnDisabled = true; btnCls = 'is-done'; }
+    else {                            btnLabel = 'Enviar meta';             btnCls = 'is-ready'; }
+
+    card.innerHTML = `
+      <div class="mcard-top">
+        <span class="cat-pill" style="background:var(--main-soft); color:var(--main)"><span class="crown" title="Main Event">${CROWN_SVG}</span><span class="cat-suit">${CAT_SUIT.main}</span>${CAT_LABEL.main}</span>
+        <span class="mcard-hora">${r.hora || '—'}</span>
+      </div>
+      <div class="nm">${escHtml(r.nome)}</div>
+      <div class="mcard-nums">
+        <span>Buy-in <b>${fmtBuyin(r.buyin)}</b></span>
+        ${r.garantido != null ? `<span>GTD <b>R$ ${fmtBRL(r.garantido)}</b></span>` : ''}
+      </div>
+      ${timeHtml}
+      ${cycleHtml}
+      <button type="button" class="mcard-btn ${btnCls}" data-act="sendMeta" data-arg="${key}" ${btnDisabled ? 'disabled' : ''}>
+        ${btnLabel}
+      </button>
+    `;
+    fragment.appendChild(card);
+  });
+
+  grid.appendChild(fragment);
+}
+
+/* Registra o envio da meta de UM torneio.
+
+   O destino é um grupo único de WhatsApp e o painel é multi-operador: sem trava
+   compartilhada, duas pessoas clicando ao mesmo tempo mandam a mesma meta duas
+   vezes no grupo. Por isso a marca vive no Firebase (não no localStorage) e a
+   escrita é uma TRANSACTION — quem chegar em segundo lugar é recusado pelo
+   próprio banco, não por um if que já leu valor velho. */
+async function sendMeta(key){
+  if(roGuard()) return;
+  const row = rowByKey(key);
+  if(!row){ showToast('Torneio não encontrado.', true); return; }
+
+  if(!isMetaWindow(row)){
+    showToast(metaState(row) === 'sem-late'
+      ? 'Sem late cadastrado — não dá pra saber se ainda aceita inscrição.'
+      : 'Late encerrado — a meta desse torneio não está mais aberta.', true);
+    scheduleUI('metas');
+    return;
+  }
+  if(metaFresh(key)){
+    showToast(`Meta já enviada às ${metaHora(metaLast(key).at)} por ${metaLast(key).by || 'outro operador'}.`, true);
+    return;
+  }
+  if(!fbReady || !fbDb){ showToast('Sem conexão com o Firebase — tente de novo em instantes.', true); return; }
+
+  const payload = { by: OPERATOR_NAME || 'Alguém', at: Date.now() };
+  const ref = fbDb.ref(`${FB_BASE_PATH}/metas/${key}`);
+
+  let res;
+  try {
+    res = await ref.transaction(cur => {
+      // outro operador enviou dentro do ciclo → aborta sem sobrescrever
+      if(cur && (Date.now() - (cur.at || 0)) < META_CYCLE_MS) return;
+      return payload;
+    });
+  } catch(e){
+    showToast('Não foi possível registrar o envio da meta.', true);
+    return;
+  }
+
+  if(!res || !res.committed){
+    showToast('Outro operador acabou de enviar a meta deste torneio.', true);
+    return;
+  }
+
+  /* ── PONTO DE INTEGRAÇÃO — Digisac ───────────────────────────────────────
+     Hoje o clique REGISTRA o envio (quem/quando), que já é o que destrava o
+     trabalho em equipe. Quando o disparo real existir, ele entra aqui: gerar a
+     imagem da meta e postar no grupo via Digisac. Se falhar, a marca é
+     REVERTIDA — senão a meta fica registrada como enviada sem ter ido. */
+  if(typeof window.dispatchMetaToDigisac === 'function'){
+    try {
+      await window.dispatchMetaToDigisac(row, payload);
+    } catch(e){
+      await ref.transaction(cur => (cur && cur.at === payload.at) ? null : cur).catch(() => {});
+      showToast('Falha ao enviar a meta no grupo. Registro desfeito, pode tentar de novo.', true);
+      scheduleUI('metas');
+      return;
+    }
+  }
+
+  showToast(`Meta de "${row.nome}" registrada às ${metaHora(payload.at)}.`);
+  scheduleUI('metas');
+}
+window.sendMeta = sendMeta;
 
 /* =========================================================================
    RENDER — Upcoming cards
@@ -8622,6 +8897,7 @@ setVisibilityAwareInterval(tick, 1000*60); // 60s é suficiente para countdown
    sem precisar de novo upload — é o timer mais caro do painel (até 2 renders completos de ~150 cards),
    então pausar enquanto a aba está oculta é o que mais reduz consumo de CPU em segundo plano */
 let _lastTickSignature = '';
+let _lastMetasSignature = '';
 setVisibilityAwareInterval(() => {
   if (!RAW_ROWS.length) return;
   // Só re-renderiza se o estado VISÍVEL mudou desde o último tick.
@@ -8630,6 +8906,21 @@ setVisibilityAwareInterval(() => {
   // O que muda o desenho dos cards com o relógio são os FLAGS (em breve/atrasado/
   // rolando) e a lista de não-fixados: é isso que entra na assinatura agora.
   const nowMin = nowMinutesSP();
+
+  /* METAS têm assinatura PRÓPRIA, de propósito. O countdown do late muda a cada
+     minuto, então se isso entrasse no `sig` abaixo o guard nunca pularia e a
+     agenda inteira (~150 cards) seria reconstruída por minuto — exatamente o que
+     esse guard existe pra evitar. A seção de metas tem poucos cards e se
+     re-renderiza sozinha, sem arrastar o resto do painel junto. */
+  const newMetas = computeMetas();
+  const metasSig = newMetas.map(t =>
+    `${t._key}:${metaState(t)}:${metaMinsLeft(t) ?? '-'}:${metaFresh(t._key) ? 's' : 'n'}`).join(',');
+  if(metasSig !== _lastMetasSignature){
+    _lastMetasSignature = metasSig;
+    METAS = newMetas;
+    renderMetas();
+  }
+
   const newUnfixed = computeUnfixed();
   const flagsSig = UPCOMING.map(t =>
     (cardTimeFlag(t) || '-') + (isRunningNow(t, nowMin) ? 'r' : '') + lateState(t, t.premiacao != null)).join('');
@@ -9348,7 +9639,7 @@ function scheduleRenderAll(){
      premiações" congelado em R$ 0) mora lá: 'stats' nunca é barrado, só o
      rebuild de 'upcoming'. */
   _lastTickSignature = '';
-  scheduleUI('unfixed', 'stats', 'results', 'upcoming');
+  scheduleUI('unfixed', 'metas', 'stats', 'results', 'upcoming');
 }
 
 /* Re-registra apenas os listeners que dependem do FB_BASE_PATH (por dia) */

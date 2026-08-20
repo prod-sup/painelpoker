@@ -130,6 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="nav-links">
       <span class="nav-indicator" id="navIndicator" aria-hidden="true"></span>
       <a href="#nao-fixados">Não fixados</a>
+      <a href="#metas">Metas</a>
       <a href="#agenda">Agenda</a>
       <a href="#resultados">Resultados</a>
       <a href="#learn">Learn</a>
@@ -1155,6 +1156,25 @@ document.addEventListener('DOMContentLoaded', () => {
       <span class="count" id="unfixedCount">0</span>
     </div>
     <div class="unfixed-grid reveal" id="unfixedGrid"></div>
+  </div>
+</section>
+
+<!-- METAS — Main Events que já começaram e ainda estão com o late aberto.
+     Não é a agenda filtrada por Main Event (o #agenda já tem esse chip): o que
+     este card carrega e não existe em outro lugar é o CICLO da meta — quando foi
+     enviada, por quem, e quanto resta de late. Some sozinha quando não há nada
+     a enviar. -->
+<section class="metas" id="metas" hidden>
+  <div class="wrap metas-inner">
+    <div class="metas-head reveal">
+      <div class="icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.4" fill="currentColor" opacity="0.14"/><circle cx="12" cy="12" r="9.4" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="4.6" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg></div>
+      <div>
+        <h2>Metas dos Main Events</h2>
+        <p class="metas-sub">Só aparece o que já começou e ainda aceita inscrição — enviamos a cada 30 min no grupo. <span class="ok-dot"></span> enviada no ciclo, <span class="warn-dot"></span> aguardando envio.</p>
+      </div>
+      <span class="count" id="metasCount">0</span>
+    </div>
+    <div class="metas-grid reveal" id="metasGrid"></div>
   </div>
 </section>
 

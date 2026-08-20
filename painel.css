@@ -1520,6 +1520,87 @@
   .unfixed-empty svg{width:18px;height:18px; color:var(--felt-bright);}
   .unfixed[hidden]{display:none;}
 
+  /* ---------- METAS (Main Events com late aberto) ----------
+     Paleta de OPERAÇÃO (feltro/dourado), não de ALARME (vermelho do #nao-fixados):
+     meta aberta é trabalho em curso, não pendência atrasada. Se as duas seções
+     usassem o mesmo vermelho, a de cima perderia a urgência que ela precisa ter. */
+  .metas{ background:linear-gradient(180deg, #f4faf6, var(--bg)); border-bottom:1px solid var(--hairline); }
+  .metas[hidden]{display:none;}
+  .metas-inner{padding:40px 0 8px;}
+  .metas-head{display:flex; align-items:flex-start; gap:12px; margin-bottom:22px;}
+  .metas-head .icon{
+    width:36px; height:36px; border-radius:10px; background:rgba(34,212,126,.14); color:var(--felt-bright);
+    display:flex; align-items:center; justify-content:center; flex:none;
+  }
+  .metas-head .icon svg{width:18px; height:18px;}
+  .metas-head h2{font-family:var(--display); font-size:20px; font-weight:680; margin:0; letter-spacing:-0.01em;}
+  .metas-sub{font-size:12.5px; color:var(--ink-soft); margin:5px 0 0; display:flex; align-items:center; gap:5px; flex-wrap:wrap;}
+  .metas-sub .ok-dot, .metas-sub .warn-dot{width:7px; height:7px; border-radius:50%; display:inline-block; margin-left:4px;}
+  .metas-sub .ok-dot{background:var(--felt-bright);}
+  .metas-sub .warn-dot{background:var(--warn-border);}
+  .metas-head .count{
+    font-family:var(--mono); font-size:12px; font-weight:700; color:var(--felt);
+    background:rgba(34,212,126,.14); padding:3px 10px; border-radius:99px; margin-left:auto; flex:none;
+  }
+  .metas-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(268px,1fr)); gap:12px; padding-bottom:36px;}
+
+  .mcard{
+    position:relative; contain:layout style;
+    border:1px solid var(--hairline-strong); background:#fff; border-radius:14px; padding:16px;
+    display:flex; flex-direction:column; gap:8px;
+    transition:background .4s var(--ease), border-color .4s var(--ease), opacity .4s var(--ease);
+  }
+  .mcard.is-aberta{ border-color:rgba(34,212,126,.38); }
+  .mcard.is-sent{ background:var(--fixed-bg); border-color:var(--fixed-border); }
+  .mcard.is-sem-late{ border-color:var(--warn-border); background:#fffdf5; }
+  /* encerrada fica na tela de propósito (ver computeMetas), mas recuada: é
+     histórico/pendência, não deve competir com o que ainda dá pra enviar */
+  .mcard.is-encerrada{ opacity:.62; border-style:dashed; }
+
+  .mcard-top{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .mcard-hora{font-family:var(--mono); font-size:12px; font-weight:700; color:var(--ink-soft);}
+  .mcard .nm{font-family:var(--display); font-weight:610; font-size:14.5px; letter-spacing:-0.005em; line-height:1.3;}
+  .mcard .cat-pill{font-size:10px; font-weight:700; padding:2px 8px; border-radius:99px; text-transform:uppercase; letter-spacing:0.03em; width:fit-content; display:inline-flex; align-items:center; gap:4px;}
+  .mcard-nums{display:flex; gap:12px; flex-wrap:wrap; font-family:var(--mono); font-size:11.5px; color:var(--ink-soft);}
+  .mcard-nums b{color:var(--ink); font-weight:700;}
+
+  .mcard-flag{
+    width:fit-content; font-size:11px; font-weight:700; padding:3px 9px; border-radius:99px;
+    letter-spacing:.02em;
+  }
+  .mcard-flag.open{ background:rgba(34,212,126,.14); color:#1c7a48; }
+  .mcard-flag.urgent{ background:var(--red-soft); color:var(--red); }
+  .mcard-flag.warn{ background:rgba(201,168,76,.16); color:#8a6d1f; }
+  .mcard-flag.closed{ background:var(--hairline); color:var(--ink-soft); }
+
+  /* linha do CICLO — o dado que só existe nesta seção */
+  .mcard-cycle{
+    display:flex; flex-direction:column; gap:1px; font-size:11.5px; color:var(--ink-soft);
+    border-top:1px dashed var(--hairline); padding-top:8px; margin-top:2px;
+  }
+  .mcard-cycle b{font-family:var(--mono); font-size:12px; color:#1c7a48; font-weight:700;}
+  .mcard-cycle.is-stale b{color:var(--ink-soft);}
+  .mcard-cycle.is-none b{color:var(--red);}
+
+  .mcard-btn{
+    margin-top:4px; width:100%; border:0; border-radius:10px; padding:10px 12px; cursor:pointer;
+    font-family:inherit; font-size:12.5px; font-weight:700; letter-spacing:.01em;
+    background:var(--hairline); color:var(--ink-soft);
+    transition:filter .2s var(--ease), transform .12s var(--ease);
+  }
+  .mcard-btn.is-ready{ background:linear-gradient(135deg, var(--felt), var(--felt-bright)); color:#fff; box-shadow:0 4px 14px -6px rgba(34,212,126,.7); }
+  .mcard-btn.is-ready:hover{ filter:brightness(1.06); }
+  .mcard-btn.is-ready:active{ transform:translateY(1px); }
+  .mcard-btn.is-done{ background:rgba(52,184,118,0.16); color:#1c7a48; }
+  .mcard-btn[disabled]{ cursor:not-allowed; }
+
+  html.dark .metas{ background:linear-gradient(180deg, rgba(28,42,34,0.6), var(--bg)); border-color:var(--hairline); }
+  html.dark .mcard{ background:var(--card); border-color:var(--hairline-strong); }
+  html.dark .mcard.is-aberta{ border-color:rgba(34,212,126,.30); }
+  html.dark .mcard.is-sem-late{ background:var(--card); border-color:rgba(201,168,76,.34); }
+  html.dark .mcard-cycle b{ color:var(--felt-bright); }
+  html.dark .mcard-flag.open{ color:var(--felt-bright); }
+
   /* ---------- UPCOMING (Live grid) ---------- */
   .upcoming{background:var(--bg);}
   /* time filter bar */

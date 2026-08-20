@@ -47,6 +47,7 @@
     'closeUserProfile', 'upPickEmoji', 'upLogout', 'upChangeAccount',
     'upAcceptError', 'upDenyError', 'closeWelcomeSuccess',
     'requestNotifPermission', 'dismissNotifBanner', 'ovcOnSelectChange',
+    'sendMeta',
   ];
 
   function run(el, ev) {
