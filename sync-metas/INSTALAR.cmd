@@ -113,7 +113,7 @@ echo  [4/5] agendando pra subir sozinho...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$n='%TAREFA%';" ^
   "$app=Join-Path $env:LOCALAPPDATA 'SupremaSyncMetas\app';" ^
-  "$a=New-ScheduledTaskAction -Execute (Join-Path $app 'servico.cmd');" ^
+  "$a=New-ScheduledTaskAction -Execute \"$env:SystemRoot\System32\cmd.exe\" -Argument ('/c \"' + (Join-Path $app 'servico.cmd') + '\"') -WorkingDirectory $app;" ^
   "$g=New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME;" ^
   "$s=New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Seconds 0) -MultipleInstances IgnoreNew;" ^
   "$p=New-ScheduledTaskPrincipal -UserId ('{0}\{1}' -f $env:USERDOMAIN,$env:USERNAME) -LogonType Interactive -RunLevel Limited;" ^
