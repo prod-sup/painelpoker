@@ -51,7 +51,7 @@ echo  [1/5] Node...
 if exist "%NODEBIN%\node.exe" goto :temnode
 echo        baixando (uns 30 MB, pode demorar)...
 if not exist "%NODEDIR%" mkdir "%NODEDIR%"
-curl -L -s -o "%TEMP%\node-sync-metas.zip" "https://nodejs.org/dist/v24.18.0/node-v24.18.0-win-x64.zip"
+curl -f -L -s -o "%TEMP%\node-sync-metas.zip" "https://nodejs.org/dist/v24.18.0/node-v24.18.0-win-x64.zip"
 if errorlevel 1 goto :semrede
 tar -xf "%TEMP%\node-sync-metas.zip" -C "%NODEDIR%"
 del "%TEMP%\node-sync-metas.zip" >nul 2>&1
@@ -62,10 +62,15 @@ set "PATH=%NODEBIN%;%PATH%"
 
 echo  [2/5] ferramenta...
 if exist "%AQUI%sync.mjs" goto :copialocal
+REM -f e obrigatorio: sem ele o curl grava a pagina de erro DENTRO do arquivo e
+REM o instalador segue como se tivesse baixado. Falha silenciosa que so aparece
+REM horas depois, com o robo quebrando por "sintaxe invalida" num .mjs.
 for %%F in (_browser.mjs firebase.mjs lideranca.mjs match.mjs sync.mjs login.mjs servico.cmd RELOGAR-POKERBYTE.cmd) do (
-  curl -L -s -o "%APP%\%%F" "%BASE%/%%F"
+  curl -f -L -s -o "%APP%\%%F" "%BASE%/%%F"
+  if errorlevel 1 goto :semrede
 )
-curl -L -s -o "%APP%\painel-calc.js" "%BASE%/../painel-calc.js"
+curl -f -L -s -o "%APP%\painel-calc.js" "%BASE%/../painel-calc.js"
+if errorlevel 1 goto :semrede
 echo        baixada
 goto :temferramenta
 :copialocal
@@ -94,7 +99,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "  $p=[Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s));" ^
   "  Write-Host '        conferindo...';" ^
   "  try{" ^
-  "    Invoke-RestMethod -Method Post -Uri \"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$k\" -ContentType 'application/json' -Body (@{email=$e;password=$p;returnSecureToken=$true}^|ConvertTo-Json) ^| Out-Null;" ^
+  "    Invoke-RestMethod -Method Post -Uri \"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$k\" -ContentType 'application/json' -Body (@{email=$e;password=$p;returnSecureToken=$true}|ConvertTo-Json) | Out-Null;" ^
   "    Set-Content -Path (Join-Path $env:LOCALAPPDATA 'SupremaSyncMetas\.env') -Value @(\"FB_EMAIL=$e\", \"FB_SENHA=$p\") -Encoding utf8;" ^
   "    Write-Host '        login confirmado' -ForegroundColor Green; exit 0;" ^
   "  }catch{" ^
@@ -117,8 +122,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$g=New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME;" ^
   "$s=New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Seconds 0) -MultipleInstances IgnoreNew;" ^
   "$p=New-ScheduledTaskPrincipal -UserId ('{0}\{1}' -f $env:USERDOMAIN,$env:USERNAME) -LogonType Interactive -RunLevel Limited;" ^
-  "try{Unregister-ScheduledTask -TaskName $n -Confirm:$false -ErrorAction Stop}catch{};" ^
-  "Register-ScheduledTask -TaskName $n -Action $a -Trigger $g -Settings $s -Principal $p -Description 'Alimenta a secao Metas do painel do dia.' ^| Out-Null;" ^
+  "foreach($tp in '\','\^\'){try{Unregister-ScheduledTask -TaskName $n -TaskPath $tp -Confirm:$false -ErrorAction Stop}catch{}};" ^
+  "Register-ScheduledTask -TaskName $n -TaskPath '\' -Action $a -Trigger $g -Settings $s -Principal $p -Description 'Alimenta a secao Metas do painel do dia.' | Out-Null;" ^
   "$w=New-Object -ComObject WScript.Shell;" ^
   "$k=$w.CreateShortcut($w.SpecialFolders('Desktop')+'\RELOGAR POKERBYTE.lnk');" ^
   "$k.TargetPath=(Join-Path $app 'RELOGAR-POKERBYTE.cmd');" ^
@@ -144,7 +149,16 @@ pause
 cd /d "%APP%"
 node "login.mjs"
 set "RES=%ERRORLEVEL%"
-schtasks /Run /TN "%TAREFA%" >nul 2>&1
+REM Sobe agora. NAO engolir o erro: se isto falhar em silencio, a pessoa fecha o
+REM instalador achando que ficou pronto e o robo so acorda no proximo logon.
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "try{" ^
+  "  Start-ScheduledTask -TaskName '%TAREFA%' -TaskPath '\' -ErrorAction Stop;" ^
+  "  Write-Host '        robo no ar';" ^
+  "}catch{" ^
+  "  Write-Host '        NAO consegui subir o robo agora. Ele sobe sozinho no' -ForegroundColor Yellow;" ^
+  "  Write-Host '        proximo logon; se preferir, reinicie o computador.' -ForegroundColor Yellow;" ^
+  "}"
 
 echo.
 if "%RES%"=="0" goto :pronto
