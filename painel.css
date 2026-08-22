@@ -32,6 +32,14 @@
     --ok-bright: #2f8fe0;
     --ok-soft: #e6f0fb;
 
+    /* VERDE — exceção deliberada e ÚNICA ao "sem verde no painel": o card de
+       meta que bateu o garantido. Pedido em 22/08/2026 porque bateu-ou-não é o
+       desfecho que precisa saltar aos olhos, e o azul já significa "fixado".
+       Escopo: só .mcard.is-batida. Não usar em nenhum outro lugar. */
+    --meta-ok: #1e8e4f;
+    --meta-ok-border: #2fae66;
+    --meta-ok-soft: #e8f6ee;
+
     --gold: var(--sup-gold); /* dourado da marca — fonte única em suprema-tokens.css */
     --gold-soft: #f6efe1;
 
@@ -110,6 +118,11 @@
     --ok:          #1f6fc0;
     --ok-bright:   #3aa5ff;
     --ok-soft:     rgba(31,111,199,0.18);
+
+    /* ── VERDE da meta batida (exceção; ver bloco claro) ── */
+    --meta-ok:        #46c583;
+    --meta-ok-border: rgba(70,197,131,0.55);
+    --meta-ok-soft:   rgba(70,197,131,0.13);
 
     /* ── Dourado ── */
     --gold:      var(--sup-gold-dark);
@@ -1659,6 +1672,16 @@
   /* encerrada fica na tela de propósito (ver computeMetas), mas recuada: é
      histórico/pendência, não deve competir com o que ainda dá pra enviar */
   .mcard.is-encerrada{ opacity:.62; border-style:dashed; }
+  /* BATEU O GARANTIDO (arrecadado >= GTD, ou seja: sem overlay). Vem depois de
+     is-sent/is-sem-late de propósito — o desfecho do torneio manda na cor do
+     card, o estado de envio fica por conta do botão e da linha do ciclo. */
+  .mcard.is-batida{ background:var(--meta-ok-soft); border-color:var(--meta-ok-border); }
+  /* selo SÓLIDO: com fundo suave ele desaparecia dentro do card verde */
+  .mcard.is-batida .mcard-badge.ok{ background:var(--meta-ok); color:#fff; }
+  .mcard.is-batida .mcard-cycle{ border-top-color:var(--meta-ok-border); }
+  .mcard.is-batida .mcard-cycle b{ color:var(--meta-ok); }
+  /* encerrada que bateu não deve sumir de vista: recupera opacidade */
+  .mcard.is-encerrada.is-batida{ opacity:.85; }
 
   .mcard-top{display:flex; align-items:center; justify-content:space-between; gap:8px;}
   .mcard-hora{font-family:var(--mono); font-size:12px; font-weight:700; color:var(--ink-soft);}
@@ -1731,6 +1754,10 @@
   .mcard-cycle b{font-family:var(--mono); font-size:12px; color:#1f6fc0; font-weight:700;}
   .mcard-cycle.is-stale b{color:var(--ink-soft);}
   .mcard-cycle.is-none b{color:var(--red);}
+  /* QUANDO PRECISO ENVIAR DE NOVO — o par da hora do último envio. Sem isto a
+     cadência de 30min virava adivinhação depois que o botão parou de travar. */
+  .mcard-next{ font-family:var(--mono); font-size:11px; color:var(--ink-soft); }
+  .mcard-next.is-due{ color:var(--felt); font-weight:700; }
 
   .mcard-btn{
     margin-top:4px; width:100%; border:0; border-radius:10px; padding:10px 12px; cursor:pointer;
@@ -1742,12 +1769,22 @@
   .mcard-btn.is-ready:hover{ filter:brightness(1.06); }
   .mcard-btn.is-ready:active{ transform:translateY(1px); }
   .mcard-btn.is-done{ background:rgba(47,143,224,0.16); color:#1f6fc0; }
+  /* JÁ ENVIADA NESTE CICLO — continua clicável (tem meta que precisa ir antes),
+     só perde o destaque pra não competir com as que ainda não foram. */
+  .mcard-btn.is-again{ background:var(--hairline); color:var(--ink-soft); border:1px solid var(--hairline-strong); }
+  .mcard-btn.is-again:hover{ background:var(--hairline-strong); color:var(--ink); }
+  .mcard-btn.is-again:active{ transform:translateY(1px); }
   .mcard-btn[disabled]{ cursor:not-allowed; }
 
   html.dark .metas{ background:linear-gradient(180deg, rgba(24,26,29,0.6), var(--bg)); border-color:var(--hairline); }
   html.dark .mcard{ background:var(--card); border-color:var(--hairline-strong); }
   html.dark .mcard.is-aberta{ border-color:rgba(58,165,255,.30); }
   html.dark .mcard.is-sem-late{ background:var(--card); border-color:rgba(201,168,76,.34); }
+  /* Precisa vir DEPOIS de "html.dark .mcard", que redefine background e borda —
+     sem isto o card batido ficava igual aos outros no tema escuro. */
+  html.dark .mcard.is-batida{ background:var(--meta-ok-soft); border-color:var(--meta-ok-border); }
+  html.dark .mcard.is-batida .mcard-badge.ok{ background:var(--meta-ok); color:#0e2a1b; }
+  html.dark .mcard.is-batida .mcard-cycle b{ color:var(--meta-ok); }
   html.dark .mcard-caption{ background:rgba(255,255,255,.06); }
   html.dark .mcard-cycle b{ color:var(--felt-bright); }
   html.dark .mcard-flag.open{ color:var(--felt-bright); }

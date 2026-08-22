@@ -711,6 +711,10 @@ function isRunningNow(t, nowMin){
    agora" da agenda, que é outro contrato. (O mesmo bug de meia-noite existe lá.)
 ========================================================================= */
 const META_CYCLE_MS = 30 * 60 * 1000;  // cadência de envio: 30 em 30 min
+/* A cadência acima é INFORMAÇÃO, não tranca — tem meta que precisa ir antes.
+   O que ainda protege é esta janela curta: dois operadores clicando no mesmo
+   instante não podem colar a mesma imagem duas vezes no grupo. */
+const META_COLISAO_MS = 60 * 1000;
 const META_HOLD_MIN = 15;              // minutos que o card fica na tela depois do late fechar
 
 /* janela em minutos OPERACIONAIS: {start, end, semLate} — ou null se nem o horário de início veio */
@@ -4991,9 +4995,17 @@ function renderMetas(){
     const left  = metaMinsLeft(r);
     const last  = metaLast(key);
     const fresh = metaFresh(key);
+    const dados = metaDados(key);
+    const temPrint = !!(dados && dados.print);
+    /* bateu o garantido = não deu overlay. É o desfecho que o operador quer ver
+       de longe, então vira a cor do card inteiro, não só um selo. */
+    const batida = !!(dados && (dados.metaAlcancada === true ||
+      (dados.arrecadado != null && dados.garantido != null && dados.arrecadado >= dados.garantido)));
+    const proxAt = last ? (last.at || 0) + META_CYCLE_MS : 0;
+    const faltam = last ? Math.max(0, Math.ceil((proxAt - Date.now()) / 60000)) : 0;
 
     const card = document.createElement('div');
-    card.className = `mcard is-${state}${fresh ? ' is-sent' : ''}`;
+    card.className = `mcard is-${state}${fresh ? ' is-sent' : ''}${batida ? ' is-batida' : ''}`;
     card.dataset.key = key;
 
     // faixa de tempo: só faz sentido com late informado
@@ -5010,24 +5022,29 @@ function renderMetas(){
     // linha do ciclo — o dado exclusivo desta seção
     const cycleHtml = last
       ? `<div class="mcard-cycle${fresh ? '' : ' is-stale'}">
-           <b>${fresh ? 'Meta enviada' : 'Última meta'} ${metaHora(last.at)}</b>
+           <b>Enviada ${metaHora(last.at)}</b>
            <span>por ${escHtml(last.by || 'Alguém')}</span>
+           ${fresh
+             ? `<span class="mcard-next">De novo às ${metaHora(proxAt)} · em ${faltam}min</span>`
+             : `<span class="mcard-next is-due">Já pode enviar de novo</span>`}
          </div>`
-      : `<div class="mcard-cycle is-none"><b>Nenhuma meta enviada</b></div>`;
+      : `<div class="mcard-cycle is-none">
+           <b>Nenhuma meta enviada</b>
+           <span class="mcard-next is-due">Pode enviar agora</span>
+         </div>`;
 
-    // botão: um estado por situação, sempre dizendo POR QUE está travado
-    const dados = metaDados(key);
-    const temPrint = !!(dados && dados.print);
-
+    /* O BOTÃO NUNCA TRAVA. Antes ele bloqueava por late fechado, late sem
+       cadastro e por já ter enviado no ciclo — e o operador ficava sem saída
+       quando a meta precisava ir antes da hora. Agora a cadência aparece na
+       linha do ciclo como informação, e o único bloqueio é o modo leitura,
+       que é permissão, não cadência. O tom mais fraco (is-again) diz "já foi
+       enviada há pouco" sem impedir o clique. */
     let btnLabel, btnDisabled = false, btnCls = '';
-    if(PANEL_RO){                     btnLabel = 'Modo leitura';            btnDisabled = true; }
-    else if(state === 'sem-late'){    btnLabel = 'Cadastre o late';         btnDisabled = true; }
-    else if(state === 'encerrada'){   btnLabel = 'Late encerrado';          btnDisabled = true; }
-    else if(fresh){                   btnLabel = `Enviada ${metaHora(last.at)}`; btnDisabled = true; btnCls = 'is-done'; }
-    else if(temPrint){                btnLabel = 'Copiar print';            btnCls = 'is-ready'; }
+    if(PANEL_RO){      btnLabel = 'Modo leitura';   btnDisabled = true; }
+    else if(temPrint){ btnLabel = 'Copiar print';   btnCls = fresh ? 'is-again' : 'is-ready'; }
     // sem print do sync o botão ainda serve: copia a legenda e o print sai do
     // PokerByte à mão, como antes. Melhor degradar que travar o envio.
-    else {                            btnLabel = 'Copiar legenda';          btnCls = 'is-ready'; }
+    else {             btnLabel = 'Copiar legenda'; btnCls = fresh ? 'is-again' : 'is-ready'; }
 
     /* prévia do texto exato que vai pra área de transferência — sem isso o
        operador clica sem saber o que vai colar no grupo.
@@ -5093,17 +5110,11 @@ function sendMeta(key){
   const row = rowByKey(key);
   if(!row){ showToast('Torneio não encontrado.', true); return; }
 
-  if(!isMetaWindow(row)){
-    showToast(metaState(row) === 'sem-late'
-      ? 'Sem late cadastrado — não dá pra saber se ainda aceita inscrição.'
-      : 'Late encerrado — a meta desse torneio não está mais aberta.', true);
-    scheduleUI('metas');
-    return;
-  }
-  if(metaFresh(key)){
-    showToast(`Meta já enviada às ${metaHora(metaLast(key).at)} por ${metaLast(key).by || 'outro operador'}.`, true);
-    return;
-  }
+  /* NÃO existe mais bloqueio por janela nem por ciclo. Antes, late fechado ou
+     meta já enviada nos últimos 30min devolviam erro e não copiavam nada — e
+     quando a meta precisava ir antes da hora o operador ficava sem saída.
+     O estado continua visível no card (late, hora do último envio, próximo
+     envio); a decisão de mandar é de quem opera. */
   if(!fbReady || !fbDb){ showToast('Sem conexão com o Firebase — tente de novo em instantes.', true); return; }
 
   const payload = { by: OPERATOR_NAME || 'Alguém', at: Date.now() };
@@ -5116,8 +5127,10 @@ function sendMeta(key){
      não sai com o print na mão pra colar de novo no grupo. */
   const trabalho = (async () => {
     const res = await ref.transaction(cur => {
-      // outro operador enviou dentro do ciclo → aborta sem sobrescrever
-      if(cur && (Date.now() - (cur.at || 0)) < META_CYCLE_MS) return;
+      /* Só barra a COLISÃO (dois cliques no mesmo minuto, de operadores
+         diferentes), não a cadência. Reenviar depois disso é permitido e
+         apenas atualiza a hora do último envio. */
+      if(cur && cur.by !== payload.by && (Date.now() - (cur.at || 0)) < META_COLISAO_MS) return;
       return payload;
     });
     if(!res || !res.committed) throw new Error('ocupado');
