@@ -115,15 +115,22 @@ if errorlevel 1 goto :semlogin
 echo        ok
 
 echo  [4/5] agendando pra subir sozinho...
+REM Dois gatilhos de proposito. O AtLogOn sobe o robo quando a pessoa entra; o
+REM repetitivo de 5 em 5 min e a rede de seguranca: se o processo morrer (Edge
+REM caiu, alguem fechou a janela preta, a maquina hibernou), o proximo tique
+REM levanta de novo. Com MultipleInstances=IgnoreNew, tique com robo vivo nao
+REM faz nada. Sem isso o robo fica morto ate o proximo logon - foi o que
+REM aconteceu em 22/08/2026, o painel passou 9h sem print.
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$n='%TAREFA%';" ^
   "$app=Join-Path $env:LOCALAPPDATA 'SupremaSyncMetas\app';" ^
   "$a=New-ScheduledTaskAction -Execute \"$env:SystemRoot\System32\cmd.exe\" -Argument ('/c \"' + (Join-Path $app 'servico.cmd') + '\"') -WorkingDirectory $app;" ^
   "$g=New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME;" ^
-  "$s=New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Seconds 0) -MultipleInstances IgnoreNew;" ^
+  "$g2=New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 5);" ^
+  "$s=New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -DontStopOnIdleEnd -StartWhenAvailable -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Seconds 0) -MultipleInstances IgnoreNew;" ^
   "$p=New-ScheduledTaskPrincipal -UserId ('{0}\{1}' -f $env:USERDOMAIN,$env:USERNAME) -LogonType Interactive -RunLevel Limited;" ^
   "foreach($tp in '\','\^\'){try{Unregister-ScheduledTask -TaskName $n -TaskPath $tp -Confirm:$false -ErrorAction Stop}catch{}};" ^
-  "Register-ScheduledTask -TaskName $n -TaskPath '\' -Action $a -Trigger $g -Settings $s -Principal $p -Description 'Alimenta a secao Metas do painel do dia.' | Out-Null;" ^
+  "Register-ScheduledTask -TaskName $n -TaskPath '\' -Action $a -Trigger @($g,$g2) -Settings $s -Principal $p -Description 'Alimenta a secao Metas do painel do dia.' | Out-Null;" ^
   "$w=New-Object -ComObject WScript.Shell;" ^
   "$k=$w.CreateShortcut($w.SpecialFolders('Desktop')+'\RELOGAR POKERBYTE.lnk');" ^
   "$k.TargetPath=(Join-Path $app 'RELOGAR-POKERBYTE.cmd');" ^

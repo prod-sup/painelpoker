@@ -139,6 +139,8 @@ async function checarSessao(ctx){
   return _sessaoOk;
 }
 function marcarSessaoMorta(){ _sessaoOk = false; _sessaoEm = Date.now(); }
+/* navegador novo = perfil relido do disco; o cache de 60s nao vale mais */
+function esquecerSessao(){ _sessaoOk = null; _sessaoEm = 0; }
 
 /* Carrega a listagem e CARIMBA cada card com seu índice.
    O carimbo existe porque a contagem daqui exclui os cards de dentro do modal de
@@ -362,12 +364,59 @@ if (!DRY && !temCredenciais()){
 
 log(`dia operacional: ${dia}${WATCH ? ` · serviço a cada ${INTERVALO_MIN}min` : ''}`);
 
-const ctx = await abrirNavegador({ headless: true });
-const page = await ctx.newPage();
-await page.setViewportSize(VIEWPORT);
+/* O navegador e reaberto sob demanda, nao aberto uma vez so. Se o Edge morrer
+   no meio do caminho (atualizacao, crash, alguem matou o processo), o servico
+   seguia vivo falhando TODO ciclo com "Target page, context or browser has been
+   closed" — o painel ficava sem print ate alguem reiniciar. Visto em 22/08/2026:
+   morreu as 16:43, so voltou as 16:50 na mao. */
+let ctx = null, page = null, navVivo = false;
+let reaberturas = 0, ultimaReabertura = 0;
+
+async function garantirNavegador(){
+  if (navVivo && page && !page.isClosed()) return page;
+
+  if (ctx){
+    log('navegador caiu — reabrindo');
+    const morto = ctx, estavaVivo = navVivo;
+    ctx = null;                       // some ANTES do await: o 'close' do velho
+    navVivo = false;                  // nao pode derrubar o navegador novo
+    /* NAO fechar um navegador que ja morreu. No Windows o close() de um Edge
+       morto cai no caminho de matar o processo, que dispara evento de console
+       (Ctrl+Break) — e sob a Tarefa Agendada esse evento derruba junto o
+       cmd.exe do servico. O log terminava em "^C" e o robo sumia ate o proximo
+       logon. Fechar so quando o navegador ainda esta de pe (pagina fechada,
+       navegador vivo). Verificado em 22/08/2026. */
+    if (estavaVivo) await morto.close().catch(() => {});
+  }
+
+  /* Freio de rajada. Se o Edge nem sobe (perfil travado por um processo orfao,
+     disco cheio), sem isto o laco reabre a cada 5s, deixa um Edge orfao por
+     tentativa e afoga a maquina — visto na primeira versao desta correcao. */
+  const agora = Date.now();
+  reaberturas = (agora - ultimaReabertura < 60000) ? reaberturas + 1 : 1;
+  ultimaReabertura = agora;
+  if (reaberturas > 3){
+    log('✗ navegador reabrindo em rajada — pausa de 5min antes de tentar de novo');
+    await new Promise(r => setTimeout(r, 300000));
+    reaberturas = 0;
+  }
+
+  const aberto = await abrirNavegador({ headless: true });
+  /* so o contexto ATUAL pode declarar o navegador morto; o 'close' do anterior
+     chega atrasado e marcaria vivo=false com o novo ja de pe */
+  aberto.on('close', () => { if (ctx === aberto) navVivo = false; });
+  ctx = aberto;
+  page = await ctx.newPage();
+  await page.setViewportSize(VIEWPORT);
+  navVivo = true;
+  esquecerSessao();
+  return page;
+}
+
+await garantirNavegador();
 
 async function cicloProtegido(){
-  try { return await umCiclo(page); }
+  try { return await umCiclo(await garantirNavegador()); }
   catch(e){
     log('✗ ciclo falhou:', e.message);
     await reportar({ ok: false, erro: e.message.slice(0, 140), sessao: 'ok' });
@@ -399,6 +448,12 @@ if (!WATCH){
   process.on('SIGTERM', parar);
 
   for(;;){
+    try { await garantirNavegador(); }
+    catch(e){
+      log('✗ nao consegui abrir o navegador:', e.message);
+      await new Promise(r => setTimeout(r, 20000));
+      continue;
+    }
     const sessaoOk = await checarSessao(ctx);
     const eleicao = await tentarLideranca(CAMINHO_LIDER, sessaoOk);
 
