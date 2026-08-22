@@ -197,25 +197,20 @@
     else if(btn) btn.setAttribute('aria-pressed', isDark() ? 'true' : 'false');
   }
   function setTheme(dark, persist){
-    document.documentElement.classList.toggle('light', !dark);
-    // .dark em paralelo: hub.css nunca lê essa classe (só .light importa aqui),
-    // mas suprema-tokens.css e o mirrorThemeSignals (suprema-auth.js) esperam ela
-    // no escuro pra ligar o bloco de tema escuro compartilhado — ver anti-flash acima
-    document.documentElement.classList.toggle('dark', dark);
-    try{ localStorage.setItem('suprema_dark_mode', dark ? '1' : '0'); }catch(e){}
+    // hub é DARK-ONLY: ignora a preferência e trava no escuro, SEM escrever o pref
+    // compartilhado (suprema_dark_mode / darkMode) — os outros painéis seguem livres.
+    document.documentElement.classList.remove('light');
+    document.documentElement.classList.add('dark');
     applyThemeBtn();
-    if(persist && session && db && fbReady){
-      db.ref(`users/${emailToKey(session.email)}/darkMode`).set(!!dark).catch(()=>{});
-    }
   }
-  $('themeBtn').addEventListener('click', () => setTheme(!isDark(), true));
+  $('themeBtn').addEventListener('click', () => setTheme(true, false));
   applyThemeBtn();
   // ecossistema: tema trocado em outra aba/página (painel, admin...) reflete aqui na hora
   window.addEventListener('storage', e => {
-    if(e.key !== 'suprema_dark_mode' || e.newValue === null) return;
-    const dark = e.newValue === '1';
-    document.documentElement.classList.toggle('light', !dark);
-    document.documentElement.classList.toggle('dark', dark);
+    if(e.key !== 'suprema_dark_mode') return;
+    // hub dark-only: mesmo que outro painel troque o tema, o hub segue escuro
+    document.documentElement.classList.remove('light');
+    document.documentElement.classList.add('dark');
     applyThemeBtn();
   });
 

@@ -50,9 +50,11 @@ SupremaMotion.busyAuto();
 document.addEventListener('DOMContentLoaded', () => {
   SupremaMotion.ambient();
   SupremaMotion.magnetic('.opj-btn-primary');
-  SupremaMotion.aurora('.hero', { tint1:'rgba(200,105,25,.24)', tint2:'rgba(249,158,45,.16)' });
-  /* rede de nós atrás do hero (Network Hero, estreada no Radar de Eventos) */
-  SupremaMotion.network('.hero', { c1:'#d9741a', c2:'#b35d02', c2Dark:'#f7941d' });
+  /* C6 dark: aurora/rede NEUTRAS (sem wash laranja/marrom); o laranja vive só nos
+     acentos de UI (texto "torneios", botões, chip ativo). */
+  SupremaMotion.aurora('.hero', { tint1:'rgba(210,217,230,.10)', tint2:'rgba(196,206,230,.07)' });
+  /* rede de nós atrás do hero — cinza-neutro discreto */
+  SupremaMotion.network('.hero', { c1:'#8b9099', c2:'#5b6069', c2Dark:'#9aa0a8' });
 });
 </script>
 <link rel="stylesheet" href="painel.css">

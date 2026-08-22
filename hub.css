@@ -19,12 +19,12 @@
   --ink-faint: rgba(245,245,247,.42);
   --hairline:  rgba(245,245,247,.09);
   --hairline-strong: rgba(245,245,247,.16);
-  /* acento ÚNICO: o dourado da marca, um tom mais contido pra ler como "sério" */
-  --gold:      var(--sup-gold-dark);
-  --gold-soft: rgba(201,168,76,.10);
-  /* CHROME dourado champagne (era verde feltro) — o Brian pediu pra tirar o verde
-     do chrome de todos os produtos. O nome --felt ficou por compat; o valor é ouro. */
-  --felt:      var(--sup-gold-dark);
+  /* acento ÚNICO: LARANJA Suprema (redesign Netflix) — quente e vivo sobre o
+     near-black. Os nomes --gold/--felt ficam por compat; o valor agora é laranja. */
+  --gold:      #ff7d1a;
+  --gold-soft: rgba(255,125,26,.12);
+  --orange-deep:#e85d04;   /* laranja profundo p/ gradientes/hover */
+  --felt:      #ff7d1a;
   /* SUCESSO / FEITO continua VERDE (missão concluída, acesso liberado). */
   --ok:        var(--sup-felt-bright);
 
@@ -57,9 +57,9 @@ html.light{
   --ink-faint: #6e6e73;
   --hairline:  rgba(0,0,0,.10);
   --hairline-strong: rgba(0,0,0,.16);
-  --gold:      var(--sup-gold);   /* dourado da marca no claro (#8f6c14, 4,72:1 — AA) */
-  --gold-soft: rgba(143,107,45,.09);
-  --felt:      var(--sup-gold);   /* chrome dourado no claro (era #0e7a4e verde) */
+  --gold:      #c2410c;   /* laranja escuro p/ AA sobre papel claro */
+  --gold-soft: rgba(194,65,12,.09);
+  --felt:      #c2410c;
   --ok:        #0e7a4e;           /* sucesso/feito continua verde no claro */
 }
 /* de dia: papel neutro com um respiro de luz no topo, sem verde chamativo */
@@ -124,8 +124,8 @@ body{
 body::before{
   content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
   background:
-    radial-gradient(100% 60% at 50% -30%, rgba(245,245,247,.05), transparent 62%),
-    radial-gradient(80% 50% at 85% 115%, rgba(201,168,76,.035), transparent 55%);
+    radial-gradient(100% 60% at 50% -30%, rgba(245,245,247,.045), transparent 62%),
+    radial-gradient(80% 50% at 85% 115%, rgba(200,210,230,.03), transparent 55%);
 }
 /* grão fixo pra tirar a chapa digital do fundo (padrão de superfície premium):
    pointer-events:none, z-index:0, opacidade baixíssima — presença, não textura */
@@ -135,39 +135,75 @@ body::after{
 }
 html.light body::after{opacity:.02;mix-blend-mode:multiply}
 
-/* ---------- nav (barra fina translúcida, estilo Apple) ---------- */
+/* ---------- nav (topbar Netflix: escurece do topo, transborda sobre o billboard) ---------- */
 nav{
-  position:sticky;top:0;z-index:10;height:52px;
+  position:sticky;top:0;z-index:20;height:62px;
   display:flex;align-items:center;
-  border-bottom:1px solid var(--hairline);
-  background:color-mix(in srgb, var(--bg) 72%, transparent);
-  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid transparent;
+  background:linear-gradient(180deg, rgba(0,0,0,.82) 0%, rgba(0,0,0,.42) 55%, transparent 100%);
+  backdrop-filter:saturate(140%) blur(6px);-webkit-backdrop-filter:saturate(140%) blur(6px);
+  transition:background .3s var(--ease), border-color .3s var(--ease);
 }
+html.light nav{background:linear-gradient(180deg, rgba(251,251,253,.94), rgba(251,251,253,.6) 60%, transparent)}
 .nav-inner{
-  width:100%;max-width:1120px;margin:0 auto;padding:0 22px;
+  width:100%;max-width:1400px;margin:0 auto;padding:0 clamp(22px,5vw,60px);
   display:flex;align-items:center;gap:18px;
 }
-.brand{display:flex;align-items:center;gap:9px;font-family:var(--display);font-weight:600;font-size:15px;letter-spacing:-.01em}
-.brand .suit{color:var(--gold);font-size:15px;line-height:1}
-.brand small{font-family:var(--text);font-weight:400;color:var(--ink-faint);font-size:12px;margin-left:3px;letter-spacing:0}
+/* marca em wordmark forte, à la Netflix — a cor da casa é o laranja */
+.brand{display:flex;align-items:center;gap:9px;font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:-.02em;color:var(--gold)}
+.brand .suit{color:var(--gold);font-size:19px;line-height:1}
+.brand small{font-family:var(--text);font-weight:600;color:var(--ink-soft);font-size:13px;margin-left:2px;letter-spacing:.02em}
 .nav-time{margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);font-variant-numeric:tabular-nums;letter-spacing:.02em}
-/* toggle claro/escuro: usa o .sup-switch compartilhado (suprema-tokens.css).
-   No hub o estado vem do aria-pressed setado por applyThemeBtn() em hub.js. */
+/* hub é DARK-ONLY (redesign Netflix): o toggle de tema fica oculto — o elemento
+   segue no DOM só pra o hub.js (applyThemeBtn/listener) não quebrar. */
+.theme-btn{display:none !important}
 
-/* ---------- hero (grande, tight, muito respiro — estilo Apple) ---------- */
-.hero{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding:120px 22px 72px}
+/* ---------- hero = BILLBOARD (Netflix): full-bleed, conteúdo ancorado embaixo,
+   fundo animado (feltro/rede WebGL montado por JS) atrás de um scrim que garante
+   leitura. margin-top negativa faz o billboard passar POR BAIXO da nav translúcida. */
+.hero{
+  position:relative;z-index:1;overflow:hidden;isolation:isolate;
+  min-height:min(80vh,780px);
+  margin:-62px 0 0;                 /* sobe pra nav flutuar por cima */
+  display:flex;flex-direction:column;justify-content:flex-end;
+  padding:88px clamp(22px,5vw,60px) clamp(44px,6vh,80px);
+  /* billboard: arte cinematográfica ancorada à direita; o texto mora à esquerda
+     sobre o scrim. A rede WebGL (canvas) desenha por cima, suavizada, dando vida. */
+  background:#08080a url('hub-art/hero.webp') right center/cover no-repeat;
+}
+.hero .sp-network{opacity:.45}
+/* scrim: escurece a base e a esquerda pra o texto ler sobre o fundo vivo */
+.hero::after{
+  content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:
+    linear-gradient(90deg, var(--bg) 0%, color-mix(in srgb,var(--bg) 55%,transparent) 34%, transparent 68%),
+    linear-gradient(0deg, var(--bg) 1%, color-mix(in srgb,var(--bg) 40%,transparent) 22%, transparent 52%);
+}
+/* o conteúdo do billboard fica ACIMA do scrim; o canvas do fundo, abaixo dele */
+.hero-hello,.hero h1,.hero>p,.hero-ops,.hero-cta,.wx,.weather-card{position:relative;z-index:2}
+.hero>canvas{z-index:0}
 /* boas-vindas do usuário logado: avatar + saudação acima do título */
-.hero-hello{display:flex;align-items:center;gap:13px;margin-bottom:26px}
+/* ── boas-vindas do operador: cápsula de VIDRO premium com avatar em anel dourado,
+   eyebrow dourado e o e-mail. O grande título (#heroTitle) é o NOME. ── */
+.hero-hello{
+  display:inline-flex;align-self:flex-start;align-items:center;gap:12px;margin-bottom:22px;
+  padding:7px 18px 7px 7px;border-radius:99px;
+  background:linear-gradient(180deg, rgba(28,22,16,.55), rgba(12,12,14,.6));
+  border:1px solid rgba(255,255,255,.12);
+  -webkit-backdrop-filter:blur(16px) saturate(1.4);backdrop-filter:blur(16px) saturate(1.4);
+  box-shadow:0 14px 34px -16px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.09);
+}
 .hero-hello[hidden]{display:none}
 .hh-avatar{
-  width:44px;height:44px;border-radius:var(--sup-radius-sm);flex:none;
+  width:40px;height:40px;border-radius:50%;flex:none;
   display:flex;align-items:center;justify-content:center;
-  font-family:var(--display);font-size:18px;font-weight:600;color:var(--ink);
-  background:var(--bg-raise2);
-  border:1px solid var(--hairline-strong);
+  font-family:var(--display);font-size:17px;font-weight:800;color:#1a0d02;
+  background:linear-gradient(180deg, var(--gold), var(--orange-deep));
+  box-shadow:0 0 0 2px rgba(255,125,26,.4), inset 0 1px 0 rgba(255,255,255,.35), 0 6px 16px -6px rgba(255,125,26,.6);
+  overflow:hidden;
 }
-.hh-txt{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint)}
-.hh-txt b{display:block;font-family:var(--text);font-size:13px;font-weight:500;letter-spacing:-.01em;text-transform:none;color:var(--ink-soft);margin-top:4px}
+.hh-txt{display:flex;flex-direction:column;line-height:1.2;font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);font-weight:700}
+.hh-txt b{font-family:var(--text);font-size:12.5px;font-weight:600;letter-spacing:-.01em;text-transform:none;color:var(--ink);margin-top:3px}
 
 /* clima de Sorocaba — card decorativo perto da saudação, canto do hero. */
 .weather-card{
@@ -216,6 +252,7 @@ nav{
 /* centro de comando: chips discretos, borda fina — nada de vidro chamativo */
 .hero-ops{display:flex;flex-wrap:wrap;gap:8px;margin-top:32px}
 .hero-ops[hidden]{display:none}
+.ho-chip[hidden]{display:none}   /* .ho-chip usa display:inline-flex, que vencia o [hidden] e vazava chips vazios */
 .ho-chip{
   display:inline-flex;align-items:center;gap:8px;padding:7px 13px;border-radius:8px;
   border:1px solid var(--hairline);color:var(--ink-soft);text-decoration:none;
@@ -229,6 +266,33 @@ nav{
 .ho-chip b{color:var(--ink);font-weight:700}
 .ho-chip.ho-link:hover b{color:var(--gold)}
 .ho-chip .ho-ic{font-size:12px;color:var(--gold)}
+
+/* ── CTA do billboard (Netflix): play sólido claro + botão fantasma ── */
+.hero h1{max-width:16ch}
+.hero>p{max-width:44ch}
+.hero-cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
+.hero-btn{
+  display:inline-flex;align-items:center;gap:10px;
+  padding:13px 26px;border-radius:8px;cursor:pointer;text-decoration:none;
+  font-family:var(--display);font-weight:700;font-size:16px;letter-spacing:-.01em;
+  border:1px solid transparent;
+  transition:transform .18s var(--ease), background .2s var(--ease), box-shadow .2s var(--ease), border-color .2s var(--ease);
+}
+.hero-btn svg{flex:none}
+.hero-btn.primary{
+  background:linear-gradient(180deg,var(--gold),var(--orange-deep));color:#1a0d02;
+  box-shadow:0 10px 30px -10px color-mix(in srgb,var(--gold) 70%,transparent);
+}
+.hero-btn.primary:hover{transform:translateY(-2px);box-shadow:0 16px 40px -12px color-mix(in srgb,var(--gold) 80%,transparent)}
+.hero-btn.ghost{
+  background:color-mix(in srgb, var(--ink) 14%, transparent);color:var(--ink);
+  border-color:color-mix(in srgb, var(--ink) 22%, transparent);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+}
+.hero-btn.ghost:hover{transform:translateY(-2px);background:color-mix(in srgb, var(--ink) 22%, transparent);border-color:color-mix(in srgb,var(--gold) 55%,transparent)}
+.hero-btn:active{transform:translateY(0)}
+.hero-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){ .hero-btn{transition:none} .hero-btn:hover{transform:none} }
 
 /* ── CLIMA (adaptação do loud-fox-60): card de vidro que expande no hover ──
    Posicionado no canto superior direito do hero em telas largas; vira bloco
@@ -342,128 +406,216 @@ html.light .aviso[data-tipo="novidade"]{ --av-fg:#7a5bd0 }
   .aviso[data-tipo="erro"] .av-ico{animation:none}
 }
 
+/* ---------- FILEIRAS NETFLIX + CARDS-PÔSTER ----------
+   A grade bento virou trilhos horizontais (um por categoria). Cada card é um
+   pôster 16:10 com a "capa" em gradiente na cor do produto; no hover ele cresce
+   e sobe pra frente, revelando a sinopse — como um título na Netflix. */
 .grid{
   position:relative;z-index:1;
-  max-width:1120px;margin:8px auto 0;padding:0 22px 110px;
-  display:grid;gap:12px;
-  grid-template-columns:repeat(6,1fr);
+  max-width:none;margin:0;padding:clamp(6px,2vh,20px) 0 92px;
+  display:flex;flex-direction:column;gap:clamp(22px,3.5vh,42px);
 }
-/* bento Apple: card uniforme, borda 1px nítida, sem brilho — a cor do produto
-   entra só como acento contido (naipe d'água tênue + seta), não como banho. */
+.row{position:relative;display:flex;flex-direction:column;gap:10px;min-width:0}
+/* setas de scroll (Netflix): botões de vidro que aparecem no hover só quando a
+   fileira transborda; a posição vertical é ajustada pelo JS pra centrar no trilho */
+.row-arrow{
+  position:absolute;z-index:8;transform:translateY(-50%);
+  width:44px;height:44px;border-radius:99px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  border:1px solid rgba(255,255,255,.16);color:var(--ink);
+  background:rgba(14,14,18,.5);
+  -webkit-backdrop-filter:blur(12px) saturate(150%);backdrop-filter:blur(12px) saturate(150%);
+  box-shadow:0 8px 24px -8px rgba(0,0,0,.7);
+  opacity:0;pointer-events:none;
+  transition:opacity .25s var(--ease), background .2s var(--ease), transform .2s var(--ease), border-color .2s var(--ease);
+}
+.row-arrow svg{width:20px;height:20px}
+.row-arrow.prev{left:max(6px, calc(clamp(22px,5vw,60px) - 24px))}
+.row-arrow.next{right:max(6px, calc(clamp(22px,5vw,60px) - 24px))}
+.row:hover .row-arrow:not([disabled]){opacity:1;pointer-events:auto}
+.row-arrow:hover{background:rgba(28,28,34,.72);transform:translateY(-50%) scale(1.09);border-color:color-mix(in srgb,var(--gold) 60%,transparent)}
+.row-arrow[disabled]{opacity:0 !important;pointer-events:none}
+@media (hover:none){ .row-arrow{display:none} }
+.row-title{
+  margin:0;padding:0 clamp(22px,5vw,60px);
+  font-family:var(--display);font-weight:700;font-size:clamp(16px,1.6vw,20px);
+  letter-spacing:-.01em;color:var(--ink);
+  display:flex;align-items:center;gap:9px;
+}
+.row-title .suit{color:var(--gold);font-size:.85em;line-height:1}
+/* GSAP: letras + estados iniciais (só sob 'gsap-ready'; senão tudo aparece) */
+.hero h1{perspective:720px}
+.row-title{perspective:520px}
+.hero h1 .ltr,.row-title .ltr{display:inline-block;will-change:transform,opacity;backface-visibility:hidden}
+html.gsap-ready .hero h1{opacity:0}
+/* trilho: rola na horizontal, com respiro vertical pra o card crescer sem cortar */
+.row-track{
+  display:flex;gap:12px;align-items:stretch;
+  padding:18px clamp(22px,5vw,60px);
+  overflow-x:auto;overflow-y:hidden;
+  scroll-snap-type:x proximity;scroll-padding-left:clamp(22px,5vw,60px);
+  scrollbar-width:none;-webkit-overflow-scrolling:touch;
+}
+.row-track::-webkit-scrollbar{display:none}
+/* esconde a fileira inteira quando o operador não tem acesso a NENHUM card dela
+   (hub.js seta display:none inline nos tiles bloqueados) */
+.row:not(:has(.tile:not([style*="display: none"]))){display:none}
+
 .tile{
   --tint:var(--gold);
-  position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;
-  min-height:250px;padding:26px;
-  border:1px solid var(--hairline);border-radius:20px;
-  background:var(--bg-raise);
+  position:relative;flex:0 0 auto;scroll-snap-align:start;
+  width:clamp(240px,26vw,322px);aspect-ratio:16/10;min-height:0;
+  display:flex;flex-direction:column;justify-content:flex-end;
+  padding:15px 16px;overflow:hidden;
+  border:1px solid color-mix(in srgb,var(--tint) 18%, var(--hairline));border-radius:12px;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.12), rgba(255,255,255,0) 32%),
+    radial-gradient(120% 82% at 80% -12%, color-mix(in srgb,var(--tint) 62%,transparent), transparent 55%),
+    linear-gradient(157deg, color-mix(in srgb,var(--tint) 30%, #17171b) 0%, #09090b 80%);
   color:var(--ink);text-decoration:none;
-  transition:transform .5s var(--ease), border-color .4s var(--ease), box-shadow .5s var(--ease), background .4s var(--ease);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+  transition:transform .34s var(--ease), box-shadow .34s var(--ease), border-color .34s var(--ease);
+  will-change:transform;
 }
 .tile:hover,.tile:focus-visible{
-  transform:translateY(-3px);
-  border-color:var(--hairline-strong);
-  background:var(--bg-raise2);
-  box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 20px 50px -24px rgba(0,0,0,.7);
-  outline:none;
+  transform:scale(1.08) translateY(-6px);z-index:6;outline:none;
+  border-color:color-mix(in srgb,var(--tint) 70%,transparent);
+  box-shadow:0 30px 60px -18px rgba(0,0,0,.9),
+    0 0 0 1px color-mix(in srgb,var(--tint) 30%,transparent),
+    inset 0 1px 0 rgba(255,255,255,.12);
 }
-.tile:active{transform:translateY(-1px)}
-.grid{perspective:none}
-/* spotlight sutil na borda seguindo o cursor (upgrade de superfície premium do
-   redesign-skill) — neutro/dourado baixíssimo, não o bloom colorido de antes */
+.tile:active{transform:scale(1.03) translateY(-2px)}
+/* spotlight seguindo o cursor (--mx/--my alimentados pelo hub.js) */
 .tile .cursor-glow{
-  content:"";position:absolute;inset:0;pointer-events:none;opacity:0;
-  background:radial-gradient(300px circle at var(--mx,50%) var(--my,50%),
-    color-mix(in srgb, var(--tint) 10%, transparent), transparent 60%);
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:0;z-index:1;
+  background:radial-gradient(240px circle at var(--mx,50%) var(--my,50%),
+    color-mix(in srgb, var(--tint) 18%, transparent), transparent 60%);
   transition:opacity .4s var(--ease);
 }
 .tile:hover .cursor-glow{opacity:1}
 .tile.locked .cursor-glow{display:none}
-/* naipe marca-d'água — bem tênue, monocromático na tinta do produto */
-.tile::before{
-  content:"";position:absolute;inset:0;
-  background:radial-gradient(120% 100% at 88% -14%, color-mix(in srgb, var(--tint) 9%, transparent), transparent 58%);
-  transition:opacity .5s var(--ease);opacity:.6;
-}
-.tile:hover::before{opacity:1}
+/* a "capa": naipe grande como arte, sangrando no canto */
 .tile .mark{
-  position:absolute;top:-30px;right:-12px;
-  font-size:170px;line-height:1;font-family:var(--display);
-  color:color-mix(in srgb, var(--tint) 12%, transparent);
+  position:absolute;top:-16px;right:-4px;z-index:0;
+  font-size:140px;line-height:1;font-family:var(--display);
+  color:color-mix(in srgb, var(--tint) 44%, transparent);
+  filter:drop-shadow(0 8px 22px rgba(0,0,0,.45));
   user-select:none;pointer-events:none;
-  transition:transform .7s var(--ease), color .5s var(--ease);
+  transition:transform .5s var(--ease), color .4s var(--ease);
 }
-.tile:hover .mark{transform:translateY(4px);color:color-mix(in srgb, var(--tint) 18%, transparent)}
+.tile:hover .mark{transform:scale(1.08) translateY(2px) rotate(-3deg);color:color-mix(in srgb, var(--tint) 62%, transparent)}
+/* barra de VIDRO FOSCO no rodapé do pôster (glassmorphism): o blur some pra cima
+   pela máscara, deixando a arte nítida em cima e o texto sobre vidro embaixo */
+.tile::after{
+  content:"";position:absolute;inset:auto 0 0 0;height:66%;z-index:1;pointer-events:none;
+  background:linear-gradient(0deg, rgba(6,6,9,.86) 0%, rgba(6,6,9,.30) 58%, transparent 100%);
+  -webkit-backdrop-filter:blur(7px) saturate(120%);backdrop-filter:blur(7px) saturate(120%);
+  -webkit-mask:linear-gradient(0deg,#000 58%, transparent 100%);mask:linear-gradient(0deg,#000 58%, transparent 100%);
+}
+.tile h2,.tile .desc,.tile .meta{position:relative;z-index:2}
 .tile h2{
-  position:relative;margin:0;
-  font-family:var(--display);font-weight:600;font-size:26px;letter-spacing:-.02em;line-height:1.08;
+  margin:0;font-family:var(--display);font-weight:700;
+  font-size:clamp(17px,1.5vw,20px);letter-spacing:-.02em;line-height:1.1;
+  text-shadow:0 2px 12px rgba(0,0,0,.6);
 }
-.tile .desc{position:relative;margin:10px 0 0;color:var(--ink-soft);font-size:14px;line-height:1.5;max-width:38ch;letter-spacing:-.005em}
+/* sinopse: escondida; abre no hover, como o card expandido da Netflix */
+.tile .desc{
+  margin:0;color:var(--ink-soft);font-size:12.5px;line-height:1.45;letter-spacing:-.005em;
+  max-height:0;opacity:0;overflow:hidden;
+  transition:max-height .32s var(--ease), opacity .28s var(--ease), margin .32s var(--ease);
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;
+}
+.tile:hover .desc,.tile:focus-visible .desc{max-height:5.4em;opacity:1;margin-top:7px}
 .tile .meta{
-  position:relative;margin-top:20px;display:flex;align-items:center;gap:8px;
-  font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--ink-faint);
+  margin-top:8px;display:flex;align-items:center;gap:8px;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--ink-soft);
 }
-.tile .meta .arrow{color:var(--tint);transition:transform .35s var(--ease)}
+.tile .meta .arrow{color:var(--tint);transition:transform .3s var(--ease)}
 .tile:hover .meta .arrow{transform:translateX(4px)}
 
-/* dado vivo dentro do tile (presença, progresso da GU) */
+/* selo de dado vivo: no CANTO do pôster (como o badge da Netflix) */
 .tile .live{
-  position:relative;display:inline-flex;align-items:center;gap:6px;
-  margin-left:auto;font-family:var(--mono);font-size:11px;letter-spacing:.04em;
-  color:var(--ink-soft);
+  position:absolute;top:11px;left:12px;z-index:3;
+  display:inline-flex;align-items:center;gap:6px;margin:0;
+  padding:4px 10px;border-radius:99px;
+  background:rgba(12,12,16,.5);border:1px solid rgba(255,255,255,.14);
+  -webkit-backdrop-filter:blur(10px) saturate(150%);backdrop-filter:blur(10px) saturate(150%);
+  box-shadow:0 4px 14px -6px rgba(0,0,0,.6);
+  font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--ink);
 }
 .tile .live .pulse{
   width:6px;height:6px;border-radius:99px;background:var(--tint);
-  box-shadow:0 0 0 3px color-mix(in srgb, var(--tint) 22%, transparent);
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--tint) 30%, transparent);
 }
 
-/* composição do bento: 6 produtos, 6 células com ritmo */
-.t-painel{grid-column:span 4;min-height:320px;--tint:var(--p-painel)}
-.t-admin {grid-column:span 2;min-height:320px;--tint:var(--p-admin)}
-.t-gu    {grid-column:span 2;--tint:var(--p-gu)}
-.t-learn {grid-column:span 2;--tint:var(--p-learn)}
-.t-org   {grid-column:span 2;--tint:var(--p-org)}
-.t-painel h2{font-size:32px}
-.t-painel .desc{max-width:52ch}
-/* Constelação: céu estrelado próprio */
+/* tinta de cada "capa": cada pôster numa cor própria (como box-art da Netflix),
+   pra nenhuma dupla de vizinhos borrar junto. O laranja segue como acento de UI
+   (nav, botões, badges, naipe do título) — isto aqui é só a arte do card. */
+.t-painel{--tint:#f7941d}    /* laranja flagship */
+.t-gu{--tint:#8c5cc6}        /* roxo madrugada */
+.t-eventos{--tint:#c94f68}   /* framboesa */
+.t-pipe{--tint:#17a06b}      /* verde feltro */
+.t-admin{--tint:#d8a63c}     /* âmbar gestão */
+.t-cash{--tint:#4f8ef7}      /* azul dados */
+.t-tv{--tint:#e0524f}        /* vermelho broadcast */
+.t-campanha{--tint:#f0a72e}  /* dourado SPS */
+.t-learn{--tint:#e8933d}     /* laranja quente */
+.t-org{--tint:#7c8cf0}       /* fallback (a capa tem céu próprio) */
+/* o card cash empacota h2+desc num <div> — deixa os filhos fluírem na coluna */
+.t-cash>div{display:contents}
+/* Constelação: capa de céu estrelado por cima da tinta */
 .t-org{
   background:
-    radial-gradient(1px 1px at 18% 30%, rgba(242,237,226,.7), transparent 100%),
-    radial-gradient(1px 1px at 42% 14%, rgba(242,237,226,.5), transparent 100%),
-    radial-gradient(1.5px 1.5px at 66% 38%, rgba(216,181,109,.8), transparent 100%),
-    radial-gradient(1px 1px at 84% 20%, rgba(242,237,226,.6), transparent 100%),
-    radial-gradient(1px 1px at 30% 55%, rgba(242,237,226,.4), transparent 100%),
-    #060707;
+    radial-gradient(1px 1px at 18% 30%, rgba(242,237,226,.85), transparent 100%),
+    radial-gradient(1px 1px at 42% 20%, rgba(242,237,226,.55), transparent 100%),
+    radial-gradient(1.5px 1.5px at 66% 42%, rgba(255,180,90,.85), transparent 100%),
+    radial-gradient(1px 1px at 84% 26%, rgba(242,237,226,.6), transparent 100%),
+    radial-gradient(1px 1px at 30% 60%, rgba(242,237,226,.45), transparent 100%),
+    linear-gradient(155deg, #12162a 0%, #070710 82%);
 }
-/* Learn / GU: identidade só num sussurro sobre o card uniforme (Apple-sério) */
-.t-learn{background:linear-gradient(160deg,color-mix(in srgb,#e8933d 6%,var(--bg-raise)),var(--bg-raise) 60%)}
-.t-gu{background:linear-gradient(160deg,color-mix(in srgb,#8c5cc6 6%,var(--bg-raise)),var(--bg-raise) 62%)}
-/* Cash: faixa horizontal de inteligência */
-.t-cash{grid-column:span 6;min-height:120px;--tint:var(--p-cash);flex-direction:row;align-items:center;gap:22px}
-.t-cash h2{font-size:20px}
-.t-cash .desc{margin:4px 0 0}
-.t-cash .meta{margin:0 0 0 auto}
-.t-cash .mark{font-size:120px;top:-24px}
-/* Radar de Eventos (framboesa) + Suprema TV (dourado): a dupla do Marketing */
-.t-eventos{grid-column:span 3;--tint:var(--p-eventos)}
-.t-tv{grid-column:span 3;--tint:var(--p-admin)}
-.t-tv{background:linear-gradient(160deg,color-mix(in srgb,var(--gold) 7%,var(--bg-raise)),var(--bg-raise) 62%)}
-.t-campanha{grid-column:span 3;--tint:var(--p-admin)}
-.t-campanha{background:linear-gradient(160deg,color-mix(in srgb,var(--gold) 9%,var(--bg-raise)),var(--bg-raise) 60%)}
-/* Novidades & Manual: faixa dourada de capacitação (visível pra todos) */
-.t-novidades{grid-column:span 6;min-height:120px;--tint:var(--gold);flex-direction:row;align-items:center;gap:22px}
-.t-novidades{background:linear-gradient(160deg,color-mix(in srgb,var(--gold) 9%,var(--bg-raise)),var(--bg-raise) 60%)}
-.t-novidades h2{font-size:20px}
-.t-novidades .desc{margin:4px 0 0;max-width:60ch}
-.t-novidades .meta{margin:0 0 0 auto}
-.t-novidades .mark{font-size:96px;top:-14px}
-/* Criação de Eventos (Kanban externo): dourado da marca, sem céu próprio */
-.t-pipe{grid-column:span 3;--tint:var(--gold)}
 /* tile bloqueado (Mesa Cash é só admin) — visível, mas travado pra operador comum */
-.tile.locked{cursor:not-allowed;filter:saturate(.55)}
-.tile.locked h2,.tile.locked .desc{opacity:.5}
-.tile.locked:hover{transform:none;border-color:var(--hairline);box-shadow:none}
+.tile.locked{cursor:not-allowed;filter:saturate(.5) brightness(.92)}
+.tile.locked h2,.tile.locked .desc{opacity:.6}
+.tile.locked:hover,.tile.locked:focus-visible{transform:none;border-color:var(--hairline);box-shadow:none}
+.tile.locked:hover .desc,.tile.locked:focus-visible .desc{max-height:0;opacity:0;margin-top:0}
 .tile.locked .arrow{display:none}
+/* movimento reduzido: mantém o pôster e a revelação da sinopse, mas sem escala/deriva */
+@media (prefers-reduced-motion: reduce){
+  .tile,.tile .mark,.tile .desc,.row-arrow{transition:none}
+  .tile:hover,.tile:focus-visible{transform:none}
+  .tile:hover .mark{transform:none}
+}
+
+/* ── FILEIRA DESTAQUE (feature): poucos produtos numa categoria viram cartazes
+   largos e cinematográficos que preenchem a largura (à la "Originais" da Netflix),
+   em vez de dois cards perdidos num trilho vazio. ── */
+.row.feature .row-track{overflow:visible;gap:14px;scroll-snap-type:none}
+.row.feature .tile{
+  flex:1 1 0;width:auto;max-width:none;aspect-ratio:12/5;
+  scroll-snap-align:none;padding:20px 22px;
+}
+.row.feature .tile h2{font-size:clamp(20px,2vw,26px)}
+.row.feature .tile .mark{font-size:min(46%,190px);top:-8px;right:8px}
+/* nos cartazes largos a sinopse fica sempre visível — há espaço de sobra */
+.row.feature .tile .desc{max-height:5.4em;opacity:1;margin-top:8px;max-width:46ch}
+.row.feature .tile.locked .desc{max-height:0;opacity:0;margin-top:0}
+@media (max-width:720px){
+  .row.feature .row-track{flex-direction:column}
+  .row.feature .tile{aspect-ratio:16/9;width:100%}
+}
+
+/* ── ARTE REAL DE CAPA: um tile com a classe .arted e a var --art troca o
+   gradiente pela imagem (cover) sob um scrim leve; o naipe gigante some porque
+   a arte já é o visual. Sem .arted, fica o pôster em gradiente (fallback). ── */
+.tile.arted{
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.06), rgba(255,255,255,0) 30%),
+    linear-gradient(0deg, rgba(7,7,10,.34), rgba(7,7,10,.04) 52%, transparent 78%),
+    var(--art) center/cover no-repeat,
+    #0a0a0c;
+}
+.tile.arted .mark{display:none}
 .tile .lock-badge{
   display:none;align-items:center;gap:5px;
   font-size:11px;font-weight:700;letter-spacing:.02em;
@@ -480,9 +632,12 @@ html.light .aviso[data-tipo="novidade"]{ --av-fg:#7a5bd0 }
 .gate{
   --bg-raise:#111412; --ink:#f2ede2; --ink-soft:rgba(242,237,226,.58);
   --ink-faint:rgba(242,237,226,.46); --hairline:rgba(242,237,226,.12);
-  --gold:var(--sup-gold-dark); --gold-soft:rgba(201,168,76,.14);
+  --gold:#ff7d1a; --gold-soft:rgba(255,125,26,.14);
   position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
-  background:#0b0d0c;color:var(--ink);color-scheme:dark;
+  /* fundo premium: a MESMA arte cinematográfica do billboard (garantida, offline) —
+     o vídeo bg.mp4 entra por cima quando/se carregar. */
+  background:#08080a url('hub-art/hero.webp') center/cover no-repeat;
+  color:var(--ink);color-scheme:dark;
   padding:24px;overflow-y:auto;
 }
 .gate[hidden]{display:none}
@@ -495,43 +650,58 @@ html.light .aviso[data-tipo="novidade"]{ --av-fg:#7a5bd0 }
 .gate-veil{
   position:absolute;inset:0;pointer-events:none;
   background:
-    radial-gradient(120% 80% at 50% 0%, rgba(11,13,12,.30), rgba(11,13,12,.78) 78%),
-    linear-gradient(180deg, rgba(11,13,12,.35), rgba(11,13,12,.65));
+    radial-gradient(130% 90% at 50% -5%, rgba(8,8,10,.20), rgba(8,8,10,.72) 72%),
+    linear-gradient(180deg, rgba(8,8,10,.45), rgba(8,8,10,.80));
 }
 .gate-card{
-  position:relative;width:100%;max-width:400px;
-  border:1px solid rgba(242,237,226,.14);border-radius:22px;
-  background:rgba(15,18,16,.66);
-  backdrop-filter:blur(22px) saturate(1.2);-webkit-backdrop-filter:blur(22px) saturate(1.2);
-  box-shadow:0 40px 90px -30px rgba(0,0,0,.75), inset 0 1px 0 rgba(242,237,226,.07);
-  padding:32px 30px 28px;
+  position:relative;width:100%;max-width:412px;
+  border:1px solid rgba(242,237,226,.16);border-radius:24px;
+  background:linear-gradient(180deg, rgba(24,20,16,.62), rgba(12,12,14,.72));
+  backdrop-filter:blur(26px) saturate(1.3);-webkit-backdrop-filter:blur(26px) saturate(1.3);
+  box-shadow:0 50px 110px -34px rgba(0,0,0,.8),
+    0 0 0 1px rgba(255,125,26,.06),
+    inset 0 1px 0 rgba(242,237,226,.10);
+  padding:38px 34px 30px;
 }
-/* linha dourada de mesa no topo do cartão */
+/* fio dourado no topo + halo quente atrás do cartão (assinatura premium) */
 .gate-card::before{
-  content:"";position:absolute;top:0;left:22px;right:22px;height:1px;
-  background:linear-gradient(90deg, transparent, rgba(201,168,76,.55), transparent);
+  content:"";position:absolute;top:0;left:26px;right:26px;height:1px;
+  background:linear-gradient(90deg, transparent, rgba(255,140,40,.7), transparent);
 }
-.gate-brand{display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:22px;text-align:center}
-.gate-brand .suit{color:var(--gold);font-size:34px;line-height:1}
-.gate-brand h1{margin:0;font-family:var(--display);font-size:24px;letter-spacing:-.02em}
-.gate-brand h1 span{color:var(--gold)}
-.gate-brand p{margin:0;font-size:13px;color:var(--ink-soft)}
+.gate-card::after{
+  content:"";position:absolute;inset:-2px;z-index:-1;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(80% 60% at 50% 0%, rgba(255,125,26,.18), transparent 70%);
+  filter:blur(18px);
+}
+.gate-brand{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:26px;text-align:center}
+/* espada com halo — emblema da marca no topo do login */
+.gate-brand .suit{
+  position:relative;color:var(--gold);font-size:42px;line-height:1;
+  filter:drop-shadow(0 4px 20px rgba(255,125,26,.55));
+}
+.gate-brand h1{
+  margin:0;font-family:var(--display);font-weight:800;font-size:27px;letter-spacing:-.02em;
+  background:linear-gradient(180deg,#fff3e6,#ffb267 60%,var(--gold));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:var(--gold);
+}
+.gate-brand h1 span{-webkit-text-fill-color:var(--gold);color:var(--gold)}
+.gate-brand p{margin:2px 0 0;font-size:13px;line-height:1.5;color:var(--ink-soft);max-width:30ch}
 .gate-tabs{display:flex;gap:4px;margin-bottom:18px;border:1px solid var(--hairline);border-radius:99px;padding:4px}
 .gate-tab{
   flex:1;padding:8px 0;border:0;border-radius:99px;background:none;cursor:pointer;
   font-family:var(--text);font-size:13px;font-weight:600;color:var(--ink-soft);
   transition:background .3s var(--ease), color .3s var(--ease);
 }
-.gate-tab.active{background:var(--gold-soft);color:var(--gold)}
+.gate-tab.active{background:linear-gradient(180deg,var(--gold),var(--orange-deep));color:#1a0d02;box-shadow:0 6px 16px -7px rgba(255,125,26,.6)}
 .gate-field{margin-bottom:12px}
 .gate-field label{display:block;margin-bottom:5px;font-size:11.5px;font-weight:600;letter-spacing:.03em;color:var(--ink-soft)}
 .gate-field input{
-  width:100%;padding:11px 13px;border-radius:var(--sup-radius-sm);
+  width:100%;padding:12px 14px;border-radius:12px;
   border:1px solid var(--hairline);background:rgba(242,237,226,.05);color:var(--ink);
   font-family:var(--text);font-size:14px;outline:none;
-  transition:border-color .3s var(--ease), background .3s var(--ease);
+  transition:border-color .25s var(--ease), background .25s var(--ease), box-shadow .25s var(--ease);
 }
-.gate-field input:focus{border-color:var(--gold);background:rgba(242,237,226,.08)}
+.gate-field input:focus{border-color:var(--gold);background:rgba(242,237,226,.09);box-shadow:0 0 0 3px rgba(255,125,26,.16)}
 .gate-field input::placeholder{color:var(--ink-faint)}
 .password-field-wrapper{position:relative;display:flex;align-items:center}
 .password-field-wrapper input{padding-right:44px}
@@ -553,11 +723,13 @@ html.light .aviso[data-tipo="novidade"]{ --av-fg:#7a5bd0 }
 .gate-ok[hidden]{display:none}
 .gate-submit{
   position:relative;overflow:hidden;
-  width:100%;padding:12px 0;margin-top:4px;border:0;border-radius:var(--sup-radius-sm);cursor:pointer;
-  background:var(--gold);color:#14100a;font-family:var(--text);font-size:14px;font-weight:700;
-  transition:transform .2s var(--ease), filter .2s var(--ease);
+  width:100%;padding:13px 0;margin-top:6px;border:0;border-radius:12px;cursor:pointer;
+  background:linear-gradient(180deg,var(--gold),var(--orange-deep));color:#1a0d02;
+  font-family:var(--display);font-size:15px;font-weight:800;letter-spacing:-.01em;
+  box-shadow:0 14px 32px -12px rgba(255,125,26,.6);
+  transition:transform .2s var(--ease), filter .2s var(--ease), box-shadow .2s var(--ease);
 }
-.gate-submit:hover{filter:brightness(1.08)}
+.gate-submit:hover{filter:brightness(1.06);box-shadow:0 18px 40px -12px rgba(255,125,26,.7)}
 .gate-submit:active{transform:scale(.985)}
 .gate-submit:disabled{opacity:.55;cursor:default}
 /* sweep de brilho no hover (padrão "shine button" do Uiverse) */
@@ -741,9 +913,13 @@ html.light .aviso[data-tipo="novidade"]{ --av-fg:#7a5bd0 }
 .pa-n{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-soft);text-align:right}
 .board{
   position:relative;overflow:hidden;
-  border:1px solid var(--hairline);border-radius:20px;
+  border:1px solid var(--hairline-strong);border-radius:20px;
   padding:24px 24px 22px;
-  background:var(--bg-raise);   /* superfície sólida, bento Apple — sem vidro chamativo */
+  /* painel de VIDRO FOSCO (glassmorphism): translúcido + blur do fundo/naipes,
+     realce de borda no topo e sombra de elevação */
+  background:color-mix(in srgb, var(--bg-raise) 60%, transparent);
+  -webkit-backdrop-filter:blur(20px) saturate(150%);backdrop-filter:blur(20px) saturate(150%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 24px 60px -34px rgba(0,0,0,.75);
 }
 /* reveal com stagger no scroll: cada board entra quando aparece no viewport */
 html.js-reveal .board{opacity:0;transform:translateY(16px)}
