@@ -33,20 +33,33 @@ export const CAPTURAS_DIR = join(ESTADO_DIR, 'capturas');  // payloads crus (dia
 try { mkdirSync(ESTADO_DIR, { recursive: true }); } catch {}
 
 /* playwright-core não está instalado NESTE repo (ele é o site publicado e não tem
-   node_modules). Reaproveitamos o do projeto Grade-MTT, que já o traz. Dá pra
-   apontar pra outro lugar com PLAYWRIGHT_HOST_PKG=<caminho do package.json>. */
-const HOST_PKG = process.env.PLAYWRIGHT_HOST_PKG
-  || 'C:/Users/BrianLaureanoAlvesRo/Downloads/Grade-MTT-extract/Grade-MTT-main/package.json';
+   node_modules). Onde procurar, EM ORDEM:
+
+     1. PLAYWRIGHT_HOST_PKG — escape manual, pra caso fora do previsto;
+     2. node_modules AO LADO deste arquivo — é o que o INSTALAR.cmd provisiona em
+        %LOCALAPPDATA%\SupremaSyncMetas\app, e o ÚNICO que existe na máquina de
+        um operador;
+     3. o projeto Grade-MTT — conveniência da máquina de dev.
+
+   O item 2 é o que faz o robô rodar FORA da máquina de quem escreveu o código.
+   Até 22/08/2026 só existia o item 3, com caminho absoluto apontando pra pasta
+   de um usuário específico: em QUALQUER outra máquina o carregamento falhava, o
+   login.mjs morria antes de abrir a janela e o passo [5/5] do instalador
+   parecia simplesmente travado — sem nenhuma mensagem dizendo o porquê. */
+const CANDIDATOS_PKG = [
+  process.env.PLAYWRIGHT_HOST_PKG,
+  join(RAIZ, 'package.json'),
+  'C:/Users/BrianLaureanoAlvesRo/Downloads/Grade-MTT-extract/Grade-MTT-main/package.json',
+].filter(Boolean);
 
 export function carregarPlaywright(){
-  try {
-    return createRequire(HOST_PKG)('playwright-core');
-  } catch (e) {
-    throw new Error(
-      `Não achei o playwright-core a partir de ${HOST_PKG}.\n` +
-      `Aponte para um package.json que o tenha:  PLAYWRIGHT_HOST_PKG=<caminho> node <script>`
-    );
+  for (const pkg of CANDIDATOS_PKG){
+    try { return createRequire(pkg)('playwright-core'); } catch {}
   }
+  throw new Error(
+    'Nao achei o playwright-core. Procurei em: ' + CANDIDATOS_PKG.join(' | ') +
+    ' - rode o INSTALAR.cmd de novo (ele instala), ou aponte com PLAYWRIGHT_HOST_PKG=<package.json>'
+  );
 }
 
 /* Playwright-core não baixa navegador — usa um já instalado. O Edge do Windows

@@ -82,6 +82,22 @@ echo        copiada da pasta
 if not exist "%APP%\sync.mjs" goto :semrede
 if not exist "%APP%\painel-calc.js" goto :semrede
 
+REM ---- PLAYWRIGHT ----
+REM O robo nao traz navegador: dirige o Edge do Windows pelo playwright-core.
+REM Ate 22/08/2026 o instalador NUNCA instalava esse pacote - o codigo achava o
+REM do projeto Grade-MTT por caminho absoluto, que so existe na maquina de quem
+REM escreveu. Em qualquer outra maquina o login.mjs morria antes de abrir a
+REM janela e o passo [5/5] parecia travado, sem mensagem nenhuma.
+REM Versao fixada: e a que esta rodando em producao. Nao usar "latest" aqui -
+REM um dia o playwright muda de API e o robo quebra sozinho, sem ninguem mexer.
+if exist "%APP%\node_modules\playwright-core\package.json" goto :tempw
+echo        instalando o playwright (uns 10 MB)...
+pushd "%APP%"
+call npm install playwright-core@1.62.0 --no-save --no-audit --no-fund --loglevel=error >nul 2>&1
+popd
+if not exist "%APP%\node_modules\playwright-core\package.json" goto :sempw
+:tempw
+
 echo  [3/5] login do Suprema...
 if exist "%ESTADO%\.env" goto :temenv
 echo.
@@ -180,6 +196,16 @@ goto :fim
 echo  ===========================================================
 echo    PRONTO. Este computador ja esta ajudando.
 echo    Nao precisa deixar nada aberto. Pode fechar tudo.
+echo  ===========================================================
+goto :fim
+
+:sempw
+echo.
+echo  ===========================================================
+echo    NAO CONSEGUI INSTALAR O PLAYWRIGHT.
+echo    E ele que abre o navegador. Sem isso o robo nao roda.
+echo    Verifique a internet (o npm precisa sair pra fora) e
+echo    rode este instalador de novo.
 echo  ===========================================================
 goto :fim
 

@@ -98,6 +98,12 @@ function brl(txt){
    todo. Capturando só a janela (normalmente 1 a 3 torneios) fica em centenas de KB.
    LEAD_MIN dá uma dianteira pro print já estar pronto quando o card nascer. */
 const LEAD_MIN = 30;
+/* TOLERANCIA DO LATE — o late da planilha e o PLANEJADO; no aplicativo o Main
+   Event costuma seguir aceitando inscricao por ~25min alem disso. TEM QUE BATER
+   com META_LATE_EXTRA_MIN do painel.js: se o painel deixa o card aberto e o robo
+   ja parou de capturar, o card fica aberto SEM PRINT — que e o pior dos mundos,
+   porque o operador so descobre na hora de mandar. */
+const LATE_EXTRA_MIN = 25;
 const TENTATIVAS = 3;   // card sem print e a falha que nao pode acontecer
 
 function minutosSP(){
@@ -112,7 +118,7 @@ function naJanela(row){
   const ini = paraMin(row.hora), late = paraMin(row.late);
   if (ini == null || late == null) return false;   // sem late não dá pra afirmar nada
   const agora = op(minutosSP());
-  return agora >= op(ini) - LEAD_MIN && agora <= op(late);
+  return agora >= op(ini) - LEAD_MIN && agora <= op(late) + LATE_EXTRA_MIN;
 }
 
 const dia = diaOperacional();

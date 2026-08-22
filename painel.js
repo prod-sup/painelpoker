@@ -716,6 +716,13 @@ const META_CYCLE_MS = 30 * 60 * 1000;  // cadência de envio: 30 em 30 min
    instante não podem colar a mesma imagem duas vezes no grupo. */
 const META_COLISAO_MS = 60 * 1000;
 const META_HOLD_MIN = 15;              // minutos que o card fica na tela depois do late fechar
+/* TOLERÂNCIA DO LATE — o late da planilha é o PLANEJADO; no aplicativo o Main
+   Event costuma seguir aceitando inscrição por ~25min além disso (Brian,
+   22/08/2026). Sem esta folga o card virava 'encerrada' cedo demais, o robô
+   parava de capturar e o operador perdia meta que ainda dava pra mandar.
+   A planilha continua sendo a fonte do horário exibido; a folga aparece ao
+   lado, pra ninguém achar que o cadastro está errado. */
+const META_LATE_EXTRA_MIN = 25;
 
 /* janela em minutos OPERACIONAIS: {start, end, semLate} — ou null se nem o horário de início veio */
 function metaWindow(t){
@@ -723,10 +730,14 @@ function metaWindow(t){
   const startRaw = timeToMinutes(t.hora);
   if(startRaw === null) return null;
   const lateRaw = timeToMinutes(t.late);
+  const fim = lateRaw === null ? null : opMinutes(lateRaw);
   return {
-    start:   opMinutes(startRaw),
-    end:     lateRaw === null ? null : opMinutes(lateRaw),
-    semLate: lateRaw === null,
+    start:    opMinutes(startRaw),
+    // "end" é o fim EFETIVO (com tolerância): é ele que decide estado e captura
+    end:      fim === null ? null : fim + META_LATE_EXTRA_MIN,
+    // "endPlanilha" é o que está cadastrado — só pra exibir, nunca pra decidir
+    endPlanilha: fim,
+    semLate:  lateRaw === null,
   };
 }
 
@@ -747,6 +758,14 @@ function metaState(t){
   if(now < w.start) return 'aguardando';
   if(w.semLate) return 'sem-late';
   return now <= w.end ? 'aberta' : 'encerrada';
+}
+
+/* passou do late da planilha mas ainda cabe na tolerância? (só pra rotular) */
+function metaNaTolerancia(t){
+  const w = metaWindow(t);
+  if(!w || w.semLate || w.endPlanilha == null) return false;
+  const now = opNowMinutes();
+  return now > w.endPlanilha && now <= w.end;
 }
 
 /* minutos até o late fechar (negativo = já fechou, null = sem late/sem início) */
@@ -880,19 +899,84 @@ window.pedirSyncMetas = pedirSyncMetas;
    O formato saiu do que já é enviado hoje à mão — e à mão sai inconsistente
    (`*40K OmaX HR 20h/ENCERRADO*` e `*SPS 47-H Mystery HR - META ALCANÇADA /
    ENCERRADO*` no mesmo canal). Aqui vira uma regra só:
-       rolando            → *Nome do torneio*
-       encerrado          → *Nome do torneio - ENCERRADO*
-       encerrado batendo  → *Nome do torneio - META ALCANÇADA / ENCERRADO*
+       rolando            → *Nome do torneio 15:00*
+       rolando com risco  → bloco de ALERTA DE OVERLAY (ver metaRiscoOverlay)
+       encerrado          → *Nome do torneio 15:00 — ENCERRADO*
+       encerrado batendo  → *Nome do torneio 15:00 — META ALCANÇADA / ENCERRADO*
+
+   TRÊS COISAS QUE O FORMATO À MÃO ERRAVA E AQUI NÃO PODEM VOLTAR:
+   1. "* ENCERRADO*" NÃO fica em negrito no WhatsApp — asterisco seguido de
+      espaço não abre formatação, e o asterisco aparece cru na tela do grupo.
+      Por isso o status entra DENTRO do mesmo par de asteriscos do nome.
+   2. ENCERRADA/ENCERRADO alternavam no mesmo canal. É ENCERRADO, sempre.
+   3. A hora sumia em metade das mensagens. Entra sempre: o grupo recebe meta
+      de vários torneios e só o nome não desambigua.
 
    "META ALCANÇADA" só entra quando o sync confirma arrecadado >= garantido. Sem
    dado do PokerByte, omite — melhor faltar do que afirmar errado no grupo. */
-function metaCaption(row){
-  const nome = String(row && row.nome || '').trim();
-  if (metaState(row) !== 'encerrada') return `*${nome}*`;
+
+/* RISCO DE OVERLAY — "poucas ações, mas considerando o late register" (Brian,
+   22/08/2026). Estar longe do garantido no começo NÃO é risco: ainda tem late
+   inteiro pela frente. O que decide é se o RITMO de arrecadação fecha a conta
+   até o late acabar. Projeta linearmente o que ainda entra e compara com o GTD.
+
+   Devolve null quando não há risco (ou não dá pra afirmar). Nunca alerta:
+     • torneio que já bateu o garantido;
+     • torneio encerrado (alerta serve pra agir, não pra histórico);
+     • sem dado do PokerByte — não dá pra gritar overlay sem número.
+   OVERLAY_MARGEM evita alarme por uma diferença de trocados. */
+const OVERLAY_MARGEM = 0.05;
+
+function metaRiscoOverlay(row){
   const d = metaDados(row && row._key);
-  return d && d.metaAlcancada === true
-    ? `*${nome} - META ALCANÇADA / ENCERRADO*`
-    : `*${nome} - ENCERRADO*`;
+  if(!d || d.arrecadado == null || !d.garantido) return null;
+  if(d.arrecadado >= d.garantido) return null;
+  if(metaState(row) !== 'aberta') return null;
+  const w = metaWindow(row);
+  if(!w || w.semLate) return null;
+  const agora = opNowMinutes();
+  const decorrido = agora - w.start;
+  const restante  = w.end - agora;
+  if(decorrido <= 0 || restante <= 0) return null;
+  const projetado = d.arrecadado + (d.arrecadado / decorrido) * restante;
+  if(projetado >= d.garantido * (1 - OVERLAY_MARGEM)) return null;
+  return { falta: d.garantido - d.arrecadado, garantido: d.garantido, restante };
+}
+
+function metaTitulo(row){
+  const nome = String(row && row.nome || '').trim();
+  const hora = String(row && row.hora || '').trim();
+  return hora ? nome + ' ' + hora : nome;
+}
+
+function metaCaption(row){
+  const titulo = metaTitulo(row);
+  const d = metaDados(row && row._key);
+
+  if (metaState(row) === 'encerrada'){
+    return d && d.metaAlcancada === true
+      ? `*${titulo} — META ALCANÇADA / ENCERRADO*`
+      : `*${titulo} — ENCERRADO*`;
+  }
+
+  const risco = metaRiscoOverlay(row);
+  if (risco){
+    const min = risco.restante === 1 ? '1 minuto' : risco.restante + ' minutos';
+    return [
+      '🚨🚨 ATENÇÃO 🚨🚨',
+      '',
+      `O evento *${titulo}* está correndo risco de OVERLAY.`,
+      '',
+      `Faltam *R$ ${fmtBRL(risco.falta)}* para o garantido de *R$ ${fmtBRL(risco.garantido)}*.`,
+      `Late register fecha em *${min}*.`,
+      '',
+      'Veja seu possível overlay e vamos bater mais esse torneio!',
+      '',
+      '🚀🚀 Suprema, juntos somos mais fortes! 🚀🚀',
+    ].join('\n');
+  }
+
+  return `*${titulo}*`;
 }
 
 /* base64 → Blob SEM fetch/await: a escrita na área de transferência exige gesto
@@ -5013,10 +5097,14 @@ function renderMetas(){
     if(state === 'sem-late'){
       timeHtml = `<span class="mcard-flag warn">Late não informado na planilha</span>`;
     } else if(state === 'encerrada'){
-      timeHtml = `<span class="mcard-flag closed">Late encerrado às ${r.late}</span>`;
+      timeHtml = `<span class="mcard-flag closed">Late encerrado às ${r.late} +${META_LATE_EXTRA_MIN}min</span>`;
+    } else if(metaNaTolerancia(r)){
+      /* passou do horário da planilha e ainda dá: é o momento mais fácil de
+         perder a meta, então a tarja muda de texto e vai pro tom de urgência. */
+      timeHtml = `<span class="mcard-flag urgent">Tolerância · fecha em ${left}min</span>`;
     } else {
       const urgent = left != null && left <= 10;
-      timeHtml = `<span class="mcard-flag ${urgent ? 'urgent' : 'open'}">Late fecha em ${left}min · ${r.late}</span>`;
+      timeHtml = `<span class="mcard-flag ${urgent ? 'urgent' : 'open'}">Late fecha em ${left}min · ${r.late} +${META_LATE_EXTRA_MIN}min</span>`;
     }
 
     // linha do ciclo — o dado exclusivo desta seção
@@ -5050,9 +5138,13 @@ function renderMetas(){
        operador clica sem saber o que vai colar no grupo.
        Com print disponível ganha um botão próprio: a área de transferência leva
        uma coisa por vez, então é print primeiro, legenda depois. */
+    /* o alerta de overlay é um bloco de 9 linhas, não um título: a prévia
+       precisa respeitar quebra de linha e ganhar destaque, senão o operador
+       copia sem perceber que está mandando outra coisa no grupo. */
+    const ehAlerta = !!metaRiscoOverlay(r);
     const captionHtml = (state === 'aberta' || state === 'encerrada')
       ? `<div class="mcard-caption-row">
-           <code class="mcard-caption">${escHtml(metaCaption(r))}</code>
+           <code class="mcard-caption${ehAlerta ? ' is-alerta' : ''}">${escHtml(metaCaption(r))}</code>
            ${temPrint && !PANEL_RO ? `<button type="button" class="mcard-caption-btn" data-act="copyMetaCaption" data-arg="${key}" title="Copiar só a legenda">copiar</button>` : ''}
          </div>`
       : '';

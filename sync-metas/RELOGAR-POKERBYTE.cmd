@@ -35,7 +35,15 @@ echo  Nao feche esta janela preta.
 echo.
 
 echo  [1/3] pausando o servico de sync...
+REM /End NAO basta: a Tarefa Agendada encerra o cmd.exe dela e o processo do robo
+REM (mais o Edge que ele abriu) seguem VIVOS, segurando a trava da pasta do
+REM perfil. Verificado em 22/08/2026: parar a tarefa deixou o node rodando.
+REM Sem matar a arvore, o login abaixo falha com "profile is already in use" e
+REM NENHUMA janela abre - a pessoa fica olhando pra tela preta sem entender.
 schtasks /End /TN "%TAREFA%" >nul 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'sync.mjs' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue };" ^
+  "Get-CimInstance Win32_Process -Filter \"Name='msedge.exe'\" | Where-Object { $_.CommandLine -match 'SupremaSyncMetas' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue };"
 REM da tempo do Chromium soltar a trava da pasta do perfil
 timeout /t 5 /nobreak >nul
 echo        ok
@@ -47,7 +55,10 @@ set "RESULTADO=%ERRORLEVEL%"
 
 echo.
 echo  [3/3] religando o servico de sync...
-schtasks /Run /TN "%TAREFA%" >nul 2>&1
+REM mesmo motivo do instalador: se a tarefa nao estiver na raiz, o schtasks nao
+REM acha pelo nome e o religamento falha em silencio.
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "try{ Start-ScheduledTask -TaskName '%TAREFA%' -TaskPath '\' -ErrorAction Stop }catch{ Write-Host '        (nao subiu agora; sobe sozinho em ate 5min)' -ForegroundColor Yellow }"
 echo        ok
 echo.
 
