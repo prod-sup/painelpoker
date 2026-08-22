@@ -891,7 +891,19 @@
   .sync-status.online .sync-dot{ animation:none; }
   @keyframes pulse-sync{ 0%,100%{opacity:1} 50%{opacity:.35} }
   @media (max-width:680px){ .sync-status .sync-label{display:none;} }
-  @media (max-width:1400px){ .nav-links{display:none;} }
+  /* nav estreita: em vez de ESCONDER as abas já em 1400px (deixava laptops
+     1280/1366 "sem barra"), comprime abas + gaps pra caberem. Só some abaixo
+     de 1180px, onde não há espaço nem comprimindo. */
+  @media (max-width:1400px){
+    .nav-links a{ padding:6px 9px; font-size:11.5px; }
+    .nav-links{ gap:0; }
+    .nav-right{ gap:6px; }
+  }
+  @media (max-width:1300px){
+    .nav-links a{ padding:6px 8px; font-size:11px; }
+    .nav-right{ gap:5px; }
+  }
+  @media (max-width:1180px){ .nav-links{display:none;} }
 
   .upload-btn{
     display:inline-flex; align-items:center; gap:7px;
