@@ -142,13 +142,15 @@
   html.dark body{ background: var(--bg); }
 
   /* ── Nav dark: glassmorphism escuro com borda sutil ── */
+  /* barra ELEVADA sobre o --bg near-black (senão funde e "some"): neutro nítido
+     + hairline mais forte no rodapé, pra ler como uma barra de verdade. */
   html.dark nav{
-    background: rgba(15,17,16,0.97);
-    border-bottom-color: rgba(255,255,255,0.07);
+    background: rgba(23,25,29,0.98);
+    border-bottom-color: rgba(255,255,255,0.10);
   }
   html.dark nav.scrolled{
-    background: rgba(15,17,16,0.99);
-    box-shadow:0 8px 30px -18px rgba(0,0,0,0.7);
+    background: rgba(27,29,34,0.99);
+    box-shadow:0 10px 34px -18px rgba(0,0,0,0.8);
   }
 
   /* ── Elementos com background:#fff hardcoded ── */
