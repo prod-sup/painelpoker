@@ -7069,10 +7069,17 @@ function ovcCalculate(){
   const manual = document.getElementById('ovcRakeOverride');
   const isManual = manual && manual.value;
   // a origem fica escrita na tela: sem isso ninguém distingue o rake da GU de
-  // uma escolha manual, e os dois números saem parecidos
-  document.getElementById('ovcRakeNote').textContent = rake == null
-    ? 'Escolha o torneio (rake vem da GU) ou selecione o rake à mão.'
-    : `Rake aplicado: ${(rake*100).toFixed(1).replace('.0','')}%` + (isManual ? ' (manual)' : ' (GU)');
+  // uma escolha manual, e os dois números saem parecidos.
+  // SEM rake há DOIS motivos diferentes, e confundi-los esconde o problema:
+  // não escolheu torneio, ou escolheu um que a GU não tem FEE. Dizer "escolha o
+  // torneio" pra quem JÁ escolheu manda a pessoa procurar no lugar errado.
+  const _selKey = document.getElementById('ovcTorneioSelect')?.value;
+  const _selRow = _selKey ? rowByKey(_selKey) : null;
+  document.getElementById('ovcRakeNote').textContent = rake != null
+    ? `Rake aplicado: ${(rake*100).toFixed(1).replace('.0','')}%` + (isManual ? ' (manual)' : ' (GU)')
+    : _selRow
+      ? `"${_selRow.nome}" está sem FEE na planilha da GU — escolha o rake à mão pra calcular.`
+      : 'Escolha o torneio (o rake vem da GU) ou selecione o rake à mão.';
 
   // sem rake não há pote: zera as linhas e o resultado em vez de calcular com 0%
   if (rake == null){
