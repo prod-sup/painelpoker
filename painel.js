@@ -485,6 +485,81 @@ function calcRake(row){ return PainelCalc.calcRake(row); }
 /* multiplicador do buy-in líquido = 1 − rake · `null` quando não há rake */
 function rakeFactorOf(row){ return PainelCalc.rakeFactorOf(row); }
 
+/* ══ MAPA DE FEE DA GU (painel/guFees) ══════════════════════════════════════
+   Nem toda linha chega com FEE/ADMIN FEE na própria linha: planilha subida
+   ANTES de o painel passar a gravar essas colunas, restauração de localStorage
+   antigo, ou grade compartilhada por um painel desatualizado.
+
+   Sem fee o rake é null — e aí TUDO que depende dele some da tela: ações,
+   projeção de pote e, principalmente, o Pote da calculadora de overlay, que é
+   o que alimenta a premiação do card (ovcAutoApplyToCard). Foi assim que a
+   calculadora "parou de puxar pro card".
+
+   Este mapa resolve essas linhas PELO NOME, com o valor que a GU digitou. É
+   consulta à GU, não a volta da estimativa por categoria. */
+let GU_FEE_MAP = new Map();
+let _guFeeTentado = false;
+
+/* MESMA normalização do normText do gu-parser, que gerou as chaves do mapa —
+   se as duas divergirem, nada casa e o sintoma volta em silêncio. */
+function guNormNome(s){
+  return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+}
+
+/* completa fee/adminFee das linhas que vieram sem. Devolve quantas completou. */
+function hidratarFeeGU(rows){
+  if(!GU_FEE_MAP.size || !Array.isArray(rows)) return 0;
+  let n = 0;
+  rows.forEach(r => {
+    if(!r || r.fee != null || !r.nome) return;
+    const hit = GU_FEE_MAP.get(guNormNome(r.nome));
+    if(!hit) return;
+    r.fee = hit.f;
+    r.adminFee = hit.a != null ? hit.a : 0;
+    n++;
+  });
+  return n;
+}
+
+function aplicarMapaFeeGU(list){
+  GU_FEE_MAP = new Map(list.filter(x => x && x.n).map(x => [String(x.n), {f:x.f, a:x.a}]));
+  const n = hidratarFeeGU(RAW_ROWS) + hidratarFeeGU(typeof PRINCIPAIS_ROWS !== 'undefined' ? PRINCIPAIS_ROWS : []);
+  if(!n) return;
+  console.info('[painel] fee da GU completado em ' + n + ' torneio(s) pelo mapa');
+  // as linhas ganharam rake agora: redesenha o que depende dele
+  try{
+    computeStats(); renderUnfixed();
+    METAS = computeMetas(); renderMetas();
+    renderUpcoming(); renderResults();
+  }catch(e){ console.warn('re-render após hidratar o fee', e); }
+  // calculadora aberta com torneio escolhido: re-puxa (isso reativa o pote → card)
+  try{
+    if(document.getElementById('ovcTorneioSelect')?.value) ovcOnSelectChange();
+  }catch(e){}
+}
+
+/* Lê painel/guFees. Se o nó ainda não existe (ninguém subiu a Global depois da
+   mudança), monta o mapa da PRÓPRIA planilha publicada da GU e o grava — o
+   painel se conserta sozinho, sem depender de um upload manual acontecer. */
+async function carregarMapaFeeGU(){
+  if(!fbReady || _guFeeTentado) return;
+  _guFeeTentado = true;
+  try{
+    const v = await fbDb.ref('painel/guFees').once('value').then(s => s.val());
+    const list = (v && Array.isArray(v.list)) ? v.list : [];
+    if(list.length) aplicarMapaFeeGU(list);
+  }catch(e){ console.warn('guFees: leitura falhou', e); }
+  if(GU_FEE_MAP.size) return;
+  try{
+    const idx = guFeeIndexFromWorkbook(readWorkbook(await fetchGuSheetBuffer()));
+    const list = guFeeIndexToList(idx);
+    if(!list.length) return;
+    aplicarMapaFeeGU(list);
+    publishGuFees(idx);          // grava pro admin e pros outros painéis
+    console.info('[painel] mapa de fee da GU montado da planilha: ' + list.length);
+  }catch(e){ console.warn('guFees: não consegui montar da planilha', e); }
+}
+
 /* (calcOverlayCard removida: era código MORTO e QUEBRADO — ninguém a chamava e
    ela lia `cat`/`isCamp` como variáveis livres, nunca declaradas, então a
    primeira chamada teria dado ReferenceError. Pior: o nome parecia o cálculo
@@ -2938,6 +3013,11 @@ function initFirebaseSync(){
     // ── Sheet (planilha compartilhada) ───────────────────────────────────
     registerSheetListener();
 
+    // ── Mapa de fee da GU ────────────────────────────────────────────────
+    // precisa de auth viva (o nó fica sob `painel`), e roda depois do listener
+    // da planilha pra já achar as linhas carregadas e completá-las
+    whenAuthed(() => { carregarMapaFeeGU(); });
+
     // ── Premiação ─────────────────────────────────────────────────────────
     // só anexa com auth viva: senão, numa recarga, o RTDB nega a leitura e cancela
     // o listener — e a premiação some ("0 fechados") até religar por acaso.
@@ -4709,6 +4789,11 @@ function ingest(rows, filename, fromRemote=false){
   // (premFromSheet) — inclusive de sheets antigos já salvos no Firebase/localStorage. O que o
   // operador digitou vive no nó premiacao do FB e volta pelo resyncPremiacaoFromFirebase() abaixo.
   RAW_ROWS = rows.map(r => ({...r, _key: rowKey(r), ...(r.premFromSheet ? {premiacao:null, premFromSheet:false} : {})}));
+  // linha que chegou sem FEE/ADMIN FEE (planilha antiga, localStorage velho,
+  // painel desatualizado do parceiro): completa pelo mapa da GU. Sem isto o
+  // rake fica null e some tudo que depende dele — inclusive o pote que a
+  // calculadora aplica na premiação do card.
+  hidratarFeeGU(RAW_ROWS);
   reindexRows();
   // Buy-in corrigido na auditoria: re-aplica o overlay por cima da row recém-montada da
   // planilha (o _key é o rowKey da planilha, então a chave do overlay bate). As "ações"
@@ -7002,6 +7087,9 @@ function ovcCalculate(){
     if(outEl) outEl.textContent = '—';
     if(labEl) labEl.textContent = 'Overlay';
     if(rowEl) rowEl.classList.remove('has-overlay','no-overlay');
+    // some com o badge de "aplicado no card": sem pote não há o que aplicar, e
+    // deixar o badge de pé faria parecer que o card recebeu um valor
+    ovcAutoApplyToCard(0);
     return;
   }
 
