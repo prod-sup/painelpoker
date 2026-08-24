@@ -11,7 +11,8 @@
    comportamento, não só o clique) tem muito menos motivo pra derrubar a sessão.
    ========================================================================= */
 import { createRequire } from 'node:module';
-import { existsSync, mkdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -81,9 +82,45 @@ export const METAS_URL = process.env.POKERBYTE_METAS || `${BASE_URL}/metas`;
 
 /* headless:false é o padrão de propósito: no login você PRECISA ver a tela (resolver
    o captcha, digitar o código), e na captura é você quem navega até a meta. */
+/* ══ DESTRAVAR O PERFIL ANTES DE ABRIR ═════════════════════════════════════
+   O PIOR MODO DE FALHA DESTE ROBO, e ele se auto-alimenta:
+
+   Quando o Edge morre de forma NAO graciosa (o Ctrl+Break da Tarefa Agendada,
+   um `taskkill /F`, a maquina hibernando), ficam pra tras ~8 a 11 processos
+   `msedge.exe` orfaos E um `lockfile` na raiz do perfil. Com qualquer um dos
+   dois de pe, o proximo Edge sobe e MORRE NA HORA com exit 21 — e o Playwright
+   reporta `Target page, context or browser has been closed`.
+
+   O veneno: cada tentativa que falha deixa MAIS orfaos. O robo entra num laco
+   em que nunca mais consegue abrir o navegador, e — como sem navegador ele nao
+   enxerga o PokerByte — passa a reportar "sessao expirada" PRA SEMPRE. Isso
+   manda o operador refazer o login (que tambem falha, mesmo perfil) enquanto a
+   causa real e uma trava rancosa. Diagnosticado em 24/08/2026 depois de dois
+   diagnosticos errados: a sessao estava perfeita o tempo todo.
+
+   Por isso: antes de abrir, varre o que ficou. E de proposito ANTES de toda
+   abertura, nao so na primeira — quem falha e justamente a tentativa seguinte. */
+function destravarPerfil(){
+  // 1) mata Edge orfao QUE USA ESTE PERFIL. O filtro pelo caminho do perfil e o
+  //    que impede de encostar no Edge pessoal de quem esta na maquina.
+  try {
+    const ps = `Get-CimInstance Win32_Process -Filter "Name='msedge.exe'" | `
+             + `Where-Object { $_.CommandLine -like '*${PERFIL_DIR.replace(/\\/g,'\\')}*' } | `
+             + `ForEach-Object { taskkill /PID $_.ProcessId /F /T 2>$null }`;
+    execFileSync('powershell', ['-NoProfile','-ExecutionPolicy','Bypass','-Command', ps],
+                 { stdio: 'ignore', timeout: 20000 });
+  } catch { /* sem Edge orfao, ou powershell indisponivel: segue */ }
+
+  // 2) apaga a trava que o Chromium so remove quando sai gracioso
+  for (const nome of ['lockfile', 'SingletonLock', 'SingletonCookie', 'SingletonSocket']){
+    try { rmSync(join(PERFIL_DIR, nome), { force: true }); } catch { /* nao existe */ }
+  }
+}
+
 export async function abrirNavegador({ headless = false } = {}){
   const { chromium } = carregarPlaywright();
   mkdirSync(PERFIL_DIR, { recursive: true });
+  destravarPerfil();
   const ctx = await chromium.launchPersistentContext(PERFIL_DIR, {
     headless,
     executablePath: acharEdge(),
