@@ -15,37 +15,41 @@ function eq(got, exp, name) {
 }
 function ok(cond, name) { assert.ok(cond, name); passed++; console.log('  ✓ ' + name); }
 
-/* ── 1. multiplicadores: o valor de cada categoria ── */
-console.log('\nrake factor por categoria:');
+/* ── 1. multiplicador do buy-in líquido = 1 − (FEE + ADMIN FEE da GU) ──
+   Só existe multiplicador quando a GU disse o fee. A antiga `rakeFactor(cat,
+   isCamp)` — satélite 0.95 / campanha 0.88 / resto 0.90 — foi REMOVIDA junto com
+   a estimativa; se alguém a trouxer de volta, este teste denuncia. */
+console.log('\nmultiplicador do buy-in líquido:');
 {
-  // o fator segue o rake (calcRake): satélite/campanha, NÃO "ser Main".
-  eq(C.rakeFactor('main', false), 0.90, 'Main SEM campanha (10% → 0.90, não 0.88)');
-  eq(C.rakeFactor('main', true),  0.88, 'Main COM campanha (12% → 0.88)');
-  eq(C.rakeFactor('sat',  false), 0.95, 'Satélite');
-  eq(C.rakeFactor('side', true),  0.88, 'Side COM campanha');
-  eq(C.rakeFactor('side', false), 0.90, 'Side SEM campanha (0.90, NÃO 0.95)');
+  eq(typeof C.rakeFactor, 'undefined', 'rakeFactor(cat,isCamp) NÃO existe mais (não estimar)');
+  eq(C.rakeFactorOf({ fee: 0.10, adminFee: 0 }),    0.90, 'FEE 10% → 0.90');
+  eq(C.rakeFactorOf({ fee: 0.10, adminFee: 0.02 }), 0.88, 'FEE 10% + ADMIN 2% → 0.88');
+  eq(C.rakeFactorOf({ fee: 0.05, adminFee: 0 }),    0.95, 'satélite FEE 5% → 0.95');
+  eq(C.rakeFactorOf({ fee: 0, adminFee: 0 }),       1,    'freeroll → 1 (entrada inteira vai pro pote)');
+  eq(C.rakeFactorOf({ nome: 'SPS sem fee' }),       null, 'sem FEE da GU não há multiplicador');
 }
 
 /* ── 2. Ações: premiação ÷ buy-in líquido ── */
 console.log('\ncálculo de Ações:');
 {
+  const gu = (fee, admin) => ({ fee: fee, adminFee: admin || 0 });
   // 50.000 ÷ (500 × 0.90) = 111.1
-  eq(C.acoes({ premiacao: 50000, buyin: 500, cat: 'side', isCamp: false }), 111.1, 'side sem campanha');
+  eq(C.acoes({ premiacao: 50000, buyin: 500, row: gu(0.10) }), 111.1, 'FEE 10%');
   // 50.000 ÷ (500 × 0.88) = 113.6
-  eq(C.acoes({ premiacao: 50000, buyin: 500, cat: 'side', isCamp: true }), 113.6, 'side com campanha');
-  // Main sem campanha usa 0.90 (10%): 50.000 ÷ (500 × 0.90) = 111.1
-  eq(C.acoes({ premiacao: 50000, buyin: 500, cat: 'main', isCamp: false }), 111.1, 'main sem campanha (0.90)');
+  eq(C.acoes({ premiacao: 50000, buyin: 500, row: gu(0.10, 0.02) }), 113.6, 'FEE 10% + ADMIN 2%');
   // 25K WarmUp real: 30.591 ÷ (110 × 0.90) = 309.0 (antes dava 316 com 0.88)
-  eq(C.acoes({ premiacao: 30591, buyin: 110, cat: 'main', isCamp: false }), 309.0, 'WarmUp: 309, não 316');
+  eq(C.acoes({ premiacao: 30591, buyin: 110, row: gu(0.10) }), 309.0, 'WarmUp: 309, não 316');
   // 10.000 ÷ (50 × 0.95) = 210.5
-  eq(C.acoes({ premiacao: 10000, buyin: 50, cat: 'sat', isCamp: false }), 210.5, 'satélite');
+  eq(C.acoes({ premiacao: 10000, buyin: 50, row: gu(0.05) }), 210.5, 'satélite');
 
-  // a divergência que passou despercebida, explícita: 111.1 (0.90) vs 105.3 (0.95)
-  const a90 = C.acoes({ premiacao: 50000, buyin: 500, cat: 'side', isCamp: false });
-  const a95 = Math.round((50000 / (500 * 0.95)) * 10) / 10;
-  eq(a90, 111.1, 'com 0.90 (correto)');
-  eq(a95, 105.3, 'com 0.95 (o que o comentário dizia)');
-  eq(Math.round((a90 - a95) * 10) / 10, 5.8, 'a divergência valia 5,8 ações');
+  // SEM fee da GU não há divisor: a tela mostra "—" em vez de um número plausível
+  eq(C.acoes({ premiacao: 50000, buyin: 500, row: {} }), null, 'sem FEE não calcula ações pela premiação');
+  eq(C.acoes({ premiacao: 50000, buyin: 500, cat: 'side', isCamp: false }), null, 'categoria sozinha não basta (não estima)');
+  // `field` é contagem de entradas: independe de rake, continua valendo
+  eq(C.acoes({ premiacao: 50000, buyin: 500, field: 120, row: {} }), 120, 'sem FEE, o field ainda responde');
+
+  // o fee da GU muda a conta — é por isso que ele não pode ser chutado
+  eq(C.acoes({ premiacao: 30591, buyin: 110, row: gu(0.08) }), 302.3, 'FEE 8% dá 302.3, não 309');
 }
 
 /* ── 3. Ações: quando NÃO dá pra afirmar, devolve null (tela mostra "—") ── */
@@ -55,10 +59,12 @@ console.log('\nAções sem dado suficiente:');
   eq(C.acoes({ premiacao: 50000, buyin: null, cat: 'main' }), null, 'sem buy-in');
   eq(C.acoes({ premiacao: null,  buyin: 500,  cat: 'main' }), null, 'sem premiação nem field');
   eq(C.acoes({ premiacao: 0,     buyin: 500,  cat: 'main' }), null, 'premiação zero não conta');
-  // antes da premiação sair, o field é a estimativa
-  eq(C.acoes({ premiacao: null, field: 87, buyin: 500, cat: 'main' }), 87, 'usa field como estimativa');
-  // premiação real vence a estimativa (main sem campanha → 0.90): 50.000 ÷ (500 × 0.90) = 111.1
-  eq(C.acoes({ premiacao: 50000, field: 87, buyin: 500, cat: 'main' }), 111.1, 'premiação real vence o field');
+  // antes da premiação sair, o field é a estimativa (independe de rake)
+  eq(C.acoes({ premiacao: null, field: 87, buyin: 500, row: { fee: 0.10 } }), 87, 'usa field como estimativa');
+  // premiação real vence a estimativa: 50.000 ÷ (500 × 0.90) = 111.1
+  eq(C.acoes({ premiacao: 50000, field: 87, buyin: 500, row: { fee: 0.10 } }), 111.1, 'premiação real vence o field');
+  // ...mas SÓ com o fee da GU; sem ele a premiação não vira ações e o field responde
+  eq(C.acoes({ premiacao: 50000, field: 87, buyin: 500, row: {} }), 87, 'sem FEE, cai no field em vez de estimar o rake');
 }
 
 /* ── 4. Overlay = premiação − garantido ── */
@@ -101,12 +107,16 @@ console.log('\ncampanha:');
 }
 
 /* ── 8. Rake ── */
-console.log('\nrake — rede por categoria (linha SEM as colunas da GU):');
+/* Sem FEE da GU NÃO existe rake. A regra por nome/categoria (satélite 5% ·
+   #AS/SPT/SPS 12% · resto 10%) saiu do sistema: ela devolvia número plausível e
+   errado, indistinguível do certo na tela. Estes casos são exatamente os que ela
+   respondia — todos têm que dar null agora. */
+console.log('\nrake — linha SEM as colunas da GU:');
 {
-  eq(C.calcRake({ tipo: 'Satelite', nome: '#AS Sat' }), 0.05, 'satélite é 5% mesmo com campanha no nome');
-  eq(C.calcRake({ tipo: 'Main Event', nome: '#AS 50K' }), 0.12, 'com campanha 12%');
-  eq(C.calcRake({ tipo: 'Main Event', nome: '50K' }),     0.10, 'sem campanha 10%');
-  eq(C.rakeSource({ tipo: 'Main Event', nome: '50K' }), 'estimado', 'sem FEE da GU a fonte é "estimado"');
+  eq(C.calcRake({ tipo: 'Satelite', nome: '#AS Sat' }),   null, 'satélite sem FEE não vira 5%');
+  eq(C.calcRake({ tipo: 'Main Event', nome: '#AS 50K' }), null, 'campanha sem FEE não vira 12%');
+  eq(C.calcRake({ tipo: 'Main Event', nome: '50K' }),     null, 'sem FEE não vira 10%');
+  eq(C.rakeSource({ tipo: 'Main Event', nome: '50K' }),   null, 'sem FEE não há fonte de rake');
 }
 
 /* ── 8b. RAKE DA GU — a regra de verdade ──
@@ -116,6 +126,7 @@ console.log('\nrake — rede por categoria (linha SEM as colunas da GU):');
 console.log('\nrake — FEE + ADMIN FEE da GU (manda sobre a categoria):');
 {
   eq(C.rakeSource({ nome: 'x', fee: 0.10 }), 'gu', 'linha com FEE tem fonte "gu"');
+  eq(C.calcRake({ nome: 'x', fee: 0.10 }), 0.10, 'FEE sozinho já é rake (ADMIN vazio = 0)');
   eq(C.calcRake({ nome: 'SPS 43-M 50K WarmUp', fee: 0.10, adminFee: 0.02 }), 0.12, 'SPS padrão: 10% + 2%');
   // SPS 20-H 500K HighS: a regra por nome cobrava 12%; a GU cobra 8% + 2%
   eq(C.calcRake({ nome: 'SPS 20-H 500K HighS', fee: 0.08, adminFee: 0.02 }), 0.10, 'high stakes: 8% + 2% (a regra por nome dava 12%)');
@@ -127,20 +138,13 @@ console.log('\nrake — FEE + ADMIN FEE da GU (manda sobre a categoria):');
   eq(C.calcRake({ nome: 'SPS 15K Freeze', fee: 0.08, adminFee: 0.02 }), 0.10, 'SPS com fee reduzido não vira 12% só por ser SPS');
   // a GU vence até quando a categoria diria outra coisa
   eq(C.calcRake({ tipo: 'Satelite', nome: '#AS Sat', fee: 0.10, adminFee: 0 }), 0.10, 'GU vence a regra de satélite');
-  // célula lixo/vazia não pode ser lida como 0% — cai na rede
-  eq(C.calcRake({ tipo: 'Main Event', nome: '#AS 50K', fee: null }), 0.12, 'FEE vazio cai na rede (não vira 0%)');
-  eq(C.calcRake({ tipo: 'Main Event', nome: '#AS 50K', fee: 'n/a' }), 0.12, 'FEE ilegível cai na rede');
-}
-
-console.log('\nmultiplicador do buy-in líquido pela linha:');
-{
-  eq(C.rakeFactorOf({ nome: 'SPS x', fee: 0.10, adminFee: 0.02 }), 0.88, 'SPS 12% → 0.88');
-  eq(C.rakeFactorOf({ nome: 'FreeRoll', fee: 0, adminFee: 0 }), 1, 'freeroll → 1 (entrada inteira vai pro pote)');
-  eq(C.rakeFactorOf({ tipo: 'Side Event', nome: '750 Plus' }), 0.90, 'sem GU cai no 0.90 da categoria');
-  // ações com o fee da GU: 30.591 ÷ (110 × 0.90) = 309.0
-  eq(C.acoes({ premiacao: 30591, buyin: 110, row: { fee: 0.10, adminFee: 0 } }), 309.0, 'acoes usa o FEE da GU quando a row é passada');
-  // mesmo torneio, mas a GU cobra 8%: 30.591 ÷ (110 × 0.92) = 302.3
-  eq(C.acoes({ premiacao: 30591, buyin: 110, row: { fee: 0.08, adminFee: 0 } }), 302.3, 'FEE diferente muda as ações');
+  // célula lixo/vazia NÃO pode ser lida como 0% nem virar estimativa: é ausência
+  eq(C.calcRake({ tipo: 'Main Event', nome: '#AS 50K', fee: null }),  null, 'FEE vazio = sem rake (não vira 0% nem 12%)');
+  eq(C.calcRake({ tipo: 'Main Event', nome: '#AS 50K', fee: 'n/a' }), null, 'FEE ilegível = sem rake');
+  // 1,5 na planilha é 1,5% (mesma leitura de "10" = 10%); o absurdo que vira null é >= 100%
+  eq(C.calcRake({ nome: 'x', fee: 1.5 }), 0.015, 'FEE 1.5 lê como 1,5%');
+  eq(C.calcRake({ nome: 'x', fee: 1 }),    null,  '100% de rake é erro de digitação, não taxa');
+  eq(C.calcRake({ nome: 'x', fee: -0.1 }), null, 'FEE negativo = sem rake');
 }
 
 /* ── 9. Parse de número BR ── */

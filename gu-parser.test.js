@@ -16,7 +16,7 @@ new Function('api', src + `
   findWeekdaySectionRange, guIdx, isCoreLabel, fmtExtraVal, extractGuDaySection,
   buildSections, CONF_WINDOW_START_MIN, CONF_WINDOW_END_MIN, BRL_RATE,
   isFeeLabel, isAdminFeeLabel, guFeeFrac, buildGuFeeIndex, guFeeOf,
-  workbookMatrix, guFeeIndexFromWorkbook});`)(api);
+  workbookMatrix, guFeeIndexFromWorkbook, guFeeFromExtra});`)(api);
 
 let passed = 0;
 function ok(cond, name){ assert.ok(cond, name); passed++; console.log('  ✓ ' + name); }
@@ -233,6 +233,24 @@ ok(api.guFeeOf(idx, 'GRUPO SAT A', '15:00') === null, 'nome de grupo do bloco SA
 const wbSemGMTTS = { SheetNames: ['MTTS BRAZIL'], Sheets: {} };
 ok(api.workbookMatrix(wbSemGMTTS, 'g mtts', true) === null, 'strict: aba ausente devolve null, NÃO a primeira aba');
 ok(api.guFeeIndexFromWorkbook(wbSemGMTTS) === null, 'arquivo sem G MTTS não gera índice de FEE (dispara o aviso)');
+
+/* ── FEE VINDO DO `extra` (Liga Principal) ──
+   A Liga Principal não sai da G MTTS: vem da planilha "GRADE TORNEIOS - LIGA
+   PRINCIPAL" da GU, pré-carregada em liga-principal-data.js, com as colunas
+   guardadas no `extra` de cada evento. Era o último canto do painel estimando
+   rake por categoria. Usa os MESMOS predicados de rótulo da G MTTS, então não
+   existe uma segunda definição de "coluna de fee" pra divergir. */
+console.log('FEE vindo do extra (Liga Principal)');
+const exLiga = api.guFeeFromExtra({ 'MTT': 'Corujão', 'FEE': 0.1, 'ADMIN FEE': 0, 'CHIPS': 50000 });
+ok(exLiga && exLiga.fee === 0.1 && exLiga.admin === 0 && exLiga.total === 0.1, 'lê FEE/ADMIN FEE do extra');
+const exSat = api.guFeeFromExtra({ 'MTT': '2 Vagas Sunday', 'FEE': 0.05, 'ADMIN FEE': 0 });
+ok(exSat && exSat.total === 0.05, 'satélite da Liga Principal sai 5% da planilha, não da heurística de nome');
+const exAdm = api.guFeeFromExtra({ 'FEE': 0.1, 'ADM FEE': 0.02 });
+ok(exAdm && exAdm.total === 0.12, 'grafia "ADM FEE" também conta (mesmo predicado da G MTTS)');
+ok(api.guFeeFromExtra({ 'FEE': 0.1 }).total === 0.1, 'sem coluna de admin, admin é 0');
+ok(api.guFeeFromExtra({ 'FEE': 0, 'ADMIN FEE': 0 }).total === 0, 'freeroll (FEE 0) continua sendo valor, não vazio');
+ok(api.guFeeFromExtra({ 'EARLY BIRD': 0.2, 'CHIPS': 50000 }) === null, 'extra sem coluna de fee devolve null (EARLY BIRD não é fee)');
+ok(api.guFeeFromExtra(null) === null && api.guFeeFromExtra(undefined) === null, 'extra ausente devolve null');
 
 console.log('FEE na linha extraída');
 const secFee = api.extractGuDaySection(matrix, 'MONDAY', cols);

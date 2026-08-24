@@ -266,6 +266,50 @@ function guFeeIndexFromWorkbook(wb){
   return matrix ? buildGuFeeIndex(matrix) : null;
 }
 
+/* FEE/ADMIN FEE a partir do mapa `extra` de um evento JÁ parseado — a receita
+   completa, que guarda cada coluna da planilha com o rótulo como chave.
+
+   É por aqui que a LIGA PRINCIPAL entrega o rake: ela não vem da G MTTS, e sim
+   de outra planilha da GU ("GRADE TORNEIOS - LIGA PRINCIPAL"), pré-carregada em
+   liga-principal-data.js — mas com as MESMAS colunas FEE e ADMIN FEE. Sem isto
+   ela era o único canto do painel que ainda estimava o rake pela categoria.
+
+   Casa o rótulo pelos MESMOS predicados da G MTTS (isFeeLabel/isAdminFeeLabel),
+   então uma grafia diferente na origem ("ADM FEE") continua funcionando e não
+   existe uma segunda regra de "o que é a coluna de fee" pra sair de sincronia. */
+function guFeeFromExtra(extra){
+  if (!extra || typeof extra !== 'object') return null;
+  let fee = null, admin = null;
+  Object.keys(extra).forEach(k => {
+    const n = normText(k);
+    if (fee === null && isFeeLabel(n)) fee = guFeeFrac(extra[k]);
+    else if (admin === null && isAdminFeeLabel(n)) admin = guFeeFrac(extra[k]);
+  });
+  if (fee === null) return null;
+  const a = admin === null ? 0 : admin;
+  return {fee: fee, admin: a, total: Math.round((fee + a) * 1e6) / 1e6};
+}
+
+/* o índice inteiro como LISTA [{n, f, a}] — `n` já normalizado (normText).
+
+   PRA QUE: o admin soma o histórico a partir do Firebase, e linha gravada antes
+   de o painel passar a guardar FEE/ADMIN FEE não tem os dois campos. Sem uma
+   fonte, esse histórico ficaria de fora da receita. Com esta lista publicada em
+   `painel/guFees`, o admin resolve essas linhas pelo NOME — e o valor continua
+   sendo o que a GU digitou, não uma estimativa por categoria.
+
+   LISTA e não objeto porque nome de torneio tem ponto ("1.25K Plus") e ponto é
+   caractere proibido em chave do Firebase. */
+function guFeeIndexToList(index){
+  if (!index || !index.byName) return [];
+  const out = [];
+  index.byName.forEach((v, n) => {
+    if (!n || v == null || v.fee == null) return;
+    out.push({n: n, f: v.fee, a: v.admin || 0});
+  });
+  return out;
+}
+
 /* consulta o índice: nome + "HH:MM". Cai pro nome sozinho quando o horário do
    dia difere (a G MTTS repete o mesmo evento em vários dias com o mesmo fee).
    Devolve {fee, admin, total} ou null — null significa "a GU não disse", e o

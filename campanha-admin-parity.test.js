@@ -46,6 +46,7 @@ try {
     rowKey: extractFn(adminSrc, 'rowKey'),
     pickByKey: extractFn(adminSrc, 'pickByKey'),
     guRatesOf: extractFn(adminSrc, 'guRatesOf'),
+    guNormNome: extractFn(adminSrc, 'guNormNome'),
   };
   // RATES + netFactorOf do admin (arrow que usa DASH_RATES global)
   const ratesM = adminSrc.match(/DASH_RATES_DEFAULT\s*=\s*(\{[^}]*\})/);
@@ -53,12 +54,17 @@ try {
   const nfM = adminSrc.match(/netFactorOf\s*=\s*(\([^)]*\)\s*=>[^;\n]+)/);
   global.DASH_RATES = admin.rates;                      // o arrow do admin fecha sobre este global
   admin.netFactorOf = (0, eval)('(' + nfM[1] + ')');
-  // A REDE (admin fee = SPS) precisa continuar no admin.js: é ela que responde
-  // pelo histórico gravado antes do FEE da GU existir na linha.
-  const campRxM = adminSrc.match(/isCampanha\s*=\s*\/\^\\s\*SPS\\b\/i/);
   admin.isCampRate = (nome) => /^\s*SPS\b/i.test(nome || '');
   ok('extração das funções puras do admin.js', true);
-  ok('rede de admin fee (SPS) presente no admin.js', !!campRxM);
+  /* NÃO PODE VOLTAR: taxa por categoria como fonte de rake. O admin.js não pode
+     derivar rake/admin fee do NOME do torneio — só das colunas FEE/ADMIN FEE da
+     GU (guRatesOf) ou do mapa painel/guFees. Um `DASH_RATES.adminPct` ou
+     `netFactorOf(...)` alimentando adminFrac/rakeFrac de novo é a regressão que
+     este teste existe pra pegar. */
+  const estimaAdmin = /adminFrac\s*=\s*[^;\n]*DASH_RATES\.adminPct/.test(adminSrc);
+  const estimaRake  = /rakeFrac\s*=\s*[^;\n]*netFactorOf\s*\(/.test(adminSrc);
+  ok('admin.js NÃO estima admin fee por nome/categoria', !estimaAdmin);
+  ok('admin.js NÃO estima rake por categoria', !estimaRake);
 } catch (e) {
   ok('extração das funções puras do admin.js', false, e.message);
 }
@@ -161,7 +167,29 @@ if (admin) {
   const spsGu = admin.guRatesOf({ fee: 0.10, adminFee: 0.02 });
   ok('guRates: FEE e ADMIN FEE somam a retenção da casa', !!spsGu && Math.abs(spsGu.total - 0.12) < 1e-9);
   ok('guRates: freeroll (FEE 0) é 0%, não "sem dado"', admin.guRatesOf({ fee: 0, adminFee: 0 }) !== null);
-  ok('guRates: linha sem as colunas devolve null (cai na rede)', admin.guRatesOf({ nome: 'x' }) === null);
+  ok('guRates: linha sem as colunas devolve null (sem rake, fora da receita)', admin.guRatesOf({ nome: 'x' }) === null);
+
+  /* ── NORMALIZAÇÃO DO NOME: admin ⇄ core ⇄ gu-parser ──
+     O mapa `painel/guFees` é gravado pelo painel com as chaves normalizadas pelo
+     normText do gu-parser, e consultado pelo admin (guNormNome) e pelo core
+     (guNormNome). Se as três divergirem, o histórico simplesmente não casa e
+     volta a ficar sem rake — EM SILÊNCIO, que é o pior modo de falhar. */
+  const nomes = ['SPS 43-M 50K WarmUp', ' Corujão ', 'SPS 7.5K Sônic', 'ÁGUIA #AS', '4 Seats Battle HR', ''];
+  let nOk = true, nBad = '';
+  nomes.forEach((n) => {
+    const a = admin.guNormNome(n), b = core.guNormNome(n);
+    if (a !== b) { nOk = false; nBad = JSON.stringify(n) + ' → admin=' + JSON.stringify(a) + ' core=' + JSON.stringify(b); }
+  });
+  ok('guNormNome: admin ⇄ core igual (chave do mapa guFees)', nOk, nBad);
+  ok('guNormNome tira acento e caixa', core.guNormNome('SPS Sônic') === 'sps sonic');
+  ok('guNormNome apara as bordas', core.guNormNome('  Corujão  ') === 'corujao');
+
+  /* guFromMap é o resgate do histórico — e não pode virar chute pra nome que
+     não está no mapa. */
+  const mapa = { 'sps 43-m 50k warmup': { f: 0.10, a: 0.02 } };
+  ok('guFromMap acha pelo nome normalizado', core.guFromMap(mapa, 'SPS 43-M 50K WarmUp').total === 0.12);
+  ok('guFromMap NÃO chuta nome fora do mapa', core.guFromMap(mapa, 'Torneio Desconhecido') === null);
+  ok('guFromMap sem mapa devolve null', core.guFromMap(null, 'SPS 43-M 50K WarmUp') === null);
 }
 
 console.log('\n' + (falhas.length ? '❌' : '✅') + ' paridade admin⇄core: ' + passed + ' checagens passaram' +

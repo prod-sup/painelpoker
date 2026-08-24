@@ -1170,6 +1170,9 @@ document.addEventListener('DOMContentLoaded', () => {
 <script src="suprema-db.js"></script>
 <!-- backup pro Google Sheets (mesmo formato/helper do painel). ANTES do admin.js. -->
 <script src="suprema-sheets.js"></script>
+<!-- gu-parser: parser da planilha da GU. O admin usa dele o índice de FEE/ADMIN FEE
+     pra montar painel/guFees quando o nó ainda não existe (ver ensureGuFeeMap). -->
+<script src="gu-parser.js"></script>
 <script src="campanha-core.js"></script>
 <script src="admin.js"></script>
 <!-- admin-actions: delegação dos [data-act] que substituíram os 92 handlers

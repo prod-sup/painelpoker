@@ -64,6 +64,67 @@ const netFactorOf=(cat,isCamp)=> cat==='sat'?DASH_RATES.sat:(isCamp?DASH_RATES.c
    freeroll (0%), high stakes (8%) e satélite fora do padrão.
    DASH_RATES virou REDE: só responde por linha sem essas colunas (histórico
    anterior à mudança). */
+/* MAPA DE FEE DA GU (painel/guFees) — publicado pelo painel a cada upload da
+   Global, com a grade inteira da semana. Serve pro HISTÓRICO: linha gravada
+   antes de o painel passar a guardar FEE/ADMIN FEE nela própria não tem os
+   campos, e sem isto o dia inteiro sairia da receita. Resolver pelo NOME aqui
+   continua sendo puxar da GU — é o valor que ela digitou, não uma estimativa. */
+let GU_FEE_MAP=new Map();
+/* MESMA normalização do normText do gu-parser (que gerou as chaves da lista).
+   Se as duas divergirem, o mapa deixa de casar e o histórico volta a ficar sem
+   fee — em silêncio. Pinado em campanha-admin-parity.test.js. */
+function guNormNome(s){
+  return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+}
+function setGuFeeMap(v){
+  const list=(v && Array.isArray(v.list)) ? v.list : [];
+  GU_FEE_MAP=new Map(list.filter(x=>x&&x.n).map(x=>[String(x.n),{f:x.f,a:x.a}]));
+}
+
+/* ── REDE DE SEGURANÇA DO MAPA ──────────────────────────────────────────────
+   `painel/guFees` só existe depois que alguém sobe a Global no painel. Enquanto
+   isso o admin não teria fee pro histórico e mostraria o período inteiro como
+   "sem fee" — que é honesto, mas parece defeito e some com a receita da tela.
+
+   Aqui o admin busca a MESMA planilha da GU direto na fonte (a aba G MTTS
+   publicada na web, o mesmo link que a Criação Noturna e a Conferência usam) e
+   monta o mapa sozinho. Continua sendo puxar da GU — só que sem depender de o
+   operador ter subido o arquivo primeiro. O resultado é gravado em
+   `painel/guFees`, então isto roda UMA vez e as próximas aberturas já acham o
+   mapa pronto.
+
+   Falha de rede aqui não quebra nada: o mapa fica vazio, as linhas antigas
+   entram na contagem "sem fee" e a tela avisa. */
+let _guFeeFetchTried=false;
+async function ensureGuFeeMap(){
+  if(GU_FEE_MAP.size || _guFeeFetchTried) return;
+  _guFeeFetchTried=true;
+  if(typeof fetchGuSheetBuffer!=='function' || typeof guFeeIndexFromWorkbook!=='function') return;
+  try{
+    const buf=await fetchGuSheetBuffer();          // baixa a aba G MTTS publicada
+    const idx=guFeeIndexFromWorkbook(readWorkbook(buf));
+    const list=guFeeIndexToList(idx);
+    if(!list.length) return;
+    setGuFeeMap({list});
+    console.info('[admin] mapa de fee da GU montado da planilha: '+list.length+' torneios');
+    // grava pro próximo carregamento (e pros outros painéis) não precisar baixar
+    if(typeof db!=='undefined' && db){
+      db.ref('painel/guFees').set({list, at:Date.now(), by:'admin (auto)'})
+        .catch(e=>console.warn('não consegui gravar painel/guFees', e));
+    }
+  }catch(e){
+    console.warn('[admin] não foi possível montar o mapa de fee da GU', e);
+  }
+}
+/* fee da linha: o que está NA linha vence; senão o mapa da GU pelo nome.
+   null = nem a linha nem a GU sabem — a linha NÃO entra na receita. */
+function guRatesRow(r){
+  const direto=guRatesOf(r);
+  if(direto) return direto;
+  const hit=r ? GU_FEE_MAP.get(guNormNome(r.nome)) : null;
+  return hit ? guRatesOf({fee:hit.f, adminFee:hit.a}) : null;
+}
+
 /* AUTOCONTIDA de propósito: campanha-admin-parity.test.js extrai esta função do
    TEXTO do admin.js e a roda isolada, provando que ela dá a mesma saída que a
    CampanhaCore.guRates. Se ela passar a depender de um helper de fora, o
@@ -510,17 +571,32 @@ async function loadAll(fullHistory){
   // a cada abertura (custo de rede/memória crescendo pra sempre). O backup
   // é a exceção: chama loadAll(true) e leva tudo.
   const since = _loadAllFull ? null : dago(60);
-  const painelQ = since ? db.ref('painel').orderByKey().startAt(since)    : db.ref('painel');
+  // ── endAt('9999'): CORTA os filhos NÃO-DATA de `painel` ────────────────────
+  // As chaves de dia são 'YYYY-MM-DD', mas `painel` também guarda 'globalMtt'
+  // (o .xlsx INTEIRO da Global em base64, megabytes) e 'guFees'. Sem este limite
+  // a consulta ordenada por chave leva os dois junto — o admin baixava a planilha
+  // completa a CADA abertura, sem usar uma linha dela. Ordem lexicográfica: '2…'
+  // < '9999' < 'g…', então o corte deixa passar toda data e barra os dois nomes.
+  const DATE_MAX = '9999';
+  const painelQ = db.ref('painel').orderByKey().startAt(since || '0').endAt(DATE_MAX);
   const snapQ   = since ? db.ref('snapshots').orderByKey().startAt(since) : db.ref('snapshots');
-  const [snapSnap, painelSnapPar] = await Promise.all([
+  const [snapSnap, painelSnapPar, guFeesSnap] = await Promise.all([
     snapQ.once('value'),
     painelQ.once('value'),
+    // o mapa de fee vem em leitura PRÓPRIA (uns 20 KB) — é o preço de não
+    // arrastar o globalMtt junto, e sai barato mil vezes
+    db.ref('painel/guFees').once('value').catch(()=>null),
   ]);
   // parse dia-a-dia via helper compartilhado (mesma lógica p/ carga inicial e live)
   const snapRaw  = snapSnap.val()||{};
   Object.entries(snapRaw).forEach(([date,snap])=> mergeDayInto(date, snap, null));
   const painelRaw = painelSnapPar.val()||{};
+  // mapa de fee da GU ANTES do flatRows: é ele que dá rake às linhas antigas,
+  // gravadas antes de o painel guardar FEE/ADMIN FEE na própria linha
+  setGuFeeMap(guFeesSnap ? guFeesSnap.val() : null);
   Object.entries(painelRaw).forEach(([date,day])=> mergeDayInto(date, null, day));
+  // mapa vazio/desatualizado? busca a planilha da GU direto na fonte
+  await ensureGuFeeMap();
 }
 
 /* CHAVE nome+hora NORMALIZADA pra dedup/merge — tolerante às diferenças de grafia
@@ -855,21 +931,20 @@ function flatRows(fromDate, toDate){
       // "+"/série no Main NÃO é campanha — só o prefixo SPS conta.
       // SPT é satélite (0,95) e cai pelo cat==='sat', não por campanha.
       // Ex.: 750 Plus (side sem campanha) prem R$1.068,30 ÷ (R$1 × 0,90) = 1.187 ações.
-      // Rake e admin fee da linha: FEE + ADMIN FEE da GU quando vieram na linha;
-      // senão a taxa por categoria (rede pro histórico). Gravados na row pra que
-      // ninguém adiante refaça a conta pelo nome e as duas divirjam.
-      const isCampanha = /^\s*SPS\b/i.test(r.nome||'');
-      const guR = guRatesOf(r);
-      const adminFrac = guR ? guR.admin : (isCampanha ? DASH_RATES.adminPct : 0);
-      const rakeFrac  = guR ? guR.fee   : Math.max(0, (1 - netFactorOf(cat, isCampanha)) - adminFrac);
-      const netFactor = Math.round((1 - (rakeFrac + adminFrac)) * 1e6) / 1e6;
+      // Rake e admin fee: SÓ da GU (FEE + ADMIN FEE na linha, ou o mapa pelo
+      // nome). Sem isso os três ficam null e a linha não entra na receita — não
+      // existe mais estimativa por categoria produzindo número plausível.
+      const guR = guRatesRow(r);
+      const adminFrac = guR ? guR.admin : null;
+      const rakeFrac  = guR ? guR.fee   : null;
+      const netFactor = guR ? Math.round((1 - (rakeFrac + adminFrac)) * 1e6) / 1e6 : null;
       const acoes = prem!=null && buyin && netFactor>0 ? Math.round(prem/(buyin*netFactor)) : null;
       out.push({
         date, key,
         nome:r.nome||'', hora:r.hora||'', late:r.late||'',
         tipo:r.tipo||'', cat,
         garantido:gar, buyin, netFactor,
-        rakeFrac, adminFrac, rakeSource: guR ? 'gu' : 'estimado',
+        rakeFrac, adminFrac, rakeSource: guR ? 'gu' : null,
         premiacao:prem, overlay:ov, perf, field, acoes,
         id:idVal, idBy, fixBy, fixAt, premBy, premByAt, fixLeadMin, fixTiming, status,
         manual: !!r.manual,   // veio de manualRows → card adicionado à mão (Central de Alertas)
@@ -1569,18 +1644,21 @@ function buildDash(){
   //   satélite 0,95 → 5% rake. Admin fee em evento SPS (inclui "SPS … +SPT",
   //   que É SPS main/side com admin fee). Satélite PURO do SPT ("N Seats SPT")
   //   não é SPS → 5% sem admin. Só rows FECHADAS (têm prem).
-  //   ISSO É A REDE. Quando a linha traz FEE/ADMIN FEE da GU (o normal desde a
-  //   mudança), flatRows já gravou rakeFrac/adminFrac e é isso que vale aqui.
+  //   SÓ DA GU: flatRows já resolveu rakeFrac/adminFrac (da linha ou do mapa
+  //   painel/guFees). Linha que nem assim tem fee fica FORA da receita e é
+  //   CONTADA em semFee — some da soma, mas não some da tela.
   let grossSum=0, rakeSum=0, adminSum=0, entradas=0, adminEvents=0;
+  let semFee=0, semFeePrem=0;
   const catAgg={main:{gross:0,rake:0,admin:0,ov:0,gar:0,prem:0,n:0},side:{gross:0,rake:0,admin:0,ov:0,gar:0,prem:0,n:0},sat:{gross:0,rake:0,admin:0,ov:0,gar:0,prem:0,n:0}};
   rows.forEach(r=>{ const c=catAgg[r.cat]; if(c && r.garantido) c.gar+=r.garantido; });
   closed.forEach(r=>{
-    if(r.premiacao==null || !r.netFactor) return;
+    if(r.premiacao==null) return;
+    // sem fee da GU não dá pra dizer quanto a casa reteve: a linha fica de fora
+    // da receita e entra na contagem que a tela mostra
+    if(!r.netFactor || r.rakeFrac==null){ semFee++; semFeePrem += (+r.premiacao||0); return; }
     const gross    = r.premiacao / r.netFactor;
-    const adminFrac= r.adminFrac != null ? r.adminFrac
-                   : (/^\s*SPS\b/i.test(r.nome||'') ? DASH_RATES.adminPct : 0);
-    const rakeFrac = r.rakeFrac != null ? r.rakeFrac
-                   : Math.max(0, (1 - r.netFactor) - adminFrac);
+    const adminFrac= r.adminFrac;
+    const rakeFrac = r.rakeFrac;
     const gRake=gross*rakeFrac, gAdmin=gross*adminFrac;
     grossSum += gross; adminSum += gAdmin; rakeSum += gRake;
     if(r.acoes) entradas += r.acoes;
@@ -1611,13 +1689,15 @@ function buildDash(){
   ],`Premiação cobre ${cobertura.toFixed(0)}% do garantido`);
   const arrTip = tCard('Arrecadado (bruto)','R$ '+brl(grossSum,0),[
     tRow('Premiação','R$ '+brl(totalPrem,0)), tRow('Rake','R$ '+brl(rakeSum,0)), tRow('Admin fee','R$ '+brl(adminSum,0)), tRow('Entradas',intBR(entradas)),
-  ],`A casa fica com ${housePct.toFixed(1)}% do arrecadado`);
+  ].concat(semFee>0?[tRow('FORA (sem fee da GU)',intBR(semFee)+' torneio(s)')]:[]),
+    semFee>0 ? `${intBR(semFee)} torneio(s) sem FEE da GU ficaram fora — R$ ${brl(semFeePrem,0)} em premiação não entrou na conta`
+             : `A casa fica com ${housePct.toFixed(1)}% do arrecadado`);
   const rakeTip = tCard('Rake gerado','R$ '+brl(rakeSum,0),[
     tRow('Admin fee','R$ '+brl(adminSum,0)), tRow('Receita da casa','R$ '+brl(houseSum,0)),
   ],`Média de ${rakePct.toFixed(1)}% do arrecadado`);
   const admTip = tCard('Admin fee gerado','R$ '+brl(adminSum,0),[
-    tRow('Eventos c/ admin',intBR(adminEvents)), tRow('Taxa',(DASH_RATES.adminPct*100).toFixed(0)+'% do buy-in'),
-  ],'Eventos SPS (inclui SPS +SPT) — satélites puros do SPT não têm admin fee');
+    tRow('Eventos c/ admin',intBR(adminEvents)),
+  ],'Coluna ADMIN FEE da GU, torneio a torneio');
   const houseTip = tCard('Receita da casa','R$ '+brl(houseSum,0),[
     tRow('Rake','R$ '+brl(rakeSum,0)), tRow('Admin fee','R$ '+brl(adminSum,0)),
     tRow('Overlay coberto','−R$ '+brl(Math.abs(totalOv),0)), tRow('Margem real','R$ '+brl(margem,0)),
@@ -1634,10 +1714,10 @@ function buildDash(){
     <div class="kpi"><div class="kpi-label">Torneios</div><div class="kpi-val">${rows.length}</div><div class="kpi-sub">${dias} dia${dias>1?'s':''} · ${janela}</div></div>
     <div class="kpi"><div class="kpi-label">Fechados</div><div class="kpi-val">${closed.length}</div><div class="kpi-sub">${rows.length?Math.round(closed.length/rows.length*100):0}% do total</div></div>
     <div class="kpi b" data-tip="${garTip}"><div class="kpi-label">Garantido</div><div class="kpi-val">${brlk(totalGar)}</div><div class="kpi-sub">GTD prometido · passe o mouse p/ detalhe</div></div>
-    <div class="kpi b" data-tip="${arrTip}"><div class="kpi-label">Arrecadado (bruto)</div><div class="kpi-val">${brlk(grossSum)}</div><div class="kpi-sub">${intBR(entradas)} entradas · casa ${housePct.toFixed(1)}%</div></div>
+    <div class="kpi ${semFee>0?'r':'b'}" data-tip="${arrTip}"><div class="kpi-label">Arrecadado (bruto)</div><div class="kpi-val">${brlk(grossSum)}</div><div class="kpi-sub">${semFee>0?`⚠ ${intBR(semFee)} sem fee da GU fora da conta`:`${intBR(entradas)} entradas · casa ${housePct.toFixed(1)}%`}</div></div>
     <div class="kpi g"><div class="kpi-label">Premiação total</div><div class="kpi-val">${brlk(totalPrem)}</div><div class="kpi-sub">Cobertura ${cobertura.toFixed(0)}% do GTD</div></div>
     <div class="kpi g" data-tip="${rakeTip}"><div class="kpi-label">Rake gerado</div><div class="kpi-val">${brlk(rakeSum)}</div><div class="kpi-sub">${rakePct.toFixed(1)}% do arrecadado · +admin = ${brlk(houseSum)}</div></div>
-    <div class="kpi p" data-tip="${admTip}"><div class="kpi-label">Admin fee</div><div class="kpi-val">${brlk(adminSum)}</div><div class="kpi-sub">${adminEvents} evento(s) SPS · ${(DASH_RATES.adminPct*100).toFixed(0)}% do buy-in</div></div>
+    <div class="kpi p" data-tip="${admTip}"><div class="kpi-label">Admin fee</div><div class="kpi-val">${brlk(adminSum)}</div><div class="kpi-sub">${adminEvents} evento(s) · coluna ADMIN FEE da GU</div></div>
     <div class="kpi ${rakeOK==null?'g':rakeOK?'g':'r'}" data-tip="${houseTip}"><div class="kpi-label">Receita da casa</div><div class="kpi-val">${brlk(houseSum)}</div><div class="kpi-sub">R$ ${brl(rakeDiaReal,0)}/dia${gRakeDia>0?` · meta ≥ ${brlk(gRakeDia)} ${rakeOK?'✓':'✗'}`:''}</div></div>
     <div class="kpi ${margem>=0?'g':'r'}" data-tip="${margTip}"><div class="kpi-label">Margem real</div><div class="kpi-val">${brlk(margem)}</div><div class="kpi-sub">receita − overlay coberto</div></div>
     <div class="kpi b" data-tip="${tickTip}"><div class="kpi-label">Ticket médio</div><div class="kpi-val">${brlk(ticket)}</div><div class="kpi-sub">field médio ${intBR(fieldMed)}/torneio</div></div>
@@ -1774,7 +1854,8 @@ function renderDashCampaigns(){
     // Corta em HOJE (igual ao clampTo do telão): "resultado" não inclui evento que
     // ainda não rodou. Sem isso, a madrugada de amanhã (já fixada) entraria como aberta.
     const toClamp = isCont ? today : ((cmp.fim && cmp.fim < today) ? cmp.fim : today);
-    let rows=CampanhaCore.flatRows(DATA, _auditData||{}, isCont?null:cmp.inicio, toClamp, {filter:campMatcher(cmp), rates:DASH_RATES});
+    // guFees: mapa de fee da GU, pro histórico antigo achar o rake pelo nome
+    let rows=CampanhaCore.flatRows(DATA, _auditData||{}, isCont?null:cmp.inicio, toClamp, {filter:campMatcher(cmp), rates:DASH_RATES, guFees:GU_FEE_MAP});
     // aplica correções de auditoria (premiação/garantido/field auditados), igual à aba Auditoria
     if(typeof enrichWithAudit==='function') rows=enrichWithAudit(rows).map(r=> (r.premiacao!=null && r.status==='aberto') ? {...r, status:'fechado'} : r);
     const t=CampanhaCore.aggregate(rows, DASH_RATES);
@@ -1801,13 +1882,14 @@ function renderDashCampaigns(){
     //    salta pra aba Auditoria já filtrada pelo torneio (goToAuditFor). ──
     const sorted = rows.slice().sort((a,b)=> String(b.date).localeCompare(String(a.date)) || String(a.hora).localeCompare(String(b.hora)));
     const trs = sorted.map(r=>{
-      // rake/admin já resolvidos por CampanhaCore.flatRows (GU ou estimativa)
-      const adminFrac=r.adminFrac!=null?r.adminFrac:(CampanhaCore.isCampRate(r.nome)?DASH_RATES.adminPct:0);
-      const rakeFrac=r.rakeFrac!=null?r.rakeFrac:Math.max(0,(1-(r.netFactor||0))-adminFrac);
-      const gross=r.premiacao!=null&&r.netFactor?r.premiacao/r.netFactor:null;
+      // rake/admin vêm resolvidos da GU por CampanhaCore.flatRows; null = sem fee
+      const adminFrac=r.adminFrac, rakeFrac=r.rakeFrac;
+      const semFeeRow=rakeFrac==null||!r.netFactor;
+      const gross=(!semFeeRow&&r.premiacao!=null)?r.premiacao/r.netFactor:null;
       const gRake=gross!=null?gross*rakeFrac:null;
       const gAdmin=gross!=null?gross*adminFrac:null;
-      const rateLbl=`${(rakeFrac*100).toFixed(0)}%${adminFrac>0?' + '+(adminFrac*100).toFixed(0)+'%':''}`;
+      const rateLbl=semFeeRow?'<span title="Sem FEE da GU — fora da receita">sem fee</span>'
+                   :`${(rakeFrac*100).toFixed(0)}%${adminFrac>0?' + '+(adminFrac*100).toFixed(0)+'%':''}`;
       const tag = r.status!=='fechado' ? ` <span style="font-size:9px;color:var(--ink3)">(${r.status})</span>` : '';
       const auMark = r._audited ? ` <span title="Auditado" style="font-size:9px;color:var(--green);font-weight:700">✓ aud.</span>` : '';
       return `<tr${r.status!=='fechado'?' style="opacity:.72"':''}>
@@ -1873,7 +1955,7 @@ function renderDashCampaigns(){
 // Editor de metas + taxas (salva no Firebase; re-renderiza a dashboard).
 function renderDashSettings(){
   const el=document.getElementById('dashSettings'); if(!el)return;
-  const g=DASH_GOALS, r=DASH_RATES;
+  const g=DASH_GOALS;
   const inp=(id,val,step)=>`<input id="${id}" type="number" step="${step||'1'}" value="${val}" style="width:78px;height:32px;border:1px solid var(--border);border-radius:8px;background:var(--s1);color:var(--ink);text-align:right;padding:0 8px;font-weight:700">`;
   const fld=(lab,ctrl)=>`<div><div style="font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);margin-bottom:4px">${lab}</div><div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink2)">${ctrl}</div></div>`;
   const sep=`<div style="width:1px;align-self:stretch;background:var(--border)"></div>`;
@@ -1881,21 +1963,15 @@ function renderDashSettings(){
     <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-end">
       ${fld('Meta rake/dia (mín)','R$ '+inp('dgRakeDia',g.rakeDia,'100'))}
       ${fld('Teto overlay (% GTD)',inp('dgOvl',g.overlayPct,'0.5')+' %')}
-      ${sep}
-      ${fld('Casa retém — normal',inp('drNormal',((1-r.normal)*100).toFixed(1),'0.5')+' %')}
-      ${fld('Casa retém — campanha',inp('drCamp',((1-r.campanha)*100).toFixed(1),'0.5')+' %')}
-      ${fld('Casa retém — satélite',inp('drSat',((1-r.sat)*100).toFixed(1),'0.5')+' %')}
-      ${fld('Admin fee (na campanha)',inp('drAdmin',(r.adminPct*100).toFixed(1),'0.5')+' %')}
       <button class="btn btn-gold btn-sm" data-act="saveDashSettingsFromUI">Salvar</button>
     </div>
-    <div style="font-size:10.5px;color:var(--ink3);margin-top:9px">"Casa retém" = fração da entrada que NÃO vai pro prize (rake + admin). <b>Estas taxas são a REDE:</b> o rake de cada torneio vem das colunas FEE e ADMIN FEE da planilha da GU. Só evento sem essas colunas (histórico antigo, Liga Principal) cai nos valores acima. Salvo no Firebase, vale pra todos os painéis.</div>`;
+    <div style="font-size:10.5px;color:var(--ink3);margin-top:9px">O <b>rake não se configura aqui</b>: cada torneio usa as colunas FEE e ADMIN FEE da planilha da GU. Torneio sem essas colunas fica FORA da receita (aparece no card "Arrecadado") em vez de receber uma taxa padrão — número estimado é indistinguível do certo na tela. As metas acima são salvas no Firebase e valem pra todos os painéis.</div>`;
 }
 function saveDashSettingsFromUI(){
   const num=id=>{const e=document.getElementById(id);const v=e?parseFloat(String(e.value).replace(',','.')):NaN;return isFinite(v)?v:0;};
-  const clampF=p=>Math.min(0.999,Math.max(0,1-p/100));   // % retido → netFactor
   const goals={ rakeDia:Math.max(0,num('dgRakeDia')), overlayPct:Math.max(0,num('dgOvl')) };
-  const rates={ normal:clampF(num('drNormal')), campanha:clampF(num('drCamp')), sat:clampF(num('drSat')), adminPct:Math.max(0,Math.min(0.5,num('drAdmin')/100)) };
-  saveDashSettings(goals, rates).then(()=>{ try{buildDash();}catch(_){}} );
+  // taxas não são mais editáveis: o rake vem da GU (ver renderDashSettings)
+  saveDashSettings(goals, null).then(()=>{ try{buildDash();}catch(_){}} );
 }
 
 function buildWeeklyComparison(){

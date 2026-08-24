@@ -27,10 +27,10 @@
 (function (root) {
   'use strict';
 
-  /* REDE, não regra. O rake de verdade vem das colunas FEE e ADMIN FEE da GU,
-     gravadas linha a linha pelo painel (r.fee / r.adminFee). Estas taxas por
-     categoria só respondem por linha SEM essas colunas — na prática, dia
-     anterior à mudança, que o histórico ainda precisa somar. */
+  /* Sobrevive só pra compatibilidade de assinatura (netFactorOf/aggregate ainda
+     aceitam `rates`). NÃO é mais fonte de rake: o rake vem das colunas FEE e
+     ADMIN FEE da GU, e linha sem elas fica FORA da receita em vez de receber uma
+     taxa por categoria. Ver guRates/flatRows abaixo. */
   var RATES_DEFAULT = { normal: 0.90, campanha: 0.88, sat: 0.95, adminPct: 0.02 };
 
   /* FEE + ADMIN FEE da GU numa linha. null = a GU não disse nada nesta linha. */
@@ -48,6 +48,21 @@
     // arredonda o RUÍDO do float (0,10 + 0,02 = 0,12000000000000001)
     var total = Math.round((fee + admin) * 1e6) / 1e6;
     return total >= 1 ? null : { fee: fee, admin: admin, total: total };
+  }
+  /* MESMA normalização do normText do gu-parser (que gerou as chaves do mapa) e
+     do guNormNome do admin. Divergiu → o histórico deixa de casar em silêncio.
+     Pinado em campanha-admin-parity.test.js. */
+  function guNormNome(s) {
+    return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  }
+  /* fee do HISTÓRICO: o mapa `painel/guFees` que o painel publica a cada upload
+     da Global. Aceita Map ou objeto simples. Continua sendo valor da GU — é
+     consulta pelo nome, não estimativa. */
+  function guFromMap(mapa, nome) {
+    if (!mapa || !nome) return null;
+    var k = guNormNome(nome);
+    var hit = (typeof mapa.get === 'function') ? mapa.get(k) : mapa[k];
+    return hit ? guRates({ fee: hit.f, adminFee: hit.a }) : null;
   }
 
   /* Campanha SPS: prefixo SPS no começo do nome. */
@@ -244,21 +259,20 @@
         // auditoria (as duas flatRows discordavam).
         if (r.proxCronograma) return;
 
-        // Rake e admin fee da linha: a GU manda; sem GU, cai na taxa por categoria.
-        // Ficam gravados na row (rakeFrac/adminFrac) pra o aggregate NÃO refazer a
-        // conta por nome — era ali que a divisão rake × admin fee divergia.
-        var isCamp = isCampRate(r.nome);
-        var gu = guRates(r);
-        var rates0 = opts.rates || RATES_DEFAULT;
-        var adminFrac = gu ? gu.admin : (isCamp ? rates0.adminPct : 0);
-        var rakeFrac = gu ? gu.fee : Math.max(0, (1 - netFactorOf(cat, isCamp, rates0)) - adminFrac);
-        var netFactor = Math.round((1 - (rakeFrac + adminFrac)) * 1e6) / 1e6;
+        // Rake e admin fee: SÓ da GU — as colunas na própria linha ou, pro
+        // histórico, o mapa `guFees` que o painel publica (opts.guFees). Sem
+        // nenhum dos dois os três ficam null e a linha não entra na receita:
+        // não existe mais taxa por categoria produzindo número plausível.
+        var gu = guRates(r) || guFromMap(opts.guFees, r.nome);
+        var adminFrac = gu ? gu.admin : null;
+        var rakeFrac = gu ? gu.fee : null;
+        var netFactor = gu ? Math.round((1 - (rakeFrac + adminFrac)) * 1e6) / 1e6 : null;
         var acoes = (prem != null && buyin && netFactor > 0) ? Math.round(prem / (buyin * netFactor)) : null;
 
         var row = {
           date: date, key: key, nome: r.nome || '', hora: r.hora || '', late: r.late || '',
           tipo: r.tipo || '', cat: cat, garantido: gar, buyin: buyin, netFactor: netFactor,
-          rakeFrac: rakeFrac, adminFrac: adminFrac, rakeSource: gu ? 'gu' : 'estimado',
+          rakeFrac: rakeFrac, adminFrac: adminFrac, rakeSource: gu ? 'gu' : null,
           premiacao: prem, overlay: ov, perf: perf, field: field, acoes: acoes,
           id: idVal, status: status,
         };
@@ -302,16 +316,18 @@
     var nDias = Object.keys(dias).length;
 
     var grossSum = 0, rakeSum = 0, adminSum = 0, entradas = 0, adminEvents = 0;
+    var semFee = 0, semFeePrem = 0;
     var mk = function () { return { gross: 0, rake: 0, admin: 0, ov: 0, gar: 0, prem: 0, n: 0 }; };
     var catAgg = { main: mk(), side: mk(), sat: mk() };
     rows.forEach(function (r) { var c = catAgg[r.cat]; if (c && r.garantido) c.gar += r.garantido; });
     closed.forEach(function (r) {
-      if (r.premiacao == null || !r.netFactor) return;
+      if (r.premiacao == null) return;
       var gross = r.premiacao / r.netFactor;
-      // flatRows já resolveu a divisão (GU ou estimativa) — só recalcula pra row
-      // vinda de fora, que não passou por lá
-      var adminFrac = r.adminFrac != null ? r.adminFrac : (isCampRate(r.nome) ? rates.adminPct : 0);
-      var rakeFrac = r.rakeFrac != null ? r.rakeFrac : Math.max(0, (1 - r.netFactor) - adminFrac);
+      // flatRows já resolveu a divisão pela GU. null = sem fee: a linha fica
+      // FORA da receita e é contada em semFee (não some da tela em silêncio).
+      if (r.rakeFrac == null) { semFee++; semFeePrem += (+r.premiacao || 0); return; }
+      var adminFrac = r.adminFrac;
+      var rakeFrac = r.rakeFrac;
       var gRake = gross * rakeFrac, gAdmin = gross * adminFrac;
       grossSum += gross; adminSum += gAdmin; rakeSum += gRake;
       if (r.acoes) entradas += r.acoes;
@@ -332,6 +348,7 @@
     return {
       torneios: rows.length, fechados: closed.length, dias: nDias,
       totalGarantido: totalGar, totalPremiacao: totalPrem, totalOverlay: totalOv,
+      semFee: semFee, semFeePrem: semFeePrem,
       arrecadadoBruto: grossSum, rake: rakeSum, adminFee: adminSum, adminEvents: adminEvents,
       receitaCasa: houseSum, margem: margem, entradas: entradas,
       ticketMedio: ticket, fieldMedio: fieldMed, perfMedia: avgPerf,
@@ -350,7 +367,9 @@
     Object.keys(days || {}).forEach(function (date) {
       mergeDayInto(allData, date, days[date] && days[date].snap, days[date] && days[date].day);
     });
-    var rows = flatRows(allData, opts.auditData || {}, fromDate, toDate, { filter: opts.filter, rates: rates });
+    // guFees: mapa de fee da GU (painel/guFees) — sem repassar aqui, o histórico
+    // não acha o rake e sai todo da receita
+    var rows = flatRows(allData, opts.auditData || {}, fromDate, toDate, { filter: opts.filter, rates: rates, guFees: opts.guFees });
     var totals = aggregate(rows, rates);
     totals.excludedNoStamp = rows.excludedNoStamp;
     return { rows: rows, totals: totals, allData: allData };
@@ -359,6 +378,8 @@
   root.CampanhaCore = {
     RATES_DEFAULT: RATES_DEFAULT,
     guRates: guRates,
+    guNormNome: guNormNome,
+    guFromMap: guFromMap,
     isSPS: isSPS, isCampRate: isCampRate,
     classify: classify, nhKey: nhKey, rowKey: rowKey, pickByKey: pickByKey, netFactorOf: netFactorOf,
     mergeDayInto: mergeDayInto, flatRows: flatRows, aggregate: aggregate, computeCampaign: computeCampaign,

@@ -43,18 +43,12 @@
   /* Célula numérica pro Sheets (número de verdade → dá pra somar); vazio se não há. */
   function cell(v) { var x = n(v); return x == null ? '' : x; }
 
-  function hasCampanha(nome) {
-    var u = String(nome || '').toUpperCase();
-    return u.includes('#AS') || u.includes('SPT') || u.includes('SPS');
-  }
-  /* Buy-in líquido quando NÃO há fee da GU: satélite 5%, campanha 12%, resto 10%
-     — espelha o PainelCalc. */
-  function rakeFactor(cat, camp) { return cat === 'sat' ? 0.95 : camp ? 0.88 : 0.90; }
-
-  /* Rake da GU: colunas FEE + ADMIN FEE que vêm coladas na linha. É esta que
-     manda; a regra por categoria acima só responde por linha sem as colunas
-     (dado antigo, Liga Principal). Espelha PainelCalc.guRates — este arquivo é
-     carregado sozinho em algumas páginas e não pode depender dele. */
+  /* Rake da GU: colunas FEE + ADMIN FEE que vêm coladas na linha. É a ÚNICA
+     fonte — a regra por nome/categoria foi removida daqui junto com a do
+     PainelCalc. Sem fee, a coluna Ações sai vazia no relatório em vez de trazer
+     um número que ninguém consegue distinguir do certo. Espelha
+     PainelCalc.guRates: este arquivo é carregado sozinho em algumas páginas e
+     não pode depender dele. */
   function guFrac(v) {
     var x = n(v);
     if (x == null || !isFinite(x) || x < 0) return null;
@@ -74,8 +68,11 @@
     var prem = n(r.premiacao), buyin = n(r.buyin), field = n(r.field);
     if (buyin != null && buyin > 0) {
       var gu = guTotal(r);
-      var liq = buyin * (gu != null ? (1 - gu) : rakeFactor(r.cat, hasCampanha(r.nome)));
-      if (prem != null && prem > 0 && liq > 0) return Math.round((prem / liq) * 10) / 10;
+      if (gu != null) {
+        var liq = buyin * (1 - gu);
+        if (prem != null && prem > 0 && liq > 0) return Math.round((prem / liq) * 10) / 10;
+      }
+      // `field` é contagem de entradas: não depende de rake, continua valendo
       if (field != null && field > 0) return field;
     }
     return null;

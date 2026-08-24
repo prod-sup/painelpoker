@@ -476,13 +476,13 @@ function campanhaTipoDe(row){
   return null;
 }
 
-/* Rake = o que a casa retém da entrada. Vem das colunas FEE e ADMIN FEE da GU,
-   que o parser cola na linha (row.fee / row.adminFee); só sem elas é que cai na
-   regra por categoria. A conta mora em painel-calc.js, coberta por teste — NÃO
-   reimplemente aqui (foi exatamente assim que quatro versões do rake passaram a
-   divergir dentro deste arquivo). */
+/* Rake = o que a casa retém da entrada: FEE + ADMIN FEE da GU, que o parser cola
+   na linha (row.fee / row.adminFee). Devolve `null` quando a GU não disse — e
+   nesse caso a tela mostra "—", NUNCA um número deduzido do nome. A conta mora
+   em painel-calc.js, coberta por teste; não reimplemente aqui (foi exatamente
+   assim que quatro versões do rake passaram a divergir dentro deste arquivo). */
 function calcRake(row){ return PainelCalc.calcRake(row); }
-/* multiplicador do buy-in líquido = 1 − rake */
+/* multiplicador do buy-in líquido = 1 − rake · `null` quando não há rake */
 function rakeFactorOf(row){ return PainelCalc.rakeFactorOf(row); }
 
 /* (calcOverlayCard removida: era código MORTO e QUEBRADO — ninguém a chamava e
@@ -1360,6 +1360,8 @@ document.getElementById('fileInputGlobal').addEventListener('change', async (e) 
     }
     // planilha válida: compartilha o arquivo com a equipe (painel/globalMtt)
     publishSharedGlobal(arrayBuffer, file.name);
+    // e publica o mapa de FEE da GU, pro admin resolver o histórico pelo nome
+    publishGuFees(feeIndex);
     // próximo dia da grade: a madrugada de HOJE (00:00–02:00) vive na seção de amanhã da Global —
     // esses eventos entram no quadro atual pra serem fixados com antecedência (late register)
     const nextSection = extractGlobalDaySection(matrix, weekdayPtFromISO(addDaysISO(baseDate, 1)), 1, feeIndex);
@@ -3796,6 +3798,25 @@ function setConfHojeItem(itemId, val){
    subir o arquivo de novo. Firebase rejeita valores "undefined" dentro de objetos, então sanitiza antes de enviar
    (campos vindos direto da célula crua, como "acoes", podem vir undefined em vez de null) */
 
+/* publica o MAPA DE FEE da GU em `painel/guFees` — a lista completa da G MTTS
+   (todos os dias da semana, não só o dia importado), sobrescrita a cada upload.
+
+   POR QUE ISTO EXISTE: o admin lê o histórico do Firebase, e dia gravado antes
+   de o painel guardar FEE/ADMIN FEE na linha não tem os campos. Este mapa deixa
+   ele resolver essas linhas pelo NOME do torneio, com o valor QUE A GU DIGITOU
+   — a alternativa seria voltar a estimar por categoria, que é justamente o que
+   saiu do sistema. Não acumula de propósito: cada upload traz a grade inteira,
+   então sobrescrever mantém o mapa igual à planilha vigente. */
+function publishGuFees(feeIndex){
+  if (!fbReady || PANEL_RO || !feeIndex) return;
+  try{
+    const list = guFeeIndexToList(feeIndex);
+    if (!list.length) return;
+    fbDb.ref('painel/guFees').set({ list, at: Date.now(), by: OPERATOR_NAME || 'Alguém' })
+      .catch(err => console.warn('Firebase: falha ao publicar o mapa de fee da GU', err));
+  }catch(e){ console.warn('não foi possível publicar o mapa de fee da GU', e); }
+}
+
 function setSharedSheet(rows, filename){
   if (!fbReady || PANEL_RO) return;
   const safeRows = rows.map(r => {
@@ -4545,14 +4566,18 @@ function buildPrincipaisRows(){
   const sec = LIGA_PRINCIPAL_SECTIONS[wd];
   if(sec){
     const mk = (it, tipo) => {
+      // FEE/ADMIN FEE da Liga Principal: vêm da planilha "GRADE TORNEIOS - LIGA
+      // PRINCIPAL" da GU, guardados no `extra` de cada evento (liga-principal-data.js
+      // é gerado dela). Mesmas colunas da G MTTS, mesma leitura — assim o rake do
+      // card da Liga Principal sai da GU igual ao de qualquer torneio da Global,
+      // em vez de ser o último canto do painel estimando por categoria.
+      const guP = guFeeFromExtra(it.extra);
       const r = {
         nome: String(it.nome||'').trim(), hora: it.hora || null, late: it.late || null,
         garantido: it.garantido != null ? it.garantido : null,
         buyin: it.buyin != null ? it.buyin : null,
-        // a Liga Principal vem de liga-principal-data.js (grade fixa em BRL), não da
-        // planilha da GU — quando o dado local não traz fee, o painel-calc estima
-        fee: it.fee != null ? it.fee : null,
-        adminFee: it.adminFee != null ? it.adminFee : null,
+        fee: it.fee != null ? it.fee : (guP ? guP.fee : null),
+        adminFee: it.adminFee != null ? it.adminFee : (guP ? guP.admin : null),
         premiacao: null, premFromSheet:false, explicitNF:false, overlay:null,
         field:null, acoes: (it.extra && it.extra.Action) || null, perf:null, check:null,
         tipo, highlighted:false, brl:true, _principal:true,
@@ -5546,7 +5571,7 @@ function renderUpcoming(){
       // Ações = premiação ÷ buy-in líquido (mesma regra do card — painel-calc). Próximo
       // cronograma não tem premiação/field próprios (são do dia seguinte), então fica "—".
       const acoesVal = t.proxCronograma ? null
-                     : PainelCalc.acoes({ premiacao: premVal, buyin: t.buyin, field: fieldVal, cat, isCamp: hasCampanha(t), row: t });
+                     : PainelCalc.acoes({ premiacao: premVal, buyin: t.buyin, field: fieldVal, row: t });
       const acoesTd  = '<td class="ctr-acoes" data-label="Ações">'+(acoesVal!=null ? fmtBRL(acoesVal,0) : '—')+'</td>';
       // Quem fixou e quem preencheu a premiação (rastreados no painel — fixedBy/premBy),
       // com o HORÁRIO da ação embaixo do nome (fixedAt/premByAt). Cards do próximo cronograma
@@ -5926,9 +5951,12 @@ function calcAcoesForRow(row){
   const field = row.field != null ? row.field : FIELD_MAP[row._key];
   if(field != null && field > 0) return parseFloat(field);
   if(!prem || !row.buyin) return null;
-  // multiplicador do buy-in líquido pelo FEE da GU (antes daqui saía um 0.88
-  // fixo pra Main que contradizia o painel-calc e inflava as ações)
-  const buyinLiq = parseFloat(row.buyin) * rakeFactorOf(row);
+  // multiplicador do buy-in líquido pelo FEE da GU. Sem fee não há divisor
+  // confiável: devolve null e a coluna sai "—" (antes daqui saía um 0.88 fixo
+  // pra Main que contradizia o painel-calc e inflava as ações).
+  const fator = rakeFactorOf(row);
+  if(fator == null) return null;
+  const buyinLiq = parseFloat(row.buyin) * fator;
   if(!buyinLiq) return null;
   return Math.round((prem / buyinLiq) * 10) / 10;
 }
@@ -6937,16 +6965,15 @@ document.getElementById('shiftReportDrawerOverlay').addEventListener('click', (e
    e zerado quando a seleção sai. Fica em variável porque a calculadora também
    roda SEM torneio escolhido (o operador digita tudo na mão). */
 let OVC_GU_RAKE = null;
+/* Rake da calculadora. Duas fontes, nesta ordem — e mais nenhuma:
+     1. override manual (o operador escolhe 5/8/10/12% no seletor)
+     2. FEE + ADMIN FEE da GU do torneio selecionado
+   Sem nenhuma das duas devolve `null`: a calculadora fica em branco pedindo uma
+   escolha, em vez de assumir 10% e devolver um pote plausível e errado. */
 function ovcRakePercent(){
-  // override manual (5/8/10/12%) vence tudo — inclusive a GU
   const ovr = document.getElementById('ovcRakeOverride');
   if (ovr && ovr.value){ const v = parseFloat(ovr.value); if(!isNaN(v)) return v; }
-  // torneio escolhido: manda o FEE + ADMIN FEE que a GU digitou pra ele
-  if (OVC_GU_RAKE != null) return OVC_GU_RAKE;
-  const cat = document.getElementById('ovcCategoria').value;
-  const campanha = document.getElementById('ovcCampanha').checked;
-  if (cat === 'sat') return 0.05; // satélite sempre 5%, campanha não altera
-  return campanha ? 0.12 : 0.10;
+  return OVC_GU_RAKE;   // null quando não há torneio escolhido
 }
 function ovcNum(id){
   const v = parseFloat(document.getElementById(id).value);
@@ -6957,10 +6984,26 @@ function ovcCalculate(){
   const manual = document.getElementById('ovcRakeOverride');
   const isManual = manual && manual.value;
   // a origem fica escrita na tela: sem isso ninguém distingue o rake da GU de
-  // uma estimativa por categoria, e os dois números saem parecidos
-  const fonte = isManual ? ' (manual)' : (OVC_GU_RAKE != null ? ' (GU)' : ' (estimado)');
-  document.getElementById('ovcRakeNote').textContent =
-    `Rake aplicado: ${(rake*100).toFixed(1).replace('.0','')}%` + fonte;
+  // uma escolha manual, e os dois números saem parecidos
+  document.getElementById('ovcRakeNote').textContent = rake == null
+    ? 'Escolha o torneio (rake vem da GU) ou selecione o rake à mão.'
+    : `Rake aplicado: ${(rake*100).toFixed(1).replace('.0','')}%` + (isManual ? ' (manual)' : ' (GU)');
+
+  // sem rake não há pote: zera as linhas e o resultado em vez de calcular com 0%
+  if (rake == null){
+    ['ovcBuyinTotal','ovcRebuysTotal','ovcAddonTotal'].forEach(id => {
+      const el = document.getElementById(id); if(el) el.innerHTML = '—';
+    });
+    document.getElementById('ovcPote').textContent = '—';
+    document.getElementById('ovcGarantidoOut').textContent = `R$ ${fmtBRL(ovcNum('ovcGarantido'), 2)}`;
+    const rowEl = document.getElementById('ovcOverlayRow');
+    const outEl = document.getElementById('ovcOverlayOut');
+    const labEl = document.getElementById('ovcOverlayLabel');
+    if(outEl) outEl.textContent = '—';
+    if(labEl) labEl.textContent = 'Overlay';
+    if(rowEl) rowEl.classList.remove('has-overlay','no-overlay');
+    return;
+  }
 
   const lines = [
     {acoesId:'ovcBuyinAcoes', valorId:'ovcBuyinValor', totalId:'ovcBuyinTotal'},
@@ -7364,16 +7407,14 @@ function renderCardOverlayPreview(key, row, premiacaoVal, fieldVal){
   const gar   = row.garantido || 0;
   const buyin = parseFloat(row.buyin) || 0;
   const cat   = classify(row);
-  const rake  = calcRake(row);
-  const isCamp = hasCampanha(row);
 
   // Sempre exibe os 3 campos — mostra "—" quando sem dados
 
-  /* Ações = premiação ÷ buy-in líquido. A regra (multiplicador por categoria,
-     estimativa por field, quando devolver null) mora em painel-calc.js, coberta
-     por painel-calc.test.js — foi aqui que o 0.90 divergiu do comentário sem
+  /* Ações = premiação ÷ buy-in líquido. A regra (fee da GU, estimativa por
+     field, quando devolver null) mora em painel-calc.js, coberta por
+     painel-calc.test.js — foi aqui que o 0.90 divergiu do comentário sem
      ninguém notar. Não reimplemente: chame o módulo. */
-  const acoes = PainelCalc.acoes({ premiacao: prem, buyin, field, cat, isCamp, row });
+  const acoes = PainelCalc.acoes({ premiacao: prem, buyin, field, row });
 
   // Overlay — sempre visível
   const overlay = calcOverlay(prem, gar);
@@ -7544,7 +7585,9 @@ document.getElementById('ovcCopyBtn').addEventListener('click', () => {
   const sel = document.getElementById('ovcTorneioSelect');
   const row = sel?.value ? rowByKey(sel.value) : null;
   const nome = row?.nome || 'Torneio';
-  const rakePct = (ovcRakePercent()*100).toFixed(0);
+  const rakeVal = ovcRakePercent();
+  if (rakeVal == null){ showToast('Escolha o torneio ou o rake antes de copiar.', true); return; }
+  const rakePct = (rakeVal*100).toFixed(0);
   const pote = document.getElementById('ovcPote').textContent;
   const garantido = document.getElementById('ovcGarantidoOut').textContent;
   const overlay = document.getElementById('ovcOverlayOut').textContent;
@@ -7564,6 +7607,7 @@ function ovcGenerateImage(){
   const hora = (row?.hora || '').toString().trim();
 
   const rake = ovcRakePercent();
+  if (rake == null){ showToast('Escolha o torneio ou o rake antes de gerar a imagem.', true); return; }
   const rakePct = Math.round(rake*100);
   const line = (aId, vId) => { const a = ovcNum(aId), v = ovcNum(vId), net = v*(1-rake); return { a, v, net, total:a*net }; };
   const rows = [
@@ -10626,14 +10670,12 @@ const _origOvcClear = typeof ovcClear === 'function' ? ovcClear : null;
   }
 
   // ── fator de premiação: 1 − (FEE + ADMIN FEE da GU) ──
-  // Override manual do operador vence; sem GU, cai na regra por categoria.
+  // Override manual do operador vence. Sem GU e sem override devolve null: a
+  // projeção do pote não sai, em vez de projetar em cima de um rake inventado.
   function opjPoolFactor(ev){
     if(ev.poolOverride != null && ev.poolOverride > 0) return ev.poolOverride;
     const gu = PainelCalc.guRates(ev);
-    if(gu) return 1 - gu.total;
-    if(ev.cat === 'main') return 0.88;
-    if(ev.cat === 'sat')  return 0.95;
-    return ev.campanha ? 0.88 : 0.90; // side
+    return gu ? 1 - gu.total : null;
   }
 
   // ── núcleo do cálculo/projeção de um evento ──
@@ -10644,7 +10686,9 @@ const _origOvcClear = typeof ovcClear === 'function' ? ovcClear : null;
     const lateReg = Math.max(0, parseInt(ev.lateRegMin, 10) || 0);
     const slowdown = (ev.slowdown != null ? ev.slowdown : 0.62);
     const factor = opjPoolFactor(ev);
-    const poolPer = buyin * factor;                       // R$ por entrada no pote
+    // sem fee da GU nem override, não há R$/entrada: breakEven sai null e a
+    // tela mostra "—" (o placeholder do campo já sugere preencher o fator)
+    const poolPer = factor == null ? 0 : buyin * factor;  // R$ por entrada no pote
     const breakEven = poolPer > 0 ? Math.ceil(gtd / poolPer) : null;
 
     // pontos: t=0 (pré-inscritas) + snapshots (mins desde o início)
@@ -10897,7 +10941,7 @@ const _origOvcClear = typeof ovcClear === 'function' ? ovcClear : null;
             <input type="range" min="30" max="100" step="5" data-set="slowdown" value="${Math.round((ev.slowdown!=null?ev.slowdown:0.62)*100)}">
           </label>
           <label class="opj-set-field full"><span>Fator de premiação (opcional — sobrepõe o padrão da categoria)</span>
-            <input type="number" step="0.01" min="0" max="1" placeholder="auto (${opjPoolFactor(ev).toFixed(2)})" data-set="poolOverride" value="${ev.poolOverride ?? ''}"></label>
+            <input type="number" step="0.01" min="0" max="1" placeholder="${opjPoolFactor(ev) != null ? 'auto ('+opjPoolFactor(ev).toFixed(2)+')' : 'sem fee da GU — preencha'}" data-set="poolOverride" value="${ev.poolOverride ?? ''}"></label>
         </div>
       </details>
     </div>`;

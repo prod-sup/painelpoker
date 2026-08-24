@@ -14,10 +14,20 @@ let pass = 0, fail = 0;
 function ok(cond, msg) { if (cond) { pass++; console.log('  ✓ ' + msg); } else { fail++; console.log('  ✗ ' + msg); } }
 function near(a, b, msg, tol) { tol = tol == null ? 0.01 : tol; ok(a != null && Math.abs(a - b) <= tol, msg + ' = ' + b + (a != null ? ' (saiu ' + (Math.round(a * 100) / 100) + ')' : ' (saiu ' + a + ')')); }
 
-/* Snapshot: rows já finalizadas. premPor marca premiação REALMENTE coletada. */
+/* Snapshot: rows já finalizadas. premPor marca premiação REALMENTE coletada.
+
+   fee/adminFee: as colunas FEE e ADMIN FEE que a GU preenche e o painel grava na
+   linha — a ÚNICA fonte de rake do sistema. A fixture usa 10% + 2% (o que a GU
+   cobra nos SPS) porque é sobre isso que as contas abaixo foram escritas.
+   `opts.semFee` simula linha ANTIGA, gravada antes de o painel guardar essas
+   colunas. */
 function snapRow(nome, hora, buyin, garantido, premiacao, opts) {
   opts = opts || {};
   const r = { nome: nome, hora: hora, buyin: buyin, garantido: garantido, tipo: opts.tipo || '' };
+  if (!opts.semFee) {
+    r.fee = opts.fee != null ? opts.fee : 0.10;
+    r.adminFee = opts.adminFee != null ? opts.adminFee : (/^\s*SPS\b/i.test(nome) ? 0.02 : 0);
+  }
   if (premiacao != null) r.premiacao = premiacao;
   if (opts.premPor) r.premPor = opts.premPor;      // carimbo de coleta (libera a premiação do snapshot)
   if (opts.id) r.id = opts.id;
@@ -125,6 +135,35 @@ console.log('\nfora do range da campanha:');
   };
   const { totals } = C.computeCampaign(days, FROM, TO, { filter: C.isSPS });
   ok(totals.torneios === 0, 'eventos fora de 01/08–20/09 não entram');
+}
+
+/* ── SEM FEE DA GU: fora da receita, mas CONTADO ──
+   Linha antiga (gravada antes de o painel guardar FEE/ADMIN FEE) não tem como
+   dizer quanto a casa reteve. O sistema não inventa 10%: tira a linha da receita
+   e devolve `semFee`/`semFeePrem` pra tela poder avisar. E o mapa `guFees` que o
+   painel publica resolve exatamente esse caso — pelo valor da GU, não por
+   estimativa. */
+console.log('\nlinha sem FEE da GU:');
+{
+  const days = {
+    '2026-08-06': { snap: { rows: {
+      k1: snapRow('SPS Com Fee', '12:00', 100, 50000, 51000, { premPor: 'op' }),
+      k2: snapRow('SPS Sem Fee', '13:00', 100, 50000, 44000, { premPor: 'op', semFee: true }),
+    } } },
+  };
+  const t = C.computeCampaign(days, FROM, TO, { filter: C.isSPS }).totals;
+  ok(t.semFee === 1, 'linha sem fee é CONTADA (semFee = 1)');
+  near(t.semFeePrem, 44000, 'a premiação que ficou de fora é reportada');
+  near(t.arrecadadoBruto, 51000 / 0.88, 'só a linha COM fee entra no arrecadado');
+
+  // o mapa guFees (painel/guFees) resgata a linha antiga — com o valor da GU
+  const mapa = { 'sps sem fee': { f: 0.10, a: 0.02 } };
+  const t2 = C.computeCampaign(days, FROM, TO, { filter: C.isSPS, guFees: mapa }).totals;
+  ok(t2.semFee === 0, 'com o mapa da GU, nenhuma linha fica sem fee');
+  near(t2.arrecadadoBruto, (51000 + 44000) / 0.88, 'as duas entram no arrecadado');
+  ok(C.guNormNome('SPS Sem Fee') === 'sps sem fee', 'guNormNome bate com a chave do mapa');
+  ok(C.guFromMap(mapa, 'SPS Sem Fee').total === 0.12, 'guFromMap devolve o fee da GU');
+  ok(C.guFromMap(mapa, 'Outro Torneio') === null, 'nome fora do mapa não chuta fee');
 }
 
 console.log('\n' + (fail === 0 ? '✅ ' : '❌ ') + pass + ' testes passaram' + (fail ? ', ' + fail + ' FALHARAM' : '') + '\n');
