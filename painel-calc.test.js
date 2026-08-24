@@ -101,11 +101,46 @@ console.log('\ncampanha:');
 }
 
 /* ── 8. Rake ── */
-console.log('\nrake:');
+console.log('\nrake — rede por categoria (linha SEM as colunas da GU):');
 {
   eq(C.calcRake({ tipo: 'Satelite', nome: '#AS Sat' }), 0.05, 'satélite é 5% mesmo com campanha no nome');
   eq(C.calcRake({ tipo: 'Main Event', nome: '#AS 50K' }), 0.12, 'com campanha 12%');
   eq(C.calcRake({ tipo: 'Main Event', nome: '50K' }),     0.10, 'sem campanha 10%');
+  eq(C.rakeSource({ tipo: 'Main Event', nome: '50K' }), 'estimado', 'sem FEE da GU a fonte é "estimado"');
+}
+
+/* ── 8b. RAKE DA GU — a regra de verdade ──
+   FEE e ADMIN FEE são colunas da planilha da GU. Quando a linha as traz, elas
+   MANDAM: a retenção da casa é a soma das duas. Cada caso abaixo é um torneio
+   real da grade em que a regra por nome/categoria dava outro número. */
+console.log('\nrake — FEE + ADMIN FEE da GU (manda sobre a categoria):');
+{
+  eq(C.rakeSource({ nome: 'x', fee: 0.10 }), 'gu', 'linha com FEE tem fonte "gu"');
+  eq(C.calcRake({ nome: 'SPS 43-M 50K WarmUp', fee: 0.10, adminFee: 0.02 }), 0.12, 'SPS padrão: 10% + 2%');
+  // SPS 20-H 500K HighS: a regra por nome cobrava 12%; a GU cobra 8% + 2%
+  eq(C.calcRake({ nome: 'SPS 20-H 500K HighS', fee: 0.08, adminFee: 0.02 }), 0.10, 'high stakes: 8% + 2% (a regra por nome dava 12%)');
+  // FreeRoll Suprema: a regra por nome cobrava 10% de um torneio sem entrada
+  eq(C.calcRake({ nome: 'FreeRoll Suprema', fee: 0, adminFee: 0 }), 0, 'freeroll é 0% (a regra por nome dava 10%)');
+  // Start Free: satélite que a heurística por nome não reconhecia
+  eq(C.calcRake({ nome: 'Start Free', tipo: 'Side Event', fee: 0.05, adminFee: 0 }), 0.05, 'satélite fora do padrão de nome: 5%');
+  // SPS 15K Freeze: SPS sem admin fee cheio
+  eq(C.calcRake({ nome: 'SPS 15K Freeze', fee: 0.08, adminFee: 0.02 }), 0.10, 'SPS com fee reduzido não vira 12% só por ser SPS');
+  // a GU vence até quando a categoria diria outra coisa
+  eq(C.calcRake({ tipo: 'Satelite', nome: '#AS Sat', fee: 0.10, adminFee: 0 }), 0.10, 'GU vence a regra de satélite');
+  // célula lixo/vazia não pode ser lida como 0% — cai na rede
+  eq(C.calcRake({ tipo: 'Main Event', nome: '#AS 50K', fee: null }), 0.12, 'FEE vazio cai na rede (não vira 0%)');
+  eq(C.calcRake({ tipo: 'Main Event', nome: '#AS 50K', fee: 'n/a' }), 0.12, 'FEE ilegível cai na rede');
+}
+
+console.log('\nmultiplicador do buy-in líquido pela linha:');
+{
+  eq(C.rakeFactorOf({ nome: 'SPS x', fee: 0.10, adminFee: 0.02 }), 0.88, 'SPS 12% → 0.88');
+  eq(C.rakeFactorOf({ nome: 'FreeRoll', fee: 0, adminFee: 0 }), 1, 'freeroll → 1 (entrada inteira vai pro pote)');
+  eq(C.rakeFactorOf({ tipo: 'Side Event', nome: '750 Plus' }), 0.90, 'sem GU cai no 0.90 da categoria');
+  // ações com o fee da GU: 30.591 ÷ (110 × 0.90) = 309.0
+  eq(C.acoes({ premiacao: 30591, buyin: 110, row: { fee: 0.10, adminFee: 0 } }), 309.0, 'acoes usa o FEE da GU quando a row é passada');
+  // mesmo torneio, mas a GU cobra 8%: 30.591 ÷ (110 × 0.92) = 302.3
+  eq(C.acoes({ premiacao: 30591, buyin: 110, row: { fee: 0.08, adminFee: 0 } }), 302.3, 'FEE diferente muda as ações');
 }
 
 /* ── 9. Parse de número BR ── */

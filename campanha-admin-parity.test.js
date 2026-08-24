@@ -45,6 +45,7 @@ try {
     nhKey: extractFn(adminSrc, 'nhKey'),
     rowKey: extractFn(adminSrc, 'rowKey'),
     pickByKey: extractFn(adminSrc, 'pickByKey'),
+    guRatesOf: extractFn(adminSrc, 'guRatesOf'),
   };
   // RATES + netFactorOf do admin (arrow que usa DASH_RATES global)
   const ratesM = adminSrc.match(/DASH_RATES_DEFAULT\s*=\s*(\{[^}]*\})/);
@@ -52,10 +53,12 @@ try {
   const nfM = adminSrc.match(/netFactorOf\s*=\s*(\([^)]*\)\s*=>[^;\n]+)/);
   global.DASH_RATES = admin.rates;                      // o arrow do admin fecha sobre este global
   admin.netFactorOf = (0, eval)('(' + nfM[1] + ')');
-  const campRxM = adminSrc.match(/isCamp\s*=\s*\/\^\\s\*SPS\\b\/i/);   // admin fee: SPS (inclui "SPS … +SPT")
+  // A REDE (admin fee = SPS) precisa continuar no admin.js: é ela que responde
+  // pelo histórico gravado antes do FEE da GU existir na linha.
+  const campRxM = adminSrc.match(/isCampanha\s*=\s*\/\^\\s\*SPS\\b\/i/);
   admin.isCampRate = (nome) => /^\s*SPS\b/i.test(nome || '');
   ok('extração das funções puras do admin.js', true);
-  ok('regra de admin fee (SPS) presente no admin.js', !!campRxM);
+  ok('rede de admin fee (SPS) presente no admin.js', !!campRxM);
 } catch (e) {
   ok('extração das funções puras do admin.js', false, e.message);
 }
@@ -126,6 +129,39 @@ if (admin) {
   ok('classify: "SPS 75K Plus+SPT" (crossover) NÃO é satélite (é SPS c/ admin)', admin.classify({ nome: 'SPS 75K Plus+SPT', garantido: 75000 }) !== 'sat' && core.classify({ nome: 'SPS 75K Plus+SPT', garantido: 75000 }) !== 'sat');
   ok('classify: "3 Seats SPT" (satélite puro) vira satélite', admin.classify({ nome: '3 Seats SPT', garantido: 99000 }) === 'sat' && core.classify({ nome: '3 Seats SPT', garantido: 99000 }) === 'sat');
   ok('isCampRate: "3 Seats SPT" (satélite puro) NÃO tem admin fee', admin.isCampRate('3 Seats SPT') === false && core.isCampRate('3 Seats SPT') === false);
+
+  /* ── FEE DA GU: admin ⇄ core têm que ler as colunas do MESMO jeito ──
+     É daqui que sai o rake de todo mundo desde que a GU virou a fonte. Se um
+     lado passar a arredondar, ignorar o ADMIN FEE ou tratar 0 como vazio, o
+     telão e o dashboard divergem em silêncio — exatamente o que este arquivo
+     existe pra impedir. */
+  const feeCases = [
+    { fee: 0.10, adminFee: 0.02 },   // SPS padrão → 12%
+    { fee: 0.08, adminFee: 0.02 },   // high stakes → 10%
+    { fee: 0.05, adminFee: 0 },      // satélite → 5%
+    { fee: 0, adminFee: 0 },         // freeroll → 0% (0 é valor, não "vazio")
+    { fee: 10, adminFee: 2 },        // digitado em % inteiro → 12%
+    { fee: '0,05', adminFee: null }, // vírgula decimal, admin vazio
+    { fee: null, adminFee: 0.02 },   // sem FEE = sem dado da GU → null
+    { fee: undefined, adminFee: undefined },
+    { fee: '', adminFee: '' },
+    { fee: 'abc', adminFee: 'x' },
+    { fee: -0.1, adminFee: 0 },      // lixo → null
+    { fee: 1.5, adminFee: 0 },       // 150% de rake → null
+    {},
+  ];
+  let feeOk = true, feeBad = '';
+  feeCases.forEach((c) => {
+    const a = admin.guRatesOf(c), b = core.guRates(c);
+    const eq = (a === null && b === null) ||
+               (a && b && a.fee === b.fee && a.admin === b.admin && a.total === b.total);
+    if (!eq) { feeOk = false; feeBad = JSON.stringify(c) + ' → admin=' + JSON.stringify(a) + ' core=' + JSON.stringify(b); }
+  });
+  ok('guRates (FEE+ADMIN FEE da GU): admin ⇄ core igual', feeOk, feeBad);
+  const spsGu = admin.guRatesOf({ fee: 0.10, adminFee: 0.02 });
+  ok('guRates: FEE e ADMIN FEE somam a retenção da casa', !!spsGu && Math.abs(spsGu.total - 0.12) < 1e-9);
+  ok('guRates: freeroll (FEE 0) é 0%, não "sem dado"', admin.guRatesOf({ fee: 0, adminFee: 0 }) !== null);
+  ok('guRates: linha sem as colunas devolve null (cai na rede)', admin.guRatesOf({ nome: 'x' }) === null);
 }
 
 console.log('\n' + (falhas.length ? '❌' : '✅') + ' paridade admin⇄core: ' + passed + ' checagens passaram' +

@@ -14,7 +14,9 @@ const api = {};
 new Function('api', src + `
 ;Object.assign(api, {normText, cellToHHMM, timeToMinutes, findHeaderCols,
   findWeekdaySectionRange, guIdx, isCoreLabel, fmtExtraVal, extractGuDaySection,
-  buildSections, CONF_WINDOW_START_MIN, CONF_WINDOW_END_MIN, BRL_RATE});`)(api);
+  buildSections, CONF_WINDOW_START_MIN, CONF_WINDOW_END_MIN, BRL_RATE,
+  isFeeLabel, isAdminFeeLabel, guFeeFrac, buildGuFeeIndex, guFeeOf,
+  workbookMatrix, guFeeIndexFromWorkbook});`)(api);
 
 let passed = 0;
 function ok(cond, name){ assert.ok(cond, name); passed++; console.log('  ✓ ' + name); }
@@ -148,5 +150,93 @@ ok(api.cellToHHMM(0.25) === '06:00', 'fração de dia vira HH:MM');
 ok(api.timeToMinutes('06:10') === 370, 'HH:MM vira minutos');
 ok(api.fmtExtraVal('FEE', 0.1) === '10%', 'fração em coluna de fee vira %');
 ok(api.fmtExtraVal('HOUR LATE REG', 0.5) === '12:00', 'fração em coluna de horário vira HH:MM');
+
+/* ══ FEE / ADMIN FEE — o rake vem DAQUI, não do nome do torneio ═══════════
+   O Painel do Dia lê a aba MTTS BRAZIL, que não tem essas colunas; o índice
+   abaixo é o que leva o FEE da G MTTS até lá, casado por nome+hora. Se ele
+   parar de casar, o painel volta a ESTIMAR o rake sem avisar ninguém. */
+console.log('colunas de FEE');
+ok(api.isFeeLabel('fee') === true, 'FEE é coluna de fee');
+ok(api.isFeeLabel('admin fee') === false, 'ADMIN FEE NÃO é a coluna FEE (tem slot próprio)');
+ok(api.isFeeLabel('early bird') === false, 'EARLY BIRD não é fee');
+ok(api.isAdminFeeLabel('admin fee') === true, 'ADMIN FEE reconhecida');
+ok(api.isAdminFeeLabel('adm fee') === true, '"ADM FEE" (grafia curta da GU) reconhecida');
+ok(api.isAdminFeeLabel('fee') === false, 'FEE sozinha não é admin fee');
+const giFee = api.guIdx(cols);
+ok(giFee.fee === 7 && giFee.adminFee === 8, 'guIdx acha FEE e ADMIN FEE pelo rótulo');
+
+console.log('guFeeFrac');
+ok(api.guFeeFrac(0.1) === 0.1, 'fração da GU passa direto');
+ok(api.guFeeFrac(0) === 0, 'ZERO é valor válido (freeroll) — não pode virar null');
+ok(api.guFeeFrac(10) === 0.1, 'percentual inteiro (10) vira 0,10');
+ok(api.guFeeFrac('8%') === 0.08, 'texto com % vira fração');
+ok(api.guFeeFrac('0,05') === 0.05, 'vírgula decimal vira fração');
+ok(api.guFeeFrac(null) === null && api.guFeeFrac('') === null, 'célula vazia = sem dado');
+ok(api.guFeeFrac('n/a') === null && api.guFeeFrac(-1) === null, 'lixo e negativo = sem dado');
+ok(api.guFeeFrac(1) === null, '100% de rake é erro de digitação, não taxa');
+
+console.log('índice de FEE (nome+hora)');
+const idx = api.buildGuFeeIndex(matrix);
+ok(idx && idx.count >= 5, 'indexa as linhas com FEE');
+const f1 = api.guFeeOf(idx, '#AS 50K WarmUp', '14:00');
+ok(f1 && f1.fee === 0.10 && f1.admin === 0.02, 'acha FEE e ADMIN FEE pelo nome de marketing + hora');
+ok(Math.abs(f1.total - 0.12) < 1e-9, 'total = FEE + ADMIN FEE (o que a casa retém)');
+const f2 = api.guFeeOf(idx, 'Side Mananha', '08:00');
+ok(f2 && f2.fee === 0.10 && f2.admin === 0, 'ADMIN FEE vazia conta como 0, não como "sem dado"');
+/* ARMADILHA DO SATÉLITE: no bloco SAT a MTT MARKETING guarda o GRUPO e o nome do
+   satélite fica na coluna MTT curta. Indexar só pela marketing perdia 49 satélites
+   por grade na planilha de produção. */
+const fSat = api.guFeeOf(idx, 'SAT A2', '16:00');
+ok(fSat && fSat.fee === 0.10, 'satélite casa pela coluna MTT curta (marketing vem mesclada/nula)');
+ok(api.guFeeOf(idx, '#AS 50K WarmUp', null) !== null, 'sem hora, cai no casamento só por nome');
+ok(api.guFeeOf(idx, 'Torneio que não existe', '14:00') === null, 'nome desconhecido devolve null (não chuta)');
+ok(api.guFeeOf(idx, 'MONDAY', '00:00') === null, 'nome de DIA nunca entra no índice');
+ok(api.buildGuFeeIndex(semColuna) !== null, 'planilha sem TYPE ainda indexa o FEE');
+
+/* ── COLISÃO ALVO × SATÉLITE ──
+   Na linha de satélite a MTT MARKETING guarda o EVENTO-ALVO, não o nome do
+   torneio. Indexar ela ali gravava o alvo com o fee do SATÉLITE (5%) por cima
+   do fee de verdade dele (12%) — 86 nomes com dois fees na planilha real. Hoje
+   só empatava porque o horário desempatava; bastava um satélite rodar no mesmo
+   horário do alvo pra o Main sair com 5% de rake.
+
+   A ORDEM IMPORTA nesta fixture: o satélite de SEGUNDA alimenta um Main que só
+   roda no DOMINGO, então o bloco de satélite vem ANTES da linha do alvo. Como o
+   índice é "primeiro que entra vence", sem a correção o alvo herdava o 5% do
+   satélite — e com o horário dos dois batendo, nem o desempate por hora salvava.
+   Com o alvo listado primeiro o bug fica ESCONDIDO, e o teste não valeria nada. */
+const HC = ['HORA','MTT','MTT MARKETING','TYPE','PRIZE POOL USD','BUY-IN','FEE','ADMIN FEE'];
+const colisao = [
+  ['G MTTS'], [], HC, [null],
+  [null, null, 'MONDAY', null],
+  ['12:00', 'Side Qualquer', 'Side Qualquer', 'Side Event', 1000, 10, 0.10, 0],
+  [null, null, 'MTT', 'SATELLITE'],
+  // satélite de SEGUNDA com o alvo (que roda no DOMINGO) na coluna de marketing
+  ['21:00', '4 Seats Alvo', 'SPS 99-M Alvo', 'SAT', 400, 10, 0.05, 0],
+  [null, null, 'SUNDAY', null],
+  // o alvo de verdade, MESMO HORÁRIO, mas DEPOIS do satélite na planilha
+  ['21:00', 'SPS Alvo', 'SPS 99-M Alvo', 'Main Event', 50000, 100, 0.10, 0.02]
+];
+const idxCol = api.buildGuFeeIndex(colisao);
+const alvo = api.guFeeOf(idxCol, 'SPS 99-M Alvo', '21:00');
+ok(alvo && alvo.fee === 0.10 && alvo.admin === 0.02, 'evento-alvo mantém o PRÓPRIO fee (12%) mesmo com o satélite listado antes dele');
+const satCol = api.guFeeOf(idxCol, '4 Seats Alvo', '21:00');
+ok(satCol && satCol.fee === 0.05, 'satélite no mesmo horário continua achando o fee dele (5%)');
+ok(api.guFeeOf(idx, 'GRUPO SAT A', '15:00') === null, 'nome de grupo do bloco SAT não vira torneio no índice');
+
+/* ── ARQUIVO SEM A ABA G MTTS ──
+   O readSheetMatrix histórico cai na PRIMEIRA aba quando não acha a que pediu —
+   ótimo pra grade (tolera renomeação), fatal pra procurar o FEE: leria a MTTS
+   BRAZIL achando que é a G MTTS e mapearia colunas erradas. Por isso a busca do
+   fee é `strict`. Sem a aba, o índice tem que vir NULL pra o painel avisar que o
+   rake saiu estimado — nunca inventar número. */
+const wbSemGMTTS = { SheetNames: ['MTTS BRAZIL'], Sheets: {} };
+ok(api.workbookMatrix(wbSemGMTTS, 'g mtts', true) === null, 'strict: aba ausente devolve null, NÃO a primeira aba');
+ok(api.guFeeIndexFromWorkbook(wbSemGMTTS) === null, 'arquivo sem G MTTS não gera índice de FEE (dispara o aviso)');
+
+console.log('FEE na linha extraída');
+const secFee = api.extractGuDaySection(matrix, 'MONDAY', cols);
+const warm = secFee.main.find(t => t.nome === '#AS 50K WarmUp');
+ok(warm && warm.fee === 0.10 && warm.adminFee === 0.02, 'extractGuDaySection cola FEE/ADMIN FEE na linha');
 
 console.log(`\n${passed} testes OK ✅`);

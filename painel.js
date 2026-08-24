@@ -476,13 +476,14 @@ function campanhaTipoDe(row){
   return null;
 }
 
-/* Calcula rake baseado na categoria e campanha */
-function calcRake(row){
-  const cat = classify(row);
-  if(cat === 'sat') return 0.05;
-  if(hasCampanha(row)) return 0.12;
-  return 0.10;
-}
+/* Rake = o que a casa retém da entrada. Vem das colunas FEE e ADMIN FEE da GU,
+   que o parser cola na linha (row.fee / row.adminFee); só sem elas é que cai na
+   regra por categoria. A conta mora em painel-calc.js, coberta por teste — NÃO
+   reimplemente aqui (foi exatamente assim que quatro versões do rake passaram a
+   divergir dentro deste arquivo). */
+function calcRake(row){ return PainelCalc.calcRake(row); }
+/* multiplicador do buy-in líquido = 1 − rake */
+function rakeFactorOf(row){ return PainelCalc.rakeFactorOf(row); }
 
 /* (calcOverlayCard removida: era código MORTO e QUEBRADO — ninguém a chamava e
    ela lia `cat`/`isCamp` como variáveis livres, nunca declaradas, então a
@@ -1330,8 +1331,13 @@ document.getElementById('fileInputGlobal').addEventListener('change', async (e) 
   try {
     await ensureXLSX();               // SheetJS sob demanda
     const arrayBuffer = await file.arrayBuffer();
-    const matrix = readSheetMatrix(arrayBuffer, 'MTTS BRAZIL');
+    // UMA leitura do arquivo, DUAS abas: a MTTS BRAZIL traz a grade em reais e a
+    // G MTTS traz FEE/ADMIN FEE (a BRAZIL não tem essas colunas). É de lá que sai
+    // o rake de cada torneio, casado por nome+horário.
+    const wb = readWorkbook(arrayBuffer);
+    const matrix = workbookMatrix(wb, 'MTTS BRAZIL', false);
     if (!matrix) throw new Error('Aba "MTTS BRAZIL" não encontrada.');
+    const feeIndex = guFeeIndexOrWarn(wb);
     // ── QUAL DIA DA GRADE ESTA GLOBAL DEVE ALIMENTAR? ─────────────────────
     // Regra à prova de loop: o dia é decidido pela DATA que o painel mostra
     // (LAST_KNOWN_DATE), NÃO pelo relógio. Se o cronograma atual está 100% fixado,
@@ -1346,7 +1352,7 @@ document.getElementById('fileInputGlobal').addEventListener('change', async (e) 
     else if (dayComplete) baseDate = addDaysISO(LAST_KNOWN_DATE, 1);// terminou o dia → PRÓXIMO dia
     else                  baseDate = LAST_KNOWN_DATE;              // em andamento → recarrega o mesmo
     const weekdayPt = weekdayPtFromISO(baseDate);
-    const section   = extractGlobalDaySection(matrix, weekdayPt, 1);
+    const section   = extractGlobalDaySection(matrix, weekdayPt, 1, feeIndex);
     if (!section || (!section.main.length && !section.side.length && !section.sat.length)){
       showToast(`Nenhum torneio para "${weekdayPt}" nessa planilha.`, true);
       label.textContent = 'Carregar Global MTT'; btnEl.disabled = false;
@@ -1356,7 +1362,7 @@ document.getElementById('fileInputGlobal').addEventListener('change', async (e) 
     publishSharedGlobal(arrayBuffer, file.name);
     // próximo dia da grade: a madrugada de HOJE (00:00–02:00) vive na seção de amanhã da Global —
     // esses eventos entram no quadro atual pra serem fixados com antecedência (late register)
-    const nextSection = extractGlobalDaySection(matrix, weekdayPtFromISO(addDaysISO(baseDate, 1)), 1);
+    const nextSection = extractGlobalDaySection(matrix, weekdayPtFromISO(addDaysISO(baseDate, 1)), 1, feeIndex);
     const rows = globalSectionToRows(section, nextSection);
     if (!rows.length){
       showToast('Nenhum torneio extraído da Global.', true);
@@ -1428,6 +1434,11 @@ function globalSectionToRows(section, nextSection){
     garantido: it.garantido ?? null,
     buyin:     it.buyin    ?? null,
     late:      it.late     || null,
+    // FEE e ADMIN FEE da GU — viajam com a linha até o Firebase, e é daqui que
+    // TODO cálculo de rake sai (painel, relatório e admin leem os mesmos dois
+    // números). null = a GU não disse; aí o painel-calc cai na regra por categoria.
+    fee:       it.fee      ?? null,
+    adminFee:  it.adminFee ?? null,
     premiacao: null,
     tipo:      tipo,
     explicitNF: false,
@@ -3583,6 +3594,7 @@ function sheetsRowsNow(){
       nome: r.nome, hora: r.hora, late: r.late || '',
       cat: classify(r),
       garantido: getGarantidoEffective(r._key), buyin: r.buyin,
+      fee: r.fee ?? null, adminFee: r.adminFee ?? null,   // rake da GU pro cálculo de ações do relatório
       premiacao: r.premiacao, field: r.field, id,
       // flight de multiday nunca fecha valor próprio — no backup ele aparece como etapa,
       // não como "Aberto" (que leria como pendência esquecida)
@@ -4537,6 +4549,10 @@ function buildPrincipaisRows(){
         nome: String(it.nome||'').trim(), hora: it.hora || null, late: it.late || null,
         garantido: it.garantido != null ? it.garantido : null,
         buyin: it.buyin != null ? it.buyin : null,
+        // a Liga Principal vem de liga-principal-data.js (grade fixa em BRL), não da
+        // planilha da GU — quando o dado local não traz fee, o painel-calc estima
+        fee: it.fee != null ? it.fee : null,
+        adminFee: it.adminFee != null ? it.adminFee : null,
         premiacao: null, premFromSheet:false, explicitNF:false, overlay:null,
         field:null, acoes: (it.extra && it.extra.Action) || null, perf:null, check:null,
         tipo, highlighted:false, brl:true, _principal:true,
@@ -5530,7 +5546,7 @@ function renderUpcoming(){
       // Ações = premiação ÷ buy-in líquido (mesma regra do card — painel-calc). Próximo
       // cronograma não tem premiação/field próprios (são do dia seguinte), então fica "—".
       const acoesVal = t.proxCronograma ? null
-                     : PainelCalc.acoes({ premiacao: premVal, buyin: t.buyin, field: fieldVal, cat, isCamp: hasCampanha(t) });
+                     : PainelCalc.acoes({ premiacao: premVal, buyin: t.buyin, field: fieldVal, cat, isCamp: hasCampanha(t), row: t });
       const acoesTd  = '<td class="ctr-acoes" data-label="Ações">'+(acoesVal!=null ? fmtBRL(acoesVal,0) : '—')+'</td>';
       // Quem fixou e quem preencheu a premiação (rastreados no painel — fixedBy/premBy),
       // com o HORÁRIO da ação embaixo do nome (fixedAt/premByAt). Cards do próximo cronograma
@@ -5910,11 +5926,9 @@ function calcAcoesForRow(row){
   const field = row.field != null ? row.field : FIELD_MAP[row._key];
   if(field != null && field > 0) return parseFloat(field);
   if(!prem || !row.buyin) return null;
-  const cat = classify(row);
-  const rake = calcRake(row);
-  const isCamp = hasCampanha(row);
-  const rakeFactor2 = cat === 'main' ? 0.88 : cat === 'sat' ? 0.95 : (isCamp ? 0.88 : 0.9);
-  const buyinLiq = parseFloat(row.buyin) * rakeFactor2;
+  // multiplicador do buy-in líquido pelo FEE da GU (antes daqui saía um 0.88
+  // fixo pra Main que contradizia o painel-calc e inflava as ações)
+  const buyinLiq = parseFloat(row.buyin) * rakeFactorOf(row);
   if(!buyinLiq) return null;
   return Math.round((prem / buyinLiq) * 10) / 10;
 }
@@ -6915,13 +6929,20 @@ document.getElementById('shiftReportDrawerOverlay').addEventListener('click', (e
    (valor_liquido = valor_bruto × (1 - rake%); total_linha = ações × valor_liquido).
    Overlay = Pote − Garantido, mas só é exibido quando Pote < Garantido — igual à
    planilha original, que deixa a célula em branco quando o pote cobre o garantido.
-   Rake: Main/Side = 10% (12% com campanha #AS/+SPS/+SPT) · Satélite = sempre 5%.
+   Rake: FEE + ADMIN FEE da GU do torneio escolhido. Sem torneio escolhido (uso
+   avulso da calculadora), cai na regra por categoria: Main/Side 10% (12% com
+   campanha) · Satélite 5%.
 ========================================================================= */
+/* rake da GU do torneio selecionado no combo — preenchido por ovcOnSelectChange
+   e zerado quando a seleção sai. Fica em variável porque a calculadora também
+   roda SEM torneio escolhido (o operador digita tudo na mão). */
+let OVC_GU_RAKE = null;
 function ovcRakePercent(){
-  // override manual (5/8/10/12%) vence a regra automática quando escolhido —
-  // 8% cobre os torneios com rake fora do padrão Main/Side/Satélite.
+  // override manual (5/8/10/12%) vence tudo — inclusive a GU
   const ovr = document.getElementById('ovcRakeOverride');
   if (ovr && ovr.value){ const v = parseFloat(ovr.value); if(!isNaN(v)) return v; }
+  // torneio escolhido: manda o FEE + ADMIN FEE que a GU digitou pra ele
+  if (OVC_GU_RAKE != null) return OVC_GU_RAKE;
   const cat = document.getElementById('ovcCategoria').value;
   const campanha = document.getElementById('ovcCampanha').checked;
   if (cat === 'sat') return 0.05; // satélite sempre 5%, campanha não altera
@@ -6935,8 +6956,11 @@ function ovcCalculate(){
   const rake = ovcRakePercent();
   const manual = document.getElementById('ovcRakeOverride');
   const isManual = manual && manual.value;
+  // a origem fica escrita na tela: sem isso ninguém distingue o rake da GU de
+  // uma estimativa por categoria, e os dois números saem parecidos
+  const fonte = isManual ? ' (manual)' : (OVC_GU_RAKE != null ? ' (GU)' : ' (estimado)');
   document.getElementById('ovcRakeNote').textContent =
-    `Rake aplicado: ${(rake*100).toFixed(0)}%` + (isManual ? ' (manual)' : '');
+    `Rake aplicado: ${(rake*100).toFixed(1).replace('.0','')}%` + fonte;
 
   const lines = [
     {acoesId:'ovcBuyinAcoes', valorId:'ovcBuyinValor', totalId:'ovcBuyinTotal'},
@@ -7023,6 +7047,7 @@ function ovcClear(){
   document.getElementById('ovcCategoria').value = 'main';
   document.getElementById('ovcCampanha').checked = false;
   const ovr = document.getElementById('ovcRakeOverride'); if(ovr) ovr.value = '';
+  OVC_GU_RAKE = null;   // limpou a calculadora: solta o rake do torneio que estava escolhido
   const sel = document.getElementById('ovcTorneioSelect');
   if(sel) sel.value = '';
   document.getElementById('ovcTourMatch')?.classList.remove('show');
@@ -7348,7 +7373,7 @@ function renderCardOverlayPreview(key, row, premiacaoVal, fieldVal){
      estimativa por field, quando devolver null) mora em painel-calc.js, coberta
      por painel-calc.test.js — foi aqui que o 0.90 divergiu do comentário sem
      ninguém notar. Não reimplemente: chame o módulo. */
-  const acoes = PainelCalc.acoes({ premiacao: prem, buyin, field, cat, isCamp });
+  const acoes = PainelCalc.acoes({ premiacao: prem, buyin, field, cat, isCamp, row });
 
   // Overlay — sempre visível
   const overlay = calcOverlay(prem, gar);
@@ -7800,8 +7825,22 @@ function findGlobalSectionRange(matrix, weekdayName){
 
 /* cellToHHMM (fração de dia/Date/string → "HH:MM") vem de gu-parser.js */
 
-/* extrai Main/Side/Sat da seção de um dia da Global MTT (MTTS BRAZIL), já dividido pelo multiplicador */
-function extractGlobalDaySection(matrix, weekdayName, divisor){
+/* índice FEE/ADMIN FEE da aba G MTTS do arquivo que o operador acabou de subir.
+   UM lugar só monta e avisa: os TRÊS pontos que leem a Global (a grade do dia,
+   a conferência de hoje e a de amanhã) chamam esta função. Assim a mensagem
+   nunca diverge entre as telas e não dá pra esquecer o aviso num deles.
+   Sem a G MTTS o painel não trava — só volta a ESTIMAR o rake pela categoria,
+   e o operador precisa saber que está olhando estimativa. */
+function guFeeIndexOrWarn(wb){
+  const idx = guFeeIndexFromWorkbook(wb);
+  if (!idx) showToast('Aba "G MTTS" não veio nesse arquivo — sem ela o rake sai estimado, não o da GU.', true);
+  return idx;
+}
+
+/* extrai Main/Side/Sat da seção de um dia da Global MTT (MTTS BRAZIL), já dividido pelo multiplicador.
+   `feeIndex` (opcional) é o índice FEE/ADMIN FEE da aba G MTTS — ver guFeeIndexFromWorkbook
+   no gu-parser.js. Com ele cada linha sai já com o rake que a GU digitou. */
+function extractGlobalDaySection(matrix, weekdayName, divisor, feeIndex){
   const range = findGlobalSectionRange(matrix, weekdayName);
   if (!range) return null;
   const main = [], side = [], sat = [], unknown = [], semHora = [], aposGap = [];
@@ -7887,7 +7926,13 @@ function extractGlobalDaySection(matrix, weekdayName, divisor){
     // (ex: 199.99999999999997) na planilha exportada
     const garantido = typeof garantidoRaw === 'number' ? Math.round((garantidoRaw / divisor) * 100) / 100 : null;
     const buyin = typeof buyinRaw === 'number' ? Math.round((buyinRaw / divisor) * 100) / 100 : null;
-    const entry = {nome: nome.trim(), hora, garantido, buyin, late: lateHH || null, groupHeader: currentGroupHeader};
+    // FEE/ADMIN FEE da GU pra esta linha (aba G MTTS, casado por nome+hora).
+    // Fica gravado na linha e viaja pro Firebase, então o admin lê o MESMO rake
+    // que o painel usou — sem recalcular por nome do outro lado.
+    const guFee = feeIndex ? guFeeOf(feeIndex, nome.trim(), hora) : null;
+    const entry = {nome: nome.trim(), hora, garantido, buyin, late: lateHH || null,
+                   fee: guFee ? guFee.fee : null, adminFee: guFee ? guFee.admin : null,
+                   groupHeader: currentGroupHeader};
     // classificação TOLERANTE por radical (a Global é digitada a mão: "Main event", "MAIN",
     // "Satelite" sem acento, "Satellite", "SAT"...). Casar string exata jogava tudo isso pra
     // "unknown" e o torneio sumia do relatório. Só um tipo realmente fora dos radicais vira unknown.
@@ -7996,9 +8041,11 @@ function processGlobalToday(arrayBuffer, fileName){
   const labelBox = label.closest('.routine-upload');
   label.textContent = 'Lendo...';
   try{
-    const matrix = readSheetMatrix(arrayBuffer, 'MTTS BRAZIL');
+    const wb = readWorkbook(arrayBuffer);
+    const matrix = workbookMatrix(wb, 'MTTS BRAZIL', false);
+    const feeIndex = guFeeIndexOrWarn(wb);         // FEE/ADMIN FEE vêm da aba G MTTS
     const weekdayPt = todayWeekdayName('pt');
-    const section = extractGlobalDaySection(matrix, weekdayPt, 1); // sem dividir — aqui é só conferência de presença, mostra o valor cru da Global
+    const section = extractGlobalDaySection(matrix, weekdayPt, 1, feeIndex); // sem dividir — aqui é só conferência de presença, mostra o valor cru da Global
 
     if (!section){
       document.getElementById('confHojeList').innerHTML = `<div class="diff-row">Não encontrei a seção "${weekdayPt}" nessa planilha.</div>`;
@@ -8432,7 +8479,9 @@ function processGlobalTomorrow(arrayBuffer, fileName){
   const resultEl = document.getElementById('confAmanhaResult');
   label.textContent = 'Lendo...';
   try{
-    const matrix = readSheetMatrix(arrayBuffer, 'MTTS BRAZIL');
+    const wb = readWorkbook(arrayBuffer);
+    const matrix = workbookMatrix(wb, 'MTTS BRAZIL', false);
+    const feeIndex = guFeeIndexOrWarn(wb);         // FEE/ADMIN FEE vêm da aba G MTTS
     // turno calculado UMA vez aqui (leitura da planilha) e reaproveitado no export — assim o nome do
     // arquivo e o dia usado pra montar as seções nunca podem divergir por causa da hora do clique
     const turno = confAmanhaTurno();
@@ -8440,8 +8489,8 @@ function processGlobalTomorrow(arrayBuffer, fileName){
     const weekdayDayAfterPt = dayAfterTomorrowWeekdayName('pt', turno);
     const dateLabel = tomorrowDateLabel(turno);
     // divisor 5: multiplicador "Brazil" da Global — mesma conta de sempre, sem conversão de câmbio real
-    const sectionTomorrow = extractGlobalDaySection(matrix, weekdayTomorrowPt, 5);
-    const sectionDayAfter = extractGlobalDaySection(matrix, weekdayDayAfterPt, 5);
+    const sectionTomorrow = extractGlobalDaySection(matrix, weekdayTomorrowPt, 5, feeIndex);
+    const sectionDayAfter = extractGlobalDaySection(matrix, weekdayDayAfterPt, 5, feeIndex);
 
     if (!sectionTomorrow){
       resultEl.innerHTML = `<div class="diff-row">Não encontrei a seção "${weekdayTomorrowPt}" nessa planilha. Confira se é a aba/arquivo certo.</div>`;
@@ -10159,6 +10208,10 @@ function buildSnapshotRows(){
       tipo:      r.tipo      || classify(r),
       garantido: gar         ?? null,
       buyin:     r.buyin     ?? null,
+      // FEE/ADMIN FEE da GU: o admin lê o histórico POR AQUI (snapshots/{data}/rows),
+      // então sem estes dois campos o dashboard voltaria a estimar o rake pelo nome
+      fee:       r.fee       ?? null,
+      adminFee:  r.adminFee  ?? null,
       premiacao: prem        ?? null,
       overlay:   overlay     ?? null,
       perf:      perf        ?? null,
@@ -10454,10 +10507,16 @@ function ovcOnSelectChange(){
   notFoundEl.classList.remove('show');
   if(aiEl){ aiEl.innerHTML = ''; aiEl.hidden = true; }
 
+  OVC_GU_RAKE = null;                 // seleção mudou: esquece o rake do torneio anterior
   if(!sel.value) return;
 
   const row = rowByKey(sel.value);
   if(!row){ notFoundEl.classList.add('show'); return; }
+
+  // rake do torneio escolhido = FEE + ADMIN FEE da GU (null quando a linha veio
+  // sem as colunas — aí a calculadora volta pra regra por categoria)
+  const guRake = PainelCalc.guRates(row);
+  OVC_GU_RAKE = guRake ? guRake.total : null;
 
   // ── Categoria ──
   const autoCat = classify(row);
@@ -10566,9 +10625,12 @@ const _origOvcClear = typeof ovcClear === 'function' ? ovcClear : null;
     return d;
   }
 
-  // ── fator de premiação por categoria (espelha renderCardOverlayPreview) ──
+  // ── fator de premiação: 1 − (FEE + ADMIN FEE da GU) ──
+  // Override manual do operador vence; sem GU, cai na regra por categoria.
   function opjPoolFactor(ev){
     if(ev.poolOverride != null && ev.poolOverride > 0) return ev.poolOverride;
+    const gu = PainelCalc.guRates(ev);
+    if(gu) return 1 - gu.total;
     if(ev.cat === 'main') return 0.88;
     if(ev.cat === 'sat')  return 0.95;
     return ev.campanha ? 0.88 : 0.90; // side
@@ -10875,6 +10937,7 @@ const _origOvcClear = typeof ovcClear === 'function' ? ovcClear : null;
     const ev = Object.assign({
       id: 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2,6),
       nome: 'Novo Main Event', buyin: null, gtd: null, cat: 'main', campanha: false,
+      fee: null, adminFee: null,        // evento digitado à mão não tem fee da GU
       startTime: '', lateRegMin: 120, preReg: 0, slowdown: 0.62, poolOverride: null,
       snapshots: []
     }, seed || {});
@@ -10954,6 +11017,9 @@ const _origOvcClear = typeof ovcClear === 'function' ? ovcClear : null;
     opjAddManual({
       nome: row.nome, buyin: row.buyin ?? null, gtd: row.garantido ?? null,
       cat: classify(row), campanha: hasCampanha(row), startTime: row.hora || '',
+      // FEE/ADMIN FEE da GU: sem eles a projeção do pote usaria o fator por
+      // categoria e daria número diferente do card do mesmo torneio
+      fee: row.fee ?? null, adminFee: row.adminFee ?? null,
       srcKey: key
     });
     sel.value = '';

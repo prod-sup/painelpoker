@@ -57,6 +57,32 @@ const pct  = (v,d=2) => v==null?'—':(v>=0?'+':'')+Number(v).toFixed(d)+'%';
 const DASH_RATES_DEFAULT={normal:0.90, campanha:0.88, sat:0.95, adminPct:0.02};
 let DASH_RATES={...DASH_RATES_DEFAULT};
 const netFactorOf=(cat,isCamp)=> cat==='sat'?DASH_RATES.sat:(isCamp?DASH_RATES.campanha:DASH_RATES.normal);
+/* ── RAKE DA GU ──
+   FEE e ADMIN FEE são colunas da planilha da GU. O painel grava as duas em cada
+   linha (row.fee / row.adminFee) e elas viajam pro Firebase, então o dashboard
+   soma EXATAMENTE o que a GU cobrou — em vez de deduzir do nome, que errava
+   freeroll (0%), high stakes (8%) e satélite fora do padrão.
+   DASH_RATES virou REDE: só responde por linha sem essas colunas (histórico
+   anterior à mudança). */
+/* AUTOCONTIDA de propósito: campanha-admin-parity.test.js extrai esta função do
+   TEXTO do admin.js e a roda isolada, provando que ela dá a mesma saída que a
+   CampanhaCore.guRates. Se ela passar a depender de um helper de fora, o
+   guarda-drift entre o dashboard e o telão para de funcionar. */
+function guRatesOf(r){
+  const frac = v => {
+    const x = (typeof v === 'number') ? v : parseFloat(v);
+    if (v == null || v === '' || !isFinite(x) || x < 0) return null;
+    const f = x > 1 ? x / 100 : x;      // "10" digitado no lugar de 0,10
+    return f >= 1 ? null : f;           // 100% de rake é erro de digitação
+  };
+  if (!r) return null;
+  const fee = frac(r.fee);
+  if (fee == null) return null;         // sem FEE não há dado da GU
+  const admin = frac(r.adminFee) || 0;
+  // arredonda o RUÍDO do float (0,10 + 0,02 = 0,12000000000000001)
+  const total = Math.round((fee + admin) * 1e6) / 1e6;
+  return total >= 1 ? null : { fee: fee, admin: admin, total: total };
+}
 // ── METAS DA DASHBOARD (rake/dia mínimo, overlay% máximo) → nó adminDashGoals ──
 const DASH_GOALS_DEFAULT={rakeDia:0, overlayPct:5};
 let DASH_GOALS={...DASH_GOALS_DEFAULT};
@@ -551,6 +577,10 @@ function mergeDayInto(date, snap, day){
         if(!_allData[date].rows[existingK].buyin) _allData[date].rows[existingK].buyin = r.buyin;
         if(!_allData[date].rows[existingK].garantido) _allData[date].rows[existingK].garantido = r.garantido;
         if(!_allData[date].rows[existingK].late && r.late) _allData[date].rows[existingK].late = r.late;
+        // FEE/ADMIN FEE: snapshot antigo (gravado antes desta mudança) não os tem,
+        // mas o nó `sheet` ao vivo do mesmo dia pode ter — completa em vez de estimar
+        if(_allData[date].rows[existingK].fee == null && r.fee != null) _allData[date].rows[existingK].fee = r.fee;
+        if(_allData[date].rows[existingK].adminFee == null && r.adminFee != null) _allData[date].rows[existingK].adminFee = r.adminFee;
         // A chave rk_ do painel ao vivo pode divergir da do snapshot (o hash inclui o garantido,
         // que muda entre os dois) — o ID/premiação/field digitados no card ficam gravados sob a
         // chave ao vivo. Guardar como alias pra busca achar os dados do evento em qualquer chave.
@@ -825,14 +855,21 @@ function flatRows(fromDate, toDate){
       // "+"/série no Main NÃO é campanha — só o prefixo SPS conta.
       // SPT é satélite (0,95) e cai pelo cat==='sat', não por campanha.
       // Ex.: 750 Plus (side sem campanha) prem R$1.068,30 ÷ (R$1 × 0,90) = 1.187 ações.
+      // Rake e admin fee da linha: FEE + ADMIN FEE da GU quando vieram na linha;
+      // senão a taxa por categoria (rede pro histórico). Gravados na row pra que
+      // ninguém adiante refaça a conta pelo nome e as duas divirjam.
       const isCampanha = /^\s*SPS\b/i.test(r.nome||'');
-      const netFactor = netFactorOf(cat, isCampanha);
-      const acoes = prem!=null && buyin ? Math.round(prem/(buyin*netFactor)) : null;
+      const guR = guRatesOf(r);
+      const adminFrac = guR ? guR.admin : (isCampanha ? DASH_RATES.adminPct : 0);
+      const rakeFrac  = guR ? guR.fee   : Math.max(0, (1 - netFactorOf(cat, isCampanha)) - adminFrac);
+      const netFactor = Math.round((1 - (rakeFrac + adminFrac)) * 1e6) / 1e6;
+      const acoes = prem!=null && buyin && netFactor>0 ? Math.round(prem/(buyin*netFactor)) : null;
       out.push({
         date, key,
         nome:r.nome||'', hora:r.hora||'', late:r.late||'',
         tipo:r.tipo||'', cat,
         garantido:gar, buyin, netFactor,
+        rakeFrac, adminFrac, rakeSource: guR ? 'gu' : 'estimado',
         premiacao:prem, overlay:ov, perf, field, acoes,
         id:idVal, idBy, fixBy, fixAt, premBy, premByAt, fixLeadMin, fixTiming, status,
         manual: !!r.manual,   // veio de manualRows → card adicionado à mão (Central de Alertas)
@@ -1532,15 +1569,18 @@ function buildDash(){
   //   satélite 0,95 → 5% rake. Admin fee em evento SPS (inclui "SPS … +SPT",
   //   que É SPS main/side com admin fee). Satélite PURO do SPT ("N Seats SPT")
   //   não é SPS → 5% sem admin. Só rows FECHADAS (têm prem).
+  //   ISSO É A REDE. Quando a linha traz FEE/ADMIN FEE da GU (o normal desde a
+  //   mudança), flatRows já gravou rakeFrac/adminFrac e é isso que vale aqui.
   let grossSum=0, rakeSum=0, adminSum=0, entradas=0, adminEvents=0;
   const catAgg={main:{gross:0,rake:0,admin:0,ov:0,gar:0,prem:0,n:0},side:{gross:0,rake:0,admin:0,ov:0,gar:0,prem:0,n:0},sat:{gross:0,rake:0,admin:0,ov:0,gar:0,prem:0,n:0}};
   rows.forEach(r=>{ const c=catAgg[r.cat]; if(c && r.garantido) c.gar+=r.garantido; });
   closed.forEach(r=>{
     if(r.premiacao==null || !r.netFactor) return;
     const gross    = r.premiacao / r.netFactor;
-    const isCamp   = /^\s*SPS\b/i.test(r.nome||'');   // admin fee em SPS (inclui "SPS … +SPT", que É SPS)
-    const adminFrac= isCamp ? DASH_RATES.adminPct : 0;
-    const rakeFrac = Math.max(0, (1 - r.netFactor) - adminFrac);
+    const adminFrac= r.adminFrac != null ? r.adminFrac
+                   : (/^\s*SPS\b/i.test(r.nome||'') ? DASH_RATES.adminPct : 0);
+    const rakeFrac = r.rakeFrac != null ? r.rakeFrac
+                   : Math.max(0, (1 - r.netFactor) - adminFrac);
     const gRake=gross*rakeFrac, gAdmin=gross*adminFrac;
     grossSum += gross; adminSum += gAdmin; rakeSum += gRake;
     if(r.acoes) entradas += r.acoes;
@@ -1761,9 +1801,9 @@ function renderDashCampaigns(){
     //    salta pra aba Auditoria já filtrada pelo torneio (goToAuditFor). ──
     const sorted = rows.slice().sort((a,b)=> String(b.date).localeCompare(String(a.date)) || String(a.hora).localeCompare(String(b.hora)));
     const trs = sorted.map(r=>{
-      const isCamp=CampanhaCore.isCampRate(r.nome);   // isCampRate já exclui quem tem "SPT" no nome
-      const adminFrac=isCamp?DASH_RATES.adminPct:0;
-      const rakeFrac=Math.max(0,(1-(r.netFactor||0))-adminFrac);
+      // rake/admin já resolvidos por CampanhaCore.flatRows (GU ou estimativa)
+      const adminFrac=r.adminFrac!=null?r.adminFrac:(CampanhaCore.isCampRate(r.nome)?DASH_RATES.adminPct:0);
+      const rakeFrac=r.rakeFrac!=null?r.rakeFrac:Math.max(0,(1-(r.netFactor||0))-adminFrac);
       const gross=r.premiacao!=null&&r.netFactor?r.premiacao/r.netFactor:null;
       const gRake=gross!=null?gross*rakeFrac:null;
       const gAdmin=gross!=null?gross*adminFrac:null;
@@ -1848,7 +1888,7 @@ function renderDashSettings(){
       ${fld('Admin fee (na campanha)',inp('drAdmin',(r.adminPct*100).toFixed(1),'0.5')+' %')}
       <button class="btn btn-gold btn-sm" data-act="saveDashSettingsFromUI">Salvar</button>
     </div>
-    <div style="font-size:10.5px;color:var(--ink3);margin-top:9px">"Casa retém" = fração da entrada que NÃO vai pro prize (rake + admin). Campanha inclui o admin fee. Salvo no Firebase, vale pra todos os painéis.</div>`;
+    <div style="font-size:10.5px;color:var(--ink3);margin-top:9px">"Casa retém" = fração da entrada que NÃO vai pro prize (rake + admin). <b>Estas taxas são a REDE:</b> o rake de cada torneio vem das colunas FEE e ADMIN FEE da planilha da GU. Só evento sem essas colunas (histórico antigo, Liga Principal) cai nos valores acima. Salvo no Firebase, vale pra todos os painéis.</div>`;
 }
 function saveDashSettingsFromUI(){
   const num=id=>{const e=document.getElementById(id);const v=e?parseFloat(String(e.value).replace(',','.')):NaN;return isFinite(v)?v:0;};

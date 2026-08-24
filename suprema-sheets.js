@@ -47,14 +47,34 @@
     var u = String(nome || '').toUpperCase();
     return u.includes('#AS') || u.includes('SPT') || u.includes('SPS');
   }
-  /* Buy-in líquido: satélite 5%, campanha 12%, resto 10% — espelha o PainelCalc. */
+  /* Buy-in líquido quando NÃO há fee da GU: satélite 5%, campanha 12%, resto 10%
+     — espelha o PainelCalc. */
   function rakeFactor(cat, camp) { return cat === 'sat' ? 0.95 : camp ? 0.88 : 0.90; }
+
+  /* Rake da GU: colunas FEE + ADMIN FEE que vêm coladas na linha. É esta que
+     manda; a regra por categoria acima só responde por linha sem as colunas
+     (dado antigo, Liga Principal). Espelha PainelCalc.guRates — este arquivo é
+     carregado sozinho em algumas páginas e não pode depender dele. */
+  function guFrac(v) {
+    var x = n(v);
+    if (x == null || !isFinite(x) || x < 0) return null;
+    var f = x > 1 ? x / 100 : x;
+    return f >= 1 ? null : f;
+  }
+  function guTotal(r) {
+    var fee = guFrac(r.fee);
+    if (fee == null) return null;
+    var adm = guFrac(r.adminFee) || 0;
+    var t = fee + adm;
+    return t >= 1 ? null : t;
+  }
 
   /* Ações = premiação ÷ buy-in líquido (ou field, antes da premiação sair). */
   function acoesOf(r) {
     var prem = n(r.premiacao), buyin = n(r.buyin), field = n(r.field);
     if (buyin != null && buyin > 0) {
-      var liq = buyin * rakeFactor(r.cat, hasCampanha(r.nome));
+      var gu = guTotal(r);
+      var liq = buyin * (gu != null ? (1 - gu) : rakeFactor(r.cat, hasCampanha(r.nome)));
       if (prem != null && prem > 0 && liq > 0) return Math.round((prem / liq) * 10) / 10;
       if (field != null && field > 0) return field;
     }

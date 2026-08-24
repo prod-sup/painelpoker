@@ -46,11 +46,23 @@ function timeToMinutes(hhmm){
   const m = String(hhmm).match(/^(\d{1,2}):(\d{2})/);
   return m ? (+m[1])*60 + (+m[2]) : null;
 }
-function readSheetMatrix(arrayBuffer, sheetNameContains){
-  const wb = XLSX.read(arrayBuffer, {type:'array', cellDates:false});
+/* lê o .xlsx UMA vez. Existe separado do readSheetMatrix porque o painel precisa
+   de DUAS abas do mesmo arquivo (MTTS BRAZIL pra grade + G MTTS pro FEE) e
+   parsear 3 MB duas vezes trava a interface no clique do upload. */
+function readWorkbook(arrayBuffer){
+  return XLSX.read(arrayBuffer, {type:'array', cellDates:false});
+}
+/* matriz de uma aba de um workbook já lido. `strict` NÃO cai na primeira aba
+   quando o nome não existe — quem procura a G MTTS precisa saber que ela falta,
+   em vez de receber a MTTS BRAZIL silenciosamente e ler as colunas erradas. */
+function workbookMatrix(wb, sheetNameContains, strict){
+  if (!wb || !wb.SheetNames) return null;
   let sheetName = wb.SheetNames.find(n => normText(n).includes(normText(sheetNameContains)));
-  if (!sheetName) sheetName = wb.SheetNames[0];
+  if (!sheetName){ if (strict) return null; sheetName = wb.SheetNames[0]; }
   return XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {header:1, raw:true, defval:null});
+}
+function readSheetMatrix(arrayBuffer, sheetNameContains){
+  return workbookMatrix(readWorkbook(arrayBuffer), sheetNameContains, false);
 }
 /* seção do dia na G MTTS: a linha de CABEÇALHO do dia é a que tem o nome do dia
    ("MONDAY") na PRÓPRIA coluna do nome do torneio (MTT MARKETING). A coluna A
@@ -138,6 +150,18 @@ function isCoreLabel(label){
   const n = normText(label);
   return n.includes('mtt marketing') || n === 'tipo' || n === 'type' || n === 'day' || n === 'hora' || n === 'horario' || n === 'time' || n.includes('(utc');
 }
+/* rótulo da coluna FEE (o rake do torneio). NUNCA casa "ADMIN FEE" (coluna
+   própria, somada por fora) nem "EARLY BIRD" — as duas contêm "fee"/"bird" e
+   confundi-las inverteria a conta da casa. */
+function isFeeLabel(n){
+  if (/admin|adm\.?\s*fee|early/.test(n)) return false;
+  return n === 'fee' || /(^|[^a-z])fee([^a-z]|$)/.test(n) || /(^|[^a-z])rake([^a-z]|$)/.test(n);
+}
+/* rótulo da coluna ADMIN FEE — a GU escreve "ADMIN FEE" na G MTTS e "ADM FEE"
+   em relatório; as duas grafias valem. */
+function isAdminFeeLabel(n){
+  return /(^|[^a-z])(admin|adm)\.?\s*fee/.test(n);
+}
 /* localiza as colunas-chave pelo nome no cabeçalho da G MTTS */
 function guIdx(headerCols){
   const find = pred => { const c = headerCols.find(c => pred(normText(c.label))); return c ? c.idx : -1; };
@@ -150,8 +174,111 @@ function guIdx(headerCols){
     tipo: find(isTypeLabel),                                  // tolerante à grafia (ver isTypeLabel)
     prize: find(n => n.includes('prize pool') || n.includes('guaranteed')),
     buyin: find(n => /buy[\s-]?in/.test(n) && !n.includes('size')),
+    fee: find(isFeeLabel),                                    // FEE = rake do torneio (fração)
+    adminFee: find(isAdminFeeLabel),                          // ADMIN FEE = taxa administrativa (fração)
     hourLate: find(n => n.includes('hour late') || n.includes('hora late'))
   };
+}
+
+/* ══ FEE / ADMIN FEE DA GU ══════════════════════════════════════════════════
+   O rake NÃO é mais deduzido do nome/categoria: quem manda são as colunas FEE e
+   ADMIN FEE da G MTTS, preenchidas pela GU evento a evento. A retenção da casa é
+   a SOMA das duas (ex.: SPS = 10% + 2%); o freeroll vem 0% e o high stakes 8%,
+   casos que nenhuma regra por nome acertava.
+
+   POR QUE UM ÍNDICE, E NÃO LEITURA DIRETA
+   O Painel do Dia lê a aba MTTS BRAZIL (em reais), que NÃO tem essas colunas —
+   só a G MTTS (em dólar) tem. As duas abas descrevem os MESMOS torneios, então
+   casamos por nome + horário. Medido na planilha de produção: 850 de 852.
+
+   ARMADILHA DO BLOCO DE SATÉLITE: ali as colunas trocam de papel — a MTT
+   MARKETING passa a guardar o EVENTO-ALVO ("SPS 42-M Reentry") e o nome do
+   satélite ("4 Seats Reentry") fica na coluna MTT curta. Por isso indexamos
+   pelas DUAS colunas de nome; sem isso 49 satélites por grade ficavam de fora. */
+
+/* célula de fee -> fração. Aceita 0,1 (o formato da GU), "10%" e 10 (quem digita
+   o percentual inteiro). Devolve null pra célula vazia/lixo — 0 é valor VÁLIDO
+   (freeroll) e não pode virar null. */
+function guFeeFrac(v){
+  if (v === null || v === undefined || v === '') return null;
+  let n;
+  if (typeof v === 'number') n = v;
+  else {
+    const s = String(v).trim().replace(/%/g, '').replace(',', '.');
+    if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
+    n = parseFloat(s);
+    if (String(v).includes('%')) n = n / 100;
+  }
+  if (!isFinite(n) || n < 0) return null;
+  if (n > 1) n = n / 100;
+  return n >= 1 ? null : n;      // 100% de rake não existe: é erro de digitação
+}
+
+/* índice {nome+hora -> {fee, admin}} a partir da matriz da aba G MTTS */
+function buildGuFeeIndex(matrix){
+  if (!matrix || !matrix.length) return null;
+  const headerCols = findHeaderCols(matrix);
+  if (!headerCols) return null;
+  const gi = guIdx(headerCols);
+  if (gi.fee < 0) return null;                 // sem a coluna FEE não há o que indexar
+  const dias = allWeekdayNamesNorm();
+  const byKey = new Map(), byName = new Map();
+  let count = 0;
+  for (let i = 0; i < matrix.length; i++){
+    const row = matrix[i];
+    if (!row) continue;
+    const fee   = guFeeFrac(row[gi.fee]);
+    const admin = gi.adminFee >= 0 ? guFeeFrac(row[gi.adminFee]) : null;
+    if (fee === null) continue;                // linha decorativa / cabeçalho
+    const horaCell = gi.hora >= 0 ? row[gi.hora] : null;
+    const min = typeof horaCell === 'number' ? Math.round(horaCell * 1440) : timeToMinutes(cellToHHMM(horaCell));
+    // Em linha de SATÉLITE a MTT MARKETING NÃO é o nome do torneio: é o
+    // EVENTO-ALVO ("SPS 42-M Reentry" na linha de "4 Seats Reentry"). Indexar
+    // ela ali gravava o alvo com o fee do SATÉLITE (5%) e colidia com o fee de
+    // verdade do próprio alvo (12%) — 86 nomes com dois fees na planilha de
+    // produção. Em satélite, vale só a coluna MTT curta.
+    const ehSat = gi.tipo >= 0 && classifyGuTipo(row[gi.tipo]) === 'sat';
+    const colsNome = ehSat ? [gi.shortName] : [gi.name, gi.shortName];
+    const nomes = [];
+    colsNome.forEach(ci => {
+      if (ci < 0) return;
+      const v = row[ci];
+      if (typeof v !== 'string' || !v.trim()) return;
+      const n = normText(v);
+      if (n && dias.indexOf(n) < 0 && nomes.indexOf(n) < 0) nomes.push(n);
+    });
+    if (!nomes.length) continue;
+    const val = {fee: fee, admin: admin === null ? 0 : admin};
+    nomes.forEach(n => {
+      if (min !== null && !byKey.has(n + '|' + min)) byKey.set(n + '|' + min, val);
+      if (!byName.has(n)) byName.set(n, val);
+    });
+    count++;
+  }
+  return count ? {byKey: byKey, byName: byName, count: count} : null;
+}
+
+/* índice de FEE a partir de um workbook já lido. Só a aba G MTTS serve: se ela
+   não veio no arquivo, devolve null (quem chamou avisa) em vez de ler a aba
+   errada. */
+function guFeeIndexFromWorkbook(wb){
+  const matrix = workbookMatrix(wb, 'g mtts', true);
+  return matrix ? buildGuFeeIndex(matrix) : null;
+}
+
+/* consulta o índice: nome + "HH:MM". Cai pro nome sozinho quando o horário do
+   dia difere (a G MTTS repete o mesmo evento em vários dias com o mesmo fee).
+   Devolve {fee, admin, total} ou null — null significa "a GU não disse", e o
+   chamador decide o que fazer. */
+function guFeeOf(index, nome, hora){
+  if (!index || !nome) return null;
+  const n = normText(nome);
+  const min = timeToMinutes(hora);
+  let hit = (min !== null) ? index.byKey.get(n + '|' + min) : null;
+  if (!hit) hit = index.byName.get(n) || null;
+  if (!hit || hit.fee === null || hit.fee === undefined) return null;
+  const fee = hit.fee, admin = hit.admin || 0;
+  return {fee: fee, admin: admin, total: fee + admin};
 }
 /* formata um valor de célula da receita pelo TIPO do cabeçalho:
    frações de dia viram HH:MM só em colunas de horário; frações em colunas de
@@ -283,7 +410,11 @@ function extractGuDaySection(matrix, weekdayEn, headerCols){
     // `tipo` = valor CRU da coluna TYPE (ex.: "Side Event"); guardado no entry pra
     // quem quiser exibir TYPE como coluna (Criação Noturna) sem reparsear. Aditivo:
     // consumidores antigos ignoram. `extra` continua sem colunas core (não duplica).
-    const entry = {nome, hora, garantido, buyin, late:lateHH, tipo: tipo || null, groupHeader: cat === 'sat' ? lastGroupName : null, extra};
+    // FEE/ADMIN FEE da própria linha da G MTTS — aqui não precisa de índice
+    // nenhum, a coluna está do lado. Quem consome (painel/admin) usa a SOMA.
+    const fee = gi.fee >= 0 ? guFeeFrac(row[gi.fee]) : null;
+    const adminFee = gi.adminFee >= 0 ? guFeeFrac(row[gi.adminFee]) : null;
+    const entry = {nome, hora, garantido, buyin, late:lateHH, tipo: tipo || null, fee, adminFee, groupHeader: cat === 'sat' ? lastGroupName : null, extra};
     if (cat === 'main') main.push(entry);
     else if (cat === 'side') side.push(entry);
     else if (cat === 'sat') sat.push(entry);

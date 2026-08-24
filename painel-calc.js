@@ -43,27 +43,72 @@
     return n.includes('#AS') || n.includes('SPT') || n.includes('SPS');
   }
 
-  /* ── RAKE ──
-     Satélite 5%; com campanha 12%; o resto 10%. */
+  /* ── FEE DA GU (fonte da verdade do rake) ──
+     `fee` e `adminFee` são as colunas FEE e ADMIN FEE da planilha da GU, que o
+     parser cola em cada linha da grade. FEE é o rake do torneio; ADMIN FEE é a
+     taxa administrativa. O que a casa retém da entrada é a SOMA das duas.
+
+     Isto SUBSTITUI a adivinhação por nome/categoria. A regra antiga (satélite
+     5% / #AS,SPT,SPS 12% / resto 10%) errava tudo que fugia do padrão: freeroll
+     cobrando 10% quando é 0%, high stakes a 12% quando é 8%+2%, "Start Free"
+     a 10% quando é satélite de 5%.
+
+     A regra antiga SOBREVIVE como rede — e só isso. Linhas gravadas no Firebase
+     ANTES desta mudança não têm as colunas, e o histórico do admin precisa
+     continuar somando. Use `rakeSource()` pra saber qual das duas respondeu. */
+  function guFrac(v) {
+    const n = num(v);
+    if (n == null || !isFinite(n) || n < 0) return null;
+    const f = n > 1 ? n / 100 : n;      // "10" digitado no lugar de 0,10
+    return f >= 1 ? null : f;           // 100% de rake é erro de digitação
+  }
+  /* {fee, admin, total} quando a linha traz o fee da GU; null quando não traz. */
+  function guRates(row) {
+    if (!row) return null;
+    const fee = guFrac(row.fee);
+    if (fee == null) return null;       // sem FEE não há dado da GU (admin sozinho não basta)
+    const admin = guFrac(row.adminFee) || 0;
+    // arredonda o RUÍDO do float: 0,10 + 0,02 dá 0,12000000000000001, e esse
+    // resto vaza pra tudo que multiplica ou formata a taxa depois
+    const total = Math.round((fee + admin) * 1e6) / 1e6;
+    return total >= 1 ? null : { fee: fee, admin: admin, total: total };
+  }
+  /* 'gu' = veio da planilha · 'estimado' = caiu na regra por nome/categoria */
+  function rakeSource(row) { return guRates(row) ? 'gu' : 'estimado'; }
+
+  /* ── RAKE (retenção total da casa) ──
+     GU manda; sem GU, satélite 5% · com campanha 12% · o resto 10%. */
   function calcRake(row) {
+    const gu = guRates(row);
+    if (gu) return gu.total;
     if (classify(row) === 'sat') return 0.05;
     if (hasCampanha(row)) return 0.12;
     return 0.10;
   }
 
-  /* ── MULTIPLICADOR DO BUY-IN LÍQUIDO (rake factor) = 1 − rake ──
-     ESPELHA o calcRake (que é a fonte da verdade do rake): o desconto depende de
-     satélite/campanha, NÃO de "ser Main". Antes o Main levava um 0.88 fixo (12%),
-     que divergia do calcRake ("o resto 10%") e inflava as ações — ex.: 25K WarmUp
-     (Main sem campanha, buy-in 110, prem 30.591) dava 316 em vez de 309 corretos
-     (30.591 ÷ (110 × 0.90) = 309).
+  /* ── MULTIPLICADOR DO BUY-IN LÍQUIDO PELA CATEGORIA — A REDE ──
+     ATENÇÃO: esta função NÃO enxerga o FEE da GU. Ela só sabe categoria e
+     campanha, então responde apenas por linha SEM as colunas FEE/ADMIN FEE.
+     Quem tem a linha na mão deve chamar `rakeFactorOf(row)` logo abaixo, que
+     passa pelo calcRake e portanto pela GU.
        Satélite .............. × 0.95  (5%)
        Campanha (#AS/SPT/SPS)  × 0.88  (12%)
-       Demais (inclui Main) .. × 0.90  (10%) */
+       Demais (inclui Main) .. × 0.90  (10%)
+     O desconto depende de satélite/campanha, NÃO de "ser Main": antes o Main
+     levava um 0.88 fixo (12%) que divergia do calcRake ("o resto 10%") e inflava
+     as ações — ex.: 25K WarmUp (Main sem campanha, buy-in 110, prem 30.591) dava
+     316 em vez de 309 corretos (30.591 ÷ (110 × 0.90) = 309). */
   function rakeFactor(cat, isCamp) {
     if (cat === 'sat') return 0.95;
     if (isCamp) return 0.88;
     return 0.90;
+  }
+
+  /* Mesmo multiplicador, mas a partir da LINHA — é esta que o painel deve usar,
+     porque só ela enxerga o FEE da GU. `rakeFactor(cat,isCamp)` acima ficou pra
+     quem só tem categoria na mão (calculadora manual, dados antigos). */
+  function rakeFactorOf(row) {
+    return 1 - calcRake(row);
   }
 
   /* ── AÇÕES = premiação ÷ buy-in líquido ──
@@ -74,7 +119,9 @@
     const prem = num(opts.premiacao), buyin = num(opts.buyin), field = num(opts.field);
     const cat = opts.cat, isCamp = !!opts.isCamp;
     if (buyin != null && buyin > 0) {
-      const liq = buyin * rakeFactor(cat, isCamp);
+      // opts.row traz o fee da GU; sem ele, cai no multiplicador por categoria
+      const gu = guRates(opts.row);
+      const liq = buyin * (gu ? (1 - gu.total) : rakeFactor(cat, isCamp));
       if (prem != null && prem > 0 && liq > 0) return round1(prem / liq);
       if (field != null && field > 0) return field;   // estimativa pré-premiação
     }
@@ -115,7 +162,7 @@
   function num(v) { return typeof v === 'number' ? (isFinite(v) ? v : null) : toNumber(v); }
   function round1(n) { return Math.round(n * 10) / 10; }
 
-  const api = { classify, hasCampanha, calcRake, rakeFactor, acoes, calcOverlay, perf, toNumber };
+  const api = { classify, hasCampanha, guRates, rakeSource, calcRake, rakeFactor, rakeFactorOf, acoes, calcOverlay, perf, toNumber };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.PainelCalc = api;
 })(typeof self !== 'undefined' ? self : this);

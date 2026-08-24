@@ -27,7 +27,28 @@
 (function (root) {
   'use strict';
 
+  /* REDE, não regra. O rake de verdade vem das colunas FEE e ADMIN FEE da GU,
+     gravadas linha a linha pelo painel (r.fee / r.adminFee). Estas taxas por
+     categoria só respondem por linha SEM essas colunas — na prática, dia
+     anterior à mudança, que o histórico ainda precisa somar. */
   var RATES_DEFAULT = { normal: 0.90, campanha: 0.88, sat: 0.95, adminPct: 0.02 };
+
+  /* FEE + ADMIN FEE da GU numa linha. null = a GU não disse nada nesta linha. */
+  function guFrac(v) {
+    var x = (typeof v === 'number') ? v : parseFloat(v);
+    if (v == null || v === '' || !isFinite(x) || x < 0) return null;
+    var f = x > 1 ? x / 100 : x;
+    return f >= 1 ? null : f;
+  }
+  function guRates(r) {
+    if (!r) return null;
+    var fee = guFrac(r.fee);
+    if (fee == null) return null;
+    var admin = guFrac(r.adminFee) || 0;
+    // arredonda o RUÍDO do float (0,10 + 0,02 = 0,12000000000000001)
+    var total = Math.round((fee + admin) * 1e6) / 1e6;
+    return total >= 1 ? null : { fee: fee, admin: admin, total: total };
+  }
 
   /* Campanha SPS: prefixo SPS no começo do nome. */
   function isSPS(nome) { return /^\s*SPS\b/i.test(String(nome || '')); }
@@ -223,13 +244,21 @@
         // auditoria (as duas flatRows discordavam).
         if (r.proxCronograma) return;
 
+        // Rake e admin fee da linha: a GU manda; sem GU, cai na taxa por categoria.
+        // Ficam gravados na row (rakeFrac/adminFrac) pra o aggregate NÃO refazer a
+        // conta por nome — era ali que a divisão rake × admin fee divergia.
         var isCamp = isCampRate(r.nome);
-        var netFactor = netFactorOf(cat, isCamp, opts.rates || RATES_DEFAULT);
-        var acoes = (prem != null && buyin) ? Math.round(prem / (buyin * netFactor)) : null;
+        var gu = guRates(r);
+        var rates0 = opts.rates || RATES_DEFAULT;
+        var adminFrac = gu ? gu.admin : (isCamp ? rates0.adminPct : 0);
+        var rakeFrac = gu ? gu.fee : Math.max(0, (1 - netFactorOf(cat, isCamp, rates0)) - adminFrac);
+        var netFactor = Math.round((1 - (rakeFrac + adminFrac)) * 1e6) / 1e6;
+        var acoes = (prem != null && buyin && netFactor > 0) ? Math.round(prem / (buyin * netFactor)) : null;
 
         var row = {
           date: date, key: key, nome: r.nome || '', hora: r.hora || '', late: r.late || '',
           tipo: r.tipo || '', cat: cat, garantido: gar, buyin: buyin, netFactor: netFactor,
+          rakeFrac: rakeFrac, adminFrac: adminFrac, rakeSource: gu ? 'gu' : 'estimado',
           premiacao: prem, overlay: ov, perf: perf, field: field, acoes: acoes,
           id: idVal, status: status,
         };
@@ -279,9 +308,10 @@
     closed.forEach(function (r) {
       if (r.premiacao == null || !r.netFactor) return;
       var gross = r.premiacao / r.netFactor;
-      var isCamp = isCampRate(r.nome);
-      var adminFrac = isCamp ? rates.adminPct : 0;
-      var rakeFrac = Math.max(0, (1 - r.netFactor) - adminFrac);
+      // flatRows já resolveu a divisão (GU ou estimativa) — só recalcula pra row
+      // vinda de fora, que não passou por lá
+      var adminFrac = r.adminFrac != null ? r.adminFrac : (isCampRate(r.nome) ? rates.adminPct : 0);
+      var rakeFrac = r.rakeFrac != null ? r.rakeFrac : Math.max(0, (1 - r.netFactor) - adminFrac);
       var gRake = gross * rakeFrac, gAdmin = gross * adminFrac;
       grossSum += gross; adminSum += gAdmin; rakeSum += gRake;
       if (r.acoes) entradas += r.acoes;
@@ -328,6 +358,7 @@
 
   root.CampanhaCore = {
     RATES_DEFAULT: RATES_DEFAULT,
+    guRates: guRates,
     isSPS: isSPS, isCampRate: isCampRate,
     classify: classify, nhKey: nhKey, rowKey: rowKey, pickByKey: pickByKey, netFactorOf: netFactorOf,
     mergeDayInto: mergeDayInto, flatRows: flatRows, aggregate: aggregate, computeCampaign: computeCampaign,
