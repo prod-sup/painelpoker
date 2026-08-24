@@ -118,6 +118,81 @@ console.log('\ncalculadora de overlay -> card:');
   ok('e monta da planilha da GU se o nó nao existir', /fetchGuSheetBuffer\(\)/.test(painelSrc));
 }
 
+/* ── BOTAO "IR PARA O CARD" ──────────────────────────────────────────────────
+   Ele mora DENTRO do #ovcSyncBadge, e o badge so ganhava .show depois que o
+   pote era aplicado na premiacao. Resultado: enquanto o operador PREENCHIA a
+   calculadora, nao existia botao pra saltar ao card. O estado 'linked' resolve
+   isso — badge visivel e neutro desde a selecao do torneio.
+   Aqui os estados rodam DE VERDADE contra um DOM de mentira. */
+console.log('\nbadge do vinculo com o card (estados reais):');
+{
+  function elStub() {
+    const cls = new Set();
+    const span = { textContent: '' };
+    return {
+      classList: {
+        add: (...c) => c.forEach(x => cls.add(x)),
+        remove: (...c) => c.forEach(x => cls.delete(x)),
+        contains: (c) => cls.has(c),
+      },
+      querySelector: () => span,
+      _span: span,
+      _cls: cls,
+    };
+  }
+
+  const badge = elStub();
+  const select = { value: '' };
+  const aplicados = [];
+  const ctx2 = {
+    console, Set, setTimeout, clearTimeout, window: {},
+    OPERATOR_NAME: 'Op',
+    fmtBRL: (n) => String(n),
+    rowByKey: (k) => (k === 'k1' ? { nome: 'SPS 43-M 50K WarmUp' } : null),
+    applyPremiacaoValue: (k, v) => aplicados.push([k, v]),
+    document: { getElementById: (id) => (id === 'ovcSyncBadge' ? badge : id === 'ovcTorneioSelect' ? select : null) },
+  };
+  vm.createContext(ctx2);
+  vm.runInContext(corpoFn(painelSrc, 'ovcSetBadge') + '\n' + corpoFn(painelSrc, 'ovcAutoApplyToCard'), ctx2);
+
+  // 1) torneio escolhido, pote AINDA zero (operador digitando)
+  select.value = 'k1';
+  ctx2.ovcAutoApplyToCard(0);
+  ok('preenchendo: badge VISIVEL (botao "Ir para o card" a mao)', badge._cls.has('show'));
+  ok('preenchendo: estado neutro, sem verde de sucesso', badge._cls.has('linked'));
+  ok('preenchendo: texto nao afirma que aplicou', !/aplicado/i.test(badge._span.textContent), badge._span.textContent);
+  ok('preenchendo: NAO grava premiacao no card', aplicados.length === 0);
+
+  // 2) sem torneio escolhido: badge some (nao ha card pra ir)
+  select.value = '';
+  ctx2.ovcAutoApplyToCard(0);
+  ok('sem torneio: badge escondido', !badge._cls.has('show'));
+
+  // 3) torneio + pote > 0 -> aplica e vira verde
+  select.value = 'k1';
+  ctx2.ovcAutoApplyToCard(1000);
+  ok('com pote: badge continua visivel', badge._cls.has('show'));
+  ctx2.ovcSetBadge('applied', 'SPS 43-M 50K WarmUp');
+  ok('aplicado: sai do neutro', !badge._cls.has('linked'));
+  ok('aplicado: o texto confirma', /aplicado/i.test(badge._span.textContent), badge._span.textContent);
+
+  // 4) torneio que nao existe na agenda nao pode deixar badge fantasma
+  select.value = 'inexistente';
+  ctx2.ovcAutoApplyToCard(1000);
+  ok('torneio inexistente: badge escondido', !badge._cls.has('show'));
+}
+
+console.log('\nfiacao do botao:');
+{
+  ok('o botao existe no HTML', /id="ovcGoToCardBtn"/.test(fs.readFileSync(__dirname + '/index.html', 'utf8')));
+  ok('e esta ligado ao ovcGoToCard', /ovcGoToCardBtn'\)\?\.addEventListener\('click', ovcGoToCard\)/.test(painelSrc));
+  ok('a selecao do torneio ja acende o badge', /ovcSetBadge\('linked', row\.nome\)/.test(painelSrc));
+  ok('limpar a calculadora apaga o badge', /ovcSetBadge\('none'\)/.test(painelSrc));
+  const css = fs.readFileSync(__dirname + '/painel.css', 'utf8');
+  ok('o CSS tem o estado neutro .linked', /\.ovc-sync-badge\.linked\{/.test(css));
+  ok('e esconde o check no estado neutro', /\.ovc-sync-badge\.linked > svg\{\s*display:none/.test(css));
+}
+
 console.log('\n' + (falhas.length ? '❌' : '✅') + ' fee da GU no painel: ' + pass + ' checagens passaram' +
   (falhas.length ? ', ' + falhas.length + ' FALHARAM:\n  - ' + falhas.join('\n  - ') : ''));
 process.exit(falhas.length ? 1 : 0);

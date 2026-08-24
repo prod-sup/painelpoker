@@ -2919,6 +2919,15 @@
   }
   .ovc-sync-badge svg{ width:14px;height:14px;flex:none; }
   .ovc-sync-badge.show{ display:flex; }
+  /* ESTADO NEUTRO: torneio escolhido, pote ainda NAO aplicado.
+     Existe porque o botao "Ir para o card" mora dentro deste badge, e o badge
+     so aparecia DEPOIS do pote ser aplicado — quem estava preenchendo nao tinha
+     como saltar pro card. Aqui ele ja aparece na selecao, mas sem o verde de
+     sucesso e sem o check: nada foi aplicado ainda, e o badge nao pode mentir. */
+  .ovc-sync-badge.linked{
+    background:var(--card); border-color:var(--hairline); color:var(--ink-soft);
+  }
+  .ovc-sync-badge.linked > svg{ display:none; }
   .ovc-sync-badge.pulse{ animation:ovc-sync-pulse .6s var(--ease); }
   @keyframes ovc-sync-pulse{ 0%{ transform:scale(.97); } 40%{ transform:scale(1.015); } 100%{ transform:scale(1); } }
   @media (prefers-reduced-motion: reduce){ .ovc-sync-badge.pulse{ animation:none; } }

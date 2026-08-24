@@ -7141,23 +7141,51 @@ function ovcCalculate(){
 /* Quando um torneio da agenda está selecionado no seletor da calculadora, o Pote arrecadado
    é aplicado automaticamente na premiação daquele card — evita ter que copiar o valor à mão.
    Debounced pra não gravar no Firebase a cada tecla digitada. */
-function ovcAutoApplyToCard(pote){
-  const key = document.getElementById('ovcTorneioSelect')?.value;
+/* Badge do vínculo com o card. TRÊS estados, e o botão "Ir para o card" mora
+   dentro dele — por isso o estado 'linked' existe:
+     'none'    — nenhum torneio escolhido: badge some.
+     'linked'  — torneio escolhido, nada aplicado ainda. Neutro, sem check.
+                 É ELE que dá o "Ir para o card" ENQUANTO se preenche; antes o
+                 botão só existia depois do pote aplicado, e quem estava
+                 digitando não tinha como saltar pro card.
+     'applied' — o pote foi gravado na premiação do card: verde, com pulso. */
+function ovcSetBadge(estado, nome){
   const badge = document.getElementById('ovcSyncBadge');
-  clearTimeout(window._ovcApplyTimer);
-  if(!key || !(pote > 0)){
-    if(badge) badge.classList.remove('show');
+  if(!badge) return;
+  const txt = badge.querySelector('span');
+  if(estado === 'none'){ badge.classList.remove('show','linked','pulse'); return; }
+  if(estado === 'linked'){
+    if(txt) txt.textContent = nome ? `Preenchendo "${nome}" — o pote vai pra premiação do card`
+                                   : 'O pote vai pra premiação do card';
+    badge.classList.add('show','linked');
+    badge.classList.remove('pulse');
     return;
   }
-  const tRow = rowByKey(key);
-  if(!tRow) return;
+  if(txt) txt.textContent = `Pote aplicado à premiação de "${nome}"`;
+  badge.classList.remove('linked');
+  badge.classList.add('show','pulse');
+  setTimeout(() => badge.classList.remove('pulse'), 600);
+}
+
+function ovcAutoApplyToCard(pote){
+  const key = document.getElementById('ovcTorneioSelect')?.value;
+  clearTimeout(window._ovcApplyTimer);
+  const tRow = key ? rowByKey(key) : null;
+  // sem pote ainda (ou sem rake): o badge FICA, em estado neutro, pra o botão
+  // "Ir para o card" continuar à mão enquanto se preenche
+  if(!key || !(pote > 0) || !tRow){
+    ovcSetBadge(key && tRow ? 'linked' : 'none', tRow ? tRow.nome : '');
+    return;
+  }
+  // A gravação é debounced em 500ms, mas o badge NÃO pode esperar: é ele que
+  // carrega o botão "Ir para o card". Se estiver escondido, acende já em neutro
+  // — e se já estiver de pé (inclusive em 'applied'), não mexe, pra não piscar
+  // applied→linked→applied a cada tecla digitada.
+  const badge = document.getElementById('ovcSyncBadge');
+  if(badge && !badge.classList.contains('show')) ovcSetBadge('linked', tRow.nome);
   window._ovcApplyTimer = setTimeout(() => {
     applyPremiacaoValue(key, pote, `<b>${OPERATOR_NAME||'Você'}</b> preencheu premiação de <b>${tRow.nome||key}</b> via Calculadora de Overlay: R$ ${fmtBRL(pote,0)}`);
-    if(badge){
-      badge.querySelector('span').textContent = `Pote aplicado à premiação de "${tRow.nome}"`;
-      badge.classList.add('show', 'pulse');
-      setTimeout(() => badge.classList.remove('pulse'), 600);
-    }
+    ovcSetBadge('applied', tRow.nome);
   }, 500);
 }
 
@@ -7179,6 +7207,7 @@ function ovcClear(){
   document.getElementById('ovcCampanha').checked = false;
   const ovr = document.getElementById('ovcRakeOverride'); if(ovr) ovr.value = '';
   OVC_GU_RAKE = null;   // limpou a calculadora: solta o rake do torneio que estava escolhido
+  ovcSetBadge('none');
   const sel = document.getElementById('ovcTorneioSelect');
   if(sel) sel.value = '';
   document.getElementById('ovcTourMatch')?.classList.remove('show');
@@ -10640,10 +10669,13 @@ function ovcOnSelectChange(){
   if(aiEl){ aiEl.innerHTML = ''; aiEl.hidden = true; }
 
   OVC_GU_RAKE = null;                 // seleção mudou: esquece o rake do torneio anterior
-  if(!sel.value) return;
+  if(!sel.value){ ovcSetBadge('none'); return; }
 
   const row = rowByKey(sel.value);
-  if(!row){ notFoundEl.classList.add('show'); return; }
+  if(!row){ notFoundEl.classList.add('show'); ovcSetBadge('none'); return; }
+
+  // torneio escolhido já libera o "Ir para o card" — não espera o pote sair
+  ovcSetBadge('linked', row.nome);
 
   // rake do torneio escolhido = FEE + ADMIN FEE da GU (null quando a linha veio
   // sem as colunas — aí a calculadora volta pra regra por categoria)
