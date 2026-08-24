@@ -395,3 +395,100 @@ html.dark .smd-act.danger, html[data-theme="dark"] .smd-act.danger{ color:#ff6b5
 @media (prefers-reduced-motion:reduce){
   .smd-panel,.smd-scrim,.sup-mob-btn span{ transition:none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SUPREMA OS — SPLASH DE BOOT (tela de carregamento premium, marca ♠)
+   ──────────────────────────────────────────────────────────────────────────
+   Uma única tela de carregamento para TODOS os painéis. O scripts/lite.js
+   (síncrono no <head> de todo painel) injeta #supBoot ANTES do primeiro paint
+   e a remove quando os dados/página estão prontos (ou por timeout de guarda).
+   Sempre dark-cinematográfica (grafite quase-preto + acento laranja), no mesmo
+   mood da hub e da arte do admin — "melhor do mercado": logo em moeda de ouro,
+   anel de progresso e barra indeterminada. API: window.SupremaBoot.
+   ══════════════════════════════════════════════════════════════════════════ */
+.sup-boot{
+  position:fixed;inset:0;z-index:2147483000;
+  display:flex;align-items:center;justify-content:center;
+  background:#08070a;                       /* fallback antes do CSS carregar */
+  background:
+    radial-gradient(120% 80% at 50% 118%, rgba(255,125,26,.14), transparent 58%),
+    radial-gradient(90% 60% at 82% 6%, rgba(255,125,26,.07), transparent 60%),
+    linear-gradient(180deg,#0a090c,#060507);
+  color:#f5f5f7;
+  font-family:var(--sup-display, -apple-system, "Segoe UI", sans-serif);
+  -webkit-font-smoothing:antialiased;
+  opacity:1;transition:opacity .5s cubic-bezier(.16,1,.3,1);
+  overflow:hidden;
+}
+.sup-boot--out{opacity:0;pointer-events:none}
+/* grão fino sobre o splash — a mesma "presença" da hub */
+.sup-boot::after{
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.sup-boot-core{
+  position:relative;z-index:1;
+  display:flex;flex-direction:column;align-items:center;gap:22px;
+  animation:supBootIn .7s cubic-bezier(.16,1,.3,1) both;
+}
+@keyframes supBootIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
+
+/* moeda de ouro com o naipe — anel cônico girando + brilho pulsante */
+.sup-boot-coin{
+  position:relative;width:96px;height:96px;border-radius:50%;
+  display:grid;place-items:center;
+  background:linear-gradient(160deg,#ff9a3d 0%,#e0700f 52%,#a85200 100%);
+  box-shadow:
+    0 0 0 1px rgba(255,205,140,.35) inset,
+    0 1px 0 rgba(255,255,255,.5) inset,
+    0 22px 60px -18px rgba(255,125,26,.65),
+    0 0 90px -20px rgba(255,125,26,.5);
+}
+.sup-boot-coin::before{                     /* anel de progresso cônico girando */
+  content:"";position:absolute;inset:-9px;border-radius:50%;
+  background:conic-gradient(from 0deg, transparent 0deg, rgba(255,170,80,.0) 200deg, #ffb15a 320deg, #fff2df 360deg);
+  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+          mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  animation:supBootSpin 1.15s linear infinite;
+}
+.sup-boot-coin::after{                      /* sheen diagonal varrendo a moeda */
+  content:"";position:absolute;inset:0;border-radius:50%;overflow:hidden;
+  background:linear-gradient(120deg, transparent 30%, rgba(255,255,255,.55) 48%, transparent 62%);
+  background-size:250% 250%;
+  animation:supBootSheen 2.6s cubic-bezier(.7,0,.3,1) infinite;
+  mix-blend-mode:screen;opacity:.9;
+}
+@keyframes supBootSpin{to{transform:rotate(360deg)}}
+@keyframes supBootSheen{0%{background-position:140% 0}55%,100%{background-position:-40% 0}}
+.sup-boot-suit{
+  position:relative;z-index:1;font-size:44px;line-height:1;color:#2a1500;
+  text-shadow:0 1px 0 rgba(255,255,255,.35);
+}
+
+.sup-boot-word{
+  font-size:15px;font-weight:700;letter-spacing:.42em;text-indent:.42em;
+  text-transform:uppercase;color:rgba(245,245,247,.92);
+}
+.sup-boot-word b{font-weight:800;color:#ff9a3d}
+.sup-boot-sub{
+  margin-top:-10px;font-family:var(--sup-mono, ui-monospace, monospace);
+  font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:rgba(245,245,247,.42);
+}
+/* barra de progresso indeterminada */
+.sup-boot-bar{
+  width:150px;height:3px;border-radius:99px;overflow:hidden;
+  background:rgba(255,255,255,.08);
+}
+.sup-boot-bar>i{
+  display:block;width:40%;height:100%;border-radius:99px;
+  background:linear-gradient(90deg,transparent,#ff9a3d,#fff2df,#ff9a3d,transparent);
+  animation:supBootBar 1.25s cubic-bezier(.65,0,.35,1) infinite;
+}
+@keyframes supBootBar{0%{transform:translateX(-120%)}100%{transform:translateX(320%)}}
+
+/* modo leve / reduced-motion: mantém a tela de marca, congela os motores */
+html.lite .sup-boot-coin::after{display:none}
+@media (prefers-reduced-motion:reduce){
+  .sup-boot-core,.sup-boot-coin::before,.sup-boot-coin::after,.sup-boot-bar>i{animation:none}
+  .sup-boot-bar>i{width:100%;background:linear-gradient(90deg,#e0700f,#ff9a3d)}
+}

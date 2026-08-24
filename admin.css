@@ -1524,3 +1524,86 @@ html.dark .op-admin-badge{ background:color-mix(in srgb,var(--gold) 12%,transpar
 /* ══ KPIs mono-laranja (pedido "faça tudo"): surface/acento no laranja da casa;
    os deltas up/down mantêm verde/vermelho (semântica de dado) ══ */
 html.dark .kpi.g, html.dark .kpi.r, html.dark .kpi.b, html.dark .kpi.p{ --acc:var(--gold); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PREMIUM CINEMATIC — arte ambiente (Higgsfield) + login billboard
+   ──────────────────────────────────────────────────────────────────────────
+   Combina o admin com a HUB (grafite quase-preto + acento laranja + grão) e
+   com o painel do dia (momento editorial/cinematográfico). A arte é
+   admin-art/aurora.webp — aurora laranja profunda sobre grafite, gerada no
+   Higgsfield no mood Apple keynote / Netflix title-card (contido, caro, dark).
+   Tudo em pseudo-elementos fixos atrás do conteúdo (z-index:-1) — não toca a
+   estrutura das abas dinâmicas. Respeita os dois temas.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* grão fino fixo — a mesma "presença, não textura" da hub (tira a chapa digital) */
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;opacity:.02;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+html.light body::after{opacity:.018;mix-blend-mode:multiply}
+html.dark  body::after{opacity:.05}
+
+/* DARK: profundidade ambiente — aurora ancorada embaixo à esquerda, bem sutil,
+   com fade pra cima (mesma lógica do body::before da hub). Aparece nas calhas
+   do conteúdo, dá o "billboard escuro" atrás dos cards sem competir com eles. */
+html.dark body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;
+  background:
+    radial-gradient(120% 90% at 12% 118%, rgba(255,125,26,.10), transparent 55%),
+    url("admin-art/aurora-soft.webp") no-repeat left bottom / min(70%,900px) auto;
+  opacity:.55;
+  -webkit-mask-image:linear-gradient(0deg, #000 0%, rgba(0,0,0,.35) 42%, transparent 72%);
+          mask-image:linear-gradient(0deg, #000 0%, rgba(0,0,0,.35) 42%, transparent 72%);
+}
+/* LIGHT: nada de arte escura sobre papel — só um sopro quente do laranja no
+   canto, o equivalente claro do respiro da hub. */
+html.light body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;
+  background:
+    radial-gradient(90% 55% at 88% -20%, rgba(179,93,2,.05), transparent 60%),
+    radial-gradient(80% 55% at 8% 118%, rgba(217,116,26,.045), transparent 58%);
+}
+
+/* ── LOGIN CINEMATOGRÁFICO (billboard, igual à hub: dark nos dois temas) ─────
+   O login do OS mora no hub; este é o portão do admin. Vira um momento: a arte
+   aurora ocupa a tela, escurecida por um scrim, e o cartão flutua em vidro. */
+#loginWrap{
+  background:#08070a;
+  background:
+    radial-gradient(80% 60% at 82% 6%, rgba(255,125,26,.10), transparent 60%),
+    linear-gradient(180deg, rgba(6,6,7,.74), rgba(6,6,7,.90)),
+    url("admin-art/aurora.webp") no-repeat center bottom / cover;
+}
+#loginWrap::after{  /* grão sobre o billboard */
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.06;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+/* cartão de vidro escuro — sempre dark, independente do tema, p/ ler sobre a arte */
+#loginWrap .lbox{
+  position:relative;z-index:1;
+  background:linear-gradient(180deg, rgba(30,28,34,.62), rgba(18,17,21,.62));
+  -webkit-backdrop-filter:saturate(160%) blur(34px);
+          backdrop-filter:saturate(160%) blur(34px);
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow:0 44px 120px -34px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.08);
+  color:#f5f5f7;
+}
+#loginWrap .llogo h1{color:#f5f5f7}
+#loginWrap .llogo p{color:rgba(245,245,247,.6)}
+/* naipe da marca: no billboard escuro vira o acento laranja (era grafite) */
+#loginWrap .llogo-suit{
+  background:linear-gradient(160deg,#ff9a3d,#e0700f);color:#1a0d02;
+  box-shadow:0 10px 30px -8px rgba(255,125,26,.55), inset 0 1px 0 rgba(255,255,255,.35);
+}
+#loginWrap .lfield label{color:rgba(245,245,247,.72)}
+#loginWrap .lfield input{
+  background:rgba(255,255,255,.06);
+  border-color:rgba(255,255,255,.14);
+  color:#f5f5f7;
+}
+#loginWrap .lfield input::placeholder{color:rgba(245,245,247,.4)}
+#loginWrap .lfield input:focus{
+  border-color:#ff9a3d;background:rgba(255,255,255,.09);
+  box-shadow:0 0 0 4px rgba(255,125,26,.22);
+}

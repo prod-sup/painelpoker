@@ -1,7 +1,7 @@
 // Suprema Poker — Service Worker
 // IMPORTANTE: incremente SW_VERSION a cada deploy — é isso que faz as abas abertas
 // receberem o aviso de "nova versão disponível" e ninguém operar com código velho
-const SW_VERSION = '3.271.0';
+const SW_VERSION = '3.272.0';
 const CACHE_NAME = `suprema-painel-v${SW_VERSION}`;
 // BASE derivada da própria URL do SW: '/' na Vercel (painelpoker.vercel.app/) e
 // '/painelpoker/' no GitHub Pages. Os assets abaixo são RELATIVOS e recebem a base
@@ -32,6 +32,10 @@ const STATIC_ASSETS = [
   // sem admin-actions os [data-act] do admin ficam mudos (nenhum botão responde)
   'admin-actions.js',
   'admin.css',
+  // arte ambiente premium do admin (Higgsfield): aurora laranja sobre grafite,
+  // usada no login cinematográfico e na profundidade do shell (tema escuro).
+  'admin-art/aurora.webp',
+  'admin-art/aurora-soft.webp',
   'criacao-noturna.js',
   // criacao-noturna.js DEPENDE de criacao-calc (parsing/fee/early bird):
   // sem ele offline, a receita não renderiza.
