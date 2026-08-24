@@ -453,6 +453,7 @@ if (!WATCH){
   process.on('SIGINT', parar);
   process.on('SIGTERM', parar);
 
+  let proximoPulsoSessao = 0;   // ver o pulso no ramo de sessão caída, abaixo
   for(;;){
     try { await garantirNavegador(); }
     catch(e){
@@ -480,9 +481,21 @@ if (!WATCH){
       // sou líder mas não enxergo o PokerByte: aviso o painel e cedo a vez a quem
       // tiver sessão (a própria trava marca sessaoOk:false pra isso)
       await reportar({ ok: false, sessao: 'expirada', erro: null, torneios: 0 });
+      // PULSO no log a cada 10 min enquanto espera o relogin.
+      // POR QUE: o log só escreve em MUDANÇA de estado, então neste ramo ele
+      // emudecia pra sempre — e um log parado com o processo vivo e segurando o
+      // arquivo é idêntico, de fora, a um robô TRAVADO. Isso já custou duas
+      // rodadas de diagnóstico errado (matar o processo, que só o faz voltar
+      // pro mesmo ramo). Uma linha a cada 10 min diz "estou vivo, esperando
+      // relogin" e mata a ambiguidade.
+      if (Date.now() >= proximoPulsoSessao){
+        log('sessão do PokerByte caída — parado esperando o RELOGAR POKERBYTE (nada é coletado até lá)');
+        proximoPulsoSessao = Date.now() + 10 * 60000;
+      }
       await new Promise(r => setTimeout(r, 20000));
       continue;
     }
+    proximoPulsoSessao = 0;   // sessão voltou: próximo problema avisa na hora
 
     const cmd = await rtdbGet(`painel/${dia}/metasComando`).catch(() => null);
     const pedido = cmd && cmd.em ? cmd.em : 0;

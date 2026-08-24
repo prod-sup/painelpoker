@@ -65,7 +65,7 @@ if exist "%AQUI%sync.mjs" goto :copialocal
 REM -f e obrigatorio: sem ele o curl grava a pagina de erro DENTRO do arquivo e
 REM o instalador segue como se tivesse baixado. Falha silenciosa que so aparece
 REM horas depois, com o robo quebrando por "sintaxe invalida" num .mjs.
-for %%F in (_browser.mjs firebase.mjs lideranca.mjs match.mjs sync.mjs login.mjs servico.cmd RELOGAR-POKERBYTE.cmd) do (
+for %%F in (_browser.mjs firebase.mjs lideranca.mjs match.mjs sync.mjs login.mjs servico.cmd servico-oculto.vbs RELOGAR-POKERBYTE.cmd) do (
   curl -f -L -s -o "%APP%\%%F" "%BASE%/%%F"
   if errorlevel 1 goto :semrede
 )
@@ -74,7 +74,7 @@ if errorlevel 1 goto :semrede
 echo        baixada
 goto :temferramenta
 :copialocal
-for %%F in (_browser.mjs firebase.mjs lideranca.mjs match.mjs sync.mjs login.mjs servico.cmd RELOGAR-POKERBYTE.cmd) do copy /y "%AQUI%%%F" "%APP%\" >nul
+for %%F in (_browser.mjs firebase.mjs lideranca.mjs match.mjs sync.mjs login.mjs servico.cmd servico-oculto.vbs RELOGAR-POKERBYTE.cmd) do copy /y "%AQUI%%%F" "%APP%\" >nul
 if exist "%AQUI%..\painel-calc.js" copy /y "%AQUI%..\painel-calc.js" "%APP%\" >nul
 if exist "%AQUI%painel-calc.js"    copy /y "%AQUI%painel-calc.js"    "%APP%\" >nul
 echo        copiada da pasta
@@ -137,10 +137,17 @@ REM caiu, alguem fechou a janela preta, a maquina hibernou), o proximo tique
 REM levanta de novo. Com MultipleInstances=IgnoreNew, tique com robo vivo nao
 REM faz nada. Sem isso o robo fica morto ate o proximo logon - foi o que
 REM aconteceu em 22/08/2026, o painel passou 9h sem print.
+REM
+REM A acao chama o WSCRIPT, nao o cmd.exe. A tarefa roda na sessao interativa do
+REM operador, e acao de cmd.exe abre um console DE VERDADE na tela a cada
+REM disparo - de 5 em 5 minutos, o dia inteiro, na cara de quem esta operando.
+REM O servico-oculto.vbs sobe o MESMO servico.cmd com a janela oculta e
+REM ESPERANDO o fim; esperar e o que preserva o MultipleInstances=IgnoreNew.
+REM Detalhes no cabecalho do .vbs.
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$n='%TAREFA%';" ^
   "$app=Join-Path $env:LOCALAPPDATA 'SupremaSyncMetas\app';" ^
-  "$a=New-ScheduledTaskAction -Execute \"$env:SystemRoot\System32\cmd.exe\" -Argument ('/c \"' + (Join-Path $app 'servico.cmd') + '\"') -WorkingDirectory $app;" ^
+  "$a=New-ScheduledTaskAction -Execute \"$env:SystemRoot\System32\wscript.exe\" -Argument ('//B //nologo \"' + (Join-Path $app 'servico-oculto.vbs') + '\"') -WorkingDirectory $app;" ^
   "$g=New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME;" ^
   "$g2=New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 5);" ^
   "$s=New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -DontStopOnIdleEnd -StartWhenAvailable -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Seconds 0) -MultipleInstances IgnoreNew;" ^
