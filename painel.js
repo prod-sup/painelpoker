@@ -362,10 +362,23 @@ const fmtBuyin = (v) => {
   if (v === null || v === undefined || isNaN(v)) return "—";
   return v === 0 ? "Free" : "R$ " + fmtBRL(v, v % 1 === 0 ? 0 : 2);
 };
-// overlay = premiação - garantido; usado tanto no card normal quanto na linha compacta
-const calcOverlay = (prem, gar) => {
-  if (isNaN(prem) || !(prem > 0) || !(gar > 0)) return null;
-  return prem - gar;
+// overlay = premiação - garantido; usado no card normal e na linha compacta.
+// FREEROLL (buy-in ZERO): a casa paga o garantido inteiro do próprio bolso, então o
+// arrecadado vale 0 POR NATUREZA e o overlay é 0 − garantido = −garantido, SEMPRE, mesmo
+// sem ninguém lançar arrecadado. (Um "FreeBuy" — buy-in 0 com rebuy/add-on — arrecada de
+// verdade: aí usa o arrecadado real e o overlay some se cobrir o gtd.) Buy-in AUSENTE
+// (null/undefined) NÃO é freeroll — é dado faltando; só o zero explícito conta. Mesma
+// regra do admin (ehFreeroll em flatRows).
+const calcOverlay = (prem, gar, buyin) => {
+  const g = Number(gar);
+  if (!(g > 0)) return null;
+  // zero EXPLÍCITO (número 0 ou "0") = freeroll; null/undefined/'' = buy-in ausente, não freeroll
+  const ehFree = buyin != null && buyin !== '' && Number(buyin) === 0;
+  let p = Number(prem);
+  if (ehFree && !(p > 0)) p = 0;            // freeroll sem arrecadado → overlay = −garantido
+  if (!ehFree && !(p > 0)) return null;     // não-freeroll precisa de arrecadado pra ter overlay
+  if (isNaN(p)) return null;
+  return p - g;
 };
 const fmtOverlay = (overlay) => {
   const abs = Math.abs(overlay);
@@ -4935,9 +4948,11 @@ function computeStats(){
   const overlayTotal = RAW_ROWS.reduce((s,r) => {
     if (isMultidayFlight(r)) return s;   // flight não tem valor próprio — o overlay é do Dia 2
     if (r.overlay != null && r.overlay < 0) return s + r.overlay;
-    if (r.overlay == null && r.garantido != null && r.garantido > 0 && r.premiacao != null){
-      const calc = r.premiacao - r.garantido;
-      if (calc < 0) return s + calc;
+    if (r.overlay == null){
+      // calcOverlay já honra o FREEROLL (buy-in 0 = −garantido mesmo sem arrecadado); pra os
+      // demais, só conta quando há arrecadado e o resultado é negativo.
+      const calc = calcOverlay(r.premiacao, r.garantido, r.buyin);
+      if (calc != null && calc < 0) return s + calc;
     }
     return s;
   }, 0);
@@ -5064,9 +5079,9 @@ function loadYesterdayMetricsIfNeeded(){
     const overlayTotal = rows.reduce((s,r) => {
       if (isMultidayFlight(r)) return s;
       if (r.overlay != null && r.overlay < 0) return s + r.overlay;
-      if (r.overlay == null && r.garantido != null && r.garantido > 0 && r.premiacao != null){
-        const calc = r.premiacao - r.garantido;
-        if (calc < 0) return s + calc;
+      if (r.overlay == null){
+        const calc = calcOverlay(r.premiacao, r.garantido, r.buyin);   // honra freeroll (buy-in 0 = −gtd)
+        if (calc != null && calc < 0) return s + calc;
       }
       return s;
     }, 0);
@@ -5608,7 +5623,7 @@ function renderUpcoming(){
       const premVal  = t.premiacao;
       const garVal   = t.garantido;
       const fieldVal = getField(key);
-      const ovc      = calcOverlay(premVal, garVal);
+      const ovc      = calcOverlay(premVal, garVal, t.buyin);   // buy-in 0 (freeroll) → −garantido
       const catColor = cat==='main'?'var(--main-bright)':cat==='sat'?'var(--sat-bright)':'var(--side-bright)';
       const premFmt  = premVal != null ? fmtBRL(premVal, premVal%1===0?0:2) : '';
       const ovCls    = ovc!=null?(ovc<0?' neg':' pos'):'';
@@ -6066,10 +6081,10 @@ function buildRowData(r, dateLabel){
   const cat = classify(r);
   const prem = r.premiacao;
   const gar  = getGarantidoEffective(r._key) ?? r.garantido;  // override > planilha
-  // Overlay = déficit real: só preenchido quando premiação < garantido (pool não atingiu o GTD)
-  // Quando premiação >= garantido o evento superou o GTD — não há overlay, campo fica vazio
-  const diff    = (prem != null && gar != null) ? prem - gar : null;
-  const overlay = diff != null && diff < 0 ? diff : null;  // null quando positivo = sem overlay
+  // Overlay = déficit real: só preenchido quando premiação < garantido (pool não atingiu o GTD).
+  // Freeroll (buy-in 0) sempre tem overlay = −garantido, mesmo sem arrecadado (calcOverlay honra).
+  const ovCalc  = calcOverlay(prem, gar, r.buyin);
+  const overlay = ovCalc != null && ovCalc < 0 ? ovCalc : null;  // null quando positivo = sem overlay
   const perf    = (prem != null && gar != null && gar > 0) ? Math.round(((prem-gar)/gar)*1000)/10 : null;
   const acoes   = calcAcoesForRow(r);
   const field   = r.field != null ? r.field : (FIELD_MAP[r._key] ?? null);
@@ -7545,7 +7560,7 @@ function renderCardOverlayPreview(key, row, premiacaoVal, fieldVal){
   const acoes = PainelCalc.acoes({ premiacao: prem, buyin, field, row });
 
   // Overlay — sempre visível
-  const overlay = calcOverlay(prem, gar);
+  const overlay = calcOverlay(prem, gar, row.buyin);   // freeroll (buy-in 0) → −garantido mesmo sem arrecadado
   const ovFinal = overlay != null
     ? `<div class="tcard-ov-cell">
         <span class="tcard-ov-label">${overlay < 0 ? 'Overlay' : 'Excedente'}</span>
@@ -10309,8 +10324,8 @@ function buildSnapshotRows(){
     const key  = r._key;
     const prem = r.premiacao;
     const gar  = getGarantidoEffective(key) ?? r.garantido;
-    const diff = (prem != null && gar != null) ? prem - gar : null;
-    const overlay = diff != null && diff < 0 ? diff : (diff != null && diff >= 0 ? diff : null);
+    // overlay com sinal (negativo = overlay; positivo = excedente); honra freeroll (buy-in 0 = −gtd)
+    const overlay = calcOverlay(prem, gar, r.buyin);
     const perf = (prem != null && gar != null && gar > 0)
       ? Math.round(((prem - gar) / gar) * 1000) / 10 : null;
     return {

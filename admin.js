@@ -3484,9 +3484,37 @@ async function wipeManualRow(date, key, nome, hora){
     .map(no => db.ref(`${base}/${no}/${key}`).remove().catch(()=>{})));
   await db.ref(`${base}/manualRows/${key}`).remove();
 
-  // espelha em memória pra lista sumir sem esperar o refresh ao vivo
+  // O torneio também pode ter sido capturado no SNAPSHOT automático do painel
+  // (snapshots/<date>/rows), que é keyed por ID/índice — NÃO pela chave do manualRows. Se
+  // ficar lá, o mergeDayInto RECRIA a linha (como _snap, sem o flag manual → sem 🗑) e o
+  // torneio "volta" na auditoria mesmo depois de excluído. Remove por nome+hora. (Match
+  // frouxo por identidade porque o snapshot não guarda a chave nem o flag manual.)
+  try{
+    const snapRef = db.ref(`snapshots/${date}/rows`);
+    const snap = (await snapRef.once('value')).val();
+    if(snap){
+      const alvo = nhKey(nome, hora);
+      const upd = {};
+      Object.entries(snap).forEach(([sk, sr]) => { if(sr && nhKey(sr.nome, sr.hora) === alvo) upd[sk] = null; });
+      if(Object.keys(upd).length) await snapRef.update(upd);
+    }
+  }catch(e){}
+
+  // espelha em memória pra a linha sumir sem esperar o refresh ao vivo
   const dia = _allData[date];
-  if(dia) ['rows','ids','field','prem','guar','premBy','fixed','buy'].forEach(b => { if(dia[b]) delete dia[b][key]; });
+  if(dia){
+    ['ids','field','prem','guar','premBy','fixed','buy'].forEach(b => { if(dia[b]) delete dia[b][key]; });
+    if(dia.rows){
+      delete dia.rows[key];
+      // a MESMA ocorrência pode estar no _allData sob outra chave (a do snapshot): tira as
+      // cópias-fantasma (manual/_snap) por nome+hora, mas preserva uma linha real da planilha.
+      const alvo = nhKey(nome, hora);
+      Object.keys(dia.rows).forEach(k => {
+        const r = dia.rows[k];
+        if(r && (r.manual || r._snap) && nhKey(r.nome, r.hora) === alvo) delete dia.rows[k];
+      });
+    }
+  }
 
   await writeAdminLog('excluir', { torneio:nome||null, date, hora:hora||null, key });
 }
