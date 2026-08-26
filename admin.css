@@ -853,6 +853,14 @@ body.win-blurred *,body.win-blurred *::before,body.win-blurred *::after{animatio
 
 /* "Criar em vários dias" (modal Adicionar torneio): caixinhas dos dias da semana da
    data escolhida. Marcar mais de um cria o evento em cada dia de uma vez. */
+.add-days-nav{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+.add-week-btn{
+  display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;
+  border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--ink2);
+  cursor:pointer;font-size:12px;line-height:1;transition:background-color .12s,border-color .12s,color .12s;
+}
+.add-week-btn:hover{background:rgba(247,148,29,.1);border-color:rgba(247,148,29,.4);color:var(--amber-tx)}
+.add-week-label{font-size:11.5px;font-weight:600;color:var(--ink2);font-family:var(--mono)}
 .add-days{display:flex;flex-wrap:wrap;gap:6px}
 .add-day{
   display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;

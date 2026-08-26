@@ -1012,7 +1012,12 @@ document.addEventListener('DOMContentLoaded', () => {
          evento é lançado em cada um de uma vez. Num multiday Dia 1, os flights viram A, B,
          C… por dia, em ordem cronológica. Ver renderAddDays / saveAddTorneio. -->
     <div class="mf" id="addDaysWrap">
-      <label>Criar em vários dias <span style="color:var(--ink3);font-weight:400">· marque os dias da semana (multiday numera os flights A, B, C… por dia)</span></label>
+      <label>Criar em vários dias <span style="color:var(--ink3);font-weight:400">· marque os dias (multiday numera os flights A, B, C…). Use ◀ ▶ pra uma semana futura</span></label>
+      <div class="add-days-nav">
+        <button type="button" class="add-week-btn" data-act="addWeekShift" data-arg="-1" title="Semana anterior" aria-label="Semana anterior">◀</button>
+        <span id="addWeekLabel" class="add-week-label"></span>
+        <button type="button" class="add-week-btn" data-act="addWeekShift" data-arg="1" title="Próxima semana" aria-label="Próxima semana">▶</button>
+      </div>
       <div id="addDaysList" class="add-days"></div>
     </div>
     <div class="mf">

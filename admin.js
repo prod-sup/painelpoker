@@ -3280,15 +3280,30 @@ function renderAddDays(){
   const host = document.getElementById('addDaysList');
   if(!host) return;
   const cur = document.getElementById('addDate')?.value;
-  if(!cur){ host.innerHTML=''; return; }
+  if(!cur){ host.innerHTML=''; const lb=document.getElementById('addWeekLabel'); if(lb) lb.textContent=''; return; }
   const marcados = new Set([...host.querySelectorAll('input.add-day-chk:checked')].map(c=>c.dataset.date));
   marcados.add(cur);
-  host.innerHTML = _addWeekDates(cur).map(dd => `
+  const dias = _addWeekDates(cur);
+  host.innerHTML = dias.map(dd => `
     <label class="add-day">
       <input type="checkbox" class="add-day-chk" data-date="${dd.iso}" ${marcados.has(dd.iso)?'checked':''}>
       <span class="add-day-wd">${dd.label}</span>
       <span class="add-day-dm">${dd.dm}</span>
     </label>`).join('');
+  const lb = document.getElementById('addWeekLabel');
+  if(lb && dias.length) lb.textContent = `Semana de ${dias[0].dm} a ${dias[6].dm}`;
+}
+
+/* pula a semana das caixinhas pra trás/frente (delta = -1 / +1). Move a data da grade em
+   7 dias e redesenha — é o atalho pra lançar multiday numa semana FUTURA sem catar a data
+   no seletor. loadManualList redesenha os dias (renderAddDays) e a lista da nova data. */
+function addWeekShift(delta){
+  const el = document.getElementById('addDate');
+  if(!el || !el.value) return;
+  const [y,m,d] = el.value.split('-').map(Number);
+  const nd = new Date(y, m-1, d + (Number(delta)||0)*7);
+  el.value = `${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}-${String(nd.getDate()).padStart(2,'0')}`;
+  loadManualList();
 }
 
 /* datas em que criar o torneio: as caixinhas marcadas (cronológicas); cai na data da
