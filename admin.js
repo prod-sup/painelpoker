@@ -948,6 +948,10 @@ function flatRows(fromDate, toDate){
         premiacao:prem, overlay:ov, perf, field, acoes,
         id:idVal, idBy, fixBy, fixAt, premBy, premByAt, fixLeadMin, fixTiming, status,
         manual: !!r.manual,   // veio de manualRows → card adicionado à mão (Central de Alertas)
+        // Multiday: flight de Dia 1 (mdEtapa 'd1') conta jogadores mas NÃO soma valor —
+        // garantido/arrecadado são do Dia 2 ('d2'). Carrega os marcadores pra os totais
+        // do admin poderem excluir o flight, igual o painel do dia faz.
+        mdEtapa: r.mdEtapa || null, mdGrupo: r.mdGrupo || null, mdFlight: r.mdFlight || null,
       });
     });
   });
@@ -1409,6 +1413,10 @@ function initDates(){
 /* ══════════════════════════════════════════════════════════════
    AUDITORIA — ACOMPANHAMENTO (visual idêntico ao painel)
 ══════════════════════════════════════════════════════════════ */
+/* flight de multiday (Dia 1): conta jogadores, mas garantido/arrecadado/overlay são
+   do Dia 2 — fica FORA dos totais de valor (mesma regra do painel do dia). */
+function isMdFlight(r){ return !!r && r.mdEtapa === 'd1'; }
+
 async function loadAudit(){
   const from=document.getElementById('auFrom')?.value||dago(6);
   const to  =document.getElementById('auTo')?.value||nowSP();
@@ -1449,9 +1457,10 @@ async function loadAudit(){
       {cat:'sat', rows:sortByTime(dayRows.filter(r=>r.cat==='sat'))},
     ].filter(g=>g.rows.length);
 
-    const allGar=dayRows.reduce((s,r)=>s+(r.garantido||0),0);
-    const allPrem=dayRows.filter(r=>r.premiacao!=null).reduce((s,r)=>s+(r.premiacao||0),0);
-    const allOv=dayRows.reduce((s,r)=>s+(r.overlay||0),0);
+    // flight de multiday (Dia 1) não soma valor — garantido/arrecadado/overlay são do Dia 2
+    const allGar=dayRows.reduce((s,r)=>isMdFlight(r)?s:s+(r.garantido||0),0);
+    const allPrem=dayRows.filter(r=>r.premiacao!=null).reduce((s,r)=>isMdFlight(r)?s:s+(r.premiacao||0),0);
+    const allOv=dayRows.reduce((s,r)=>isMdFlight(r)?s:s+(r.overlay||0),0);
     const closed=dayRows.filter(r=>r.status==='fechado').length;
     // Status de auditoria do dia
     const totalDay = dayRows.length;
@@ -1471,9 +1480,12 @@ async function loadAudit(){
         const hasOv=r.overlay!=null&&r.overlay<0;
         const cls=isNF?'nf':hasOv?'overlay':'';
         count++;
-        if(r.garantido)sumGar+=r.garantido;
-        if(r.premiacao)sumPrem+=r.premiacao;
-        if(r.overlay)sumOv+=r.overlay;
+        // flight de Dia 1 aparece na lista, mas não entra nos totais de valor (é do Dia 2)
+        if(!isMdFlight(r)){
+          if(r.garantido)sumGar+=r.garantido;
+          if(r.premiacao)sumPrem+=r.premiacao;
+          if(r.overlay)sumOv+=r.overlay;
+        }
         // 11. Detectar anomalias automaticamente (mesma regra da Central de Alertas)
         const anomalias = resultAnoms(r);
         const hasAnomalia = anomalias.length > 0 && !r._audited;
@@ -1626,7 +1638,9 @@ function buildDash(){
   const rows=flatRows(from,to);
   const closed=rows.filter(r=>r.premiacao!=null);
   const withOv=closed.filter(r=>r.overlay!=null&&r.overlay<0);
-  const totalGar=rows.reduce((s,r)=>s+(r.garantido||0),0);
+  // flight de multiday (Dia 1) não soma garantido — é do Dia 2 (premiação/overlay já saem
+  // por 'closed', que exige premiação e o flight nunca tem)
+  const totalGar=rows.reduce((s,r)=>isMdFlight(r)?s:s+(r.garantido||0),0);
   const totalPrem=closed.reduce((s,r)=>s+(r.premiacao||0),0);
   const totalOv=closed.reduce((s,r)=>s+(r.overlay||0),0);
   const avgPerf=closed.filter(r=>r.perf!=null).length?
@@ -1634,7 +1648,7 @@ function buildDash(){
 
   const nfRows   = rows.filter(r=>r.status==='nf');
   const dias     = [...new Set(rows.map(r=>r.date))].length;
-  const totalGarSum = rows.reduce((s,r)=>s+(r.garantido||0),0);
+  const totalGarSum = rows.reduce((s,r)=>isMdFlight(r)?s:s+(r.garantido||0),0);
   const cobertura = totalGarSum>0?(totalPrem/totalGarSum*100):0;
 
   // ── ARRECADADO + RAKE + ADMIN FEE ──────────────────────────────────────
@@ -2920,7 +2934,8 @@ function openAuditEditByEl(btn){
     premiacao: e && e.premiacaoOriginal!=null ? e.premiacaoOriginal : r.premiacao,
     field:     e && e.fieldOriginal!=null     ? e.fieldOriginal     : r.field,
     garantido: e && e.garantidoOriginal!=null ? e.garantidoOriginal : r.garantido,
-    buyin:     e && e.buyinOriginal!=null      ? e.buyinOriginal     : r.buyin});
+    buyin:     e && e.buyinOriginal!=null      ? e.buyinOriginal     : r.buyin,
+    id:        e && e.idOriginal!=null         ? e.idOriginal         : r.id});
 }
 
 function openNotifByEl(btn){
@@ -2994,6 +3009,9 @@ function openAuditEdit(ctx){
     _auditContext.garantido != null ? 'R$ '+brl(_auditContext.garantido) : '—';
   document.getElementById('auditOrigBuyin').textContent =
     _auditContext.buyin != null ? 'R$ '+brl(_auditContext.buyin) : '—';
+  const origId = _auditContext.id;
+  document.getElementById('auditOrigId').textContent =
+    (origId != null && String(origId).trim() !== '') ? origId : '—';
 
   // Preencher com valor já auditado (se existir) ou original
   const premVal  = audit?.premiacaoAuditada ?? _auditContext.premiacao;
@@ -3007,8 +3025,24 @@ function openAuditEdit(ctx){
     garVal != null ? brl(garVal,2) : '';
   document.getElementById('auditBuyinInput').value =
     buyinVal != null ? brl(buyinVal,2) : '';
+  document.getElementById('auditIdInput').value =
+    audit?.idAuditado ?? (origId != null ? origId : '') ?? '';
   document.getElementById('auditObs').value = audit?.obs || '';
   document.getElementById('auditApproved').checked = audit?.status === 'aprovado';
+
+  // Mexer em qualquer valor desmarca "aprovado": editar um número é corrigir, não
+  // aprovar sem correção — deixa claro na hora e evita o valor digitado ser
+  // descartado. (O saveAudit também trata isso, isto é só o feedback visível.)
+  ['auditPremInput','auditFieldInput','auditGarInput','auditBuyinInput','auditIdInput'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el && !el._uncheckBound){
+      el._uncheckBound = true;
+      el.addEventListener('input', () => {
+        const ap = document.getElementById('auditApproved');
+        if(ap) ap.checked = false;
+      });
+    }
+  });
 
   document.getElementById('moAudit').classList.add('open');
   setTimeout(() => document.getElementById('auditPremInput').focus(), 80);
@@ -3025,11 +3059,12 @@ async function saveAudit(){
   const fieldRaw = document.getElementById('auditFieldInput').value.trim();
   const garRaw   = document.getElementById('auditGarInput').value.trim();
   const buyinRaw = document.getElementById('auditBuyinInput').value.trim();
+  const idRaw    = document.getElementById('auditIdInput').value.trim();
   const obs      = document.getElementById('auditObs').value.trim();
   const approved = document.getElementById('auditApproved').checked;
 
   errEl.style.display = 'none';
-  if(!premRaw && !fieldRaw && !garRaw && !buyinRaw && !approved){
+  if(!premRaw && !fieldRaw && !garRaw && !buyinRaw && !idRaw && !approved){
     errEl.textContent = 'Preencha ao menos um valor ou marque como aprovado.';
     errEl.style.display = 'block'; return;
   }
@@ -3038,6 +3073,7 @@ async function saveAudit(){
   const field = fieldRaw ? parseInt(fieldRaw,10) : null;
   const gar   = garRaw   ? parseBRL(garRaw)   : null;
   const buyin = buyinRaw ? parseBRL(buyinRaw) : null;
+  const id    = idRaw || null;   // ID do Pokerbyte é texto (ex.: "12345" / "NF")
 
   if(premRaw && isNaN(prem)){
     errEl.textContent = 'Premiação inválida.'; errEl.style.display='block'; return;
@@ -3051,16 +3087,32 @@ async function saveAudit(){
 
   btn.textContent = 'Salvando...';
 
+  // "Aprovado" só vale quando NADA foi corrigido. Se o operador mexeu num valor
+  // (difere do original) e AINDA assim deixou "aprovado" marcado, isso é uma
+  // CORREÇÃO — antes o ramo `approved` forçava os valores originais e o field/
+  // premiação que a pessoa acabou de digitar era SILENCIOSAMENTE descartado
+  // ("alterei o field e não salvou"). Um corrigido continua contando como
+  // auditado (o badge ✓ Auditado vale pros dois status).
+  const houveCorrecao =
+    (prem  != null && prem  !== (_auditContext.premiacao ?? null)) ||
+    (field != null && field !== (_auditContext.field ?? null)) ||
+    (gar   != null && gar   !== (_auditContext.garantido ?? null)) ||
+    (buyin != null && buyin !== (_auditContext.buyin ?? null)) ||
+    (id    != null && id    !== ((_auditContext.id ?? null) || null));
+  const realApproved = approved && !houveCorrecao;
+
   const entry = {
     premiacaoOriginal: _auditContext.premiacao ?? null,
     fieldOriginal:     _auditContext.field ?? null,
     garantidoOriginal: _auditContext.garantido ?? null,
     buyinOriginal:     _auditContext.buyin ?? null,
-    premiacaoAuditada: approved ? (_auditContext.premiacao ?? null) : (prem ?? null),
-    fieldAuditado:     approved ? (_auditContext.field ?? null) : (field ?? null),
-    garantidoAuditado: approved ? (_auditContext.garantido ?? null) : (gar ?? null),
-    buyinAuditada:     approved ? (_auditContext.buyin ?? null) : (buyin ?? null),
-    status:    approved ? 'aprovado' : 'corrigido',
+    idOriginal:        (_auditContext.id ?? null) || null,
+    premiacaoAuditada: realApproved ? (_auditContext.premiacao ?? null) : (prem ?? null),
+    fieldAuditado:     realApproved ? (_auditContext.field ?? null) : (field ?? null),
+    garantidoAuditado: realApproved ? (_auditContext.garantido ?? null) : (gar ?? null),
+    buyinAuditada:     realApproved ? (_auditContext.buyin ?? null) : (buyin ?? null),
+    idAuditado:        realApproved ? ((_auditContext.id ?? null) || null) : (id ?? null),
+    status:    realApproved ? 'aprovado' : 'corrigido',
     obs:       obs || null,
     auditadoEm:   Date.now(),
     auditadoPor:  _email || 'admin',
@@ -3072,7 +3124,7 @@ async function saveAudit(){
     await db.ref(`auditoria/${_auditContext.date}/${_auditContext.key}`).set(entry);
 
     // Se corrigido: sobrescrever o dado ao vivo no painel também
-    if(!approved){
+    if(!realApproved){
       const basePath = `painel/${_auditContext.date}`;
       if(prem != null){
         await db.ref(`${basePath}/premiacao/${_auditContext.key}`).set(prem);
@@ -3089,6 +3141,10 @@ async function saveAudit(){
       // Buy-in corrigido: overlay próprio (painel/<data>/buyin) que o painel lê e sobrepõe à
       // planilha, recalculando as "ações". Não muda a rowKey (ela usa o buy-in da planilha).
       if(buyin != null) await db.ref(`${basePath}/buyin/${_auditContext.key}`).set(buyin);
+      // ID Pokerbyte corrigido: mesmo nó/formato que o painel e o "Adicionar torneio" usam
+      // (painel/<data>/ids/<key> = {val, by, at}). Sem isto o campo do modal era decorativo.
+      if(id != null) await db.ref(`${basePath}/ids/${_auditContext.key}`)
+        .set({ val:id, by:(_email || 'Admin') + ' (auditoria)', at:Date.now() });
     }
 
     // Atualizar cache local
@@ -3099,11 +3155,12 @@ async function saveAudit(){
       if(r.date === _auditContext.date && r.key === _auditContext.key){
         r._audited = true;
         r._auditEntry = entry;
-        if(!approved){
+        if(!realApproved){
           if(prem != null)  r.premiacao = prem;
           if(field != null) r.field = field;
           if(gar != null)   r.garantido = gar;
           if(buyin != null) r.buyin = buyin;
+          if(id != null){ r.id = id; if(id.toUpperCase() !== 'NF' && r.status === 'nf') r.status = r.premiacao != null ? 'fechado' : 'aberto'; }
           // Recalcular overlay/perf
           if(r.premiacao != null && r.garantido != null){
             r.overlay = r.premiacao - r.garantido < 0 ? r.premiacao - r.garantido : null;
@@ -3117,20 +3174,21 @@ async function saveAudit(){
     });
 
     closeMo('moAudit');
-    toast(approved ? '✓ Aprovado sem correção' : '✓ Dado corrigido e salvo no Firebase', 'ok');
+    toast(realApproved ? '✓ Aprovado sem correção' : '✓ Dado corrigido e salvo no Firebase', 'ok');
     // 12. Log de auditoria permanente
-    writeAdminLog(approved ? 'aprovar' : 'corrigir', {
+    writeAdminLog(realApproved ? 'aprovar' : 'corrigir', {
       torneio: _auditContext.nome, date: _auditContext.date,
-      premOriginal: _auditContext.premiacao, premNova: approved?null:prem,
-      fieldOriginal: _auditContext.field, fieldNovo: approved?null:field,
-      garOriginal: _auditContext.garantido, garNovo: approved?null:gar,
-      buyinOriginal: _auditContext.buyin, buyinNovo: approved?null:buyin,
+      premOriginal: _auditContext.premiacao, premNova: realApproved?null:prem,
+      fieldOriginal: _auditContext.field, fieldNovo: realApproved?null:field,
+      garOriginal: _auditContext.garantido, garNovo: realApproved?null:gar,
+      buyinOriginal: _auditContext.buyin, buyinNovo: realApproved?null:buyin,
+      idOriginal: _auditContext.id, idNovo: realApproved?null:id,
       obs,
     });
     // Re-renderizar a auditoria para mostrar badge
     loadAudit();
     // Correção mudou um valor → reescreve a aba do dia no Sheets (silencioso se não configurado)
-    if(!approved) autoResendSheets(_auditContext.date);
+    if(!realApproved) autoResendSheets(_auditContext.date);
   } catch(e){
     errEl.textContent = 'Erro: '+e.message; errEl.style.display='block';
   } finally {
@@ -3482,12 +3540,17 @@ function enrichWithAudit(rows){
     const gar  = useAudited(a.garantidoAuditado, a.garantidoOriginal) ? a.garantidoAuditado : r.garantido;
     const field= useAudited(a.fieldAuditado,     a.fieldOriginal)     ? a.fieldAuditado     : r.field;
     const buyin= useAudited(a.buyinAuditada,     a.buyinOriginal)     ? a.buyinAuditada     : r.buyin;
+    const id   = useAudited(a.idAuditado,        a.idOriginal)        ? a.idAuditado        : r.id;
     // Recalcular overlay/perf com base nos valores corrigidos
     const diff = prem!=null&&gar!=null ? prem-gar : null;
     const overlay = diff!=null&&diff<0 ? diff : null;
     const perf = prem!=null&&gar!=null&&gar>0 ? Math.round(((prem-gar)/gar)*10000)/100 : null;
     // Ações recalculadas — buy-in ou premiação corrigidos mudam o número de entradas
     const acoes = (prem!=null && buyin && r.netFactor) ? Math.round(prem/(buyin*r.netFactor)) : r.acoes;
+    // Status segue o ID corrigido: sair de "NF" reabre/fecha conforme a premiação (mesma
+    // regra do flatRows), senão corrigir o ID não tirava a linha do estado "Não formou".
+    const status = (id != null && String(id).toUpperCase() === 'NF') ? 'nf'
+                 : (prem != null ? 'fechado' : 'aberto');
     return {
       ...r,
       _audited: true,
@@ -3496,9 +3559,11 @@ function enrichWithAudit(rows){
       garantido: gar,
       field,
       buyin,
+      id,
       overlay,
       perf,
       acoes,
+      status,
     };
   });
 }
@@ -5004,7 +5069,8 @@ function buildMonthProjection(){
   const rows    = flatRows(firstDay, today);
   const closed  = rows.filter(r=>r.premiacao!=null);
   const totalPrem = closed.reduce((s,r)=>s+(r.premiacao||0),0);
-  const totalGar  = rows.reduce((s,r)=>s+(r.garantido||0),0);
+  // flight de multiday (Dia 1) não soma garantido — é do Dia 2
+  const totalGar  = rows.reduce((s,r)=>isMdFlight(r)?s:s+(r.garantido||0),0);
   const totalOv   = closed.reduce((s,r)=>s+(r.overlay||0),0);
 
   if(!closed.length || !daysPast){

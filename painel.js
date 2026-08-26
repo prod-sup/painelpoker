@@ -4129,8 +4129,9 @@ function buildDaySummaryText(){
   lines.push(`📋 *Suprema Poker — Resumo do dia* (${dataTxt})`);
   lines.push('');
 
-  const garantidoTotal = RAW_ROWS.reduce((s,r) => s + (r.garantido || 0), 0);
-  const premiacaoTotal = RESULTS.reduce((s,r) => s + (r.premiacao || 0), 0);
+  // flight de multiday (Dia 1) não soma valor — garantido/arrecadado são do Dia 2
+  const garantidoTotal = RAW_ROWS.reduce((s,r) => isMultidayFlight(r) ? s : s + (r.garantido || 0), 0);
+  const premiacaoTotal = RESULTS.reduce((s,r) => isMultidayFlight(r) ? s : s + (r.premiacao || 0), 0);
   const relevant = RAW_ROWS.filter(r => mustFix(r, classify(r)));
   const fixedCount = relevant.filter(r => isFixed(r._key)).length;
   // flight de multiday é fixado como qualquer evento, mas NÃO fecha valor (o arrecadado é do
@@ -4921,14 +4922,18 @@ function computeStats(){
   const garantidoTotal = RAW_ROWS.reduce((s,r) => {
     const id = getId(r._key);
     if(id.toUpperCase() === 'NF' || r.explicitNF) return s;
+    // flight de multiday (Dia 1) não fecha valor: garantido e arrecadado são do Dia 2.
+    // O card já mostra "no Dia 2"; sem isto o valor do flight ainda inflava o total geral.
+    if(isMultidayFlight(r)) return s;
     return s + (getGarantidoEffective(r._key) || 0);
   }, 0);
-  const premiacaoTotal = RESULTS.reduce((s,r)=> s + (r.premiacao||0), 0);
+  const premiacaoTotal = RESULTS.reduce((s,r)=> isMultidayFlight(r) ? s : s + (r.premiacao||0), 0);
   // overlay total: usa a coluna "Overlay" da planilha quando preenchida manualmente; quando vazia mas
   // o torneio já tem Premiação e Garantido, calcula sozinho (Premiação − Garantido, só conta quando
   // negativo) — mesma regra já usada na performance de cada card, evitando sub-representar o overlay
   // real do dia só porque a coluna manual nem sempre é preenchida
   const overlayTotal = RAW_ROWS.reduce((s,r) => {
+    if (isMultidayFlight(r)) return s;   // flight não tem valor próprio — o overlay é do Dia 2
     if (r.overlay != null && r.overlay < 0) return s + r.overlay;
     if (r.overlay == null && r.garantido != null && r.garantido > 0 && r.premiacao != null){
       const calc = r.premiacao - r.garantido;
@@ -5053,9 +5058,11 @@ function loadYesterdayMetricsIfNeeded(){
     const data = snap.val();
     if (!data || !data.rows || !data.rows.length){ YESTERDAY_METRICS = null; return; }
     const rows = data.rows;
-    const garantidoTotal = rows.reduce((s,r)=> s + (r.garantido||0), 0);
-    const premiacaoTotal = rows.filter(r => r.premiacao != null).reduce((s,r)=> s + (r.premiacao||0), 0);
+    // mesma regra de hoje: flight de multiday (Dia 1) não soma valor — é do Dia 2
+    const garantidoTotal = rows.reduce((s,r)=> isMultidayFlight(r) ? s : s + (r.garantido||0), 0);
+    const premiacaoTotal = rows.filter(r => r.premiacao != null).reduce((s,r)=> isMultidayFlight(r) ? s : s + (r.premiacao||0), 0);
     const overlayTotal = rows.reduce((s,r) => {
+      if (isMultidayFlight(r)) return s;
       if (r.overlay != null && r.overlay < 0) return s + r.overlay;
       if (r.overlay == null && r.garantido != null && r.garantido > 0 && r.premiacao != null){
         const calc = r.premiacao - r.garantido;
@@ -6125,9 +6132,12 @@ function exportAcompanhamentoXlsx(rawRowsOverride, dateOverride, multiSheet){
       const dataRow = aoa.length;
       aoa.push(d.cells);
       countRows++;
-      if(d.gar) sumGar += d.gar;
-      if(d.prem) sumPrem += d.prem;
-      if(d.overlay!=null) sumOverlay += d.overlay;
+      // flight de multiday (Dia 1) aparece na planilha mas NÃO soma valor — é do Dia 2
+      if(!isMultidayFlight(r)){
+        if(d.gar) sumGar += d.gar;
+        if(d.prem) sumPrem += d.prem;
+        if(d.overlay!=null) sumOverlay += d.overlay;
+      }
 
       // estilo de status
       if(d.isNFrow){
@@ -6260,6 +6270,8 @@ async function saveReportToFirebase(silent=false){
         const d = buildRowData(r, dateLabel);
         aoa.push(d.cells);
         count++;
+        // flight de multiday (Dia 1) aparece na planilha mas NÃO soma valor — é do Dia 2
+        if(isMultidayFlight(r)) return;
         if(d.gar)  sumGar  += d.gar;
         if(d.prem) sumPrem += d.prem;
         if(d.overlay != null) sumOv += d.overlay;
@@ -7050,6 +7062,11 @@ document.getElementById('shiftReportDrawerOverlay').addEventListener('click', (e
    e zerado quando a seleção sai. Fica em variável porque a calculadora também
    roda SEM torneio escolhido (o operador digita tudo na mão). */
 let OVC_GU_RAKE = null;
+/* Último torneio escolhido no combo. Serve pra distinguir uma TROCA de torneio
+   feita pelo operador (aí as linhas de ação zeram, pra não herdar o Bounty/buy-in
+   do torneio anterior) do re-pull programático (mesmo torneio — não pode apagar
+   o que o operador está digitando). */
+let _ovcLastKey = '';
 /* Rake da calculadora. Duas fontes, nesta ordem — e mais nenhuma:
      1. override manual (o operador escolhe 5/8/10/12% no seletor)
      2. FEE + ADMIN FEE da GU do torneio selecionado
@@ -7214,6 +7231,7 @@ function ovcClear(){
   document.getElementById('ovcCampanha').checked = false;
   const ovr = document.getElementById('ovcRakeOverride'); if(ovr) ovr.value = '';
   OVC_GU_RAKE = null;   // limpou a calculadora: solta o rake do torneio que estava escolhido
+  _ovcLastKey = '';     // sem torneio escolhido: a próxima seleção conta como troca
   ovcSetBadge('none');
   const sel = document.getElementById('ovcTorneioSelect');
   if(sel) sel.value = '';
@@ -7628,72 +7646,12 @@ function loadSavedPremiacoes(){
     saveFieldMapLocal(FIELD_MAP);
   });
 }
-function ovcSaveToHistory(){
-  const sel = document.getElementById('ovcTorneioSelect');
-  const row = sel?.value ? rowByKey(sel.value) : null;
-  const nome = row?.nome || document.getElementById('ovcGarantidoOut').textContent !== 'R$ 0,00' ? (row?.nome || 'Torneio manual') : null;
-  if(!nome){ showToast('Selecione um torneio antes de salvar.', true); return; }
-  const garantido = ovcNum('ovcGarantido');
-  if(!garantido){ showToast('Preencha o garantido antes de salvar.', true); return; }
-  const pote = parseFloat(document.getElementById('ovcPote').textContent.replace(/[^\d,]/g,'').replace(',','.')) || 0;
-  const overlayEl = document.getElementById('ovcOverlayOut');
-  const overlayText = overlayEl.textContent;
-  const hasOverlay = overlayEl.closest('#ovcOverlayRow')?.classList.contains('has-overlay');
-  const entry = {
-    nome, garantido, pote: Math.round(pote * 100)/100,
-    overlay: overlayText,
-    hasOverlay: !!hasOverlay,
-    operador: OPERATOR_NAME || 'Operador',
-    at: Date.now(),
-    hora: row?.hora || '',
-  };
-  const id = 'ov_' + entry.at;
-  if(fbReady){
-    fbDb.ref(`${FB_BASE_PATH}/overlayHistory/${id}`).set(entry)
-      .then(() => { showToast('Overlay salvo no histórico.'); ovcRenderHistory(); })
-      .catch(() => showToast('Salvo só neste navegador.', true));
-  } else {
-    showToast('Sem conexão — não foi possível salvar.', true);
-    return;
-  }
-}
+// (Salvar no histórico removido — a pedido: o cálculo é sempre por torneio, ao vivo,
+//  e o "salvar" só criava um histórico paralelo que confundia. O pote já vai direto
+//  pra premiação do card via ovcAutoApplyToCard.)
 
-function ovcRenderHistory(){
-  const container = document.getElementById('ovcHistoryList');
-  if(!container) return;
-  if(!fbReady){ container.innerHTML = '<div style="font-size:12px;color:var(--ink-soft);text-align:center;padding:12px 0;">Sem conexão.</div>'; return; }
-  fbDb.ref(`${FB_BASE_PATH}/overlayHistory`).once('value').then(snap => {
-    const data = snap.val();
-    if(!data){ container.innerHTML = '<div style="font-size:13px;color:var(--ink-soft);text-align:center;padding:16px 0;">Nenhum cálculo salvo ainda.</div>'; return; }
-    const entries = Object.entries(data).map(([id,e]) => ({...e,id})).sort((a,b) => b.at - a.at);
-    container.innerHTML = entries.map(e => {
-      const t = new Date(e.at);
-      const hhmm = String(t.getHours()).padStart(2,'0') + ':' + String(t.getMinutes()).padStart(2,'0');
-      const overlayColor = e.hasOverlay ? 'var(--red)' : 'var(--felt)';
-      return `<div style="padding:10px 12px;border-radius:10px;background:var(--bg);border:1px solid var(--hairline);display:flex;align-items:flex-start;gap:10px;">
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:650;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(e.nome)}</div>
-          <div style="font-size:11.5px;color:var(--ink-soft);font-family:var(--mono);margin-top:2px;">
-            ${e.hora ? e.hora + ' · ' : ''}Garantido R$ ${fmtBRL(e.garantido,0)} · Pote R$ ${fmtBRL(e.pote,2)}
-          </div>
-          <div style="font-size:11px;color:var(--ink-soft);margin-top:2px;">${e.operador} · ${hhmm}</div>
-        </div>
-        <div style="font-size:13px;font-weight:700;color:${overlayColor};white-space:nowrap;text-align:right;">${escHtml(e.overlay)}</div>
-      </div>`;
-    }).join('');
-  });
-}
-
-document.getElementById('ovcSaveHistBtn')?.addEventListener('click', ovcSaveToHistory);
-document.getElementById('ovcClearHistBtn')?.addEventListener('click', () => {
-  if(!confirm('Limpar todo o histórico de overlay do dia?')) return;
-  if(fbReady) fbDb.ref(`${FB_BASE_PATH}/overlayHistory`).remove().then(() => { ovcRenderHistory(); showToast('Histórico limpo.'); });
-});
-
-// carrega histórico quando a gaveta abre
 document.getElementById('overlayCalcToggle').addEventListener('click', () => {
   openDrawer('overlayCalcDrawerOverlay');
-  ovcRenderHistory();
 });
 
 document.getElementById('overlayCalcDrawerClose').addEventListener('click', () => {
@@ -10670,6 +10628,12 @@ function ovcOnSelectChange(){
   const matchText = document.getElementById('ovcTourMatchText');
   const aiEl = document.getElementById('ovcAutoInfo');
 
+  // Trocou de torneio? (compara com o último escolhido — o re-pull programático
+  // da hidratação da GU chama esta função com o MESMO torneio e não deve zerar
+  // o que o operador está digitando.)
+  const trocouTorneio = sel.value !== _ovcLastKey;
+  _ovcLastKey = sel.value;
+
   // esconde banners e info
   matchEl.classList.remove('show');
   notFoundEl.classList.remove('show');
@@ -10680,6 +10644,15 @@ function ovcOnSelectChange(){
 
   const row = rowByKey(sel.value);
   if(!row){ notFoundEl.classList.add('show'); ovcSetBadge('none'); return; }
+
+  // Torneio novo → linhas de ação começam VAZIAS. Antes o Bounty/buy-in do torneio
+  // anterior ficava grudado e o pote calculado ia parar na premiação deste card
+  // sem o operador perceber. Só as linhas: o garantido e a categoria são
+  // preenchidos automaticamente logo abaixo.
+  if(trocouTorneio){
+    ['ovcBuyinAcoes','ovcBuyinValor','ovcRebuysAcoes','ovcRebuysValor','ovcAddonAcoes','ovcAddonValor']
+      .forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+  }
 
   // torneio escolhido já libera o "Ir para o card" — não espera o pote sair
   ovcSetBadge('linked', row.nome);
