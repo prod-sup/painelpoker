@@ -3384,7 +3384,11 @@ async function removeAddedTorneio(key, date){
   if(!linha.manual){ toast('Só dá pra excluir torneio adicionado à mão','err'); return; }
   const nome = linha.nome || 'este torneio';
   const [y,m,d] = String(date).split('-');
-  if(!confirm(`Excluir "${nome}" de ${d}/${m}/${y}?\n\nApaga também o arrecadado, o field, o garantido e o ID lançados nele. Não dá pra desfazer.`)) return;
+  // Modal do app em vez do confirm() nativo: o navegador pode ter marcado "impedir
+  // esta página de criar mais diálogos" (aparece após vários confirm/alert), e aí o
+  // confirm() nativo retorna false na hora → o delete abortava SEM reação nenhuma.
+  if(!await confirmModal({title:'Excluir torneio', danger:true, confirmLabel:'Excluir',
+    message:`Excluir <b>${esc(nome)}</b> de ${d}/${m}/${y}?<br><span style="font-size:11px;color:var(--ink3)">Apaga também o arrecadado, o field, o garantido e o ID lançados nele. Não dá pra desfazer.</span>`})) return;
 
   try{
     await wipeManualRow(date, key, nome, linha.hora||null);
@@ -3402,7 +3406,9 @@ async function wipeManualRow(date, key, nome, hora){
   const base = `painel/${date}`;
   // manualRows por último: enquanto ele existir, a linha ainda aparece — se algum
   // remove falhar no meio, o admin vê o torneio lá e pode repetir a exclusão
-  await Promise.all(['ids','garantido','field','premiacao','premBy','fixed']
+  // inclui 'buyin' (overlay de buy-in corrigido na auditoria) — senão sobrava órfão que
+  // ressuscitava se o mesmo torneio fosse recriado com a mesma chave (nome|hora|buyin|gtd)
+  await Promise.all(['ids','garantido','field','premiacao','premBy','fixed','buyin']
     .map(no => db.ref(`${base}/${no}/${key}`).remove().catch(()=>{})));
   await db.ref(`${base}/manualRows/${key}`).remove();
 
@@ -3460,7 +3466,10 @@ async function removeManualFromList(key, date, nomeAttr, hora){
   if(!key || !date){ toast('Torneio sem referência — reabra o modal','err'); return; }
   const nome = nomeAttr || 'este torneio';
   const [y,m,d] = String(date).split('-');
-  if(!confirm(`Excluir "${nome}"${hora ? ' ('+hora+')' : ''} de ${d}/${m}/${y}?\n\nApaga também o arrecadado, o field, o garantido e o ID lançados nele. Não dá pra desfazer.`)) return;
+  // Ver removeAddedTorneio: modal do app no lugar do confirm() nativo (que o navegador
+  // pode suprimir, fazendo o delete não reagir a nada).
+  if(!await confirmModal({title:'Excluir torneio', danger:true, confirmLabel:'Excluir',
+    message:`Excluir <b>${esc(nome)}</b>${hora ? ' ('+esc(hora)+')' : ''} de ${d}/${m}/${y}?<br><span style="font-size:11px;color:var(--ink3)">Apaga também o arrecadado, o field, o garantido e o ID lançados nele. Não dá pra desfazer.</span>`})) return;
   try{
     await wipeManualRow(date, key, nome, hora || null);
     toast('✓ Torneio excluído','ok');

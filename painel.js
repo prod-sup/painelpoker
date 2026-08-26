@@ -7162,30 +7162,27 @@ function ovcCalculate(){
   ovcAutoApplyToCard(pote);
 }
 
-/* Quando um torneio da agenda está selecionado no seletor da calculadora, o Pote arrecadado
-   é aplicado automaticamente na premiação daquele card — evita ter que copiar o valor à mão.
-   Debounced pra não gravar no Firebase a cada tecla digitada. */
-/* Badge do vínculo com o card. TRÊS estados, e o botão "Ir para o card" mora
-   dentro dele — por isso o estado 'linked' existe:
+/* A calculadora de overlay é só CÁLCULO: mostra pote/overlay, mas NÃO grava nada no
+   card. O arrecadado do card é sempre preenchido à mão pelo operador. */
+/* Badge do vínculo com o card. O botão "Ir para o card" mora dentro dele:
      'none'    — nenhum torneio escolhido: badge some.
-     'linked'  — torneio escolhido, nada aplicado ainda. Neutro, sem check.
-                 É ELE que dá o "Ir para o card" ENQUANTO se preenche; antes o
-                 botão só existia depois do pote aplicado, e quem estava
-                 digitando não tinha como saltar pro card.
-     'applied' — o pote foi gravado na premiação do card: verde, com pulso. */
+     'linked'  — torneio escolhido: mostra o botão "Ir para o card" pra o operador
+                 saltar e lançar o arrecadado à mão.
+   (havia um estado 'applied' de quando o pote era gravado automaticamente — removido) */
 function ovcSetBadge(estado, nome){
   const badge = document.getElementById('ovcSyncBadge');
   if(!badge) return;
   const txt = badge.querySelector('span');
   if(estado === 'none'){ badge.classList.remove('show','linked','pulse'); return; }
   if(estado === 'linked'){
-    if(txt) txt.textContent = nome ? `Preenchendo "${nome}" — o pote vai pra premiação do card`
-                                   : 'O pote vai pra premiação do card';
+    if(txt) txt.textContent = nome ? `Vinculado a "${nome}" — lance o arrecadado no card`
+                                   : 'Escolha um torneio pra vincular ao card';
     badge.classList.add('show','linked');
     badge.classList.remove('pulse');
     return;
   }
-  if(txt) txt.textContent = `Pote aplicado à premiação de "${nome}"`;
+  // (estado 'applied' não é mais usado — a calculadora não grava no card sozinha)
+  if(txt) txt.textContent = `Vinculado a "${nome}"`;
   badge.classList.remove('linked');
   badge.classList.add('show','pulse');
   setTimeout(() => badge.classList.remove('pulse'), 600);
@@ -7195,22 +7192,11 @@ function ovcAutoApplyToCard(pote){
   const key = document.getElementById('ovcTorneioSelect')?.value;
   clearTimeout(window._ovcApplyTimer);
   const tRow = key ? rowByKey(key) : null;
-  // sem pote ainda (ou sem rake): o badge FICA, em estado neutro, pra o botão
-  // "Ir para o card" continuar à mão enquanto se preenche
-  if(!key || !(pote > 0) || !tRow){
-    ovcSetBadge(key && tRow ? 'linked' : 'none', tRow ? tRow.nome : '');
-    return;
-  }
-  // A gravação é debounced em 500ms, mas o badge NÃO pode esperar: é ele que
-  // carrega o botão "Ir para o card". Se estiver escondido, acende já em neutro
-  // — e se já estiver de pé (inclusive em 'applied'), não mexe, pra não piscar
-  // applied→linked→applied a cada tecla digitada.
-  const badge = document.getElementById('ovcSyncBadge');
-  if(badge && !badge.classList.contains('show')) ovcSetBadge('linked', tRow.nome);
-  window._ovcApplyTimer = setTimeout(() => {
-    applyPremiacaoValue(key, pote, `<b>${OPERATOR_NAME||'Você'}</b> preencheu premiação de <b>${tRow.nome||key}</b> via Calculadora de Overlay: R$ ${fmtBRL(pote,0)}`);
-    ovcSetBadge('applied', tRow.nome);
-  }, 500);
+  // A calculadora NÃO preenche o card sozinha (pedido do Brian: nenhum valor entra
+  // no arrecadado automaticamente). O pote fica só aqui na calculadora; o operador
+  // lança o arrecadado à mão no card. O badge só mantém o vínculo visual e o botão
+  // "Ir para o card" enquanto há um torneio escolhido.
+  ovcSetBadge(key && tRow ? 'linked' : 'none', tRow ? tRow.nome : '');
 }
 
 document.querySelectorAll('#overlayCalcDrawer input, #overlayCalcDrawer select').forEach(el => {

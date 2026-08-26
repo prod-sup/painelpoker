@@ -168,13 +168,16 @@ console.log('\nbadge do vinculo com o card (estados reais):');
   ctx2.ovcAutoApplyToCard(0);
   ok('sem torneio: badge escondido', !badge._cls.has('show'));
 
-  // 3) torneio + pote > 0 -> aplica e vira verde
+  // 3) torneio + pote > 0 -> a calculadora NAO grava no card (Brian: nenhum valor
+  //    entra no arrecadado sozinho). Badge segue visivel e NEUTRO ('linked'); nao ha
+  //    mais estado 'applied' nem escrita na premiacao.
   select.value = 'k1';
+  aplicados.length = 0;
   ctx2.ovcAutoApplyToCard(1000);
   ok('com pote: badge continua visivel', badge._cls.has('show'));
-  ctx2.ovcSetBadge('applied', 'SPS 43-M 50K WarmUp');
-  ok('aplicado: sai do neutro', !badge._cls.has('linked'));
-  ok('aplicado: o texto confirma', /aplicado/i.test(badge._span.textContent), badge._span.textContent);
+  ok('com pote: continua neutro (nao ha mais "aplicado")', badge._cls.has('linked'));
+  ok('com pote: NAO grava premiacao no card', aplicados.length === 0);
+  ok('com pote: texto nao afirma que aplicou', !/aplicado/i.test(badge._span.textContent), badge._span.textContent);
 
   // 4) torneio que nao existe na agenda nao pode deixar badge fantasma
   select.value = 'inexistente';
