@@ -69,13 +69,16 @@ console.log('\nadmin · nome da etapa na grade:');
 console.log('\nadmin · flight de Dia 1 entra sem valor:');
 {
   const src = fatia(ADMIN, 'saveAddTorneio');
+  // a gravação (row + nós) foi extraída pra _gravarTorneioManual, que saveAddTorneio
+  // chama uma vez por dia no modo "vários dias". As regras de valor seguem lá.
+  const grava = fatia(ADMIN, '_gravarTorneioManual');
   ok(/const\s+isFlight\s*=\s*etapa\s*===\s*'d1'/.test(src), 'saveAddTorneio marca o flight');
   ok(/const\s+gar\s*=\s*isFlight\s*\?\s*null\s*:/.test(src),  'garantido é forçado a null no flight');
   ok(/const\s+prem\s*=\s*isFlight\s*\?\s*null\s*:/.test(src), 'arrecadado é forçado a null no flight');
   // os nós só são gravados quando != null — com gar/prem nulos, nada vai pro Firebase
-  ok(/if\(gar\s*!=\s*null\)/.test(src),  'garantido só é gravado quando existe');
-  ok(/if\(prem\s*!=\s*null\)/.test(src), 'arrecadado só é gravado quando existe');
-  ok(/mdEtapa:/.test(src) && /mdFlight:/.test(src) && /mdGrupo:/.test(src), 'a row leva os 3 marcadores do multiday');
+  ok(/if\(ctx\.gar\s*!=\s*null\)/.test(grava),  'garantido só é gravado quando existe');
+  ok(/if\(ctx\.prem\s*!=\s*null\)/.test(grava), 'arrecadado só é gravado quando existe');
+  ok(/mdEtapa:/.test(grava) && /mdFlight:/.test(grava) && /mdGrupo:/.test(grava), 'a row leva os 3 marcadores do multiday');
   ok(/etapa\s*===\s*'d1'\s*&&\s*!flight/.test(src), 'exige a letra do flight no Dia 1');
 }
 

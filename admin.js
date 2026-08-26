@@ -970,10 +970,20 @@ function flatRows(fromDate, toDate){
   };
   const score = r => (getAuditEntry(r.date, r.key)?4:0) + (r.premiacao!=null?2:0) + (r.id?1:0);
   const byOcc = new Map();
+  const manualOf = new Map();   // ocorrência → {key,date} do lançamento FEITO À MÃO do grupo
   for (const r of out){
     const k = `${civilOf(r.date, r.hora)}|${nhKey(r.nome, r.hora)}`;
+    if (r.manual && !manualOf.has(k)) manualOf.set(k, { key:r.key, date:r.date });
     const prev = byOcc.get(k);
     if (!prev || score(r) > score(prev)) byOcc.set(k, r);
+  }
+  // Carrega a identidade do lançamento manual no sobrevivente da dedup. Sem isto, um
+  // torneio adicionado à mão que COLIDE com a Global (a linha da planilha vence por ter
+  // premiação/ID) perdia o flag `manual` → o 🗑 sumia e o registro ficava impossível de
+  // apagar pela tabela. Agora o botão sempre aparece e mira a chave certa do manualRows.
+  for (const r of byOcc.values()){
+    const m = manualOf.get(`${civilOf(r.date, r.hora)}|${nhKey(r.nome, r.hora)}`);
+    if (m){ r.manual = true; r.manualKey = m.key; r.manualDate = m.date; }
   }
   const result=[...byOcc.values()];
   // expõe a auditoria do gate sem quebrar quem só itera o array
@@ -1518,8 +1528,8 @@ async function loadAudit(){
               data-nome="${esc(r.nome)}" data-date="${r.date}" data-fixby="${esc(r.premBy||r.fixBy||r.idBy||'')}" data-key="${r.key}"
               data-act="openNotifByEl" data-act-self>⚠ Notif</button>
             ${r.manual ? `<button class="btn-del-manual" title="Excluir este torneio adicionado à mão"
-              data-key="${r.key}" data-date="${r.date}"
-              data-act="removeAddedTorneioByEl" data-act-self aria-label="Excluir ${esc(r.nome)}">🗑</button>` : ''}
+              data-key="${esc(r.manualKey||r.key)}" data-date="${esc(r.manualDate||r.date)}"
+              data-act="removeAddedTorneioByEl" data-act-self aria-label="Excluir ${esc(r.nome)}">🗑 Excluir</button>` : ''}
           </td>
         </tr>`;
       }).join('');
@@ -3246,6 +3256,53 @@ function syncAddEtapa(){
   }
 }
 
+/* dado 'YYYY-MM-DD', devolve os 7 dias (segunda→domingo) da semana que o contém.
+   Data local (new Date(y,m-1,d)) pra não escorregar um dia por fuso. */
+function _addWeekDates(ymd){
+  const [y,m,d] = String(ymd||'').split('-').map(Number);
+  if(!y||!m||!d) return [];
+  const base = new Date(y, m-1, d);
+  const offMon = (base.getDay() + 6) % 7;         // dom=0 → 6; seg=1 → 0
+  const seg = new Date(y, m-1, d - offMon);
+  const nomes = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+  const out = [];
+  for(let i=0;i<7;i++){
+    const dt = new Date(seg.getFullYear(), seg.getMonth(), seg.getDate()+i);
+    const iso = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+    out.push({ iso, label: nomes[i], dm: `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}` });
+  }
+  return out;
+}
+
+/* desenha as caixinhas dos dias da semana da data escolhida. Preserva o que já estava
+   marcado (dentro da semana visível) e mantém a data da grade sempre marcada. */
+function renderAddDays(){
+  const host = document.getElementById('addDaysList');
+  if(!host) return;
+  const cur = document.getElementById('addDate')?.value;
+  if(!cur){ host.innerHTML=''; return; }
+  const marcados = new Set([...host.querySelectorAll('input.add-day-chk:checked')].map(c=>c.dataset.date));
+  marcados.add(cur);
+  host.innerHTML = _addWeekDates(cur).map(dd => `
+    <label class="add-day">
+      <input type="checkbox" class="add-day-chk" data-date="${dd.iso}" ${marcados.has(dd.iso)?'checked':''}>
+      <span class="add-day-wd">${dd.label}</span>
+      <span class="add-day-dm">${dd.dm}</span>
+    </label>`).join('');
+}
+
+/* datas em que criar o torneio: as caixinhas marcadas (cronológicas); cai na data da
+   grade se nenhuma existir/estiver marcada — assim o comportamento de 1 dia não muda. */
+function _addSelectedDates(){
+  const host = document.getElementById('addDaysList');
+  if(host){
+    const checked = [...host.querySelectorAll('input.add-day-chk:checked')].map(c=>c.dataset.date).filter(Boolean);
+    if(checked.length) return [...new Set(checked)].sort();
+  }
+  const cur = document.getElementById('addDate')?.value;
+  return cur ? [cur] : [];
+}
+
 function openAddTorneio(){
   const err = document.getElementById('addErr');
   if(err){ err.style.display='none'; err.textContent=''; }
@@ -3261,6 +3318,54 @@ function openAddTorneio(){
   setTimeout(() => document.getElementById('addNome')?.focus(), 80);
 }
 
+/* Grava UM torneio manual numa data: nós do painel (manualRows + overlays), reflexo em
+   memória e log. Extraído de saveAddTorneio pra o modo "vários dias" repetir a MESMA
+   gravação em cada data sem duplicar a lógica. `ctx.nome`/`ctx.flight` já vêm com a
+   etapa/letra resolvidas pela chamadora (num multiday o flight muda por dia). */
+async function _gravarTorneioManual(date, ctx){
+  // MESMA forma da linha manual do PAINEL (buildManualRow) — é isto que faz o painel fundir
+  // o torneio na grade AO VIVO. `_manual:true` faz o ingest tratá-lo como manual (separa da
+  // planilha, sobrevive a re-upload da Global). Multiday: os 3 campos md* tiram o flight dos
+  // valores (card sem arrecadado, fora de overlay/performance) — ver bloco MULTIDAY no painel.
+  const row = {
+    nome: ctx.nome, hora: ctx.hora, late:null,
+    garantido: ctx.gar!=null?ctx.gar:null,
+    buyin: ctx.buyin!=null?ctx.buyin:null,
+    premiacao:null, premFromSheet:false, explicitNF:false, overlay:null,
+    field: ctx.field!=null?ctx.field:null, acoes:null, perf:null, check:null,
+    tipo:ctx.cat, highlighted:false,
+    mdEtapa: (ctx.etapa === 'd1' || ctx.etapa === 'd2') ? ctx.etapa : null,
+    mdFlight: ctx.isFlight ? ctx.flight : null,
+    mdGrupo: ctx.etapa ? multidayGrupoKey(ctx.nomeBase) : null,
+    _manual:true, manual:true,
+    obs: ctx.obs||null,
+    _by:(_email||'admin'), by:(_email||'admin'), _at:Date.now(), at:Date.now(),
+  };
+  const key   = rowKey(row);            // hash de nome|hora|buyin|garantido (mesmo do painel)
+  const stamp = { by:(_email||'Admin')+' (add)', at:Date.now() };
+  const base  = `painel/${date}`;
+  await db.ref(`${base}/manualRows/${key}`).set(row);
+  if(ctx.idVal)         await db.ref(`${base}/ids/${key}`).set({ val:ctx.idVal, by:stamp.by, at:stamp.at });
+  if(ctx.gar   != null) await db.ref(`${base}/garantido/${key}`).set(ctx.gar);
+  if(ctx.field != null) await db.ref(`${base}/field/${key}`).set(ctx.field);
+  if(ctx.prem  != null){
+    await db.ref(`${base}/premiacao/${key}`).set(ctx.prem);
+    // carimbo premBy obrigatório, senão o gate de premiação-fantasma esconde o valor (ver saveAudit)
+    await db.ref(`${base}/premBy/${key}`).set(stamp);
+  }
+  // reflete em memória já (sem esperar o refresh ao vivo)
+  if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},buy:{},premBy:{}};
+  _allData[date].rows[key]={...row,_key:key,manual:true};
+  if(ctx.idVal)         _allData[date].ids[key]={val:ctx.idVal,by:stamp.by};
+  if(ctx.gar   != null) _allData[date].guar[key]=ctx.gar;
+  if(ctx.field != null) _allData[date].field[key]=ctx.field;
+  if(ctx.prem  != null){ _allData[date].prem[key]=ctx.prem; _allData[date].premBy[key]={by:stamp.by,at:stamp.at}; }
+  writeAdminLog('adicionar', { torneio:ctx.nome, date, hora:ctx.hora, cat:ctx.cat, buyin:ctx.buyin,
+    garantido:ctx.gar, premiacao:ctx.prem, field:ctx.field, id:ctx.idVal, obs:ctx.obs,
+    etapa: ctx.etapa || null, flight: ctx.flight || null });
+  return key;
+}
+
 async function saveAddTorneio(){
   if(!fbOk){ toast('Firebase não conectado','err'); return; }
   const err = document.getElementById('addErr');
@@ -3268,7 +3373,6 @@ async function saveAddTorneio(){
   const fail = m => { err.textContent=m; err.style.display='block'; };
   err.style.display='none';
 
-  const date     = document.getElementById('addDate').value;
   const nomeBase = document.getElementById('addNome').value.trim();
   const hora     = document.getElementById('addHora').value.trim();
   const cat      = document.getElementById('addCat').value || 'side';
@@ -3283,14 +3387,15 @@ async function saveAddTorneio(){
   const idVal    = document.getElementById('addId').value.trim();
   const obs      = document.getElementById('addObs').value.trim();
 
-  if(!date)      return fail('Escolha a data da grade.');
+  // datas: as caixinhas marcadas (uma ou várias, cronológicas); cai na data da grade
+  // se nenhuma estiver marcada — o comportamento de 1 dia continua idêntico.
+  const datas = _addSelectedDates();
+  if(!datas.length)  return fail('Escolha ao menos um dia.');
   if(!nomeBase)  return fail('Preencha o nome do torneio.');
   if(!/^\d{1,2}:\d{2}$/.test(hora)) return fail('Hora inválida — use HH:MM (ex: 20:00).');
   // sem a letra, dois flights do mesmo multiday no mesmo horário ficariam indistinguíveis
-  if(etapa === 'd1' && !flight) return fail('Diga qual é o flight (A, B, C…).');
+  if(etapa === 'd1' && !flight) return fail('Diga o flight inicial (A, B, C…) — em vários dias ele numera sozinho.');
 
-  // o nome que vai pra grade carrega a etapa: "SPS Mystery Multiday · Dia 1B"
-  const nome  = nomeBase + multidaySuffix(etapa, flight);
   const isFlight = etapa === 'd1';
   const buyin = buyinRaw ? parseBRL(buyinRaw)     : null;
   // flight de Dia 1 NUNCA carrega valor — o garantido/arrecadado do multiday é do Dia 2
@@ -3301,67 +3406,34 @@ async function saveAddTorneio(){
   if(!isFlight && garRaw  && isNaN(gar))   return fail('Garantido inválido.');
   if(!isFlight && premRaw && isNaN(prem))  return fail('Arrecadado inválido.');
 
-  // MESMA forma da linha manual do PAINEL (buildManualRow) — é isto que faz o painel fundir
-  // este torneio na grade AO VIVO exatamente como a ferramenta "Adicionar torneio" dele:
-  // `_manual:true` faz o ingest do painel tratá-lo como manual (separa da planilha, não
-  // duplica, sobrevive a re-upload da Global). Quando a data for a de hoje, o operador vê o
-  // card na hora; para datas passadas, entra só na auditoria (o painel só funde o dia atual).
-  // `tipo` = categoria escolhida; classify() já mapeia 'main'/'side'/'sat' de volta pra cat.
-  const row = {
-    nome, hora, late:null,
-    garantido: gar!=null?gar:null,
-    buyin: buyin!=null?buyin:null,
-    premiacao:null, premFromSheet:false, explicitNF:false, overlay:null,
-    field: field!=null?field:null, acoes:null, perf:null, check:null,
-    tipo:cat, highlighted:false,
-    // multiday: o painel lê estes 3 campos pra tirar o flight dos valores (ver bloco
-    // MULTIDAY no painel.js) — card sem arrecadado, fora de overlay/performance/fechamento
-    mdEtapa: (etapa === 'd1' || etapa === 'd2') ? etapa : null,
-    mdFlight: isFlight ? flight : null,
-    mdGrupo: etapa ? multidayGrupoKey(nomeBase) : null,
-    _manual:true,                       // ← painel: trata como torneio manual (grade ao vivo)
-    manual:true,                        // compat: o merge da auditoria (mergeDayInto) usa este flag
-    obs: obs||null,
-    _by:(_email||'admin'), by:(_email||'admin'), _at:Date.now(), at:Date.now(),
-  };
-  const key = rowKey(row);              // hash de nome|hora|buyin|garantido (mesmo do painel)
-  const stamp = { by:(_email||'Admin')+' (add)', at:Date.now() };
+  // Multiday Dia 1 em vários dias: cada dia é um flight → numera A, B, C… em ordem
+  // cronológica a partir da letra digitada (1 dia = a própria letra, igual a antes).
+  const startCode = /^[A-Z]$/.test(flight) ? flight.charCodeAt(0) : 65;
 
   if(lbl) lbl.textContent='Adicionando...';
+  let criados = 0;
   try{
-    const base = `painel/${date}`;
-    await db.ref(`${base}/manualRows/${key}`).set(row);
-    if(idVal)      await db.ref(`${base}/ids/${key}`).set({ val:idVal, by:stamp.by, at:stamp.at });
-    if(gar != null)   await db.ref(`${base}/garantido/${key}`).set(gar);
-    if(field != null) await db.ref(`${base}/field/${key}`).set(field);
-    if(prem != null){
-      await db.ref(`${base}/premiacao/${key}`).set(prem);
-      // carimbo premBy obrigatório, senão o gate de premiação-fantasma esconde o valor (ver saveAudit)
-      await db.ref(`${base}/premBy/${key}`).set(stamp);
-    }
-
-    // Reflete em memória já (sem esperar o refresh ao vivo)
-    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},buy:{},premBy:{}};
-    _allData[date].rows[key]={...row,_key:key,manual:true};
-    if(idVal)      _allData[date].ids[key]={val:idVal,by:stamp.by};
-    if(gar != null)   _allData[date].guar[key]=gar;
-    if(field != null) _allData[date].field[key]=field;
-    if(prem != null){ _allData[date].prem[key]=prem; _allData[date].premBy[key]={by:stamp.by,at:stamp.at}; }
-
-    closeMo('moAddTorneio');
-    toast(date === nowSP()
-      ? '✓ Torneio adicionado — já está na grade ao vivo de hoje'
-      : '✓ Torneio adicionado à auditoria','ok');
-    writeAdminLog('adicionar', { torneio:nome, date, hora, cat, buyin, garantido:gar, premiacao:prem, field, id:idVal, obs,
-      etapa: etapa || null, flight: flight || null });
-
-    // Garante que o período visível cobre a data lançada, senão a linha não apareceria
     const fromEl=document.getElementById('auFrom'), toEl=document.getElementById('auTo');
-    if(fromEl && date < fromEl.value) fromEl.value=date;
-    if(toEl   && date > toEl.value)   toEl.value=date;
+    for(let i=0;i<datas.length;i++){
+      const date = datas[i];
+      const flightLetter = isFlight ? String.fromCharCode(startCode + i) : flight;
+      // o nome que vai pra grade carrega a etapa: "SPS Mystery Multiday · Dia 1B"
+      const nome = nomeBase + multidaySuffix(etapa, flightLetter);
+      await _gravarTorneioManual(date, { nome, nomeBase, hora, cat, etapa, isFlight,
+        flight:flightLetter, buyin, gar, prem, field, idVal, obs });
+      criados++;
+      // garante que o período visível cobre cada data lançada
+      if(fromEl && date < fromEl.value) fromEl.value=date;
+      if(toEl   && date > toEl.value)   toEl.value=date;
+    }
+    closeMo('moAddTorneio');
+    toast(criados === 1
+      ? (datas[0] === nowSP() ? '✓ Torneio adicionado — já está na grade ao vivo de hoje'
+                              : '✓ Torneio adicionado à auditoria')
+      : `✓ ${criados} torneios adicionados${isFlight?` (flights A–${String.fromCharCode(startCode+criados-1)})`:''}`, 'ok');
     loadAudit();
   }catch(e){
-    fail('Erro: '+e.message);
+    fail('Erro: '+e.message + (criados?` — ${criados} já criado(s) antes da falha`:''));
   }finally{
     if(lbl) lbl.textContent='Adicionar à auditoria';
   }
@@ -3428,6 +3500,7 @@ async function wipeManualRow(date, key, nome, hora){
    somar arrecadado/field na auditoria. Esta lista lê o nó CRU
    (painel/<data>/manualRows), então o que foi criado à mão sempre dá pra tirar. */
 async function loadManualList(){
+  renderAddDays();   // trocar a data (ou abrir o modal) redesenha as caixinhas dos dias da semana
   const wrap = document.getElementById('addExistingWrap');
   const list = document.getElementById('addExistingList');
   const cnt  = document.getElementById('addExistingCount');
