@@ -208,15 +208,70 @@ function loadConfig() {
    nem carregava — por isso as duas telas, lendo os MESMOS dados, mostravam receitas
    diferentes, mesmo o cabeçalho daqui prometendo "bate 100% com o dashboard do admin".
    Falha de rede aqui não quebra nada: segue sem o mapa, como era antes. */
+function aplicaGuFees(list, origem) {
+  var m = {};
+  list.forEach(function (x) { if (x && x.n) m[String(x.n)] = { f: x.f, a: x.a }; });
+  GU_FEES = m;   // `n` já vem normalizado (guNormNome) de quem publicou
+  console.info('[SPS] fee da GU carregado: ' + list.length + ' torneios (' + origem + ')');
+  return list.length;
+}
+
+/* PLANO B — monta o mapa da PRÓPRIA planilha publicada da GU, igual ao
+   ensureGuFeeMap() do admin. Necessário porque `painel/guFees` só existe depois
+   que alguém sobe a Global no painel, e pode estar incompleto pro histórico.
+   gu-parser.js e suprema-xlsx.js já são carregados por esta página. */
+var _guDaPlanilhaTentado = false;
+function montarGuFeesDaPlanilha() {
+  if (_guDaPlanilhaTentado) return Promise.resolve(0);
+  _guDaPlanilhaTentado = true;
+  if (typeof fetchGuSheetBuffer !== 'function' || typeof guFeeIndexFromWorkbook !== 'function' ||
+      typeof readWorkbook !== 'function' || typeof guFeeIndexToList !== 'function') {
+    console.warn('[SPS] gu-parser nao disponivel nesta pagina — nao da pra montar o fee da planilha');
+    return Promise.resolve(0);
+  }
+  return fetchGuSheetBuffer().then(function (buf) {
+    var list = guFeeIndexToList(guFeeIndexFromWorkbook(readWorkbook(buf))) || [];
+    if (!list.length) return 0;
+    // funde com o que já veio de painel/guFees em vez de substituir: os dois podem
+    // cobrir nomes diferentes (a GU renomeia eventos ao longo da série)
+    if (GU_FEES) list.forEach(function (x) { if (x && x.n && GU_FEES[String(x.n)] == null) GU_FEES[String(x.n)] = { f: x.f, a: x.a }; });
+    else aplicaGuFees(list, 'planilha da GU');
+    console.info('[SPS] fee da GU completado pela planilha: ' + list.length + ' torneios');
+    return list.length;
+  }).catch(function (e) {
+    console.warn('[SPS] nao consegui montar o fee da GU pela planilha', e && (e.message || e));
+    return 0;
+  });
+}
+
+/* MAPA DE FEE DA GU — SEM ELE A RECEITA DO BOARD SAI MUITO MENOR QUE A REAL.
+   O rake sai SÓ da GU: das colunas fee/adminFee na própria linha ou deste mapa,
+   consultado pelo nome. Linha histórica sem as colunas fica com rakeFrac null e o
+   campanha-core a joga FORA de arrecadadoBruto/rake/receitaCasa/entradas/ticket.
+   Sintoma medido em 28/08/2026: garantido R$ 51,9 mi e cobertura 106% (premiação
+   ~R$ 55 mi), mas o board mostrava R$ 9,4 mi de arrecadado — ~83% das linhas
+   fechadas caindo fora em silêncio. */
 function loadGuFees() {
   return SupremaDB.getValue('painel/guFees').then(function (v) {
     var list = (v && v.list) || [];
-    if (!list.length) return;
-    var m = {};
-    list.forEach(function (x) { if (x && x.n) m[String(x.n)] = { f: x.f, a: x.a }; });
-    GU_FEES = m;   // `n` já vem normalizado (guNormNome) de quem publicou
-    console.info('[SUPREMA TV · SPS] mapa de fee da GU: ' + list.length + ' torneios');
-  }).catch(function (e) { console.warn('[SUPREMA TV · SPS] sem mapa de fee da GU', e && (e.message || e)); });
+    if (list.length) { aplicaGuFees(list, 'painel/guFees'); return; }
+    console.warn('[SPS] painel/guFees vazio — montando da planilha da GU');
+    return montarGuFeesDaPlanilha();
+  }).catch(function (e) {
+    console.warn('[SPS] painel/guFees ilegivel (' + (e && e.message) + ') — montando da planilha da GU');
+    return montarGuFeesDaPlanilha();
+  });
+}
+
+/* AUTOCURA: se, depois de calcular, ainda houver linha fechada SEM rake, o mapa
+   publicado não cobria esses nomes. Busca a planilha da GU e recalcula UMA vez.
+   É isto que impede o board de exibir um total 6x menor sem ninguém perceber. */
+var _guAutocuraFeita = false;
+function curarFeeSeFaltar(t) {
+  if (_guAutocuraFeita || !t || !t.semFee) return;
+  _guAutocuraFeita = true;
+  console.warn('[SPS] ' + t.semFee + ' torneio(s) fechados sem rake da GU — buscando a planilha para completar');
+  montarGuFeesDaPlanilha().then(function (n) { if (n) recompute(); });
 }
 function loadHistory() {
   var from = CAMP.inicio, rr = SupremaDB.rawRef;
@@ -310,6 +365,7 @@ function recompute() {
     var res = CampanhaCore.computeCampaign(days, CAMP.inicio, today, { filter: CampanhaCore.isSPS, auditData: AUDIT, guFees: GU_FEES });
     ROWS = res.rows;
     diagnostico(res.totals, days, today);
+    curarFeeSeFaltar(res.totals);
     onData(res.totals);
   } catch (e) {
     // RESILIÊNCIA: um update ruim (dado corrompido num blip do Firebase) NÃO pode apagar o
