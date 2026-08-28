@@ -23,6 +23,7 @@ var CAMP = Object.assign({}, CAMP_DEFAULT);
 var SNAP_BY = {};     // date -> snapshots/<date>
 var PAINEL_BY = {};   // date -> painel/<date>
 var AUDIT = {};       // admin-only; board (usuário 'tv') não lê auditoria
+var GU_FEES = null;   // painel/guFees: fee da GU por nome (ver loadGuFees)
 var ROWS = [];        // linhas SPS da última agregação
 var GRADE = [];       // grade da GU (Global MTTS) — TODOS os SPS da semana (fonte da TV)
 var AVISOS = [];      // avisos da casa (hub/avisos), igual à TV
@@ -164,6 +165,7 @@ function initData() {
   SupremaDB.requireUser(function () {
     console.info('[SUPREMA TV] auth ok — carregando');
     loadConfig()
+      .then(loadGuFees)
       .then(loadHistory)
       .then(function () { _retryMs = 0; recompute(); wireLive(); })
       .catch(function (e) { console.error('[SUPREMA TV] falha ao carregar', e && (e.message || e)); retryLoad(); });
@@ -195,6 +197,26 @@ function loadConfig() {
     if (c && typeof c === 'object') CAMP = Object.assign({}, CAMP_DEFAULT, c);
     applyIdentity();
   }).catch(function () {});
+}
+
+/* MAPA DE FEE DA GU (painel/guFees) — SEM ELE A RECEITA DO BOARD FICA MENOR QUE A REAL.
+   O rake sai SÓ da GU: ou das colunas fee/adminFee na própria linha, ou deste mapa,
+   consultado pelo nome. Linha histórica que não traz as colunas (gravada antes de o
+   painel passar a carregá-las) fica sem rake — e o campanha-core deixa a linha FORA
+   de arrecadadoBruto/rake/receitaCasa/entradas/ticket, contando em `semFee`.
+   O admin já passava o mapa (admin.js: `guFees: GU_FEE_MAP`); este board não passava e
+   nem carregava — por isso as duas telas, lendo os MESMOS dados, mostravam receitas
+   diferentes, mesmo o cabeçalho daqui prometendo "bate 100% com o dashboard do admin".
+   Falha de rede aqui não quebra nada: segue sem o mapa, como era antes. */
+function loadGuFees() {
+  return SupremaDB.getValue('painel/guFees').then(function (v) {
+    var list = (v && v.list) || [];
+    if (!list.length) return;
+    var m = {};
+    list.forEach(function (x) { if (x && x.n) m[String(x.n)] = { f: x.f, a: x.a }; });
+    GU_FEES = m;   // `n` já vem normalizado (guNormNome) de quem publicou
+    console.info('[SUPREMA TV · SPS] mapa de fee da GU: ' + list.length + ' torneios');
+  }).catch(function (e) { console.warn('[SUPREMA TV · SPS] sem mapa de fee da GU', e && (e.message || e)); });
 }
 function loadHistory() {
   var from = CAMP.inicio, rr = SupremaDB.rawRef;
@@ -254,7 +276,7 @@ function recompute() {
     var okD = function (d) { return isDate(d) && d >= CAMP.inicio && d <= today; };
     Object.keys(SNAP_BY).forEach(function (d) { if (okD(d)) (days[d] = days[d] || {}).snap = SNAP_BY[d]; });
     Object.keys(PAINEL_BY).forEach(function (d) { if (okD(d)) (days[d] = days[d] || {}).day = PAINEL_BY[d]; });
-    var res = CampanhaCore.computeCampaign(days, CAMP.inicio, today, { filter: CampanhaCore.isSPS, auditData: AUDIT });
+    var res = CampanhaCore.computeCampaign(days, CAMP.inicio, today, { filter: CampanhaCore.isSPS, auditData: AUDIT, guFees: GU_FEES });
     ROWS = res.rows;
     onData(res.totals);
   } catch (e) {
@@ -1045,7 +1067,7 @@ function tomorrowRows() {
   if (!window.CampanhaCore) return [];
   var day = PAINEL_BY[tmr]; if (!day) return [];
   var days = {}; days[tmr] = { day: day };
-  try { return CampanhaCore.computeCampaign(days, tmr, tmr, { filter: CampanhaCore.isSPS, auditData: {} }).rows || []; } catch (e) { return []; }
+  try { return CampanhaCore.computeCampaign(days, tmr, tmr, { filter: CampanhaCore.isSPS, auditData: {}, guFees: GU_FEES }).rows || []; } catch (e) { return []; }
 }
 function renderComing() {
   var el = $('coming-events'); if (!el) return;

@@ -380,6 +380,23 @@ const calcOverlay = (prem, gar, buyin) => {
   if (isNaN(p)) return null;
   return p - g;
 };
+/* OVERLAY COMO O PAINEL DO DIA EXIBE — calcOverlay + uma regra a mais.
+   O freeroll (buy-in 0) tem overlay = −garantido "por natureza", mas isso só vira
+   FATO depois que o torneio acontece. Antes de começar, com o card em branco, é
+   projeção — e aparecia como "-R$ 75" num evento que ninguém tinha tocado (o
+   operador reportou isso no "Step Punta Cana 1M", 09:30, garantido R$75).
+   Regra: sem arrecadado lançado E antes de começar, não existe overlay.
+   Depois que começa (ou assim que alguém lança um valor), volta ao normal.
+   Use SEMPRE esta função no painel; `calcOverlay` cru só no admin/histórico,
+   onde "ainda não começou" não quer dizer nada. */
+function overlayDoDia(prem, gar, row){
+  const v = calcOverlay(prem, gar, row && row.buyin);
+  if (v == null) return null;
+  const p = Number(prem);
+  const temArrecadado = prem !== null && prem !== undefined && prem !== '' && !isNaN(p) && p > 0;
+  if (!temArrecadado && aindaNaoComecou(row)) return null;
+  return v;
+}
 const fmtOverlay = (overlay) => {
   const abs = Math.abs(overlay);
   return (overlay < 0 ? '-R$' : '+R$') + fmtBRL(abs, abs % 1 === 0 ? 0 : 2);
@@ -1744,6 +1761,22 @@ function confirmarEntregaDoDia(opts){
     `• Cancelar — continuar em ${dia}.`);
   if(!window.confirm(linhas.join('\n'))) return false;
 
+  // TRAVA DURA COM CARD ABERTO: entregar com pendência é o erro caro (o dia sai da tela
+  // e não tem botão de voltar automático). Um OK distraído não basta — tem que DIGITAR a
+  // data. Sem pendência, o fluxo segue com o OK de sempre, pra não atrapalhar o turno.
+  if(pendentes.length){
+    const resp = window.prompt(
+      `ATENÇÃO: ainda faltam FIXAR ${pendentes.length} card(s) em ${dia}.\n` +
+      `${fmtPendentesFixar(pendentes)}\n\n` +
+      `Para entregar assim mesmo, digite a data do dia que está saindo: ${dia}`, '');
+    if(resp === null) return false;
+    if(String(resp).trim() !== dia){
+      showToast('Data não confere — a troca da GU foi cancelada. Nada mudou.', true);
+      return false;
+    }
+    logActivity(`⚠ <b>${escHtml(OPERATOR_NAME || 'Alguém')}</b> confirmou a troca da GU com <b>${pendentes.length}</b> card(s) ainda em aberto`, '⚠');
+  }
+
   // TURNO COM MAIS DE UMA PESSOA: a entrega vira uma PROPOSTA e só acontece quando
   // todo mundo que está com o painel aberto confirmar. Sozinho (ou sem Firebase),
   // o "sim" de quem clicou já é o do turno inteiro — não há ninguém pra esperar.
@@ -1772,6 +1805,10 @@ function aplicarEntrega(prox, opts){
   }
   if(fbReady && fbDb){
     try{ fbDb.ref(`${FB_BASE_PATH}/entrega`).remove(); }catch(e){}      // proposta cumpriu o papel
+    // marcador de REABERTURA antigo no dia de destino tem que sair: se um dia já foi
+    // reaberto uma vez, o `reopenedTo` dele ficaria lá e jogaria todo mundo pra trás
+    // de novo assim que as abas pousassem nele
+    try{ fbDb.ref(`painel/${prox}/reopenedTo`).remove(); }catch(e){}
     try{ fbDb.ref(`${FB_BASE_PATH}/rolledTo`).set(prox); }catch(e){}
   }
   logActivity(`📅 Dia <b>${escHtml(dia)}</b> entregue — painel virou para <b>${escHtml(prox)}</b>`, '📅');
@@ -1974,6 +2011,24 @@ function registrarListenerEntrega(){
   });
 }
 
+/* Espelho do rolledTo, na direção contrária: alguém reabriu o dia anterior e esta
+   aba precisa voltar junto. Registrado nos mesmos dois pontos. */
+function registrarListenerReabertura(){
+  if(!fbReady || !fbDb) return;
+  fbDb.ref(`${FB_BASE_PATH}/reopenedTo`).on('value', snap => {
+    const volta = snap.val();
+    if(typeof volta !== 'string' || !(volta < LAST_KNOWN_DATE)) return;
+    if(VIEW_MODE_DATE) sairDaVisitaAntesDeVirar(LAST_KNOWN_DATE);
+    showToast(`↩ O turno reabriu o dia ${volta} — o painel voltou para ele.`);
+    _entregaPropostaLocal = null;
+    document.getElementById('entregaBar')?.remove();
+    LAST_KNOWN_DATE = volta;
+    _pularSyncNoProximoReset = true;          // a grade volta do Firebase, não do link
+    resetDay(volta);
+    renderDaySwitch();
+  });
+}
+
 /* o turno muda sem ninguém mexer no nó (alguém fecha a aba) — reavalia sozinho */
 setInterval(() => { if(_entregaPropostaLocal) avaliarProposta(); }, 20000);
 
@@ -2027,7 +2082,7 @@ function renderHandoffBar(){
    uma vez, e o dia passado não corre risco de ser reescrito por engano.
    Voltar pro dia ao vivo é um reload: o painel se remonta inteiro do zero.
    ═══════════════════════════════════════════════════════════════════════════ */
-const DAY_NODES = ['premiacao','fixed','flags','premBy','ids','field','garantido','buyin','checklist','confhoje','rolledTo','manualRows','entrega'];
+const DAY_NODES = ['premiacao','fixed','flags','premBy','ids','field','garantido','buyin','checklist','confhoje','rolledTo','manualRows','entrega','reopenedTo'];
 
 /* desliga os listeners do dia (inclusive o da planilha) antes de apontar o
    painel pra outro nó — senão o dia ao vivo continua chegando por cima da visita */
@@ -2129,6 +2184,90 @@ async function abrirDiaPassado(iso){
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   REABRIR UM DIA ENTREGUE — o desfazer da troca da GU
+   A entrega era de mão única: trocou por engano com card aberto, o cronograma
+   saía da tela de todo mundo e não havia botão de volta (o trabalho ficava
+   salvo, mas ninguém conseguia continuar preenchendo aquele dia).
+
+   Faz o caminho inverso do `rolledTo`, com o mesmo mecanismo:
+     · tira o `rolledTo` do dia reaberto  — senão o listener joga todo mundo pra frente de novo
+     · grava `reopenedTo` no dia que sai  — é o que faz as OUTRAS abas voltarem junto
+     · apaga a planilha do dia que sai    — sem isso um F5 ficaria presa nele
+   RECUSA quando o dia novo JÁ TEM TRABALHO (algum arrecadado ou card fixado):
+   voltar ali abandonaria esse trabalho na tela de quem o fez.
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* Sai da visita a um dia passado ANTES de o painel virar de dia. Dois cuidados que
+   não são óbvios e quebram feio se faltarem:
+     · devolve o FB_BASE_PATH ao dia ao vivo — senão o resetDay para o dia visitado
+       veria `pathChanged === false` e NÃO re-registraria os listeners (painel morto);
+     · zera a grade na tela — ela é do dia VISITADO, e o resetDay tira snapshot antes
+       de limpar: sem isto o cronograma de ontem seria gravado como snapshot de hoje. */
+function sairDaVisitaAntesDeVirar(diaAoVivo){
+  VIEW_MODE_DATE = null;
+  PANEL_RO = PANEL_RO_BASE;
+  if(!PANEL_RO) document.documentElement.classList.remove('ro');
+  document.getElementById('visitBanner')?.remove();
+  detachDayListeners();
+  FB_BASE_PATH = `painel/${diaAoVivo}`;
+  RAW_ROWS = []; RESULTS = []; UPCOMING = []; UNFIXED = []; reindexRows();
+}
+
+async function reabrirDiaEntregue(iso){
+  if(roGuard()) return false;
+  if(!fbReady || !fbDb){ showToast('Sem conexão com o Firebase — não dá pra reabrir um dia agora.', true); return false; }
+  const atual = LAST_KNOWN_DATE;
+  if(typeof iso !== 'string' || !(iso < atual)){
+    showToast('Só dá pra reabrir um dia ANTERIOR ao que o painel está mostrando.', true);
+    return false;
+  }
+  try{
+    const [sheetSnap, premSnap, fixSnap] = await Promise.all([
+      fbDb.ref(`painel/${iso}/sheet`).once('value'),
+      fbDb.ref(`painel/${atual}/premiacao`).once('value'),
+      fbDb.ref(`painel/${atual}/fixed`).once('value'),
+    ]);
+    const sheet = sheetSnap.val();
+    if(!sheet || !Array.isArray(sheet.rows) || !sheet.rows.length){
+      showToast(`Não há cronograma salvo de ${iso} — não dá pra reabrir.`, true);
+      return false;
+    }
+    const trabalhoNoNovo = Object.keys(premSnap.val() || {}).length + Object.keys(fixSnap.val() || {}).length;
+    if(trabalhoNoNovo > 0){
+      window.alert(
+        `Não posso reabrir ${iso}.\n\n` +
+        `O dia ${atual} já tem ${trabalhoNoNovo} registro(s) preenchidos (arrecadado/fixado). ` +
+        `Voltar agora tiraria esse trabalho da tela de quem o fez.\n\n` +
+        `Para conferir ${iso} sem mexer em nada, use "◀ Ver ${iso}".`);
+      return false;
+    }
+    if(!window.confirm(
+      `Reabrir o dia ${iso} para edição?\n\n` +
+      `• O painel de TODO o turno volta para ${iso} e o dia ${atual} é desfeito ` +
+      `(a grade dele sai; nada foi preenchido nele ainda).\n` +
+      `• Tudo que já estava em ${iso} volta como estava: arrecadado, fixados, IDs, field.\n\n` +
+      `• Cancelar — continuar em ${atual}.`)) return false;
+
+    // ordem importa: primeiro tira o que empurra pra frente, depois marca a volta
+    try{ await fbDb.ref(`painel/${iso}/rolledTo`).remove(); }catch(e){}
+    try{ await fbDb.ref(`painel/${atual}/sheet`).remove(); }catch(e){}
+    try{ await fbDb.ref(`painel/${atual}/reopenedTo`).set(iso); }catch(e){}
+
+    logActivity(`↩ <b>${escHtml(OPERATOR_NAME || 'Alguém')}</b> reabriu o dia <b>${escHtml(iso)}</b> — o dia ${escHtml(atual)} foi desfeito`, '↩');
+    if(VIEW_MODE_DATE) sairDaVisitaAntesDeVirar(atual);
+    LAST_KNOWN_DATE = iso;
+    _pularSyncNoProximoReset = true;         // a grade de `iso` volta do Firebase, não do link
+    resetDay(iso);
+    renderDaySwitch();
+    showToast(`↩ Dia ${iso} reaberto — pode continuar preenchendo.`);
+    return true;
+  }catch(err){
+    console.error('reabrirDiaEntregue', err);
+    showToast('Não consegui reabrir o dia: ' + (err && err.message ? err.message : 'erro desconhecido'), true);
+    return false;
+  }
+}
+
 /* Volta pro cronograma ao vivo SEM recarregar a página — o operador transita
    entre os dois quantas vezes quiser, na mesma velocidade dos dois lados.
    Religa exatamente o mesmo caminho da virada de dia (reinitDayListeners), que
@@ -2188,6 +2327,17 @@ function mountVisitBanner(){
   back.style.cssText = 'background:var(--gold,#c08000);color:#000;border:none;border-radius:99px;padding:5px 14px;font-weight:800;font-size:12px;cursor:pointer';
   back.addEventListener('click', voltarAoVivo);
   b.appendChild(back);
+  // "Reabrir" só faz sentido no dia IMEDIATAMENTE anterior — é o caso do engano
+  // recente. Dias mais antigos ficam só de leitura mesmo.
+  if(!PANEL_RO_BASE && VIEW_MODE_DATE === addDaysISO(LAST_KNOWN_DATE, -1)){
+    const reabrir = document.createElement('button');
+    reabrir.type = 'button';
+    reabrir.textContent = 'Reabrir para edição';
+    reabrir.title = `Desfaz a troca da GU: o painel de todo o turno volta para ${VIEW_MODE_DATE}`;
+    reabrir.style.cssText = 'background:transparent;color:#e5e7eb;border:1px solid rgba(229,231,235,.45);border-radius:99px;padding:5px 13px;font-weight:700;font-size:12px;cursor:pointer';
+    reabrir.addEventListener('click', () => reabrirDiaEntregue(VIEW_MODE_DATE));
+    b.appendChild(reabrir);
+  }
   document.body.appendChild(b);
 }
 
@@ -3956,6 +4106,7 @@ function initFirebaseSync(){
       }
     });
     registrarListenerEntrega();
+    registrarListenerReabertura();
 
     // ── Relatório de turno ────────────────────────────────────────────────
     fbDb.ref('relatorioTurno/texto').on('value', snap => {
@@ -5788,7 +5939,7 @@ function computeStats(){
     if (r.overlay == null){
       // calcOverlay já honra o FREEROLL (buy-in 0 = −garantido mesmo sem arrecadado); pra os
       // demais, só conta quando há arrecadado e o resultado é negativo.
-      const calc = calcOverlay(r.premiacao, r.garantido, r.buyin);
+      const calc = overlayDoDia(r.premiacao, r.garantido, r);
       if (calc != null && calc < 0) return s + calc;
     }
     return s;
@@ -5917,7 +6068,7 @@ function loadYesterdayMetricsIfNeeded(){
       if (isMultidayFlight(r)) return s;
       if (r.overlay != null && r.overlay < 0) return s + r.overlay;
       if (r.overlay == null){
-        const calc = calcOverlay(r.premiacao, r.garantido, r.buyin);   // honra freeroll (buy-in 0 = −gtd)
+        const calc = overlayDoDia(r.premiacao, r.garantido, r);   // honra freeroll (buy-in 0 = −gtd)
         if (calc != null && calc < 0) return s + calc;
       }
       return s;
@@ -6460,7 +6611,7 @@ function renderUpcoming(){
       const premVal  = t.premiacao;
       const garVal   = t.garantido;
       const fieldVal = getField(key);
-      const ovc      = calcOverlay(premVal, garVal, t.buyin);   // buy-in 0 (freeroll) → −garantido
+      const ovc      = overlayDoDia(premVal, garVal, t);   // buy-in 0 (freeroll) → −garantido
       const catColor = cat==='main'?'var(--main-bright)':cat==='sat'?'var(--sat-bright)':'var(--side-bright)';
       const premFmt  = premVal != null ? fmtBRL(premVal, premVal%1===0?0:2) : '';
       const ovCls    = ovc!=null?(ovc<0?' neg':' pos'):'';
@@ -6920,7 +7071,7 @@ function buildRowData(r, dateLabel){
   const gar  = getGarantidoEffective(r._key) ?? r.garantido;  // override > planilha
   // Overlay = déficit real: só preenchido quando premiação < garantido (pool não atingiu o GTD).
   // Freeroll (buy-in 0) sempre tem overlay = −garantido, mesmo sem arrecadado (calcOverlay honra).
-  const ovCalc  = calcOverlay(prem, gar, r.buyin);
+  const ovCalc  = overlayDoDia(prem, gar, r);
   const overlay = ovCalc != null && ovCalc < 0 ? ovCalc : null;  // null quando positivo = sem overlay
   const perf    = (prem != null && gar != null && gar > 0) ? Math.round(((prem-gar)/gar)*1000)/10 : null;
   const acoes   = calcAcoesForRow(r);
@@ -8400,7 +8551,7 @@ function renderCardOverlayPreview(key, row, premiacaoVal, fieldVal){
   const acoes = PainelCalc.acoes({ premiacao: prem, buyin, field, row });
 
   // Overlay — sempre visível
-  const overlay = calcOverlay(prem, gar, row.buyin);   // freeroll (buy-in 0) → −garantido mesmo sem arrecadado
+  const overlay = overlayDoDia(prem, gar, row);   // freeroll (buy-in 0) → −garantido mesmo sem arrecadado
   const ovFinal = overlay != null
     ? `<div class="tcard-ov-cell">
         <span class="tcard-ov-label">${overlay < 0 ? 'Overlay' : 'Excedente'}</span>
@@ -11004,7 +11155,7 @@ function reinitDayListeners(){
 
   // Remover listeners antigos do dia anterior antes de re-registrar
   // (evita duplicação de listeners ao virar o dia)
-  ['premiacao','fixed','flags','premBy','ids','field','garantido','buyin','checklist','confhoje','rolledTo','manualRows','entrega'].forEach(node => {
+  ['premiacao','fixed','flags','premBy','ids','field','garantido','buyin','checklist','confhoje','rolledTo','manualRows','entrega','reopenedTo'].forEach(node => {
     fbDb.ref(`${FB_BASE_PATH}/${node}`).off();
   });
 
@@ -11034,7 +11185,8 @@ function reinitDayListeners(){
       resetDay(novo);
     }
   });
-  registrarListenerEntrega();   // proposta de entrega do dia NOVO
+  registrarListenerEntrega();      // proposta de entrega do dia NOVO
+  registrarListenerReabertura();   // e o caminho de volta, se algu�m reabrir
 
   // Premiação — só anexa com auth viva (mesmo motivo do listener do load)
   whenAuthed(() => {
@@ -11178,7 +11330,7 @@ function buildSnapshotRows(){
     const prem = r.premiacao;
     const gar  = getGarantidoEffective(key) ?? r.garantido;
     // overlay com sinal (negativo = overlay; positivo = excedente); honra freeroll (buy-in 0 = −gtd)
-    const overlay = calcOverlay(prem, gar, r.buyin);
+    const overlay = overlayDoDia(prem, gar, r);
     const perf = (prem != null && gar != null && gar > 0)
       ? Math.round(((prem - gar) / gar) * 1000) / 10 : null;
     return {

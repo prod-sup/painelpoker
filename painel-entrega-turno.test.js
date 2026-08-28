@@ -40,6 +40,18 @@ function corpoFn(src, nome) {
   throw new Error('chaves não fecharam para ' + nome);
 }
 
+/* mesma ideia, para `const NOME = (args) => { ... }` (calcOverlay é assim) */
+function corpoConst(src, nome) {
+  const i = src.indexOf('const ' + nome + ' = (');
+  if (i < 0) throw new Error('não achei `const ' + nome + '` em painel.js');
+  let d = 0, aberto = false;
+  for (let k = src.indexOf('{', i); k < src.length; k++) {
+    if (src[k] === '{') { d++; aberto = true; }
+    else if (src[k] === '}') { d--; if (aberto && d === 0) return src.slice(i, k + 1) + ';'; }
+  }
+  throw new Error('chaves não fecharam para ' + nome);
+}
+
 const TRES_MIN = 3 * 60 * 1000;
 const ctx = {
   console, Map, String, Array, Object, Date,
@@ -190,6 +202,48 @@ console.log('aindaNaoComecou — o que é impossível ter arrecadado:');
     ctx2.aindaNaoComecou({ nome: '2 Seats SPT', hora: '09:00' }) === false);
   ok('às 20:00 a madrugada seguinte (02:00) ainda não começou',
     ctx2.aindaNaoComecou({ nome: 'Z', hora: '02:00' }) === true);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   overlayDoDia — overlay não pode aparecer em card em branco.
+   Relatado pelo operador: "Step Punta Cana 1M", 09:30, garantido R$75, arrecadado
+   VAZIO, e mesmo assim a coluna mostrava −R$75. Vinha da regra do freeroll
+   (buy-in 0 = a casa paga o garantido inteiro), que é certa DEPOIS do torneio
+   acontecer e vira projeção assustadora antes dele começar.
+   ═══════════════════════════════════════════════════════════════════════════ */
+console.log('overlayDoDia — overlay só quando existe base real:');
+{
+  const ctx3 = { console, Math, Number, isNaN, String };
+  vm.createContext(ctx3);
+  vm.runInContext(
+    'function timeToMinutes(h){ const m = String(h||"").match(/^(\\d{1,2}):(\\d{2})/); return m ? (+m[1])*60 + (+m[2]) : null; }\n' +
+    'function opMinutes(min){ return (min !== null && min <= 330) ? min + 1440 : min; }\n' +
+    'var AGORA = 0; function opNowMinutes(){ return AGORA; }\n' +
+    corpoFn(painelSrc, 'aindaNaoComecou') + '\n' +
+    corpoConst(painelSrc, 'calcOverlay') + '\n' +
+    corpoFn(painelSrc, 'overlayDoDia'), ctx3);
+
+  const step = { nome: 'Step Punta Cana 1M', hora: '09:30', buyin: 0 };   // freeroll/step manual
+  const normal = { nome: '3K Plus', hora: '09:00', buyin: 30 };
+
+  ctx3.AGORA = ctx3.opMinutes(1 * 60 + 41) - 1440;      // 01:41, grade já virada → 09:30 é futuro
+  ok('freeroll ANTES de começar e sem arrecadado NÃO tem overlay (o bug reportado)',
+    ctx3.overlayDoDia(null, 75, step) === null);
+  ok('freeroll antes de começar, mas com valor lançado, respeita o operador',
+    ctx3.overlayDoDia(40, 75, step) === -35);
+  ok('torneio normal sem arrecadado nunca teve overlay',
+    ctx3.overlayDoDia(null, 3000, normal) === null);
+
+  ctx3.AGORA = ctx3.opMinutes(20 * 60);                  // 20:00 — o dia correu
+  ok('freeroll DEPOIS de começar tem overlay = −garantido (regra preservada)',
+    ctx3.overlayDoDia(null, 75, step) === -75);
+  ok('torneio normal com arrecadado abaixo do gtd',
+    ctx3.overlayDoDia(2000, 3000, normal) === -1000);
+  ok('torneio normal com arrecadado acima do gtd vira excedente',
+    ctx3.overlayDoDia(3500, 3000, normal) === 500);
+  ok('sem garantido não há overlay', ctx3.overlayDoDia(100, 0, normal) === null);
+  ok('linha sem buy-in (dado faltando) não vira freeroll',
+    ctx3.overlayDoDia(null, 75, { nome: 'X', hora: '09:30' }) === null);
 }
 
 console.log('');
