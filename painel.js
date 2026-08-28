@@ -8132,10 +8132,16 @@ function ovcCalculate(){
   // torneio" pra quem JÁ escolheu manda a pessoa procurar no lugar errado.
   const _selKey = document.getElementById('ovcTorneioSelect')?.value;
   const _selRow = _selKey ? rowByKey(_selKey) : null;
+  // origem do rake: GU (fee na linha/mapa) · SÉRIE (SPS sem fee) · manual (escolha)
+  const _origem = isManual ? ' (manual)' : (OVC_GU_ADMIN != null && !PainelCalc.guRates(_selRow || {}) ? ' (taxa da série)' : ' (GU)');
   document.getElementById('ovcRakeNote').textContent = rake != null
-    ? `Rake aplicado: ${(rake*100).toFixed(1).replace('.0','')}%` + (isManual ? ' (manual)' : ' (GU)')
+    ? `Rake aplicado: ${(rake*100).toFixed(1).replace('.0','')}%` + _origem
     : _selRow
-      ? `"${_selRow.nome}" está sem FEE na planilha da GU — escolha o rake à mão pra calcular.`
+      // torneio adicionado à mão não passa pela GU: dizer "sem FEE na planilha"
+      // manda a pessoa procurar na Global um evento que nunca esteve lá
+      ? (_selRow._manual
+          ? `"${_selRow.nome}" foi adicionado à mão e não tem fee da GU — escolha o rake no seletor acima pra calcular.`
+          : `"${_selRow.nome}" está sem FEE na planilha da GU — escolha o rake à mão pra calcular.`)
       : 'Escolha o torneio (o rake vem da GU) ou selecione o rake à mão.';
 
   // reconhece o admin fee do evento e avisa se o rake escolhido deixa ele de fora
@@ -11655,6 +11661,19 @@ function ovcPopulateTournamentSelect(){
   // torneios da Global (dólar)
   RAW_ROWS.filter(r => r.nome && r.garantido > 0).slice().sort(sorter).forEach(r => sel.appendChild(optFor(r)));
 
+  /* ADICIONADOS À MÃO — o filtro acima exige `garantido > 0`, e evento manual
+     criado sem garantido (o campo é opcional no formulário) simplesmente NÃO
+     aparecia na calculadora: não dava pra calcular o pote dele de jeito nenhum.
+     Entram num grupo próprio, incluindo os sem garantido — o pote é útil mesmo
+     antes de o garantido existir (o overlay é que precisa dele). */
+  const manuaisFora = RAW_ROWS.filter(r => r && r._manual && r.nome && !(r.garantido > 0));
+  if(manuaisFora.length){
+    const ogM = document.createElement('optgroup');
+    ogM.label = 'Adicionados à mão (sem garantido)';
+    manuaisFora.slice().sort(sorter).forEach(r => ogM.appendChild(optFor(r)));
+    sel.appendChild(ogM);
+  }
+
   // Eventos Principais (Liga Principal, R$) — mesmo select, mesma lógica de overlay
   if(PRINCIPAIS_ROWS.length){
     const og = document.createElement('optgroup');
@@ -11708,6 +11727,18 @@ function ovcOnSelectChange(){
   const guRake = PainelCalc.guRates(row);
   OVC_GU_RAKE = guRake ? guRake.total : null;
   OVC_GU_ADMIN = guRake ? guRake.admin : null;   // reconhece o admin fee do evento
+
+  /* TAXA DA SÉRIE — mesma regra do dashboard e do board (Brian, 28/08/2026):
+     "sempre que tiver 2% de admin fee é série", e evento cujo nome começa com SPS
+     É da série. A GU não traz fee em linha adicionada à mão, então o SPS manual
+     ficava sem rake e a calculadora se recusava a calcular. Série = 10% + 2%;
+     satélite da série = 5%. Fora da série continua exigindo escolha manual —
+     não se inventa rake pra evento comum. */
+  if(!guRake && /^\s*SPS\b/i.test(String(row.nome || ''))){
+    const ehSat = classify(row) === 'sat';
+    OVC_GU_ADMIN = ehSat ? 0 : 0.02;
+    OVC_GU_RAKE  = ehSat ? 0.05 : 0.12;
+  }
 
   // ── Categoria ──
   const autoCat = classify(row);
