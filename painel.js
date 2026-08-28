@@ -5273,16 +5273,23 @@ function maybeNotifyGlobalRefresh(){
    Não some com o valor em silêncio — mostra QUAIS cards, porque some-lo calado
    seria repetir o mesmo erro pelo outro lado.
    ═══════════════════════════════════════════════════════════════════════════ */
+/* CRITÉRIO: só a AUSÊNCIA DE CARIMBO. Nada de relógio.
+   A primeira versão também acusava "torneio que ainda não começou" e virou ruído
+   na cara da operação: pela régua operacional, depois da virada de dia um torneio
+   de 00:00 fica 23h "no futuro" — então a madrugada inteira, recém-coletada e
+   correta, era denunciada (16 cards de uma vez). Alarme que grita em card certo
+   ensina a equipe a ignorar alarme, o que é PIOR que não ter alarme.
+   Sem carimbo é FATO: ninguém preencheu aquilo. É o único critério aqui.
+   O `aindaNaoComecou` continua onde é inofensivo errar: barrando restauração
+   AUTOMÁTICA (lá, um falso positivo só deixa de preencher sozinho — não acusa
+   ninguém e não aparece na tela). */
 function arrecadadoSuspeito(){
   if(VIEW_MODE_DATE) return [];   // visita a dia passado: não é o quadro ao vivo
-  return RAW_ROWS.filter(r => {
-    if(!r || r.premiacao == null) return false;
-    const semCarimbo = !(PREM_BY_MAP && PREM_BY_MAP[r._key]);
-    return semCarimbo || aindaNaoComecou(r);
-  });
+  return RAW_ROWS.filter(r => r && r.premiacao != null && !(PREM_BY_MAP && PREM_BY_MAP[r._key]));
 }
 
 let _vigiaUltimaAssinatura = '';
+let _vigiaDispensado = '';   // conjunto que o operador ja conferiu e dispensou
 function vigiarArrecadado(){
   const suspeitos = arrecadadoSuspeito();
   const bar = document.getElementById('vigiaBar');
@@ -5293,41 +5300,45 @@ function vigiarArrecadado(){
   }
   const sig = suspeitos.map(r => r._key).sort().join(',');
   const nomes = suspeitos.map(r => `${r.nome}${r.hora ? ' (' + r.hora + ')' : ''}`);
+  if(_vigiaDispensado === sig) { if(bar) bar.remove(); return; }   // a pessoa já disse "ok, eu vi"
   if(sig !== _vigiaUltimaAssinatura){
     _vigiaUltimaAssinatura = sig;
-    logActivity(`🚨 <b>${suspeitos.length}</b> card(s) com arrecadado SEM ORIGEM — ninguém carimbou ou o torneio nem começou: ${escHtml(nomes.slice(0,4).join(', '))}${nomes.length>4?'…':''}`, '🚨');
-    showToast(`🚨 ${suspeitos.length} card(s) com arrecadado que ninguém preencheu — CONFIRA antes de dar o torneio por coletado.`, true);
-    try{ playAlertBeep(true); }catch(e){}
+    // só o registro na Atividade. SEM som e SEM toast: isto é uma observação
+    // pra conferir com calma, não uma emergência — e a tela é de operação.
+    logActivity(`Arrecadado sem responsável em <b>${suspeitos.length}</b> card(s): ${escHtml(nomes.slice(0,4).join(', '))}${nomes.length>4?'…':''}`, '👁');
   }
   const el = bar || document.createElement('div');
   if(!bar){
     el.id = 'vigiaBar';
-    el.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:99999;background:#7f1d1d;color:#fee2e2;padding:10px 14px;border-radius:16px;font-size:13px;font-weight:700;box-shadow:0 8px 28px rgba(0,0,0,.45);display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:94vw';
+    el.style.cssText = 'position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:99990;background:var(--s2,#1b1b1f);color:var(--ink2,#c9c9d1);border:1px solid rgba(245,158,11,.45);padding:7px 12px;border-radius:99px;font-size:12px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.3);display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:90vw;opacity:.94';
     document.body.appendChild(el);
   }
-  el.innerHTML = `<span>🚨 <b>${suspeitos.length}</b> card(s) com arrecadado que <b>ninguém preencheu</b> — não conte como coletado:</span>`;
-  suspeitos.slice(0, 6).forEach(r => {
+  el.innerHTML = `<span style="color:#f59e0b">⚠</span><span><b>${suspeitos.length}</b> card(s) com arrecadado <b>sem responsável</b> — confira quem preencheu:</span>`;
+  // no máximo 3 nomes na barra — a lista inteira fica na Atividade
+  suspeitos.slice(0, 3).forEach(r => {
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = `${r.nome}${r.hora ? ' ' + r.hora : ''}`;
-    b.style.cssText = 'background:rgba(255,255,255,.16);color:#fff;border:none;border-radius:99px;padding:4px 10px;font-weight:800;font-size:12px;cursor:pointer';
+    b.style.cssText = 'background:rgba(255,255,255,.08);color:inherit;border:none;border-radius:99px;padding:3px 9px;font-weight:700;font-size:11.5px;cursor:pointer';
     b.addEventListener('click', () => { if(!jumpToCardByKey(r._key)) showToast('Card fora da agenda atual (confira os filtros).'); });
     el.appendChild(b);
   });
-  if(!PANEL_RO){
-    const limpar = document.createElement('button');
-    limpar.type = 'button';
-    limpar.textContent = 'Limpar esses valores';
-    limpar.title = 'Apaga o arrecadado sem origem para os cards voltarem a pedir coleta';
-    limpar.style.cssText = 'background:#fee2e2;color:#7f1d1d;border:none;border-radius:99px;padding:5px 12px;font-weight:800;font-size:12px;cursor:pointer';
-    limpar.addEventListener('click', () => {
-      if(!window.confirm(`Apagar o arrecadado de ${suspeitos.length} card(s) que ninguém preencheu?\n\n${nomes.slice(0,8).join('\n')}${nomes.length>8?'\n…':''}\n\nOs cards voltam a pedir a coleta.`)) return;
-      suspeitos.forEach(r => limparArrecadadoDaChave(r._key));
-      showToast(`🧹 ${suspeitos.length} card(s) voltaram a pedir coleta.`);
-      vigiarArrecadado();
-    });
-    el.appendChild(limpar);
+  if(suspeitos.length > 3){
+    const mais = document.createElement('span');
+    mais.textContent = `+${suspeitos.length - 3}`;
+    mais.style.cssText = 'opacity:.6;font-size:11.5px';
+    el.appendChild(mais);
   }
+  /* DISPENSAR — o principal. Se o operador olhou e está tudo certo (valor antigo,
+     preenchido antes de existir carimbo), ele fecha e não vê mais AQUELE conjunto.
+     Sem isto o aviso vira paisagem e some o efeito de avisar. */
+  const ok = document.createElement('button');
+  ok.type = 'button';
+  ok.textContent = '✕';
+  ok.title = 'Já conferi — esconder este aviso';
+  ok.style.cssText = 'background:none;border:none;color:inherit;opacity:.6;cursor:pointer;font-weight:800;font-size:13px;padding:0 2px';
+  ok.addEventListener('click', () => { _vigiaDispensado = sig; el.remove(); });
+  el.appendChild(ok);
 }
 
 /* apaga SÓ o arrecadado (e o carimbo) de uma chave — o resto do card fica */
