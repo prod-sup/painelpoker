@@ -65,7 +65,11 @@
     return hit ? guRates({ fee: hit.f, adminFee: hit.a }) : null;
   }
 
-  /* Campanha SPS: prefixo SPS no começo do nome. */
+  /* Campanha SPS: prefixo SPS no começo do nome.
+     NÃO É BUG, É REGRA — confirmado pelo Brian em 28/08/2026: os eventos com SPS
+     como SUFIXO ("#AS 100K Battle+SPS", "Start Free+SPS") NÃO contam na série.
+     São ~80 por semana, R$ 2,5 mi de garantido, e ficam de fora de propósito.
+     Quem olhar o volume excluído vai achar que o filtro está quebrado. Não está. */
   function isSPS(nome) { return /^\s*SPS\b/i.test(String(nome || '')); }
   /* Regra de admin fee do ADMIN: SÓ SPS. (Hoje == isSPS.) */
   function isCampRate(nome) { return /^\s*SPS\b/i.test(String(nome || '')); }

@@ -269,6 +269,37 @@ function wireLive() {
   setLive(true);
 }
 function scheduleRecompute() { clearTimeout(_recT); _recT = setTimeout(recompute, 400); }
+/* DIAGNÓSTICO NO CONSOLE — uma linha por recálculo.
+   O board mostra o `arrecadadoBruto` como "arrecadado", mas NÃO mostra nada do que
+   ficou de fora dele: linha sem fee da GU (semFee) e premiação de snapshot antigo
+   sem carimbo (excludedNoStamp) saem da receita EM SILÊNCIO. Foi por isso que um
+   total baixo demais não tinha como ser explicado sem ler o código.
+   Aqui fica tudo à vista, inclusive o PERÍODO realmente carregado — que é a
+   primeira coisa a conferir quando o total parece pequeno. */
+function diagnostico(t, days, today) {
+  try {
+    var comDado = Object.keys(days || {}).filter(function (d) { return days[d] && (days[d].snap || days[d].day); }).sort();
+    var esperados = 0;
+    for (var d = CAMP.inicio; d <= today; d = isoAddDays(d, 1)) esperados++;
+    var brl = function (v) { return 'R$ ' + Math.round(v || 0).toLocaleString('pt-BR'); };
+    console.info(
+      '[SPS] periodo ' + CAMP.inicio + ' -> ' + today +
+      '  | dias com dado: ' + comDado.length + '/' + esperados +
+      (comDado.length ? ' (de ' + comDado[0] + ' a ' + comDado[comDado.length - 1] + ')' : '') +
+      '  | torneios SPS: ' + t.torneios + ', fechados: ' + t.fechados +
+      '  | premiacao: ' + brl(t.totalPremiacao) + ', arrecadado bruto: ' + brl(t.arrecadadoBruto) +
+      '  | FORA por falta de fee: ' + t.semFee + ' torneio(s) = ' + brl(t.semFeePrem) +
+      (t.excludedNoStamp ? '  | FORA por premiacao sem carimbo: ' + t.excludedNoStamp.count + ' = ' + brl(t.excludedNoStamp.value) : '')
+    );
+    if (comDado.length < esperados) {
+      var faltando = [];
+      for (var x = CAMP.inicio; x <= today; x = isoAddDays(x, 1)) if (comDado.indexOf(x) < 0) faltando.push(x);
+      console.warn('[SPS] SEM DADO NENHUM em ' + faltando.length + ' dia(s) da campanha: ' + faltando.join(', '));
+    }
+    if (t.semFee > 0) console.warn('[SPS] ' + t.semFee + ' torneio(s) ficaram FORA do arrecadado por nao ter fee da GU (' + brl(t.semFeePrem) + ' de premiacao).');
+  } catch (e) { /* diagnostico nunca pode derrubar o board */ }
+}
+
 function recompute() {
   if (!window.CampanhaCore) return;
   try {
@@ -278,6 +309,7 @@ function recompute() {
     Object.keys(PAINEL_BY).forEach(function (d) { if (okD(d)) (days[d] = days[d] || {}).day = PAINEL_BY[d]; });
     var res = CampanhaCore.computeCampaign(days, CAMP.inicio, today, { filter: CampanhaCore.isSPS, auditData: AUDIT, guFees: GU_FEES });
     ROWS = res.rows;
+    diagnostico(res.totals, days, today);
     onData(res.totals);
   } catch (e) {
     // RESILIÊNCIA: um update ruim (dado corrompido num blip do Firebase) NÃO pode apagar o
