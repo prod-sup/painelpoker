@@ -6616,7 +6616,7 @@ function renderUpcoming(){
       }
 
       const premVal  = t.premiacao;
-      const garVal   = t.garantido;
+      const garVal   = getGarantidoEffective(key) ?? t.garantido;   // override do card > linha (mesma regra do card)
       const fieldVal = getField(key);
       const ovc      = overlayDoDia(premVal, garVal, t);   // buy-in 0 (freeroll) → −garantido
       const catColor = cat==='main'?'var(--main-bright)':cat==='sat'?'var(--sat-bright)':'var(--side-bright)';
@@ -8584,7 +8584,15 @@ function renderCardOverlayPreview(key, row, premiacaoVal, fieldVal){
 
   const prem  = parseFloat(premiacaoVal);
   const field = parseInt(fieldVal);       // jogadores
-  const gar   = row.garantido || 0;
+  /* GARANTIDO EFETIVO — override do card > valor da linha. Antes lia `row.garantido`
+     cru e IGNORAVA o garantido digitado no card, enquanto o relatório e a
+     exportação já usavam o override (getGarantidoEffective). Duas consequências:
+       · torneio ADICIONADO À MÃO nasce sem garantido (o campo é opcional no
+         formulário); a pessoa digitava no card e o overlay continuava vazio,
+         porque aqui o valor seguia null → sem base pra calcular;
+       · garantido corrigido numa linha da Global aparecia certo no relatório e
+         errado no card, sem ninguém entender a diferença. */
+  const gar   = getGarantidoEffective(key) ?? row.garantido ?? 0;
   const buyin = parseFloat(row.buyin) || 0;
   const cat   = classify(row);
 
