@@ -4708,8 +4708,22 @@ function setGarantidoOverride(key, val){
    (borda vermelha + aviso permanente, não um toast passageiro) qualquer campo cujo valor apareça em
    mais de um torneio diferente. Roda sempre que algum ID muda (local ou vindo do Firebase do parceiro)
    e também depois de cada render, pra cobrir os cards recém-criados na tela. */
+/* IDENTIDADE LÓGICA de um card pra efeito de ID repetido.
+   MULTIDAY NÃO É DUPLICATA: os flights (Dia 1A, 1B, 1M…) e o Dia 2 são O MESMO
+   torneio e compartilham o MESMO ID por natureza — é assim que o sistema casa
+   o flight com a final. Tratá-los como cards diferentes fazia o painel gritar
+   "ID repetido" num multiday perfeitamente normal (reportado no
+   "Destino: Punta Cana · Dia 1M", ID 47954041), e o operador não tinha o que
+   corrigir: mudar o ID é que quebraria o vínculo.
+   Cards do mesmo `mdGrupo` contam como UMA identidade; o resto é o próprio card. */
+function idIdentidadeLogica(key){
+  const r = rowByKey(key);
+  if (r && isMultiday(r) && r.mdGrupo) return 'md:' + r.mdGrupo;
+  return key;
+}
+
 function applyIdDuplicateChecks(){
-  // agrupa: valor do ID (normalizado) -> lista de keys de torneio que usam esse valor
+  // agrupa: valor do ID (normalizado) -> { keys que usam, identidades lógicas distintas }
   const byValue = {};
   Object.entries(ID_MAP).forEach(([key, entry]) => {
     // ID_MAP pode guardar string ou {val, by, at}
@@ -4717,12 +4731,15 @@ function applyIdDuplicateChecks(){
       ? String(entry.val || '').trim()
       : String(entry || '').trim();
     if (!norm || norm.toUpperCase() === 'NF') return; // NF não é duplicata
-    if (!byValue[norm]) byValue[norm] = [];
-    byValue[norm].push(key);
+    if (!byValue[norm]) byValue[norm] = { keys: [], ids: new Set() };
+    byValue[norm].keys.push(key);
+    byValue[norm].ids.add(idIdentidadeLogica(key));
   });
   const duplicatedKeys = new Set();
-  Object.values(byValue).forEach(keys => {
-    if (keys.length > 1) keys.forEach(k => duplicatedKeys.add(k));
+  Object.values(byValue).forEach(v => {
+    // só é repetição quando o MESMO ID aparece em torneios DIFERENTES —
+    // vários flights do mesmo multiday somam UMA identidade só
+    if (v.ids.size > 1) v.keys.forEach(k => duplicatedKeys.add(k));
   });
 
   document.querySelectorAll('.id-input[data-key]').forEach(inp => {
@@ -4734,8 +4751,10 @@ function applyIdDuplicateChecks(){
     if (warningEl && warningEl.classList.contains('id-dup-warning')){
       if (isDup){
         const idVal = getId(key); // já retorna string normalizada
-        const sameIdKeys = byValue[idVal.trim()] || [];
-        const otherCount = Math.max(0, sameIdKeys.length - 1); // nunca negativo
+        // conta TORNEIOS distintos (identidade lógica), não cards: um multiday com
+        // três flights + Dia 2 usando o mesmo ID é UM torneio, não quatro
+        const grupo = byValue[idVal.trim()];
+        const otherCount = Math.max(0, (grupo ? grupo.ids.size : 1) - 1);
         warningEl.hidden = false;
         warningEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9.5"/></svg>ID repetido em ${otherCount} outro${otherCount>1?'s':''} torneio${otherCount>1?'s':''}`;
       } else {
@@ -5617,6 +5636,12 @@ function buildManualRow({nome, hora, garantido, buyin, tipo}){
 async function addManualTournament(dados){
   if (roGuard()) return;
   const row = buildManualRow(dados);
+  /* NASCE EM BRANCO. A chave é determinística (nome|hora|buyin|garantido), então
+     um torneio recriado com os mesmos dados cai na MESMA chave de um que já
+     existiu — e vinha com arrecadado, ID, field e fixado de antes, sem ninguém
+     digitar nada. O formulário já recusa nome+hora que exista NA GRADE, então
+     o que estiver guardado nesta chave é resto órfão: pode limpar sem medo. */
+  try{ limparEstadoDaChave(row._key || rowKey(row)); }catch(e){}
   const id = 'm_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   MANUAL_ROWS[id] = row;                       // otimista: a UI responde na hora
   reingestComManuais();
@@ -5757,10 +5782,41 @@ function renderPrincipais(){
 
 /* Remove um torneio manual (adicionado por engano). O trabalho já feito no card
    (premiação/ID/fixado) fica órfão no Firebase, inofensivo — a linha some da grade. */
+/* APAGA TUDO QUE ESTAVA PENDURADO NUMA CHAVE DE TORNEIO.
+   A rowKey é hash(nome|hora|buyin|garantido) — DETERMINÍSTICA. Então um torneio
+   manual recriado com os mesmos dados cai EXATAMENTE na mesma chave de antes e
+   herda o que ficou lá: arrecadado, carimbo, ID, field, garantido, buy-in e o
+   fixado. Foi isso que fez cards recém-adicionados nascerem preenchidos.
+   O admin já fazia esta limpeza (wipeManualRow); o painel não fazia — e é no
+   painel que o operador adiciona e remove torneio no dia a dia.
+   Usada nos DOIS lados: ao remover (não deixa lixo) e ao adicionar (um torneio
+   que está NASCENDO tem que nascer em branco, mesmo que a chave tenha história). */
+function limparEstadoDaChave(key){
+  if(!key) return;
+  delete ID_MAP[key]; delete FIELD_MAP[key]; delete GARANTIDO_MAP[key];
+  delete BUYIN_MAP[key]; delete PREM_BY_MAP[key]; delete FIXED_MAP[key];
+  saveIdMapLocal(ID_MAP); saveFieldMapLocal(FIELD_MAP); saveGarantidoMapLocal(GARANTIDO_MAP);
+  savePremByMapLocal(PREM_BY_MAP); saveFixedMapLocal(FIXED_MAP);
+  try{
+    const pm = JSON.parse(localStorage.getItem('suprema_prem_v1') || '{}');
+    if(pm[key] != null){ delete pm[key]; localStorage.setItem('suprema_prem_v1', JSON.stringify(pm)); }
+  }catch(e){}
+  const r = rowByKey(key);
+  if(r) r.premiacao = null;
+  if(fbReady && fbDb && !PANEL_RO){
+    ['ids','garantido','field','premiacao','premBy','fixed','buyin'].forEach(no => {
+      try{ fbDb.ref(`${FB_BASE_PATH}/${no}/${key}`).remove(); }catch(e){}
+    });
+  }
+}
+
 async function removeManualTournament(id){
   if (roGuard()) return;
   const row = MANUAL_ROWS[id];
   if (!row) return;
+  // limpa o que estava pendurado na chave ANTES de tirar a linha da grade —
+  // depois do delete o rowKey não é mais derivável a partir de MANUAL_ROWS
+  try{ limparEstadoDaChave(row._key || rowKey(row)); }catch(e){}
   delete MANUAL_ROWS[id];
   reingestComManuais();
   publishGradeComManuais();
