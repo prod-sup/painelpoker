@@ -8074,6 +8074,7 @@ document.getElementById('shiftReportDrawerOverlay').addEventListener('click', (e
 let OVC_GU_RAKE = null;
 let OVC_GU_ADMIN = null;   // admin fee do torneio escolhido (0,02 = 2% = evento de serie)
 let _ovcAvisoAtivo = false;
+let _ovcRakePrefill = null;   // rake pre-selecionado pela categoria (torneio fora da GU)
 /* Último torneio escolhido no combo. Serve pra distinguir uma TROCA de torneio
    feita pelo operador (aí as linhas de ação zeram, pra não herdar o Bounty/buy-in
    do torneio anterior) do re-pull programático (mesmo torneio — não pode apagar
@@ -8132,10 +8133,18 @@ function ovcCalculate(){
   // torneio" pra quem JÁ escolheu manda a pessoa procurar no lugar errado.
   const _selKey = document.getElementById('ovcTorneioSelect')?.value;
   const _selRow = _selKey ? rowByKey(_selKey) : null;
-  // origem do rake: GU (fee na linha/mapa) · SÉRIE (SPS sem fee) · manual (escolha)
-  const _origem = isManual ? ' (manual)' : (OVC_GU_ADMIN != null && !PainelCalc.guRates(_selRow || {}) ? ' (taxa da série)' : ' (GU)');
+  /* origem do rake, escrita na tela — quatro casos, e confundi-los esconde erro:
+       GU ............... fee/admin da linha ou do mapa
+       taxa da série .... SPS sem fee na linha (10+2, ou 5 no satélite)
+       categoria ........ torneio fora da GU: pré-selecionado no seletor
+       manual ........... o operador escolheu */
+  const _preSel = _ovcRakePrefill != null && manual && manual.value === _ovcRakePrefill;
+  const _origem = _preSel ? ` (categoria: ${CAT_LABEL[classify(_selRow || {})] || '—'})`
+    : isManual ? ' (manual)'
+    : (OVC_GU_ADMIN != null && !PainelCalc.guRates(_selRow || {}) ? ' (taxa da série)' : ' (GU)');
   document.getElementById('ovcRakeNote').textContent = rake != null
-    ? `Rake aplicado: ${(rake*100).toFixed(1).replace('.0','')}%` + _origem
+    ? `Rake aplicado: ${(rake*100).toFixed(1).replace('.0','')}%` + _origem +
+      (_preSel ? ' — este torneio não está na GU; troque no seletor se precisar.' : '')
     : _selRow
       // torneio adicionado à mão não passa pela GU: dizer "sem FEE na planilha"
       // manda a pessoa procurar na Global um evento que nunca esteve lá
@@ -11752,9 +11761,26 @@ function ovcOnSelectChange(){
   const autoCat = classify(row);
   const catSelect = document.getElementById('ovcCategoria');
   if(catSelect) catSelect.value = autoCat;
-  // torneio escolhido → volta o rake pro automático (rake padrão da categoria);
-  // o operador pode re-selecionar 8% manualmente se aquele torneio for exceção.
+  // torneio escolhido → volta o rake pro automático (o da GU);
+  // o operador pode re-selecionar outro valor se aquele torneio for exceção.
   const ovrSel = document.getElementById('ovcRakeOverride'); if(ovrSel) ovrSel.value = '';
+
+  /* TORNEIO QUE NÃO ESTÁ NA GU (adicionado à mão, quase sempre) — PRÉ-SELECIONA
+     o rake da categoria NO SELETOR, em vez de travar a calculadora.
+     Antes: sem fee da GU o rake ficava null, o pote não saía e a única pista era
+     uma linha de texto pedindo pra escolher à mão — com o seletor mostrando
+     "Automático", que prometia justamente o contrário. O operador ficava com
+     Pote e Overlay em "—" sem entender por quê.
+     Isto NÃO é rake escondido: o valor aparece ESCOLHIDO no seletor, a nota diz
+     que foi pré-selecionado pela categoria, e trocar é um clique. Satélite 5%,
+     o resto 10% — a mesma tabela do netFactorOf. */
+  if(ovrSel && OVC_GU_RAKE == null){
+    const catPre = classify(row);
+    ovrSel.value = catPre === 'sat' ? '0.05' : '0.10';
+    _ovcRakePrefill = ovrSel.value;   // marca que veio de pré-seleção, não de escolha
+  } else {
+    _ovcRakePrefill = null;
+  }
 
   // ── Garantido ──
   document.getElementById('ovcGarantido').value = row.garantido;

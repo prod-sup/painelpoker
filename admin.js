@@ -1520,7 +1520,7 @@ async function loadAudit(){
           <td class="au-check"><input type="checkbox" class="row-check" data-key="${r.key}" data-date="${r.date}"
             style="accent-color:var(--gold);width:14px;height:14px"
             data-act="updateBatchActions" data-act-on="change"></td>
-          <td class="nm" style="max-width:200px">${esc(r.nome)}${r.manual?'<span class="au-manual" title="Adicionado à mão pela ferramenta Adicionar torneio — não veio da Global">MANUAL</span>':''}${anomaliaHtml}</td>
+          <td class="nm" title="${esc(r.nome)}">${esc(r.nome)}${r.manual?'<span class="au-manual" title="Adicionado à mão pela ferramenta Adicionar torneio — não veio da Global">MANUAL</span>':''}${anomaliaHtml}</td>
           <td class="mono" data-label="Hora">${esc(r.hora)}</td>
           <td class="mono" data-label="Late">${esc(r.late)}</td>
           <td class="r mono" data-label="GTD">${r.garantido!=null?'R$ '+brl(r.garantido):'—'}</td>

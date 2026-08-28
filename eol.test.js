@@ -21,7 +21,12 @@
 const fs = require('fs');
 const path = require('path');
 
-const EXTS = ['.js', '.html', '.css', '.mjs', '.cjs'];
+/* .cmd/.bat entram aqui por um motivo mais grave que diff feio: o interpretador
+   do Windows lê o arquivo em BYTES, e um .cmd em LF puro (ou misto) pode quebrar
+   em label, `goto` e bloco de parênteses — justamente nos instaladores que
+   precisam rodar em QUALQUER PC do turno. Achado em 28/08/2026: o INSTALAR.cmd
+   da raiz estava inteiro em LF. */
+const EXTS = ['.js', '.html', '.css', '.mjs', '.cjs', '.cmd', '.bat'];
 const ALLOWLIST = new Set([
   'admin.css',                // misto — trabalho em andamento de outra pessoa
   'suprema-tokens.css',       // misto — idem
@@ -31,10 +36,17 @@ const ALLOWLIST = new Set([
 let pass = 0;
 const falhas = [];
 
-const arquivos = fs.readdirSync(__dirname)
-  .filter(f => EXTS.includes(path.extname(f)))
-  .filter(f => !ALLOWLIST.has(f))
-  .sort();
+/* sync-metas/ entra junto: é o robô das Metas, que é INSTALADO em cada PC do
+   turno. Um .cmd torto ali quebra numa máquina e não na outra — o pior tipo de
+   bug pra diagnosticar à distância. */
+const PASTAS = ['.', 'sync-metas'];
+const arquivos = PASTAS.flatMap(sub => {
+  const dir = path.join(__dirname, sub);
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir)
+    .filter(f => EXTS.includes(path.extname(f)))
+    .map(f => (sub === '.' ? f : sub + '/' + f));
+}).filter(f => !ALLOWLIST.has(path.basename(f))).sort();
 
 console.log('Fins de linha (CRLF) em ' + arquivos.length + ' arquivos de código:');
 

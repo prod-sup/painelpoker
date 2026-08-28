@@ -432,7 +432,7 @@ async function cicloProtegido(){
 
 if (!WATCH){
   await cicloProtegido();
-  await ctx.close();
+  if (navVivo) await ctx.close().catch(() => {});   // idem: nunca fechar Edge morto (Ctrl+Break)
 } else {
   /* Laço do serviço. O "comando" vem do botão Atualizar agora, no painel: o
      operador não sabe (nem precisa saber) que existe um processo aqui.
@@ -447,13 +447,19 @@ if (!WATCH){
   const parar = async () => {
     log('encerrando…');
     await largarLideranca(CAMINHO_LIDER).catch(() => {});   // não deixa a trava presa
-    await ctx.close().catch(() => {});
+    // MESMA armadilha do garantirNavegador: fechar um Edge JÁ MORTO cai no caminho de
+    // matar o processo → dispara Ctrl+Break → derruba o cmd.exe do serviço, que trava
+    // em "Terminate batch job (Y/N)?" (a janela preta que aparece pro operador). Só
+    // fecha se o navegador ainda estiver vivo; morto, o destravarPerfil da próxima
+    // abertura limpa o órfão.
+    if (navVivo) await ctx.close().catch(() => {});
     process.exit(0);
   };
   process.on('SIGINT', parar);
   process.on('SIGTERM', parar);
 
   let proximoPulsoSessao = 0;   // ver o pulso no ramo de sessão caída, abaixo
+  let proximaReabertura = 0;    // ver a reabertura forçada no ramo de sessão caída
   for(;;){
     try { await garantirNavegador(); }
     catch(e){
@@ -481,6 +487,18 @@ if (!WATCH){
       // sou líder mas não enxergo o PokerByte: aviso o painel e cedo a vez a quem
       // tiver sessão (a própria trava marca sessaoOk:false pra isso)
       await reportar({ ok: false, sessao: 'expirada', erro: null, torneios: 0 });
+      // "sessão caída" QUASE SEMPRE é Edge zumbi / perfil travado, NÃO a sessão (ver
+      // robo-metas-operacao). Sem forçar reabrir, o robô confia no navVivo e fica preso
+      // o dia inteiro reportando sessão falsa-caída. A cada 3 min ABANDONA o navegador
+      // (sem fechar — fechar Edge morto dispara Ctrl+Break e planta órfão) e força o
+      // próximo garantirNavegador a reabrir do zero, o que roda o destravarPerfil (mata
+      // órfão + tira o lockfile). Se era só a trava, a sessão volta sozinha; se caiu de
+      // verdade, não custa nada além de reabrir.
+      if (Date.now() >= proximaReabertura){
+        proximaReabertura = Date.now() + 3 * 60000;
+        if (ctx){ ctx = null; page = null; navVivo = false; esquecerSessao();
+          log('forçando reabertura limpa do navegador (sessão caída quase sempre é o perfil travado, não a sessão)'); }
+      }
       // PULSO no log a cada 10 min enquanto espera o relogin.
       // POR QUE: o log só escreve em MUDANÇA de estado, então neste ramo ele
       // emudecia pra sempre — e um log parado com o processo vivo e segurando o

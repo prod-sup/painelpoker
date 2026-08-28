@@ -17,8 +17,23 @@ REM =========================================================================
 setlocal
 
 set "APP=%~dp0"
-set "NODE=%LOCALAPPDATA%\node-portable\node-v24.18.0-win-x64"
-set "PATH=%NODE%;%PATH%"
+REM  ONDE ESTA O NODE - resolve em vez de fixar UMA versao (mesma regra do
+REM  servico.cmd). Sem isto, num PC com outra versao do node-portable este
+REM  atalho abria, nao achava o "node", e o operador via a janela fechar sem
+REM  nenhuma explicacao - logo depois de o painel ter pedido pra relogar.
+set "NODE="
+if exist "%LOCALAPPDATA%\node-portable\node-v24.18.0-win-x64\node.exe" set "NODE=%LOCALAPPDATA%\node-portable\node-v24.18.0-win-x64"
+if not defined NODE for /d %%D in ("%LOCALAPPDATA%\node-portable\node-v*-win-x64") do if exist "%%~fD\node.exe" set "NODE=%%~fD"
+if defined NODE set "PATH=%NODE%;%PATH%"
+where node >nul 2>&1
+if errorlevel 1 (
+  echo.
+  echo  Nao encontrei o Node nesta maquina.
+  echo  Rode o INSTALAR.cmd do robo das Metas antes de relogar.
+  echo.
+  pause
+  exit /b 9
+)
 set "TAREFA=Suprema - Sync Metas PokerByte"
 
 cd /d "%APP%"
