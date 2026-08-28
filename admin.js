@@ -935,16 +935,31 @@ function flatRows(fromDate, toDate){
       // nome). Sem isso os três ficam null e a linha não entra na receita — não
       // existe mais estimativa por categoria produzindo número plausível.
       const guR = guRatesRow(r);
-      const adminFrac = guR ? guR.admin : null;
-      const rakeFrac  = guR ? guR.fee   : null;
-      const netFactor = guR ? Math.round((1 - (rakeFrac + adminFrac)) * 1e6) / 1e6 : null;
+      let adminFrac = guR ? guR.admin : null;
+      let rakeFrac  = guR ? guR.fee   : null;
+      let netFactor = guR ? Math.round((1 - (rakeFrac + adminFrac)) * 1e6) / 1e6 : null;
+      let rakeSrc   = guR ? 'gu' : null;
+      /* PLANO B — TAXA CONHECIDA DA SÉRIE (mesma regra do campanha-core).
+         Brian, 28/08/2026: "sempre que tiver 2% de admin fee é série". Evento cujo
+         nome começa com SPS É da série, então a taxa dele NÃO é desconhecida:
+         10% + 2% (netFactor 0,88), e satélite da série 5% (0,95) — a mesma tabela
+         do DASH_RATES que o netFactorOf já carregava.
+         Sem isto, todo evento SPS antigo (linha gravada antes de o painel guardar
+         FEE/ADMIN FEE) saía INTEIRO da receita e aparecia ZERADO no histórico.
+         Fora da série a guarda continua: sem fee da GU, sem receita. */
+      if (!guR && /^\s*SPS\b/i.test(String(r.nome || ''))) {
+        netFactor = netFactorOf(cat, true);
+        adminFrac = (cat === 'sat') ? 0 : DASH_RATES.adminPct;
+        rakeFrac  = Math.round(((1 - netFactor) - adminFrac) * 1e6) / 1e6;
+        rakeSrc   = 'serie';
+      }
       const acoes = prem!=null && buyin && netFactor>0 ? Math.round(prem/(buyin*netFactor)) : null;
       out.push({
         date, key,
         nome:r.nome||'', hora:r.hora||'', late:r.late||'',
         tipo:r.tipo||'', cat,
         garantido:gar, buyin, netFactor,
-        rakeFrac, adminFrac, rakeSource: guR ? 'gu' : null,
+        rakeFrac, adminFrac, rakeSource: rakeSrc,
         premiacao:prem, overlay:ov, perf, field, acoes,
         id:idVal, idBy, fixBy, fixAt, premBy, premByAt, fixLeadMin, fixTiming, status,
         manual: !!r.manual,   // veio de manualRows → card adicionado à mão (Central de Alertas)

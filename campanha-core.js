@@ -213,6 +213,7 @@
   function flatRows(allData, auditData, fromDate, toDate, opts) {
     opts = opts || {};
     var filterFn = opts.filter || null;
+    var rates = opts.rates || RATES_DEFAULT;   // taxas da serie (plano B do rake)
     var getAudit = function (date, key) { return (auditData && auditData[date] && auditData[date][key]) || null; };
     var out = [];
     var flatExcl = { count: 0, value: 0, dates: {} };
@@ -263,20 +264,37 @@
         // auditoria (as duas flatRows discordavam).
         if (r.proxCronograma) return;
 
-        // Rake e admin fee: SÓ da GU — as colunas na própria linha ou, pro
-        // histórico, o mapa `guFees` que o painel publica (opts.guFees). Sem
-        // nenhum dos dois os três ficam null e a linha não entra na receita:
-        // não existe mais taxa por categoria produzindo número plausível.
+        // Rake e admin fee: PRIMEIRO da GU — as colunas na própria linha ou, pro
+        // histórico, o mapa `guFees` que o painel publica (opts.guFees).
         var gu = guRates(r) || guFromMap(opts.guFees, r.nome);
+        var rakeSource = gu ? 'gu' : null;
         var adminFrac = gu ? gu.admin : null;
         var rakeFrac = gu ? gu.fee : null;
         var netFactor = gu ? Math.round((1 - (rakeFrac + adminFrac)) * 1e6) / 1e6 : null;
+
+        /* PLANO B — TAXA CONHECIDA DA SÉRIE.
+           Quando a GU não diz nada nesta linha E ela É da série (nome começa com
+           SPS), a taxa não é desconhecida: é a da série. Regra do Brian (28/08/2026)
+           — "sempre que tiver 2% de admin fee é série". A tabela já existia aqui
+           (RATES_DEFAULT + netFactorOf) e estava sem uso NENHUM.
+           Isto NÃO é estimar rake por nome: é aplicar a taxa da série a um evento
+           que sabidamente é da série, e fica marcado em `rakeSource: 'serie'` pra
+           ser auditável e separável do que veio da GU.
+           Sem isto, todo evento da série cuja linha não trouxe as colunas de fee
+           saía INTEIRO da receita — foi o que fez o board mostrar R$ 9,4 mi de
+           arrecadado tendo R$ 55 mi de premiação fechada. */
+        if (!gu && isCampRate(r.nome)) {
+          netFactor = netFactorOf(cat, true, rates);            // sat 0,95 · série 0,88
+          adminFrac = (cat === 'sat') ? 0 : rates.adminPct;     // 2% de admin, menos em satélite
+          rakeFrac = Math.round(((1 - netFactor) - adminFrac) * 1e6) / 1e6;
+          rakeSource = 'serie';
+        }
         var acoes = (prem != null && buyin && netFactor > 0) ? Math.round(prem / (buyin * netFactor)) : null;
 
         var row = {
           date: date, key: key, nome: r.nome || '', hora: r.hora || '', late: r.late || '',
           tipo: r.tipo || '', cat: cat, garantido: gar, buyin: buyin, netFactor: netFactor,
-          rakeFrac: rakeFrac, adminFrac: adminFrac, rakeSource: gu ? 'gu' : null,
+          rakeFrac: rakeFrac, adminFrac: adminFrac, rakeSource: rakeSource,
           premiacao: prem, overlay: ov, perf: perf, field: field, acoes: acoes,
           id: idVal, status: status,
         };

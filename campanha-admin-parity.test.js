@@ -61,9 +61,39 @@ try {
      GU (guRatesOf) ou do mapa painel/guFees. Um `DASH_RATES.adminPct` ou
      `netFactorOf(...)` alimentando adminFrac/rakeFrac de novo é a regressão que
      este teste existe pra pegar. */
-  const estimaAdmin = /adminFrac\s*=\s*[^;\n]*DASH_RATES\.adminPct/.test(adminSrc);
-  const estimaRake  = /rakeFrac\s*=\s*[^;\n]*netFactorOf\s*\(/.test(adminSrc);
-  ok('admin.js NÃO estima admin fee por nome/categoria', !estimaAdmin);
+  /* REFINADO em 28/08/2026 (regra do Brian): a proibição continua valendo pra
+     evento COMUM, mas evento da SÉRIE tem taxa CONHECIDA — "sempre que tiver 2%
+     de admin fee é série". Então é permitido, e SÓ, dentro de um bloco guardado
+     por `!guR` (a GU não disse) E pelo prefixo SPS. Fora desse bloco, qualquer
+     adminPct/netFactorOf alimentando adminFrac/rakeFrac continua sendo regressão.
+     O motivo de existir o plano B: sem ele, todo evento SPS antigo (linha sem as
+     colunas FEE/ADMIN FEE) saía inteiro da receita e o histórico da série
+     aparecia ZERADO no dashboard e no board exposto à empresa. */
+  const GUARDA = "if (!guR && /^\\s*SPS\\b/i.test(String(r.nome || ''))) {";
+  const iGuarda = adminSrc.indexOf(GUARDA);
+  ok('admin.js tem o plano B da série guardado por !guR + prefixo SPS', iGuarda >= 0);
+  let blocoSerie = '';
+  if (iGuarda >= 0) {
+    let d = 0;
+    for (let k = adminSrc.indexOf('{', iGuarda); k < adminSrc.length; k++) {
+      if (adminSrc[k] === '{') d++;
+      else if (adminSrc[k] === '}') { d--; if (d === 0) { blocoSerie = adminSrc.slice(iGuarda, k + 1); break; } }
+    }
+  }
+  ok('o bloco da série fecha corretamente', blocoSerie.length > 0);
+  const foraDaSerie = blocoSerie ? adminSrc.split(blocoSerie).join('') : adminSrc;
+  const estimaAdmin = /adminFrac\s*=\s*[^;\n]*DASH_RATES\.adminPct/.test(foraDaSerie);
+  const estimaRake  = /rakeFrac\s*=\s*[^;\n]*netFactorOf\s*\(/.test(foraDaSerie);
+  ok('admin.js NÃO estima admin fee FORA da série', !estimaAdmin);
+  ok('a GU continua sendo a PRIMEIRA fonte (guRatesRow antes do plano B)',
+     adminSrc.indexOf('const guR = guRatesRow(r)') >= 0 &&
+     adminSrc.indexOf('const guR = guRatesRow(r)') < iGuarda);
+  /* e o core tem que ter o MESMO plano B — é o ponto todo deste arquivo */
+  const coreSrc = fs.readFileSync(__dirname + '/campanha-core.js', 'utf8');
+  ok('campanha-core.js tem o mesmo plano B da série',
+     /if\s*\(!gu\s*&&\s*isCampRate\(r\.nome\)\)/.test(coreSrc));
+  ok('core e admin usam a mesma taxa de admin da série',
+     core.RATES_DEFAULT.adminPct === admin.rates.adminPct);
   ok('admin.js NÃO estima rake por categoria', !estimaRake);
 } catch (e) {
   ok('extração das funções puras do admin.js', false, e.message);

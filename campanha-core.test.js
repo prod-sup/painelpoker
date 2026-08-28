@@ -152,18 +152,42 @@ console.log('\nlinha sem FEE da GU:');
     } } },
   };
   const t = C.computeCampaign(days, FROM, TO, { filter: C.isSPS }).totals;
-  ok(t.semFee === 1, 'linha sem fee é CONTADA (semFee = 1)');
-  near(t.semFeePrem, 44000, 'a premiação que ficou de fora é reportada');
-  near(t.arrecadadoBruto, 51000 / 0.88, 'só a linha COM fee entra no arrecadado');
+  /* REGRA NOVA (Brian, 28/08/2026): evento da SÉRIE sem fee na linha NÃO sai da
+     receita — a taxa dele é conhecida, é a da série (10% + 2% admin = 0,88;
+     satélite 5% = 0,95). Antes ele saía inteiro, e era isso que zerava a maior
+     parte do histórico SPS no board e no dashboard. */
+  ok(t.semFee === 0, 'linha da SÉRIE sem fee NÃO fica fora (usa a taxa da série)');
+  near(t.semFeePrem, 0, 'nada de premiação da série sobra fora da receita');
+  near(t.arrecadadoBruto, (51000 + 44000) / 0.88, 'as DUAS entram no arrecadado');
 
-  // o mapa guFees (painel/guFees) resgata a linha antiga — com o valor da GU
-  const mapa = { 'sps sem fee': { f: 0.10, a: 0.02 } };
+  // e a origem fica auditável, pra ninguém confundir taxa da série com valor da GU
+  const rows = C.computeCampaign(days, FROM, TO, { filter: C.isSPS }).rows;
+  const rSem = rows.filter(function (r) { return r.nome === 'SPS Sem Fee'; })[0];
+  const rCom = rows.filter(function (r) { return r.nome === 'SPS Com Fee'; })[0];
+  ok(rSem && rSem.rakeSource === 'serie', 'linha resolvida pela série é marcada (rakeSource=serie)');
+  ok(rCom && rCom.rakeSource === 'gu', 'linha com fee continua marcada como GU');
+  near(rSem.adminFrac, 0.02, 'admin fee da série = 2%');
+  near(rSem.rakeFrac, 0.10, 'fee da série = 10%');
+
+  // o mapa guFees (painel/guFees) tem PRIORIDADE sobre a taxa da série
+  const mapa = { 'sps sem fee': { f: 0.05, a: 0 } };
   const t2 = C.computeCampaign(days, FROM, TO, { filter: C.isSPS, guFees: mapa }).totals;
   ok(t2.semFee === 0, 'com o mapa da GU, nenhuma linha fica sem fee');
-  near(t2.arrecadadoBruto, (51000 + 44000) / 0.88, 'as duas entram no arrecadado');
+  near(t2.arrecadadoBruto, 51000 / 0.88 + 44000 / 0.95, 'o valor da GU vence a taxa da série');
   ok(C.guNormNome('SPS Sem Fee') === 'sps sem fee', 'guNormNome bate com a chave do mapa');
-  ok(C.guFromMap(mapa, 'SPS Sem Fee').total === 0.12, 'guFromMap devolve o fee da GU');
+  ok(C.guFromMap(mapa, 'SPS Sem Fee').total === 0.05, 'guFromMap devolve o fee da GU');
   ok(C.guFromMap(mapa, 'Outro Torneio') === null, 'nome fora do mapa não chuta fee');
+
+  /* A GUARDA CONTINUA DE PÉ FORA DA SÉRIE: torneio que não é SPS e não tem fee da
+     GU segue FORA da receita — não existe taxa por categoria pra evento comum. */
+  const diasNormal = {
+    '2026-08-06': { snap: { rows: {
+      k9: snapRow('Torneio Normal', '14:00', 100, 50000, 44000, { premPor: 'op', semFee: true }),
+    } } },
+  };
+  const t3 = C.computeCampaign(diasNormal, FROM, TO, {}).totals;
+  ok(t3.semFee === 1, 'FORA da série, sem fee da GU continua FORA da receita');
+  near(t3.semFeePrem, 44000, 'e a premiação de fora continua reportada');
 }
 
 console.log('\n' + (fail === 0 ? '✅ ' : '❌ ') + pass + ' testes passaram' + (fail ? ', ' + fail + ' FALHARAM' : '') + '\n');
