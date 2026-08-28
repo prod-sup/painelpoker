@@ -1022,6 +1022,20 @@ document.addEventListener('DOMContentLoaded', () => {
 <header class="hero">
   <div class="wrap hero-inner">
     <span class="eyebrow" id="heroEyebrow"><span class="dot"></span> <span id="heroEyebrowText">Aguardando planilha do dia</span></span>
+
+    <!-- Alternador de cronograma (dia atual ⇄ dia anterior) + estado da GU automática.
+         O dia anterior abre em SOMENTE LEITURA: serve pra conferir o que foi feito,
+         nunca pra editar o passado. -->
+    <div class="day-switch" id="daySwitch" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 2px;font-size:12.5px">
+      <button type="button" id="dayPrevBtn" title="Abrir o cronograma do dia anterior (somente leitura)"
+        style="background:rgba(255,255,255,.08);color:inherit;border:1px solid rgba(255,255,255,.18);border-radius:99px;padding:5px 12px;font-weight:700;font-size:12px;cursor:pointer">◀ Dia anterior</button>
+      <button type="button" id="dayLiveBtn" hidden title="Voltar para o cronograma de hoje, ao vivo"
+        style="background:var(--gold,#c08000);color:#000;border:none;border-radius:99px;padding:5px 12px;font-weight:800;font-size:12px;cursor:pointer">Voltar para hoje ▶</button>
+      <button type="button" id="dayHandoffBtn" title="Entregar este dia e trazer a GU do dia seguinte"
+        style="background:rgba(255,255,255,.08);color:inherit;border:1px solid rgba(255,255,255,.18);border-radius:99px;padding:5px 12px;font-weight:700;font-size:12px;cursor:pointer">Trocar a GU ▶</button>
+      <span id="dayViewLabel" style="opacity:.75"></span>
+      <span id="guSyncMeta" style="opacity:.6"></span>
+    </div>
     <h1 class="hero-title">Um dia inteiro<br>de <em>torneios</em>,<br>em um só lugar.</h1>
     <p class="hero-sub" id="heroSub">Use o botão <b>Global MTT</b> para carregar a agenda do dia.</p>
 

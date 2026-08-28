@@ -1403,9 +1403,13 @@ function resetGlobalBtnStyle(){
   btnEl.title = '';
 }
 
-/* ── Botão "Global MTT" — carrega a Global e alimenta o painel direto ── */
-document.getElementById('uploadGlobalBtn').addEventListener('click', () => {
-  document.getElementById('fileInputGlobal').click();
+/* ── Botão "Global MTT" — agora puxa a GU do LINK publicado (mesma planilha da
+   Criação Noturna). O upload de arquivo continua existindo como plano B: se o
+   link falhar, o próprio syncGuGrade oferece o seletor. Shift+clique força o
+   arquivo direto, pra quem precisa testar uma planilha específica. ── */
+document.getElementById('uploadGlobalBtn').addEventListener('click', (ev) => {
+  if (ev.shiftKey){ document.getElementById('fileInputGlobal').click(); return; }
+  syncGuGrade({ manual:true, force:true });
 });
 
 document.getElementById('fileInputGlobal').addEventListener('change', async (e) => {
@@ -1464,31 +1468,21 @@ document.getElementById('fileInputGlobal').addEventListener('change', async (e) 
     // Global nova nasce no nó do dia novo e os dados do dia antigo ficam intactos no
     // nó deles — cronogramas nunca se misturam.
     if (gradeFlipped){
-      // grade virou (05:30+) e ainda pode haver card aberto do cronograma atual — confirmar
-      const pendentes = relevantNow.filter(r => !isFixed(r._key)).length;
-      if (pendentes > 0){
-        const ok = window.confirm(
-          `O dia mudou e a Global deve ser atualizada, mas ainda existem ${pendentes} card(s) EM ABERTO do cronograma atual.\n\n` +
-          `Deseja realmente trocar?\n\n` +
-          `• OK — o painel vira para o novo dia agora. Tudo que já foi preenchido fica salvo no dia dele.\n` +
-          `• Cancelar — continue preenchendo os cards e suba a Global depois que fechar o último.`
-        );
-        if (!ok){
-          label.textContent = 'Carregar Global MTT'; btnEl.disabled = false;
-          e.target.value = ''; return;
-        }
+      // grade virou (05:30+): a troca passa pela MESMA confirmação de entrega do fluxo
+      // automático — uma pergunta só, com o que ainda está aberto no dia que sai.
+      if (!confirmarEntregaDoDia({semSync:true, para: baseDate})){
+        label.textContent = 'Carregar Global MTT'; btnEl.disabled = false;
+        e.target.value = ''; return;
       }
-      ROLLOVER_HELD_TOAST = false;
-      LAST_KNOWN_DATE = baseDate;
-      resetDay(baseDate); // salva snapshot do dia antigo, limpa o quadro e aponta o Firebase pro dia novo
     } else if (dayComplete && baseDate !== LAST_KNOWN_DATE){
-      // cronograma atual 100% fixado e ainda no mesmo dia civil (madrugada ou não): avançamos
-      // pro próximo dia da grade AGORA. O nó antigo ganha o marcador rolledTo pra aba do parceiro
-      // seguir junto sem recarregar a página.
-      ROLLOVER_HELD_TOAST = false;
-      LAST_KNOWN_DATE = baseDate;
-      if (fbReady && fbDb){ try{ fbDb.ref(`${FB_BASE_PATH}/rolledTo`).set(baseDate); }catch(err2){} }
-      resetDay(baseDate);
+      // cronograma atual 100% fixado e ainda no mesmo dia civil (madrugada ou não): a grade
+      // do dia seguinte só entra DEPOIS da entrega confirmada — antes isto virava o dia
+      // sozinho e o cronograma recém-fechado sumia da tela sem ninguém decidir.
+      // semSync: a grade do dia novo é a que a pessoa acabou de escolher, não a do link
+      if (!confirmarEntregaDoDia({semSync:true, para: baseDate})){
+        label.textContent = 'Carregar Global MTT'; btnEl.disabled = false;
+        e.target.value = ''; return;   // continua no dia atual, sem trocar a grade
+      }
     }
     finishUpload(rows, `Global MTT — ${weekdayPt} (${file.name})`);
     document.getElementById('globalUpdatePrompt')?.remove(); // prompt de "atualize a Global" cumprido
@@ -1509,6 +1503,702 @@ document.getElementById('fileInputGlobal').addEventListener('change', async (e) 
 
 // Restaurar visual do botão se já foi carregada neste turno
 if(wasGlobalUploadedToday()) setGlobalBtnUploaded();
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GU DIRETO DO LINK
+   A grade do painel sai da MESMA planilha publicada que já alimenta a Criação
+   Noturna e a Conferência do dia (gu-parser.js → fetchGuSheetBuffer). Ninguém
+   precisa subir arquivo: o painel lê a aba G MTTS e monta as rows pelo MESMO
+   globalSectionToRows do upload manual — nada de caminho paralelo "do automático".
+   O upload continua existindo como plano B (link fora do ar, planilha de teste).
+
+   CÂMBIO: a G MTTS vem em DÓLAR e o painel opera em reais. ×BRL_RATE (5)
+   reproduz exatamente a aba MTTS BRAZIL — conferido linha a linha na Global de
+   produção ("1.5K Plus" $300/$0,6 → R$1.500/R$3; "600 Plus" $120/$1 → R$600/R$5).
+   fee/adminFee são FRAÇÕES (0,1 = 10%), não passam pelo câmbio.
+
+   REGRA DE OURO: o sync SEMPRE recarrega o dia que o painel está MOSTRANDO
+   (LAST_KNOWN_DATE) — nunca troca de dia sozinho. Trocar de dia é decisão de
+   gente, com confirmação: ver "ENTREGA DO DIA" logo abaixo.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const GU_SYNC_POLL_MS = 150000;           // ~2,5 min, a mesma cadência da Criação Noturna
+let _guSyncing = false, _guLastAt = 0, _guLastOk = false, _guLastErr = '';
+
+function guWeekdayEnFromISO(iso){ return WEEKDAYS_EN[new Date(iso + 'T12:00:00Z').getUTCDay()]; }
+
+/* dólar → real. Só garantido e buy-in; o resto da linha passa intacto. */
+function guItemToBRL(it){
+  const cv = v => typeof v === 'number' ? Math.round(v * BRL_RATE * 100) / 100 : (v ?? null);
+  return {...it, garantido: cv(it.garantido), buyin: cv(it.buyin)};
+}
+function guSectionToBRL(sec){
+  if(!sec) return null;
+  return {main: sec.main.map(guItemToBRL), side: sec.side.map(guItemToBRL), sat: sec.sat.map(guItemToBRL)};
+}
+
+/* rows do painel para UM dia da grade, a partir do workbook já lido da GU.
+   Estoura Error com mensagem pronta pra tela quando a planilha não serve. */
+function guRowsForDate(wb, iso){
+  // strict primeiro (arquivo completo tem G MTTS E MTTS BRAZIL — cair na primeira aba
+  // leria as colunas erradas). O "Publicar na web" com single=true entrega UMA aba só:
+  // aí, se o nome não bater (a GU renomeou a aba), a única aba do arquivo É a G MTTS.
+  let matrix = workbookMatrix(wb, 'G MTTS', true);
+  if(!matrix && wb && wb.SheetNames && wb.SheetNames.length === 1) matrix = workbookMatrix(wb, wb.SheetNames[0], false);
+  if(!matrix) throw new Error('A planilha da GU veio sem a aba "G MTTS" — confira o link publicado.');
+  const headerCols = findHeaderCols(matrix);
+  if(!headerCols) throw new Error('Não achei o cabeçalho da aba G MTTS (MTT MARKETING / TYPE / BUY-IN…) — o link aponta pra planilha certa?');
+  const diaEn = guWeekdayEnFromISO(iso);
+  const sec = extractGuDaySection(matrix, diaEn, headerCols);
+  if(!sec) throw new Error(`A GU não tem a seção "${diaEn}" — a planilha ainda não foi montada pra ${iso}?`);
+  const next = extractGuDaySection(matrix, guWeekdayEnFromISO(addDaysISO(iso, 1)), headerCols);
+  return globalSectionToRows(guSectionToBRL(sec), guSectionToBRL(next));
+}
+
+/* assinatura só do CONTEÚDO da grade. Comparada contra a grade que já está
+   carregada (não contra um estado guardado): se a GU não mudou, NADA é
+   reescrito no Firebase e nenhum painel aberto re-baixa a grade à toa. */
+function guGradeSignature(rows){
+  try{
+    return JSON.stringify((rows || []).map(r => [r.nome, r.hora, r.garantido, r.buyin, r.late, r.tipo, !!r.proxCronograma, r.fee, r.adminFee]));
+  }catch(e){ return 'sig-' + Date.now() + '-' + Math.random(); }
+}
+
+function renderGuSyncMeta(){
+  const el = document.getElementById('guSyncMeta');
+  if(!el) return;
+  if(!guAutoSyncEnabled()){ el.textContent = '⏸ GU automática desligada — use o botão pra atualizar.'; return; }
+  if(!_guLastAt){ el.textContent = '↻ GU automática — lê a planilha publicada a cada ~2 min.'; return; }
+  const h = new Date(_guLastAt).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', timeZone:'America/Sao_Paulo'});
+  el.textContent = _guLastOk ? `↻ GU lida às ${h}` : `⚠ GU falhou às ${h} — ${_guLastErr || 'tento de novo em instantes'}`;
+}
+
+/* opts.manual = veio de clique (fala na tela em qualquer desfecho)
+   opts.force  = aplica mesmo se o conteúdo for idêntico (usado depois da entrega do dia) */
+async function syncGuGrade(opts){
+  opts = opts || {};
+  if(_guSyncing) return {ok:false, busy:true};
+  if(PANEL_RO){ if(opts.manual) showToast('Este painel está em modo leitura — não posso atualizar a grade daqui.', true); return {ok:false}; }
+  _guSyncing = true;
+  const btnEl = document.getElementById('uploadGlobalBtn');
+  const label = document.getElementById('uploadGlobalBtnLabel');
+  const labelAntes = label ? label.textContent : null;
+  if(opts.manual && label){ label.textContent = 'Lendo a GU...'; if(btnEl) btnEl.disabled = true; }
+  try{
+    const buf = await fetchGuSheetBuffer();
+    const wb  = readWorkbook(buf);
+    const dia = LAST_KNOWN_DATE;                       // SEMPRE o dia que o painel mostra
+    const rows = guRowsForDate(wb, dia);
+    if(!rows.length) throw new Error(`Nenhum torneio de ${guWeekdayEnFromISO(dia)} na GU.`);
+
+    const sig = guGradeSignature(rows);
+    const atual = guGradeSignature((LAST_SHEET_ROWS || []).filter(r => !(r && r._manual)));
+    _guLastAt = Date.now(); _guLastOk = true; _guLastErr = '';
+    if(sig === atual && !opts.force){
+      renderGuSyncMeta();
+      if(opts.manual) showToast('A GU já está na versão mais recente — nada mudou.');
+      return {ok:true, unchanged:true, count:rows.length};
+    }
+
+    // mapa de FEE da GU pro admin resolver o histórico pelo nome, e o arquivo
+    // compartilhado pra quem abrir depois — os mesmos dois efeitos do upload
+    try{ publishGuFees(guFeeIndexFromWorkbook(wb)); }catch(e){ console.warn('GU: falha ao publicar o mapa de fee', e); }
+    publishSharedGlobal(buf, 'GU (link publicado)');
+
+    const primeira = !(LAST_SHEET_ROWS || []).length;
+    ingest(rows, `GU — ${weekdayPtFromISO(dia)} (link)`);
+    document.getElementById('globalUpdatePrompt')?.remove();
+    markGlobalUploaded();
+    setGlobalBtnUploaded();
+    showSheetWarnings(LAST_PARSE_WARNINGS);
+    logActivity(primeira
+      ? `Grade de <b>${dia}</b> carregada direto da GU — ${rows.length} torneios`
+      : `🔄 GU mudou — grade de <b>${dia}</b> atualizada (${rows.length} torneios)`, '📋');
+    if(opts.manual || !primeira) showToast(`✓ GU aplicada — ${rows.length} torneios de ${weekdayPtFromISO(dia).toLowerCase()}.`);
+    setTimeout(() => saveSnapshotToFirebase('gu_sync'), 2000);
+    renderGuSyncMeta();
+    return {ok:true, count:rows.length, changed:true};
+  }catch(err){
+    console.error('syncGuGrade', err);
+    _guLastAt = Date.now(); _guLastOk = false; _guLastErr = err && err.message ? err.message : 'erro desconhecido';
+    renderGuSyncMeta();
+    if(opts.manual){
+      const usarArquivo = window.confirm(
+        `Não consegui aplicar a GU do link:\n\n${_guLastErr}\n\n` +
+        `• OK — abrir o seletor pra carregar a planilha .xlsx à mão.\n` +
+        `• Cancelar — tentar de novo mais tarde (o painel continua tentando sozinho).`
+      );
+      if(usarArquivo) document.getElementById('fileInputGlobal').click();
+    }
+    return {ok:false, error:_guLastErr};
+  }finally{
+    _guSyncing = false;
+    if(opts.manual && label){ label.textContent = labelAntes || 'Carregar Global MTT'; if(btnEl) btnEl.disabled = false; }
+    if(opts.manual && wasGlobalUploadedToday()) setGlobalBtnUploaded();
+  }
+}
+
+/* poll com jitter (dessincroniza os painéis pra não gravarem juntos) e só com a
+   aba visível — aba escondida não gasta banda nem bate no Google à toa. */
+function scheduleGuSync(){
+  clearTimeout(window._guPollT);
+  if(!guAutoSyncEnabled()) return;
+  window._guPollT = setTimeout(() => {
+    if(guAutoSyncEnabled() && document.visibilityState === 'visible') syncGuGrade({});
+    scheduleGuSync();
+  }, GU_SYNC_POLL_MS + Math.floor(Math.random() * 30000));
+}
+document.addEventListener('visibilitychange', () => {
+  if(guAutoSyncEnabled() && document.visibilityState === 'visible' && Date.now() - _guLastAt > 60000) syncGuGrade({});
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ENTREGA DO DIA — a virada NUNCA acontece sozinha
+   Com a GU vindo do link não existe mais o clique de upload que antes servia de
+   "eu decidi virar o dia". Então a troca vira um ato explícito: o painel FICA no
+   dia que está (a pessoa continua vendo o dia anterior inteiro, com o que falta
+   fixar) e só passa pro dia seguinte quando alguém confirma a entrega.
+   ═══════════════════════════════════════════════════════════════════════════ */
+let HANDOFF_SNOOZE_UNTIL = 0;
+
+/* pendências do dia atual — o que a pessoa precisa ver ANTES de decidir entregar */
+function pendenciasDoDia(){
+  const relevantes = RAW_ROWS.filter(r => mustFix(r, classify(r)));
+  return {
+    relevantes,
+    pendentes: relevantes.filter(r => !isFixed(r._key)),
+    // "NF" (não formou) não é pendência: o card está resolvido sem arrecadado.
+    // isNF do allCardsDone é local àquela função — a regra é repetida aqui de propósito.
+    semArrecadado: relevantes.filter(r => r.premiacao == null && !isMultidayFlight(r) &&
+      !((getId(r._key) || '').toUpperCase() === 'NF' || r.explicitNF)),
+  };
+}
+/* o dia está "pronto pra entregar"?
+   1. o ÚLTIMO ARRECADADO do dia foi preenchido (sheetsDayComplete — a regra do Brian:
+      todo torneio com premiação ou NF, e o último torneio da grade fixado). É o gatilho
+      principal: quem coleta termina lançando o último valor, e ali mesmo pode virar o dia.
+   2. ou todos os cards obrigatórios já estão fixados;
+   3. ou a grade virou no relógio (05:30) — aí a entrega está atrasada de qualquer forma. */
+function podeEntregarDia(){
+  if(!RAW_ROWS.length) return false;
+  if(todayPathSP() > LAST_KNOWN_DATE) return true;                  // passou das 05:30
+  if(sheetsDayComplete()) return true;                              // último arrecadado lançado
+  const {relevantes, pendentes} = pendenciasDoDia();
+  return relevantes.length > 0 && pendentes.length === 0;            // fechou tudo antes da hora
+}
+
+/* Notificação de "acabou o dia" — dispara UMA vez, no instante em que o último
+   arrecadado entra. Chamada de todos os pontos que podem completar o dia (premiação,
+   fixar, NF), então funciona tanto pra quem digitou quanto pro parceiro na outra aba.
+   Toast + beep + notificação do sistema (se a pessoa já liberou) + a barra de entrega:
+   o turno noturno não pode depender de reparar num detalhe da tela. */
+let _diaCompletoAvisado = null;   // ISO do dia já avisado (uma vez por dia)
+function avisarDiaCompleto(){
+  if(VIEW_MODE_DATE || PANEL_RO_BASE) return;
+  if(!RAW_ROWS.length) return;
+  if(!sheetsDayComplete()){
+    if(_diaCompletoAvisado === LAST_KNOWN_DATE) _diaCompletoAvisado = null;  // reabriu um card → pode avisar de novo
+    return;
+  }
+  // "acabou o dia" é um evento mais forte que o "continuar neste dia" de meia hora atrás:
+  // derruba o adiamento pra barra reaparecer no momento em que realmente importa
+  if(_diaCompletoAvisado !== LAST_KNOWN_DATE) HANDOFF_SNOOZE_UNTIL = 0;
+  renderHandoffBar();                       // a barra aparece mesmo se o aviso já saiu
+  if(_diaCompletoAvisado === LAST_KNOWN_DATE) return;
+  _diaCompletoAvisado = LAST_KNOWN_DATE;
+  const prox = addDaysISO(LAST_KNOWN_DATE, 1);
+  showToast(`🏁 Último arrecadado lançado — o dia ${LAST_KNOWN_DATE} está completo. Pode trocar a GU para ${prox}.`);
+  logActivity(`🏁 Dia <b>${escHtml(LAST_KNOWN_DATE)}</b> completo — último arrecadado lançado. Pronto para entregar.`, '🏁');
+  try{ playAlertBeep(false); }catch(e){}
+  try{
+    if(('Notification' in window) && Notification.permission === 'granted'){
+      const n = new Notification('♠ Dia completo', {
+        body: `Último arrecadado de ${LAST_KNOWN_DATE} lançado. Clique para trocar a GU para ${prox}.`,
+        icon: 'https://suprema-poker.netlify.app/favicon.ico',
+        badge: 'https://suprema-poker.netlify.app/favicon.ico',
+        tag: `dia-completo-${LAST_KNOWN_DATE}`,   // não empilha se o listener repetir
+        requireInteraction: true,                 // fica na tela: o turno noturno não pode perder
+      });
+      n.onclick = () => { window.focus(); n.close(); try{ confirmarEntregaDoDia(); }catch(e){} };
+    }
+  }catch(e){}
+}
+
+/* Confirmação da entrega. Mostra o que ainda está aberto NO DIA QUE SAI — é a
+   última chance de olhar o dia anterior antes de ele sair da tela. */
+/* opts.semSync = a grade do dia novo já vem por outro caminho (upload de arquivo
+   em andamento); a entrega só vira o dia e não puxa a GU do link por cima. */
+function confirmarEntregaDoDia(opts){
+  opts = opts || {};
+  const dia = LAST_KNOWN_DATE;
+  // opts.para = dia de destino explícito (o upload já calculou o dele; pode estar mais
+  // de um dia à frente se o painel ficou parado). Sem ele, é sempre o dia seguinte.
+  const prox = opts.para || addDaysISO(dia, 1);
+  const {pendentes, semArrecadado} = pendenciasDoDia();
+  const linhas = [`Entregar o dia ${dia} e virar o painel para ${prox}?`, ''];
+  if(pendentes.length) linhas.push(`⚠ Ainda faltam FIXAR ${pendentes.length} card(s): ${fmtPendentesFixar(pendentes)}`);
+  if(semArrecadado.length) linhas.push(`⚠ ${semArrecadado.length} card(s) sem arrecadado lançado.`);
+  if(!pendentes.length && !semArrecadado.length) linhas.push('✓ O dia está completo: tudo fixado e com arrecadado.');
+  linhas.push('',
+    `• OK — entrega ${dia}, carrega a GU de ${prox} e o painel passa a mostrar o dia novo.`,
+    `  Nada se perde: o trabalho de ${dia} fica salvo no dia dele.`,
+    `• Cancelar — continuar em ${dia}.`);
+  if(!window.confirm(linhas.join('\n'))) return false;
+
+  // TURNO COM MAIS DE UMA PESSOA: a entrega vira uma PROPOSTA e só acontece quando
+  // todo mundo que está com o painel aberto confirmar. Sozinho (ou sem Firebase),
+  // o "sim" de quem clicou já é o do turno inteiro — não há ninguém pra esperar.
+  const turno = operadoresDoTurno();
+  if(!opts.semSync && fbReady && fbDb && turno.length > 1){
+    proporEntrega(prox, turno);
+    return true;
+  }
+  aplicarEntrega(prox, {semSync: opts.semSync});
+  return true;
+}
+
+/* Executa a entrega de fato: marca o rolledTo (que faz TODA aba seguir junto pelo
+   listener que já existe) e vira o dia nesta. Ponto único — a votação, o botão e o
+   upload manual desembocam todos aqui. */
+function aplicarEntrega(prox, opts){
+  opts = opts || {};
+  const dia = LAST_KNOWN_DATE;
+  // GUARDA: proposta que chega (ou fecha) DEPOIS do dia já ter virado — o parceiro
+  // fechou primeiro, o rolledTo chegou antes, a aba estava dormindo. Sem isto o
+  // resetDay rodaria de novo em cima do dia NOVO e apagaria o que já foi preenchido nele.
+  if(typeof prox !== 'string' || !(prox > dia)){
+    _entregaPropostaLocal = null;
+    document.getElementById('entregaBar')?.remove();
+    return false;
+  }
+  if(fbReady && fbDb){
+    try{ fbDb.ref(`${FB_BASE_PATH}/entrega`).remove(); }catch(e){}      // proposta cumpriu o papel
+    try{ fbDb.ref(`${FB_BASE_PATH}/rolledTo`).set(prox); }catch(e){}
+  }
+  logActivity(`📅 Dia <b>${escHtml(dia)}</b> entregue — painel virou para <b>${escHtml(prox)}</b>`, '📅');
+  ROLLOVER_HELD_TOAST = false;
+  HANDOFF_SNOOZE_UNTIL = 0;
+  _entregaPropostaLocal = null;
+  document.getElementById('entregaBar')?.remove();
+  LAST_KNOWN_DATE = prox;
+  _pularSyncNoProximoReset = !!opts.semSync;   // upload manual traz a grade dele mesmo
+  resetDay(prox);                              // snapshot do dia entregue, limpa, aponta o FB pro dia novo e puxa a GU
+  document.getElementById('handoffBar')?.remove();
+  renderDaySwitch();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ENTREGA COM O TURNO INTEIRO
+   Trocar a GU tira o cronograma da tela de TODO MUNDO, então quem está no turno
+   decide junto: quem clica ABRE uma proposta, cada painel aberto confirma a sua
+   parte, e a virada só acontece quando o último confirmar.
+
+   Quem é "o turno": as mesmas pessoas dos avatares no topo do painel (nó
+   `presence`, heartbeat fresco). Agrupadas por NOME — duas abas da mesma pessoa
+   valem um voto só, senão uma aba esquecida no celular travaria a troca.
+
+   NUNCA TRAVA: quem sai do turno some da conta sozinho (o heartbeat esfria em
+   3 min e a votação recalcula); quem propôs pode entregar mesmo assim depois de
+   3 minutos; e a proposta inteira expira em 20 min se ninguém resolver.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const ENTREGA_FORCAR_APOS_MS = 3 * 60 * 1000;
+const ENTREGA_EXPIRA_MS      = 20 * 60 * 1000;
+let _entregaPropostaLocal = null;    // último valor visto do nó (pra render e fechamento)
+let _pularSyncNoProximoReset = false;
+
+/* chave de voto por PESSOA (não por aba): nome normalizado */
+function votoKey(nome){
+  return String(nome || 'alguem').normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40) || 'alguem';
+}
+
+/* quem está no turno AGORA — mesma fonte dos avatares do nav, agrupada por pessoa */
+function operadoresDoTurno(){
+  const cache = window._presenceCache || {};
+  const agora = Date.now();
+  const porPessoa = new Map();
+  Object.values(cache).forEach(v => {
+    if(!v || typeof v.at !== 'number' || (agora - v.at) >= PRESENCE_STALE_MS) return;
+    if(v.ro === true) return;                      // TV / modo leitura não decide a troca
+    const nome = v.name || 'Alguém';
+    porPessoa.set(votoKey(nome), nome);
+  });
+  // eu sempre conto, mesmo que meu heartbeat ainda não tenha ido (aba recém-aberta) —
+  // a não ser que EU seja a sessão de leitura
+  if(!PANEL_RO_BASE) porPessoa.set(votoKey(OPERATOR_NAME || 'Alguém'), OPERATOR_NAME || 'Alguém');
+  return [...porPessoa.entries()].map(([k, nome]) => ({k, nome}));
+}
+
+/* abre a proposta no Firebase, já com o voto de quem propôs */
+function proporEntrega(prox, turno){
+  const eu = votoKey(OPERATOR_NAME || 'Alguém');
+  const proposta = {
+    para: prox,
+    por: OPERATOR_NAME || 'Alguém',
+    porKey: eu,
+    at: Date.now(),
+    confirmados: { [eu]: { nome: OPERATOR_NAME || 'Alguém', at: Date.now() } },
+  };
+  fbDb.ref(`${FB_BASE_PATH}/entrega`).set(proposta).catch(err => {
+    console.error('entrega: falha ao abrir a proposta', err);
+    showToast('Não consegui abrir a votação da troca — verifique a conexão.', true);
+  });
+  logActivity(`🗳 <b>${escHtml(OPERATOR_NAME || 'Alguém')}</b> propôs entregar o dia e trocar a GU para <b>${escHtml(prox)}</b> — aguardando o turno confirmar`, '🗳');
+  showToast(`🗳 Proposta enviada — falta o resto do turno confirmar a troca para ${prox}.`);
+}
+
+/* meu "sim" na proposta aberta */
+function confirmarMinhaParte(){
+  if(!_entregaPropostaLocal || !fbReady || !fbDb) return;
+  if(roGuard()) return;
+  const eu = votoKey(OPERATOR_NAME || 'Alguém');
+  fbDb.ref(`${FB_BASE_PATH}/entrega/confirmados/${eu}`)
+    .set({ nome: OPERATOR_NAME || 'Alguém', at: Date.now() })
+    .catch(() => showToast('Não consegui registrar sua confirmação — tente de novo.', true));
+}
+
+function cancelarProposta(){
+  if(!fbReady || !fbDb) return;
+  if(roGuard()) return;
+  fbDb.ref(`${FB_BASE_PATH}/entrega`).remove().catch(()=>{});
+  logActivity(`🗳 Proposta de troca da GU cancelada por <b>${escHtml(OPERATOR_NAME || 'Alguém')}</b>`, '🗳');
+}
+
+/* quem falta confirmar: quem está no turno agora e ainda não votou */
+function faltamConfirmar(p){
+  const conf = (p && p.confirmados) || {};
+  return operadoresDoTurno().filter(o => !conf[o.k]);
+}
+
+/* Chamado a cada mudança do nó `entrega` e a cada 20s (o turno muda sozinho quando
+   alguém fecha a aba). Fecha a votação quando não falta ninguém. */
+function avaliarProposta(){
+  const p = _entregaPropostaLocal;
+  if(!p || !p.para){ document.getElementById('entregaBar')?.remove(); return; }
+  if(VIEW_MODE_DATE || PANEL_RO_BASE){ document.getElementById('entregaBar')?.remove(); return; }
+  // proposta de um dia que já foi entregue (a aba estava dormindo, o rolledTo chegou
+  // antes): é lixo, não pode virar barra nem disparar virada
+  if(!(p.para > LAST_KNOWN_DATE)){ document.getElementById('entregaBar')?.remove(); return; }
+  const idade = Date.now() - (p.at || 0);
+  if(idade > ENTREGA_EXPIRA_MS){
+    // ninguém resolveu em 20 min: derruba a proposta em vez de deixar a barra pra sempre
+    if(votoKey(OPERATOR_NAME || 'Alguém') === p.porKey && fbReady && fbDb){
+      fbDb.ref(`${FB_BASE_PATH}/entrega`).remove().catch(()=>{});
+      showToast('A proposta de troca expirou sem o turno fechar — pode propor de novo quando quiser.', true);
+    }
+    document.getElementById('entregaBar')?.remove();
+    return;
+  }
+  const faltam = faltamConfirmar(p);
+  if(!faltam.length){
+    // TODO MUNDO confirmou. Só uma aba precisa gravar o rolledTo: a de quem propôs.
+    // Se quem propôs saiu do turno, qualquer aba assume depois de 1 min de proposta.
+    const souOProponente = votoKey(OPERATOR_NAME || 'Alguém') === p.porKey;
+    const proponenteSumiu = !operadoresDoTurno().some(o => o.k === p.porKey);
+    if(souOProponente || (proponenteSumiu && idade > 60000)) aplicarEntrega(p.para, {});
+    return;
+  }
+  renderEntregaBar(p, faltam);
+}
+
+/* Barra da votação — mostra quem já confirmou e quem falta, com nome */
+function renderEntregaBar(p, faltam){
+  const existing = document.getElementById('entregaBar');
+  const eu = votoKey(OPERATOR_NAME || 'Alguém');
+  const jaVotei = !!(p.confirmados && p.confirmados[eu]);
+  const nomes = faltam.map(o => o.nome.split(' ')[0]).join(', ');
+  const total = Object.keys(p.confirmados || {}).length;
+  const souOProponente = eu === p.porKey;
+  const podeForcar = souOProponente && (Date.now() - (p.at || 0)) > ENTREGA_FORCAR_APOS_MS;
+  const sig = `${p.para}|${total}|${nomes}|${jaVotei}|${podeForcar}`;
+  if(existing && existing.dataset.sig === sig) return;
+  const bar = existing || document.createElement('div');
+  bar.dataset.sig = sig;
+  if(!existing){
+    bar.id = 'entregaBar';
+    bar.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:99999;background:#1d4ed8;color:#fff;padding:10px 14px;border-radius:16px;font-size:13px;font-weight:700;box-shadow:0 8px 28px rgba(0,0,0,.4);display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:94vw';
+    document.body.appendChild(bar);
+  }
+  bar.innerHTML = `<span>🗳 <b>${escHtml(p.por)}</b> quer trocar a GU para <b>${escHtml(p.para)}</b> · ${total} confirmaram · falta <b>${escHtml(nomes)}</b></span>`;
+  if(!jaVotei){
+    const sim = document.createElement('button');
+    sim.type = 'button';
+    sim.textContent = 'Confirmar a troca';
+    sim.style.cssText = 'background:#fff;color:#1d4ed8;border:none;border-radius:99px;padding:6px 14px;font-weight:800;font-size:12px;cursor:pointer;flex:none';
+    sim.addEventListener('click', confirmarMinhaParte);
+    bar.appendChild(sim);
+    const nao = document.createElement('button');
+    nao.type = 'button';
+    nao.textContent = 'Ainda não';
+    nao.title = 'Some da sua tela; a proposta continua de pé para o resto do turno';
+    nao.style.cssText = 'background:rgba(255,255,255,.18);color:#fff;border:none;border-radius:99px;padding:6px 12px;font-weight:800;font-size:12px;cursor:pointer;flex:none';
+    nao.addEventListener('click', () => bar.remove());
+    bar.appendChild(nao);
+  } else {
+    const ok = document.createElement('span');
+    ok.textContent = '✓ você já confirmou';
+    ok.style.cssText = 'opacity:.85;font-weight:700;font-size:12px';
+    bar.appendChild(ok);
+  }
+  if(souOProponente){
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.textContent = 'Cancelar';
+    cancel.style.cssText = 'background:rgba(255,255,255,.18);color:#fff;border:none;border-radius:99px;padding:6px 12px;font-weight:800;font-size:12px;cursor:pointer;flex:none';
+    cancel.addEventListener('click', cancelarProposta);
+    bar.appendChild(cancel);
+    if(podeForcar){
+      const forcar = document.createElement('button');
+      forcar.type = 'button';
+      forcar.textContent = 'Entregar mesmo assim';
+      forcar.title = 'Vira o dia sem esperar quem falta — use quando alguém deixou o painel aberto e foi embora';
+      forcar.style.cssText = 'background:#f59e0b;color:#000;border:none;border-radius:99px;padding:6px 12px;font-weight:800;font-size:12px;cursor:pointer;flex:none';
+      forcar.addEventListener('click', () => {
+        if(!window.confirm(`Entregar o dia sem a confirmação de ${nomes}?\n\nUse isto só quando a pessoa não está mais no turno — o painel dela vai virar junto.`)) return;
+        logActivity(`🗳 <b>${escHtml(OPERATOR_NAME || 'Alguém')}</b> entregou o dia SEM a confirmação de <b>${escHtml(nomes)}</b>`, '⚠');
+        aplicarEntrega(p.para, {});
+      });
+      bar.appendChild(forcar);
+    }
+  }
+}
+
+/* Escuta a proposta do dia. Registrado nos DOIS pontos que anexam listeners de dia
+   (carregamento e reinitDayListeners), como o rolledTo — senão, depois de uma virada,
+   a aba ficaria surda pra proposta do dia novo. */
+function registrarListenerEntrega(){
+  if(!fbReady || !fbDb) return;
+  fbDb.ref(`${FB_BASE_PATH}/entrega`).on('value', snap => {
+    _entregaPropostaLocal = snap.val() || null;
+    if(!_entregaPropostaLocal){ document.getElementById('entregaBar')?.remove(); return; }
+    avaliarProposta();
+  });
+}
+
+/* o turno muda sem ninguém mexer no nó (alguém fecha a aba) — reavalia sozinho */
+setInterval(() => { if(_entregaPropostaLocal) avaliarProposta(); }, 20000);
+
+/* Barra de entrega: fica na tela enquanto o dia estiver pronto pra ser entregue.
+   Não troca nada sozinha — só oferece. "Continuar" adia por 30 min. */
+function renderHandoffBar(){
+  const existing = document.getElementById('handoffBar');
+  if(VIEW_MODE_DATE || PANEL_RO_BASE || !podeEntregarDia() || Date.now() < HANDOFF_SNOOZE_UNTIL){
+    if(existing) existing.remove();
+    return;
+  }
+  const dia = LAST_KNOWN_DATE, prox = addDaysISO(dia, 1);
+  const {pendentes, semArrecadado} = pendenciasDoDia();
+  const completo = sheetsDayComplete();
+  // updateProgress chama isto a cada fix/sync: se nada mudou, não remonta os botões
+  const sig = `${dia}|${pendentes.length}|${semArrecadado.length}|${completo ? 'ok' : '-'}`;
+  if(existing && existing.dataset.sig === sig) return;
+  const bar = existing || document.createElement('div');
+  bar.dataset.sig = sig;
+  if(!existing){
+    bar.id = 'handoffBar';
+    bar.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:99999;background:var(--gold,#c08000);color:#000;padding:10px 14px;border-radius:16px;font-size:13px;font-weight:700;box-shadow:0 8px 28px rgba(0,0,0,.38);display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:94vw';
+    document.body.appendChild(bar);
+  }
+  const aviso = completo
+    ? 'dia completo — último arrecadado lançado'
+    : pendentes.length ? `faltam fixar ${pendentes.length} card(s)`
+    : semArrecadado.length ? `faltam ${semArrecadado.length} arrecadado(s)`
+    : 'tudo fixado';
+  bar.innerHTML = `<span>${completo ? '🏁' : '📅'} Dia <b>${escHtml(dia)}</b> — ${escHtml(aviso)}. Trocar a GU para <b>${escHtml(prox)}</b>?</span>`;
+  const ok = document.createElement('button');
+  ok.type = 'button';
+  ok.textContent = completo ? `Trocar a GU para ${prox}` : `Entregar ${dia}`;
+  ok.style.cssText = 'background:#000;color:var(--gold,#c08000);border:none;border-radius:99px;padding:6px 14px;font-weight:800;font-size:12px;cursor:pointer;flex:none';
+  ok.addEventListener('click', () => confirmarEntregaDoDia());
+  const nao = document.createElement('button');
+  nao.type = 'button';
+  nao.textContent = 'Continuar neste dia';
+  nao.style.cssText = 'background:rgba(0,0,0,.15);color:#000;border:none;border-radius:99px;padding:6px 12px;font-weight:800;font-size:12px;cursor:pointer;flex:none';
+  nao.addEventListener('click', () => { HANDOFF_SNOOZE_UNTIL = Date.now() + 30*60*1000; bar.remove(); });
+  bar.append(ok, nao);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ALTERNADOR DE CRONOGRAMA — dia atual ⇄ dia anterior
+   O dia entregue não some mais: dá pra abrir o cronograma anterior e conferir
+   o que foi feito (fixados, IDs, field, arrecadado, overlay), com os cards
+   exatamente como ficaram. A visita é SOMENTE LEITURA — liga o mesmo PANEL_RO
+   que o modo leitura de permissão usa, então todos os pontos de escrita já
+   existentes (roGuard, setSharedSheet, snapshots, premBy, GU sync) travam de
+   uma vez, e o dia passado não corre risco de ser reescrito por engano.
+   Voltar pro dia ao vivo é um reload: o painel se remonta inteiro do zero.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const DAY_NODES = ['premiacao','fixed','flags','premBy','ids','field','garantido','buyin','checklist','confhoje','rolledTo','manualRows','entrega'];
+
+/* desliga os listeners do dia (inclusive o da planilha) antes de apontar o
+   painel pra outro nó — senão o dia ao vivo continua chegando por cima da visita */
+function detachDayListeners(){
+  if(!fbReady || !fbDb) return;
+  DAY_NODES.forEach(node => { try{ fbDb.ref(`${FB_BASE_PATH}/${node}`).off(); }catch(e){} });
+  if(SHEET_LISTENER_PATH){
+    try{ fbDb.ref(`${SHEET_LISTENER_PATH}/sheet/uploadedAt`).off(); }catch(e){}
+    SHEET_LISTENER_PATH = null;
+  }
+}
+
+function renderDaySwitch(){
+  const wrap = document.getElementById('daySwitch');
+  if(!wrap) return;
+  const prevBtn = document.getElementById('dayPrevBtn');
+  const liveBtn = document.getElementById('dayLiveBtn');
+  const handBtn = document.getElementById('dayHandoffBtn');
+  const label   = document.getElementById('dayViewLabel');
+  const visitando = !!VIEW_MODE_DATE;
+  if(prevBtn){
+    prevBtn.hidden = visitando;
+    prevBtn.textContent = `◀ Ver ${addDaysISO(LAST_KNOWN_DATE, -1)}`;
+  }
+  if(liveBtn) liveBtn.hidden = !visitando;
+  // "trocar a GU" fica SEMPRE à mão no dia ao vivo: quem termina o turno decide a hora,
+  // não o relógio. Some durante a visita (não se entrega um dia que já foi entregue).
+  if(handBtn){
+    handBtn.hidden = visitando || PANEL_RO_BASE;
+    handBtn.textContent = `Trocar a GU para ${addDaysISO(LAST_KNOWN_DATE, 1)} ▶`;
+  }
+  if(label){
+    label.textContent = visitando
+      ? `👁 cronograma de ${VIEW_MODE_DATE} — somente leitura`
+      : `cronograma de ${LAST_KNOWN_DATE} (ao vivo)`;
+  }
+}
+
+/* Abre o cronograma de um dia já salvo. Lê UMA vez (o passado não muda mais)
+   a grade + tudo que foi preenchido nela e remonta os cards do jeito que ficaram. */
+async function abrirDiaPassado(iso){
+  if(VIEW_MODE_DATE === iso) return;
+  if(!fbReady || !fbDb){ showToast('Sem conexão com o Firebase — não consigo abrir um dia anterior agora.', true); return; }
+  const prevBtn = document.getElementById('dayPrevBtn');
+  if(prevBtn){ prevBtn.disabled = true; prevBtn.textContent = 'Abrindo...'; }
+  try{
+    const base = `painel/${iso}`;
+    const [sheetS, premS, byS, fixS, idS, fldS, garS, buyS, chkS, flagS] = await Promise.all(
+      ['sheet','premiacao','premBy','fixed','ids','field','garantido','buyin','checklist','flags']
+        .map(n => fbDb.ref(`${base}/${n}`).once('value'))
+    );
+    const sheet = sheetS.val();
+    if(!sheet || !Array.isArray(sheet.rows) || !sheet.rows.length){
+      showToast(`Não há cronograma salvo de ${iso} — nada pra mostrar.`, true);
+      return;
+    }
+    // a partir daqui o painel está VISITANDO: trava escrita e para de seguir o dia ao vivo
+    VIEW_MODE_DATE = iso;
+    PANEL_RO = true;
+    document.documentElement.classList.add('ro');
+    detachDayListeners();
+    clearTimeout(window._guPollT);              // GU automática não roda durante a visita
+    document.getElementById('handoffBar')?.remove();
+    document.getElementById('heldDayBanner')?.remove();
+    FB_BASE_PATH = base;                        // leituras pontuais apontam pro dia visitado
+
+    FIXED_MAP     = fixS.val() || {};
+    ID_MAP        = idS.val()  || {};
+    FIELD_MAP     = fldS.val() || {};
+    GARANTIDO_MAP = garS.val() || {};
+    BUYIN_MAP     = buyS.val() || {};
+    PREM_BY_MAP   = byS.val()  || {};
+    CHECKLIST_MAP = chkS.val() || {};
+    FLAG_MAP      = flagS.val()|| {};
+    MANUAL_ROWS   = {};                         // os manuais do dia já vêm dentro de sheet.rows
+
+    ingest(sheet.rows, `${sheet.filename || 'Cronograma'} — ${iso}`, /*fromRemote=*/true);
+
+    // arrecadado do dia visitado: mesma regra de sempre — só o que tem carimbo aparece
+    const prem = premS.val() || {};
+    RAW_ROWS.forEach(r => {
+      const v = prem[r._key];
+      r.premiacao = (v != null && PREM_BY_MAP[r._key]) ? v : null;
+    });
+    RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
+    UPCOMING = [...RAW_ROWS];
+    UNFIXED  = computeUnfixed();
+    computeStats(); updateProgress(); renderResults(); renderUpcoming(); renderUnfixed();
+    renderDaySwitch();
+    mountVisitBanner();
+    logActivity(`👁 <b>${escHtml(OPERATOR_NAME || 'Alguém')}</b> abriu o cronograma de <b>${escHtml(iso)}</b> para conferir`, '👁');
+    showToast(`👁 Cronograma de ${iso} aberto em modo leitura — nada aqui pode ser editado.`);
+  }catch(err){
+    console.error('abrirDiaPassado', err);
+    showToast('Não consegui abrir o dia anterior: ' + (err && err.message ? err.message : 'erro desconhecido'), true);
+    if(VIEW_MODE_DATE === iso) voltarAoVivo();   // não deixa o painel num meio-termo
+  }finally{
+    if(prevBtn){ prevBtn.disabled = false; renderDaySwitch(); }
+  }
+}
+
+/* Volta pro cronograma ao vivo SEM recarregar a página — o operador transita
+   entre os dois quantas vezes quiser, na mesma velocidade dos dois lados.
+   Religa exatamente o mesmo caminho da virada de dia (reinitDayListeners), que
+   já é o mecanismo de produção pra trocar o painel de nó. Se qualquer coisa
+   sair do lugar, cai no reload, que é o plano B infalível. */
+function voltarAoVivo(){
+  if(!VIEW_MODE_DATE) return;
+  const iso = LAST_KNOWN_DATE;   // o dia ao vivo não foi tocado durante a visita
+  try{
+    if(!fbReady || !fbDb) throw new Error('sem conexão com o Firebase');
+    detachDayListeners();                       // solta o dia visitado
+    VIEW_MODE_DATE = null;
+    PANEL_RO = PANEL_RO_BASE;
+    if(!PANEL_RO) document.documentElement.classList.remove('ro');
+    FB_BASE_PATH = `painel/${iso}`;
+    // limpa o que era do dia visitado; os listeners do dia ao vivo repovoam tudo ao anexar
+    FIXED_MAP={}; ID_MAP={}; FIELD_MAP={}; GARANTIDO_MAP={}; BUYIN_MAP={};
+    PREM_BY_MAP={}; CHECKLIST_MAP={}; FLAG_MAP={}; MANUAL_ROWS={};
+    RAW_ROWS=[]; RESULTS=[]; UPCOMING=[]; UNFIXED=[]; reindexRows();
+    document.getElementById('visitBanner')?.remove();
+    // as duas guardas de "já apliquei esta planilha" precisam cair, senão o listener
+    // reconhece a assinatura de antes da visita e devolve a tela vazia
+    LAST_APPLIED_SHEET_SIGNATURE = null;
+    window._painelSheetLastTs = null;
+    reinitDayListeners();                       // religa TUDO (planilha inclusive) no dia ao vivo
+    renderDaySwitch();
+    scheduleGuSync();
+    showToast(`▶ De volta ao cronograma de ${iso}.`);
+    // rede de segurança: se em 3s a grade não voltou (listener que não disparou,
+    // regra do RTDB negando), busca na mão antes de deixar o operador na tela vazia
+    setTimeout(() => {
+      if(VIEW_MODE_DATE || RAW_ROWS.length || !fbDb) return;
+      fbDb.ref(`${FB_BASE_PATH}/sheet`).once('value').then(s => {
+        const d = s.val();
+        if(!VIEW_MODE_DATE && !RAW_ROWS.length && d && Array.isArray(d.rows) && d.rows.length){
+          ingest(d.rows, d.filename || '', /*fromRemote=*/true);
+        }
+      }).catch(() => location.reload());
+    }, 3000);
+  }catch(e){
+    console.error('voltarAoVivo', e);
+    VIEW_MODE_DATE = null;
+    location.reload();
+  }
+}
+
+/* faixa fixa enquanto a visita durar — ninguém pode achar que está no dia de hoje */
+function mountVisitBanner(){
+  if(document.getElementById('visitBanner')) return;
+  const b = document.createElement('div');
+  b.id = 'visitBanner';
+  b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#1f2937;color:#e5e7eb;padding:8px 14px;font-size:13px;font-weight:700;display:flex;gap:12px;align-items:center;justify-content:center;box-shadow:0 4px 18px rgba(0,0,0,.35)';
+  b.innerHTML = `<span>👁 Você está vendo o cronograma de <b>${escHtml(VIEW_MODE_DATE)}</b> — somente leitura, nada é salvo.</span>`;
+  const back = document.createElement('button');
+  back.type = 'button';
+  back.textContent = 'Voltar para hoje';
+  back.style.cssText = 'background:var(--gold,#c08000);color:#000;border:none;border-radius:99px;padding:5px 14px;font-weight:800;font-size:12px;cursor:pointer';
+  back.addEventListener('click', voltarAoVivo);
+  b.appendChild(back);
+  document.body.appendChild(b);
+}
+
+document.getElementById('dayPrevBtn')?.addEventListener('click', () => {
+  abrirDiaPassado(addDaysISO(VIEW_MODE_DATE || LAST_KNOWN_DATE, -1));
+});
+document.getElementById('dayLiveBtn')?.addEventListener('click', () => voltarAoVivo());
+document.getElementById('dayHandoffBtn')?.addEventListener('click', () => {
+  if(VIEW_MODE_DATE){ showToast('Você está vendo um dia já entregue — volte para hoje primeiro.', true); return; }
+  confirmarEntregaDoDia();
+});
 
 /* Converte a section {main, side, sat} da Global para o formato de row do painel.
    IMPORTANTE (não misturar cronogramas): na Global, a madrugada de HOJE (00:00–05:30) vive no
@@ -1886,6 +2576,13 @@ let PANEL_RO = false;
 try { PANEL_RO = !!_session && !(window.SupremaAuth && SupremaAuth.canEdit && SupremaAuth.canEdit('painel')); }
 catch(e){ PANEL_RO = false; }
 if (PANEL_RO) document.documentElement.classList.add('ro');
+/* VISITA A UM DIA PASSADO (alternador de cronograma).
+   Quando != null, o painel está MOSTRANDO um dia já entregue: nada pode ser
+   escrito (PANEL_RO é ligado junto), o dia não vira, a GU não sincroniza e a
+   grade visitada não encosta no cache local do dia ao vivo. Sair da visita é
+   um location.reload() — o painel se remonta inteiro do dia ao vivo. */
+let VIEW_MODE_DATE = null;
+const PANEL_RO_BASE = PANEL_RO;   // modo leitura POR PERMISSÃO (não confundir com a visita)
 let _roToastAt = 0;
 /* chame no TOPO de cada função de escrita disparada pelo usuário: bloqueia e
    avisa (no máx. 1 toast a cada 2,5s). Retorna true quando bloqueou. */
@@ -2815,12 +3512,27 @@ function loadFixedMap(){
 function saveFixedMapLocal(map){
   try{ localStorage.setItem(FIXED_STORE_KEY, JSON.stringify(map)); }catch(e){}
 }
+/* CARIMBO É POR DIA — esta era a raiz do "arrecadado preenchido sozinho".
+   O backup local do premBy vivia numa chave só, sem dia. Como a rowKey é
+   hash(nome|hora|buyin|garantido), um torneio recorrente ("2 Seats SPT" 09:00,
+   R$300) tem a MESMA chave todo dia — então o carimbo de ontem dava validade,
+   hoje, a um valor de ontem que vazou pra memória. Com o carimbo válido, o
+   snapshot gravava `premPor`, o recoverPremiacaoFromSnapshot reescrevia
+   premiacao+premBy no nó do dia, e dali em diante o valor falso era
+   indistinguível de um digitado: é por isso que o log dizia "Parceiro
+   preencheu premiação de ...". Guardando o dia junto, o carimbo morre com ele. */
 function loadPremByMap(){
-  try{ return JSON.parse(localStorage.getItem(PREM_BY_STORE_KEY) || '{}'); }
-  catch(e){ return {}; }
+  try{
+    const raw = JSON.parse(localStorage.getItem(PREM_BY_STORE_KEY) || 'null');
+    if(!raw || !raw.dayISO || !raw.map) return {};        // formato antigo (mapa cru) = dia desconhecido → descarta
+    return raw.dayISO === premByDiaAtual() ? raw.map : {};
+  }catch(e){ return {}; }
+}
+function premByDiaAtual(){
+  return (typeof LAST_KNOWN_DATE === 'string' && LAST_KNOWN_DATE) ? LAST_KNOWN_DATE : todayPathSP();
 }
 function savePremByMapLocal(map){
-  try{ localStorage.setItem(PREM_BY_STORE_KEY, JSON.stringify(map)); }catch(e){}
+  try{ localStorage.setItem(PREM_BY_STORE_KEY, JSON.stringify({ dayISO: premByDiaAtual(), map: map || {} })); }catch(e){}
 }
 function loadIdMap(){
   try{ return JSON.parse(localStorage.getItem(ID_STORE_KEY) || '{}'); }
@@ -2939,21 +3651,46 @@ function registerSheetListener(){
     // zerava "Pago em premiações"/"fechados". O fallback por nome+hora (identidade estável)
     // reata o vínculo. Em memória só (sem regravar no FB) pra não arriscar premiar o torneio
     // errado num eventual empate de nome+hora.
-    const premBackup = {}, premByNH = {};
+    // SÓ o que tem CARIMBO (premBy) entra no backup. Sem esta guarda, um valor que
+    // apenas ESTAVA na memória (restaurado de um cache de outro dia, por exemplo)
+    // era reaplicado na grade nova e virava "arrecadado preenchido sozinho" — vivia
+    // só em memória, então nem o portão do applyFbPremiacao nem o do resync limpavam.
+    // Mesma regra dos outros dois resgates: valor sem carimbo não existe.
+    const premBackup = {}, premByNH = {}, byNHCarimbo = {};
     RAW_ROWS.forEach(r => {
-      if(r.premiacao != null){
-        premBackup[r._key] = r.premiacao;
-        if(r.nome && r.hora) premByNH[`${r.nome}|${r.hora}`] = r.premiacao;
+      if(r.premiacao == null) return;
+      const carimbo = PREM_BY_MAP && PREM_BY_MAP[r._key];
+      if(!carimbo) return;                       // ninguém digitou → não propaga
+      premBackup[r._key] = r.premiacao;
+      if(r.nome && r.hora){
+        const nh = `${r.nome}|${r.hora}`;
+        // identidade repetida no quadro antigo = ambíguo; anula em vez de arriscar o torneio errado
+        premByNH[nh] = Object.prototype.hasOwnProperty.call(premByNH, nh) ? null : r.premiacao;
+        byNHCarimbo[nh] = carimbo;
       }
     });
     ingest(data.rows, data.filename || '', true);
     // Restaurar premiações após ingest (não perder dados já preenchidos)
     let premChanged = false;
+    // linhas novas com nome+hora repetido também são ambíguas → não recebem nada por nome+hora
+    const nhCount = {};
+    RAW_ROWS.forEach(r => { if(r.nome && r.hora){ const nh = `${r.nome}|${r.hora}`; nhCount[nh] = (nhCount[nh]||0)+1; } });
     RAW_ROWS.forEach(r => {
       if(r.premiacao != null) return;
-      let val = premBackup[r._key];                                   // 1) mesma chave
-      if(val == null && r.nome && r.hora) val = premByNH[`${r.nome}|${r.hora}`]; // 2) garantido mudou → nome+hora
-      if(val != null){ r.premiacao = val; premChanged = true; }
+      if(aindaNaoComecou(r)) return;   // impossível ter arrecadado: não restaura de jeito nenhum
+      const nh = (r.nome && r.hora) ? `${r.nome}|${r.hora}` : null;
+      let val = premBackup[r._key], carimbo = PREM_BY_MAP && PREM_BY_MAP[r._key];   // 1) mesma chave
+      if(val == null && nh && nhCount[nh] === 1){                                    // 2) garantido mudou → nome+hora
+        val = premByNH[nh]; carimbo = byNHCarimbo[nh];
+      }
+      if(val == null) return;
+      r.premiacao = val; premChanged = true;
+      // a chave mudou: leva o carimbo junto, senão o portão do arrecadado esconderia o valor legítimo
+      if(carimbo && !(PREM_BY_MAP && PREM_BY_MAP[r._key])){
+        PREM_BY_MAP[r._key] = carimbo;
+        savePremByMapLocal(PREM_BY_MAP);
+        if(fbReady && fbDb && !PANEL_RO){ try{ fbDb.ref(`${FB_BASE_PATH}/premBy/${r._key}`).set(carimbo); }catch(e){} }
+      }
     });
     if(premChanged){
       RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
@@ -3035,7 +3772,7 @@ function initFirebaseSync(){
     // só anexa com auth viva: senão, numa recarga, o RTDB nega a leitura e cancela
     // o listener — e a premiação some ("0 fechados") até religar por acaso.
     whenAuthed(() => {
-    fbDb.ref(`${FB_BASE_PATH}/premiacao`).on('value', snap => { applyFbPremiacao(snap.val() || {}); maybeAutoBackupSheets(); });
+    fbDb.ref(`${FB_BASE_PATH}/premiacao`).on('value', snap => { applyFbPremiacao(snap.val() || {}); maybeAutoBackupSheets(); avisarDiaCompleto(); });
     });  // fim do whenAuthed (premiação)
 
     // ── Config do backup (Google Sheets), compartilhada ─────────────────────
@@ -3044,7 +3781,7 @@ function initFirebaseSync(){
     // Se a regra ainda não foi publicada (sem permissão), fica dormente — sem erro.
     whenAuthed(() => {
       fbDb.ref('config/sheetsBackup').on('value',
-        snap => { SHEETS_CFG = snap.val() || null; maybeAutoBackupSheets(); },
+        snap => { SHEETS_CFG = snap.val() || null; maybeAutoBackupSheets(); avisarDiaCompleto(); },
         () => { /* regra não publicada / sem permissão → auto-backup dormente */ });
     });
 
@@ -3053,7 +3790,7 @@ function initFirebaseSync(){
       FIXED_MAP = snap.val() || {};
       saveFixedMapLocal(FIXED_MAP);
       if(RAW_ROWS.length) scheduleUI('unfixed', 'metas', 'stats', 'results', 'upcoming');
-      maybeAutoBackupSheets();   // fixar o último torneio pode completar o dia → dispara o auto-backup
+      maybeAutoBackupSheets(); avisarDiaCompleto();   // fixar o último torneio pode completar o dia → dispara o auto-backup
     });
 
     // ── Metas enviadas (Main Events) ──────────────────────────────────────
@@ -3136,7 +3873,7 @@ function initFirebaseSync(){
         // Só patch do card sem recriar
         Object.keys(ID_MAP).forEach(key => patchCardFields(key));
       }
-      maybeAutoBackupSheets();   // marcar NF pode completar o dia → auto-backup
+      maybeAutoBackupSheets(); avisarDiaCompleto();   // marcar NF pode completar o dia → auto-backup
     });
 
     // ── Field (jogadores) ─────────────────────────────────────────────────
@@ -3150,7 +3887,7 @@ function initFirebaseSync(){
         if(row) row.field = v != null ? v : null;
       });
       if(RAW_ROWS.length) scheduleUI('results', 'upcoming');
-      maybeAutoBackupSheets();   // field mudou → se o dia já está completo, reescreve o backup
+      maybeAutoBackupSheets(); avisarDiaCompleto();   // field mudou → se o dia já está completo, reescreve o backup
     });
 
     // ── Quem está digitando ───────────────────────────────────────────────
@@ -3175,7 +3912,7 @@ function initFirebaseSync(){
       saveGarantidoMapLocal(GARANTIDO_MAP);
       if(RAW_ROWS.length) scheduleUI('stats', 'results');
       else computeStats();
-      maybeAutoBackupSheets();   // garantido mudou → reescreve o backup se o dia já fechou
+      maybeAutoBackupSheets(); avisarDiaCompleto();   // garantido mudou → reescreve o backup se o dia já fechou
     });
 
     // ── Buy-in corrigido na auditoria (admin) ─────────────────────────────
@@ -3210,12 +3947,15 @@ function initFirebaseSync(){
     fbDb.ref(`${FB_BASE_PATH}/rolledTo`).on('value', snap => {
       const novo = snap.val();
       if (typeof novo === 'string' && novo > LAST_KNOWN_DATE){
-        showToast(`📅 Painel virou para ${novo} — Global nova carregada.`);
+        showToast(`📅 O turno confirmou a troca — o painel virou para ${novo}. Para conferir o anterior, use "◀ Ver ${addDaysISO(novo, -1)}".`);
         ROLLOVER_HELD_TOAST = false;
+        _entregaPropostaLocal = null;
+        document.getElementById('entregaBar')?.remove();
         LAST_KNOWN_DATE = novo;
         resetDay(novo);
       }
     });
+    registrarListenerEntrega();
 
     // ── Relatório de turno ────────────────────────────────────────────────
     fbDb.ref('relatorioTurno/texto').on('value', snap => {
@@ -3305,6 +4045,10 @@ const PRESENCE_STALE_MS = 3 * 60 * 1000; // sessão sem heartbeat há mais de 3m
 // pra barra de presença mostrar o mesmo avatar (emoji) em vez de só as iniciais.
 function myPresencePayload(){
   const p = { name: OPERATOR_NAME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP };
+  // sessão de LEITURA (TV, quem só acompanha) marca-se como tal: aparece nos avatares,
+  // mas NÃO entra na conta de quem precisa confirmar a troca da GU — uma TV ligada num
+  // canto travaria a virada do turno inteiro, e ninguém ia entender por quê
+  if (PANEL_RO_BASE) p.ro = true;
   const av = getUserAvatar();
   if (av) p.avatar = av;
   const tier = getUserTier();
@@ -3938,14 +4682,21 @@ function setSharedSheet(rows, filename){
     if(!data || !data.rows || data.rows.length < 10) return; // sheet corrompida
     // Turno máximo de 22h (cobre o turno que passa da meia-noite)
     if(Date.now() - data.savedAt > 22 * 60 * 60 * 1000) return;
+    // A CHAVE do cache é o dia do RELÓGIO (todayPathSP), mas o painel pode estar em outro
+    // dia — depois da entrega antecipada da madrugada os dois divergem até as 05:30. Sem
+    // este confere, um F5 nessa janela restaurava a grade (e as premiações) do dia ENTREGUE
+    // por cima do dia novo. `dayISO` é gravado no save; cache velho sem o campo não restaura.
+    if(data.dayISO !== LAST_KNOWN_DATE) return;
 
     // 1. Carregar a sheet
     ingest(data.rows, data.filename || '', /*fromRemote=*/true);
 
-    // 2. Restaurar premiações salvas (prioridade: snapshot da sheet > localStorage separado)
+    // 2. Restaurar premiações salvas (prioridade: snapshot da sheet > localStorage separado).
+    //    Só valor COM carimbo (premBy): arrecadado sem alguém que preencheu não existe.
     const premMap = data.premiacaoMap || JSON.parse(localStorage.getItem('suprema_prem_v1') || '{}');
     Object.entries(premMap).forEach(([key, val]) => {
       const row = rowByKey(key);
+      if(!(PREM_BY_MAP && PREM_BY_MAP[key])) return;
       if(row && val > 0){
         row.premiacao = val;
         const inp = document.querySelector(`.tcard-prem-input[data-key="${key}"]`);
@@ -4295,17 +5046,14 @@ function updateProgress(){
   fill.classList.toggle('complete', done === total);
   // último card acabou de ser fixado (nesta aba ou pelo parceiro, via sync do Firebase):
   if (done === total && wasIncomplete){
-    if (todayPathSP() > LAST_KNOWN_DATE){
-      // a grade já virou (05:30+) e a troca de dia estava SEGURADA esperando este card —
-      // agora sim vira o painel pro novo dia (pausa curta pro operador ver o 100%)
-      showToast('✅ Último card preenchido — virando o painel para o novo dia...');
-      ROLLOVER_HELD_TOAST = false;
-      setTimeout(() => checkStaleness(), 1200);
-    } else {
-      // antes das 05:30: só avisa pra subir a Global nova se já passou da meia-noite
-      maybeNotifyGlobalRefresh();
-    }
+    // o dia fechou — mas quem entrega é a pessoa. Oferece a troca (com o que falta à vista)
+    // em vez de virar sozinho: o cronograma continua na tela pra ser conferido.
+    showToast('✅ Último card fixado — o dia está pronto para ser entregue.');
+    ROLLOVER_HELD_TOAST = false;
+    setTimeout(() => renderHandoffBar(), 1200);
   }
+  // a barra de entrega acompanha o progresso ao vivo (some/aparece sozinha)
+  renderHandoffBar();
 }
 
 function maybeNotifyGlobalRefresh(){
@@ -4379,6 +5127,7 @@ function updateResultsProgress(){
    (exatamente 1 candidato de cada lado), pra nunca migrar pro torneio errado. */
 function migrateOrphanedWork(newRows){
   if (!RAW_ROWS.length || !newRows?.length) return 0;
+  if (PANEL_RO) return 0;   // visita a dia passado / modo leitura não migra nem regrava chave nenhuma
   const ident = r => `${String(r.nome||'').trim().toUpperCase()}|${r.hora||''}|${r.proxCronograma?'px':''}`;
   const newByIdent = new Map();
   newRows.forEach(r => newByIdent.set(ident(r), newByIdent.has(ident(r)) ? null : r)); // null = ambíguo
@@ -4457,6 +5206,8 @@ function resyncPremiacaoFromFirebase(){
           // ARRECADADO no Firebase SEM ninguém ter preenchido (sem premBy) = vazou da planilha.
           // Limpa de vez: zera na tela E remove do nó do dia + backup local. (Só toca o dia ATIVO.)
           if(r.premiacao != null){ r.premiacao = null; ch = true; }
+          // visita a dia passado / modo leitura: esconde na tela, mas NÃO apaga o nó de ninguém
+          if(PANEL_RO) return;
           try{ fbDb.ref(`${FB_BASE_PATH}/premiacao/${r._key}`).remove(); }catch(e){}
           try{ const pm=JSON.parse(localStorage.getItem('suprema_prem_v1')||'{}'); if(pm[r._key]!=null){ delete pm[r._key]; localStorage.setItem('suprema_prem_v1', JSON.stringify(pm)); } }catch(e){}
         }
@@ -4481,8 +5232,87 @@ function resyncPremiacaoFromFirebase(){
   });
 }
 
+/* TORNEIO QUE AINDA NÃO COMEÇOU não pode ter arrecadado coletado — é impossível.
+   Serve de trava final nos caminhos AUTOMÁTICOS de restauração (snapshot, re-ingest):
+   se um valor de ontem escapar por qualquer rota nova, ele morre aqui em vez de
+   aparecer preenchido às 01:40 num torneio das 09:00.
+   NÃO vale para o que o operador DIGITA: lançar valor antes da hora é decisão dele. */
+function aindaNaoComecou(row){
+  if(!row) return false;
+  if(row.proxCronograma) return true;                  // madrugada de amanhã: arrecadado é do quadro seguinte
+  const m = timeToMinutes(row.hora);
+  if(m === null) return false;                         // sem horário não dá pra afirmar — não bloqueia
+  return opMinutes(m) > opNowMinutes();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   REPARO PONTUAL — arrecadado impossível que já está gravado
+   As correções acima impedem novos vazamentos, mas NÃO limpam o que já foi
+   gravado no nó do dia com carimbo (o valor virou "legítimo" no caminho antigo
+   e volta em toda aba). Isto acha e remove só o que é fisicamente impossível:
+   torneio que ainda NÃO COMEÇOU com arrecadado preenchido.
+
+   Uso no console do painel, no dia afetado:
+     limparArrecadadoImpossivel()               → só LISTA (não apaga nada)
+     limparArrecadadoImpossivel({aplicar:true})  → apaga, com confirmação
+
+   Limpa também o snapshot do dia: ele guarda `premPor` e a salvaguarda do
+   auto-backup não deixa um snapshot mais pobre sobrescrever um mais rico —
+   sem isso o valor seria relavado no próximo resgate.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function limparArrecadadoImpossivel(opts){
+  opts = opts || {};
+  if(!RAW_ROWS.length){ console.warn('[reparo] nenhuma grade carregada.'); return []; }
+  if(VIEW_MODE_DATE){ console.warn('[reparo] você está visitando um dia passado — volte para hoje.'); return []; }
+  const alvos = RAW_ROWS.filter(r => r.premiacao != null && aindaNaoComecou(r));
+  if(!alvos.length){ console.info('[reparo] nada impossível no dia ' + LAST_KNOWN_DATE + ' — nenhum arrecadado para limpar.'); return []; }
+  console.table(alvos.map(r => ({
+    torneio: r.nome, hora: r.hora, garantido: r.garantido,
+    arrecadado: r.premiacao, carimbo: (PREM_BY_MAP[r._key] && PREM_BY_MAP[r._key].by) || '(sem)', key: r._key,
+  })));
+  if(!opts.aplicar){
+    console.info('[reparo] ACIMA está o que seria apagado no dia ' + LAST_KNOWN_DATE +
+      '. Nada foi alterado. Para apagar de verdade: limparArrecadadoImpossivel({aplicar:true})');
+    return alvos;
+  }
+  if(roGuard()) return [];
+  if(!window.confirm(`Apagar o arrecadado de ${alvos.length} torneio(s) que ainda NÃO começaram, no dia ${LAST_KNOWN_DATE}?\n\n` +
+     alvos.slice(0, 8).map(r => `• ${r.nome} (${r.hora}) — R$ ${fmtBRL(r.premiacao, 2)}`).join('\n') +
+     (alvos.length > 8 ? `\n• … e mais ${alvos.length - 8}` : '') +
+     `\n\nIsto NÃO pode ser desfeito.`)) return [];
+
+  let pm = {};
+  try{ pm = JSON.parse(localStorage.getItem('suprema_prem_v1') || '{}'); }catch(e){}
+  alvos.forEach(r => {
+    r.premiacao = null;
+    delete PREM_BY_MAP[r._key];
+    delete pm[r._key];
+    if(fbReady && fbDb){
+      try{ fbDb.ref(`${FB_BASE_PATH}/premiacao/${r._key}`).remove(); }catch(e){}
+      try{ fbDb.ref(`${FB_BASE_PATH}/premBy/${r._key}`).remove(); }catch(e){}
+    }
+    const inp = document.querySelector(`.tcard-prem-input[data-key="${r._key}"]`);
+    if(inp) inp.value = '';
+    renderCardOverlayPreview(r._key, r, null, getField(r._key));
+  });
+  try{ localStorage.setItem('suprema_prem_v1', JSON.stringify(pm)); }catch(e){}
+  savePremByMapLocal(PREM_BY_MAP);
+  RESULTS  = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
+  UPCOMING = [...RAW_ROWS];
+  computeStats(); updateProgress(); renderResults(); renderUpcoming();
+  // 'manual' FORÇA a regravação do snapshot: o automático se recusa a gravar menos
+  // premiação por cima de um snapshot mais rico, e o envenenado ficaria de pé
+  saveSnapshotToFirebase('manual');
+  logActivity(`🧹 <b>${escHtml(OPERATOR_NAME || 'Alguém')}</b> limpou ${alvos.length} arrecadado(s) impossíveis do dia <b>${escHtml(LAST_KNOWN_DATE)}</b>`, '🧹');
+  showToast(`🧹 ${alvos.length} arrecadado(s) impossíveis removidos do dia ${LAST_KNOWN_DATE}.`);
+  console.info('[reparo] removidos:', alvos.length);
+  return alvos;
+}
+window.limparArrecadadoImpossivel = limparArrecadadoImpossivel;
+
 function recoverPremiacaoFromSnapshot(applyRerender){
   if(!fbReady || !fbDb || !RAW_ROWS.length) return;
+  if(PANEL_RO) return;   // visita a dia passado / modo leitura não reata nem regrava nada
   const orphans = RAW_ROWS.filter(r => r.premiacao == null && !r.explicitNF);
   if(!orphans.length) return; // nada órfão → não busca snapshot (economiza banda)
   const date = (FB_BASE_PATH.split('/')[1]) || todayPathSP();
@@ -4507,6 +5337,7 @@ function recoverPremiacaoFromSnapshot(applyRerender){
     orphans.forEach(r => {
       const id = norm(r.nome, r.hora);
       if(curCount.get(id) !== 1) return;      // duplicado no quadro atual → ambíguo
+      if(aindaNaoComecou(r)) return;          // torneio que nem começou não teve arrecadado pra reatar
       const val = byIdent.get(id);
       if(val == null) return;                 // sem match único no snapshot (ou ambíguo)
       r.premiacao = val.prem; recovered++;
@@ -4815,12 +5646,18 @@ function ingest(rows, filename, fromRemote=false){
   RAW_ROWS.forEach(r => { if(BUYIN_MAP[r._key] != null) r.buyin = BUYIN_MAP[r._key]; });
   // planilha carregada → re-puxa a premiação salva no Firebase (corrige a corrida de ordem)
   resyncPremiacaoFromFirebase();
-  // Persistir sheet + dados dos cards no localStorage (restauração imediata ao recarregar)
+  // Persistir sheet + dados dos cards no localStorage (restauração imediata ao recarregar).
+  // Numa VISITA a dia passado não grava nada: a grade na tela é de outro dia e
+  // sobrescreveria o cache do dia ao vivo.
   try {
+    if (VIEW_MODE_DATE) throw 0;   // sai do bloco de persistência sem tocar no resto do ingest
     const storeKey = 'suprema_sheet_v1_' + todayPathSP();
     if(!rows || rows.length < 5) return; // não salvar sheet corrompida
     localStorage.setItem(storeKey, JSON.stringify({
       rows, filename, savedAt: Date.now(),
+      // dia da GRADE a que esta cópia pertence — a chave usa o relógio, que diverge do
+      // painel entre a entrega antecipada e as 05:30 (ver restoreSheetFromLocal)
+      dayISO: LAST_KNOWN_DATE,
       // Snapshot dos dados preenchidos nos cards no momento do save
       premiacaoMap: {...(JSON.parse(localStorage.getItem('suprema_prem_v1') || '{}'))},
       fieldMap:     {...FIELD_MAP},
@@ -7409,6 +8246,9 @@ function applyPremiacaoValue(key, premiacaoVal, activityMsg){
   computeStats(); // o operador digitar uma premiação precisa refletir em "Pago em premiações"/Overlay na hora
   updateProgress();
   renderUnfixed();
+  // se este foi o ÚLTIMO arrecadado do dia, avisa AQUI — sem depender do eco do
+  // Firebase voltar (que é o caminho do parceiro, e some se a rede cair)
+  avisarDiaCompleto();
   // Atualizar card in-place — sem remover do DOM
   renderCardOverlayPreview(key, row, premiacaoVal, getField(key));
   // Sincronizar o(s) input(s) de premiação visíveis (card normal + linha compacta)
@@ -9811,6 +10651,7 @@ function allCardsDone(rows, isFixedFn){
   }
 })();
 function checkStaleness(){
+  if (VIEW_MODE_DATE) return;   // visitando um dia passado: nada de virar dia por baixo da visita
   const today = todayPathSP();
   // ">" (não "!==") — depois de uma virada antecipada de madrugada, LAST_KNOWN_DATE fica à
   // FRENTE de todayPathSP() até as 05:30; nesse caso não há nada a virar (e nunca voltar atrás)
@@ -9824,13 +10665,16 @@ function checkStaleness(){
       renderHeldDayBanner(pendentes); // banner clicável fica na tela enquanto segurar
       if (!ROLLOVER_HELD_TOAST){
         ROLLOVER_HELD_TOAST = true;
-        showToast(`🕐 Grade virou (05:30), mas falta fixar: ${fmtPendentesFixar(pendentes)}. O painel vira o dia quando o último for fixado.`);
+        showToast(`🕐 Grade virou (05:30), mas falta fixar: ${fmtPendentesFixar(pendentes)}. Feche os cards e depois entregue o dia.`);
       }
     } else {
       ROLLOVER_HELD_TOAST = false;
-      LAST_KNOWN_DATE = today;
-      resetDay();
     }
+    // A VIRADA NÃO ACONTECE SOZINHA. Antes, com o dia fechado, o painel trocava de dia
+    // no meio do turno e a grade anterior sumia da tela sem ninguém decidir — era o que
+    // impedia conferir o que tinha acabado de ser feito. Agora só oferece: quem entrega
+    // é a pessoa, pelo botão da barra (confirmarEntregaDoDia).
+    renderHandoffBar();
   }
   // atualiza banner na calculadora de overlay
   const banner = document.getElementById('ovcStaleBanner');
@@ -9896,7 +10740,13 @@ function resetDay(forcedDate){
   const dateEl = document.getElementById('navTime');
   if(dateEl) dateEl.textContent = dataPorExtensoSP ? dataPorExtensoSP() : '';
 
-  showToast('🌅 Novo dia — fixados e dados resetados. Carregue a planilha Global para hoje.');
+  renderDaySwitch();   // rótulos do alternador seguem o dia novo
+  showToast('🌅 Novo dia — a GU do dia é carregada sozinha do link publicado.');
+  // A GU do dia novo entra em TODA aba que virou, não só na de quem propôs — quem
+  // só acompanhou a troca não pode ficar olhando pra tela vazia esperando alguém.
+  // Exceção: o upload manual traz a grade dele mesmo logo em seguida.
+  if(_pularSyncNoProximoReset){ _pularSyncNoProximoReset = false; return; }
+  if(!PANEL_RO && !VIEW_MODE_DATE) setTimeout(() => syncGuGrade({force:true}), 400);
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -10154,7 +11004,7 @@ function reinitDayListeners(){
 
   // Remover listeners antigos do dia anterior antes de re-registrar
   // (evita duplicação de listeners ao virar o dia)
-  ['premiacao','fixed','flags','premBy','ids','field','garantido','buyin','checklist','confhoje','rolledTo','manualRows'].forEach(node => {
+  ['premiacao','fixed','flags','premBy','ids','field','garantido','buyin','checklist','confhoje','rolledTo','manualRows','entrega'].forEach(node => {
     fbDb.ref(`${FB_BASE_PATH}/${node}`).off();
   });
 
@@ -10176,12 +11026,15 @@ function reinitDayListeners(){
   fbDb.ref(`${FB_BASE_PATH}/rolledTo`).on('value', snap => {
     const novo = snap.val();
     if (typeof novo === 'string' && novo > LAST_KNOWN_DATE){
-      showToast(`📅 Painel virou para ${novo} — Global nova carregada.`);
+      showToast(`📅 O turno confirmou a troca — o painel virou para ${novo}. Para conferir o anterior, use "◀ Ver ${addDaysISO(novo, -1)}".`);
       ROLLOVER_HELD_TOAST = false;
+      _entregaPropostaLocal = null;
+      document.getElementById('entregaBar')?.remove();
       LAST_KNOWN_DATE = novo;
       resetDay(novo);
     }
   });
+  registrarListenerEntrega();   // proposta de entrega do dia NOVO
 
   // Premiação — só anexa com auth viva (mesmo motivo do listener do load)
   whenAuthed(() => {
@@ -11324,3 +12177,23 @@ document.addEventListener('DOMContentLoaded', () => {
     return snap;
   });
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ARRANQUE DA GU AUTOMÁTICA
+   Fica no FIM do arquivo de propósito: aqui LAST_KNOWN_DATE e os mapas do dia
+   já existem. Espera a sessão do Firebase (whenAuthed) porque a primeira coisa
+   que o sync faz é publicar — sem token, a escrita é negada.
+   ═══════════════════════════════════════════════════════════════════════════ */
+(function bootGuAutoSync(){
+  const start = () => {
+    try{ renderDaySwitch(); renderGuSyncMeta(); }catch(e){}
+    if (PANEL_RO_BASE || VIEW_MODE_DATE) return;   // modo leitura por permissão não sincroniza
+    if (!guAutoSyncEnabled()) return;
+    // 3s de folga: dá tempo do listener da planilha entregar o que a equipe já publicou,
+    // pra primeira leitura da GU cair na comparação de assinatura e não republicar à toa
+    setTimeout(() => { if(!VIEW_MODE_DATE) syncGuGrade({}); }, 3000);
+    scheduleGuSync();
+  };
+  if (typeof whenAuthed === 'function') whenAuthed(start);
+  else setTimeout(start, 1500);
+})();
