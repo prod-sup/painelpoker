@@ -1619,7 +1619,14 @@ async function syncGuGrade(opts){
     // mapa de FEE da GU pro admin resolver o histórico pelo nome, e o arquivo
     // compartilhado pra quem abrir depois — os mesmos dois efeitos do upload
     try{ publishGuFees(guFeeIndexFromWorkbook(wb)); }catch(e){ console.warn('GU: falha ao publicar o mapa de fee', e); }
-    publishSharedGlobal(buf, 'GU (link publicado)');
+    /* `painel/globalMtt` é a GLOBAL COMPLETA da equipe, e quem lê pede a aba
+       MTTS BRAZIL (campanha.js → parseGlobalWeekAsync, eventos.js/Radar). O link
+       publicado da GU vem com UMA aba só (G MTTS): publicar isso ali fazia o
+       readSheetMatrix cair na primeira aba e ler a G MTTS com o layout de colunas
+       da BRAZIL — a grade da semana da SPS ficou vazia por causa disto.
+       Só republica quando o arquivo REALMENTE tem as duas abas (upload manual). */
+    if (workbookMatrix(wb, 'MTTS BRAZIL', true)) publishSharedGlobal(buf, 'GU (link publicado)');
+    else console.info('[painel] GU do link tem só a aba G MTTS — painel/globalMtt preservado (quem lê ali espera a MTTS BRAZIL)');
 
     const primeira = !(LAST_SHEET_ROWS || []).length;
     ingest(rows, `GU — ${weekdayPtFromISO(dia)} (link)`);

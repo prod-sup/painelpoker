@@ -286,17 +286,69 @@ function loadHistory() {
   });
 }
 /* grade da GU (Global MTTS) — TODOS os SPS da semana, com hora/nome/buyin/garantido/cat/dateISO */
+/* GRADE = os SPS da SEMANA. Alimenta a tela "A Semana SPS" e o "Vem aí".
+   Com ela vazia, a semana cai no fallback `ROWS` e passa a desenhar a CAMPANHA
+   INTEIRA (28 cards, 836 eventos), e o "Vem aí" fica preso em "ainda não
+   publicada". Por isso aqui existe plano B: se `painel/globalMtt` não servir,
+   monta direto do link publicado da GU (aba G MTTS), que esta página já sabe
+   ler — o board deixa de depender de alguém ter subido o .xlsx completo. */
 function loadGrade() {
-  if (typeof parseGlobalWeekAsync !== 'function' || typeof buildModel !== 'function' || !window.SupremaDB) return;
-  SupremaDB.getValue('painel/globalMtt').then(function (v) {
-    if (!v || !v.data) return;
+  if (!window.SupremaDB) return;
+  if (typeof parseGlobalWeekAsync !== 'function' || typeof buildModel !== 'function') return montarGradeDaGU();
+  return SupremaDB.getValue('painel/globalMtt').then(function (v) {
+    if (!v || !v.data) return montarGradeDaGU();
     return parseGlobalWeekAsync(v.data, 'MTTS BRAZIL').then(function (parsed) {
       var model = buildModel(parsed, {});
-      GRADE = (model.events || []).filter(function (e) { return CampanhaCore.isSPS(e.nome); });
-      console.info('[SPS] grade da GU: ' + GRADE.length + ' eventos SPS na semana');
+      var sps = (model.events || []).filter(function (e) { return CampanhaCore.isSPS(e.nome); });
+      if (!sps.length) return montarGradeDaGU();   // Global sem SPS (ou aba errada) → tenta a GU
+      GRADE = sps;
+      console.info('[SPS] grade da semana: ' + GRADE.length + ' eventos SPS (painel/globalMtt)');
       if (_revealed) applyStatic();
     });
-  }).catch(function (e) { console.warn('[SPS] grade Global falhou', e && (e.message || e)); });
+  }).catch(function (e) {
+    console.warn('[SPS] painel/globalMtt falhou (' + (e && (e.message || e)) + ') — montando a semana pela GU');
+    return montarGradeDaGU();
+  });
+}
+
+/* Monta os 7 dias da semana a partir da aba G MTTS do link publicado da GU.
+   Os valores da G MTTS são em DÓLAR; ×BRL_RATE reproduz a aba MTTS BRAZIL
+   (conferido linha a linha: 803 torneios idênticos nos 7 dias). */
+function montarGradeDaGU() {
+  if (typeof fetchGuSheetBuffer !== 'function' || typeof extractGuDaySection !== 'function' ||
+      typeof findHeaderCols !== 'function' || typeof readWorkbook !== 'function') {
+    console.warn('[SPS] gu-parser indisponivel — nao da pra montar a semana');
+    return Promise.resolve(0);
+  }
+  return fetchGuSheetBuffer().then(function (buf) {
+    var wb = readWorkbook(buf);
+    var m = workbookMatrix(wb, 'G MTTS', true);
+    if (!m && wb && wb.SheetNames && wb.SheetNames.length === 1) m = workbookMatrix(wb, wb.SheetNames[0], false);
+    var hc = m ? findHeaderCols(m) : null;
+    if (!hc) { console.warn('[SPS] nao achei o cabecalho da G MTTS'); return 0; }
+    var hoje = nowSPDate(), out = [];
+    var cv = function (v) { return typeof v === 'number' ? Math.round(v * BRL_RATE * 100) / 100 : null; };
+    for (var i = 0; i < 7; i++) {
+      var iso = isoAddDays(hoje, i);
+      var en = WEEKDAYS_EN[new Date(iso + 'T12:00:00Z').getUTCDay()];
+      var sec = extractGuDaySection(m, en, hc);
+      if (!sec) continue;
+      [].concat(sec.main || [], sec.side || [], sec.sat || []).forEach(function (it) {
+        if (!CampanhaCore.isSPS(it.nome)) return;
+        var ev = { nome: it.nome, hora: it.hora, tipo: it.tipo || null,
+                   garantido: cv(it.garantido), buyin: cv(it.buyin), dateISO: iso };
+        ev.cat = CampanhaCore.classify(ev);
+        out.push(ev);
+      });
+    }
+    GRADE = out;
+    console.info('[SPS] grade da semana: ' + out.length + ' eventos SPS (link da GU)');
+    if (_revealed) applyStatic();
+    return out.length;
+  }).catch(function (e) {
+    console.warn('[SPS] nao consegui montar a semana pela GU', e && (e.message || e));
+    return 0;
+  });
 }
 
 function wireLive() {
@@ -905,7 +957,14 @@ function fillControl(t) {
 
   // totais DETALHADOS — contexto por métrica (curto, quebra em 2 linhas)
   setTxt('sb_gar', 'dos ' + intNum(t.fechados) + ' eventos que já rodaram');
-  setTxt('sb_arr', fmtMoneyK(t.dias ? t.arrecadadoBruto / t.dias : 0) + '/dia · ' + intNum(t.entradas) + ' jog.');
+  /* AVISO NA TELA quando o arrecadado está INCOMPLETO.
+     O bruto só soma a linha cujo rake a GU resolveu; sem rake a linha sai da conta
+     INTEIRA. Isso já apareceu como um total 6x menor que a realidade (28/08/2026:
+     R$ 9,4 mi na tela com R$ 55 mi de premiação fechada) e ninguém tinha como
+     desconfiar, porque o board não dizia nada. Agora diz — e este texto também
+     serve de marcador de versão: se ele não aparece, a tela está em código velho. */
+  setTxt('sb_arr', fmtMoneyK(t.dias ? t.arrecadadoBruto / t.dias : 0) + '/dia · ' + intNum(t.entradas) + ' jog.' +
+    (t.semFee ? '  ⚠ INCOMPLETO: ' + intNum(t.semFee) + ' evento(s) fora, ' + fmtMoneyK(t.semFeePrem) + ' de premiação sem rake da GU' : ''));
   setTxt('sb_rake', pctPlain(t.rakePct) + ' do arrec. · ' + fmtMoneyK(t.dias ? t.rake / t.dias : 0) + '/dia');
   setTxt('sb_admin', t.adminEvents + ' eventos · 2% buy-in');
   setTxt('sb_ov', fmtMoneyK(t.dias ? Math.abs(t.totalOverlay) / t.dias : 0) + '/dia · ' + intNum(t.fechados) + ' fech.');
