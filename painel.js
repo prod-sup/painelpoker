@@ -8072,6 +8072,8 @@ document.getElementById('shiftReportDrawerOverlay').addEventListener('click', (e
    e zerado quando a seleção sai. Fica em variável porque a calculadora também
    roda SEM torneio escolhido (o operador digita tudo na mão). */
 let OVC_GU_RAKE = null;
+let OVC_GU_ADMIN = null;   // admin fee do torneio escolhido (0,02 = 2% = evento de serie)
+let _ovcAvisoAtivo = false;
 /* Último torneio escolhido no combo. Serve pra distinguir uma TROCA de torneio
    feita pelo operador (aí as linhas de ação zeram, pra não herdar o Bounty/buy-in
    do torneio anterior) do re-pull programático (mesmo torneio — não pode apagar
@@ -8086,6 +8088,34 @@ function ovcRakePercent(){
   const ovr = document.getElementById('ovcRakeOverride');
   if (ovr && ovr.value){ const v = parseFloat(ovr.value); if(!isNaN(v)) return v; }
   return OVC_GU_RAKE;   // null quando não há torneio escolhido
+}
+
+/* ADMIN FEE DO EVENTO ESCOLHIDO — a calculadora agora RECONHECE se o torneio tem
+   admin fee (2% = evento de série) e AVISA quando o operador escolhe à mão um
+   rake que deixa esse admin fee de fora. Sem isto, trocar 12% por 10% saía
+   silencioso e o pote inteiro vinha maior do que a realidade — direto pra
+   premiação do card, porque a calculadora aplica no card. */
+function ovcAvisoAdminFee(rake, isManual){
+  const el = document.getElementById('ovcAdminWarn');
+  if(!el) return;
+  const temAdmin = OVC_GU_ADMIN != null && OVC_GU_ADMIN > 0;
+  const guTotal  = OVC_GU_RAKE;
+  if(!temAdmin || guTotal == null || rake == null || !isManual || rake >= guTotal - 1e-9){
+    el.hidden = true; el.textContent = ''; _ovcAvisoAtivo = false;
+    return;
+  }
+  const pct = v => (v * 100).toFixed(1).replace('.0', '') + '%';
+  const semExatamenteOAdmin = Math.abs(rake - (guTotal - OVC_GU_ADMIN)) < 1e-9;
+  el.hidden = false;
+  el.innerHTML = '⚠ Este evento <b>TEM ' + pct(OVC_GU_ADMIN) + ' de admin fee</b> (evento de série). ' +
+    'A GU cobra <b>' + pct(guTotal) + '</b> e você escolheu <b>' + pct(rake) + '</b>' +
+    (semExatamenteOAdmin ? ' — exatamente o rake <b>sem</b> o admin fee.' : '.') +
+    '<br>O pote sai <b>maior</b> que a realidade, e a calculadora aplica esse valor no card.';
+  // toast só na TRANSIÇÃO (não a cada tecla digitada na calculadora)
+  if(!_ovcAvisoAtivo){
+    _ovcAvisoAtivo = true;
+    showToast(`⚠ ${pct(OVC_GU_ADMIN)} de admin fee ignorado — a GU cobra ${pct(guTotal)} neste evento.`, true);
+  }
 }
 function ovcNum(id){
   const v = parseFloat(document.getElementById(id).value);
@@ -8107,6 +8137,9 @@ function ovcCalculate(){
     : _selRow
       ? `"${_selRow.nome}" está sem FEE na planilha da GU — escolha o rake à mão pra calcular.`
       : 'Escolha o torneio (o rake vem da GU) ou selecione o rake à mão.';
+
+  // reconhece o admin fee do evento e avisa se o rake escolhido deixa ele de fora
+  ovcAvisoAdminFee(rake, !!isManual);
 
   // sem rake não há pote: zera as linhas e o resultado em vez de calcular com 0%
   if (rake == null){
@@ -8226,7 +8259,7 @@ function ovcClear(){
   document.getElementById('ovcCategoria').value = 'main';
   document.getElementById('ovcCampanha').checked = false;
   const ovr = document.getElementById('ovcRakeOverride'); if(ovr) ovr.value = '';
-  OVC_GU_RAKE = null;   // limpou a calculadora: solta o rake do torneio que estava escolhido
+  OVC_GU_RAKE = null; OVC_GU_ADMIN = null; _ovcAvisoAtivo = false;   // limpou a calculadora: solta o rake do torneio que estava escolhido
   _ovcLastKey = '';     // sem torneio escolhido: a próxima seleção conta como troca
   ovcSetBadge('none');
   const sel = document.getElementById('ovcTorneioSelect');
@@ -11652,7 +11685,7 @@ function ovcOnSelectChange(){
   notFoundEl.classList.remove('show');
   if(aiEl){ aiEl.innerHTML = ''; aiEl.hidden = true; }
 
-  OVC_GU_RAKE = null;                 // seleção mudou: esquece o rake do torneio anterior
+  OVC_GU_RAKE = null; OVC_GU_ADMIN = null; _ovcAvisoAtivo = false;   // seleção mudou: esquece o rake do torneio anterior
   if(!sel.value){ ovcSetBadge('none'); return; }
 
   const row = rowByKey(sel.value);
@@ -11674,6 +11707,7 @@ function ovcOnSelectChange(){
   // sem as colunas — aí a calculadora volta pra regra por categoria)
   const guRake = PainelCalc.guRates(row);
   OVC_GU_RAKE = guRake ? guRake.total : null;
+  OVC_GU_ADMIN = guRake ? guRake.admin : null;   // reconhece o admin fee do evento
 
   // ── Categoria ──
   const autoCat = classify(row);

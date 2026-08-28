@@ -3530,6 +3530,28 @@ async function wipeManualRow(date, key, nome, hora){
     }
   }catch(e){}
 
+  /* A GRADE PUBLICADA também tem o torneio. O painel publica a grade JÁ COM os
+     manuais fundidos (publishGradeComManuais → painel/<date>/sheet.rows), então
+     apagar só o manualRows não bastava: no próximo carregamento o mergeDayInto
+     lia a linha de volta da sheet — e SEM o flag `manual`, ou seja, sem o botão
+     de excluir. O operador excluía, o torneio voltava, e não havia como tirar.
+     Em dia PASSADO é definitivo: ninguém republica a grade de um dia fechado.
+     Casa por nome+hora (a sheet não guarda a chave do manualRows). Quando alguma
+     linha que casa traz `_manual`, só ESSAS saem — nunca uma linha da Global. */
+  try{
+    const sheetRef = db.ref(`${base}/sheet`);
+    const sh = (await sheetRef.once('value')).val();
+    if(sh && Array.isArray(sh.rows)){
+      const alvo = nhKey(nome, hora);
+      const bate = r => r && nhKey(r.nome, r.hora) === alvo;
+      const temFlag = sh.rows.some(r => bate(r) && r._manual);
+      const limpas = sh.rows.filter(r => !(bate(r) && (!temFlag || r._manual)));
+      if(limpas.length !== sh.rows.length){
+        await sheetRef.update({ rows: limpas, count: limpas.length });
+      }
+    }
+  }catch(e){ console.warn('não consegui limpar a linha manual da grade publicada', e); }
+
   // espelha em memória pra a linha sumir sem esperar o refresh ao vivo
   const dia = _allData[date];
   if(dia){

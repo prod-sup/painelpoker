@@ -425,6 +425,10 @@ document.addEventListener('DOMContentLoaded', () => {
         </select>
       </label>
       <div class="ovc-rake-note" id="ovcRakeNote"></div>
+      <!-- Aviso: o evento TEM admin fee (2% = série) e o rake escolhido à mão não o inclui.
+           Some sozinho quando o rake volta a bater com o da GU. -->
+      <div id="ovcAdminWarn" hidden
+        style="margin-top:6px;padding:8px 11px;border-radius:10px;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.45);color:#f59e0b;font-size:12px;font-weight:700;line-height:1.45"></div>
 
       <!-- Tabela de ações com design premium -->
       <div class="ovc-table">
