@@ -5257,6 +5257,102 @@ function maybeNotifyGlobalRefresh(){
    Cada chip rola até o card pendente e dá flash (jumpToCardByKey), pra operadora ir direto fixar em vez
    de caçar qual é. Fica na tela enquanto houver pendência e é atualizado AO VIVO por updateProgress —
    some sozinho quando o último for fixado (e aí a virada acontece). Chamar com lista vazia esconde. */
+/* ═══════════════════════════════════════════════════════════════════════════
+   VIGIA DO ARRECADADO — a última defesa contra torneio NÃO COLETADO.
+
+   O risco real do valor fantasma não é o número errado: é o card PARECER PRONTO.
+   O operador olha, vê preenchido, pula — e o torneio nunca é coletado. O prejuízo
+   aparece dias depois, no fechamento, sem ninguém saber de onde veio.
+
+   As rotas que produziam isso foram fechadas uma a uma (carimbo por dia, trava do
+   "ainda não começou", limpeza da chave ao criar/remover manual). Mas isso depende
+   de eu ter achado TODAS. Este vigia não depende: ele olha o RESULTADO, a cada
+   ingest e de minuto em minuto, e denuncia qualquer arrecadado que:
+     a) não tem carimbo de quem preencheu (premBy), ou
+     b) está num torneio que ainda nem começou.
+   Não some com o valor em silêncio — mostra QUAIS cards, porque some-lo calado
+   seria repetir o mesmo erro pelo outro lado.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function arrecadadoSuspeito(){
+  if(VIEW_MODE_DATE) return [];   // visita a dia passado: não é o quadro ao vivo
+  return RAW_ROWS.filter(r => {
+    if(!r || r.premiacao == null) return false;
+    const semCarimbo = !(PREM_BY_MAP && PREM_BY_MAP[r._key]);
+    return semCarimbo || aindaNaoComecou(r);
+  });
+}
+
+let _vigiaUltimaAssinatura = '';
+function vigiarArrecadado(){
+  const suspeitos = arrecadadoSuspeito();
+  const bar = document.getElementById('vigiaBar');
+  if(!suspeitos.length){
+    if(bar) bar.remove();
+    _vigiaUltimaAssinatura = '';
+    return;
+  }
+  const sig = suspeitos.map(r => r._key).sort().join(',');
+  const nomes = suspeitos.map(r => `${r.nome}${r.hora ? ' (' + r.hora + ')' : ''}`);
+  if(sig !== _vigiaUltimaAssinatura){
+    _vigiaUltimaAssinatura = sig;
+    logActivity(`🚨 <b>${suspeitos.length}</b> card(s) com arrecadado SEM ORIGEM — ninguém carimbou ou o torneio nem começou: ${escHtml(nomes.slice(0,4).join(', '))}${nomes.length>4?'…':''}`, '🚨');
+    showToast(`🚨 ${suspeitos.length} card(s) com arrecadado que ninguém preencheu — CONFIRA antes de dar o torneio por coletado.`, true);
+    try{ playAlertBeep(true); }catch(e){}
+  }
+  const el = bar || document.createElement('div');
+  if(!bar){
+    el.id = 'vigiaBar';
+    el.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:99999;background:#7f1d1d;color:#fee2e2;padding:10px 14px;border-radius:16px;font-size:13px;font-weight:700;box-shadow:0 8px 28px rgba(0,0,0,.45);display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:94vw';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `<span>🚨 <b>${suspeitos.length}</b> card(s) com arrecadado que <b>ninguém preencheu</b> — não conte como coletado:</span>`;
+  suspeitos.slice(0, 6).forEach(r => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = `${r.nome}${r.hora ? ' ' + r.hora : ''}`;
+    b.style.cssText = 'background:rgba(255,255,255,.16);color:#fff;border:none;border-radius:99px;padding:4px 10px;font-weight:800;font-size:12px;cursor:pointer';
+    b.addEventListener('click', () => { if(!jumpToCardByKey(r._key)) showToast('Card fora da agenda atual (confira os filtros).'); });
+    el.appendChild(b);
+  });
+  if(!PANEL_RO){
+    const limpar = document.createElement('button');
+    limpar.type = 'button';
+    limpar.textContent = 'Limpar esses valores';
+    limpar.title = 'Apaga o arrecadado sem origem para os cards voltarem a pedir coleta';
+    limpar.style.cssText = 'background:#fee2e2;color:#7f1d1d;border:none;border-radius:99px;padding:5px 12px;font-weight:800;font-size:12px;cursor:pointer';
+    limpar.addEventListener('click', () => {
+      if(!window.confirm(`Apagar o arrecadado de ${suspeitos.length} card(s) que ninguém preencheu?\n\n${nomes.slice(0,8).join('\n')}${nomes.length>8?'\n…':''}\n\nOs cards voltam a pedir a coleta.`)) return;
+      suspeitos.forEach(r => limparArrecadadoDaChave(r._key));
+      showToast(`🧹 ${suspeitos.length} card(s) voltaram a pedir coleta.`);
+      vigiarArrecadado();
+    });
+    el.appendChild(limpar);
+  }
+}
+
+/* apaga SÓ o arrecadado (e o carimbo) de uma chave — o resto do card fica */
+function limparArrecadadoDaChave(key){
+  const row = rowByKey(key);
+  if(row) row.premiacao = null;
+  delete PREM_BY_MAP[key];
+  savePremByMapLocal(PREM_BY_MAP);
+  try{
+    const pm = JSON.parse(localStorage.getItem('suprema_prem_v1') || '{}');
+    if(pm[key] != null){ delete pm[key]; localStorage.setItem('suprema_prem_v1', JSON.stringify(pm)); }
+  }catch(e){}
+  if(fbReady && fbDb && !PANEL_RO){
+    try{ fbDb.ref(`${FB_BASE_PATH}/premiacao/${key}`).remove(); }catch(e){}
+    try{ fbDb.ref(`${FB_BASE_PATH}/premBy/${key}`).remove(); }catch(e){}
+  }
+  const inp = document.querySelector(`.tcard-prem-input[data-key="${key}"]`);
+  if(inp) inp.value = '';
+  if(row) renderCardOverlayPreview(key, row, null, getField(key));
+  RESULTS = RAW_ROWS.filter(r => r.premiacao !== null && r.premiacao !== undefined);
+  computeStats(); updateProgress(); renderResults();
+}
+
+setInterval(() => { try{ vigiarArrecadado(); }catch(e){} }, 60000);
+
 function renderHeldDayBanner(pendentes){
   const existing = document.getElementById('heldDayBanner');
   if(!pendentes || !pendentes.length){ if(existing) existing.remove(); return; }
@@ -5860,6 +5956,8 @@ function ingest(rows, filename, fromRemote=false){
   RAW_ROWS.forEach(r => { if(BUYIN_MAP[r._key] != null) r.buyin = BUYIN_MAP[r._key]; });
   // planilha carregada → re-puxa a premiação salva no Firebase (corrige a corrida de ordem)
   resyncPremiacaoFromFirebase();
+  // ultima defesa: denuncia arrecadado sem origem antes de alguem dar o torneio por coletado
+  setTimeout(() => { try{ vigiarArrecadado(); }catch(e){} }, 1200);
   // Persistir sheet + dados dos cards no localStorage (restauração imediata ao recarregar).
   // Numa VISITA a dia passado não grava nada: a grade na tela é de outro dia e
   // sobrescreveria o cache do dia ao vivo.
