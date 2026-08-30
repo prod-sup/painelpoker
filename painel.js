@@ -1606,6 +1606,11 @@ function renderGuSyncMeta(){
    opts.force  = aplica mesmo se o conteúdo for idêntico (usado depois da entrega do dia) */
 async function syncGuGrade(opts){
   opts = opts || {};
+  // TRAVA DE VIRADA (hotfix 30/08): alguém trocou a GU sem avisar. Enquanto congelado,
+  // NÃO puxar a GU automaticamente — o sync gravaria a grade nova (06/09) por cima do
+  // snapshot bom de 30/08. O painel fica mostrando o `sheet` salvo de 30/08. O upload
+  // MANUAL (clique) continua liberado, pra você repor a grade certa de propósito.
+  if(rolloverCongelado() && !opts.manual){ return {ok:false, frozen:true}; }
   if(_guSyncing) return {ok:false, busy:true};
   if(PANEL_RO){ if(opts.manual) showToast('Este painel está em modo leitura — não posso atualizar a grade daqui.', true); return {ok:false}; }
   _guSyncing = true;
@@ -1814,6 +1819,14 @@ function confirmarEntregaDoDia(opts){
    upload manual desembocam todos aqui. */
 function aplicarEntrega(prox, opts){
   opts = opts || {};
+  // TRAVA DE VIRADA (hotfix 30/08): enquanto congelado, nenhuma entrega vira o dia —
+  // o painel fica em 30/08 e só mostra os torneios de hoje. Volta ao normal às 03:00.
+  if (rolloverCongelado()){
+    showToast('⏸ Virada de dia travada até as 03:00 — o painel segue no dia de hoje (30/08). A troca automática volta no próximo turno.', true);
+    _entregaPropostaLocal = null;
+    document.getElementById('entregaBar')?.remove();
+    return false;
+  }
   const dia = LAST_KNOWN_DATE;
   // GUARDA: proposta que chega (ou fecha) DEPOIS do dia já ter virado — o parceiro
   // fechou primeiro, o rolledTo chegou antes, a aba estava dormindo. Sem isto o
