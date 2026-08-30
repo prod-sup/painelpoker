@@ -661,6 +661,23 @@
     if (!headerCols) throw new Error('Não encontrei o cabeçalho da aba G MTTS (MTT MARKETING / TYPE / BUY-IN…) — é a Global MTT certa?');
     const secToday = extractGuDaySection(matrix, gcWeekdayEn(DAY_ISO), headerCols);
     if (!secToday) throw new Error(`Não encontrei a seção "${gcWeekdayEn(DAY_ISO)}" na aba G MTTS — é a Global MTT certa?`);
+    /* ══ GUARDA DE DATA ═══════════════════════════════════════════════════════
+       O bloco do dia é achado pelo NOME do dia da semana ("SUNDAY"), então uma
+       Global de OUTRA semana casa perfeitamente e entra no lugar da de hoje. Foi
+       o que aconteceu em 30/08/2026: subiu a grade de 06/09 (também domingo) por
+       cima do dia, 58 torneios trocaram de nome e o trabalho de 10 deles (R$ 27,5
+       mil já coletados) ficou órfão — a chave da linha é hash(nome|hora|buyin|
+       garantido), então mudar o nome desancora o que o operador já digitou.
+       A data sempre esteve escrita na linha do bloco; ninguém a lia.
+       CONSERVADOR DE PROPÓSITO: só barra quando conseguiu LER uma data e ela
+       difere. Planilha sem data na linha do dia (acontece) passa como antes —
+       um guarda que trava ingestão legítima seria pior que o problema. */
+    if (secToday.dataSecao && secToday.dataSecao !== DAY_ISO){
+      const br = s => s.slice(8,10) + '/' + s.slice(5,7);
+      throw new Error('Essa Global é do dia ' + br(secToday.dataSecao) + ' e o painel está no dia ' +
+        br(DAY_ISO) + '. A grade NÃO foi trocada. Publique a Global do dia certo — ' +
+        'trocar agora apagaria da tela o que já foi coletado hoje.');
+    }
     const secNext = extractGuDaySection(matrix, gcWeekdayEn(addDaysISO(DAY_ISO, 1)), headerCols);
     const sections = buildSections(secToday, secNext);       // janela 06:10 → 05:30, cronológico
     const fields = headerCols.filter(c => !isCoreLabel(c.label)).map(c => c.label);

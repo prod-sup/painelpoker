@@ -70,6 +70,31 @@ function readSheetMatrix(arrayBuffer, sheetNameContains){
    torneio reais e fica VAZIA em alguns cabeçalhos reais (WEDNESDAY/SUNDAY na
    planilha de produção). A checagem precisa ser estrita (célula igual ao dia),
    porque satélite com célula mesclada vem null e não pode contar como cabeçalho. */
+/* A DATA escrita na linha de cabeçalho do dia ("30/08/2026" na coluna A).
+   Aceita serial do Excel (é assim que vem, raw:true/cellDates:false), Date e o
+   texto dd/mm/aaaa. Devolve 'AAAA-MM-DD' ou null.
+   DEVOLVER NULL É IMPORTANTE: em alguns cabeçalhos reais a coluna A vem VAZIA
+   (documentado logo acima). Sem data, quem chama não bloqueia nada — o guarda
+   só pode agir quando tem certeza, nunca no escuro. */
+function celulaParaISO(v){
+  if (v == null || v === '') return null;
+  if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0,10);
+  if (typeof v === 'number' && v > 20000 && v < 90000){        // serial do Excel
+    try {
+      const d = XLSX.SSF.parse_date_code(v);
+      if (!d || !d.y) return null;
+      return String(d.y).padStart(4,'0') + '-' + String(d.m).padStart(2,'0') + '-' + String(d.d).padStart(2,'0');
+    } catch(e){ return null; }
+  }
+  const m = String(v).trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m ? m[3] + '-' + m[2] + '-' + m[1] : null;
+}
+/* varre a linha do cabeçalho do dia atrás da primeira célula que seja uma data */
+function dataDaLinha(row){
+  if (!row) return null;
+  for (let i = 0; i < row.length; i++){ const iso = celulaParaISO(row[i]); if (iso) return iso; }
+  return null;
+}
 function findWeekdaySectionRange(matrix, weekdayName, nameIdx){
   const norm = normText(weekdayName);
   const allNames = allWeekdayNamesNorm();
@@ -89,7 +114,7 @@ function findWeekdaySectionRange(matrix, weekdayName, nameIdx){
     const d = dayAt(matrix[i]);
     if (d && d !== norm){ endRow = i; break; }
   }
-  return {startRow, endRow, duplicate};
+  return {startRow, endRow, duplicate, dataISO: dataDaLinha(matrix[startRow])};
 }
 /* ── RECEITA COMPLETA ──
    A Global tem ~30 colunas (MTT, TYPE, Game Type, K.O, Max Table, Prize Pool,
@@ -476,7 +501,7 @@ function extractGuDaySection(matrix, weekdayEn, headerCols){
   }
   // coluna TYPE não achada no cabeçalho: TUDO passou pelo fallback por nome/garantido.
   // Sinaliza pra virar aviso GRITANTE (antes isso era silencioso — a origem do bug crônico).
-  return {main, side, sat, unknown, semHora, aposGap, semTipo, suspensos, tipoColMissing: gi.tipo < 0, duplicateSection: range.duplicate};
+  return {main, side, sat, unknown, semHora, aposGap, semTipo, suspensos, tipoColMissing: gi.tipo < 0, duplicateSection: range.duplicate, dataSecao: range.dataISO};
 }
 
 /* janela 06:10(amanhã) → 05:30(dia seguinte): mesma montagem da Conferência de amanhã */
