@@ -1,7 +1,7 @@
 // Suprema Poker — Service Worker
 // IMPORTANTE: incremente SW_VERSION a cada deploy — é isso que faz as abas abertas
 // receberem o aviso de "nova versão disponível" e ninguém operar com código velho
-const SW_VERSION = '3.297.0';
+const SW_VERSION = '3.298.0';
 const CACHE_NAME = `suprema-painel-v${SW_VERSION}`;
 // BASE derivada da própria URL do SW: '/' na Vercel (painelpoker.vercel.app/) e
 // '/painelpoker/' no GitHub Pages. Os assets abaixo são RELATIVOS e recebem a base
@@ -25,17 +25,22 @@ const STATIC_ASSETS = [
   'hub.js',
   'hub-onboarding.js',   // o hub.html carrega — estava fora do precache
   'hub-motion.js',       // camada de motion (Anime.js) do redesign
-  'vendor/anime.umd.min.js',
+  // o hub.html carrega estes três e eles estavam fora do precache: sem rede,
+  // o hub subia sem a animação de entrada. (O vendor/anime.umd.min.js saiu
+  // daqui em 30/08/2026 — não existe no disco; se voltar, relistar.)
+  'hub-anim.js',
+  'vendor/gsap.min.js',
+  'vendor/ScrollTrigger.min.js',
   'hub.css',
   'admin.html',
   'admin.js',
   // sem admin-actions os [data-act] do admin ficam mudos (nenhum botão responde)
   'admin-actions.js',
   'admin.css',
-  // arte ambiente premium do admin (Higgsfield): aurora laranja sobre grafite,
-  // usada no login cinematográfico e na profundidade do shell (tema escuro).
-  'admin-art/aurora.webp',
-  'admin-art/aurora-soft.webp',
+  // A arte ambiente do admin (admin-art/aurora*.webp, Higgsfield) saiu daqui em
+  // 30/08/2026: a pasta admin-art/ está VAZIA. O admin.css ainda referencia os
+  // dois arquivos, mas como camada sobre gradiente — degrada sem quebrar.
+  // Publicando os .webp, é só relistar as duas linhas aqui.
   'criacao-noturna.js',
   // criacao-noturna.js DEPENDE de criacao-calc (parsing/fee/early bird):
   // sem ele offline, a receita não renderiza.
@@ -67,8 +72,9 @@ const STATIC_ASSETS = [
   'campanha.css',
   'campanha.js',
   'campanha-core.js',
-  'assets/logo-suprema.png',
-  'assets/sps-bg.png',
+  'logo-suprema.png',   // mora na raiz; o precache pedia 'assets/' e dava 404
+  // O assets/sps-bg.png saiu em 30/08/2026: não existe (assets/ tem o .mp4, não
+  // o PNG). É o poster do hero da campanha — publicando o arquivo, relistar.
   'suprema-logo.svg',
   // O Feltro: o fundo em WebGL da TV/campanha. Sem ele o canal cai na rede de nós 2D.
   'suprema-feltro.js',
@@ -81,6 +87,7 @@ const STATIC_ASSETS = [
   // gate/sessão/presença/tema não sobem sem rede e a promessa de OS se quebra
   'suprema-auth.js',
   'suprema-shell.js',
+  'suprema-sheets.js',   // index.html e admin.html carregam; estava fora
   'suprema-palette.js',
   'suprema-copiloto.js',
   'suprema-db.js',

@@ -364,6 +364,71 @@ html.dark .lbox{border-color:var(--border)}
 .ph p{font-size:14px;color:var(--ink2);margin-top:6px;line-height:1.5;letter-spacing:-.01em}
 .ph-actions{display:flex;gap:10px;align-items:center;flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end}
 
+/* ── SAUDAÇÃO (o "assistente" do painel) ──────────────────────────────────────
+   Duas partes: quem está entrando (esquerda) e A COISA que está esperando por
+   essa pessoa (direita). A frase da direita é o motivo do bloco existir — sem
+   ela isto seria decoração, e decoração no topo da tela de trabalho é imposto.
+   Por isso ela mostra UMA informação só, a mais urgente, e vira BOTÃO quando
+   tem pra onde levar (alertas, justificativas). O resto do tempo é texto.
+
+   Sem animação de entrada própria: como é o primeiro filho de .page.active, ele
+   já herda o page-stagger. Uma segunda animação por cima brigaria com aquela.
+
+   Hierarquia por PESO, não por cor: "Boa tarde," fica em ink2/500 e o nome em
+   ink/680. Nome em dourado competiria com os botões de ação, que são o dourado
+   da casa. Tracking negativo no título (texto grande pede letra mais junta) e
+   positivo no eyebrow minúsculo, que é o oposto. */
+.hello{
+  display:flex;flex-direction:column;align-items:flex-start;gap:11px;
+  padding:16px 20px;margin-bottom:22px;
+  background:var(--glass2);
+  -webkit-backdrop-filter:saturate(180%) blur(18px);backdrop-filter:saturate(180%) blur(18px);
+  border:1px solid var(--border);border-radius:var(--r2);box-shadow:var(--sh-1);
+}
+.hello-greet{min-width:0}
+.hello-eyebrow{
+  font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink3);margin-bottom:5px;
+}
+.hello-title{font-size:21px;line-height:1.15;letter-spacing:-.022em;margin:0}
+.hello-title .h-saud{color:var(--ink2);font-weight:500}
+.hello-title .h-nome{color:var(--ink);font-weight:680}
+
+/* a frase: pílula discreta; só ganha borda dourada no hover quando é clicável */
+.hello-linha{
+  display:inline-flex;align-items:center;gap:9px;max-width:100%;
+  padding:9px 14px;border-radius:99px;
+  background:var(--s2);border:1px solid var(--border);
+  font-size:13px;letter-spacing:-.008em;color:var(--ink2);text-align:left;
+}
+button.hello-linha{
+  cursor:pointer;
+  transition:background-color .16s var(--ease-quart),border-color .16s var(--ease-quart),
+             color .16s var(--ease-quart),transform .12s var(--ease-quart);
+}
+button.hello-linha:hover{background:var(--hover);border-color:var(--goldb);color:var(--ink)}
+/* resposta no PRESSIONAR, não na soltura — esperar o clique fechar parece morto */
+button.hello-linha:active{transform:scale(.985)}
+.hello-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* o ponto é o "tom de voz": verde parado = nada a fazer; âmbar/vermelho pulsando
+   = tem gente esperando. Pulso lento e só em opacidade, sem mexer em layout. */
+.hello-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--green);box-shadow:0 0 0 3px rgba(46,194,126,.16)}
+.hello-dot.pend{background:var(--amber);box-shadow:0 0 0 3px rgba(255,159,10,.18);animation:hello-pulso 2.4s var(--ease-inout) infinite}
+.hello-dot.alerta{background:var(--red);box-shadow:0 0 0 3px rgba(255,69,58,.18);animation:hello-pulso 2.4s var(--ease-inout) infinite}
+@keyframes hello-pulso{0%,100%{opacity:1}50%{opacity:.42}}
+
+@media (max-width:640px){
+  .hello{padding:14px 16px}
+  .hello-title{font-size:19px}
+  .hello-acao,.hello-linha{width:100%}
+}
+/* preferências do sistema: sem pulso, e vidro vira superfície sólida */
+@media (prefers-reduced-motion:reduce){ .hello-dot{animation:none !important} }
+@media (prefers-reduced-transparency:reduce){
+  .hello{background:var(--s1);-webkit-backdrop-filter:none;backdrop-filter:none}
+}
+
 /* ── PERIOD TABS (segmented control) ─────────────────────────── */
 .ptabs{
   display:inline-flex;gap:2px;

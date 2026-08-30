@@ -44,8 +44,12 @@ function fatia(nome) {
 }
 const ctx = { RAW_ROWS: [], getField: () => null };
 vm.createContext(ctx);
+/* multidaySuffix e multidayGrupoKey saíram do painel.js e NÃO tinham asserção
+   nenhuma aqui — só estavam na lista de carga. Como o fatia() aborta quando não
+   acha a função, elas derrubavam a suíte inteira e o arquivo ficou vermelho desde
+   ~22/08/2026 sem que nada de multiday estivesse quebrado. Removidas em 30/08. */
 ['isMultidayFlight', 'isMultidayFinal', 'isMultiday', 'multidayBadgeText',
- 'multidaySuffix', 'multidayGrupoKey', 'buildManualRow'].forEach(n => {
+ 'buildManualRow'].forEach(n => {
   vm.runInContext(fatia(n), ctx);
 });
 

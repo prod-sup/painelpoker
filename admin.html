@@ -100,7 +100,10 @@ document.addEventListener('DOMContentLoaded', () => {
         <a href="criacao-noturna.html" class="tb-back" title="Criação de torneios do turno noturno (GU)">🌙 Criação GU</a>
         <a href="index.html" class="tb-back">← Painel</a>
         <a href="hub.html" class="tb-back" title="Voltar ao hub Suprema OS">♠ OS</a>
-        <button class="tb-btn" id="darkToggle" data-act="toggleDark" title="Alternar modo claro/escuro" aria-label="Alternar modo claro/escuro">🌙</button>
+        <!-- switch de tema: mesmo componente do painel do dia (.sup-switch).
+             O miolo (.sw-clouds/.sw-knob) é injetado pelo SupremaShell.paintSwitch
+             no paintDarkBtn() do admin.js — não duplicar o SVG aqui. -->
+        <button id="darkToggle" class="sup-switch" data-act="toggleDark" aria-pressed="false" title="Alternar modo claro/escuro" aria-label="Alternar modo claro/escuro"></button>
         <button class="tb-btn" data-act="doLogout">Sair</button>
       </div>
       <button class="tb-more" data-act="toggleTbMenu" aria-label="Mais opções" aria-expanded="false">
@@ -154,6 +157,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     <!-- ══ AUDITORIA / ACOMPANHAMENTO ══ -->
     <div class="page active" id="pageAudit">
+      <!-- SAUDAÇÃO — o bloco de boas-vindas com a frase de contexto.
+           Estilo em admin.css ("SAUDAÇÃO"), conteúdo em admin.js (renderHello).
+           Fica ANTES do .ph de propósito: é a primeira coisa que se lê ao entrar,
+           e some do caminho assim que a pessoa navega pra outra aba. -->
+      <section class="hello" id="hello">
+        <div class="hello-greet">
+          <div class="hello-eyebrow">Bem-vindo de volta</div>
+          <p class="hello-title"><span class="h-saud" id="helloSaud">Olá,</span> <span class="h-nome" id="helloNome">—</span></p>
+        </div>
+        <div class="hello-acao" id="helloAcao" aria-live="polite"></div>
+      </section>
       <div class="ph">
         <div>
           <div class="ph-eyebrow">Auditoria</div>
@@ -1186,6 +1200,10 @@ document.addEventListener('DOMContentLoaded', () => {
      pra montar painel/guFees quando o nó ainda não existe (ver ensureGuFeeMap). -->
 <script src="gu-parser.js"></script>
 <script src="campanha-core.js"></script>
+<!-- shell compartilhado: aqui só pelo switch de tema (paintSwitch/switchInner),
+     pra o admin não ter uma segunda cópia do markup que ia divergir. Precisa vir
+     ANTES do admin.js, que chama paintDarkBtn() já no carregamento. -->
+<script src="suprema-shell.js"></script>
 <script src="admin.js"></script>
 <!-- admin-actions: delegação dos [data-act] que substituíram os 92 handlers
      inline. Depois do admin.js, que define as funções que ele aciona. -->

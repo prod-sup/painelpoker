@@ -31,7 +31,13 @@ const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replac
 /* ── modo escuro — compartilha a preferência com painel e criação ── */
 function paintDarkBtn(){
   const b = document.getElementById('darkToggle');
-  if(b) b.textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+  if(!b) return;
+  const dark = document.documentElement.classList.contains('dark');
+  /* mesmo switch do painel do dia. O markup e a regra de estado moram no
+     SupremaShell pra não existirem duas cópias divergindo; paintSwitch é
+     idempotente, então pode ser chamado a cada troca sem duplicar nada. */
+  if(window.SupremaShell && SupremaShell.paintSwitch) SupremaShell.paintSwitch(b, dark);
+  else b.setAttribute('aria-pressed', dark ? 'true' : 'false');   // shell fora do ar: ao menos o estado
 }
 function toggleDark(){
   const on = document.documentElement.classList.toggle('dark');
@@ -473,9 +479,75 @@ function authReady(){
 }
 
 /* entra no painel admin (caminho único de sucesso: login manual ou sessão) */
+/* ══ SAUDAÇÃO — o "assistente" do topo do painel ═══════════════════════════
+   Markup em admin.html (#hello), estilo em admin.css ("SAUDAÇÃO").
+
+   A regra que dá sentido ao bloco: ele mostra UMA informação, a mais urgente.
+   Duas ou três ao mesmo tempo viram parede de texto e a pessoa para de ler —
+   aí o bloco só ocupa o topo da tela de trabalho sem pagar aluguel. A ordem é
+   de urgência, e quando o assunto tem endereço a frase VIRA BOTÃO que leva lá.
+
+   Os números saem dos badges que já existem (sino de alertas, justificativas)
+   em vez de recalcular: o collectAlertas varre vários dias e é caro, e ter duas
+   contas para o mesmo número é como elas divergem. ── */
+let _resumoDia = null;   // {data,total,auditados,semPrem} — preenchido pelo loadAudit
+
+function saudacaoHora(){
+  const h = new Date().getHours();
+  if(h < 5)  return 'Boa madrugada,';    // turno da noite vai até 07h
+  if(h < 12) return 'Bom dia,';
+  if(h < 18) return 'Boa tarde,';
+  return 'Boa noite,';
+}
+
+/* lê o número que JÁ está no badge — fonte única, sem recalcular */
+function badgeNum(id){
+  const b = document.getElementById(id);
+  if(!b || b.style.display === 'none') return 0;
+  return parseInt(b.textContent, 10) || 0;
+}
+
+function helloContexto(){
+  const alertas = badgeNum('alertasBadge');
+  if(alertas) return { tom:'alerta', act:'openAlertas',
+    txt:`${alertas} alerta${alertas>1?'s':''} novo${alertas>1?'s':''} para revisar` };
+
+  const just = badgeNum('pendingBadge');
+  if(just) return { tom:'pend', act:'openJustifs',
+    txt:`${just} justificativa${just>1?'s':''} aguardando resposta` };
+
+  const r = _resumoDia;
+  if(r){
+    /* a data vai na frase de propósito: com filtro de período antigo, dizer
+       "hoje" seria mentira — e mentira no topo da tela custa mais que silêncio */
+    const dia = fmtDate(r.data).slice(0,5);
+    const pend = r.total - r.auditados;
+    if(pend > 0)      return { tom:'pend', act:null, txt:`${pend} torneio${pend>1?'s':''} de ${dia} ainda sem auditoria` };
+    if(r.semPrem > 0) return { tom:'ok',   act:null, txt:`${r.semPrem} torneio${r.semPrem>1?'s':''} de ${dia} ainda sem premiação` };
+    return { tom:'ok', act:null, txt:`Auditoria de ${dia} fechada — nada pendente.` };
+  }
+  return { tom:'ok', act:null, txt:'Tudo certo por aqui.' };
+}
+
+function renderHello(){
+  const nome = document.getElementById('helloNome');
+  if(!nome) return;                                   // markup ausente: não quebra nada
+  nome.textContent = _name || '';
+  document.getElementById('helloSaud').textContent = saudacaoHora();
+
+  const c = helloContexto();
+  const miolo = `<span class="hello-dot ${c.tom === 'ok' ? '' : c.tom}"></span><span class="hello-txt">${esc(c.txt)}</span>`;
+  /* botão só quando há pra onde ir — o data-act reaproveita a delegação do
+     admin-actions.js, então não há listener novo pra vazar */
+  document.getElementById('helloAcao').innerHTML = c.act
+    ? `<button class="hello-linha" data-act="${c.act}">${miolo}</button>`
+    : `<span class="hello-linha">${miolo}</span>`;
+}
+
 async function enterApp(email, name){
   _email=email;_name=name;
   document.getElementById('adminName').textContent=_name;
+  renderHello();   // nome aparece ANTES de qualquer leitura; a frase entra depois
   document.getElementById('loginWrap').style.display='none';
   document.getElementById('app').style.display='block';
   document.getElementById('loader').classList.add('on');
@@ -486,6 +558,7 @@ async function enterApp(email, name){
     await loadAll();
     initDates();
     await loadAudit();   // a aba inicial (Acompanhamento) precisa disto
+    renderHello();       // agora o _resumoDia existe
     watchLiveGrade();    // acompanha em tempo real o dia atual + amanhã (GU)
   }catch(e){
     console.error('enterApp/load', e);
@@ -496,7 +569,13 @@ async function enterApp(email, name){
   // o resto sai do caminho crítico: a primeira tela já está de pé,
   // operadores/usuários/notificações carregam quando a thread sobrar
   const idle = window.requestIdleCallback || (fn => setTimeout(fn, 350));
-  idle(async () => { await loadOps(); await loadUsers(); loadPendingNotifs(); refreshAlertasBadge(); });
+  idle(async () => {
+    await loadOps(); await loadUsers();
+    /* await nos dois: o renderHello lê os BADGES, então precisa que já tenham
+       sido escritos — antes eram disparados sem esperar e a frase saía velha */
+    await loadPendingNotifs(); await refreshAlertasBadge();
+    renderHello();
+  });
 }
 
 /* ── RECONHECIMENTO AUTOMÁTICO ──
@@ -1491,6 +1570,8 @@ async function loadAudit(){
     const totalDay = dayRows.length;
     const auditedDay = dayRows.filter(r=>r._audited).length;
     const semPrem = dayRows.filter(r=>r.status==='aberto').length;
+    // alimenta a frase da saudação (dates está em ordem decrescente → [0] é o mais recente)
+    if(date === dates[0]) _resumoDia = { data:date, total:totalDay, auditados:auditedDay, semPrem };
     const dayStatusHtml = `
       <div style="display:flex;gap:10px;font-size:10.5px;color:var(--ink3);margin-left:auto">
         ${auditedDay>0?`<span style="color:var(--green)">✓ ${auditedDay} auditado${auditedDay>1?'s':''}</span>`:''}
