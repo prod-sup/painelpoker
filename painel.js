@@ -3636,6 +3636,38 @@ function todayPathSP(){
 FB_BASE_PATH    = `painel/${todayPathSP()}`;
 LAST_KNOWN_DATE = todayPathSP();
 
+/* ══════════════════════════════════════════════════════════════════════════
+   TRAVA DE VIRADA — HOTFIX 30/08/2026
+   A grade foi virada em cadeia por engano até 06/09 (cada dia com um marcador
+   `rolledTo` apontando pro seguinte); o painel seguia a cadeia e saía do dia
+   real, arrastando TODO mundo pra 06/09. Enquanto agora < ROLLOVER_FREEZE_UNTIL:
+     · o painel NÃO segue `rolledTo` pra frente (pausa a virada em tempo real);
+     · fica no dia operacional real (todayPathSP) → volta e SEGURA em 30/08;
+     · limpa os marcadores `rolledTo` da cadeia ruim (quem tiver permissão).
+   Solta SOZINHO às 03:00 de 31/08 — a virada automática volta no próximo turno,
+   sem novo deploy. Guarda-chuva PERMANENTE embaixo (podeSeguirVirada): nunca
+   seguir `rolledTo` pra uma data > 1 dia à frente do dia real (mata runaway). */
+const ROLLOVER_FREEZE_UNTIL = '2026-08-31T03:00:00-03:00';
+function rolloverCongelado(){
+  try { return Date.now() < Date.parse(ROLLOVER_FREEZE_UNTIL); } catch(_){ return false; }
+}
+/* Só segue a virada se `novo` for sensato (no máx. 1 dia à frente do dia real)
+   E a trava não estiver ativa. Fora disso é ruído/erro — não seguir. */
+function podeSeguirVirada(novo){
+  if (typeof novo !== 'string') return false;
+  if (rolloverCongelado()) return false;
+  return novo <= addDaysISO(todayPathSP(), 1);
+}
+/* Best-effort (silencioso se as regras negarem escrita p/ este operador): apaga
+   a cadeia de `rolledTo` do dia real pra frente, matando a virada ruim de vez. */
+function limparCadeiaViradaRuim(){
+  if (!fbReady || !fbDb) return;
+  const hoje = todayPathSP();
+  for (let i = 0; i <= 8; i++){
+    try { fbDb.ref(`painel/${addDaysISO(hoje, i)}/rolledTo`).remove(); } catch(_){}
+  }
+}
+
 /* =========================================================================
    LIMPEZA AUTOMÁTICA DE DIAS ANTIGOS
    Como FB_BASE_PATH é por data (painel/AAAA-MM-DD), cada dia de uso cria um nó novo
@@ -4116,6 +4148,12 @@ function initFirebaseSync(){
     // por outra aba (o parceiro ficaria preso no quadro do dia que já fechou).
     fbDb.ref(`${FB_BASE_PATH}/rolledTo`).on('value', snap => {
       const novo = snap.val();
+      // TRAVA DE VIRADA: congelado ou salto insano (> 1 dia à frente) → não segue
+      // e apaga o marcador ruim (best-effort). É o que segura o painel em 30/08.
+      if (typeof novo === 'string' && novo > LAST_KNOWN_DATE && !podeSeguirVirada(novo)){
+        try { fbDb.ref(`${FB_BASE_PATH}/rolledTo`).remove(); } catch(_){}
+        return;
+      }
       if (typeof novo === 'string' && novo > LAST_KNOWN_DATE){
         showToast(`📅 O turno confirmou a troca — o painel virou para ${novo}. Para conferir o anterior, use "◀ Ver ${addDaysISO(novo, -1)}".`);
         ROLLOVER_HELD_TOAST = false;
@@ -4125,6 +4163,7 @@ function initFirebaseSync(){
         resetDay(novo);
       }
     });
+    if (rolloverCongelado()) limparCadeiaViradaRuim();   // trava ativa → varre a cadeia ruim uma vez
     registrarListenerEntrega();
     registrarListenerReabertura();
 
@@ -11417,6 +11456,12 @@ function reinitDayListeners(){
   // novo sem recarregar. Cobre também F5 durante a madrugada (o load começa no nó antigo).
   fbDb.ref(`${FB_BASE_PATH}/rolledTo`).on('value', snap => {
     const novo = snap.val();
+    // TRAVA DE VIRADA: congelado ou salto insano (> 1 dia à frente) → não segue
+    // e apaga o marcador ruim (best-effort). É o que segura o painel em 30/08.
+    if (typeof novo === 'string' && novo > LAST_KNOWN_DATE && !podeSeguirVirada(novo)){
+      try { fbDb.ref(`${FB_BASE_PATH}/rolledTo`).remove(); } catch(_){}
+      return;
+    }
     if (typeof novo === 'string' && novo > LAST_KNOWN_DATE){
       showToast(`📅 O turno confirmou a troca — o painel virou para ${novo}. Para conferir o anterior, use "◀ Ver ${addDaysISO(novo, -1)}".`);
       ROLLOVER_HELD_TOAST = false;
