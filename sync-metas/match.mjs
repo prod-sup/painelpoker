@@ -62,9 +62,19 @@ export function tokens(nome){
        pokerbyte: "SPS 102-M WarmUp"
    Tratar "40k" como identidade fazia esse par legítimo ser recusado (0.36). O
    número do evento vem cru (102) ou com marca de nível (47h, 139l); valor vem com
-   K. Excluir os "K" mantém a proteção do 47-H x 48-H e libera o caso real. */
+   K. Excluir os "K" mantém a proteção do 47-H x 48-H e libera o caso real.
+
+   30/08/2026 — O "M" DE MILHÃO TAMBÉM É DINHEIRO.
+   A regra cobria só o K e deixava o milhão de fora:
+       painel:    "SPS 157-M 1M Supremo"
+       pokerbyte: "SPS 157-M Supremo"
+   O token "1m" contava como identidade, o mesmosNumeros reprovava e o par
+   caía em 0.36 — exatamente o mesmo 0.36 que o caso do "40K" acima. O Main
+   Event do domingo ficou o dia inteiro sem print automático por isso.
+   O número do evento NÃO é afetado: "157-M" normaliza para dois tokens
+   ("157" e "m"), nunca para "157m". Só casa dígito colado no k/m. */
 const RE_TOKEN_NUMERICO = /^\d+(?:\.\d+)?[a-z]?$/;
-const RE_DINHEIRO = /^\d+(?:\.\d+)?k$/;
+const RE_DINHEIRO = /^\d+(?:\.\d+)?[km]$/;
 
 export function tokensNumericos(nome){
   return new Set(tokens(nome).filter(t => RE_TOKEN_NUMERICO.test(t) && !RE_DINHEIRO.test(t)));
