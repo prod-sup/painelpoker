@@ -607,7 +607,7 @@
     animation-play-state: running !important;
   }
 
-  .wrap{max-width:1180px; margin:0 auto; padding:0 28px;}
+  .wrap{max-width:1720px; margin:0 auto; padding:0 28px;}
   :focus-visible{outline:2px solid var(--felt-bright); outline-offset:3px; border-radius:4px;}
 
   /* ---------- NAV ---------- */
@@ -629,7 +629,9 @@
     box-shadow:0 8px 30px -18px rgba(12,30,22,0.5);
   }
   .nav-inner{
-    /* a nav é uma TOOLBAR cheia — precisa de mais largura que o conteúdo (1180px).
+    /* a nav é uma TOOLBAR cheia. Desde 30/08/2026 usa o MESMO cap do conteúdo
+       (o .wrap subiu de 1180 pra 1720), então as duas caixas alinham — antes a
+       toolbar era mais larga que o conteúdo que ela encima.
        O cap tem que CONTER o conteúdo intrínseco (~1680px): se for menor, os itens
        transbordam a caixa centralizada e o excesso é jogado pra DIREITA, saindo da
        tela (body tem overflow-x:hidden, então corta em vez de rolar). 1720 abriga
@@ -1658,7 +1660,7 @@
   }
   /* align-items:start impede que o card sem print estique até a altura do mais
      alto — senão sobra um vão morto embaixo do botão dele */
-  .metas-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(268px,1fr)); gap:12px; padding-bottom:36px; align-items:start;}
+  .metas-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(264px,1fr)); gap:12px; padding-bottom:36px; align-items:start;}
 
   .mcard{
     position:relative; contain:layout style;
@@ -1961,6 +1963,9 @@
   html.dark .tf-sheet-done:hover{ background:var(--felt); color:var(--bg); }
 
   .grid-cards{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
+  /* telas largas: PRÓXIMOS e PRINCIPAIS ganham a 4a coluna (404px em 1806/1920,
+     374px em 1600). Abaixo de 1500 segue em 3, exatamente como sempre foi. */
+  @media (min-width:1500px){ .grid-cards{grid-template-columns:repeat(4,1fr);} }
   @media (max-width:900px){ .grid-cards{grid-template-columns:repeat(2,1fr);} }
   @media (max-width:620px){ .grid-cards{grid-template-columns:1fr;} }
 
@@ -4273,7 +4278,7 @@ body.compact-focus #agenda{ padding-top:10px; }
 body.compact-focus #agenda .section-title,
 body.compact-focus #agenda .section-desc{ display:none; }
 body.compact-focus #agenda .section-head{ margin-bottom:8px; }
-/* usa a LARGURA TODA da tela (fora do modo focado a .wrap trava em 1180px e cortava colunas) */
+/* usa a LARGURA TODA da tela (fora do modo focado a .wrap trava em 1720px e cortava colunas) */
 body.compact-focus #agenda .wrap{ max-width:none;padding:0 14px; }
 /* mostra a planilha INTEIRA: sem caixa de rolagem própria. Só o cabeçalho gruda no topo
    ao rolar a página, se um dia sobrar torneio demais pra altura da tela. */
