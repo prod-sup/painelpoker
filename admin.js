@@ -1523,17 +1523,17 @@ async function loadAudit(){
           <td class="nm" title="${esc(r.nome)}">${esc(r.nome)}${r.manual?'<span class="au-manual" title="Adicionado à mão pela ferramenta Adicionar torneio — não veio da Global">MANUAL</span>':''}${anomaliaHtml}</td>
           <td class="mono" data-label="Hora">${esc(r.hora)}</td>
           <td class="mono" data-label="Late">${esc(r.late)}</td>
-          <td class="r mono" data-label="GTD">${r.garantido!=null?'R$ '+brl(r.garantido):'—'}</td>
-          <td class="r mono" data-label="Buy-in">${r.buyin!=null?'R$ '+brl(r.buyin):'—'}</td>
-          <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.premiacaoOriginal!==r.premiacao?'c-gold':''}" data-label="Arrecadado">${r.premiacao!=null?'R$ '+brl(r.premiacao,2):'—'}</td>
-          <td class="r mono ov-val" data-label="Overlay">${r.overlay!=null?'R$ '+brl(r.overlay,2):'—'}</td>
+          <td class="r mono" data-label="GTD">${r.garantido!=null?brl(r.garantido):'—'}</td>
+          <td class="r mono" data-label="Buy-in">${r.buyin!=null?brl(r.buyin):'—'}</td>
+          <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.premiacaoOriginal!==r.premiacao?'c-gold':''}" data-label="Arrecadado">${r.premiacao!=null?brl(r.premiacao,2):'—'}</td>
+          <td class="r mono ov-val" data-label="Overlay">${r.overlay!=null?brl(r.overlay,2):'—'}</td>
           <td class="r mono ${r._audited&&r._auditEntry&&r._auditEntry.status==='corrigido'&&r._auditEntry.fieldOriginal!==r.field?'c-gold':''}" data-label="Field">${r.field!=null?r.field:'—'}</td>
           <td class="r mono" data-label="Perf.">${r.perf!=null?`<span class="perf ${r.perf>=0?'pos':'neg'}">${pct(r.perf,2)}</span>`:'—'}</td>
           <td class="c-ink2" data-label="Fixou">${r.fixBy?`${esc(r.fixBy)}${r.fixAt?`<span style="display:block;font-size:9px;color:var(--ink3);font-family:var(--mono)">${esc(r.fixAt)}</span>`:''}${fixTimingBadge(r)}`:'—'}</td>
           <td class="c-ink2" data-label="Arrecadou">${r.premBy?`${esc(r.premBy)}${r.premByAt?`<span style="display:block;font-size:9px;color:var(--ink3);font-family:var(--mono)">${esc(r.premByAt)}</span>`:''}`:'—'}</td>
           <td class="mono c-ink2" data-label="ID">${esc(r.id)}</td>
           <td class="au-status" data-label="Status">${statusBadge(r.status)}</td>
-          <td class="au-actions" style="display:flex;gap:5px;align-items:center">
+          <td class="au-actions"><div class="au-acts">
             <button class="audit-edit-btn ${r._audited?'auditado':''}"
               data-key="${r.key}" data-date="${r.date}"
               data-act="openAuditEditByEl" data-act-self>
@@ -1545,7 +1545,7 @@ async function loadAudit(){
             ${r.manual ? `<button class="btn-del-manual" title="Excluir este torneio adicionado à mão"
               data-key="${esc(r.manualKey||r.key)}" data-date="${esc(r.manualDate||r.date)}"
               data-act="removeAddedTorneioByEl" data-act-self aria-label="Excluir ${esc(r.nome)}">🗑 Excluir</button>` : ''}
-          </td>
+          </div></td>
         </tr>`;
       }).join('');
 
@@ -1559,8 +1559,8 @@ async function loadAudit(){
           <thead><tr>
             <th style="width:32px"><input type="checkbox" id="checkAll" data-act="toggleCheckAll" data-act-self data-act-on="change" style="accent-color:var(--gold);width:14px;height:14px"></th>
             <th>Torneio</th><th>Hora</th><th>Late</th>
-            <th class="r">GTD</th><th class="r">Buy-in</th><th class="r">Arrecadado</th>
-            <th class="r">Overlay</th><th class="r">Field</th><th class="r">Perf.</th>
+            <th class="r">GTD<span class="th-u">R$</span></th><th class="r">Buy-in<span class="th-u">R$</span></th><th class="r">Arrecadado<span class="th-u">R$</span></th>
+            <th class="r">Overlay<span class="th-u">R$</span></th><th class="r">Field</th><th class="r">Perf.</th>
             <th>Fixou</th><th>Arrecadou</th><th>ID</th><th>Status</th><th>Auditoria</th>
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
