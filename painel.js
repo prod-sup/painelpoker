@@ -1567,6 +1567,19 @@ function guRowsForDate(wb, iso){
   const diaEn = guWeekdayEnFromISO(iso);
   const sec = extractGuDaySection(matrix, diaEn, headerCols);
   if(!sec) throw new Error(`A GU não tem a seção "${diaEn}" — a planilha ainda não foi montada pra ${iso}?`);
+  /* ══ GUARDA DE DATA ═══════════════════════════════════════════════════════
+     A seção do dia é achada pelo NOME do dia da semana, então a Global de OUTRA
+     semana casa igual e entra no lugar da de hoje. Em 30/08/2026 entrou a grade
+     de 06/09 (também domingo): 58 torneios trocaram de nome e o trabalho de 10
+     deles ficou órfão, porque a chave da linha é hash(nome|hora|buyin|garantido).
+     A data sempre esteve escrita na linha do bloco; ninguém a lia.
+     CONSERVADOR: só barra quando LEU a data e ela difere. Planilha sem data na
+     linha do dia passa como antes — travar ingestão legítima seria pior. */
+  if(sec.dataSecao && sec.dataSecao !== iso){
+    const br = s => s.slice(8,10) + '/' + s.slice(5,7);
+    throw new Error('Essa GU é do dia ' + br(sec.dataSecao) + ' e o painel está no dia ' + br(iso) +
+      '. A grade NÃO foi trocada — publique a GU do dia certo. Trocar agora apagaria da tela o que já foi coletado hoje.');
+  }
   const next = extractGuDaySection(matrix, guWeekdayEnFromISO(addDaysISO(iso, 1)), headerCols);
   return globalSectionToRows(guSectionToBRL(sec), guSectionToBRL(next));
 }
