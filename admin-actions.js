@@ -76,6 +76,9 @@
     /* excluir torneio adicionado à mão — ESCRITA: fica FORA do LIMITED_ALLOW
        de propósito, o admin limitado não apaga nada */
     'removeAddedTorneioByEl',
+    /* 🗑 de QUALQUER linha da auditoria (tombstone em painel/<data>/auditHidden)
+       e o Restaurar da faixa. Escrita: também fora do LIMITED_ALLOW. */
+    'removeAuditRowByEl', 'restoreHiddenAudit',
     /* acionadas por markup que o próprio admin.js gera (tabelas, listas) — a
        delegação cobre elemento criado depois, então não precisam religar nada */
     'goToAuditFor', 'toggleAccess', 'toggleAviso', 'editAviso', 'removeAviso',

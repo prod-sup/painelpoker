@@ -687,6 +687,16 @@ function nhKey(nome, hora){
   const h = String(hora||'').trim().replace(/^(\d{1,2}):(\d{2}).*$/, (_,hh,mm)=>`${hh.padStart(2,'0')}:${mm}`);
   return `${n}|${h}`;
 }
+/* CHAVE DO TOMBSTONE de exclusão da auditoria (painel/<date>/auditHidden/<k>).
+   É o nhKey com os caracteres que o RTDB proíbe em nome de nó (. # $ / [ ]) —
+   nome de torneio tem ponto ("SPS 1.5K") e barra ("1/3"), então gravar o nhKey
+   cru daria erro de escrita justamente nos eventos de nome mais comum.
+   Casa por nome+hora e NÃO pela chave rk_: a mesma ocorrência tem chave
+   diferente no snapshot e no painel ao vivo (o hash inclui o garantido), e um
+   tombstone preso a uma delas deixaria a outra cópia viva. */
+function hideKeyOf(nome, hora){
+  return nhKey(nome, hora).replace(/[.#$/\[\]]/g, '_');
+}
 /* Faz o merge de UM dia (snapshot + painel) dentro de _allData[date]. É a MESMA
    lógica que o loadAll usava inline — extraída pra ser reusada pelo refresh ao
    vivo (que reprocessa só o dia que mudou, sem rebaixar os 60 dias). `snap` é o
@@ -695,7 +705,7 @@ function nhKey(nome, hora){
 function mergeDayInto(date, snap, day){
   // 1. snapshot (rows prontas) — só cria o dia se houver rows válidas (como no original)
   if(snap && snap.rows && typeof snap.rows==='object'){
-    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},buy:{},premBy:{}};
+    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},buy:{},premBy:{},hidden:{}};
     Object.entries(snap.rows).forEach(([k,r])=>{
       if(!r||typeof r!=='object')return;
       // _snap: veio de um snapshot já finalizado. Nesse ponto o painel JÁ removeu toda premiação
@@ -713,7 +723,7 @@ function mergeDayInto(date, snap, day){
 
   // 2. painel ao vivo — complementa/sobrepõe o snapshot
   if(day && typeof day==='object'){
-    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},buy:{},premBy:{}};
+    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},buy:{},premBy:{},hidden:{}};
     // sheet.rows é ARRAY — converter para objeto com rk_ keys
     // Merge por nome+hora (não recalcula hash) para evitar duplicar o mesmo torneio
     // quando o garantido muda entre o snapshot e o painel ao vivo (hash diferente)
@@ -793,6 +803,15 @@ function mergeDayInto(date, snap, day){
         if(r.garantido!=null && _allData[date].guar[k]==null) _allData[date].guar[k]=r.garantido;
       });
     }
+
+    // Torneios EXCLUÍDOS da auditoria pelo admin (painel/<date>/auditHidden).
+    // Tombstone, não remoção: a linha continua na Global/no snapshot e voltaria
+    // no próximo merge se fosse só apagada daqui — é o mesmo problema que o
+    // wipeManualRow documenta. O flatRows lê este mapa e pula a ocorrência.
+    if(day.auditHidden && typeof day.auditHidden==='object'){
+      if(!_allData[date].hidden) _allData[date].hidden={};
+      Object.entries(day.auditHidden).forEach(([k,v])=>{ if(v) _allData[date].hidden[k]=v; });
+    }
   }
 }
 
@@ -838,7 +857,7 @@ function watchLiveGrade(){
         .then(ss => { day.sheet = ss.val(); refreshDayLive(date); })
         .catch(() => { lastSheetAt = null; });
     });
-    ['premiacao','fixed','premBy','ids','field','garantido','buyin','manualRows'].forEach(node => {
+    ['premiacao','fixed','premBy','ids','field','garantido','buyin','manualRows','auditHidden'].forEach(node => {
       db.ref(`painel/${date}/${node}`).on('value', s => { day[node] = s.val(); refreshDayLive(date); });
     });
   });
@@ -886,14 +905,27 @@ function flatRows(fromDate, toDate){
   // descartar em silêncio: se sobrar algum dia que o Brian reconheça como fechado de verdade,
   // ele vê aqui em vez de o número simplesmente sumir.
   const _flatExcl={count:0,value:0,dates:new Set()};
+  // EXCLUÍDOS PELO ADMIN (🗑 da auditoria): contados por dia pra a tela poder
+  // oferecer o Restaurar. Some da conta, não some da existência.
+  const _flatHidden={count:0,dates:new Set()};
   Object.entries(_allData).forEach(([date,day])=>{
     if(fromDate&&date<fromDate)return;
     if(toDate&&date>toDate)return;
+    const hiddenMap = day.hidden || {};
     // Deduplicar por nome+hora dentro do mesmo dia (proteção contra hash divergente
     // entre snapshot e painel ao vivo, que gera keys diferentes pro mesmo torneio)
     const seenInDay = new Set();
     Object.entries(day.rows).forEach(([key,r])=>{
       if(!r||typeof r!=='object')return;
+      // Excluído pelo admin: sai ANTES de qualquer conta, então não entra em
+      // total, arrecadado, overlay nem em nenhum KPI do Dashboard.
+      if(hiddenMap[hideKeyOf(r.nome, r.hora)]){
+        if(!seenInDay.has('h:'+nhKey(r.nome,r.hora))){
+          seenInDay.add('h:'+nhKey(r.nome,r.hora));
+          _flatHidden.count++; _flatHidden.dates.add(date);
+        }
+        return;
+      }
       const dedupeKey = nhKey(r.nome, r.hora); // normalizado: pega meia-noite em qualquer grafia
       if(seenInDay.has(dedupeKey)) return; // já processado este torneio neste dia
       seenInDay.add(dedupeKey);
@@ -1082,6 +1114,7 @@ function flatRows(fromDate, toDate){
   const result=[...byOcc.values()];
   // expõe a auditoria do gate sem quebrar quem só itera o array
   result.excludedNoStamp={ count:_flatExcl.count, value:_flatExcl.value, dates:[..._flatExcl.dates].sort() };
+  result.hiddenByAdmin={ count:_flatHidden.count, dates:[..._flatHidden.dates].sort() };
   return result;
 }
 
@@ -1530,7 +1563,11 @@ async function loadAudit(){
   const qF  =(document.getElementById('auSearch')?.value||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
 
   await Promise.all([loadAuditData()]);
-  let rows=enrichWithAudit(flatRows(from,to));
+  const _raw = flatRows(from,to);
+  // guardado ANTES dos filtros: cada .filter() devolve array novo e perderia a
+  // contagem de excluídos pendurada no resultado
+  const _hidden = _raw.hiddenByAdmin || {count:0,dates:[]};
+  let rows=enrichWithAudit(_raw);
   if(catF)rows=rows.filter(r=>r.cat===catF);
   if(stF) rows=rows.filter(r=>r.status===stF);
   if(opF) rows=rows.filter(r=>r.fixBy===opF||r.idBy===opF);
@@ -1548,12 +1585,23 @@ async function loadAudit(){
   const dates=Object.keys(byDate).sort().reverse();
   const el=document.getElementById('auditResult');
 
+  /* Faixa do que o admin excluiu no período. Fica FORA do cabeçalho do dia de
+     propósito: excluir o último torneio de um dia faz o dia inteiro sumir da
+     lista, e um Restaurar que morasse lá dentro sumiria junto — a exclusão
+     viraria irreversível pela tela. Aqui ela aparece mesmo com zero resultado. */
+  const hiddenBar = _hidden.count > 0 ? `
+    <div class="audit-hidden-bar">
+      <span>🗑 <b>${_hidden.count}</b> torneio${_hidden.count>1?'s':''} excluído${_hidden.count>1?'s':''} neste período — fora de todos os totais e do Dashboard</span>
+      <button class="btn btn-ghost btn-sm" data-act="restoreHiddenAudit" data-act-self
+        data-dates="${esc(_hidden.dates.join(','))}">↩ Restaurar</button>
+    </div>` : '';
+
   if(!dates.length){
-    el.innerHTML=`<div class="empty"><div class="empty-icon">🔍</div><h3>Nenhum dado encontrado</h3><p>Ajuste o período ou os filtros</p></div>`;
+    el.innerHTML=hiddenBar+`<div class="empty"><div class="empty-icon">🔍</div><h3>Nenhum dado encontrado</h3><p>Ajuste o período ou os filtros</p></div>`;
     return;
   }
 
-  try{ el.innerHTML=dates.map(date=>{
+  try{ el.innerHTML=hiddenBar+dates.map(date=>{
     const dayRows=byDate[date];
     const groups=[
       {cat:'main',rows:sortByTime(dayRows.filter(r=>r.cat==='main'))},
@@ -1623,9 +1671,10 @@ async function loadAudit(){
             <button class="btn-notif"
               data-nome="${esc(r.nome)}" data-date="${r.date}" data-fixby="${esc(r.premBy||r.fixBy||r.idBy||'')}" data-key="${r.key}"
               data-act="openNotifByEl" data-act-self>⚠ Notif</button>
-            ${r.manual ? `<button class="btn-del-manual" title="Excluir este torneio adicionado à mão"
+            <button class="btn-del-manual" title="${r.manual?'Excluir este torneio adicionado à mão':'Excluir este torneio da auditoria'}"
               data-key="${esc(r.manualKey||r.key)}" data-date="${esc(r.manualDate||r.date)}"
-              data-act="removeAddedTorneioByEl" data-act-self aria-label="Excluir ${esc(r.nome)}">🗑 Excluir</button>` : ''}
+              data-nome="${esc(r.nome)}" data-hora="${esc(r.hora||'')}" data-manual="${r.manual?'1':''}"
+              data-act="removeAuditRowByEl" data-act-self aria-label="Excluir ${esc(r.nome)}">🗑 Excluir</button>
           </div></td>
         </tr>`;
       }).join('');
@@ -1738,24 +1787,49 @@ function initKpiTips(){
 }
 function buildDash(){
   buildDashCn();
-  const from=_dpFrom||dago(_dp), to=_dpTo||nowSP();
+  // `dago(_dp-1)` e não `dago(_dp)`: a janela inclui HOJE, então voltar 30 dias
+  // dava 31 dias de dado sob o rótulo "30d" — e o spanDays (=_dp) que alimenta as
+  // médias/dia dos insights ficava 1 dia menor que a janela que ele descreve.
+  const from=_dpFrom||dago(Math.max(0,_dp-1)), to=_dpTo||nowSP();
   const spanDays=_dpFrom?(Math.round((new Date(to)-new Date(from))/86400000)+1):_dp;
   const janela=_dpFrom?`${from.slice(8,10)}/${from.slice(5,7)}–${to.slice(8,10)}/${to.slice(5,7)}`:`${_dp}d janela`;
   const rows=flatRows(from,to);
   const closed=rows.filter(r=>r.premiacao!=null);
-  const withOv=closed.filter(r=>r.overlay!=null&&r.overlay<0);
-  // flight de multiday (Dia 1) não soma garantido — é do Dia 2 (premiação/overlay já saem
-  // por 'closed', que exige premiação e o flight nunca tem)
-  const totalGar=rows.reduce((s,r)=>isMdFlight(r)?s:s+(r.garantido||0),0);
-  const totalPrem=closed.reduce((s,r)=>s+(r.premiacao||0),0);
-  const totalOv=closed.reduce((s,r)=>s+(r.overlay||0),0);
+  // flight de multiday (Dia 1) não soma valor — garantido/premiação/overlay são do Dia 2
+  const vale = r => !isMdFlight(r);
+  const totalGar=rows.reduce((s,r)=>vale(r)?s+(r.garantido||0):s,0);
+  const totalPrem=closed.reduce((s,r)=>vale(r)?s+(r.premiacao||0):s,0);
+  /* OVERLAY: soma sobre TODAS as linhas, não só as fechadas — a MESMA fórmula do
+     cabeçalho do dia na Acompanhamento (allOv). O freeroll é o motivo: ele tem
+     overlay (−garantido, porque a casa paga o prêmio inteiro) mas nunca tem
+     premiação, então somar só as fechadas deixava o custo dele fora do Dashboard
+     enquanto a Acompanhamento o mostrava. As duas telas divergiam no mesmo dia. */
+  const totalOv=rows.reduce((s,r)=>vale(r)?s+(r.overlay||0):s,0);
   const avgPerf=closed.filter(r=>r.perf!=null).length?
     closed.filter(r=>r.perf!=null).reduce((s,r)=>s+r.perf,0)/closed.filter(r=>r.perf!=null).length:null;
 
   const nfRows   = rows.filter(r=>r.status==='nf');
   const dias     = [...new Set(rows.map(r=>r.date))].length;
-  const totalGarSum = rows.reduce((s,r)=>isMdFlight(r)?s:s+(r.garantido||0),0);
-  const cobertura = totalGarSum>0?(totalPrem/totalGarSum*100):0;
+  /* Dias que de fato PRODUZIRAM receita, usado só no R$/dia da meta. `dias`
+     conta todo dia com grade — incluindo hoje, que quase sempre ainda não
+     fechou nada — e como divisor derrubava a receita/dia abaixo da meta todo
+     santo dia, acendendo o alerta vermelho por artefato de conta. */
+  const diasComFecho = [...new Set(closed.map(r=>r.date))].length;
+  /* BASE DE COMPARAÇÃO — o defeito que mais torcia número nesta tela.
+     `cobertura` e `overlayPctGar` dividiam um numerador SÓ DE FECHADAS por um
+     denominador de TODAS as linhas. Como a janela termina em hoje e hoje quase
+     nada fechou, o GTD do dia inteiro entrava embaixo com premiação zero: a
+     cobertura saía baixa e — pior — o overlay saía como uma fatia menor do que
+     é, deixando o semáforo da meta VERDE indevidamente.
+     Agora cada razão usa o garantido das MESMAS linhas que formam o seu topo:
+       cobertura  → garantido das fechadas
+       overlay %  → garantido das fechadas + dos freerolls (que geram overlay
+                    sem nunca fechar). */
+  const garClosed = closed.reduce((s,r)=>vale(r)?s+(r.garantido||0):s,0);
+  const garFree   = rows.reduce((s,r)=>(vale(r)&&r.premiacao==null&&r.overlay!=null)?s+(r.garantido||0):s,0);
+  const garOvBase = garClosed+garFree;
+  const cobertura = garClosed>0?(totalPrem/garClosed*100):0;
+  const abertas   = rows.filter(r=>vale(r)&&r.premiacao==null&&r.overlay==null).length;
 
   // ── ARRECADADO + RAKE + ADMIN FEE ──────────────────────────────────────
   // A premiação é o LÍQUIDO (parte da entrada que vira prize pool). O bruto
@@ -1770,7 +1844,17 @@ function buildDash(){
   let grossSum=0, rakeSum=0, adminSum=0, entradas=0, adminEvents=0;
   let semFee=0, semFeePrem=0;
   const catAgg={main:{gross:0,rake:0,admin:0,ov:0,gar:0,prem:0,n:0},side:{gross:0,rake:0,admin:0,ov:0,gar:0,prem:0,n:0},sat:{gross:0,rake:0,admin:0,ov:0,gar:0,prem:0,n:0}};
-  rows.forEach(r=>{ const c=catAgg[r.cat]; if(c && r.garantido) c.gar+=r.garantido; });
+  /* GTD e OVERLAY por categoria saem daqui, do laço de TODAS as linhas, pelas
+     mesmas regras dos KPIs — antes o `gar` somava flight de Dia 1 (que o KPI
+     Garantido exclui, então o tooltip Main+Side+Satélite dava MAIS que o número
+     grande em cima dele) e o `ov` só era acumulado lá embaixo, dentro do laço
+     das fechadas COM fee da GU, o que fazia a linha Total da tabela "Receita
+     por categoria" divergir do KPI Overlay total. */
+  rows.forEach(r=>{
+    const c=catAgg[r.cat]; if(!c || !vale(r)) return;
+    if(r.garantido) c.gar+=r.garantido;
+    if(r.overlay)   c.ov +=r.overlay;
+  });
   closed.forEach(r=>{
     if(r.premiacao==null) return;
     // sem fee da GU não dá pra dizer quanto a casa reteve: a linha fica de fora
@@ -1784,16 +1868,24 @@ function buildDash(){
     if(r.acoes) entradas += r.acoes;
     if(adminFrac>0) adminEvents++;
     const c=catAgg[r.cat];
-    if(c){ c.gross+=gross; c.rake+=gRake; c.admin+=gAdmin; c.prem+=r.premiacao; if(r.overlay)c.ov+=r.overlay; c.n++; }
+    if(c){ c.gross+=gross; c.rake+=gRake; c.admin+=gAdmin; c.prem+=r.premiacao; c.n++; }
   });
   const houseSum = rakeSum + adminSum;                       // receita da casa (rake+admin)
   const rakePct  = grossSum>0 ? rakeSum/grossSum*100 : 0;
   const housePct = grossSum>0 ? houseSum/grossSum*100 : 0;
-  const overlayPctGar = totalGar>0 ? Math.abs(totalOv)/totalGar*100 : 0;   // overlay como % do GTD
+  // % do GTD DAS LINHAS QUE PODEM GERAR OVERLAY (fechadas + freerolls) — ver a
+  // nota da base de comparação lá em cima
+  const overlayPctGar = garOvBase>0 ? Math.abs(totalOv)/garOvBase*100 : 0;
   const margem   = houseSum - Math.abs(totalOv);             // margem real: receita − overlay coberto
   const ticket   = entradas>0 ? grossSum/entradas : 0;       // arrecadado por entrada
-  const fieldMed = closed.length ? entradas/closed.length : 0;
-  const rakeDiaReal = dias>0 ? houseSum/dias : houseSum;     // receita da casa por dia
+  /* FIELD MÉDIO = a coluna Field, a mesma que a Acompanhamento mostra. Antes era
+     `entradas/closed.length`, e `entradas` são as AÇÕES — entradas com re-entry
+     ESTIMADAS por premiação÷(buy-in×netFactor), não jogadores. Dois números
+     diferentes com o mesmo nome nas duas telas. Ações continuam alimentando o
+     ticket médio, que é onde elas são a conta certa. */
+  const fieldRows = rows.filter(r=>vale(r)&&r.field!=null&&r.field>0);
+  const fieldMed = fieldRows.length ? fieldRows.reduce((s,r)=>s+r.field,0)/fieldRows.length : 0;
+  const rakeDiaReal = diasComFecho>0 ? houseSum/diasComFecho : houseSum;   // receita da casa por dia rodado
   // metas + semáforo
   const gOvl = +DASH_GOALS.overlayPct||0, gRakeDia = +DASH_GOALS.rakeDia||0;
   const ovlOK  = gOvl>0 ? overlayPctGar<=gOvl : null;
@@ -1806,7 +1898,9 @@ function buildDash(){
   const tCard=(head,big,rows,foot)=>`<div class='tip-h'>${head}</div><div class='tip-b'>${big}</div>${rows.join('')}${foot?`<div class='tip-f'>${foot}</div>`:''}`;
   const garTip = tCard('Garantido prometido','R$ '+brl(totalGar,0),[
     tRow('Main','R$ '+brl(garByCat.main,0)), tRow('Side','R$ '+brl(garByCat.side,0)), tRow('Satélite','R$ '+brl(garByCat.sat,0)),
-  ],`Premiação cobre ${cobertura.toFixed(0)}% do garantido`);
+    tRow('Já resolvido','R$ '+brl(garClosed,0)),
+  ].concat(abertas>0?[tRow('Ainda aberto',intBR(abertas)+' torneio(s)')]:[]),
+    `Premiação cobre ${cobertura.toFixed(0)}% do garantido JÁ FECHADO${abertas>0?` — os ${intBR(abertas)} em aberto ficam fora da razão`:''}`);
   const arrTip = tCard('Arrecadado (bruto)','R$ '+brl(grossSum,0),[
     tRow('Premiação','R$ '+brl(totalPrem,0)), tRow('Rake','R$ '+brl(rakeSum,0)), tRow('Admin fee','R$ '+brl(adminSum,0)), tRow('Entradas',intBR(entradas)),
   ].concat(semFee>0?[tRow('FORA (sem fee da GU)',intBR(semFee)+' torneio(s)')]:[]),
@@ -1826,8 +1920,13 @@ function buildDash(){
     tRow('Receita da casa','R$ '+brl(houseSum,0)), tRow('Overlay','−R$ '+brl(Math.abs(totalOv),0)),
   ],'O que sobra pra casa depois de cobrir o garantido');
   const tickTip = tCard('Ticket médio','R$ '+brl(ticket,0),[
-    tRow('Arrecadado','R$ '+brl(grossSum,0)), tRow('Entradas',intBR(entradas)), tRow('Field médio',intBR(fieldMed)+'/torneio'),
+    tRow('Arrecadado','R$ '+brl(grossSum,0)), tRow('Entradas (c/ re-entry)',intBR(entradas)),
+    tRow('Field médio',intBR(fieldMed)+'/torneio'),
   ],'Quanto cada entrada colocou em média');
+  const ovTip = tCard('Overlay total','R$ '+brl(Math.abs(totalOv),0),[
+    tRow('GTD que podia estourar','R$ '+brl(garOvBase,0)),
+  ].concat(garFree>0?[tRow('Freerolls (GTD do bolso da casa)','R$ '+brl(garFree,0))]:[]),
+    `${overlayPctGar.toFixed(1)}% do garantido já resolvido`);
   initKpiTips();
 
   document.getElementById('dashKpi').innerHTML=`
@@ -1835,14 +1934,14 @@ function buildDash(){
     <div class="kpi"><div class="kpi-label">Fechados</div><div class="kpi-val">${closed.length}</div><div class="kpi-sub">${rows.length?Math.round(closed.length/rows.length*100):0}% do total</div></div>
     <div class="kpi b" data-tip="${garTip}"><div class="kpi-label">Garantido</div><div class="kpi-val">${brlk(totalGar)}</div><div class="kpi-sub">GTD prometido · passe o mouse p/ detalhe</div></div>
     <div class="kpi ${semFee>0?'r':'b'}" data-tip="${arrTip}"><div class="kpi-label">Arrecadado (bruto)</div><div class="kpi-val">${brlk(grossSum)}</div><div class="kpi-sub">${semFee>0?`⚠ ${intBR(semFee)} sem fee da GU fora da conta`:`${intBR(entradas)} entradas · casa ${housePct.toFixed(1)}%`}</div></div>
-    <div class="kpi g"><div class="kpi-label">Premiação total</div><div class="kpi-val">${brlk(totalPrem)}</div><div class="kpi-sub">Cobertura ${cobertura.toFixed(0)}% do GTD</div></div>
+    <div class="kpi g"><div class="kpi-label">Premiação total</div><div class="kpi-val">${brlk(totalPrem)}</div><div class="kpi-sub">Cobertura ${cobertura.toFixed(0)}% do GTD fechado</div></div>
     <div class="kpi g" data-tip="${rakeTip}"><div class="kpi-label">Rake gerado</div><div class="kpi-val">${brlk(rakeSum)}</div><div class="kpi-sub">${rakePct.toFixed(1)}% do arrecadado · +admin = ${brlk(houseSum)}</div></div>
     <div class="kpi p" data-tip="${admTip}"><div class="kpi-label">Admin fee</div><div class="kpi-val">${brlk(adminSum)}</div><div class="kpi-sub">${adminEvents} evento(s) · coluna ADMIN FEE da GU</div></div>
     <div class="kpi ${rakeOK==null?'g':rakeOK?'g':'r'}" data-tip="${houseTip}"><div class="kpi-label">Receita da casa</div><div class="kpi-val">${brlk(houseSum)}</div><div class="kpi-sub">R$ ${brl(rakeDiaReal,0)}/dia${gRakeDia>0?` · meta ≥ ${brlk(gRakeDia)} ${rakeOK?'✓':'✗'}`:''}</div></div>
     <div class="kpi ${margem>=0?'g':'r'}" data-tip="${margTip}"><div class="kpi-label">Margem real</div><div class="kpi-val">${brlk(margem)}</div><div class="kpi-sub">receita − overlay coberto</div></div>
     <div class="kpi b" data-tip="${tickTip}"><div class="kpi-label">Ticket médio</div><div class="kpi-val">${brlk(ticket)}</div><div class="kpi-sub">field médio ${intBR(fieldMed)}/torneio</div></div>
-    <div class="kpi ${ovlOK==null?'r':ovlOK?'g':'r'}"><div class="kpi-label">Overlay total</div><div class="kpi-val">${brlk(Math.abs(totalOv))}</div><div class="kpi-sub">${overlayPctGar.toFixed(1)}% do GTD${gOvl>0?` · meta ≤ ${gOvl}% ${ovlOK?'✓':'✗'}`:''}</div></div>
-    <div class="kpi b"><div class="kpi-label">Perf. média</div><div class="kpi-val">${avgPerf!=null?pct(avgPerf):'—'}</div><div class="kpi-sub">vs garantido prometido</div></div>
+    <div class="kpi ${ovlOK==null?'r':ovlOK?'g':'r'}" data-tip="${ovTip}"><div class="kpi-label">Overlay total</div><div class="kpi-val">${brlk(Math.abs(totalOv))}</div><div class="kpi-sub">${overlayPctGar.toFixed(1)}% do GTD fechado${gOvl>0?` · meta ≤ ${gOvl}% ${ovlOK?'✓':'✗'}`:''}</div></div>
+    <div class="kpi b"><div class="kpi-label">Perf. média</div><div class="kpi-val">${avgPerf!=null?pct(avgPerf):'—'}</div><div class="kpi-sub">média por torneio (não ponderada)</div></div>
     <div class="kpi p"><div class="kpi-label">NF no período</div><div class="kpi-val">${nfRows.length}</div><div class="kpi-sub">${rows.length?Math.round(nfRows.length/rows.length*100):0}% não formaram</div></div>
   `;
   // ── alerta proativo + quebra por categoria + settings (metas/taxas) ──
@@ -1851,9 +1950,12 @@ function buildDash(){
   renderDashCatBreakdown(catAgg);
   renderDashSettings();
 
-  // Top overlay
+  // Top overlay — sobre as linhas RESOLVIDAS (fechadas + freerolls), não só as
+  // fechadas: o freeroll é justamente o caso que sangra garantido inteiro e ele
+  // nunca aparecia nesta lista.
   const byName={};
-  closed.forEach(r=>{
+  rows.forEach(r=>{
+    if(!vale(r) || (r.premiacao==null && r.overlay==null)) return;
     if(!byName[r.nome])byName[r.nome]={nome:r.nome,cat:r.cat,gar:0,prem:0,ov:0,n:0};
     byName[r.nome].gar+=r.garantido||0;
     byName[r.nome].prem+=r.premiacao||0;
@@ -2098,19 +2200,27 @@ function buildWeeklyComparison(){
   const el = document.getElementById('weeklyComparison');
   if(!el) return;
 
-  // Últimas 4 semanas
+  /* Últimas 4 semanas — SEM sobreposição. Era `dago(7*(w+1))` até `dago(7*w)`, e
+     como o flatRows filtra inclusive nas duas pontas cada "semana" tinha 8 dias e
+     o dia de fronteira caía em DUAS semanas seguidas: o comparativo media parte do
+     mesmo dado dos dois lados. Agora cada janela é [dago(7w+6), dago(7w)] = 7 dias
+     cheios, encostadas mas sem repetir dia.
+     Um flatRows por semana (era um pro `rows` e outro só pra contar o NF). */
   const weeks = [];
+  const valeW = r => !isMdFlight(r);
   for(let w=0;w<4;w++){
-    const from = dago(7*(w+1));
+    const from = dago(7*w+6);
     const to   = dago(7*w);
-    const rows = flatRows(from, to).filter(r=>r.premiacao!=null);
+    const all  = flatRows(from, to);
+    const rows = all.filter(r=>r.premiacao!=null&&valeW(r));
     if(!rows.length){ weeks.push(null); continue; }
     const gar   = rows.reduce((s,r)=>s+(r.garantido||0),0);
     const prem  = rows.reduce((s,r)=>s+(r.premiacao||0),0);
-    const ov    = rows.reduce((s,r)=>s+(r.overlay||0),0);
+    // overlay sobre TODAS as linhas da semana (inclui freeroll), igual ao KPI
+    const ov    = all.reduce((s,r)=>valeW(r)?s+(r.overlay||0):s,0);
     const house = rows.reduce((s,r)=>s+((r.premiacao!=null&&r.netFactor)?(r.premiacao/r.netFactor-r.premiacao):0),0); // rake+admin
     const perf  = gar>0?(prem-gar)/gar*100:null;
-    const nf    = flatRows(from,to).filter(r=>r.status==='nf').length;
+    const nf    = all.filter(r=>r.status==='nf').length;
     const [fy,fm,fd] = from.split('-');
     const [ty,tm,td] = to.split('-');
     weeks.push({label:`${fd}/${fm}–${td}/${tm}`, gar, prem, ov, house, perf, n:rows.length, nf});
@@ -3550,11 +3660,77 @@ async function saveAddTorneio(){
   }
 }
 
+/* ── EXCLUIR QUALQUER TORNEIO DA AUDITORIA (🗑 de toda linha) ─────────────
+   O 🗑 antes só existia na linha `manual`, porque apagar uma linha da Global
+   não adiantava: o próximo merge da planilha/snapshot a trazia de volta e o
+   admin ficava achando que tinha excluído. A saída é a mesma que o hub já usa
+   pros links-seed — TOMBSTONE: grava painel/<data>/auditHidden/<nome|hora> e o
+   flatRows pula a ocorrência, venha ela da sheet, do snapshot ou do manualRows.
+   Some de TUDO que lê flatRows (auditoria, Dashboard, insights, exportações),
+   e como o dado de origem continua intacto, o Restaurar devolve a linha inteira.
+
+   Linha manual leva os DOIS tratamentos: o tombstone garante o sumiço imediato
+   e o wipeManualRow apaga o nó de verdade (senão o torneio adicionado à mão
+   ficaria eternamente no banco, só escondido). */
+function removeAuditRowByEl(el){
+  if(!el) return;
+  const d = el.dataset;
+  removeAuditRow(d.date, d.key, d.nome, d.hora, d.manual === '1');
+}
+async function removeAuditRow(date, key, nome, hora, isManual){
+  if(!fbOk){ toast('Firebase não conectado','err'); return; }
+  if(!date || !nome){ toast('Torneio sem referência — recarregue a página','err'); return; }
+  const [y,m,d] = String(date).split('-');
+  const hk = hideKeyOf(nome, hora);
+  const detalhe = isManual
+    ? 'Foi adicionado à mão: apaga também o arrecadado, o field, o garantido e o ID lançados nele.'
+    : 'Sai da auditoria e de todos os totais do Dashboard. O dado de origem fica intacto — dá pra restaurar na faixa que aparece no topo da lista.';
+  if(!await confirmModal({title:'Excluir torneio', danger:true, confirmLabel:'Excluir',
+    message:`Excluir <b>${esc(nome)}</b>${hora?' ('+esc(hora)+')':''} de ${d}/${m}/${y}?<br><span style="font-size:11px;color:var(--ink3)">${detalhe}</span>`})) return;
+
+  try{
+    await db.ref(`painel/${date}/auditHidden/${hk}`).set({
+      nome, hora: hora||null, by: _email || '', at: Date.now(),
+    });
+    // manual: além de esconder, apaga o nó de origem e os valores lançados
+    if(isManual && key) await wipeManualRow(date, key, nome, hora||null).catch(()=>{});
+    // espelha em memória pra a linha sumir sem esperar o refresh ao vivo
+    if(_allData[date]){
+      if(!_allData[date].hidden) _allData[date].hidden={};
+      _allData[date].hidden[hk] = { nome, hora: hora||null, by: _email||'', at: Date.now() };
+    }
+    await writeAdminLog('excluir-auditoria', { torneio:nome, date, hora:hora||null, manual:!!isManual });
+    toast('✓ Torneio excluído da auditoria','ok');
+    loadAudit();
+  }catch(e){
+    toast('Falha ao excluir: '+e.message,'err');
+  }
+}
+
+/* Desfaz as exclusões do período (as datas vêm da própria faixa que as contou).
+   Só apaga o tombstone: o que o wipeManualRow removeu de verdade não volta —
+   por isso o aviso separa os dois casos. */
+async function restoreHiddenAudit(el){
+  if(!fbOk){ toast('Firebase não conectado','err'); return; }
+  const dates = String(el?.dataset?.dates||'').split(',').filter(Boolean);
+  if(!dates.length) return;
+  if(!await confirmModal({title:'Restaurar torneios excluídos', confirmLabel:'Restaurar',
+    message:`Trazer de volta os torneios excluídos ${dates.length>1?`nos ${dates.length} dias do período`:'neste dia'}?<br><span style="font-size:11px;color:var(--ink3)">Torneios adicionados à mão que foram excluídos não voltam — o registro deles foi apagado do banco.</span>`})) return;
+  try{
+    await Promise.all(dates.map(dt => db.ref(`painel/${dt}/auditHidden`).remove()));
+    dates.forEach(dt => { if(_allData[dt]) _allData[dt].hidden = {}; });
+    await writeAdminLog('restaurar-auditoria', { dates: dates.join(',') });
+    toast('✓ Torneios restaurados','ok');
+    loadAudit();
+  }catch(e){
+    toast('Falha ao restaurar: '+e.message,'err');
+  }
+}
+
 /* ── EXCLUIR TORNEIO ADICIONADO À MÃO ────────────────────────────
-   Só vale pra linha que veio de painel/<data>/manualRows (a ferramenta
-   "Adicionar torneio"). Linha da planilha NÃO tem este botão: apagá-la aqui
-   não adiantaria nada — o próximo ingest da Global traria de volta, e o
-   admin ficaria achando que excluiu.
+   Caminho ANTIGO, ainda usado pela lista do modal "Adicionar torneio"
+   (loadManualList), que lê o nó cru painel/<data>/manualRows. A tabela da
+   auditoria não chama mais isto direto — passa pelo removeAuditRow acima.
 
    Apaga o nó base E os valores que o "Adicionar" gravou junto (ids, garantido,
    field, premiacao/premBy, fixed). Deixar esses pendurados seria pior que não
@@ -4957,12 +5133,15 @@ function buildFieldTrend(){
   const el = document.getElementById('fieldTrendBody');
   if(!el) return;
 
+  // 30 recentes = [dago(29), hoje]; 30 anteriores = [dago(59), dago(30)]. Com
+  // dago(30)/dago(60) a janela recente pegava 31 dias (o corte caía do lado
+  // recente) e as duas médias comparavam períodos de tamanhos diferentes.
   const today = nowSP();
-  const mid   = dago(30);
-  const old   = dago(60);
+  const mid   = dago(29);
+  const old   = dago(59);
 
   const avg = a => a.reduce((s,x)=>s+x,0)/a.length;
-  const rows60 = flatRows(old, today).filter(r=>r.field!=null&&r.field>0);
+  const rows60 = flatRows(old, today).filter(r=>r.field!=null&&r.field>0&&!isMdFlight(r));
   const byName = {};
   rows60.forEach(r=>{
     if(!byName[r.nome]) byName[r.nome]={recent:[],older:[]};
@@ -5261,7 +5440,11 @@ async function buildHeatmap(){
   const el = document.getElementById('heatmapBody');
   if(!el) return;
 
-  const rows = flatRows(dago(30), nowSP()).filter(r=>r.premiacao!=null&&r.garantido);
+  // dago(29): a janela inclui hoje, então voltar 30 dias dava 31 sob o rótulo
+  // "últimos 30 dias". Linhas RESOLVIDAS = fechadas OU freeroll (que gera overlay
+  // sem nunca fechar) — o freeroll sangra num horário como qualquer outro.
+  const rows = flatRows(dago(29), nowSP())
+    .filter(r=>!isMdFlight(r) && r.garantido && (r.premiacao!=null || r.overlay!=null));
   const byHour = {};
   rows.forEach(r=>{
     const h = r.hora ? r.hora.slice(0,2) : '??';
@@ -5310,23 +5493,33 @@ function buildMonthProjection(){
   const daysLeft = lastDay - daysPast;
 
   const rows    = flatRows(firstDay, today);
+  const vale    = r => !isMdFlight(r);   // flight de Dia 1 não soma valor — é do Dia 2
   const closed  = rows.filter(r=>r.premiacao!=null);
-  const totalPrem = closed.reduce((s,r)=>s+(r.premiacao||0),0);
-  // flight de multiday (Dia 1) não soma garantido — é do Dia 2
-  const totalGar  = rows.reduce((s,r)=>isMdFlight(r)?s:s+(r.garantido||0),0);
-  const totalOv   = closed.reduce((s,r)=>s+(r.overlay||0),0);
+  const totalPrem = closed.reduce((s,r)=>vale(r)?s+(r.premiacao||0):s,0);
+  // overlay sobre TODAS as linhas (inclui freeroll), igual ao KPI e à Acompanhamento
+  const totalOv   = rows.reduce((s,r)=>vale(r)?s+(r.overlay||0):s,0);
 
   if(!closed.length || !daysPast){
     el.innerHTML = '<div style="font-size:12px;color:var(--ink3)">Sem dados suficientes para projeção.</div>';
     return;
   }
 
-  // Projeção linear: média/dia × dias restantes
-  const premPerDay  = totalPrem / daysPast;
-  const ovPerDay    = totalOv   / daysPast;
+  /* MÉDIA DIÁRIA SÓ DOS DIAS COMPLETOS. Hoje é dia parcial — a maior parte dos
+     torneios ainda não fechou — e entrava como divisor CHEIO, puxando a média
+     e portanto a projeção do mês inteiro pra baixo. No dia 1º, de manhã, a
+     projeção do mês dava quase zero. Fora do dia 1º sempre há dia completo;
+     naquele caso o próprio dia de hoje vira a base, com a ressalva na tela. */
+  const antes        = rows.filter(r=>r.date < today);
+  const diasCheios   = new Set(antes.map(r=>r.date)).size;
+  const premCheios   = antes.filter(r=>r.premiacao!=null).reduce((s,r)=>vale(r)?s+(r.premiacao||0):s,0);
+  const ovCheios     = antes.reduce((s,r)=>vale(r)?s+(r.overlay||0):s,0);
+  const premPerDay   = diasCheios ? premCheios/diasCheios : totalPrem;
+  const ovPerDay     = diasCheios ? ovCheios/diasCheios   : totalOv;
   const projPrem    = totalPrem + premPerDay * daysLeft;
   const projOv      = totalOv   + ovPerDay   * daysLeft;
-  const coveragePct = totalGar > 0 ? (totalPrem/totalGar*100) : 0;
+  // cobertura contra o garantido JÁ FECHADO (mesma base do KPI do topo)
+  const garClosed   = closed.reduce((s,r)=>vale(r)?s+(r.garantido||0):s,0);
+  const coveragePct = garClosed > 0 ? (totalPrem/garClosed*100) : 0;
 
   el.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">
