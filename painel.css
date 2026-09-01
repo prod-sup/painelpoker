@@ -3623,24 +3623,103 @@
 .oc-leg{color:var(--ink-soft)}.oc-leg.pos{color:var(--felt-bright)}.oc-leg.neg{color:var(--red)}
 
 /* ── Card editing badge ── */
+/* ── "ALGUÉM ESTÁ NESTE CARD" — indicador de digitando, igual ao de chat ──────
+   O problema real que isto resolve: duas pessoas coletando o MESMO torneio
+   porque nada dizia onde a outra estava. Por isso o aviso não é discreto — o
+   card inteiro muda de estado, e o balão fica no TOPO (antes ficava no rodapé,
+   onde some no meio de uma parede de cards).
+   O pulso é lento de propósito (2.4s): num quadro com dezenas de cards, piscada
+   rápida vira ruído e a pessoa aprende a ignorar. */
+/* O anel é um ELEMENTO injetado, não ::before/::after: os dois já têm dono no
+   card (::before = tarja do flag e o gradiente do has-premiacao; ::after = a
+   pílula "Fixado"). Mesma técnica de máscara das molduras de tier do
+   suprema-presence.js — anel de 1,5px com o miolo recortado. */
+.ceb-ring{
+  position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;z-index:3;
+  padding:1.5px;overflow:hidden;
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+          mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+  animation:ceb-ring-in .35s ease both;
+}
+/* A luz que corre a borda. Gira por `transform` (composited, não repinta) e não
+   por @property — assim funciona igual em qualquer motor, e uma parede de 60
+   cards não vira fogueira de CPU. */
+.ceb-ring i{
+  position:absolute;top:50%;left:50%;width:180%;aspect-ratio:1;
+  transform-origin:center;
+  background:conic-gradient(
+    transparent 0deg 205deg,
+    rgba(96,165,250,.10) 250deg,
+    rgba(96,165,250,.75) 312deg,
+    #93c5fd 338deg,
+    rgba(167,139,250,.85) 350deg,
+    transparent 360deg);
+  animation:ceb-spin 3.2s linear infinite;
+}
+@keyframes ceb-spin{
+  from{transform:translate(-50%,-50%) rotate(0deg)}
+  to  {transform:translate(-50%,-50%) rotate(360deg)}
+}
+@keyframes ceb-ring-in{from{opacity:0}to{opacity:1}}
+/* halo de apoio: separa o card ocupado da parede sem precisar piscar */
+.tcard.is-being-edited{
+  border-color:rgba(96,165,250,.42);
+  box-shadow:0 0 0 3px rgba(96,165,250,.10), 0 6px 22px -12px rgba(96,165,250,.5);
+}
 .card-editing-badge{
   position:absolute;bottom:8px;right:8px;
   display:flex;align-items:center;gap:6px;
-  background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.25);
+  background:rgba(96,165,250,.14);border:1px solid rgba(96,165,250,.3);
   border-radius:99px;padding:3px 10px 3px 3px;
   font-size:10.5px;color:var(--blue,#60a5fa);font-weight:600;
   backdrop-filter:blur(4px);
-  animation:ceb-in .2s ease;pointer-events:none;
+  animation:ceb-in .22s cubic-bezier(.2,.8,.2,1);pointer-events:none;
   z-index:10;
 }
-@keyframes ceb-in{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+@keyframes ceb-in{from{opacity:0;transform:translateY(4px) scale(.92)}to{opacity:1;transform:none}}
 .ceb-avatar{
   width:18px;height:18px;border-radius:50%;
   background:linear-gradient(135deg,#3b82f6,#1d4ed8);
   color:#fff;font-size:9px;font-weight:800;
   display:flex;align-items:center;justify-content:center;flex:none;
+  box-shadow:0 0 0 1.5px rgba(96,165,250,.35);
 }
-.ceb-text{letter-spacing:0}
+/* O balão anuncia e depois SE RECOLHE pra avatar + pontinhos.
+   Por quê: o card não tem canto livre — em cima à direita fica a pílula
+   "Fixado" e embaixo à direita o botão Copiar, e o `content-visibility:auto`
+   do .tcard aplica paint containment, então nada pode vazar pra fora da borda
+   pra escapar disso. Enquanto durava 8s, tapar o Copiar era tolerável; agora
+   que a marca fica os 90s inteiros, não é. Recolhido, sobra um selo pequeno —
+   e quem chegou depois ainda lê o nome no hover do anel... ou simplesmente vê
+   o card aceso. */
+.ceb-text{
+  letter-spacing:0;max-width:180px;overflow:hidden;white-space:nowrap;
+  animation:ceb-collapse .45s cubic-bezier(.4,0,.2,1) 4.5s both;
+}
+@keyframes ceb-collapse{to{max-width:0;opacity:0}}
+/* os três pontinhos do "digitando" — mesma cadência de app de mensagem */
+.ceb-dots{display:inline-flex;align-items:flex-end;gap:2px;height:9px;padding-bottom:1px}
+.ceb-dots i{
+  width:3px;height:3px;border-radius:50%;background:currentColor;
+  animation:ceb-dot 1.25s ease-in-out infinite;
+}
+.ceb-dots i:nth-child(2){animation-delay:.16s}
+.ceb-dots i:nth-child(3){animation-delay:.32s}
+@keyframes ceb-dot{
+  0%,60%,100%{opacity:.32;transform:translateY(0)}
+  30%        {opacity:1;  transform:translateY(-3px)}
+}
+/* Sem animação: o aviso continua LEGÍVEL, só para de se mexer. Quem pediu menos
+   movimento não pode perder a informação de que o card está ocupado. */
+@media (prefers-reduced-motion:reduce){
+  .ceb-ring{animation:none}
+  .ceb-ring i{animation:none;background:conic-gradient(rgba(96,165,250,.55),rgba(167,139,250,.55),rgba(96,165,250,.55))}
+  .card-editing-badge{animation:none}
+  .ceb-dots i{animation:none;opacity:.75}
+  /* sem movimento o texto não recolhe sozinho — fica legível e parado */
+  .ceb-text{animation:none;max-width:180px}
+}
 /* Garantir que tcard tem position relative para badge funcionar */
 .tcard{position:relative}
 

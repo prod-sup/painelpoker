@@ -4255,7 +4255,45 @@ function myPresencePayload(){
   if (tier != null) p.tier = tier;      // moldura conquistada (0..7)
   const title = getUserTitle();
   if (title) p.title = title;           // título equipado (nome legível)
+  /* "DIGITANDO" PRESERVADO NO HEARTBEAT.
+     O heartbeat de 60s manda `set()` com o payload INTEIRO (de propósito — é o
+     que cura um registro que nasceu torto, ver initPresence). Só que `editing`
+     não vinha aqui: a cada minuto o set apagava a marca de quem estava
+     preenchendo, e o indicador piscava fora sozinho no meio da digitação.
+     Carregando o estado local aqui, o heartbeat passa a RENOVAR a marca em vez
+     de matá-la — e `at` sai em hora do servidor, a mesma régua que o
+     renderPresence usa pra decidir se expirou. */
+  if (_myEditing && _myEditing.key) p.editing = { ..._myEditing, at: nowSrv() };
   return p;
+}
+
+/* O que EU estou preenchendo agora ({key, nome, field}) — espelho local do que
+   vai pro presence. Fica fora do payload pra poder ser lido/limpo sem reler o
+   Firebase. */
+let _myEditing = null, _myEditingSentAt = 0;
+/* Publica/limpa a marca. Escreve só o filho `editing` — barato perto do payload
+   inteiro do heartbeat.
+   ESTRANGULADO: `onCardPremiacaoInput` chama isto a CADA TECLA, e um write por
+   tecla é a mesma família do que já travou a digitação no painel antes. Trocar
+   de card escreve na hora (é a informação nova); continuar no mesmo card só
+   renova o carimbo de 15 em 15s, de sobra pro TTL de 90s do render. */
+const MY_EDIT_RENEW_MS = 15000;
+function setMyEditing(key, field, nome){
+  if (!key){ clearMyEditing(); return; }
+  const f = field || 'campo';
+  const mudou = !_myEditing || _myEditing.key !== key || _myEditing.field !== f;
+  _myEditing = { key, field: f, nome: nome || '' };
+  if (!fbReady) return;
+  if (!mudou && (Date.now() - _myEditingSentAt) < MY_EDIT_RENEW_MS) return;
+  _myEditingSentAt = Date.now();
+  fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`)
+    .set({ ..._myEditing, at: nowSrv() }).catch(()=>{});
+}
+function clearMyEditing(){
+  if (!_myEditing) return;          // já limpo: não gasta write à toa
+  _myEditing = null; _myEditingSentAt = 0;
+  if (!fbReady) return;
+  fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).remove().catch(()=>{});
 }
 let _presenceArmed = false;
 function initPresence(){
@@ -4305,23 +4343,63 @@ function renderPresence(all){
   if (!sessions.length){ wrap.hidden = true; return; }
   wrap.hidden = false;
 
-  // ── Typing indicators por card ──
-  // Remover badges anteriores
-  document.querySelectorAll('.card-editing-badge').forEach(el => el.remove());
-  // Mostrar quem está editando cada card (exceto eu mesmo)
+  /* ── "DIGITANDO" POR CARD (igual ao de chat) ─────────────────────────────
+     Diz em qual torneio a outra pessoa está AGORA, pra ninguém coletar o mesmo
+     duas vezes. Três detalhes que fazem funcionar:
+
+     TTL POR CAMPO — o ID e o field são rajadas curtas de tecla, e 8s de sobra
+     bastam. O ARRECADADO não: a operadora foca o campo e vai buscar o valor no
+     cliente, ficando um tempão sem digitar. Com 8s o card voltava a parecer
+     LIVRE exatamente enquanto ela estava nele. Como o `editing` do arrecadado é
+     renovado no heartbeat de 60s enquanto o campo está focado, 90s cobre a
+     pausa e ainda some sozinho se a aba morrer.
+
+     SEM REMOVER E RECRIAR — antes todo badge era apagado e redesenhado a cada
+     tick de presença, então a animação dos pontinhos reiniciava do zero e
+     piscava. Agora só sai quem deixou de estar lá, e quem continua é atualizado
+     no lugar. */
+  const vivos = new Set();
   sessions.forEach(([sid, v]) => {
     if(sid === PRESENCE_SESSION_ID) return; // ignorar minha própria sessão
-    if(!v?.editing?.key || (now - v.editing.at) > 8000) return; // expirado
-    const key  = v.editing.key;
-    const name = (v.name || 'Alguém').split(' ')[0]; // primeiro nome
-    const field = v.editing.field || 'campo';
-    const card  = document.querySelector(`.tcard[data-key="${key}"]`);
+    const ed = v && v.editing;
+    if(!ed || !ed.key) return;
+    const ttl = ed.field === 'prem' ? 90000 : 8000;
+    if(typeof ed.at !== 'number' || (now - ed.at) > ttl) return; // expirado
+    const card = document.querySelector(`.tcard[data-key="${ed.key}"]`);
     if(!card) return;
-    const badge = document.createElement('div');
-    badge.className = 'card-editing-badge';
+    const name = (v.name || 'Alguém').split(' ')[0]; // primeiro nome
+    const acao = ed.field === 'prem' ? 'coletando' : 'preenchendo';
+    vivos.add(ed.key);
+
+    let badge = card.querySelector('.card-editing-badge');
+    if(!badge){
+      // anel de luz + balão. Elementos de verdade porque ::before/::after do
+      // card já têm dono (tarja do flag, gradiente do has-premiacao, pílula
+      // "Fixado")
+      const ring = document.createElement('span');
+      ring.className = 'ceb-ring';
+      ring.setAttribute('aria-hidden','true');
+      ring.appendChild(document.createElement('i'));
+      card.appendChild(ring);
+      badge = document.createElement('div');
+      badge.className = 'card-editing-badge';
+      card.appendChild(badge);
+    }
     const icon = v.avatar || name.charAt(0).toUpperCase();
-    badge.innerHTML = `<span class="ceb-avatar">${icon}</span><span class="ceb-text">${name} está preenchendo...</span>`;
-    card.appendChild(badge);
+    const html = `<span class="ceb-avatar">${escHtml(icon)}</span>` +
+      `<span class="ceb-text">${escHtml(name)} está ${acao}</span>` +
+      `<span class="ceb-dots" aria-hidden="true"><i></i><i></i><i></i></span>`;
+    if(badge.dataset.sig !== html){ badge.innerHTML = html; badge.dataset.sig = html; }
+    card.classList.add('is-being-edited');
+  });
+  // quem saiu: tira o badge e o estado do card
+  document.querySelectorAll('.tcard.is-being-edited').forEach(card => {
+    if(vivos.has(card.dataset.key)) return;
+    card.classList.remove('is-being-edited');
+    const b = card.querySelector('.card-editing-badge');
+    if(b) b.remove();
+    const r = card.querySelector('.ceb-ring');
+    if(r) r.remove();
   });
 
   // agrupa por nome para o nav — guarda ícone (emoji), moldura (tier) e título do operador
@@ -4580,13 +4658,13 @@ function setId(key, val){
   applyIdDuplicateChecks();
   // Debounce: salvar no Firebase só após 500ms sem digitar
   clearTimeout(_debouncedIdSave[key]);
-  if(fbReady) fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).set({key, field:'id', at:Date.now()}).catch(()=>{});
+  setMyEditing(key, 'id', (rowByKey(key) || {}).nome);
   _debouncedIdSave[key] = setTimeout(() => {
     if(!fbReady) return;
     suppressUpcomingEcho();
     fbDb.ref(`${FB_BASE_PATH}/ids/${key}`).set(val ? ID_MAP[key] : null)
       .catch(err => console.error('Firebase: falha ao salvar ID', err));
-    fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).remove().catch(()=>{});
+    clearMyEditing();
   }, 250);
 }
 
@@ -4601,9 +4679,7 @@ function setField(key, val){
   if(row) row.field = (n != null && !isNaN(n)) ? n : null;
   // …mas o localStorage (síncrono, bate no disco) e o Firebase (rede) NÃO podem rodar
   // a cada tecla — era isso que travava ao digitar. Publica "editando" 1x por rajada.
-  if(fbReady && !_debouncedFieldSave[key]){
-    fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).set({key, field:'field', at:Date.now()}).catch(()=>{});
-  }
+  if(fbReady && !_debouncedFieldSave[key]) setMyEditing(key, 'field', row ? row.nome : '');
   clearTimeout(_debouncedFieldSave[key]);
   _debouncedFieldSave[key] = setTimeout(() => {
     _debouncedFieldSave[key] = null;
@@ -4612,7 +4688,7 @@ function setField(key, val){
     if(fbReady){
       suppressUpcomingEcho();
       fbDb.ref(`${FB_BASE_PATH}/field/${key}`).set(n != null && !isNaN(n) ? n : null);
-      fbDb.ref(`presence/${PRESENCE_SESSION_ID}/editing`).remove().catch(()=>{});
+      clearMyEditing();
     }
   }, 200);
 }
@@ -5879,7 +5955,7 @@ function renderPrincipais(){
           <label class="tcard-prem-label">Arrecadado (R$)</label>
           <input type="text" inputmode="decimal" placeholder="—" class="tcard-prem-input" data-key="${key}"
             value="${t.premiacao != null ? fmtBRL(t.premiacao, t.premiacao % 1 === 0 ? 0 : 2) : ''}"
-            oninput="onCardPremiacaoInput(this)" onfocus="this.select()" onblur="formatPremInput(this)">
+            oninput="onCardPremiacaoInput(this)" onfocus="onPremFocus(this)" onblur="onPremBlur(this)">
         </div>
         <div class="tcard-op-field">
           <label class="tcard-prem-label">Field (jogadores)</label>
@@ -8715,10 +8791,26 @@ function warnIfPremSuspeita(input, row, val){
   }
 }
 
+/* FOCO no Arrecadado = "estou neste torneio". É o gatilho certo, e não a tecla:
+   a operadora abre o campo e vai buscar o valor no cliente, ficando um bom tempo
+   sem digitar — que é justo quando a outra pessoa precisa ver que o card está
+   ocupado. Era o único campo do card que não avisava ninguém. */
+function onPremFocus(input){
+  input.select();
+  const row = rowByKey(input.dataset.key);
+  setMyEditing(input.dataset.key, 'prem', row ? row.nome : '');
+}
+function onPremBlur(input){
+  formatPremInput(input);
+  clearMyEditing();
+}
+
 function onCardPremiacaoInput(input){
   const key = input.dataset.key;
   const row = rowByKey(key);
   if(!row) return;
+  // renova o carimbo enquanto digita (o card pode ter sido focado há mais de 90s)
+  setMyEditing(key, 'prem', row.nome);
   // parsePremInput entende "2543,20", "2.543,20", "2543.20"
   const premiacaoVal = parsePremInput(input);
   // Renderiza preview imediatamente com o valor atual do input
