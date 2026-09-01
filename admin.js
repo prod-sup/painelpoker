@@ -1829,7 +1829,9 @@ function buildDash(){
   const garFree   = rows.reduce((s,r)=>(vale(r)&&r.premiacao==null&&r.overlay!=null)?s+(r.garantido||0):s,0);
   const garOvBase = garClosed+garFree;
   const cobertura = garClosed>0?(totalPrem/garClosed*100):0;
-  const abertas   = rows.filter(r=>vale(r)&&r.premiacao==null&&r.overlay==null).length;
+  // "aberto" = ainda vai fechar. NF (não formou) fica de fora: não é pendência,
+  // é torneio que não aconteceu.
+  const abertas   = rows.filter(r=>vale(r)&&r.status!=='nf'&&r.premiacao==null&&r.overlay==null).length;
 
   // ── ARRECADADO + RAKE + ADMIN FEE ──────────────────────────────────────
   // A premiação é o LÍQUIDO (parte da entrada que vira prize pool). O bruto
@@ -3727,37 +3729,6 @@ async function restoreHiddenAudit(el){
   }
 }
 
-/* ── EXCLUIR TORNEIO ADICIONADO À MÃO ────────────────────────────
-   Caminho ANTIGO, ainda usado pela lista do modal "Adicionar torneio"
-   (loadManualList), que lê o nó cru painel/<data>/manualRows. A tabela da
-   auditoria não chama mais isto direto — passa pelo removeAuditRow acima.
-
-   Apaga o nó base E os valores que o "Adicionar" gravou junto (ids, garantido,
-   field, premiacao/premBy, fixed). Deixar esses pendurados seria pior que não
-   excluir: a chave é hash de nome|hora|buyin|garantido, então recriar o mesmo
-   torneio ressuscitaria arrecadado e field antigos sem ninguém digitar nada. */
-async function removeAddedTorneio(key, date){
-  if(!fbOk){ toast('Firebase não conectado','err'); return; }
-  if(!key || !date){ toast('Torneio sem referência — recarregue a página','err'); return; }
-  const linha = (_allData[date] && _allData[date].rows && _allData[date].rows[key]) || {};
-  if(!linha.manual){ toast('Só dá pra excluir torneio adicionado à mão','err'); return; }
-  const nome = linha.nome || 'este torneio';
-  const [y,m,d] = String(date).split('-');
-  // Modal do app em vez do confirm() nativo: o navegador pode ter marcado "impedir
-  // esta página de criar mais diálogos" (aparece após vários confirm/alert), e aí o
-  // confirm() nativo retorna false na hora → o delete abortava SEM reação nenhuma.
-  if(!await confirmModal({title:'Excluir torneio', danger:true, confirmLabel:'Excluir',
-    message:`Excluir <b>${esc(nome)}</b> de ${d}/${m}/${y}?<br><span style="font-size:11px;color:var(--ink3)">Apaga também o arrecadado, o field, o garantido e o ID lançados nele. Não dá pra desfazer.</span>`})) return;
-
-  try{
-    await wipeManualRow(date, key, nome, linha.hora||null);
-    toast('✓ Torneio excluído','ok');
-    loadAudit();
-  }catch(e){
-    toast('Falha ao excluir: '+e.message,'err');
-  }
-}
-
 /* apaga o nó base + os valores que o "Adicionar" gravou junto. Extraído porque a
    lista do modal (loadManualList) precisa exatamente da mesma limpeza — duas
    versões disso divergiriam e uma delas deixaria valor órfão. */
@@ -3876,8 +3847,10 @@ async function removeManualFromList(key, date, nomeAttr, hora){
   if(!key || !date){ toast('Torneio sem referência — reabra o modal','err'); return; }
   const nome = nomeAttr || 'este torneio';
   const [y,m,d] = String(date).split('-');
-  // Ver removeAddedTorneio: modal do app no lugar do confirm() nativo (que o navegador
-  // pode suprimir, fazendo o delete não reagir a nada).
+  // Modal do app no lugar do confirm() nativo: o navegador pode ter marcado
+  // "impedir esta página de criar mais diálogos" (aparece depois de vários
+  // confirm/alert), e aí o confirm() nativo retorna false na hora → o delete
+  // abortava SEM reação nenhuma. Mesma razão no removeAuditRow.
   if(!await confirmModal({title:'Excluir torneio', danger:true, confirmLabel:'Excluir',
     message:`Excluir <b>${esc(nome)}</b>${hora ? ' ('+esc(hora)+')' : ''} de ${d}/${m}/${y}?<br><span style="font-size:11px;color:var(--ink3)">Apaga também o arrecadado, o field, o garantido e o ID lançados nele. Não dá pra desfazer.</span>`})) return;
   try{
@@ -3888,12 +3861,6 @@ async function removeManualFromList(key, date, nomeAttr, hora){
   }catch(e){
     toast('Falha ao excluir: '+e.message,'err');
   }
-}
-/* o botão vive numa linha gerada pelo próprio admin.js — mesmo padrão de
-   openAuditEditByEl: o dispatcher entrega o elemento e a chave vem do dataset */
-function removeAddedTorneioByEl(el){
-  if(!el) return;
-  removeAddedTorneio(el.dataset.key, el.dataset.date);
 }
 
 /* ── BOARD DA CAMPANHA (config do telão SPS) ──────────────────────
@@ -5531,7 +5498,7 @@ function buildMonthProjection(){
       <div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:9px">
         <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px">Projeção do mês</div>
         <div style="font-size:18px;font-weight:800;font-family:var(--mono);color:var(--gold)">${brlk(projPrem)}</div>
-        <div style="font-size:10px;color:var(--ink3)">+${daysLeft} dias restantes</div>
+        <div style="font-size:10px;color:var(--ink3)">+${daysLeft} dias · média de ${diasCheios||1} dia${(diasCheios||1)>1?'s':''} completo${(diasCheios||1)>1?'s':''}${diasCheios?'':' — hoje ainda parcial'}</div>
       </div>
       <div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:9px">
         <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px">Overlay projetado</div>
