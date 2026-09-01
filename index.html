@@ -215,12 +215,10 @@ document.addEventListener('DOMContentLoaded', () => {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10H13z"/></svg>
       </button>
       </div>
-      <button class="upload-btn" id="uploadGlobalBtn" title="Carregar Global MTT (.xlsx) → alimenta o painel direto" style="background:var(--felt);color:var(--bg);">
+      <button class="upload-btn" id="uploadGlobalBtn" title="Puxar a GU do link publicado agora (a grade também entra sozinha)" style="background:var(--felt);color:var(--bg);">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
         <span id="uploadGlobalBtnLabel">Global MTT</span>
       </button>
-      <input type="file" id="fileInputGlobal" accept=".xlsx" style="display:none;">
-      <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display:none;">
     </div>
   </div>
 </nav>
@@ -1012,16 +1010,6 @@ document.addEventListener('DOMContentLoaded', () => {
   </div>
 </div>
 
-<div class="op-overlay" id="reuploadWarnOverlay">
-  <div class="op-modal">
-    <div class="op-modal-title">⚠️ Essa planilha parece diferente</div>
-    <p class="op-modal-sub" id="reuploadWarnText"></p>
-    <div class="op-modal-actions">
-      <button type="button" class="op-modal-cancel" id="reuploadWarnCancel">Cancelar</button>
-      <button type="button" class="op-modal-submit" id="reuploadWarnConfirm">Carregar mesmo assim</button>
-    </div>
-  </div>
-</div>
 
 <header class="hero">
   <div class="wrap hero-inner">
@@ -1142,10 +1130,10 @@ document.addEventListener('DOMContentLoaded', () => {
         </svg>
       </div>
       <h3>Nenhuma agenda carregada</h3>
-      <p>Use o botão <b>Global MTT</b> no topo para carregar a planilha semanal e montar o painel do dia.</p>
-      <button class="upload-btn" id="uploadBtnEmpty" data-act="openGlobalFilePicker" style="margin:0 auto;background:var(--felt);color:var(--bg);">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
-        <span>Carregar Global MTT</span>
+      <p>A grade do dia entra sozinha pela GU publicada. Se ainda não apareceu, puxe agora.</p>
+      <button class="upload-btn" id="uploadBtnEmpty" data-act="puxarGuAgora" style="margin:0 auto;background:var(--felt);color:var(--bg);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        <span>Puxar a GU agora</span>
       </button>
     </div>
   </div>
@@ -1525,7 +1513,7 @@ document.addEventListener('DOMContentLoaded', () => {
   /* tour de 1ª visita — só pra quem já está logado (evita disparar no gate) */
   if (window.SupremaAuth && SupremaAuth.getSession && SupremaAuth.getSession()){
     SupremaOnboarding.start('painel', [
-      { el:'#uploadGlobalBtn', title:'Comece pela Global MTT', text:'Carregue a planilha do dia aqui — ela alimenta a grade, os resultados e as conferências automaticamente.', side:'bottom' },
+      { el:'#uploadGlobalBtn', title:'A grade vem da GU sozinha', text:'A GU publicada alimenta a grade, os resultados e as conferências automaticamente. Use este botão só para puxar na hora, se a grade ainda não apareceu.', side:'bottom' },
       { el:'#routineToggle', title:'Conferência', text:'Suba a Global MTT e confira os torneios do próximo dia, já em dólar e agrupados por torneio.', side:'bottom' },
       { el:'#guConfToggle', title:'Conferência do dia (GU)', text:'A receita completa dos eventos, coluna a coluna — Admin Fee já calculada e sincronizada com a equipe.', side:'bottom' },
       { el:'#overlayCalcToggle', title:'Calculadora de Overlay', text:'Calcula pote, rake e overlay de cada torneio na hora, com histórico do dia.', side:'bottom' }

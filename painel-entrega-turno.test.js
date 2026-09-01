@@ -13,7 +13,18 @@
      2. quem esfriou o heartbeat (fechou a aba, notebook hibernou) sai da conta;
      3. eu conto sempre, mesmo antes do meu primeiro heartbeat subir;
      4. nome com acento/caixa diferente é a MESMA pessoa (a chave do voto);
-     5. com todos confirmados, `faltamConfirmar` devolve vazio (é o que fecha).
+     5. com todos confirmados, `faltamConfirmar` devolve vazio (é o que fecha);
+     6. FOI DESCANSAR (01/09/2026): a pessoa sai pro intervalo com a aba aberta, a
+        máquina não dorme e o heartbeat segue batendo — ela parecia presente e
+        travava a troca até a proposta expirar em 20 min. Agora, com a votação de
+        pé há mais de ENTREGA_IDLE_MS, quem não encostou no painel desde que ela
+        abriu sai da conta (vai pra `ausentes`, que não bloqueia);
+     7. VISITA A DIA PASSADO (01/09/2026): quem está vendo o cronograma de ontem
+        não recebe a barra de votação, então era um voto pendente que NUNCA podia
+        ser dado. Agora não entra na conta;
+     8. RELÓGIO DA MÁQUINA: o `at` da presença é hora do SERVIDOR. Comparado com
+        Date.now() de um PC adiantado, todo mundo parecia offline e o dia virava
+        sem votação nenhuma. As contas passam por nowSrv().
    ========================================================================= */
 'use strict';
 const fs = require('fs');
@@ -52,22 +63,38 @@ function corpoConst(src, nome) {
   throw new Error('chaves não fecharam para ' + nome);
 }
 
-const TRES_MIN = 3 * 60 * 1000;
+const TRES_MIN   = 3 * 60 * 1000;
+const QUATRO_MIN = 4 * 60 * 1000;
 const ctx = {
   console, Map, String, Array, Object, Date,
   PRESENCE_STALE_MS: TRES_MIN,
+  ENTREGA_IDLE_MS: QUATRO_MIN,
   OPERATOR_NAME: 'Thainã',
   PANEL_RO_BASE: false,
+  VIEW_MODE_DATE: null,
   window: { _presenceCache: {} },
 };
 vm.createContext(ctx);
+// `_srvSkew` e `_ultimaInteracao` são `let` no painel (não viram propriedade do
+// contexto do vm). Aqui entram como `var` pra o teste poder mexer no relógio e na
+// "última interação" de fora — as FUNÇÕES são as de verdade, tiradas do painel.js.
 vm.runInContext(
+  'var _srvSkew = 0;\n' +
+  'var _ultimaInteracao = Date.now();\n' +
+  corpoFn(painelSrc, 'nowSrv') + '\n' +
+  corpoFn(painelSrc, 'minhaUltimaInteracaoSrv') + '\n' +
   corpoFn(painelSrc, 'votoKey') + '\n' +
   corpoFn(painelSrc, 'operadoresDoTurno') + '\n' +
   corpoFn(painelSrc, 'faltamConfirmar'), ctx);
 
 const agora = Date.now();
 const sessao = (name, idadeMs) => ({ name, at: agora - (idadeMs || 0) });
+/* sessão com carimbo de última interação: `inativaHa` = há quanto tempo a pessoa
+   não encosta no painel (o heartbeat continua fresco — é o caso do intervalo). */
+const sessaoAtiva = (name, inativaHa) => ({ name, at: agora, act: agora - (inativaHa || 0) });
+// atalhos: faltamConfirmar agora devolve {faltam, ausentes}
+const faltam   = p => ctx.faltamConfirmar(p).faltam;
+const ausentes = p => ctx.faltamConfirmar(p).ausentes;
 
 console.log('votoKey — uma pessoa é uma pessoa só:');
 {
@@ -126,28 +153,128 @@ console.log('faltamConfirmar — o que fecha (ou não) a votação:');
   ctx.window._presenceCache = { s1: sessao('Thainã'), s2: sessao('Bruno'), s3: sessao('Ana Paula') };
   const kT = ctx.votoKey('Thainã'), kB = ctx.votoKey('Bruno'), kA = ctx.votoKey('Ana Paula');
 
-  const soProponente = { confirmados: { [kT]: { nome: 'Thainã', at: agora } } };
-  ok('com só o proponente, faltam os outros dois', ctx.faltamConfirmar(soProponente).length === 2);
+  const soProponente = { at: agora, confirmados: { [kT]: { nome: 'Thainã', at: agora } } };
+  ok('com só o proponente, faltam os outros dois', faltam(soProponente).length === 2);
 
-  const todos = { confirmados: {
+  const todos = { at: agora, confirmados: {
     [kT]: { nome: 'Thainã', at: agora },
     [kB]: { nome: 'Bruno', at: agora },
     [kA]: { nome: 'Ana Paula', at: agora },
   } };
-  ok('com todos confirmados, não falta ninguém (fecha)', ctx.faltamConfirmar(todos).length === 0);
+  ok('com todos confirmados, não falta ninguém (fecha)', faltam(todos).length === 0);
 
   // Bruno confirmou e FOI EMBORA; Ana ainda está e já confirmou → tem que fechar
   ctx.window._presenceCache = { s1: sessao('Thainã'), s3: sessao('Ana Paula'), s2: sessao('Bruno', TRES_MIN + 1) };
-  ok('quem saiu depois de votar não segura nada', ctx.faltamConfirmar(todos).length === 0);
+  ok('quem saiu depois de votar não segura nada', faltam(todos).length === 0);
 
   // Alguém ENTROU no turno no meio da votação: passa a ser exigido (é o certo —
   // acabou de chegar e o cronograma vai sumir da tela dele)
   ctx.window._presenceCache = { s1: sessao('Thainã'), s2: sessao('Bruno'), s3: sessao('Ana Paula'), s4: sessao('Carlos') };
-  const faltaCarlos = ctx.faltamConfirmar(todos);
+  const faltaCarlos = faltam(todos);
   ok('quem chega no meio entra na conta', faltaCarlos.length === 1 && faltaCarlos[0].nome === 'Carlos');
 
-  ok('proposta sem confirmados não explode', ctx.faltamConfirmar({}).length === 4);
-  ok('proposta nula não explode', ctx.faltamConfirmar(null).length === 4);
+  ok('proposta sem confirmados não explode', faltam({}).length === 4);
+  ok('proposta nula não explode', faltam(null).length === 4);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FOI DESCANSAR — o travamento que motivou a mudança de 01/09/2026.
+   O operador sai pro intervalo e deixa a aba aberta. A máquina não hiberna, o
+   heartbeat continua batendo de minuto em minuto: pra votação ele estava
+   "presente" e os outros ficavam presos até a proposta expirar em 20 min.
+   O sinal que separa os dois casos é o `act` — última interação DE VERDADE.
+   ═══════════════════════════════════════════════════════════════════════════ */
+console.log('faltamConfirmar — quem foi descansar não trava a virada:');
+{
+  const kT = ctx.votoKey('Thainã');
+  const soEu = quando => ({ at: quando, confirmados: { [kT]: { nome: 'Thainã', at: quando } } });
+
+  // Bruno com a aba aberta e SEM encostar no painel desde antes da votação abrir
+  ctx.window._presenceCache = { s1: sessaoAtiva('Thainã', 0), s2: sessaoAtiva('Bruno', 30 * 60 * 1000) };
+
+  // ...mas a votação acabou de abrir: ninguém é descartado antes do prazo de graça
+  const nova = soEu(agora);
+  ok('nos primeiros minutos ninguém é descartado (prazo de graça)',
+    faltam(nova).length === 1 && faltam(nova)[0].nome === 'Bruno');
+  ok('e ninguém é marcado como ausente ainda', ausentes(nova).length === 0);
+
+  // ...votação de pé há mais de 4 min: Bruno sai da conta e a troca pode fechar
+  const velha = soEu(agora - (QUATRO_MIN + 30 * 1000));
+  ok('depois de ENTREGA_IDLE_MS, quem não encostou no painel sai da conta (DESTRAVA)',
+    faltam(velha).length === 0, JSON.stringify(faltam(velha)));
+  ok('e ele aparece em `ausentes`, pra virar linha no log (não some calado)',
+    ausentes(velha).length === 1 && ausentes(velha)[0].nome === 'Bruno');
+
+  // quem ESTÁ trabalhando (encostou depois que a votação abriu) continua bloqueando
+  ctx.window._presenceCache = { s1: sessaoAtiva('Thainã', 0), s2: sessaoAtiva('Bruno', 10 * 1000) };
+  ok('quem encostou no painel DEPOIS da votação abrir continua sendo esperado',
+    faltam(velha).length === 1 && faltam(velha)[0].nome === 'Bruno');
+
+  // sessão de cliente antigo (sem `act`) nunca é descartada — na dúvida, espera
+  ctx.window._presenceCache = { s1: sessaoAtiva('Thainã', 0), s2: sessao('Bruno') };
+  ok('sessão sem `act` (aba de versão antiga) nunca é descartada por inatividade',
+    faltam(velha).length === 1 && ausentes(velha).length === 0);
+
+  // duas abas da mesma pessoa: basta UMA estar sendo usada pra ela contar presente
+  ctx.window._presenceCache = {
+    s1: sessaoAtiva('Thainã', 0),
+    s2: sessaoAtiva('Bruno', 30 * 60 * 1000),   // notebook esquecido na mesa
+    s3: sessaoAtiva('Bruno', 5 * 1000),         // celular na mão, ativo agora
+  };
+  ok('a aba ATIVA da pessoa manda: ela segue sendo esperada',
+    faltam(velha).length === 1 && faltam(velha)[0].nome === 'Bruno');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VISITA A DIA PASSADO — quem está vendo o cronograma de ontem não recebe a
+   barra de votação (avaliarProposta sai antes de desenhar). Se ainda assim
+   entrasse na conta, seria um voto pendente que NUNCA poderia ser dado.
+   ═══════════════════════════════════════════════════════════════════════════ */
+console.log('visita a dia passado não vota (e não trava):');
+{
+  ctx.window._presenceCache = { s1: sessaoAtiva('Thainã', 0), s2: sessaoAtiva('Bruno', 0) };
+
+  // a presença de quem visita é publicada com ro:true (myPresencePayload)
+  ctx.window._presenceCache.s2.ro = true;
+  const semVisitante = ctx.operadoresDoTurno();
+  ok('quem está visitando um dia passado sai da conta',
+    semVisitante.length === 1 && semVisitante[0].nome === 'Thainã', JSON.stringify(semVisitante));
+  delete ctx.window._presenceCache.s2.ro;
+
+  // e EU, se estiver visitando, também não me incluo
+  ctx.VIEW_MODE_DATE = '2026-08-31';
+  ctx.window._presenceCache = { s2: sessaoAtiva('Bruno', 0) };
+  const euVisitando = ctx.operadoresDoTurno();
+  ok('se EU estou visitando, não me incluo na votação',
+    euVisitando.length === 1 && euVisitando[0].nome === 'Bruno', JSON.stringify(euVisitando));
+  ctx.VIEW_MODE_DATE = null;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RELÓGIO DA MÁQUINA — `at` é hora do SERVIDOR. Comparado com Date.now() num PC
+   adiantado, TODAS as outras sessões pareciam velhas: operadoresDoTurno()
+   devolvia só a própria pessoa, `turno.length > 1` dava falso lá em
+   confirmarEntregaDoDia e o dia virava SEM votação nenhuma.
+   ═══════════════════════════════════════════════════════════════════════════ */
+console.log('relógio desregulado não apaga o turno:');
+{
+  ctx.window._presenceCache = { s1: sessaoAtiva('Thainã', 0), s2: sessaoAtiva('Bruno', 0), s3: sessaoAtiva('Ana Paula', 0) };
+  ok('relógio certo: o turno inteiro conta', ctx.operadoresDoTurno().length === 3);
+
+  // PC 10 min ADIANTADO em relação ao servidor → skew negativo corrige a conta
+  ctx._srvSkew = -10 * 60 * 1000;
+  ok('PC 10 min adiantado: o turno continua inteiro (antes sobrava só eu)',
+    ctx.operadoresDoTurno().length === 3, JSON.stringify(ctx.operadoresDoTurno()));
+
+  // PC 10 min ATRASADO → skew positivo; quem de fato esfriou continua saindo
+  ctx._srvSkew = 10 * 60 * 1000;
+  ctx.window._presenceCache = {
+    s1: { name: 'Thainã', at: agora + 10 * 60 * 1000, act: agora + 10 * 60 * 1000 },
+    s2: { name: 'Bruno',  at: agora + 10 * 60 * 1000 - (TRES_MIN + 1000), act: agora },
+  };
+  ok('PC 10 min atrasado: quem realmente esfriou ainda sai da conta',
+    ctx.operadoresDoTurno().length === 1, JSON.stringify(ctx.operadoresDoTurno()));
+  ctx._srvSkew = 0;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

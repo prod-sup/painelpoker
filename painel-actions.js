@@ -32,9 +32,12 @@
       const o = document.getElementById('wbOverlay');
       if (o) o.style.display = 'none';
     },
-    openGlobalFilePicker() {
-      const i = document.getElementById('fileInputGlobal');
-      if (i) i.click();
+    /* Era openGlobalFilePicker: abria o seletor de arquivo da Global. O upload
+       manual saiu em 01/09/2026 (a GU vem só do link publicado), então o botão do
+       estado vazio reusa o botão "Global MTT" da nav — é ele que puxa a GU. */
+    puxarGuAgora() {
+      const b = document.getElementById('uploadGlobalBtn');
+      if (b) b.click();
     },
   };
 

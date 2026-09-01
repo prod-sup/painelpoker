@@ -154,16 +154,18 @@ console.log('\nações locais:');
   eq(overlay.style.display, 'none', 'hideWelcomeOverlay esconde o overlay');
 }
 {
+  // 01/09/2026: era openGlobalFilePicker (abria o .xlsx à mão). O upload manual
+  // saiu; a ação agora reusa o botão da nav, que puxa a GU do link publicado.
   const { doc, fire } = load();
   let cliques = 0;
-  doc._els['fileInputGlobal'] = { click: () => cliques++ };
-  fire('click', makeEl({ 'data-act': 'openGlobalFilePicker' }));
-  eq(cliques, 1, 'openGlobalFilePicker abre o seletor de arquivo');
+  doc._els['uploadGlobalBtn'] = { click: () => cliques++ };
+  fire('click', makeEl({ 'data-act': 'puxarGuAgora' }));
+  eq(cliques, 1, 'puxarGuAgora aciona o botão que sincroniza a GU do link');
 }
 {
   const { doc, fire } = load();   // elemento ausente não pode estourar
   fire('click', makeEl({ 'data-act': 'hideWelcomeOverlay' }));
-  fire('click', makeEl({ 'data-act': 'openGlobalFilePicker' }));
+  fire('click', makeEl({ 'data-act': 'puxarGuAgora' }));
   eq(true, true, 'elemento ausente não quebra a página');
 }
 

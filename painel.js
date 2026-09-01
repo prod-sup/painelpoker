@@ -1381,7 +1381,6 @@ function weekdayPtFromISO(iso){
 /* =========================================================================
    FILE PARSING
 ========================================================================= */
-const fileInput = document.getElementById('fileInput');
 
 /* ── Global MTT: chave do turno (reseta à meia-noite de Brasília, hora 00:00) ── */
 const GLOBAL_UPLOADED_KEY = 'suprema_global_uploaded_v1';
@@ -1414,111 +1413,32 @@ function resetGlobalBtnStyle(){
   const label = document.getElementById('uploadGlobalBtnLabel');
   const btnEl = document.getElementById('uploadGlobalBtn');
   if(!label || !btnEl) return;
-  label.textContent = 'Carregar Global MTT';
+  label.textContent = 'Global MTT';
   btnEl.style.background = '';
   btnEl.style.color = '';
   btnEl.title = '';
 }
 
-/* ── Botão "Global MTT" — agora puxa a GU do LINK publicado (mesma planilha da
-   Criação Noturna). O upload de arquivo continua existindo como plano B: se o
-   link falhar, o próprio syncGuGrade oferece o seletor. Shift+clique força o
-   arquivo direto, pra quem precisa testar uma planilha específica. ── */
-document.getElementById('uploadGlobalBtn').addEventListener('click', (ev) => {
-  if (ev.shiftKey){ document.getElementById('fileInputGlobal').click(); return; }
+/* ── Botão "Global MTT" — puxa a GU do LINK publicado (mesma planilha que alimenta
+   a Criação Noturna e a Conferência). É a ÚNICA porta de entrada da grade.
+
+   UPLOAD MANUAL REMOVIDO EM 01/09/2026. Existia como plano B (link fora do ar,
+   planilha de teste) por trás de um Shift+clique, de um banner de madrugada e do
+   prompt das 05:30. Saiu inteiro porque:
+     · a grade do painel é a GU publicada — arquivo à mão é sempre uma segunda
+       versão da verdade, e quem sobe não tem como saber se é a mais nova;
+     · a virada por upload divergia o turno: a aba de quem subia ingeria o ARQUIVO
+       e as outras seguiam o `rolledTo` e puxavam do LINK (duas grades no ar);
+     · e era o único caminho que trocava a GU de todo mundo SEM passar pela
+       votação do turno.
+   Consequência aceita: se o link cair num dia que ainda não carregou, não há
+   caminho manual — o painel segue tentando sozinho (scheduleGuSync) e o dia já
+   carregado continua vindo do Firebase. ── */
+document.getElementById('uploadGlobalBtn').addEventListener('click', () => {
   syncGuGrade({ manual:true, force:true });
 });
 
-document.getElementById('fileInputGlobal').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const label  = document.getElementById('uploadGlobalBtnLabel');
-  const btnEl  = document.getElementById('uploadGlobalBtn');
-  label.textContent = 'Lendo...';
-  btnEl.disabled = true;
-  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-  try {
-    await ensureXLSX();               // SheetJS sob demanda
-    const arrayBuffer = await file.arrayBuffer();
-    // UMA leitura do arquivo, DUAS abas: a MTTS BRAZIL traz a grade em reais e a
-    // G MTTS traz FEE/ADMIN FEE (a BRAZIL não tem essas colunas). É de lá que sai
-    // o rake de cada torneio, casado por nome+horário.
-    const wb = readWorkbook(arrayBuffer);
-    const matrix = workbookMatrix(wb, 'MTTS BRAZIL', false);
-    if (!matrix) throw new Error('Aba "MTTS BRAZIL" não encontrada.');
-    const feeIndex = guFeeIndexOrWarn(wb);
-    // ── QUAL DIA DA GRADE ESTA GLOBAL DEVE ALIMENTAR? ─────────────────────
-    // Regra à prova de loop: o dia é decidido pela DATA que o painel mostra
-    // (LAST_KNOWN_DATE), NÃO pelo relógio. Se o cronograma atual está 100% fixado,
-    // a Global SEMPRE avança para o próximo dia — assim "preenchi tudo e subi a
-    // Global" nunca repete o mesmo dia (era o bug: todayWeekdayName devolvia o mesmo
-    // dia da semana até as 05:30). Se ainda há card aberto, recarrega o MESMO dia.
-    const gradeFlipped = todayPathSP() > LAST_KNOWN_DATE; // 05:30 passou e o dia civil já virou
-    const relevantNow  = RAW_ROWS.filter(r => mustFix(r, classify(r)));
-    const dayComplete  = relevantNow.length > 0 && relevantNow.every(r => isFixed(r._key));
-    let baseDate;
-    if (gradeFlipped)     baseDate = todayPathSP();                 // grade virou por relógio → dia novo
-    else if (dayComplete) baseDate = addDaysISO(LAST_KNOWN_DATE, 1);// terminou o dia → PRÓXIMO dia
-    else                  baseDate = LAST_KNOWN_DATE;              // em andamento → recarrega o mesmo
-    const weekdayPt = weekdayPtFromISO(baseDate);
-    const section   = extractGlobalDaySection(matrix, weekdayPt, 1, feeIndex);
-    if (!section || (!section.main.length && !section.side.length && !section.sat.length)){
-      showToast(`Nenhum torneio para "${weekdayPt}" nessa planilha.`, true);
-      label.textContent = 'Carregar Global MTT'; btnEl.disabled = false;
-      e.target.value = ''; return;
-    }
-    // planilha válida: compartilha o arquivo com a equipe (painel/globalMtt)
-    publishSharedGlobal(arrayBuffer, file.name);
-    // e publica o mapa de FEE da GU, pro admin resolver o histórico pelo nome
-    publishGuFees(feeIndex);
-    // próximo dia da grade: a madrugada de HOJE (00:00–02:00) vive na seção de amanhã da Global —
-    // esses eventos entram no quadro atual pra serem fixados com antecedência (late register)
-    const nextSection = extractGlobalDaySection(matrix, weekdayPtFromISO(addDaysISO(baseDate, 1)), 1, feeIndex);
-    const rows = globalSectionToRows(section, nextSection);
-    if (!rows.length){
-      showToast('Nenhum torneio extraído da Global.', true);
-      label.textContent = 'Carregar Global MTT'; btnEl.disabled = false;
-      e.target.value = ''; return;
-    }
-    // ── TROCAR O NÓ DO DIA CONFORME O CASO ────────────────────────────────
-    // Em todos os casos que trocam de dia, a virada acontece ANTES da ingestão: a
-    // Global nova nasce no nó do dia novo e os dados do dia antigo ficam intactos no
-    // nó deles — cronogramas nunca se misturam.
-    if (gradeFlipped){
-      // grade virou (05:30+): a troca passa pela MESMA confirmação de entrega do fluxo
-      // automático — uma pergunta só, com o que ainda está aberto no dia que sai.
-      if (!confirmarEntregaDoDia({semSync:true, para: baseDate})){
-        label.textContent = 'Carregar Global MTT'; btnEl.disabled = false;
-        e.target.value = ''; return;
-      }
-    } else if (dayComplete && baseDate !== LAST_KNOWN_DATE){
-      // cronograma atual 100% fixado e ainda no mesmo dia civil (madrugada ou não): a grade
-      // do dia seguinte só entra DEPOIS da entrega confirmada — antes isto virava o dia
-      // sozinho e o cronograma recém-fechado sumia da tela sem ninguém decidir.
-      // semSync: a grade do dia novo é a que a pessoa acabou de escolher, não a do link
-      if (!confirmarEntregaDoDia({semSync:true, para: baseDate})){
-        label.textContent = 'Carregar Global MTT'; btnEl.disabled = false;
-        e.target.value = ''; return;   // continua no dia atual, sem trocar a grade
-      }
-    }
-    finishUpload(rows, `Global MTT — ${weekdayPt} (${file.name})`);
-    document.getElementById('globalUpdatePrompt')?.remove(); // prompt de "atualize a Global" cumprido
-    markGlobalUploaded();
-    setGlobalBtnUploaded();
-    showToast(`✓ Global carregada — ${rows.length} torneios de ${weekdayPt}`);
-    // Salvar snapshot inicial no Firebase logo após carregar
-    setTimeout(() => saveSnapshotToFirebase('global_upload'), 2000);
-  } catch (err) {
-    console.error('Erro ao ler Global:', err);
-    showToast('Erro ao ler a planilha Global: ' + err.message, true);
-    label.textContent = 'Carregar Global MTT';
-  } finally {
-    btnEl.disabled = false;
-    e.target.value = '';
-  }
-});
-
-// Restaurar visual do botão se já foi carregada neste turno
+// Restaurar visual do botão se a GU já foi aplicada neste turno
 if(wasGlobalUploadedToday()) setGlobalBtnUploaded();
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1526,8 +1446,8 @@ if(wasGlobalUploadedToday()) setGlobalBtnUploaded();
    A grade do painel sai da MESMA planilha publicada que já alimenta a Criação
    Noturna e a Conferência do dia (gu-parser.js → fetchGuSheetBuffer). Ninguém
    precisa subir arquivo: o painel lê a aba G MTTS e monta as rows pelo MESMO
-   globalSectionToRows do upload manual — nada de caminho paralelo "do automático".
-   O upload continua existindo como plano B (link fora do ar, planilha de teste).
+   globalSectionToRows de sempre — nada de caminho paralelo "do automático".
+   Desde 01/09/2026 este é o ÚNICO caminho: o upload de arquivo foi removido.
 
    CÂMBIO: a G MTTS vem em DÓLAR e o painel opera em reais. ×BRL_RATE (5)
    reproduz exatamente a aba MTTS BRAZIL — conferido linha a linha na Global de
@@ -1663,18 +1583,16 @@ async function syncGuGrade(opts){
     console.error('syncGuGrade', err);
     _guLastAt = Date.now(); _guLastOk = false; _guLastErr = err && err.message ? err.message : 'erro desconhecido';
     renderGuSyncMeta();
+    // Sem plano B manual desde 01/09/2026: a GU só entra pelo link. O painel segue
+    // tentando sozinho pelo scheduleGuSync — o aviso é pra ninguém ficar esperando
+    // uma grade que não vem achando que é lentidão.
     if(opts.manual){
-      const usarArquivo = window.confirm(
-        `Não consegui aplicar a GU do link:\n\n${_guLastErr}\n\n` +
-        `• OK — abrir o seletor pra carregar a planilha .xlsx à mão.\n` +
-        `• Cancelar — tentar de novo mais tarde (o painel continua tentando sozinho).`
-      );
-      if(usarArquivo) document.getElementById('fileInputGlobal').click();
+      showToast(`Não consegui aplicar a GU do link: ${_guLastErr}. O painel continua tentando sozinho — se insistir, avise quem publica a GU.`, true);
     }
     return {ok:false, error:_guLastErr};
   }finally{
     _guSyncing = false;
-    if(opts.manual && label){ label.textContent = labelAntes || 'Carregar Global MTT'; if(btnEl) btnEl.disabled = false; }
+    if(opts.manual && label){ label.textContent = labelAntes || 'Global MTT'; if(btnEl) btnEl.disabled = false; }
     if(opts.manual && wasGlobalUploadedToday()) setGlobalBtnUploaded();
   }
 }
@@ -1767,8 +1685,9 @@ function avisarDiaCompleto(){
 
 /* Confirmação da entrega. Mostra o que ainda está aberto NO DIA QUE SAI — é a
    última chance de olhar o dia anterior antes de ele sair da tela. */
-/* opts.semSync = a grade do dia novo já vem por outro caminho (upload de arquivo
-   em andamento); a entrega só vira o dia e não puxa a GU do link por cima. */
+/* Desde 01/09/2026 (fim do upload manual) não há mais caminho que traga a grade
+   por fora: toda entrega puxa a GU do link no dia novo. O antigo `opts.semSync`
+   saiu junto — era exclusivo do upload de arquivo. */
 function confirmarEntregaDoDia(opts){
   opts = opts || {};
   const dia = LAST_KNOWN_DATE;
@@ -1806,11 +1725,12 @@ function confirmarEntregaDoDia(opts){
   // todo mundo que está com o painel aberto confirmar. Sozinho (ou sem Firebase),
   // o "sim" de quem clicou já é o do turno inteiro — não há ninguém pra esperar.
   const turno = operadoresDoTurno();
-  if(!opts.semSync && fbReady && fbDb && turno.length > 1){
+  if(fbReady && fbDb && turno.length > 1){
     proporEntrega(prox, turno);
     return true;
   }
-  aplicarEntrega(prox, {semSync: opts.semSync});
+  // turno de uma pessoa só (ou sem Firebase): o "sim" de quem clicou já é o do turno
+  aplicarEntrega(prox, {});
   return true;
 }
 
@@ -1850,7 +1770,7 @@ function aplicarEntrega(prox, opts){
   _entregaPropostaLocal = null;
   document.getElementById('entregaBar')?.remove();
   LAST_KNOWN_DATE = prox;
-  _pularSyncNoProximoReset = !!opts.semSync;   // upload manual traz a grade dele mesmo
+  _pularSyncNoProximoReset = false;            // a grade do dia novo sempre vem da GU do link
   resetDay(prox);                              // snapshot do dia entregue, limpa, aponta o FB pro dia novo e puxa a GU
   document.getElementById('handoffBar')?.remove();
   renderDaySwitch();
@@ -1872,8 +1792,50 @@ function aplicarEntrega(prox, opts){
    ═══════════════════════════════════════════════════════════════════════════ */
 const ENTREGA_FORCAR_APOS_MS = 3 * 60 * 1000;
 const ENTREGA_EXPIRA_MS      = 20 * 60 * 1000;
+/* FOI DESCANSAR — o caso real do turno: a pessoa sai pro intervalo com a aba aberta,
+   a máquina não dorme, o heartbeat continua batendo e ela travaria a troca até os
+   20 min de expiração. Com a votação de pé há mais de ENTREGA_IDLE_MS, quem não
+   encostou no painel NEM UMA VEZ desde que ela abriu sai da conta sozinho.
+   Encostar = clicar, digitar, rolar ou voltar pra aba. Heartbeat não conta. */
+const ENTREGA_IDLE_MS        = 4 * 60 * 1000;
+const ENTREGA_SNOOZE_MS      = 2 * 60 * 1000;   // quanto tempo o "Ainda não" esconde a barra
 let _entregaPropostaLocal = null;    // último valor visto do nó (pra render e fechamento)
+let _entregaSnoozeAte  = 0;          // "Ainda não": esconde a barra SÓ nesta tela, até este instante
+let _entregaIdleLogada = '';         // o log de "seguindo sem fulano" sai uma vez por proposta
 let _pularSyncNoProximoReset = false;
+
+/* ── RELÓGIO COMUM ────────────────────────────────────────────────────────
+   A presença é carimbada com ServerValue.TIMESTAMP (hora do SERVIDOR) e era
+   comparada com Date.now() (hora da MÁQUINA). Num PC com o relógio adiantado mais
+   de 3 min, TODAS as outras sessões pareciam velhas: operadoresDoTurno() devolvia
+   só a própria pessoa, o `turno.length > 1` dava falso e o dia virava SEM votação
+   nenhuma. Atrasado, o inverso: ninguém nunca esfriava e quem já tinha ido embora
+   seguia bloqueando. O offset vem do próprio Firebase. */
+let _srvSkew = 0;
+function nowSrv(){ return Date.now() + _srvSkew; }
+function ouvirRelogioDoServidor(){
+  if(!fbReady || !fbDb) return;
+  try{
+    fbDb.ref('.info/serverTimeOffset').on('value', s => {
+      const v = s.val();
+      if(typeof v === 'number' && isFinite(v)) _srvSkew = v;
+    });
+  }catch(e){}
+}
+
+/* ── "ENCOSTOU NO PAINEL" ─────────────────────────────────────────────────
+   Última interação DE VERDADE. Não entra heartbeat e não entra movimento de mouse
+   (uma aba num segundo monitor tremeria sozinha): só clique, tecla, rolagem e
+   voltar pra aba. É o que separa "está no turno" de "deixou a aba aberta e foi
+   descansar". Fica em hora de servidor pra casar com o `at` da presença. */
+let _ultimaInteracao = Date.now();
+function minhaUltimaInteracaoSrv(){ return _ultimaInteracao + _srvSkew; }
+['pointerdown','keydown','wheel','touchstart'].forEach(ev => {
+  window.addEventListener(ev, () => { _ultimaInteracao = Date.now(); }, {passive:true, capture:true});
+});
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden) _ultimaInteracao = Date.now();
+});
 
 /* chave de voto por PESSOA (não por aba): nome normalizado */
 function votoKey(nome){
@@ -1881,37 +1843,53 @@ function votoKey(nome){
     .toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40) || 'alguem';
 }
 
-/* quem está no turno AGORA — mesma fonte dos avatares do nav, agrupada por pessoa */
+/* quem está no turno AGORA — mesma fonte dos avatares do nav, agrupada por pessoa.
+   Leva junto o `act` (última interação) MAIS RECENTE entre as abas da pessoa: duas
+   abas valem um voto só, e basta UMA delas estar sendo usada pra ela contar como
+   presente de verdade. */
 function operadoresDoTurno(){
   const cache = window._presenceCache || {};
-  const agora = Date.now();
+  const agora = nowSrv();
   const porPessoa = new Map();
   Object.values(cache).forEach(v => {
     if(!v || typeof v.at !== 'number' || (agora - v.at) >= PRESENCE_STALE_MS) return;
-    if(v.ro === true) return;                      // TV / modo leitura não decide a troca
+    if(v.ro === true) return;      // TV, modo leitura e visita a dia passado não decidem a troca
     const nome = v.name || 'Alguém';
-    porPessoa.set(votoKey(nome), nome);
+    const k    = votoKey(nome);
+    const act  = typeof v.act === 'number' ? v.act : null;
+    const ja   = porPessoa.get(k);
+    if(!ja) porPessoa.set(k, {k, nome, act});
+    else if(act != null && (ja.act == null || act > ja.act)) ja.act = act;
   });
   // eu sempre conto, mesmo que meu heartbeat ainda não tenha ido (aba recém-aberta) —
-  // a não ser que EU seja a sessão de leitura
-  if(!PANEL_RO_BASE) porPessoa.set(votoKey(OPERATOR_NAME || 'Alguém'), OPERATOR_NAME || 'Alguém');
-  return [...porPessoa.entries()].map(([k, nome]) => ({k, nome}));
+  // a não ser que EU seja a sessão de leitura ou esteja visitando um dia passado
+  if(!PANEL_RO_BASE && !VIEW_MODE_DATE){
+    const nome = OPERATOR_NAME || 'Alguém';
+    porPessoa.set(votoKey(nome), {k: votoKey(nome), nome, act: minhaUltimaInteracaoSrv()});
+  }
+  return [...porPessoa.values()];
 }
 
 /* abre a proposta no Firebase, já com o voto de quem propôs */
 function proporEntrega(prox, turno){
-  const eu = votoKey(OPERATOR_NAME || 'Alguém');
-  const proposta = {
-    para: prox,
-    por: OPERATOR_NAME || 'Alguém',
-    porKey: eu,
-    at: Date.now(),
-    confirmados: { [eu]: { nome: OPERATOR_NAME || 'Alguém', at: Date.now() } },
-  };
-  fbDb.ref(`${FB_BASE_PATH}/entrega`).set(proposta).catch(err => {
+  const eu    = votoKey(OPERATOR_NAME || 'Alguém');
+  const nome  = OPERATOR_NAME || 'Alguém';
+  const agora = nowSrv();
+  /* TRANSAÇÃO, não set(): duas pessoas clicando com segundos de diferença faziam a
+     segunda APAGAR a proposta da primeira — e o voto dela junto, sem aviso nenhum.
+     Se já existe proposta viva pro MESMO dia, isto só acrescenta o meu voto nela. */
+  fbDb.ref(`${FB_BASE_PATH}/entrega`).transaction(atual => {
+    if(atual && atual.para === prox && (agora - (atual.at || 0)) < ENTREGA_EXPIRA_MS){
+      atual.confirmados = atual.confirmados || {};
+      atual.confirmados[eu] = { nome, at: agora };
+      return atual;
+    }
+    return { para: prox, por: nome, porKey: eu, at: agora, confirmados: { [eu]: { nome, at: agora } } };
+  }).catch(err => {
     console.error('entrega: falha ao abrir a proposta', err);
     showToast('Não consegui abrir a votação da troca — verifique a conexão.', true);
   });
+  _entregaSnoozeAte = 0;   // proposta nova: a barra volta mesmo pra quem tinha adiado
   logActivity(`🗳 <b>${escHtml(OPERATOR_NAME || 'Alguém')}</b> propôs entregar o dia e trocar a GU para <b>${escHtml(prox)}</b> — aguardando o turno confirmar`, '🗳');
   showToast(`🗳 Proposta enviada — falta o resto do turno confirmar a troca para ${prox}.`);
 }
@@ -1921,8 +1899,9 @@ function confirmarMinhaParte(){
   if(!_entregaPropostaLocal || !fbReady || !fbDb) return;
   if(roGuard()) return;
   const eu = votoKey(OPERATOR_NAME || 'Alguém');
+  _entregaSnoozeAte = 0;
   fbDb.ref(`${FB_BASE_PATH}/entrega/confirmados/${eu}`)
-    .set({ nome: OPERATOR_NAME || 'Alguém', at: Date.now() })
+    .set({ nome: OPERATOR_NAME || 'Alguém', at: nowSrv() })
     .catch(() => showToast('Não consegui registrar sua confirmação — tente de novo.', true));
 }
 
@@ -1933,10 +1912,20 @@ function cancelarProposta(){
   logActivity(`🗳 Proposta de troca da GU cancelada por <b>${escHtml(OPERATOR_NAME || 'Alguém')}</b>`, '🗳');
 }
 
-/* quem falta confirmar: quem está no turno agora e ainda não votou */
+/* Quem falta confirmar, separado em dois: quem ainda pode votar e quem FOI
+   DESCANSAR (aba aberta, zero interação desde que a votação abriu). O segundo grupo
+   não bloqueia — é exatamente o caso que travava a troca até a proposta expirar. */
 function faltamConfirmar(p){
-  const conf = (p && p.confirmados) || {};
-  return operadoresDoTurno().filter(o => !conf[o.k]);
+  const conf     = (p && p.confirmados) || {};
+  const abertaEm = (p && p.at) || 0;
+  const dePeHa   = nowSrv() - abertaEm;
+  const faltam = [], ausentes = [];
+  operadoresDoTurno().forEach(o => {
+    if(conf[o.k]) return;
+    if(dePeHa > ENTREGA_IDLE_MS && o.act != null && o.act < abertaEm){ ausentes.push(o); return; }
+    faltam.push(o);
+  });
+  return {faltam, ausentes};
 }
 
 /* Chamado a cada mudança do nó `entrega` e a cada 20s (o turno muda sozinho quando
@@ -1948,38 +1937,62 @@ function avaliarProposta(){
   // proposta de um dia que já foi entregue (a aba estava dormindo, o rolledTo chegou
   // antes): é lixo, não pode virar barra nem disparar virada
   if(!(p.para > LAST_KNOWN_DATE)){ document.getElementById('entregaBar')?.remove(); return; }
-  const idade = Date.now() - (p.at || 0);
+  const idade = nowSrv() - (p.at || 0);
   if(idade > ENTREGA_EXPIRA_MS){
-    // ninguém resolveu em 20 min: derruba a proposta em vez de deixar a barra pra sempre
-    if(votoKey(OPERATOR_NAME || 'Alguém') === p.porKey && fbReady && fbDb){
-      fbDb.ref(`${FB_BASE_PATH}/entrega`).remove().catch(()=>{});
+    // Ninguém resolveu em 20 min: derruba a proposta em vez de deixar a barra pra sempre.
+    // A limpeza era SÓ de quem propôs — se a aba dele tinha fechado, o nó ficava no
+    // Firebase pra sempre e ninguém via o aviso. Agora qualquer aba limpa; o toast
+    // continua só pra quem propôs, pra não estourar N avisos iguais no turno.
+    if(fbReady && fbDb) fbDb.ref(`${FB_BASE_PATH}/entrega`).remove().catch(()=>{});
+    if(votoKey(OPERATOR_NAME || 'Alguém') === p.porKey){
       showToast('A proposta de troca expirou sem o turno fechar — pode propor de novo quando quiser.', true);
     }
     document.getElementById('entregaBar')?.remove();
     return;
   }
-  const faltam = faltamConfirmar(p);
+  const {faltam, ausentes} = faltamConfirmar(p);
+  // quem foi descansar sai da conta — mas não em silêncio: o turno precisa saber por
+  // que a troca passou sem o voto da pessoa. Uma linha por proposta.
+  if(ausentes.length){
+    const marca = `${p.at}|${ausentes.map(o => o.k).sort().join(',')}`;
+    if(_entregaIdleLogada !== marca){
+      _entregaIdleLogada = marca;
+      const quem = ausentes.map(o => escHtml(o.nome.split(' ')[0])).join(', ');
+      logActivity(`🗳 Votação da GU seguiu sem <b>${quem}</b> — painel aberto, mas sem nenhuma atividade desde que a votação começou`, '🗳');
+    }
+  }
   if(!faltam.length){
-    // TODO MUNDO confirmou. Só uma aba precisa gravar o rolledTo: a de quem propôs.
-    // Se quem propôs saiu do turno, qualquer aba assume depois de 1 min de proposta.
+    // TODO MUNDO que estava de fato no painel confirmou. Só uma aba precisa gravar o
+    // rolledTo: a de quem propôs. Se quem propôs saiu do turno, qualquer aba assume
+    // depois de 1 min de proposta.
     const souOProponente = votoKey(OPERATOR_NAME || 'Alguém') === p.porKey;
     const proponenteSumiu = !operadoresDoTurno().some(o => o.k === p.porKey);
     if(souOProponente || (proponenteSumiu && idade > 60000)) aplicarEntrega(p.para, {});
     return;
   }
-  renderEntregaBar(p, faltam);
+  renderEntregaBar(p, faltam, ausentes);
 }
 
 /* Barra da votação — mostra quem já confirmou e quem falta, com nome */
-function renderEntregaBar(p, faltam){
-  const existing = document.getElementById('entregaBar');
+function renderEntregaBar(p, faltam, ausentes){
+  ausentes = ausentes || [];
   const eu = votoKey(OPERATOR_NAME || 'Alguém');
   const jaVotei = !!(p.confirmados && p.confirmados[eu]);
+  // "Ainda não" agora vale de verdade: some por ENTREGA_SNOOZE_MS em vez de voltar
+  // no próximo tique de 20s. Nunca esconde de quem já votou (aí a barra é informativa).
+  if(!jaVotei && nowSrv() < _entregaSnoozeAte){ document.getElementById('entregaBar')?.remove(); return; }
+  const existing = document.getElementById('entregaBar');
   const nomes = faltam.map(o => o.nome.split(' ')[0]).join(', ');
-  const total = Object.keys(p.confirmados || {}).length;
+  // a conta só vale pra quem está no turno AGORA: contar todo mundo que já confirmou
+  // um dia dava "4 confirmaram" com duas pessoas na sala
+  const noTurno = new Set(operadoresDoTurno().map(o => o.k));
+  const total = Object.keys(p.confirmados || {}).filter(k => noTurno.has(k)).length;
   const souOProponente = eu === p.porKey;
-  const podeForcar = souOProponente && (Date.now() - (p.at || 0)) > ENTREGA_FORCAR_APOS_MS;
-  const sig = `${p.para}|${total}|${nomes}|${jaVotei}|${podeForcar}`;
+  // FORÇAR não é mais privilégio de quem propôs: se ele também saiu, ninguém conseguia
+  // destravar. Qualquer pessoa que já confirmou pode entregar depois do prazo.
+  const podeForcar = jaVotei && (nowSrv() - (p.at || 0)) > ENTREGA_FORCAR_APOS_MS;
+  const semAtividade = ausentes.map(o => o.nome.split(' ')[0]).join(', ');
+  const sig = `${p.para}|${total}|${nomes}|${jaVotei}|${podeForcar}|${semAtividade}`;
   if(existing && existing.dataset.sig === sig) return;
   const bar = existing || document.createElement('div');
   bar.dataset.sig = sig;
@@ -1988,7 +2001,10 @@ function renderEntregaBar(p, faltam){
     bar.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:99999;background:#1d4ed8;color:#fff;padding:10px 14px;border-radius:16px;font-size:13px;font-weight:700;box-shadow:0 8px 28px rgba(0,0,0,.4);display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:94vw';
     document.body.appendChild(bar);
   }
-  bar.innerHTML = `<span>🗳 <b>${escHtml(p.por)}</b> quer trocar a GU para <b>${escHtml(p.para)}</b> · ${total} confirmaram · falta <b>${escHtml(nomes)}</b></span>`;
+  const semAtvHtml = semAtividade
+    ? ` · <span style="opacity:.85;font-weight:600">seguindo sem ${escHtml(semAtividade)} (sem atividade)</span>`
+    : '';
+  bar.innerHTML = `<span>🗳 <b>${escHtml(p.por)}</b> quer trocar a GU para <b>${escHtml(p.para)}</b> · ${total} confirmaram · falta <b>${escHtml(nomes)}</b>${semAtvHtml}</span>`;
   if(!jaVotei){
     const sim = document.createElement('button');
     sim.type = 'button';
@@ -1999,9 +2015,9 @@ function renderEntregaBar(p, faltam){
     const nao = document.createElement('button');
     nao.type = 'button';
     nao.textContent = 'Ainda não';
-    nao.title = 'Some da sua tela; a proposta continua de pé para o resto do turno';
+    nao.title = 'Some da sua tela por 2 minutos; a proposta continua de pé para o resto do turno';
     nao.style.cssText = 'background:rgba(255,255,255,.18);color:#fff;border:none;border-radius:99px;padding:6px 12px;font-weight:800;font-size:12px;cursor:pointer;flex:none';
-    nao.addEventListener('click', () => bar.remove());
+    nao.addEventListener('click', () => { _entregaSnoozeAte = nowSrv() + ENTREGA_SNOOZE_MS; bar.remove(); });
     bar.appendChild(nao);
   } else {
     const ok = document.createElement('span');
@@ -2016,19 +2032,19 @@ function renderEntregaBar(p, faltam){
     cancel.style.cssText = 'background:rgba(255,255,255,.18);color:#fff;border:none;border-radius:99px;padding:6px 12px;font-weight:800;font-size:12px;cursor:pointer;flex:none';
     cancel.addEventListener('click', cancelarProposta);
     bar.appendChild(cancel);
-    if(podeForcar){
-      const forcar = document.createElement('button');
-      forcar.type = 'button';
-      forcar.textContent = 'Entregar mesmo assim';
-      forcar.title = 'Vira o dia sem esperar quem falta — use quando alguém deixou o painel aberto e foi embora';
-      forcar.style.cssText = 'background:#f59e0b;color:#000;border:none;border-radius:99px;padding:6px 12px;font-weight:800;font-size:12px;cursor:pointer;flex:none';
-      forcar.addEventListener('click', () => {
-        if(!window.confirm(`Entregar o dia sem a confirmação de ${nomes}?\n\nUse isto só quando a pessoa não está mais no turno — o painel dela vai virar junto.`)) return;
-        logActivity(`🗳 <b>${escHtml(OPERATOR_NAME || 'Alguém')}</b> entregou o dia SEM a confirmação de <b>${escHtml(nomes)}</b>`, '⚠');
-        aplicarEntrega(p.para, {});
-      });
-      bar.appendChild(forcar);
-    }
+  }
+  if(podeForcar){
+    const forcar = document.createElement('button');
+    forcar.type = 'button';
+    forcar.textContent = 'Entregar mesmo assim';
+    forcar.title = 'Vira o dia sem esperar quem falta — o painel de quem faltou vira junto';
+    forcar.style.cssText = 'background:#f59e0b;color:#000;border:none;border-radius:99px;padding:6px 12px;font-weight:800;font-size:12px;cursor:pointer;flex:none';
+    forcar.addEventListener('click', () => {
+      if(!window.confirm(`Entregar o dia sem a confirmação de ${nomes}?\n\nO painel de ${nomes} vira junto e o dia que sai fica salvo — dá pra reabrir depois em "◀ Ver ${LAST_KNOWN_DATE}".`)) return;
+      logActivity(`🗳 <b>${escHtml(OPERATOR_NAME || 'Alguém')}</b> entregou o dia SEM a confirmação de <b>${escHtml(nomes)}</b>`, '⚠');
+      aplicarEntrega(p.para, {});
+    });
+    bar.appendChild(forcar);
   }
 }
 
@@ -2175,6 +2191,7 @@ async function abrirDiaPassado(iso){
     // a partir daqui o painel está VISITANDO: trava escrita e para de seguir o dia ao vivo
     VIEW_MODE_DATE = iso;
     PANEL_RO = true;
+    refreshMyPresenceName();   // vira `ro` NA HORA: some da conta da votação da GU
     document.documentElement.classList.add('ro');
     detachDayListeners();
     clearTimeout(window._guPollT);              // GU automática não roda durante a visita
@@ -2240,6 +2257,7 @@ function sairDaVisitaAntesDeVirar(diaAoVivo){
   VIEW_MODE_DATE = null;
   PANEL_RO = PANEL_RO_BASE;
   if(!PANEL_RO) document.documentElement.classList.remove('ro');
+  refreshMyPresenceName();   // voltou pro ao vivo: volta a valer voto na troca da GU
   document.getElementById('visitBanner')?.remove();
   detachDayListeners();
   FB_BASE_PATH = `painel/${diaAoVivo}`;
@@ -2315,6 +2333,7 @@ function voltarAoVivo(){
     VIEW_MODE_DATE = null;
     PANEL_RO = PANEL_RO_BASE;
     if(!PANEL_RO) document.documentElement.classList.remove('ro');
+    refreshMyPresenceName();   // voltou pro ao vivo: volta a valer voto na troca da GU
     FB_BASE_PATH = `painel/${iso}`;
     // limpa o que era do dia visitado; os listeners do dia ao vivo repovoam tudo ao anexar
     FIXED_MAP={}; ID_MAP={}; FIELD_MAP={}; GARANTIDO_MAP={}; BUYIN_MAP={};
@@ -2443,53 +2462,13 @@ document.getElementById('summaryBtn').addEventListener('click', () => {
   copyToClipboard(text, null, 'Resumo do dia copiado — pronto para colar no grupo.');
 });
 
-let PENDING_UPLOAD = null;
-fileInput.addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-  try {
-    await ensureXLSX();               // SheetJS sob demanda: baixa só na 1ª importação
-    const rows = await parseFile(file);
-    if (!rows.length) {
-      showToast('Não encontramos torneios nesse arquivo.', true);
-      showSheetWarnings(LAST_PARSE_WARNINGS);
-    } else {
-      const orphaned = countOrphanedFixedKeys(rows);
-      const totalFixedToday = RAW_ROWS.filter(r => isFixed(r._key) || !!getId(r._key)).length;
-      const significant = orphaned >= 3 && totalFixedToday > 0 && (orphaned / totalFixedToday) > 0.25;
-      if (significant){
-        PENDING_UPLOAD = {rows, filename: file.name};
-        document.getElementById('reuploadWarnText').textContent =
-          `Essa planilha tem ${rows.length} torneios, mas ${orphaned} torneio${orphaned>1?'s':''} já marcado${orphaned>1?'s':''} hoje não aparece${orphaned>1?'m':''} nela — o vínculo seria perdido.`;
-        document.getElementById('reuploadWarnOverlay').classList.add('open');
-        fileInput.value = '';
-        return;
-      }
-      finishUpload(rows, file.name);
-    }
-  } catch (err) {
-    console.error(err);
-    showToast('Não foi possível ler esse arquivo.', true);
-  } finally {
-    fileInput.value = '';
-  }
-});
-function finishUpload(rows, filename){
-  logActivity(`Planilha <b>${filename||'Global'}</b> carregada — ${rows.length} torneios`, '📋');
-  ingest(rows, filename);
-  showToast(`"${filename}" carregada — ${rows.length} torneios.`);
-  showSheetWarnings(LAST_PARSE_WARNINGS);
-}
-document.getElementById('reuploadWarnCancel').addEventListener('click', () => {
-  document.getElementById('reuploadWarnOverlay').classList.remove('open');
-  PENDING_UPLOAD = null;
-});
-document.getElementById('reuploadWarnConfirm').addEventListener('click', () => {
-  document.getElementById('reuploadWarnOverlay').classList.remove('open');
-  if (PENDING_UPLOAD) finishUpload(PENDING_UPLOAD.rows, PENDING_UPLOAD.filename);
-  PENDING_UPLOAD = null;
-});
+/* SEGUNDO CAMINHO DE UPLOAD, removido em 01/09/2026 junto com o da Global.
+   Era o `#fileInput` (.csv/.xlsx/.xls): lia uma planilha qualquer, passava pelo
+   modal "essa planilha parece diferente" (reuploadWarnOverlay) e caía direto no
+   `ingest` — ou seja, montava a grade do painel a partir de um arquivo local.
+   Já não tinha nenhum botão que o disparasse, mas o caminho existia. Saiu inteiro
+   com o modal, o `finishUpload` e o `parseFile`, que só ele alcançava.
+   A grade vem da GU publicada — ver "GU DIRETO DO LINK" mais acima. */
 
 /* mostra a lista de avisos de validação coletados durante o parse (colunas/células ausentes).
    não bloqueia o uso do painel — é só um aviso pra a pessoa saber que algo pode estar incompleto. */
@@ -2503,24 +2482,6 @@ function showSheetWarnings(warnings){
 document.getElementById('sheetWarningsClose').addEventListener('click', () => {
   document.getElementById('sheetWarnings').hidden = true;
 });
-
-function parseFile(file){
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(reader.error);
-    reader.onload = (evt) => {
-      try{
-        const data = evt.target.result;
-        const wb = XLSX.read(data, {type:'binary', cellDates:false, cellStyles:true});
-        const sheetName = wb.SheetNames[0];
-        const sheet = wb.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json(sheet, {header:1, defval:null, raw:true});
-        resolve(rowsFromMatrix(json, sheet));
-      }catch(err){ reject(err); }
-    };
-    reader.readAsBinaryString(file);
-  });
-}
 
 /* detecta se uma célula está pintada com o azul usado para marcar Side Events a fixar (#C9DAF8, com tolerância pra variações de tema/tint) */
 function isBlueFill(sheet, rowIdx0, colIdx0){
@@ -4176,6 +4137,7 @@ function initFirebaseSync(){
         resetDay(novo);
       }
     });
+    ouvirRelogioDoServidor();   // antes de qualquer conta de presença/votação
     if (rolloverCongelado()) limparCadeiaViradaRuim();   // trava ativa → varre a cadeia ruim uma vez
     registrarListenerEntrega();
     registrarListenerReabertura();
@@ -4264,14 +4226,29 @@ function initFirebaseSync(){
 ========================================================================= */
 const PRESENCE_SESSION_ID = 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
 const PRESENCE_STALE_MS = 3 * 60 * 1000; // sessão sem heartbeat há mais de 3min é considerada offline
+let _actCarimbadaEm = 0;                 // qual interação já virou `act` no Firebase
 // payload de presença: leva também o ícone que o operador escolheu no card dele,
 // pra barra de presença mostrar o mesmo avatar (emoji) em vez de só as iniciais.
 function myPresencePayload(){
   const p = { name: OPERATOR_NAME || 'Alguém', at: firebase.database.ServerValue.TIMESTAMP };
   // sessão de LEITURA (TV, quem só acompanha) marca-se como tal: aparece nos avatares,
   // mas NÃO entra na conta de quem precisa confirmar a troca da GU — uma TV ligada num
-  // canto travaria a virada do turno inteiro, e ninguém ia entender por quê
-  if (PANEL_RO_BASE) p.ro = true;
+  // canto travaria a virada do turno inteiro, e ninguém ia entender por quê.
+  // VISITA A DIA PASSADO entra na mesma regra: avaliarProposta() nem desenha a barra
+  // pra quem está visitando, então essa pessoa era contada como voto pendente e NUNCA
+  // tinha como votar — o turno inteiro ficava esperando alguém sem botão na tela.
+  if (PANEL_RO_BASE || VIEW_MODE_DATE) p.ro = true;
+  // carimbo da última INTERAÇÃO real (hora do servidor, igual ao `at`). Só é renovado
+  // quando a pessoa de fato encostou no painel desde o último envio; senão repete o
+  // valor que já está lá — é isso que deixa "foi descansar" visível pras outras abas.
+  const minha = (window._presenceCache || {})[PRESENCE_SESSION_ID];
+  const actAnterior = minha && typeof minha.act === 'number' ? minha.act : null;
+  if (actAnterior == null || _ultimaInteracao > _actCarimbadaEm){
+    p.act = firebase.database.ServerValue.TIMESTAMP;
+    _actCarimbadaEm = _ultimaInteracao;
+  } else {
+    p.act = actAnterior;
+  }
   const av = getUserAvatar();
   if (av) p.avatar = av;
   const tier = getUserTier();
@@ -4314,12 +4291,14 @@ function initPresence(){
 }
 function refreshMyPresenceName(){
   if (!fbReady) return;
-  fbDb.ref(`presence/${PRESENCE_SESSION_ID}`).set(myPresencePayload());
+  // .catch: isto agora também é chamado ao entrar/sair da visita a um dia passado;
+  // uma recusa de permissão não pode virar unhandled rejection no meio da navegação
+  fbDb.ref(`presence/${PRESENCE_SESSION_ID}`).set(myPresencePayload()).catch(()=>{});
 }
 function renderPresence(all){
   const wrap = document.getElementById('presenceWrap');
   if (!wrap) return;
-  const now = Date.now();
+  const now = nowSrv();   // `at` é hora do servidor — comparar com Date.now() some com todo mundo num PC desregulado
   const sessions = Object.entries(all)
     .filter(([id]) => id)
     .filter(([id, v]) => v && typeof v.at === 'number' && (now - v.at) < PRESENCE_STALE_MS);
@@ -4379,7 +4358,7 @@ setVisibilityAwareInterval(() => {
   // (renderPresence filtra por PRESENCE_STALE_MS, então sessões que morreram em
   // silêncio somem da tela sozinhas.) Poda entradas velhas pra o cache não crescer.
   const cache = window._presenceCache || (window._presenceCache = {});
-  const cutoff = Date.now() - PRESENCE_STALE_MS;
+  const cutoff = nowSrv() - PRESENCE_STALE_MS;
   for (const id in cache) { const v = cache[id]; if (!v || typeof v.at !== 'number' || v.at < cutoff) delete cache[id]; }
   renderPresence(cache);
 }, 60*1000);
@@ -5298,25 +5277,9 @@ function updateProgress(){
   renderHandoffBar();
 }
 
-function maybeNotifyGlobalRefresh(){
-  if (!isMadrugadaSP()) return; // mesmo corte de sempre — só avisa entre 00:00 e 05:29
-  if (document.getElementById('globalRefreshBanner')) return; // já está na tela
-  showToast('🃏 Último card preenchido! Suba a Global atualizada pra renovar os cards.');
-  const bar = document.createElement('div');
-  bar.id = 'globalRefreshBanner';
-  bar.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:99999;background:var(--gold,#c08000);color:#000;padding:12px 20px;border-radius:99px;font-size:13px;font-weight:700;box-shadow:0 6px 24px rgba(0,0,0,.35);cursor:pointer;display:flex;gap:10px;align-items:center;max-width:90vw';
-  bar.innerHTML = '🃏 Último card preenchido e já passou das 00:00 — <u>clique aqui para subir a Global atualizada</u> e renovar os cards.<span id="globalRefreshDismiss" style="margin-left:6px;padding:2px 8px;border-radius:99px;background:rgba(0,0,0,.15);font-weight:800">✕</span>';
-  bar.addEventListener('click', () => {
-    bar.remove();
-    // abre direto o seletor de arquivo da Global — mesmo fluxo do botão "Global MTT" da nav
-    document.getElementById('fileInputGlobal')?.click();
-  });
-  bar.querySelector('#globalRefreshDismiss').addEventListener('click', (e) => {
-    e.stopPropagation(); // só dispensa, sem abrir o seletor de arquivo
-    bar.remove();
-  });
-  document.body.appendChild(bar);
-}
+/* maybeNotifyGlobalRefresh() foi removida em 01/09/2026 junto com o upload manual:
+   ela só existia pra abrir o seletor de arquivo na madrugada, e já estava sem
+   nenhum chamador. A grade nova entra sozinha pela GU do link. */
 
 /* banner de "virada segurada": lista CLICÁVEL dos torneios que ainda travam a virada do dia.
    Cada chip rola até o card pendente e dá flash (jumpToCardByKey), pra operadora ir direto fixar em vez
@@ -11188,7 +11151,8 @@ function resetDay(forcedDate){
   showToast('🌅 Novo dia — a GU do dia é carregada sozinha do link publicado.');
   // A GU do dia novo entra em TODA aba que virou, não só na de quem propôs — quem
   // só acompanhou a troca não pode ficar olhando pra tela vazia esperando alguém.
-  // Exceção: o upload manual traz a grade dele mesmo logo em seguida.
+  // (Quem volta de uma visita a dia passado ou de uma reabertura pula: a grade
+  // daquele dia vem do Firebase, não do link.)
   if(_pularSyncNoProximoReset){ _pularSyncNoProximoReset = false; return; }
   if(!PANEL_RO && !VIEW_MODE_DATE) setTimeout(() => syncGuGrade({force:true}), 400);
 }
@@ -11591,15 +11555,20 @@ function showGlobalUpdatePrompt(){
     prompt.innerHTML = `
       <div class="gup-icon">🌅</div>
       <div class="gup-text">
-        <strong>Virada da grade (05:30) — atualize a Global</strong>
-        <span>A grade de torneios do dia fechou. Turno da noite: carregue a Global MTT do novo dia antes da troca das 07:00.</span>
+        <strong>Virada da grade (05:30) — confira a GU do dia novo</strong>
+        <span>A grade de torneios do dia fechou. A GU do dia novo entra sozinha pelo link publicado; se ainda não apareceu, puxe agora antes da troca das 07:00.</span>
       </div>
-      <button class="gup-btn" onclick="document.getElementById('fileInputGlobal').click();document.getElementById('globalUpdatePrompt').remove()">
-        Carregar agora
+      <button class="gup-btn" id="gupSyncBtn">
+        Puxar a GU agora
       </button>
       <button class="gup-close" onclick="this.closest('#globalUpdatePrompt').remove()" aria-label="Fechar">✕</button>
     `;
     document.body.appendChild(prompt);
+    // o botão puxa a GU do link (não abre mais seletor de arquivo — ele não existe)
+    prompt.querySelector('#gupSyncBtn')?.addEventListener('click', () => {
+      prompt.remove();
+      syncGuGrade({ manual:true, force:true });
+    });
     // Animar entrada
     requestAnimationFrame(() => prompt.classList.add('show'));
   }
