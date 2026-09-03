@@ -457,6 +457,25 @@ async function doLogin(){
     if(user.loginAttempts||user.loginLockUntil) await userRef.update({loginAttempts:0,loginLockUntil:null});
 
     if(!ADMIN_EMAILS.includes(email)&&!user.admin){err.textContent='Acesso negado — apenas administradores.';btn.disabled=false;btn.textContent='Entrar';return;}
+
+    /* ── SESSÃO REAL DO FIREBASE AUTH (correção do "F5 desfaz") ─────────────
+       A conferência de senha acima é só no navegador (pwHash). As regras do
+       RTDB (Fase 4) exigem `auth != null` COM a identidade certa pra GRAVAR em
+       painel/... — e essa identidade vem do TOKEN do Firebase Auth, não da
+       sessão local do SupremaAuth. Sem assinar aqui, o admin abria "logado" na
+       tela mas SEM token de escrita: criar/apagar aparecia (escrita otimista +
+       _allData) e sumia no F5, porque o servidor recusava a gravação.
+       Assinamos com o MESMO email/senha que o hub usa (signInWithEmailAndPassword),
+       então o token passa a ser o do próprio admin e as gravações são aceitas. */
+    try{
+      await SupremaAuth.signInEmail(email, pass);
+    }catch(authErr){
+      // conta de Firebase Auth ausente/senha divergente: entra assim mesmo (leitura),
+      // mas avisa claramente que SALVAR não vai funcionar até logar no hub.
+      // toast (não o #err) porque o enterApp abaixo esconde a tela de login.
+      console.error('[admin] Firebase Auth signin falhou', authErr);
+      try{ toast('Entrou, mas a sessão de gravação falhou — criar/apagar NÃO vai salvar. Faça login no hub neste navegador e recarregue. ('+(authErr&&(authErr.code||authErr.message)||'auth')+')','err'); }catch(_){}
+    }
     // login manual bem-sucedido: grava a sessão compartilhada do Suprema OS
     // (assim os outros produtos reconhecem, e o admin fica confiável neste navegador)
     SupremaAuth.saveSession({ email, nome:user.nome, sobrenome:user.sobrenome, apelido:user.apelido, displayName:user.apelido||user.nome||email });

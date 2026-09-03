@@ -654,10 +654,10 @@ html.lite .card-accent{display:none}
   width:clamp(52px,5.6vh,78px); height:10px; border-radius:50%; z-index:1;
   background:radial-gradient(50% 50% at 50% 50%, rgba(0,0,0,.66), rgba(0,0,0,.3) 55%, transparent 74%);
   filter:blur(2.5px)}
-/* translateY(-60%): o ASSENTO dele (~60% da altura, onde a coxa encosta) fica NA linha do
-   topo do card — a borda vira o banco e as pernas pendem pra frente (dangling). */
+/* translateY(-66%): o BUMBUM dele (~66% da altura) apoia NA linha do topo do card — a borda
+   vira o banco e as pernas ficam pra FRENTE, pendendo por cima da beirada (dangling). */
 .ctrl-mascot-img{display:block; position:relative; z-index:2; height:clamp(92px,11.5vh,116px); width:auto;
-  transform:translateY(-60%); filter:drop-shadow(0 5px 5px rgba(0,0,0,.42))}
+  transform:translateY(-66%); filter:drop-shadow(0 5px 5px rgba(0,0,0,.42))}
 html.lite .ctrl-mascot-cast{filter:none; opacity:.8}
 @media (min-width:2200px){ .ctrl-mascot-img{height:clamp(130px,11vh,210px)} }
 .ctrl-header{padding:clamp(16px,1.4vw,24px); display:flex; flex-direction:column; gap:12px}
