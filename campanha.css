@@ -642,6 +642,24 @@ html.lite .card-accent{display:none}
 .ctrl-forecast{grid-column:3; grid-row:1}
 .ctrl-standing{grid-column:3; grid-row:2}
 /* centro-topo (col2 row1) fica aberto — a coroa SPS do fundo aparece aqui */
+/* ── CHICO SENTADO — mascote-anfitrião no centro aberto. Ocupa a MESMA célula do grid
+   que a Totais (col2/row2), alinhado ao topo e centralizado; o translateY negativo o
+   levanta pra SENTAR na borda superior do card (pés na faixa vazia do cabeçalho, acima
+   das tiles). A coroa dele alinha com o troféu do fundo → vira "trono". Decorativo. ── */
+.ctrl-mascot{grid-column:2; grid-row:2; align-self:start; justify-self:center; z-index:3;
+  position:relative; pointer-events:none; -webkit-user-select:none; user-select:none}
+/* sombra de contato: elipse escura na beirada do card, sob o assento — é o que ATERRA
+   o Chico na superfície (sem ela ele parece figurinha colada / "jogado no design"). */
+.ctrl-mascot-cast{position:absolute; left:50%; top:0; transform:translateX(-50%);
+  width:clamp(52px,5.6vh,78px); height:10px; border-radius:50%; z-index:1;
+  background:radial-gradient(50% 50% at 50% 50%, rgba(0,0,0,.66), rgba(0,0,0,.3) 55%, transparent 74%);
+  filter:blur(2.5px)}
+/* translateY(-60%): o ASSENTO dele (~60% da altura, onde a coxa encosta) fica NA linha do
+   topo do card — a borda vira o banco e as pernas pendem pra frente (dangling). */
+.ctrl-mascot-img{display:block; position:relative; z-index:2; height:clamp(92px,11.5vh,116px); width:auto;
+  transform:translateY(-60%); filter:drop-shadow(0 5px 5px rgba(0,0,0,.42))}
+html.lite .ctrl-mascot-cast{filter:none; opacity:.8}
+@media (min-width:2200px){ .ctrl-mascot-img{height:clamp(130px,11vh,210px)} }
 .ctrl-header{padding:clamp(16px,1.4vw,24px); display:flex; flex-direction:column; gap:12px}
 .ch-top{display:flex; align-items:center; gap:14px}
 .ch-logo-img{height:clamp(18px,1.7vw,24px); width:auto; flex:none}
@@ -944,8 +962,8 @@ html.lite .ch-area,html.lite .cf-area,html.lite .sp-area,html.lite .che-peak spa
 .jc-col.is-now .jc-val{color:var(--gen)}
 /* muitos dias (is-dense): o valor de cada barra vira VERTICAL pra caber sem sobrepor;
    os selos (melhor dia/hoje) somem — a cor da barra já distingue esses dias. */
-.jc-plot.is-dense .jc-val{transform-origin:50% 100%; transform:translateX(-50%) rotate(-90deg);
-  margin-bottom:9px; font-size:clamp(9px,.7vw,14px)}
+.jc-plot.is-dense .jc-val{writing-mode:vertical-rl; transform:translateX(-50%) rotate(180deg);
+  margin-bottom:7px; font-size:clamp(9px,.7vw,14px)}
 .jc-plot.is-dense .jc-tag{display:none}
 .jc-tag{position:absolute; bottom:100%; left:50%; transform:translateX(-50%); margin-bottom:26px; white-space:nowrap;
   font-size:8px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; padding:2px 7px; border-radius:999px;
@@ -1440,6 +1458,7 @@ html.lite .wk-bar i{animation:none}
   .ctrl-headline{grid-column:1 / 3; grid-row:auto}
   .ctrl-left{grid-row:auto; grid-column:1 / 3; flex-direction:row; flex-wrap:wrap} .ctrl-left>*{flex:1; min-width:220px}
   .ctrl-totals{grid-column:1 / 3; grid-row:auto} .ctrl-forecast,.ctrl-standing{grid-column:auto; grid-row:auto}
+  .ctrl-mascot{display:none}   /* grid reflui aqui — a colocação col2/row2 do Chico não vale */
 }
 
 /* responsivo (fallback p/ telas menores; alvo é 16:9 grande) --------------- */

@@ -1,7 +1,7 @@
 // Suprema Poker — Service Worker
 // IMPORTANTE: incremente SW_VERSION a cada deploy — é isso que faz as abas abertas
 // receberem o aviso de "nova versão disponível" e ninguém operar com código velho
-const SW_VERSION = '3.305.0';
+const SW_VERSION = '3.306.0';
 const CACHE_NAME = `suprema-painel-v${SW_VERSION}`;
 // BASE derivada da própria URL do SW: '/' na Vercel (painelpoker.vercel.app/) e
 // '/painelpoker/' no GitHub Pages. Os assets abaixo são RELATIVOS e recebem a base
@@ -72,6 +72,7 @@ const STATIC_ASSETS = [
   'campanha.css',
   'campanha.js',
   'campanha-core.js',
+  'chico-sentado.png',  // mascote-anfitrião da cena de controle (Chico sentado no trono)
   'logo-suprema.png',   // mora na raiz; o precache pedia 'assets/' e dava 404
   // O assets/sps-bg.png saiu em 30/08/2026: não existe (assets/ tem o .mp4, não
   // o PNG). É o poster do hero da campanha — publicando o arquivo, relistar.

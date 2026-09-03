@@ -181,6 +181,13 @@ if(!/[?&]demo=1/.test(location.search)){ SupremaAuth.guard({ panel:'tv' }); Supr
         <div class="cst-table" id="cst-table"></div>
       </div>
 
+      <!-- Chico sentado: mascote-detalhe assentado na beirada do card Totais. A sombra de
+           contato (.ctrl-mascot-cast) o aterra na superfície pra não parecer colado. Decorativo. -->
+      <div class="ctrl-mascot" aria-hidden="true">
+        <span class="ctrl-mascot-cast"></span>
+        <img class="ctrl-mascot-img" src="chico-sentado.png" alt="" onerror="this.closest('.ctrl-mascot').remove()">
+      </div>
+
     </div>
   </section>
 
