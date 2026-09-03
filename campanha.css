@@ -674,7 +674,10 @@ html.lite .ctrl-mascot-cast{filter:none; opacity:.8}
 .ch-tiles{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:4px}
 .ch-tile{padding:12px 14px; border-radius:13px; border:1px solid var(--line); background:rgba(255,255,255,.025); display:flex; flex-direction:column; gap:3px}
 .ch-tile-lbl{font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink4)}
-.ch-tile b{font-size:clamp(1.1rem,1.5vw,1.5rem); font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+/* nowrap + min menor: "R$ 73,7 mi" (com espaços) quebrava em 3 linhas quando o tile
+   encolhe (~90px em tela estreita/celular). Agora fica sempre em 1 linha e só reduz a
+   fonte nos viewports miúdos pra caber; telas largas ficam idênticas (1.5vw/1.5rem). */
+.ch-tile b{font-size:clamp(.92rem,1.5vw,1.5rem); font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums; letter-spacing:-.02em; white-space:nowrap}
 .ch-tile i{font-size:9.5px; color:var(--ink4); font-style:normal}
 
 .ctrl-highlight{padding:clamp(14px,1.2vw,20px); display:flex; flex-direction:column; gap:12px; justify-content:space-between; min-height:0;
