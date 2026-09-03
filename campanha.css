@@ -574,8 +574,8 @@ html.lite .scene-off .ident-logo,html.lite .scene-off .ident-logo::before{animat
   gap:clamp(4px,.7vh,9px); text-align:center; padding-top:clamp(4px,1vh,14px); min-height:0}
 .chd-kicker{font-size:clamp(10px,.95vw,13px); font-weight:600; letter-spacing:.24em; text-transform:uppercase; color:var(--ink3)}
 .chd-kicker b{color:var(--gold); font-weight:700}
-.chd-big{display:inline-flex; align-items:flex-start; gap:.06em; font-weight:800; line-height:.86; letter-spacing:-.045em;
-  font-size:clamp(3.2rem,7.5vw,7rem); font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1;
+.chd-big{display:inline-flex; align-items:flex-start; gap:.06em; font-weight:900; line-height:.86; letter-spacing:-.05em;
+  font-size:clamp(4.8rem,12.2vw,11.5rem); font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1;
   background:linear-gradient(100deg,var(--ink) 0%,var(--ink) 40%,var(--gold-hi) 50%,#fff 53%,var(--ink) 62%,var(--ink) 100%);
   background-size:300% 100%; -webkit-background-clip:text; background-clip:text; color:transparent; animation:tv-sheen 7.5s ease-in-out infinite}
 html.lite .chd-big,body.win-blurred .chd-big{animation:none}
@@ -717,10 +717,14 @@ html.lite .card-accent{display:none}
 .cf-live{font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:#8ff3c0}
 .cf-stage{text-align:center; font-size:12px; color:var(--ink3); letter-spacing:.02em}
 /* card "Destaque da série" — 2 linhas limpas: rótulo à esquerda, valor grande à direita (alinhados) */
-.cf-score{display:grid; grid-template-columns:auto 1fr; align-items:center; gap:clamp(9px,1.4vh,16px) 16px; padding:clamp(4px,1vh,10px) 0}
-.cf-row-lbl{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink4); font-weight:600}
-.cf-valwrap{display:flex; align-items:baseline; justify-content:flex-end; gap:10px; min-width:0}
-.cf-row-val{font-size:clamp(1.45rem,1.95vw,2.05rem); font-weight:800; letter-spacing:-.02em; color:var(--ink); font-variant-numeric:tabular-nums; white-space:nowrap; line-height:1}
+/* rótulo EM CIMA do valor (empilhado): o valor chega a "R$ 100,4 mi" e, lado a lado num card
+   de ~380px, transbordava por cima do rótulo E era cortado pela borda. Empilhar + reduzir a
+   fonte mantém tudo dentro do card e legível na TV. */
+.cf-score{display:grid; grid-template-columns:1fr; align-items:start; gap:2px; padding:clamp(4px,1vh,10px) 0}
+.cf-row-lbl{font-size:clamp(9.5px,.72vw,11.5px); letter-spacing:.08em; text-transform:uppercase; color:var(--ink4); font-weight:600}
+.cf-valwrap{display:flex; align-items:baseline; justify-content:flex-start; gap:10px; min-width:0}
+.cf-row-lbl + .cf-valwrap{margin:1px 0 clamp(10px,1.5vh,18px)}
+.cf-row-val{font-size:clamp(1.5rem,2.15vw,2.35rem); font-weight:900; letter-spacing:-.03em; color:var(--ink); font-variant-numeric:tabular-nums; white-space:nowrap; line-height:1.02}
 .cf-row-gold{color:var(--gold-hi)}
 .cf-perf{font-size:12px; font-weight:800; color:var(--gen); padding:4px 9px; border-radius:999px; border:1px solid rgba(56,231,154,.28); background:rgba(56,231,154,.1); flex:none; letter-spacing:.02em}
 .cf-lines{display:grid; grid-template-columns:1fr 1fr; gap:9px 16px; padding:12px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line)}
@@ -758,7 +762,7 @@ html.lite .card-accent{display:none}
 .ctrl-hero-body{gap:2px}
 
 /* forecast: sparkline de receita acumulada (preenche o card) */
-.cf-spark{flex:1; display:flex; flex-direction:column; gap:8px; min-height:56px}
+.cf-spark{flex:1; display:flex; flex-direction:column; gap:12px; min-height:80px}
 .cf-spark-head{display:flex; justify-content:space-between; align-items:baseline; font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink4)}
 .cf-spark-head b{color:var(--gen); font-variant-numeric:tabular-nums; letter-spacing:0}
 .cf-chart{flex:1; width:100%; min-height:40px}
@@ -772,7 +776,7 @@ html.lite .card-accent{display:none}
 html.lite .ch-line,html.lite .cf-pathline{stroke-dasharray:none; stroke-dashoffset:0; animation:none}
 .cf-chart .cf-grid{stroke:rgba(255,255,255,.05); stroke-width:1; vector-effect:non-scaling-stroke; stroke-dasharray:2 5}
 .cf-cta{margin-top:0}
-.cf-chart-wrap{position:relative; flex:1; min-height:40px}
+.cf-chart-wrap{position:relative; flex:1; min-height:60px}
 .cf-chart-wrap .cf-chart{height:100%}
 
 /* ── Em destaque hoje (TOP 3 · ao vivo do painel do dia) ── */
@@ -810,20 +814,20 @@ html.lite .ch-line,html.lite .cf-pathline{stroke-dasharray:none; stroke-dashoffs
 .cttl-live{display:inline-flex; align-items:center; gap:6px; font-size:9px; font-weight:800; letter-spacing:.12em; color:#8ff3c0; text-transform:uppercase}
 .cttl-live i{width:6px; height:6px; border-radius:50%; background:#38e79a; box-shadow:0 0 8px #38e79a; animation:tv-pulse 2s var(--ease) infinite}
 .cttl-day{margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--ink3)}
-.cttl-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:clamp(9px,.85vw,15px); flex:1; min-height:0}
-.mtile{position:relative; padding:clamp(13px,1.2vw,18px); border-radius:16px; border:1px solid var(--line);
-  background:linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,.018) 60%); display:flex; flex-direction:column; gap:8px; overflow:hidden}
+.cttl-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:clamp(16px,1.6vw,28px); flex:1; min-height:0}
+.mtile{position:relative; padding:clamp(20px,2.2vw,32px); border-radius:16px; border:1px solid var(--line);
+  background:linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,.018) 60%); display:flex; flex-direction:column; gap:16px; overflow:hidden}
 .mtile::after{content:""; position:absolute; inset:0 0 auto 0; height:2px; background:var(--_c,var(--gold)); opacity:.8}
 .mtile[data-tone=gar]{--_c:var(--gold-deep)} .mtile[data-tone=arr]{--_c:var(--gold-hi)} .mtile[data-tone=rake]{--_c:var(--rake)} .mtile[data-tone=admin]{--_c:var(--admin)}
 .mtile[data-tone=ov]{--_c:var(--loss)} .mtile[data-tone=perf]{--_c:var(--gold)}
 .mtile-top{display:flex; align-items:center; justify-content:space-between; gap:6px}
-.mtile-lbl{font-size:9.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink3)}
+.mtile-lbl{font-size:clamp(10.5px,1.2vw,14px); font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink3)}
 .mtile-trend{font-size:10px; line-height:1}
 .mtile-trend.up{color:var(--gen)} .mtile-trend.down{color:var(--loss)}
-.mtile-num{font-size:clamp(1.15rem,1.7vw,1.8rem); font-weight:700; letter-spacing:-.02em; line-height:1; color:var(--ink); font-variant-numeric:tabular-nums}
+.mtile-num{font-size:clamp(1.8rem,3.4vw,4.2rem); font-weight:900; letter-spacing:-.03em; line-height:1; color:var(--ink); font-variant-numeric:tabular-nums}
 .mtile[data-tone=gar] .mtile-num{color:var(--gold)} .mtile[data-tone=arr] .mtile-num{color:var(--gold-hi)} .mtile[data-tone=rake] .mtile-num{color:#6fe0be}
 .mtile[data-tone=admin] .mtile-num{color:#9cc0ff} .mtile[data-tone=ov] .mtile-num{color:#f4938a} .mtile[data-tone=perf] .mtile-num{color:var(--gold-hi)}
-.mtile-spark{width:100%; height:clamp(28px,3.4vh,44px); margin-top:auto; display:block}
+.mtile-spark{width:100%; height:clamp(64px,7.2vh,110px); margin-top:auto; display:block}
 
 /* linhas finas de terminal financeiro — respiração sutil de vida (sem glow pesado) */
 /* cada spark de tile se DESENHA (draw-in), com um pequeno atraso em cascata entre os tiles */
@@ -862,7 +866,7 @@ html.lite .ch-area,html.lite .cf-area,html.lite .sp-area,html.lite .che-peak spa
 .cttl-grid .mtile-num{font-size:clamp(.72rem,.9vw,1.06rem); white-space:nowrap; letter-spacing:-.02em}
 .cttl-grid .mtile-num .pre{font-size:.62em; margin-right:2px; opacity:.85}
 .cttl-grid .mtile-sub{text-align:center}
-.mtile-sub{font-size:9.5px; color:var(--ink4); font-variant-numeric:tabular-nums; line-height:1.3; letter-spacing:.01em}
+.mtile-sub{font-size:9px; color:var(--ink4); font-variant-numeric:tabular-nums; line-height:1.2; letter-spacing:0; margin-top:2px; opacity:.7}
 /* as moedas decorativas cobriam o tile Performance — fora deste card (cheio de tiles) */
 .ctrl-totals .card-accent{display:none}
 
@@ -875,16 +879,23 @@ html.lite .ch-area,html.lite .cf-area,html.lite .sp-area,html.lite .che-peak spa
 .jn-leg{display:flex; flex-direction:column; gap:5px; text-align:right}
 .jn-leg-lbl{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink4)}
 .jn-leg b{font-size:clamp(1.1rem,1.6vw,1.6rem); font-weight:700; color:var(--gold-hi); font-variant-numeric:tabular-nums}
+/* véu suave atrás do título + legenda: sem ele, "Dia a dia da série" e os números caem
+   em cima da moeda/troféu do poster e o texto perde contraste. z-index:-1 → só escurece o fundo. */
+.scene-journey .jn-top{position:relative; z-index:1}
+.scene-journey .jn-top::before{content:""; position:absolute; inset:-26px -40px -20px; z-index:-1; border-radius:22px;
+  background:linear-gradient(90deg, rgba(5,7,10,.80) 0%, rgba(5,7,10,.34) 30%, rgba(5,7,10,.20) 55%, rgba(5,7,10,.62) 82%, rgba(5,7,10,.74) 100%)}
 
 /* ── Jornada = GRÁFICO DE BARRAS do arrecadado/dia — cabe a série inteira, SEM scroll nem corte ──
-   Painel GLASS (translúcido + borda + brilho interno) p/ as barras lerem contra o vidro, não contra
-   o troféu do fundo. SEM backdrop-filter de propósito: blur ao vivo sobre o vídeo do hero re-borra a
-   cada frame e derruba o FPS (gargalo já conhecido). */
+   Painel GLASS (borda + brilho interno) p/ as barras lerem contra o vidro. O fundo era translúcido
+   demais (.40 no topo) → o troféu/moeda do poster vazava por cima do gráfico e brigava com as barras
+   (feedback do Brian: tela "ruim"). Agora quase opaco (.90+) — o troféu vira textura discreta, não
+   foco. SEM backdrop-filter de propósito: blur ao vivo sobre o vídeo do hero re-borra a cada frame e
+   derruba o FPS (gargalo já conhecido). */
 .jn-list{position:relative; width:min(1680px,96vw); display:flex; align-items:stretch; flex:1; min-height:0; overflow:hidden;
   padding:clamp(14px,2vh,26px) clamp(18px,2vw,38px) clamp(26px,3.4vh,40px); border-radius:22px;
   border:1px solid rgba(255,255,255,.09);
-  background:linear-gradient(180deg, rgba(14,18,25,.40) 0%, rgba(7,10,14,.62) 78%, rgba(7,10,14,.72) 100%);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.07), inset 0 0 70px -34px rgba(201,168,76,.28), 0 40px 90px -50px rgba(0,0,0,.75)}
+  background:linear-gradient(180deg, rgba(9,12,18,.90) 0%, rgba(7,10,14,.93) 60%, rgba(6,9,13,.95) 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07), inset 0 0 90px -30px rgba(201,168,76,.30), 0 40px 90px -50px rgba(0,0,0,.8)}
 /* ═══ Gráfico da Jornada (jc-*) — eixo-Y + linhas-guia + linha de média + barras (padrão dataviz).
    Estrutura: .jc-plot › [.jc-frame › .jc-yaxis + .jc-area(grid/avg/bars)] + .jc-xaxis(datas).
    Tudo posicionado por --f (bottom %) e --h (altura %) na MESMA escala → alinha perfeito. ═══ */
