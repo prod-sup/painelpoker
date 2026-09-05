@@ -1144,9 +1144,16 @@ function timeStatus(hhmm, cat){
 /* ── Histórico do torneio ── */
 let _historico = {};
 
+/* ECONOMIA DE BANDA: o nó `historico` cresce um bucket (`historico/d_AAAA_MM_DD`)
+   por dia, pra sempre. Baixá-lo INTEIRO a cada load do painel (e são muitos loads,
+   o dia todo, por vários operadores) vira egress que só aumenta com o tempo. O
+   tooltip aqui só precisa das últimas ~5 aparições de cada torneio, então pegamos
+   só os dias mais recentes via orderByKey().limitToLast — `_meta` ordena antes dos
+   `d_` e fica de fora, e buckets além disso não mudariam nenhum tooltip. */
+const HIST_TOOLTIP_MAX_DIAS = 90;    // 3 meses: cobre de sobra torneios diários/semanais nas "últimas 5 vezes"
 function loadHistorico(){
   if(!fbReady) return;
-  fbDb.ref('historico').once('value').then(snap => {
+  fbDb.ref('historico').orderByKey().limitToLast(HIST_TOOLTIP_MAX_DIAS).once('value').then(snap => {
     const raw = snap.val()||{};
     _historico = {};
     Object.values(raw).forEach(day => {
@@ -4221,8 +4228,9 @@ function initFirebaseSync(){
    caiu, o que pode demorar ou falhar em casos como wifi caindo de repente, notebook hibernando, ou
    o app/aba sendo fechado à força — nesses casos a sessão pode ficar "presa" no Firebase mostrando
    alguém que não está mais lá. Pra evitar isso: cada sessão renova seu timestamp (heartbeat) a cada
-   minuto, e renderPresence ignora qualquer sessão cujo timestamp esteja há mais de 3 minutos sem
-   renovar (3x o intervalo do heartbeat — folga generosa contra pequenos atrasos de rede).
+   90s, e renderPresence ignora qualquer sessão cujo timestamp esteja há mais de 3 minutos sem
+   renovar (2x o intervalo do heartbeat — folga contra pequenos atrasos de rede). O STALE fica em
+   3 min de propósito: a votação da troca de turno conta quem está "presente" por essa mesma régua.
 ========================================================================= */
 const PRESENCE_SESSION_ID = 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);
 const PRESENCE_STALE_MS = 3 * 60 * 1000; // sessão sem heartbeat há mais de 3min é considerada offline
@@ -4325,7 +4333,12 @@ function initPresence(){
     if (!fbReady || !(firebase.auth && firebase.auth().currentUser)) return;
     if (!_presenceArmed) myRef.onDisconnect().remove();   // re-arma junto com a cura
     myRef.set(myPresencePayload()).then(() => { _presenceArmed = true; }).catch(() => { _presenceArmed = false; });
-  }, 60*1000);
+    // ECONOMIA DE BANDA: cada set completo é re-transmitido a TODAS as outras abas
+    // (child_changed) — tráfego que escala com nº de operadores². 90s em vez de 60s
+    // corta ~1/3 desse egress e ainda deixa 2× de folga contra o STALE de 3 min
+    // (que a votação da troca de turno usa — ver ENTREGA_FORCAR_APOS_MS; por isso o
+    // STALE fica em 3 min, só a frequência do heartbeat baixa).
+  }, 90*1000);
 }
 function refreshMyPresenceName(){
   if (!fbReady) return;

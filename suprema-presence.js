@@ -21,7 +21,7 @@
   var AV_KEY = 'suprema_user_avatar_v1';   // ícone (emoji) — mesmo nome que hub/painel usam
   var TIER_KEY = 'suprema_user_frame_v1';  // moldura equipada (0..7)
   var TITLE_KEY = 'suprema_user_title_v1'; // id da tag/título equipado
-  var STALE_MS = 3 * 60 * 1000;            // sem heartbeat há 3min = offline
+  var STALE_MS = 5 * 60 * 1000;            // sem heartbeat há 5min = offline (2,5× o heartbeat de 120s)
   var SID = 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
 
   /* espelho dos TITLES do hub (id -> nome legível) */
@@ -235,8 +235,12 @@
       writePresence();
       /* heartbeat de SET completo, não update({at}): se o set inicial falhou
          (rede/transitório), o update nunca passaria no hasChild('name') da
-         regra — o set se cura sozinho no próximo batimento */
-      setInterval(function () { if (db) writePresence(); }, 60 * 1000);
+         regra — o set se cura sozinho no próximo batimento.
+         ECONOMIA DE BANDA: cada set é re-transmitido a todas as outras abas
+         (child_changed) — 120s em vez de 60s corta ~metade desse egress, com
+         2,5× de folga contra o STALE de 5min. Aqui a presença é só visual (não
+         alimenta votação nenhuma), então dá pra afrouxar mais que no painel. */
+      setInterval(function () { if (db) writePresence(); }, 120 * 1000);
     };
     if (email) hydrateProfile(email, boot); else boot();
     // some limpo ao fechar a aba (além do onDisconnect)
