@@ -3718,18 +3718,65 @@ async function removeAuditRow(date, key, nome, hora, isManual){
   if(!await confirmModal({title:'Excluir torneio', danger:true, confirmLabel:'Excluir',
     message:`Excluir <b>${esc(nome)}</b>${hora?' ('+esc(hora)+')':''} de ${d}/${m}/${y}?<br><span style="font-size:11px;color:var(--ink3)">${detalhe}</span>`})) return;
 
-  try{
-    await db.ref(`painel/${date}/auditHidden/${hk}`).set({
-      nome, hora: hora||null, by: _email || '', at: Date.now(),
-    });
-    // manual: além de esconder, apaga o nó de origem e os valores lançados
-    if(isManual && key) await wipeManualRow(date, key, nome, hora||null).catch(()=>{});
-    // espelha em memória pra a linha sumir sem esperar o refresh ao vivo
-    if(_allData[date]){
-      if(!_allData[date].hidden) _allData[date].hidden={};
-      _allData[date].hidden[hk] = { nome, hora: hora||null, by: _email||'', at: Date.now() };
+  // CROSS-LISTING DE MADRUGADA (proxCronograma) — a mesma ocorrência em 2 dias.
+  // Um evento <05:30 é publicado em DOIS dias de grade: no seu dia "casa" (normal)
+  // e no dia anterior, no topo da seção de amanhã, marcado `proxCronograma` (ver
+  // painel.js: madrugada de amanhã entra hoje pra fixação antecipada). Como são
+  // duas linhas físicas em datas diferentes, tombstone/wipe numa só deixava a
+  // outra viva — e ela "voltava" no F5. É o caso clássico da FINAL de multiday,
+  // que roda de madrugada. Estende o alvo ao PAR do cross-listing — e SÓ a ele:
+  //   • datas ADJACENTES (±1 dia), e
+  //   • uma das cópias marcada proxCronograma.
+  // Um evento RECORRENTE (mesmo nome+hora em vários dias) nunca é proxCronograma,
+  // então jamais é escondido em cadeia por engano.
+  const alvo = nhKey(nome, hora);
+  const DIA_MS = 86400000;
+  const baseMs = Date.parse(`${date}T00:00:00Z`);
+  const matchNa = dia => {
+    if(!dia || !dia.rows) return { existe:false, prox:false };
+    let existe=false, prox=false;
+    for(const r of Object.values(dia.rows)){
+      if(r && nhKey(r.nome, r.hora) === alvo){ existe=true; if(r.proxCronograma) prox=true; }
     }
-    await writeAdminLog('excluir-auditoria', { torneio:nome, date, hora:hora||null, manual:!!isManual });
+    return { existe, prox };
+  };
+  const clicadoProx = matchNa(_allData[date]).prox;
+  const datasAlvo = new Set([date]);
+  for(const [dt, dia] of Object.entries(_allData)){
+    if(dt === date) continue;
+    const dMs = Date.parse(`${dt}T00:00:00Z`);
+    if(!isFinite(dMs) || Math.abs(dMs - baseMs) > DIA_MS) continue;   // só ±1 dia
+    const m = matchNa(dia);
+    if(m.existe && (clicadoProx || m.prox)) datasAlvo.add(dt);        // só o par do cross-listing
+  }
+
+  try{
+    for(const dt of datasAlvo){
+      await db.ref(`painel/${dt}/auditHidden/${hk}`).set({
+        nome, hora: hora||null, by: _email || '', at: Date.now(),
+      });
+      // manual: além de esconder, apaga o nó de origem e os valores lançados. A
+      // chave do manualRows muda por dia — na data clicada usa a conhecida; nas
+      // demais procura a que casa por nome+hora.
+      if(isManual){
+        let kdt = (dt === date) ? key : null;
+        if(!kdt){
+          const dia = _allData[dt];
+          if(dia && dia.rows){
+            for(const [rk, r] of Object.entries(dia.rows)){
+              if(r && r.manual && nhKey(r.nome, r.hora) === alvo){ kdt = rk; break; }
+            }
+          }
+        }
+        if(kdt) await wipeManualRow(dt, kdt, nome, hora||null).catch(()=>{});
+      }
+      // espelha em memória pra a linha sumir sem esperar o refresh ao vivo
+      if(_allData[dt]){
+        if(!_allData[dt].hidden) _allData[dt].hidden={};
+        _allData[dt].hidden[hk] = { nome, hora: hora||null, by: _email||'', at: Date.now() };
+      }
+    }
+    await writeAdminLog('excluir-auditoria', { torneio:nome, date, hora:hora||null, manual:!!isManual, dias:[...datasAlvo] });
     toast('✓ Torneio excluído da auditoria','ok');
     loadAudit();
   }catch(e){
