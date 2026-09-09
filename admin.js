@@ -471,10 +471,10 @@ async function doLogin(){
       await SupremaAuth.signInEmail(email, pass);
     }catch(authErr){
       // conta de Firebase Auth ausente/senha divergente: entra assim mesmo (leitura),
-      // mas avisa claramente que SALVAR não vai funcionar até logar no hub.
-      // toast (não o #err) porque o enterApp abaixo esconde a tela de login.
+      // mas sem token de gravação. Quem AVISA o usuário é o enterApp (guarda única,
+      // logo após authReady) — assim o caminho de SESSÃO RESTAURADA, que não passa
+      // por aqui, também alerta em vez de falhar em silêncio no F5.
       console.error('[admin] Firebase Auth signin falhou', authErr);
-      try{ toast('Entrou, mas a sessão de gravação falhou — criar/apagar NÃO vai salvar. Faça login no hub neste navegador e recarregue. ('+(authErr&&(authErr.code||authErr.message)||'auth')+')','err'); }catch(_){}
     }
     // login manual bem-sucedido: grava a sessão compartilhada do Suprema OS
     // (assim os outros produtos reconhecem, e o admin fica confiável neste navegador)
@@ -574,6 +574,15 @@ async function enterApp(email, name){
   // "carregando" pra sempre). authReady() garante o token antes de ler.
   try{
     await authReady();
+    // Sem token de escrita do Firebase Auth as regras do RTDB (Fase 4) RECUSAM
+    // gravar em painel/... — excluir/criar aparecia (escrita otimista + _allData)
+    // e o torneio "voltava" no F5, porque o servidor nunca aceitou a gravação.
+    // Guarda ÚNICA para os dois caminhos de entrada (login manual e sessão
+    // restaurada): se não há usuário autenticado, avisa em vez de falhar calado.
+    const _fbUser = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
+    if(!_fbUser){
+      try{ toast('Sessão de gravação ausente — criar/excluir NÃO vai salvar (o F5 desfaz). Faça login no hub neste navegador e recarregue.','err'); }catch(_){}
+    }
     await loadAll();
     initDates();
     await loadAudit();   // a aba inicial (Acompanhamento) precisa disto
