@@ -749,6 +749,19 @@ function mergeDayInto(date, snap, day){
     });
   }
 
+  // 1b. Torneios EXCLUÍDOS que viajam JUNTO com o snapshot (co-locação). A linha de
+  // um dia FECHADO vem de snapshots/<date>/rows; o tombstone morava só em
+  // painel/<date>/auditHidden, um nó de VIDA DIFERENTE (podado em FB_RETENTION_DAYS
+  // pelo cleanupOldDailyNodes do painel, enquanto o snapshot dura mais). Quando os
+  // dois divergiam, a exclusão "voltava" — no F5 ou quando a poda apagava o dia.
+  // Guardado no MESMO snapshot que serve a linha, a exclusão nasce e morre com ela.
+  // Lido FORA do guard de `rows` porque o nó pode conter só auditHidden.
+  if(snap && snap.auditHidden && typeof snap.auditHidden==='object'){
+    if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},buy:{},premBy:{},hidden:{}};
+    if(!_allData[date].hidden) _allData[date].hidden={};
+    Object.entries(snap.auditHidden).forEach(([k,v])=>{ if(v) _allData[date].hidden[k]=v; });
+  }
+
   // 2. painel ao vivo — complementa/sobrepõe o snapshot
   if(day && typeof day==='object'){
     if(!_allData[date]) _allData[date]={rows:{},fixed:{},ids:{},field:{},prem:{},guar:{},buy:{},premBy:{},hidden:{}};
@@ -3755,6 +3768,16 @@ async function removeAuditRow(date, key, nome, hora, isManual){
       await db.ref(`painel/${dt}/auditHidden/${hk}`).set({
         nome, hora: hora||null, by: _email || '', at: Date.now(),
       });
+      // CO-LOCAÇÃO no snapshot: dia FECHADO tem a linha em snapshots/<dt>/rows, que
+      // sobrevive mais que painel/<dt> (podado em FB_RETENTION_DAYS). Grava o tombstone
+      // lá também pra a exclusão não reverter no F5 nem sumir com a poda. Só quando JÁ
+      // existe snapshot do dia (linha _snap em memória) — nunca cria snapshot de dia vivo.
+      const _temSnap = _allData[dt] && Object.values(_allData[dt].rows||{}).some(r=>r&&r._snap);
+      if(_temSnap){
+        await db.ref(`snapshots/${dt}/auditHidden/${hk}`).set({
+          nome, hora: hora||null, by: _email || '', at: Date.now(),
+        }).catch(()=>{});
+      }
       // manual: além de esconder, apaga o nó de origem e os valores lançados. A
       // chave do manualRows muda por dia — na data clicada usa a conhecida; nas
       // demais procura a que casa por nome+hora.
@@ -3795,6 +3818,9 @@ async function restoreHiddenAudit(el){
     message:`Trazer de volta os torneios excluídos ${dates.length>1?`nos ${dates.length} dias do período`:'neste dia'}?<br><span style="font-size:11px;color:var(--ink3)">Torneios adicionados à mão que foram excluídos não voltam — o registro deles foi apagado do banco.</span>`})) return;
   try{
     await Promise.all(dates.map(dt => db.ref(`painel/${dt}/auditHidden`).remove()));
+    // remove também a cópia co-locada no snapshot (dias fechados) — senão a linha
+    // continuaria escondida ao recarregar, lida do snapshot
+    await Promise.all(dates.map(dt => db.ref(`snapshots/${dt}/auditHidden`).remove().catch(()=>{})));
     dates.forEach(dt => { if(_allData[dt]) _allData[dt].hidden = {}; });
     await writeAdminLog('restaurar-auditoria', { dates: dates.join(',') });
     toast('✓ Torneios restaurados','ok');
